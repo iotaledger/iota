@@ -27,7 +27,36 @@ Every `AuditTrail` object supports a comprehensive read-only interface:
 - **Access control**: Inspect roles, permissions, and the revoked capabilities denylist
 - **Tag registry**: View registered tags and their usage counts
 
-### 1. Set Up Read-Only Client
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet to create the trail and a record-admin wallet to add a record, so there is on-chain state to inspect.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/07_access_read_only_methods.rs#L28-L29
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/07_access_read_only_methods.ts#L34-L35
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Set Up Read-Only Client
 
 You can use either a full client or a read-only client for inspection:
 
@@ -50,7 +79,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Fetch Trail State
+### 3. Fetch Trail State
 
 Load the full on-chain trail object to access metadata, locking configuration, and access control state:
 
@@ -73,7 +102,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. List and Paginate Records
+### 4. List and Paginate Records
 
 Access records with full pagination support:
 

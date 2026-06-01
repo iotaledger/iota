@@ -23,7 +23,36 @@ This guide demonstrates how to use **record tags** to categorize records and res
 
 ## Steps
 
-### 1. Create a Trail with a Tag Registry
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and a finance-writer wallet that will receive a tag-scoped capability.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/advanced/09_tagged_records.rs#L25-L26
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/advanced/09_tagged_records.ts#L26-L27
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Trail with a Tag Registry
 
 Define the available tags at trail creation. Only tags in the registry can be used on records.
 
@@ -46,7 +75,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Create a Tag-Scoped Role
+### 3. Create a Tag-Scoped Role
 
 Create a role restricted to specific tags using `RoleTags`. A holder of this role can only add records with one of the allowed tags.
 
@@ -69,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Issue a Capability Bound to a Specific Address
+### 4. Issue a Capability Bound to a Specific Address
 
 Bind the capability to a particular wallet so only that address can use it.
 
@@ -92,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Add a Record with a Matching Tag
+### 5. Add a Record with a Matching Tag
 
 The finance writer adds a record tagged as `"finance"` — this succeeds because the tag matches the role's restriction.
 
@@ -115,7 +144,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 5. Verify Tag Enforcement
+### 6. Verify Tag Enforcement
 
 Attempting to add a record with a non-matching tag (e.g., `"legal"`) fails.
 

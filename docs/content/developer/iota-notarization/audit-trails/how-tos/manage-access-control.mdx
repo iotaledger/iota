@@ -23,7 +23,36 @@ This guide covers the full capability lifecycle: creating and updating roles, is
 
 ## Steps
 
-### 1. Create a Custom Role
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and an operations-user wallet that will receive a custom role.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/05_manage_access.rs#L28-L29
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L28-L29
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Custom Role
 
 Define a new role with a specific set of permissions. Here we create an "Operations" role with record admin permissions.
 
@@ -46,7 +75,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Update Role Permissions
+### 3. Update Role Permissions
 
 Modify the permission set of an existing role. This replaces the previous permissions entirely.
 
@@ -69,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Issue a Constrained Capability
+### 4. Issue a Constrained Capability
 
 Issue a capability that is bound to a specific wallet address and has an expiration timestamp. The capability can only be used by the specified address and only until the expiry time.
 
@@ -92,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Revoke a Capability
+### 5. Revoke a Capability
 
 Revocation is immediate — the holder can no longer use the capability. The revoked capability ID is recorded in the trail's revoked-capability registry.
 
@@ -115,7 +144,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 5. Destroy a Capability
+### 6. Destroy a Capability
 
 Unlike revocation, destroying a capability permanently removes it without adding it to the revoked registry.
 
@@ -138,7 +167,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 6. Clean Up Revoked Capabilities
+### 7. Clean Up Revoked Capabilities
 
 Remove stale entries from the revoked-capability registry. This is required before a role can be deleted.
 
@@ -161,7 +190,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 7. Delete a Role
+### 8. Delete a Role
 
 Remove the role from the trail entirely. All capabilities for the role must be revoked/destroyed and cleaned up first.
 

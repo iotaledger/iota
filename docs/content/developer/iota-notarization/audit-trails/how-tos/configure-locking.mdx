@@ -23,7 +23,36 @@ This guide demonstrates how to use the three independent locking dimensions to c
 
 ## Steps
 
-### 1. Create LockingAdmin and RecordAdmin Roles
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet, a locking-admin wallet, and a record-admin wallet to separate locking administration from record writing.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/04_configure_locking.rs#L26-L28
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/04_configure_locking.ts#L35-L37
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create LockingAdmin and RecordAdmin Roles
 
 Delegate locking configuration to a `LockingAdmin` role and record operations to a `RecordAdmin` role.
 
@@ -52,7 +81,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Freeze Writes with a Write Lock
+### 3. Freeze Writes with a Write Lock
 
 Set the write lock to `Infinite` to prevent any new records from being added to the trail.
 
@@ -75,7 +104,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Lift the Write Lock
+### 4. Lift the Write Lock
 
 Remove the write lock by setting it to `None`, re-enabling record additions.
 
@@ -98,7 +127,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Configure the Delete-Record Window and Delete-Trail Lock
+### 5. Configure the Delete-Record Window and Delete-Trail Lock
 
 Set a **count-based deletion window** to protect the newest N records from deletion. Set the **delete-trail lock** to prevent the entire trail from being removed.
 

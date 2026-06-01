@@ -23,7 +23,36 @@ This guide shows how to append records to an existing `AuditTrail` object, read 
 
 ## Steps
 
-### 1. Add Records
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet to set up the trail and a record-admin wallet that adds and reads records.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/02_add_and_read_records.rs#L25-L26
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/02_add_and_read_records.ts#L26-L27
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Add Records
 
 Each record contains **data** (text or binary) and optional **metadata** (a string describing the event context). Records are appended sequentially and each receives an auto-incrementing sequence number.
 
@@ -46,7 +75,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Read Records by Sequence Number
+### 3. Read Records by Sequence Number
 
 Fetch individual records using their sequence number. Sequence numbers start at `0` (the initial seed record).
 
@@ -69,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Query Record Count
+### 4. Query Record Count
 
 Check how many records currently exist in the trail.
 
@@ -92,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Paginate Through Records
+### 5. Paginate Through Records
 
 Use cursor-based pagination to traverse large trails efficiently. Each page returns a batch of records, a cursor for the next page, and a flag indicating whether more pages exist.
 

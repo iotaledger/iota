@@ -23,7 +23,36 @@ This guide shows how to permanently remove an `AuditTrail` object from the IOTA 
 
 ## Steps
 
-### 1. Create a Role with Deletion Permissions
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and a maintenance-admin wallet that will be delegated the permissions needed to empty and delete the trail.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/08_delete_audit_trail.rs#L26-L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/08_delete_audit_trail.ts#L25-L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Role with Deletion Permissions
 
 Define a role that has both `DeleteAllRecords` (to empty the trail) and `DeleteAuditTrail` (to remove the trail itself).
 
@@ -46,7 +75,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Attempt to Delete a Non-Empty Trail
+### 3. Attempt to Delete a Non-Empty Trail
 
 Deleting a trail that still contains records fails. This constraint ensures no data is silently lost.
 
@@ -69,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Empty the Trail with Batch Deletion
+### 4. Empty the Trail with Batch Deletion
 
 Remove the records using `delete_records_batch` / `deleteBatch`. The call deletes unlocked records from the front of the trail and returns the sequence numbers it removed; any locked records are skipped. Since this trail has no active delete lock, a single batch empties it — verify the record count reaches zero.
 
@@ -92,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Delete the Empty Trail
+### 5. Delete the Empty Trail
 
 With no records remaining, the trail can now be permanently deleted.
 

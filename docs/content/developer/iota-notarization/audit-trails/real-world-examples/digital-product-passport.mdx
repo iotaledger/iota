@@ -68,7 +68,36 @@ Available Audit Trail fields are used for these purposes:
 
 ## Implementation Overview
 
-### 1. Create the DPP Trail
+### 1. Set Up Multiple Wallets
+
+Create one wallet per actor — a manufacturer, a lifecycle manager, a distributor, a consumer, a service technician, a recycler, and an EPRO (extended producer responsibility) operator — so each party signs with its own address.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](../how-tos/utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/03_digital_product_passport.rs#L53-L59
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/03_digital_product_passport.ts#L54-L60
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create the DPP Trail
 
 Create a trail with six record tags covering the full battery lifecycle, the product identity as immutable metadata, the initial lifecycle stage as updatable metadata, and the DPP-creation event as the first record.
 
@@ -91,7 +120,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Define DPP Roles and Issue Capabilities
+### 3. Define DPP Roles and Issue Capabilities
 
 Create tag-scoped roles for each lifecycle participant: Manufacturer, Distributor, Consumer, Recycler, and EPRO each receive record-admin permissions for their respective tags. The ServiceTechnician role is created but its capability is not yet issued — the technician must be explicitly authorized later. A LifecycleManager role receives metadata-admin permissions to update the lifecycle stage.
 
@@ -121,7 +150,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Populate the Passport with Lifecycle Events
+### 4. Populate the Passport with Lifecycle Events
 
 Build up the battery's history by recording product details (bill of materials, compliance certifications, sustainability data), a reward policy from the EPRO, distribution and logistics events, and consumer commissioning. The lifecycle manager updates the stage metadata at each transition.
 
@@ -144,7 +173,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Service Technician Requests Maintenance Access
+### 5. Service Technician Requests Maintenance Access
 
 The technician can read the full DPP history using public read access, but any attempt to write a maintenance record is denied — the ServiceTechnician role exists but no capability has been issued yet. After the manufacturer verifies the technician's credentials, a time-scoped capability (valid for 30 days) is issued, and the lifecycle stage is updated to reflect the ongoing maintenance.
 
@@ -167,7 +196,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 5. Record the Maintenance Event and Reward Payout
+### 6. Record the Maintenance Event and Reward Payout
 
 The authorized technician records the annual maintenance event with a health snapshot (76% battery health, detailed findings, and next service date). The EPRO then writes a reward-payout record referencing the maintenance event, documenting a 1-LCC (Lifecycle Credit) reward. The lifecycle stage is updated to reflect the completed service.
 
@@ -190,7 +219,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 6. Verify the Resulting Passport
+### 7. Verify the Resulting Passport
 
 Read back the on-chain trail state and the full record history. Verify that all seven DPP records are present (creation, product details, reward policy, distribution, commissioning, maintenance, reward payout), that all roles and tags are registered, and that the lifecycle stage reflects the completed maintenance.
 

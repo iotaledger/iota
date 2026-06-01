@@ -23,7 +23,36 @@ This guide demonstrates how to manage the record tag registry after trail creati
 
 ## Steps
 
-### 1. Create a Trail with an Initial Tag
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet, a tag-admin wallet, and a finance-writer wallet to separate tag management from record writing.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/advanced/11_manage_record_tags.rs#L25-L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/advanced/11_manage_record_tags.ts#L28-L30
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Trail with an Initial Tag
 
 Start with a trail that has at least one tag in its registry.
 
@@ -46,7 +75,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Delegate Tag Management to a TagAdmin Role
+### 3. Delegate Tag Management to a TagAdmin Role
 
 Create a `TagAdmin` role with `AddRecordTags` and `DeleteRecordTags` permissions.
 
@@ -69,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Add a New Tag
+### 4. Add a New Tag
 
 Add a tag to the registry after trail creation. New tags become immediately available for use in roles and records.
 
@@ -92,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Create a Role Scoped to a Tag and Add a Record
+### 5. Create a Role Scoped to a Tag and Add a Record
 
 Create a role restricted to a specific tag and use it to add a tagged record.
 
@@ -115,7 +144,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 5. Verify In-Use Tags Cannot Be Removed
+### 6. Verify In-Use Tags Cannot Be Removed
 
 Attempting to remove a tag that is referenced by a role or record fails.
 
@@ -138,7 +167,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 6. Remove an Unused Tag
+### 7. Remove an Unused Tag
 
 Tags that are not referenced by any role or record can be safely removed.
 

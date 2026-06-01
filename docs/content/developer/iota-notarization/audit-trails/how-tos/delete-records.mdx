@@ -23,7 +23,36 @@ This guide shows how to delete records from an `AuditTrail` object — both indi
 
 ## Steps
 
-### 1. Create a Role with Delete Permissions
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet and a maintenance-admin wallet that will be delegated record-deletion rights.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/06_delete_records.rs#L26-L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts#L25-L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Role with Delete Permissions
 
 Define a role that includes `AddRecord`, `DeleteRecord`, and `DeleteAllRecords` permissions.
 
@@ -46,7 +75,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Delete a Single Record
+### 3. Delete a Single Record
 
 Remove a specific record by its sequence number.
 
@@ -69,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Batch-Delete Remaining Records
+### 4. Batch-Delete Remaining Records
 
 Delete up to N records from the front of the trail in a single transaction. The operation returns the sequence numbers of the records actually deleted — fewer than N if locked or tag-filtered records are skipped.
 

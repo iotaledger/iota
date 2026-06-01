@@ -53,7 +53,36 @@ International customs clearance involves multiple stakeholders, sequential hando
 
 ## Implementation Overview
 
-### 1. Create the Customs Clearance Trail
+### 1. Set Up Multiple Wallets
+
+Create one wallet per actor in the clearance process — an admin, a documents operator, an export broker, an import broker, a supervisor, a locking admin, and an inspector — so each party signs with its own address.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](../how-tos/utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/01_customs_clearance.rs#L43-L49
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/01_customs_clearance.ts#L47-L53
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create the Customs Clearance Trail
 
 Create a trail with four record tags, shipment identity as immutable metadata, and a status tracker as updatable metadata.
 
@@ -76,7 +105,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Define Tag-Scoped Roles
+### 3. Define Tag-Scoped Roles
 
 Create operational roles scoped to their respective tags, plus a Supervisor role for metadata updates and a LockingAdmin for final locking.
 
@@ -105,7 +134,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Process the Clearance Steps
+### 4. Process the Clearance Steps
 
 Each stakeholder adds records tagged with their category. The supervisor updates the status metadata at each phase transition. The Inspector role is created on demand when an inspection is required.
 
@@ -128,7 +157,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Lock the Trail After Clearance
+### 5. Lock the Trail After Clearance
 
 Once the shipment is fully cleared, apply an infinite write lock to freeze the audit record. Any attempt to add further records is rejected.
 

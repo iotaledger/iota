@@ -23,7 +23,36 @@ This guide walks you through creating a new `AuditTrail` object on the IOTA netw
 
 ## Steps
 
-### 1. Create the Trail
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet (which creates the trail) and a record-admin wallet that will receive a delegated capability.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/01_create_audit_trail.rs#L24-L25
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/01_create_audit_trail.ts#L27-L28
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create the Trail
 
 Use the builder to create a trail with immutable metadata (name and description), mutable updatable metadata, and an initial seed record. On success, an **Admin** capability is automatically minted and transferred to your address.
 
@@ -46,7 +75,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 2. Inspect the Built-in Admin Role
+### 3. Inspect the Built-in Admin Role
 
 Every new trail has a built-in Admin role automatically assigned to the creator. Fetch the on-chain trail object to inspect it.
 
@@ -69,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 3. Define a Custom Role
+### 4. Define a Custom Role
 
 Use the Admin capability to create new roles. `PermissionSet::record_admin_permissions()` grants `AddRecord`, `DeleteRecord`, and `CorrectRecord` permissions.
 
@@ -92,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 </Tabs>
 </div>
 
-### 4. Issue a Capability
+### 5. Issue a Capability
 
 Mint an on-chain `Capability` object for the role and send it to the target address. The holder can then perform the actions permitted by the role.
 
