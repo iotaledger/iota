@@ -214,7 +214,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Check Move VM crates compile to wasm32
-        run: cargo check -p iota-types -p iota-common -p iota-config --target wasm32-unknown-unknown
+        run: cargo check -p iota-types -p iota-common -p iota-config -p iota-adapter-latest --target wasm32-unknown-unknown
 
   check-wasm32-cancel:
     needs: [check-wasm32]
