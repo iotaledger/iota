@@ -11,8 +11,8 @@ use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
     SimpleSignature,
     crypto::{
-        Ed25519Signature, Intent, IntentMessage, PersonalMessage, Secp256k1Signature,
-        Secp256r1Signature, UserSignature,
+        Ed25519Signature, Intent, IntentMessage, MULTISIG_COMMITTEE_SIZE_MAX, PersonalMessage,
+        Secp256k1Signature, Secp256r1Signature, UserSignature,
     },
 };
 
@@ -24,8 +24,6 @@ use crate::{
     signature::GenericSignature,
     utils::multisig_keys,
 };
-
-pub const MAX_SIGNER_IN_MULTISIG: usize = 10;
 
 #[test]
 fn test_combine_sigs() {
@@ -241,8 +239,8 @@ fn test_max_sig() {
     // multisig_pk with max weights for each pk and max reachable threshold is ok.
     assert!(
         MultiSigPublicKey::new_unchecked(
-            members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
-            (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit),
+            members_with_weight(MULTISIG_COMMITTEE_SIZE_MAX, WeightUnit::MAX),
+            (WeightUnit::MAX as ThresholdUnit) * (MULTISIG_COMMITTEE_SIZE_MAX as ThresholdUnit),
         )
         .validate()
         .is_ok()
@@ -251,8 +249,8 @@ fn test_max_sig() {
     // multisig_pk with unreachable threshold fails.
     assert!(
         MultiSigPublicKey::new_unchecked(
-            members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
-            (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit) + 1,
+            members_with_weight(MULTISIG_COMMITTEE_SIZE_MAX, WeightUnit::MAX),
+            (WeightUnit::MAX as ThresholdUnit) * (MULTISIG_COMMITTEE_SIZE_MAX as ThresholdUnit) + 1,
         )
         .validate()
         .is_err()
@@ -261,7 +259,7 @@ fn test_max_sig() {
     // multisig_pk with max weights for each pk with threshold is 1x max weight
     // validates ok.
     let low_threshold_pk = MultiSigPublicKey::new(
-        members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
+        members_with_weight(MULTISIG_COMMITTEE_SIZE_MAX, WeightUnit::MAX),
         WeightUnit::MAX.into(),
     )
     .unwrap();
