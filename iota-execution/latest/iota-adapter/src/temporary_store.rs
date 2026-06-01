@@ -17,7 +17,10 @@ use iota_types::{
     },
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
-    effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
+    effects::{
+        EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
+        TransactionEffectsExt, TransactionEvents,
+    },
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
         DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
@@ -160,9 +163,7 @@ impl<'backing> TemporaryStore<'backing> {
             input_objects: self.input_objects,
             mutable_inputs: self.mutable_input_refs,
             written: results.written_objects,
-            events: TransactionEvents {
-                data: results.user_events,
-            },
+            events: TransactionEvents(results.user_events),
             loaded_runtime_objects: self.loaded_runtime_objects,
             runtime_packages_loaded_from_db: self.runtime_packages_loaded_from_db.into_inner(),
             lamport_version: self.lamport_timestamp,
@@ -201,19 +202,53 @@ impl<'backing> TemporaryStore<'backing> {
             .collect::<BTreeSet<_>>();
         all_ids
             .into_iter()
-            .map(|id| {
-                (
-                    *id,
-                    EffectsObjectChange::new(
-                        self.get_object_modified_at(id)
-                            .map(|metadata| ((metadata.version, metadata.digest), metadata.owner)),
-                        results.written_objects.get(id),
-                        results.created_object_ids.contains(id),
-                        results.deleted_object_ids.contains(id),
-                    ),
-                )
-            })
+            .map(|id| (*id, self.new_effects_object_change(id)))
             .collect()
+    }
+
+    fn new_effects_object_change(&self, id: &ObjectID) -> EffectsObjectChange {
+        let modified_at = self
+            .get_object_modified_at(id)
+            .map(|metadata| ((metadata.version, metadata.digest), metadata.owner));
+        let results = &self.execution_results;
+        let written = results.written_objects.get(id);
+        let id_created = results.created_object_ids.contains(id);
+        let id_deleted = results.deleted_object_ids.contains(id);
+
+        debug_assert!(
+            !id_created || !id_deleted,
+            "Object ID can't be created and deleted at the same time."
+        );
+        EffectsObjectChange {
+            object_id: *id,
+            input_state: modified_at.map_or(ObjectIn::Missing, |((version, digest), owner)| {
+                ObjectIn::Data {
+                    version,
+                    digest,
+                    owner,
+                }
+            }),
+            output_state: written.map_or(ObjectOut::Missing, |o| {
+                if o.is_package() {
+                    ObjectOut::PackageWrite {
+                        version: o.version(),
+                        digest: o.digest(),
+                    }
+                } else {
+                    ObjectOut::ObjectWrite {
+                        digest: o.digest(),
+                        owner: o.owner,
+                    }
+                }
+            }),
+            id_operation: if id_created {
+                IDOperation::Created
+            } else if id_deleted {
+                IDOperation::Deleted
+            } else {
+                IDOperation::None
+            },
+        }
     }
 
     pub fn into_effects(
@@ -274,7 +309,7 @@ impl<'backing> TemporaryStore<'backing> {
             lamport_version,
             object_changes,
             gas_coin,
-            if inner.events.data.is_empty() {
+            if inner.events.is_empty() {
                 None
             } else {
                 Some(inner.events.digest())
@@ -452,7 +487,7 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     pub fn estimate_effects_size_upperbound(&self) -> usize {
-        TransactionEffects::estimate_effects_size_upperbound_v1(
+        TransactionEffects::estimate_size_upperbound_v1(
             self.execution_results.written_objects.len(),
             self.execution_results.modified_objects.len(),
             self.input_objects.len(),

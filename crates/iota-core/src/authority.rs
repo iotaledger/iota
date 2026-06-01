@@ -44,7 +44,10 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_sdk_types::{
+    StructTag, TypeTag,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+};
 use iota_storage::{
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -58,12 +61,13 @@ use iota_types::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefV1, extract_auth_fun_refs,
         },
     },
+    auth_context::AuthContextData,
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType,
-        SequenceNumber, StructTag, TypeTag, VersionNumber,
+        SequenceNumber, VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
@@ -72,7 +76,7 @@ use iota_types::{
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
-        TransactionEvents, VerifiedSignedTransactionEffects,
+        TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{Event, EventID, SystemEpochInfoEvent},
@@ -117,6 +121,7 @@ use iota_types::{
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
+    traffic_control::{PolicyConfig, RemoteFirewallConfig, TrafficControlReconfigParams},
     transaction::*,
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
@@ -177,6 +182,7 @@ use crate::{
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
+    traffic_controller::{TrafficController, metrics::TrafficControllerMetrics},
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
     transaction_outputs::TransactionOutputs,
@@ -309,6 +315,9 @@ pub struct AuthorityMetrics {
     pub consensus_handler_leader_round: IntGauge,
     pub consensus_calculated_throughput: IntGauge,
     pub consensus_calculated_throughput_profile: IntGauge,
+
+    pub validator_scoreboard_scores: IntGaugeVec,
+    pub invalid_misbehavior_reports_by_authority: IntGaugeVec,
 
     pub limits_metrics: Arc<LimitsMetrics>,
 
@@ -683,6 +692,18 @@ impl AuthorityMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
+            validator_scoreboard_scores: register_int_gauge_vec_with_registry!(
+                "validator_scoreboard_scores",
+                "Per-authority validator scores published by the local Scoreboard after each consensus commit. Range [0, MAX_SCORE].",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            invalid_misbehavior_reports_by_authority: register_int_gauge_vec_with_registry!(
+                "invalid_misbehavior_reports_by_authority",
+                "Cumulative count of invalid misbehavior reports received from each reporting authority in the current epoch. Bumped when a `MisbehaviorReport` consensus transaction fails sender/authority match or payload validation. Snapshot republished after each consensus commit.",
+                &["authority"],
+                registry,
+            ).unwrap(),
             consensus_handler_deferred_transactions: register_int_counter_with_registry!(
                 "consensus_handler_deferred_transactions",
                 "Number of transactions deferred by consensus handler",
@@ -757,6 +778,8 @@ impl AuthorityMetrics {
     pub fn reset_on_reconfigure(&self) {
         self.consensus_committed_messages.reset();
         self.consensus_handler_scores.reset();
+        self.validator_scoreboard_scores.reset();
+        self.invalid_misbehavior_reports_by_authority.reset();
         self.consensus_committed_user_transactions.reset();
     }
 }
@@ -824,6 +847,9 @@ pub struct AuthorityState {
     chain_identifier: ChainIdentifier,
 
     pub(crate) congestion_tracker: Arc<CongestionTracker>,
+
+    /// Traffic controller for IOTA core servers (json-rpc, validator service)
+    pub traffic_controller: Option<Arc<TrafficController>>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -900,13 +926,13 @@ impl AuthorityState {
             self.get_backing_package_store().as_ref(),
         )?;
 
-        // Load all transaction-related input objects.
-        // Authenticator input objects and the account objects are loaded in the same
-        // call if there are `MoveAuthenticator` signatures present in the transaction.
+        // Load all transaction-related input objects including ones for every
+        // `MoveAuthenticator`. Loading all objects eagerly means that any invalid
+        // reference — missing object, wrong version, inaccessible object — causes a
+        // pre-consensus rejection.
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
             self.read_objects_for_signing(&transaction, epoch)?;
 
-        // Get the `MoveAuthenticator`s, if any.
         let move_authenticators = transaction.move_authenticators();
 
         // Check the inputs for signing.
@@ -942,6 +968,36 @@ impl AuthorityState {
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
         )?;
+
+        let (kind, signer, gas_data) = tx_data.execution_parts();
+
+        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+            extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                move_authenticators
+                    .iter()
+                    .zip(per_authenticator_checked_inputs.iter())
+                    .find(|(move_authenticator, _)| {
+                        move_authenticator.address().ok().as_ref() == Some(&address)
+                    })
+                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
+            });
+
+        // Filter the authenticators and their checked inputs down to those that must
+        // be executed pre-consensus. This is done *after* the deny-list check so
+        // that all MoveAuthenticator input objects are covered by that check regardless
+        // of deferral.
+        let pre_consensus_move_authenticators =
+            pre_consensus_move_authenticators(&transaction, protocol_config);
+        let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
+            move_authenticators
+                .into_iter()
+                .zip(per_authenticator_checked_inputs)
+                .filter(|(a, _)| pre_consensus_move_authenticators.contains(a))
+                .unzip();
+        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
 
         // If there are `MoveAuthenticator` signatures, execute them and check if they
         // all succeed.
@@ -981,7 +1037,16 @@ impl AuthorityState {
             let tx_data_bytes =
                 bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
 
-            let (kind, signer, gas_data) = tx_data.execution_parts();
+            let (sender_auth_digest, sponsor_auth_digest) =
+                transaction.data().compute_auth_digests()?;
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
 
             // Execute the Move authenticators.
             let validation_result = epoch_store.executor().authenticate_transaction(
@@ -1000,7 +1065,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction.digest().to_owned(),
-                tx_data_bytes,
+                auth_context_data,
                 &mut None,
             );
 
@@ -1225,7 +1290,7 @@ impl AuthorityState {
                 assert_eq!(
                     effects.digest(),
                     expected_effects_digest_inner,
-                    "Unexpected effects digest for transaction {tx_digest:?}"
+                    "Unexpected effects digest for transaction {tx_digest}"
                 );
             }
             tx_guard.release();
@@ -1239,7 +1304,7 @@ impl AuthorityState {
         // We could be re-executing a previously executed but uncommitted transaction,
         // perhaps after restarting with a new binary. In this situation, if
         // we have published an effects signature, we must be sure not to
-        // equivocate. TODO: read from cache instead of DB
+        // equivocate.
         let expected_effects_digest =
             expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
@@ -1479,6 +1544,19 @@ impl AuthorityState {
                 .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
         };
         Ok((effects, execution_error_opt))
+    }
+
+    pub async fn reconfigure_traffic_control(
+        &self,
+        params: TrafficControlReconfigParams,
+    ) -> Result<TrafficControlReconfigParams, IotaError> {
+        if let Some(traffic_controller) = self.traffic_controller.as_ref() {
+            traffic_controller.admin_reconfigure(params).await
+        } else {
+            Err(IotaError::InvalidAdminRequest(
+                "Traffic controller is not configured on this node".to_string(),
+            ))
+        }
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -1726,6 +1804,9 @@ impl AuthorityState {
             let tx_data_bytes =
                 bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
 
+            let (sender_auth_digest, sponsor_auth_digest) =
+                certificate.data().compute_auth_digests()?;
+
             // Check the `MoveAuthenticator` input objects.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
             // `max_auth_gas` is used here as a Move authenticator gas budget until it is
@@ -1773,6 +1854,22 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                    move_authenticators
+                        .iter()
+                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
             epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
@@ -1792,7 +1889,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
-                    tx_data_bytes,
+                    auth_context_data,
                     &mut None,
                 )
         };
@@ -2507,6 +2604,8 @@ impl AuthorityState {
         effects: &mut TransactionEffects,
     ) {
         use std::cell::RefCell;
+
+        use iota_types::effects::TransactionEffectsAPIForTesting;
         thread_local! {
             static FAIL_STATE: RefCell<(u64, HashSet<AuthorityName>)> = RefCell::new((0, HashSet::new()));
         }
@@ -2558,7 +2657,7 @@ impl AuthorityState {
             // When we process the index, the latest object hasn't been written yet so
             // the old object must be present.
             match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {:?} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
+                |e| panic!("tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
             ) {
                 Owner::Address(addr) => deleted_owners.push((addr, object_ref.object_id)),
                 Owner::Object(object_id) => {
@@ -2578,7 +2677,7 @@ impl AuthorityState {
             if let WriteKind::Mutate = kind {
                 let Some(old_version) = modified_at_version.get(id) else {
                     panic!(
-                        "tx_digest={tx_digest:?}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
+                        "tx_digest={tx_digest}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
                     );
                 };
                 // When we process the index, the latest object hasn't been written yet so
@@ -2588,7 +2687,7 @@ impl AuthorityState {
                     .try_get_object_by_key(id, *old_version)?
                 else {
                     panic!(
-                        "tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {id:?} at version {old_version:?}"
+                        "tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {id} at version {old_version:?}"
                     );
                 };
                 if old_object.owner != owner {
@@ -2607,12 +2706,12 @@ impl AuthorityState {
                     // TODO: We can remove the object fetching after we added ObjectType to
                     // TransactionEffects
                     let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
+                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
                     );
                     assert_eq!(
                         new_object.version(),
                         oref.version,
-                        "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
+                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
@@ -2638,12 +2737,12 @@ impl AuthorityState {
                 }
                 Owner::Object(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
+                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
                     );
                     assert_eq!(
                         new_object.version(),
                         oref.version,
-                        "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
+                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
@@ -3015,6 +3114,7 @@ impl AuthorityState {
     }
 
     #[expect(clippy::disallowed_methods)] // allow unbounded_channel()
+    #[expect(clippy::too_many_arguments)]
     pub async fn new(
         name: AuthorityName,
         secret: StableSyncAuthoritySigner,
@@ -3035,6 +3135,8 @@ impl AuthorityState {
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
+        policy_config: Option<PolicyConfig>,
+        firewall_config: Option<RemoteFirewallConfig>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3075,6 +3177,20 @@ impl AuthorityState {
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
         let rgp = epoch_store.reference_gas_price();
+        let traffic_controller_metrics =
+            Arc::new(TrafficControllerMetrics::new(prometheus_registry));
+        let traffic_controller = if let Some(policy_config) = policy_config {
+            Some(Arc::new(
+                TrafficController::init(
+                    policy_config,
+                    traffic_controller_metrics,
+                    firewall_config.clone(),
+                )
+                .await,
+            ))
+        } else {
+            None
+        };
         let state = Arc::new(AuthorityState {
             name,
             secret,
@@ -3099,6 +3215,7 @@ impl AuthorityState {
             validator_tx_finalizer,
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
+            traffic_controller,
         });
 
         // Start a task to execute ready certificates.
@@ -3421,10 +3538,6 @@ impl AuthorityState {
                 )?;
             }
         }
-
-        self.get_reconfig_api()
-            .reconfigure_cache(&epoch_start_configuration)
-            .await;
 
         let new_epoch = new_committee.epoch;
         let new_epoch_store = self
@@ -4383,7 +4496,7 @@ impl AuthorityState {
                         .get(&k.1)
                         .expect("fetched digest is missing")
                         .clone()
-                        .and_then(|e| e.data.get(k.2).cloned()),
+                        .and_then(|e| e.get(k.2).cloned()),
                 )
             })
             .map(
@@ -4506,10 +4619,10 @@ impl AuthorityState {
                 // a proof of inclusion in a checkpoint. In the case above, the
                 // Quorum Driver would return a proof of inclusion in the final
                 // checkpoint, and this code would no longer be necessary.
-                if effects.executed_epoch() != epoch_store.epoch() {
+                if effects.epoch() != epoch_store.epoch() {
                     debug!(
                         tx_digest=?transaction_digest,
-                        effects_epoch=?effects.executed_epoch(),
+                        effects_epoch=?effects.epoch(),
                         epoch=?epoch_store.epoch(),
                         "Re-signing the effects with the current epoch"
                     );
@@ -5262,7 +5375,7 @@ impl AuthorityState {
         // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
-            .data
+            .0
             .into_iter()
             .find(|event| event.is_system_epoch_info_event())
             .map(SystemEpochInfoEvent::from);
@@ -5465,11 +5578,11 @@ impl AuthorityState {
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
-                field_move_object.to_rust().ok_or(
+                field_move_object.to_rust().map_err(|_| {
                     UserInputError::InvalidAuthenticatorFunctionRefField {
                         account_object_id: auth_account_object_id,
-                    },
-                )?;
+                    }
+                })?;
 
             Ok(AuthenticatorFunctionRefForExecution::new_v1(
                 field.value,
@@ -5872,7 +5985,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .collect())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digests), fields(digests = digests.iter().map(|d| d.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_events_by_tx_digests(
         &self,
         digests: &[TransactionDigest],
@@ -6166,5 +6279,35 @@ impl NodeStateDump {
     pub fn read_from_file(path: &PathBuf) -> Result<Self, anyhow::Error> {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
+    }
+}
+
+/// Returns the [`MoveAuthenticator`]s to execute during the pre-consensus
+/// phase.
+///
+/// When `pre_consensus_sponsor_only_move_authentication` is enabled:
+/// - For sponsored transactions: only the sponsor's [`MoveAuthenticator`] is
+///   returned (empty if the sponsor does not use one).
+/// - For non-sponsored transactions: all [`MoveAuthenticator`]s are returned
+///   (currently only the sender's).
+///
+/// When the flag is not set, all [`MoveAuthenticator`]s are returned for
+/// compatibility.
+fn pre_consensus_move_authenticators<'a>(
+    tx: &'a VerifiedTransaction,
+    protocol_config: &ProtocolConfig,
+) -> Vec<&'a MoveAuthenticator> {
+    if protocol_config.pre_consensus_sponsor_only_move_authentication() {
+        if tx.transaction_data().is_sponsored_tx() {
+            if let Some(sponsor_move_authenticator) = tx.sponsor_move_authenticator() {
+                vec![sponsor_move_authenticator]
+            } else {
+                vec![]
+            }
+        } else {
+            tx.move_authenticators()
+        }
+    } else {
+        tx.move_authenticators()
     }
 }

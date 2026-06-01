@@ -7,8 +7,9 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{ExecutionDigests, Identifier, ObjectID},
+    base_types::{ExecutionDigests, ObjectID},
     crypto::deterministic_random_account_key,
     gas::GasCostSummary,
     messages_checkpoint::{
@@ -61,11 +62,11 @@ pub async fn test_certificates(
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
-    let shared_object_arg = CallArg::Shared(SharedObjectRef {
-        object_id: shared_object.id(),
-        initial_shared_version: shared_object.version(),
-        mutable: true,
-    });
+    let shared_object_arg = CallArg::Shared(SharedObjectRef::new(
+        shared_object.id(),
+        shared_object.version(),
+        true,
+    ));
     for gas_object in test_gas_objects() {
         // Object digest may be different in genesis than originally generated.
         let gas_object = authority.get_object(&gas_object.id()).await.unwrap();

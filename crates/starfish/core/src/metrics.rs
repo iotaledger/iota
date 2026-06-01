@@ -220,6 +220,12 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_missing_block_headers: IntGauge,
     pub(crate) block_manager_missing_block_headers_by_authority: IntCounterVec,
     pub(crate) block_manager_missing_ancestors_by_authority: IntCounterVec,
+    pub(crate) block_manager_gc_floor: IntGauge,
+    pub(crate) block_manager_gc_evicted_missing_ancestors_total: IntCounter,
+    pub(crate) block_manager_gc_evicted_fetch_entries_total: IntCounter,
+    pub(crate) block_manager_gc_unsuspended_total: IntCounter,
+    pub(crate) block_manager_gc_evicted_suspended_transactions_total: IntCounter,
+    pub(crate) block_manager_gc_evicted_old_headers_total: IntCounter,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
@@ -245,6 +251,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
     pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
     pub(crate) uptime: Histogram,
+    pub(crate) faulty_blocks_provable_by_authority: IntGaugeVec,
+    pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
+    pub(crate) equivocations_by_authority: IntGaugeVec,
+    pub(crate) missing_proposals_by_authority: IntGaugeVec,
 }
 
 impl NodeMetrics {
@@ -931,6 +941,36 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
+            block_manager_gc_floor: register_int_gauge_with_registry!(
+                "block_manager_gc_floor",
+                "The last GC round floor applied by the block manager. Suspended state at or below this round has been evicted.",
+                registry,
+            ).unwrap(),
+            block_manager_gc_evicted_missing_ancestors_total: register_int_counter_with_registry!(
+                "block_manager_gc_evicted_missing_ancestors_total",
+                "Total number of missing-ancestor entries dropped by the block manager GC sweep",
+                registry,
+            ).unwrap(),
+            block_manager_gc_evicted_fetch_entries_total: register_int_counter_with_registry!(
+                "block_manager_gc_evicted_fetch_entries_total",
+                "Total number of headers_to_fetch entries dropped by the block manager GC sweep",
+                registry,
+            ).unwrap(),
+            block_manager_gc_unsuspended_total: register_int_counter_with_registry!(
+                "block_manager_gc_unsuspended_total",
+                "Total number of headers unsuspended by the block manager GC sweep because all their missing ancestors fell below the GC floor",
+                registry,
+            ).unwrap(),
+            block_manager_gc_evicted_suspended_transactions_total: register_int_counter_with_registry!(
+                "block_manager_gc_evicted_suspended_transactions_total",
+                "Total number of suspended_transactions entries dropped by the block manager GC sweep",
+                registry,
+            ).unwrap(),
+            block_manager_gc_evicted_old_headers_total: register_int_counter_with_registry!(
+                "block_manager_gc_evicted_old_headers_total",
+                "Total number of incoming block headers dropped because their round is at or below the GC floor",
+                registry,
+            ).unwrap(),
             threshold_clock_round: register_int_gauge_with_registry!(
                 "threshold_clock_round",
                 "The current threshold clock round. We only advance to a new round when a quorum of parents have been synced.",
@@ -1098,6 +1138,30 @@ impl NodeMetrics {
             transactions_synchronizer_inflight_requests: register_int_gauge_with_registry!(
                 "transaction_synchronizer_concurrent_requests",
                 "Number of concurrent transaction fetch requests",
+                registry,
+            ).unwrap(),
+            faulty_blocks_provable_by_authority: register_int_gauge_vec_with_registry!(
+                "faulty_blocks_provable_by_authority",
+                "Provably faulty blocks per authority (source: persisted or in_memory)",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            faulty_blocks_unprovable_by_peer: register_int_gauge_vec_with_registry!(
+                "faulty_blocks_unprovable_by_peer",
+                "Unprovably faulty blocks per peer (source: persisted or in_memory)",
+                &["peer", "source"],
+                registry,
+            ).unwrap(),
+            equivocations_by_authority: register_int_gauge_vec_with_registry!(
+                "equivocations_by_authority",
+                "Equivocations per authority (source: persisted or in_memory)",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            missing_proposals_by_authority: register_int_gauge_vec_with_registry!(
+                "missing_proposals_by_authority",
+                "Missing proposals per authority (source: persisted or in_memory)",
+                &["authority", "source"],
                 registry,
             ).unwrap(),
         }

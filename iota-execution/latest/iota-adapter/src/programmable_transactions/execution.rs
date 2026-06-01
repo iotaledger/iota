@@ -16,11 +16,12 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{Command, Identifier, StructTag, TypeTag};
     use iota_types::{
         auth_context,
         base_types::{
-            Identifier, IotaAddress, MoveLegacyTxContext, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag,
+            IotaAddress, MoveLegacyTxContext, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -36,7 +37,7 @@ mod checked {
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
-        transaction::{Command, ProgrammableTransaction},
+        transaction::ProgrammableTransaction,
         transfer::RESOLVED_RECEIVING_STRUCT,
     };
     use iota_verifier::{

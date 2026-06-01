@@ -229,7 +229,9 @@ impl IotaNodeProvider {
                                     IotaSystemStateSummary::V2(system_state) => {
                                         system_state.pending_active_validators_id
                                     }
-                                    _ => panic!("unsupported IotaSystemStateSummary"),
+                                    _ => unimplemented!(
+                                        "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                                    ),
                                 };
 
                                 match Self::get_pending_validators(

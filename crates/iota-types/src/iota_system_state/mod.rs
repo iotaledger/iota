@@ -15,6 +15,8 @@ use self::{
     iota_system_state_inner_v2::IotaSystemStateV2,
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
 use crate::{
     MoveTypeTagTrait,
     base_types::ObjectID,
@@ -22,12 +24,15 @@ use crate::{
     dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
     id::UID,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     object::{MoveObject, MoveObjectExt, Object},
     storage::ObjectStore,
     versioned::Versioned,
 };
 
+// `EpochStartSystemState` pulls in anemo / starfish-config (consensus + p2p),
+// which don't compile to wasm32. It's only consumed by the node, so the whole
+// module and the `into_epoch_start_state` accessor are gated out of wasm.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod epoch_start_iota_system_state;
 pub mod iota_system_state_inner_v1;
 pub mod iota_system_state_inner_v2;
@@ -175,6 +180,7 @@ pub trait IotaSystemStateTrait {
         &self,
         object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError>;
+    #[cfg(not(target_arch = "wasm32"))]
     fn into_epoch_start_state(self) -> EpochStartSystemState;
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary;
 }

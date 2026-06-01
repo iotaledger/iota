@@ -2,11 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(target_arch = "wasm32"))]
 use prometheus::{
     Histogram, IntCounterVec, register_histogram_with_registry,
     register_int_counter_vec_with_registry,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 pub struct LimitsMetrics {
     /// Execution limits metrics
     pub excessive_estimated_effects_size: IntCounterVec,
@@ -18,6 +20,7 @@ pub struct LimitsMetrics {
     pub excessive_object_runtime_store_entries: IntCounterVec,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl LimitsMetrics {
     pub fn new(registry: &prometheus::Registry) -> LimitsMetrics {
         Self {
@@ -74,6 +77,7 @@ impl LimitsMetrics {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub struct BytecodeVerifierMetrics {
     /// Bytecode verifier metrics timeout counter
     pub verifier_timeout_metrics: IntCounterVec,
@@ -89,6 +93,7 @@ pub struct BytecodeVerifierMetrics {
     pub verifier_runtime_per_ptb_timeout_latency: Histogram,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl BytecodeVerifierMetrics {
     pub const OVERALL_TAG: &'static str = "overall";
     pub const SUCCESS_TAG: &'static str = "success";

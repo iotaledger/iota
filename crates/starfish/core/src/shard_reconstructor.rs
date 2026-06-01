@@ -657,7 +657,7 @@ mod tests {
         fn new(committee_size: usize) -> Self {
             let (context, _) = Context::new_for_test(committee_size);
             let context = Arc::new(context);
-            let store = Arc::new(MemStore::new(context.clone()));
+            let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
             let handle =

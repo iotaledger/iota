@@ -16,6 +16,7 @@ mod checked {
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
+    use iota_sdk_types::{Command, Identifier};
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
@@ -23,11 +24,9 @@ mod checked {
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
         },
-        auth_context::AuthContext,
+        auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{
-            Identifier, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
-        },
+        base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext},
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,
@@ -48,7 +47,7 @@ mod checked {
         storage::{BackingStore, Storage},
         transaction::{
             Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
-            CheckedInputObjects, Command, EndOfEpochTransactionKind, GasData, GenesisTransaction,
+            CheckedInputObjects, EndOfEpochTransactionKind, GasData, GenesisTransaction,
             InputObjects, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef,
             SystemPackage, TransactionKind, TransactionKindExt,
         },
@@ -314,7 +313,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
-        transaction_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -437,7 +436,7 @@ mod checked {
                             &authenticator_input_objects.into_inner(),
                             transaction_kind.clone(),
                             transaction_digest,
-                            transaction_data_bytes.clone(),
+                            auth_context_data.clone(),
                             tx_ctx.clone(),
                             trace_builder_opt,
                             move_vm,
@@ -504,7 +503,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
-        transaction_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -557,7 +556,7 @@ mod checked {
                             &authenticator_input_objects.into_inner(),
                             transaction_kind.clone(),
                             transaction_digest,
-                            transaction_data_bytes.clone(),
+                            auth_context_data.clone(),
                             tx_ctx.clone(),
                             trace_builder_opt,
                             move_vm,
@@ -592,7 +591,7 @@ mod checked {
         // Transaction
         transaction_kind: TransactionKind,
         transaction_digest: TransactionDigest,
-        tx_data_bytes: Vec<u8>,
+        auth_context_data: AuthContextData,
         tx_ctx: Rc<RefCell<TxContext>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -627,7 +626,19 @@ mod checked {
             let TransactionKind::Programmable(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
-            AuthContext::new_from_components(authenticator.digest(), ptb, tx_data_bytes)
+            AuthContext::new_from_components(
+                authenticator.digest(),
+                auth_context_data.sender_auth_digest,
+                auth_context_data.sponsor_auth_digest,
+                auth_context_data
+                    .sender_authenticator_function_ref
+                    .and_then(Into::into),
+                auth_context_data
+                    .sponsor_authenticator_function_ref
+                    .and_then(Into::into),
+                ptb,
+                auth_context_data.transaction_data_bytes,
+            )
         };
         let auth_ctx = Rc::new(RefCell::new(auth_ctx));
 
@@ -1922,11 +1933,11 @@ mod checked {
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedObjectRef {
-                        object_id: ObjectID::RANDOMNESS_STATE,
-                        initial_shared_version: update.randomness_obj_initial_shared_version,
-                        mutable: true,
-                    }),
+                    CallArg::Shared(SharedObjectRef::new(
+                        ObjectID::RANDOMNESS_STATE,
+                        update.randomness_obj_initial_shared_version,
+                        true,
+                    )),
                     CallArg::pure(&update.randomness_round),
                     CallArg::pure(&update.random_bytes),
                 ],

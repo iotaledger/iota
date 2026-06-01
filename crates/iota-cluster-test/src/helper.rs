@@ -7,12 +7,8 @@ use iota_json_rpc_types::{
     BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions, IotaObjectResponseError,
 };
 use iota_sdk::IotaClient;
-use iota_types::{
-    base_types::{ObjectID, TypeTag},
-    gas_coin::GasCoin,
-    object::Owner,
-    parse_iota_type_tag,
-};
+use iota_sdk_types::TypeTag;
+use iota_types::{base_types::ObjectID, gas_coin::GasCoin, object::Owner, parse_iota_type_tag};
 use tracing::{debug, trace};
 
 /// A util struct that helps verify IOTA Object.
@@ -176,10 +172,8 @@ impl CheckerResultObject {
 macro_rules! assert_eq_if_present {
     ($left:expr, $right:expr, $($arg:tt)+) => {
         match (&$left, &$right) {
-            (Some(left_val), right_val) => {
-                 if !(&left_val == right_val) {
-                    panic!("{} does not match, left: {left_val:?}, right: {right_val:?}", $($arg)+);
-                }
+            (Some(left_val), right_val) if !(&left_val == right_val) => {
+                panic!("{} does not match, left: {left_val:?}, right: {right_val:?}", $($arg)+);
             }
             _ => ()
         }

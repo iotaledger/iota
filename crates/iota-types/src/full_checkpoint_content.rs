@@ -8,8 +8,10 @@ use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
-    base_types::ObjectRef,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    base_types::{ObjectID, ObjectRef},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
@@ -198,7 +200,7 @@ impl CheckpointTransaction {
 impl BackingPackageStore for CheckpointData {
     fn get_package_object(
         &self,
-        package_id: &crate::base_types::ObjectID,
+        package_id: &ObjectID,
     ) -> crate::error::IotaResult<Option<crate::storage::PackageObject>> {
         self.transactions
             .iter()

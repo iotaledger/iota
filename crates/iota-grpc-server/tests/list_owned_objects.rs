@@ -22,8 +22,9 @@ use iota_grpc_types::{
         types::Address as ProtoAddress,
     },
 };
+use iota_sdk_types::StructTag;
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, StructTag},
+    base_types::{IotaAddress, MoveObjectType, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GasCoin,

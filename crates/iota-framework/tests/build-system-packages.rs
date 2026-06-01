@@ -13,6 +13,7 @@ use capitalize::Capitalize;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use move_binary_format::{CompiledModule, file_format::Visibility};
 use move_compiler::editions::Edition;
+use move_docgen::DocgenFlags;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
@@ -87,6 +88,13 @@ fn build_packages(
 ) {
     let config = MoveBuildConfig {
         generate_docs: true,
+        // The rendered framework docs live in a Docusaurus site that builds
+        // its own heading-based sidebar, so the in-page module TOC just
+        // duplicates that navigation.
+        docgen_flags: DocgenFlags {
+            include_module_toc: false,
+            ..DocgenFlags::default()
+        },
         warnings_are_errors: true,
         install_dir: Some(PathBuf::from(".")),
         lint_flag: LintFlag::LEVEL_NONE,
@@ -283,14 +291,31 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
         let content = link_to_regex.replace_all(&content, r#"<Link to="$1">$2</Link>"#);
 
         // Escape `{` in multi-line <code> and add new lines as this is a requirement
-        // from mdx
+        // from mdx. MDX also strips leading whitespace inside `<code>` blocks
+        // (it parses the content as a paragraph), which silently drops indentation
+        // from Move implementations — encode leading spaces as `&nbsp;` so the
+        // browser still renders them as regular spaces.
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
             let match_content = caps.get(0).unwrap().as_str();
             let code_content = caps.get(1).unwrap().as_str();
             if match_content.lines().count() == 1 {
                 return match_content.to_string();
             }
-            format!("\n<code>\n{}</code>\n", code_content.replace('{', "\\{"))
+            let escaped = code_content
+                .replace('{', "\\{")
+                .split('\n')
+                .map(|line| {
+                    let stripped = line.trim_start_matches(' ');
+                    let indent = line.len() - stripped.len();
+                    if indent == 0 {
+                        stripped.to_string()
+                    } else {
+                        format!("{}{}", "&nbsp;".repeat(indent), stripped)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("\n<code>\n{escaped}</code>\n")
         });
 
         // Wrap types like '<IOTA>', '<T>' and more in backticks as they are seen as

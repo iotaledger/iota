@@ -1,15 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Command, TypeTag};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     iota_serde::TypeName,
-    transaction::{Argument, CallArg, Command},
+    transaction::{Argument, CallArg},
 };
 
 // ---------------------------------------------------------------------------
@@ -36,7 +37,7 @@ pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
 // MoveProgrammableMoveCall
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::ProgrammableMoveCall`] for use in
+/// Mirrors [`iota_sdk_types::MoveCall`] for use in
 /// [`MoveCommand`], substituting [`TypeTag`] for a string in the type arguments
 /// so that the type matches the BCS layout expected by the Move-side
 /// `ptb_command::ProgrammableMoveCall`.
@@ -55,7 +56,7 @@ pub struct MoveProgrammableMoveCall {
 // MoveCommand
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::Command`], substituting [`TypeTag`] for
+/// Mirrors [`iota_sdk_types::Command`], substituting [`TypeTag`] for
 /// a string in `MoveCall` and `MakeMoveVec` so that
 /// the type matches the BCS layout expected by the Move-side
 /// `ptb_command::Command`.
@@ -188,14 +189,12 @@ impl MoveCallArg {
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::ObjectReference;
+    use iota_sdk_types::{Identifier, ObjectReference, StructTag, TypeTag};
 
     use super::*;
     use crate::{
-        base_types::{
-            Identifier, IotaAddress, ObjectDigest, ObjectID, SequenceNumber, StructTag, TypeTag,
-        },
-        transaction::{Argument, CallArg, Command, SharedObjectRef},
+        base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+        transaction::{Argument, CallArg, SharedObjectRef},
     };
 
     // ── helpers ─────────────────────────────────────────────────────────────
@@ -290,11 +289,11 @@ mod tests {
 
     #[test]
     fn call_arg_bcs_compatible_shared() {
-        let tx_arg = CallArg::Shared(SharedObjectRef {
-            object_id: obj_id(),
-            initial_shared_version: SequenceNumber::from(5),
-            mutable: true,
-        });
+        let tx_arg = CallArg::Shared(SharedObjectRef::new(
+            obj_id(),
+            SequenceNumber::from(5),
+            true,
+        ));
         let ctx_arg = MoveCallArg::from(&tx_arg);
         assert_eq!(
             bcs::to_bytes(&tx_arg).unwrap(),

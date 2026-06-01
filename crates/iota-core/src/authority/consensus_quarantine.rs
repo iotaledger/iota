@@ -23,6 +23,7 @@ use typed_store::{Map, rocks::DBBatch};
 use super::*;
 use crate::{
     authority::{
+        authority_per_epoch_store::report_aggregator::DBReceivedReportsStatePerAuthority,
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::AssignedTxAndVersions,
     },
@@ -70,6 +71,13 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
     dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
+
+    // misbehavior report state — per-authority post-merge snapshot captured
+    // at `process_report` time. The on-disk row for commit N is exactly the
+    // state produced by commit N's processing of that authority's reports;
+    // last-writer-wins handles multiple reports from the same authority
+    // within one commit.
+    report_state_snapshots: BTreeMap<u8, DBReceivedReportsStatePerAuthority>,
 }
 
 impl ConsensusCommitOutput {
@@ -131,6 +139,24 @@ impl ConsensusCommitOutput {
 
     pub fn record_consensus_message_processed(&mut self, key: SequencedConsensusTransactionKey) {
         self.consensus_messages_processed.insert(key);
+    }
+
+    pub(crate) fn record_report_state_snapshot(
+        &mut self,
+        authority_index: crate::consensus_types::AuthorityIndex,
+        snapshot: DBReceivedReportsStatePerAuthority,
+    ) {
+        // Truncate to `u8` at the storage boundary; committees are bounded at
+        // 256 by Starfish.
+        self.report_state_snapshots
+            .insert(authority_index as u8, snapshot);
+    }
+
+    /// Returns `true` if at least one `process_report` ran during this commit.
+    /// Used by the consensus handler to skip `Scoreboard::update_scores` on
+    /// commits that can't change the score vector.
+    pub(crate) fn has_report_state_changes(&self) -> bool {
+        !self.report_state_snapshots.is_empty()
     }
 
     pub fn set_next_shared_object_versions(
@@ -298,6 +324,13 @@ impl ConsensusCommitOutput {
                     )
                 }),
         )?;
+
+        if !self.report_state_snapshots.is_empty() {
+            batch.insert_batch(
+                &tables.received_reports_state,
+                self.report_state_snapshots.iter(),
+            )?;
+        }
 
         Ok(())
     }
@@ -607,9 +640,7 @@ impl ConsensusOutputQuarantine {
                     self.builder_digest_to_checkpoint
                         .remove(digest)
                         .unwrap_or_else(|| {
-                            panic!(
-                                "transaction {digest:?} not found in builder_digest_to_checkpoint"
-                            )
+                            panic!("transaction {digest} not found in builder_digest_to_checkpoint")
                         }),
                     seq
                 );

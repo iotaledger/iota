@@ -1200,7 +1200,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1316,7 +1316,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1445,7 +1445,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1585,7 +1585,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1714,7 +1714,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1847,7 +1847,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer
@@ -1976,7 +1976,7 @@ mod tests {
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Start the transactions synchronizer

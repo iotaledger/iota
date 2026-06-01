@@ -7,8 +7,9 @@ use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
+use iota_sdk_types::Identifier;
 use iota_types::{
-    base_types::{Identifier, ObjectID},
+    base_types::ObjectID,
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},

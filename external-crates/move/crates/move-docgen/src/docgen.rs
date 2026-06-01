@@ -25,7 +25,7 @@ use move_compiler::{
     shared::{files::ByteSpan, known_attributes},
 };
 use move_core_types::{account_address::AccountAddress, runtime_value::MoveValue};
-use move_ir_types::location::*;
+use move_ir_types::{location::*, sp};
 use move_model_2::{
     ModuleId, QualifiedMemberId, display as model_display,
     source_model::{self, Model},
@@ -41,7 +41,9 @@ use crate::code_writer::{CodeWriter, CodeWriterLabel};
 const MAX_SUBSECTIONS: usize = 6;
 
 /// Options passed into the documentation generator.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Parser)]
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize, Parser,
+)]
 #[serde(default, deny_unknown_fields)]
 pub struct DocgenFlags {
     /// The level where we start sectioning. Often markdown sections are
@@ -71,6 +73,11 @@ pub struct DocgenFlags {
     /// Whether to include call diagrams in the generated docs.
     #[clap(long = "include-call-diagrams")]
     pub include_call_diagrams: bool,
+    /// Whether to emit an in-page module table of contents. Useful when the
+    /// rendered output already provides its own navigation (e.g. Docusaurus
+    /// builds a sidebar from headings) and the duplicate is unwanted.
+    #[clap(long = "no-module-toc", action = clap::ArgAction::SetFalse)]
+    pub include_module_toc: bool,
 }
 
 /// Options passed into the documentation generator.
@@ -126,6 +133,7 @@ impl Default for DocgenFlags {
             no_collapsed_sections: false,
             include_dep_diagrams: false,
             include_call_diagrams: false,
+            include_module_toc: true,
         }
     }
 }
@@ -548,7 +556,7 @@ impl<'env> Docgen<'env> {
         self.doc_text(env, module_info.doc.text());
 
         // If this is a standalone doc, generate TOC header.
-        let toc_label = if !info_is_included {
+        let toc_label = if !info_is_included && self.options.flags.include_module_toc {
             Some(self.gen_toc_header())
         } else {
             None
@@ -587,21 +595,6 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
-        for s in module_env.structs().sorted_by_key(|s| s.compiled().def_idx) {
-            self.gen_struct(s);
-        }
-
-        if module_env.enums().next().is_some() {
-            for e in module_env.enums().sorted_by_key(|e| e.compiled().def_idx) {
-                self.gen_enum(e);
-            }
-        }
-
-        if module_env.named_constants().next().is_some() {
-            // Introduce a Constant section
-            self.gen_named_constants(env);
-        }
-
         // TODO include macros
         let funs = module_env
             .functions()
@@ -613,10 +606,76 @@ impl<'env> Docgen<'env> {
             })
             .sorted_by_key(|f| f.info().index)
             .collect_vec();
-        if !funs.is_empty() {
-            for f in funs {
-                self.gen_function(f);
+
+        // Partition functions into methods (first parameter is a datatype defined in
+        // this module) and free functions. Methods are emitted under their
+        // datatype's section so a reader can see the API surface of `Coin` next
+        // to the struct itself; free functions fall through into the
+        // `Module Functions` section emitted first below.
+        let mut methods_by_datatype: BTreeMap<Symbol, Vec<source_model::Function<'_>>> =
+            BTreeMap::new();
+        let mut free_funs = Vec::with_capacity(funs.len());
+        for f in funs {
+            match self.method_receiver(f) {
+                Some(dt) => methods_by_datatype.entry(dt).or_default().push(f),
+                None => free_funs.push(f),
             }
+        }
+
+        // Collect structs/enums and claim each datatype's methods up front so the
+        // remaining `methods_by_datatype` entries (if any — defensive, only fires
+        // for methods of a filtered-out datatype) can be merged back into
+        // `free_funs` before we emit the `Module Functions` section.
+        let structs = module_env
+            .structs()
+            .sorted_by_key(|s| s.compiled().def_idx)
+            .collect_vec();
+        let enums = module_env
+            .enums()
+            .sorted_by_key(|e| e.compiled().def_idx)
+            .collect_vec();
+        let struct_methods: Vec<_> = structs
+            .iter()
+            .map(|s| methods_by_datatype.remove(&s.name()).unwrap_or_default())
+            .collect();
+        let enum_methods: Vec<_> = enums
+            .iter()
+            .map(|e| methods_by_datatype.remove(&e.name()).unwrap_or_default())
+            .collect();
+        for (_, mut leftover) in std::mem::take(&mut methods_by_datatype) {
+            free_funs.append(&mut leftover);
+        }
+
+        // Emit `Module Functions` first — modules usually have only a handful of
+        // free functions, while a struct can have many methods, so this keeps
+        // the top of the right-hand TOC scannable.
+        if !free_funs.is_empty() {
+            self.gen_functions_by_visibility(free_funs);
+        }
+
+        if !structs.is_empty() {
+            let label = self.label_for_section("Structs");
+            self.section_header("Structs", &label);
+            self.increment_section_nest();
+            for (s, methods) in structs.into_iter().zip(struct_methods) {
+                self.gen_struct(s, methods);
+            }
+            self.decrement_section_nest();
+        }
+
+        if !enums.is_empty() {
+            let label = self.label_for_section("Enums");
+            self.section_header("Enums", &label);
+            self.increment_section_nest();
+            for (e, methods) in enums.into_iter().zip(enum_methods) {
+                self.gen_enum(e, methods);
+            }
+            self.decrement_section_nest();
+        }
+
+        if module_env.named_constants().next().is_some() {
+            // Introduce a Constant section
+            self.gen_named_constants(env);
         }
 
         self.decrement_section_nest();
@@ -881,7 +940,11 @@ impl<'env> Docgen<'env> {
         self.end_items();
     }
 
-    /// Generates documentation for all named constants.
+    /// Generates documentation for all named constants. Each constant becomes
+    /// a section header so it appears in the right-hand TOC, with an inline
+    /// tag conveying its role: `err` (red) for error constants — by
+    /// convention `E` followed by another capital letter, e.g.
+    /// `EMaximumSupplyReached` — and `const` for everything else.
     fn gen_named_constants(&mut self, env: &Model) {
         let label = self.label_for_section("Constants");
         self.section_header("Constants", &label);
@@ -889,22 +952,49 @@ impl<'env> Docgen<'env> {
         let current_module = self.current_module.unwrap();
         let current_module = env.module(current_module);
         for const_env in current_module.named_constants() {
-            self.label(&self.label_for_module_item(current_module, const_env.name()));
+            let name = const_env.name();
+            let tag = if Self::is_error_constant(name.as_str()) {
+                "<span class=\"move-vis move-vis-error\">err</span>"
+            } else {
+                "<span class=\"move-vis move-vis-const\">const</span>"
+            };
+            let title = format!("{tag} `{name}`");
+            self.section_header(&title, &self.label_for_module_item(current_module, name));
+            self.increment_section_nest();
             self.doc_text(env, const_env.info().doc.text());
             self.code_block(env, &self.named_constant_display(const_env));
+            self.decrement_section_nest();
         }
 
         self.decrement_section_nest();
     }
 
-    /// Generates documentation for a struct.
-    fn gen_struct(&mut self, struct_env: source_model::Struct<'_>) {
+    /// Heuristic for error constants: by convention, Move modules name error
+    /// abort codes `EFoo`, `ESomethingBad`, etc. — an uppercase `E` followed by
+    /// at least one more uppercase letter. Plain `E` or `ESCAPE` shape that
+    /// also starts with `E` is fine to flag as the convention is consistent.
+    fn is_error_constant(name: &str) -> bool {
+        let mut chars = name.chars();
+        chars.next() == Some('E')
+            && matches!(chars.next(), Some(c) if c.is_ascii_uppercase())
+    }
+
+    /// Generates documentation for a struct. `methods` are functions whose
+    /// first parameter is this struct (i.e. dot-syntax callable methods);
+    /// they are emitted as a flat list under the struct, sorted by visibility
+    /// then by name. Each method's heading carries the inline visibility
+    /// marker emitted by [`Self::visibility_marker`].
+    fn gen_struct(
+        &mut self,
+        struct_env: source_model::Struct<'_>,
+        methods: Vec<source_model::Function<'_>>,
+    ) {
         let env = struct_env.model();
         let module_env = struct_env.module();
         let name = struct_env.name();
         let struct_info = struct_env.info();
         self.section_header(
-            &format!("Struct `{name}`"),
+            &format!("<span class=\"move-vis move-vis-struct\">struct</span> `{name}`"),
             &self.label_for_module_item(module_env, name),
         );
         self.increment_section_nest();
@@ -919,17 +1009,30 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
+        let mut methods = methods;
+        methods.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
+        for f in methods {
+            self.gen_function(f);
+        }
+
         self.decrement_section_nest();
     }
 
-    /// Generates documentation for an enum.
-    fn gen_enum(&mut self, enum_env: source_model::Enum<'_>) {
+    /// Generates documentation for an enum. `methods` are functions whose first
+    /// parameter is this enum; they are emitted as a flat list under the enum,
+    /// sorted by visibility then by name. Each method's heading carries the
+    /// inline visibility marker emitted by [`Self::visibility_marker`].
+    fn gen_enum(
+        &mut self,
+        enum_env: source_model::Enum<'_>,
+        methods: Vec<source_model::Function<'_>>,
+    ) {
         let env = enum_env.model();
         let module_env = enum_env.module();
         let name = enum_env.name();
         let enum_info = enum_env.info();
         self.section_header(
-            &format!("Enum `{name}`"),
+            &format!("<span class=\"move-vis move-vis-enum\">enum</span> `{name}`"),
             &self.label_for_module_item(module_env, name),
         );
         self.increment_section_nest();
@@ -944,7 +1047,31 @@ impl<'env> Docgen<'env> {
             self.end_collapsed();
         }
 
+        let mut methods = methods;
+        methods.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
+        for f in methods {
+            self.gen_function(f);
+        }
+
         self.decrement_section_nest();
+    }
+
+    /// If `func` is callable via dot-syntax on a datatype defined in the same
+    /// module (its first parameter, after stripping any reference, is
+    /// `Apply` of a `ModuleType` whose module matches the function's),
+    /// returns that datatype's name. Otherwise returns `None` (free
+    /// function or method of an external type).
+    fn method_receiver(&self, func: source_model::Function<'_>) -> Option<Symbol> {
+        let module_ident = func.module().ident();
+        let (_, _, ty) = func.info().signature.parameters.first()?;
+        let inner = match &ty.value {
+            N::Type_::Ref(_, inner) => &inner.value,
+            other => other,
+        };
+        let N::Type_::Apply(_, sp!(_, N::TypeName_::ModuleType(m, dname)), _) = inner else {
+            return None;
+        };
+        (m == module_ident).then(|| dname.0.value)
     }
 
     /// Generates declaration for named constant
@@ -1094,6 +1221,78 @@ impl<'env> Docgen<'env> {
         self.end_definitions();
     }
 
+    /// Emits the module's free functions as a flat list under a single
+    /// `Module Functions` heading, sorted by visibility (Public, Entry,
+    /// Public(package), Public(friend), Private) then by name. The visibility
+    /// of each function is conveyed by the inline tag appended to its
+    /// heading (rendered by [`Self::visibility_marker`]); the renderer's
+    /// stylesheet colors the tag so the TOC remains scannable without a
+    /// separate sub-section per visibility.
+    fn gen_functions_by_visibility(&mut self, mut funs: Vec<source_model::Function<'_>>) {
+        if funs.is_empty() {
+            return;
+        }
+        funs.sort_by_key(|f| (Self::visibility_rank(f), f.name()));
+        let label = self.label_for_section("Module Functions");
+        self.section_header("Module Functions", &label);
+        self.increment_section_nest();
+        for f in funs {
+            self.gen_function(f);
+        }
+        self.decrement_section_nest();
+    }
+
+    /// Sort key that mirrors the previous visibility buckets — Public first,
+    /// then Entry, Public(package), Public(friend), Private. `entry` takes
+    /// precedence over the underlying visibility, matching the old grouping.
+    fn visibility_rank(func: &source_model::Function<'_>) -> u8 {
+        let info = func.info();
+        if info.entry.is_some() {
+            return 1;
+        }
+        match info.visibility {
+            Visibility::Public(_) => 0,
+            Visibility::Package(_) => 2,
+            Visibility::Friend(_) => 3,
+            Visibility::Internal => 4,
+        }
+    }
+
+    /// Inline visibility tag(s) emitted before each function heading. A
+    /// `public entry` function gets both `pub` and `entry` tags because in
+    /// Move the two are orthogonal: `public` controls cross-module callability
+    /// and `entry` controls top-level PTB callability. The renderer's
+    /// stylesheet colors each tag by role — `.move-vis-public`,
+    /// `.move-vis-entry`, `.move-vis-package`, `.move-vis-friend`,
+    /// `.move-vis-private` — so the TOC entry is self-describing without an
+    /// enclosing visibility section header.
+    fn visibility_marker(func: &source_model::Function<'_>) -> String {
+        let info = func.info();
+        let mut parts: Vec<&'static str> = Vec::new();
+        match info.visibility {
+            Visibility::Public(_) => {
+                parts.push("<span class=\"move-vis move-vis-public\">pub</span>")
+            }
+            Visibility::Package(_) => {
+                parts.push("<span class=\"move-vis move-vis-package\">pub(pkg)</span>")
+            }
+            Visibility::Friend(_) => {
+                parts.push("<span class=\"move-vis move-vis-friend\">pub(friend)</span>")
+            }
+            // For a private+entry function the `entry` tag below already conveys
+            // that the function is PTB-callable; emitting an extra `prv` tag
+            // alongside would be noise. So only label bare-private functions.
+            Visibility::Internal if info.entry.is_none() => {
+                parts.push("<span class=\"move-vis move-vis-private\">prv</span>")
+            }
+            Visibility::Internal => {}
+        }
+        if info.entry.is_some() {
+            parts.push("<span class=\"move-vis move-vis-entry\">entry</span>");
+        }
+        parts.join(" ")
+    }
+
     /// Generates documentation for a function.
     fn gen_function(&mut self, func_env: source_model::Function<'_>) {
         let env = func_env.model();
@@ -1101,15 +1300,13 @@ impl<'env> Docgen<'env> {
         let name = func_env.name();
         let full_name = format!("{}::{}", module_env.ident(), name);
         let func_info = func_env.info();
-        let header = if func_info.macro_.is_some() {
-            "Macro function"
+        let marker = Self::visibility_marker(&func_env);
+        let title = if func_info.macro_.is_some() {
+            format!("{marker} `{name}` (macro)")
         } else {
-            "Function"
+            format!("{marker} `{name}`")
         };
-        self.section_header(
-            &format!("{header} `{name}`"),
-            &self.label_for_module_item(module_env, name),
-        );
+        self.section_header(&title, &self.label_for_module_item(module_env, name));
         self.increment_section_nest();
         self.doc_text(env, func_info.doc.text());
         let sig = self.function_header_display(name, func_env);

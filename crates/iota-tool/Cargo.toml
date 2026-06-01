@@ -56,6 +56,7 @@ iota-package-dump.workspace = true
 iota-protocol-config.workspace = true
 iota-replay.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-snapshot.workspace = true
 iota-storage.workspace = true
 iota-tls.workspace = true

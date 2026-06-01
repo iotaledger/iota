@@ -1,0 +1,9 @@
+[package]
+name = "backward_history_test"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+backward_history_test = "0x0"

@@ -10,16 +10,17 @@ use std::{
 };
 
 use arc_swap::ArcSwapOption;
+use dashmap::DashMap;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use futures::{
-    FutureExt, StreamExt,
-    future::{Either, join_all, select},
+    StreamExt,
+    future::{Either, join_all},
     stream::FuturesUnordered,
 };
 use iota_common::{
-    fatal,
+    fatal, in_test_configuration,
     sync::{notify_once::NotifyOnce, notify_read::NotifyRead},
 };
 use iota_config::node::ExpensiveSafetyCheckConfig;
@@ -70,6 +71,7 @@ use prometheus::IntCounter;
 use serde::{Deserialize, Serialize};
 use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map,
@@ -620,8 +622,16 @@ pub struct AuthorityPerEpochStore {
 
     executed_digests_notify_read: NotifyRead<TransactionKey, TransactionDigest>,
 
-    /// This is used to notify all epoch specific tasks that epoch has ended.
-    epoch_alive_notify: NotifyOnce,
+    /// In-memory cache of signed effects digests. Populated from disk at
+    /// startup, updated on insert, and pruned on checkpoint finalization.
+    /// `get_signed_effects_digest` is called on every transaction; this
+    /// avoids a disk read on the hot path where the vast majority of
+    /// lookups return `None`. Writes still go to disk for crash recovery.
+    signed_effects_digests_cache: DashMap<TransactionDigest, TransactionEffectsDigest>,
+
+    /// Cancellation token used to signal epoch termination to all in-flight
+    /// tasks.
+    epoch_alive_token: CancellationToken,
 
     /// Used to notify all epoch specific tasks that user certs are closed.
     user_certs_closed_notify: NotifyOnce,
@@ -836,6 +846,17 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+
+    /// Per-validator received misbehavior reports state. Keyed by the
+    /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
+    /// at 256 by Starfish). Each entry is the merged-max observation set plus
+    /// invalid-report counter, snapshotted from the live aggregator when its
+    /// state changes inside a consensus commit. Written atomically with the
+    /// rest of `ConsensusCommitOutput::write_to_batch`. Survives restart;
+    /// `ReportAggregator::restore_from_tables` loads it during epoch-store
+    /// construction.
+    pub(crate) received_reports_state:
+        DBMap<u8, report_aggregator::DBReceivedReportsStatePerAuthority>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1013,7 +1034,16 @@ impl AuthorityPerEpochStore {
             .load_reconfig_state()
             .expect("Load reconfig state at initialization cannot fail");
 
-        let epoch_alive_notify = NotifyOnce::new();
+        // Populate the in-memory cache of signed effects digests from disk. The set is
+        // bounded by uncommitted (not-yet-checkpoint-finalized) transactions in the
+        // current epoch.
+        let signed_effects_digests_cache = DashMap::new();
+        for item in tables.signed_effects_digests.safe_iter() {
+            let (tx_digest, effects_digest) = item?;
+            signed_effects_digests_cache.insert(tx_digest, effects_digest);
+        }
+
+        let epoch_alive_token = CancellationToken::new();
         let pending_consensus_transactions = tables.get_all_pending_consensus_transactions()?;
         let pending_consensus_certificates: HashSet<_> = pending_consensus_transactions
             .iter()
@@ -1083,8 +1113,21 @@ impl AuthorityPerEpochStore {
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
         let report_aggregator = ReportAggregator::new(report_version, committee_size);
+        report_aggregator
+            .restore_from_tables(&tables)
+            .expect("AuthorityEpochTables should contain valid ReportAggregator state");
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
         let scoreboard = Scoreboard::new(voting_power, &protocol_config);
+        // Prime the published score vector from any restored aggregator state.
+        // Without this, a freshly constructed Scoreboard starts at [MAX_SCORE;
+        // committee_size], so the next no-report commit (which both restored
+        // and never-restarted validators skip) would publish different vectors
+        // across the network. `update_scores` is a no-op when the aggregator
+        // is empty (no `received_metrics` rows restored), so this is also
+        // correct for the fresh-epoch path.
+        if protocol_config.calculate_validator_scores() {
+            scoreboard.update_scores(&report_aggregator);
+        }
 
         let s = Arc::new(Self {
             name,
@@ -1099,7 +1142,7 @@ impl AuthorityPerEpochStore {
             parent_path: parent_path.to_path_buf(),
             db_options,
             reconfig_state_mem: RwLock::new(reconfig_state),
-            epoch_alive_notify,
+            epoch_alive_token,
             user_certs_closed_notify: NotifyOnce::new(),
             epoch_alive: tokio::sync::RwLock::new(true),
             consensus_notify_read: NotifyRead::new(),
@@ -1108,6 +1151,7 @@ impl AuthorityPerEpochStore {
             checkpoint_state_notify_read: NotifyRead::new(),
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
+            signed_effects_digests_cache,
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1486,6 +1530,8 @@ impl AuthorityPerEpochStore {
             [(tx_digest, effects_digest)],
         )?;
         batch.write()?;
+        self.signed_effects_digests_cache
+            .insert(*tx_digest, *effects_digest);
         Ok(())
     }
 
@@ -1527,8 +1573,22 @@ impl AuthorityPerEpochStore {
         &self,
         tx_digest: &TransactionDigest,
     ) -> IotaResult<Option<TransactionEffectsDigest>> {
-        let tables = self.tables()?;
-        Ok(tables.signed_effects_digests.get(tx_digest)?)
+        let cached = self.signed_effects_digests_cache.get(tx_digest).map(|r| *r);
+        if in_test_configuration() {
+            let from_db = self.tables()?.signed_effects_digests.get(tx_digest)?;
+            if cached != from_db {
+                // Cache and DB writes are not atomic, so retry after a brief delay to
+                // allow eventual consistency before panicking.
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let from_db = self.tables()?.signed_effects_digests.get(tx_digest)?;
+                let cached = self.signed_effects_digests_cache.get(tx_digest).map(|r| *r);
+                assert_eq!(
+                    cached, from_db,
+                    "signed_effects_digests cache inconsistency for {tx_digest}"
+                );
+            }
+        }
+        Ok(cached)
     }
 
     pub fn get_transaction_cert_sig(
@@ -1568,7 +1628,7 @@ impl AuthorityPerEpochStore {
                         let Some(version) = assigned_shared_versions.get(id) else {
                             panic!(
                                 "Shared object version should have been assigned. key: {key:?}, \
-                                obj id: {id:?}, assigned_shared_versions: {assigned_shared_versions:?}",
+                                obj id: {id}, assigned_shared_versions: {assigned_shared_versions:?}",
                             )
                         };
                         InputKey::VersionedObject {
@@ -1677,6 +1737,10 @@ impl AuthorityPerEpochStore {
         let mut quarantine = self.consensus_quarantine.write();
         quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
         batch.write()?;
+
+        for digest in digests {
+            self.signed_effects_digests_cache.remove(digest);
+        }
 
         self.consensus_output_cache
             .remove_executed_in_epoch(digests);
@@ -2424,18 +2488,31 @@ impl AuthorityPerEpochStore {
                 .map(|(i, reg)| async move { (i, reg.await) })
                 .collect();
 
+            // Drain notifications until either every pending registration has
+            // resolved or the deadline expires.
+            //
+            // `biased;` polls branches in source order, so a notification that
+            // is already ready always wins over a deadline that fires in the
+            // same poll — we'd rather report inclusion than time out at the
+            // boundary.
+            //
+            // We match `Some`/`None` explicitly instead of using `else => break`
+            // because `else` only fires when *all* named branches are disabled.
+            // With `Some(...) = in_flight.next()` and a still-pending `deadline`,
+            // a `Ready(None)` from an empty `in_flight` disables only that one
+            // branch — the loop would then park on `deadline` and wait the full
+            // timeout even though every notification had already resolved.
             loop {
                 tokio::select! {
-                    Some((i, seq_and_ts)) = in_flight.next() => {
-                        results[i] = Some(seq_and_ts);
+                    biased;
+                    next_result = in_flight.next() => {
+                        match next_result {
+                            Some((i, seq_and_ts)) => results[i] = Some(seq_and_ts),
+                            // All pending registrations resolved before the deadline.
+                            None => break,
+                        }
                     }
-                    () = &mut deadline => {
-                        break;
-                    }
-                    else => {
-                        // All futures completed before the deadline.
-                        break;
-                    }
+                    () = &mut deadline => break,
                 }
             }
         }
@@ -2687,7 +2764,7 @@ impl AuthorityPerEpochStore {
             // for the same tx digest
             assert!(
                 user_sigs.insert(digest, sigs).is_none(),
-                "duplicate user signatures for transaction digest: {digest:?}"
+                "duplicate user signatures for transaction digest: {digest}"
             );
         }
     }
@@ -2723,10 +2800,8 @@ impl AuthorityPerEpochStore {
 
     /// Notify epoch is terminated, can only be called once on epoch store
     pub async fn epoch_terminated(&self) {
-        // Notify interested tasks that epoch has ended
-        self.epoch_alive_notify
-            .notify()
-            .expect("epoch_terminated called twice on same epoch store");
+        // Signal all in-flight tasks that epoch has ended.
+        self.epoch_alive_token.cancel();
         // This `write` acts as a barrier - it waits for futures executing in
         // `within_alive_epoch` to terminate before we can continue here
         debug!("Epoch terminated - waiting for pending tasks to complete");
@@ -2736,7 +2811,7 @@ impl AuthorityPerEpochStore {
 
     /// Waits for the notification about epoch termination
     pub async fn wait_epoch_terminated(&self) {
-        self.epoch_alive_notify.wait().await
+        self.epoch_alive_token.cancelled().await
     }
 
     /// This function executes given future until epoch_terminated is called
@@ -2753,11 +2828,12 @@ impl AuthorityPerEpochStore {
         if !*guard {
             return Err(());
         }
-        let terminated = self.wait_epoch_terminated().boxed();
-        let f = f.boxed();
-        match select(terminated, f).await {
-            Either::Left((_, _f)) => Err(()),
-            Either::Right((result, _)) => Ok(result),
+        // The hot path here -- epoch is alive, future resolves first -- is now a
+        // single atomic load inside CancellationToken's `cancelled()` future,
+        // instead of mutex + Arc clone + two `.boxed()` heap allocations per call.
+        tokio::select! {
+            _ = self.epoch_alive_token.cancelled() => Err(()),
+            result = f => Ok(result),
         }
     }
 
@@ -3181,7 +3257,14 @@ impl AuthorityPerEpochStore {
         // reports and snapshotting. This avoids cross-thread reads of the
         // aggregator — the checkpoint service only reads the published score
         // snapshot (`ArcSwap<Vec<u64>>`).
-        if self.protocol_config().calculate_validator_scores() {
+        //
+        // Skip the recompute entirely when no `process_report` ran this commit:
+        // the aggregator state didn't change, so the score vector can't either.
+        // All validators see the same `report_state_snapshots` emptiness, so
+        // they all skip / run in lock-step — `current_scores` stays consistent
+        // across the network.
+        if self.protocol_config().calculate_validator_scores() && output.has_report_state_changes()
+        {
             self.scoreboard.update_scores(&self.report_aggregator);
         }
         self.process_user_signatures(
@@ -4211,8 +4294,10 @@ impl AuthorityPerEpochStore {
                     .committee
                     .authority_index(&report.authority)
                     .expect("authority in committee");
-                self.report_aggregator
+                let snapshot = self
+                    .report_aggregator
                     .process_report(authority_index, report);
+                output.record_report_state_snapshot(authority_index, snapshot);
 
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }

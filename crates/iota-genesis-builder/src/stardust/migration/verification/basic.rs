@@ -4,10 +4,10 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, ensure};
+use iota_sdk_types::TypeTag;
 use iota_stardust_types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
     balance::Balance,
-    base_types::TypeTag,
     coin::Coin,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
@@ -54,7 +54,7 @@ pub(super) fn verify_basic_output(
                     .ok_or_else(|| anyhow!("missing timelock object"))
             })?
             .to_rust::<TimeLock<Balance>>()
-            .ok_or_else(|| anyhow!("invalid timelock object"))?;
+            .map_err(|e| anyhow!("invalid timelock object: {e}"))?;
 
         // Locked timestamp
         let output_timelock_timestamp =
@@ -133,7 +133,7 @@ pub(super) fn verify_basic_output(
         })?;
         let created_output = created_output_obj
             .to_rust::<MoveBasicOutput>()
-            .ok_or_else(|| anyhow!("invalid basic output object"))?;
+            .map_err(|e| anyhow!("invalid basic output object: {e}"))?;
 
         // Owner
         // If there is an expiration unlock condition, the output is shared.

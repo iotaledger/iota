@@ -449,11 +449,11 @@ impl ReadApi {
             .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
             .await?
             .into_object()
-            .map_err(|e| Error::Data(format!("Can't get bcs of object {object_id:?}: {e:?}")))?;
+            .map_err(|e| Error::Data(format!("Can't get bcs of object {object_id}: {e:?}")))?;
         // unwrap: requested bcs data
         let move_object = resp.bcs.unwrap();
         let raw_move_obj = move_object.try_into_move().ok_or(Error::Data(format!(
-            "Object {object_id:?} is not a MoveObject"
+            "Object {object_id} is not a MoveObject"
         )))?;
         Ok(raw_move_obj.bcs_bytes)
     }

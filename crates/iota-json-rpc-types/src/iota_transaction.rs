@@ -10,11 +10,9 @@ use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
+use iota_sdk_types::{Command, Identifier, MoveCall, TransferObjects, TypeTag};
 use iota_types::{
-    base_types::{
-        EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-        TypeTag,
-    },
+    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -35,10 +33,9 @@ use iota_types::{
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ProgrammableMoveCall,
-        ProgrammableTransaction, SenderSignedData, SharedObjectRef, TransactionData,
-        TransactionDataAPI, TransactionKind, TransferObjects,
+        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
+        EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ProgrammableTransaction,
+        SenderSignedData, SharedObjectRef, TransactionData, TransactionDataAPI, TransactionKind,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1010,10 +1007,13 @@ impl IotaTransactionBlockEffects {
                 .await;
         match native {
             TransactionEffects::V1(inner) => {
-                let mut inner = IotaTransactionBlockEffectsV1::from(inner);
+                let mut inner = IotaTransactionBlockEffectsV1::from(*inner);
                 inner.status = clever_status;
                 inner.into()
             }
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -1030,7 +1030,7 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
     fn from(native: T) -> Self {
         Self {
             status: native.status().clone().into(),
-            executed_epoch: native.executed_epoch(),
+            executed_epoch: native.epoch(),
             modified_at_versions: native
                 .modified_at_versions()
                 .into_iter()
@@ -1194,15 +1194,14 @@ pub struct IotaTransactionBlockEvents {
 
 impl IotaTransactionBlockEvents {
     pub fn try_from(
-        events: TransactionEvents,
+        mut events: TransactionEvents,
         tx_digest: TransactionDigest,
         timestamp_ms: Option<u64>,
         resolver: &mut dyn LayoutResolver,
     ) -> IotaResult<Self> {
         Ok(Self {
             data: events
-                .data
-                .into_iter()
+                .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
                     let layout = resolver.get_annotated_layout(&event.type_)?;
@@ -1215,15 +1214,14 @@ impl IotaTransactionBlockEvents {
     // TODO: this is only called from the indexer. Remove this once indexer moves to
     // its own resolver.
     pub fn try_from_using_module_resolver(
-        events: TransactionEvents,
+        mut events: TransactionEvents,
         tx_digest: TransactionDigest,
         timestamp_ms: Option<u64>,
         resolver: &impl GetModule,
     ) -> IotaResult<Self> {
         Ok(Self {
             data: events
-                .data
-                .into_iter()
+                .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
                     let layout = get_layout_from_struct_tag(event.type_.clone(), resolver)?;
@@ -1592,7 +1590,9 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
             } => Self::Failure {
                 error: format!("{error} in command {idx}"),
             },
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new ExecutionStatus enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -1897,8 +1897,8 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
                     })
                     .collect(),
             ),
-            _ => unreachable!(
-                "a new ConsensusDeterminedVersionAssignments variant was added and needs to be handled"
+            _ => unimplemented!(
+                "a new ConsensusDeterminedVersionAssignments enum variant was added and needs to be handled"
             ),
         }
     }
@@ -2339,9 +2339,9 @@ impl Display for IotaProgrammableMoveCall {
     }
 }
 
-impl From<ProgrammableMoveCall> for IotaProgrammableMoveCall {
-    fn from(value: ProgrammableMoveCall) -> Self {
-        let ProgrammableMoveCall {
+impl From<MoveCall> for IotaProgrammableMoveCall {
+    fn from(value: MoveCall) -> Self {
+        let MoveCall {
             package,
             module,
             function,

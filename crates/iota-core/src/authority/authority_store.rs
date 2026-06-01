@@ -14,7 +14,7 @@ use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{SequenceNumber, VerifiedExecutionData},
     digests::TransactionEventsDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
@@ -22,7 +22,6 @@ use iota_types::{
     iota_system_state::{
         get_iota_system_state, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
-    message_envelope::Message,
     storage::{
         BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, get_module,
     },
@@ -289,7 +288,6 @@ impl AuthorityStore {
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, e)| ((event_digests, i), e));
@@ -337,7 +335,6 @@ impl AuthorityStore {
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
                     let events_iter = events
-                        .data
                         .iter()
                         .enumerate()
                         .map(|(i, e)| ((events.digest(), i), e));
@@ -430,7 +427,7 @@ impl AuthorityStore {
             .safe_range_iter((*event_digest, 0)..=(*event_digest, usize::MAX))
             .map_ok(|(_, event)| event)
             .collect::<Result<Vec<_>, TypedStoreError>>()?;
-        Ok(data.is_empty().not().then_some(TransactionEvents { data }))
+        Ok(data.is_empty().not().then_some(TransactionEvents(data)))
     }
 
     pub fn multi_get_events(
@@ -923,7 +920,6 @@ impl AuthorityStore {
         // Continue writing events into the old table for now keyed off of events digest
         let event_digest = events.digest();
         let events = events
-            .data
             .iter()
             .enumerate()
             .map(|(i, e)| ((event_digest, i), e));
@@ -1700,7 +1696,7 @@ impl AuthorityStore {
         let mut object_keys_to_prune = vec![];
         for effects in &transaction_effects {
             for (object_id, seq_number) in effects.modified_at_versions() {
-                info!("Pruning object {:?} version {:?}", object_id, seq_number);
+                info!("Pruning object {} version {:?}", object_id, seq_number);
                 object_keys_to_prune.push(ObjectKey(object_id, seq_number));
             }
         }

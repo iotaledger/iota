@@ -8,6 +8,7 @@ use std::{collections::BTreeMap, fs, path::Path};
 
 use anyhow::Result;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
+use move_docgen::DocgenFlags;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use tempfile::tempdir;
 
@@ -202,6 +203,7 @@ fn genesis_build_configuration() -> BuildConfig {
         dev_mode: false,
         test_mode: false,
         generate_docs: false,
+        docgen_flags: DocgenFlags::default(),
         save_disassembly: false,
         install_dir: None,
         force_recompilation: false,

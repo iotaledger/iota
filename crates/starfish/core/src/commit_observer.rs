@@ -247,6 +247,7 @@ impl CommitObserver {
             commit.timestamp_ms(),
             commit.reference(),
             reputation_scores,
+            self.dag_state.read().misbehavior_store().snapshot_totals(),
         ))
     }
 
@@ -457,11 +458,11 @@ impl CommitObserver {
 
         let num_commits = unprocessed_commits.len();
         let mut committed_subdags = Vec::new();
-        let mut expected_commit_index = self.last_sent_commit_index + 1;
-        for (index, commit) in unprocessed_commits.into_iter().enumerate() {
+        for (expected_commit_index, (index, commit)) in
+            (self.last_sent_commit_index + 1..).zip(unprocessed_commits.into_iter().enumerate())
+        {
             let commit_index = commit.index();
             assert_eq!(commit_index, expected_commit_index);
-            expected_commit_index += 1;
 
             // Only the last commit carries scores for leader schedule consumers.
             let reputation_scores = if index == num_commits - 1 {
@@ -646,7 +647,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let mem_store = Arc::new(MemStore::new(context.clone()));
+        let mem_store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),
@@ -763,7 +764,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let mem_store = Arc::new(MemStore::new(context.clone()));
+        let mem_store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),
@@ -910,7 +911,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let mem_store = Arc::new(MemStore::new(context.clone()));
+        let mem_store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),
@@ -994,7 +995,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let mem_store = Arc::new(MemStore::new(context.clone()));
+        let mem_store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),
@@ -1091,13 +1092,11 @@ mod tests {
         // this happens at commit 4 or later depending on how blocks are ordered.
         assert!(
             first_missing_index > 1,
-            "Expected first missing at index > 1, got {}",
-            first_missing_index
+            "Expected first missing at index > 1, got {first_missing_index}"
         );
         assert!(
             first_missing_index <= num_rounds as CommitIndex,
-            "Expected first missing within num_rounds, got {}",
-            first_missing_index
+            "Expected first missing within num_rounds, got {first_missing_index}"
         );
 
         // Re-create commit observer starting from index 0 to simulate full recovery.
@@ -1155,16 +1154,14 @@ mod tests {
         for missing_ref in &expected_missing_refs {
             assert!(
                 missing.contains_key(missing_ref),
-                "Missing ref {:?} not tracked",
-                missing_ref
+                "Missing ref {missing_ref:?} not tracked"
             );
             // Each missing transaction should have acknowledgers recorded since
             // all commits are within the recovery window (gc_depth * 2).
             let acknowledgers = missing.get(missing_ref).unwrap();
             assert!(
                 !acknowledgers.is_empty(),
-                "No acknowledgers tracked for {:?}",
-                missing_ref
+                "No acknowledgers tracked for {missing_ref:?}"
             );
         }
 
@@ -1223,7 +1220,7 @@ mod tests {
             clock,
         ));
 
-        let mem_store = Arc::new(MemStore::new(context.clone()));
+        let mem_store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             mem_store.clone(),

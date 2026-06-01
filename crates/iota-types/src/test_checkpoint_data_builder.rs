@@ -15,11 +15,13 @@ use crate::{
     },
     committee::Committee,
     digests::TransactionDigest,
-    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
+        TransactionEvents,
+    },
     event::{Event, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
     },
@@ -411,7 +413,7 @@ impl TestCheckpointDataBuilder {
         } = self.checkpoint_builder.next_transaction.take().unwrap();
 
         let sender = Self::derive_address(sender_idx);
-        let events = events.map(|events| TransactionEvents { data: events });
+        let events = events.map(TransactionEvents);
         let events_digest = events.as_ref().map(|events| events.digest());
 
         let mut pt_builder = ProgrammableTransactionBuilder::new();
@@ -594,14 +596,16 @@ impl TestCheckpointDataBuilder {
             None
         };
 
-        let transaction_events = events.map(|events| TransactionEvents { data: events });
+        let transaction_events = events.map(TransactionEvents);
+
+        let effects = TransactionEffects::new_empty_v1(*end_of_epoch_tx.digest());
 
         // Similar to calling self.finish_transaction()
         self.checkpoint_builder
             .transactions
             .push(CheckpointTransaction {
                 transaction: end_of_epoch_tx,
-                effects: Default::default(),
+                effects,
                 events: transaction_events,
                 input_objects: vec![],
                 output_objects: vec![],
@@ -702,10 +706,12 @@ impl TestCheckpointDataBuilder {
 mod tests {
     use std::str::FromStr;
 
+    use iota_sdk_types::Command;
+
     use super::*;
     use crate::{
         ObjectID,
-        transaction::{Command, TransactionDataAPI, TransactionKindExt},
+        transaction::{TransactionDataAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {
@@ -1038,7 +1044,7 @@ mod tests {
         assert!(tx.effects.events_digest().is_some());
 
         // Verify the transaction has a single event
-        assert_eq!(tx.events.as_ref().unwrap().data.len(), 1);
+        assert_eq!(tx.events.as_ref().unwrap().len(), 1);
     }
 
     #[test]

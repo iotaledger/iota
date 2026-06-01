@@ -4,13 +4,14 @@
 
 use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
+use iota_sdk_types::Command;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointTransaction,
     object::Owner,
-    transaction::{Command, TransactionDataAPI},
+    transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
 
@@ -144,7 +145,7 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                     .ok_or("package_id is missing")?
                     .object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
-                    .map_err(|e| format!("invalid package_id: {}", e))?;
+                    .map_err(|e| format!("invalid package_id: {e}"))?;
                 Ok(CommandFilter::MoveCall {
                     package,
                     module: call_filter.module,
@@ -161,7 +162,7 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                     .package_id
                     .map(|addr| {
                         ObjectID::from_bytes(&addr.object_id)
-                            .map_err(|e| format!("invalid package_id: {}", e))
+                            .map_err(|e| format!("invalid package_id: {e}"))
                     })
                     .transpose()?;
                 Ok(CommandFilter::Upgrade { package })
@@ -281,7 +282,7 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .ok_or("sender address is missing")?
                     .address;
                 let iota_address = IotaAddress::from_bytes(&address)
-                    .map_err(|e| format!("invalid sender address: {}", e))?;
+                    .map_err(|e| format!("invalid sender address: {e}"))?;
                 Ok(TransactionFilter::Sender(iota_address))
             }
             ProtoFilter::Receiver(addr_filter) => {
@@ -290,7 +291,7 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .ok_or("receiver address is missing")?
                     .address;
                 let iota_address = IotaAddress::from_bytes(&address)
-                    .map_err(|e| format!("invalid receiver address: {}", e))?;
+                    .map_err(|e| format!("invalid receiver address: {e}"))?;
                 Ok(TransactionFilter::Receiver(iota_address))
             }
             ProtoFilter::AffectedObject(obj_filter) => {
@@ -300,7 +301,7 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .as_ref()
                     .ok_or("object_id is missing")?
                     .object_id()
-                    .map_err(|e| format!("invalid object_id: {}", e))?;
+                    .map_err(|e| format!("invalid object_id: {e}"))?;
                 Ok(TransactionFilter::AffectedObject(object_id))
             }
             ProtoFilter::Command(command_filter) => {
@@ -372,11 +373,10 @@ impl TransactionFilter {
                 _ => false,
             },
 
-            TransactionFilter::Events(event_filter) => item.events.as_ref().is_some_and(|evts| {
-                evts.data
-                    .iter()
-                    .any(|event| event_filter.matches_event(event))
-            }),
+            TransactionFilter::Events(event_filter) => item
+                .events
+                .as_ref()
+                .is_some_and(|evts| evts.iter().any(|event| event_filter.matches_event(event))),
 
             TransactionFilter::ExecutionStatus(status_filter) => {
                 status_filter.matches_status(item.effects.status())
@@ -393,8 +393,7 @@ impl TransactionFilter {
     fn validate_depth_recursive(&self, current_depth: usize) -> Result<(), String> {
         if current_depth > MAX_FILTER_DEPTH {
             return Err(format!(
-                "Filter depth exceeds maximum allowed depth of {}",
-                MAX_FILTER_DEPTH
+                "Filter depth exceeds maximum allowed depth of {MAX_FILTER_DEPTH}"
             ));
         }
 
@@ -459,8 +458,7 @@ impl TransactionFilter {
         let node_count = self.count_nodes();
         if node_count > MAX_FILTER_NODES {
             return Err(format!(
-                "Filter complexity exceeds maximum allowed nodes: {} > {}",
-                node_count, MAX_FILTER_NODES
+                "Filter complexity exceeds maximum allowed nodes: {node_count} > {MAX_FILTER_NODES}"
             ));
         }
 
@@ -482,10 +480,8 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::{
-        base_types::{Identifier, ObjectID},
-        transaction::{Argument, Command},
-    };
+    use iota_sdk_types::{Command, Identifier};
+    use iota_types::{base_types::ObjectID, transaction::Argument};
 
     use super::*;
 

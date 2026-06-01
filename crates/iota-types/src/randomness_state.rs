@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::Identifier;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{Identifier, ObjectID, SequenceNumber},
+    base_types::{ObjectID, SequenceNumber},
     error::{IotaError, IotaResult},
     storage::ObjectStore,
 };

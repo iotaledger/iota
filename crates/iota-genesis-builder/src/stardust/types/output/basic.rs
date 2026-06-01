@@ -6,11 +6,12 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::StructTag;
 // Re-export the canonical type from iota-types
 pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TxContext},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
     id::UID,

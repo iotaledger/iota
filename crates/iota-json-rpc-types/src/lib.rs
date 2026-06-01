@@ -23,10 +23,11 @@ use iota_primitives::{
     SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
 };
 pub use iota_protocol::*;
+use iota_sdk_types::TypeTag;
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{
-    base_types::{ObjectID, TypeTag},
+    base_types::ObjectID,
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
 };

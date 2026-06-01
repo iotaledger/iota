@@ -547,9 +547,37 @@ pub fn ptb_description() -> clap::Command {
             \n --transfer-objects sender \"[upgrade_cap]\""
         ).value_hint(ValueHint::DirPath))
         .arg(arg!(
-            --"upgrade" <MOVE_PACKAGE_PATH>
+            --"upgrade" <PACKAGE_AND_CAP>
             "Upgrade the Move package. It takes as input the folder where the package exists."
-        ).value_hint(ValueHint::DirPath))
+        ).long_help(
+            "Upgrade the Move package. All three upgrade steps (authorize, execute, commit) \
+            are performed in a single command.\
+            \n\nExamples:\
+            \n --upgrade \"./my_package\" @upgrade_cap_id"
+        ).value_names(["MOVE_PACKAGE_PATH", "UPGRADE_CAP"]).value_hint(ValueHint::DirPath))
+        .arg(arg!(
+            --"compile-upgrade" <PACKAGE_AND_CAP>
+            "Compile a Move package for upgrade without executing any transaction commands."
+        ).long_help(
+            "Compile a Move package for upgrade. Returns the package digest as a pure value \
+            (vector<u8>) that can be assigned to a variable and passed to a custom authorize \
+            function. Stores the compiled package data internally for a subsequent \
+            --execute-upgrade command.\
+            \n\nExamples:\
+            \n --compile-upgrade \"./my_package\" @upgrade_cap_id\
+            \n --assign package_digest"
+        ).value_names(["MOVE_PACKAGE_PATH", "UPGRADE_CAP"]).value_hint(ValueHint::DirPath))
+        .arg(arg!(
+            --"execute-upgrade" <UPGRADE_TICKET>
+            "Execute the system upgrade using previously compiled package data."
+        ).long_help(
+            "Execute the system upgrade step. Must be preceded by --compile-upgrade in the \
+            same PTB. Takes the upgrade ticket (from an authorize call) as argument and \
+            returns the upgrade receipt.\
+            \n\nExamples:\
+            \n --execute-upgrade ticket\
+            \n --assign receipt"
+        ))
         .arg(arg!(
             --"preview"
             "Instead of executing the transaction, preview its PTB commands."

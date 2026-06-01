@@ -6,8 +6,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTransactionKind,
     ObjectChange,
 };
+use iota_sdk_types::StructTag;
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber, StructTag},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,

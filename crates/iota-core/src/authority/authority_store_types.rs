@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::StructTag;
 use iota_types::{
-    base_types::{StructTag, TransactionDigest},
+    base_types::TransactionDigest,
     coin::Coin,
     error::IotaError,
     move_package::MovePackage,

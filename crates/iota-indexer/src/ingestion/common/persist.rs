@@ -225,6 +225,7 @@ pub enum CommitterTables {
     Packages,
     ProtocolConfigs,
     // Prunable tables
+    ObjectsBackwardHistory,
     ObjectsHistory,
     Transactions,
     Events,

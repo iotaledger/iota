@@ -485,12 +485,12 @@ fragment DynamicFieldsSelect on DynamicFieldConnection {
       sequenceNumber
     }
   }
-  parent_version_4_outside_consistent_range: object(address: "@{obj_2_1}", version: 4) {
+  parent_version_4_has_df_and_dof: object(address: "@{obj_2_1}", version: 4) {
     dynamicFields {
       ...DynamicFieldsSelect
     }
   }
-  parent_version_4_paginated_outside_consistent_range: object(address: "@{obj_2_1}", version: 4) {
+  parent_version_4_paginated_after_cursor_0: object(address: "@{obj_2_1}", version: 4) {
     dynamicFields(after: "@{cursor_0}") {
       ...DynamicFieldsSelect
     }

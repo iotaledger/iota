@@ -1121,6 +1121,12 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn test_payload_object_input_dry_run_exceeded() {
+        test_payload_object_input_dry_run_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn test_payload_using_vars_mutation_passes() {
         let _guard = telemetry_subscribers::TelemetryConfig::new()
             .with_env()

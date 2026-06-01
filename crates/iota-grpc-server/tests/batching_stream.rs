@@ -18,9 +18,10 @@ use iota_grpc_types::{
         types::ObjectReference,
     },
 };
+use iota_sdk_types::StructTag;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, StructTag, random_object_ref},
+    base_types::{ObjectID, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{TestEffectsBuilder, TransactionEffects},

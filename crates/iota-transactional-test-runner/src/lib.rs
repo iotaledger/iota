@@ -254,7 +254,9 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         let active_validators = match system_state_summary {
             IotaSystemStateSummary::V1(inner) => inner.active_validators,
             IotaSystemStateSummary::V2(inner) => inner.active_validators,
-            _ => unimplemented!(),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         Ok(active_validators
@@ -455,7 +457,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         _limit: usize,
     ) -> IotaResult<Vec<Event>> {
         match self.try_get_events(tx_digest)? {
-            Some(events) => Ok(events.data),
+            Some(events) => Ok(events.0),
             None => Ok(Vec::new()),
         }
     }

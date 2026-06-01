@@ -13,10 +13,11 @@ use anyhow::{anyhow, bail};
 use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Identifier, StructTag};
 use iota_types::{
     base_types::{
-        Identifier, IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType,
-        SequenceNumber, StructTag, TransactionDigest,
+        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
+        TransactionDigest,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
@@ -342,7 +343,7 @@ impl IotaObjectData {
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
         self.type_
             .as_ref()
-            .ok_or_else(|| anyhow!("type is missing for object {:?}", self.object_id))
+            .ok_or_else(|| anyhow!("type is missing for object {}", self.object_id))
             .cloned()
     }
 

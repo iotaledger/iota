@@ -241,12 +241,7 @@ async fn test_object_target_fail_wrong_object() {
 async fn test_event_target_fail_no_data() {
     let (committee, full_checkpoint) = read_test_data().await;
 
-    let sample_event: Event = full_checkpoint.transactions[1]
-        .events
-        .as_ref()
-        .unwrap()
-        .data[0]
-        .clone();
+    let sample_event: Event = full_checkpoint.transactions[1].events.as_ref().unwrap()[0].clone();
     let sample_eid = EventID::from((
         *full_checkpoint.transactions[1].effects.transaction_digest(),
         0,
@@ -265,12 +260,7 @@ async fn test_event_target_fail_no_data() {
 async fn test_event_target_success() {
     let (committee, full_checkpoint) = read_test_data().await;
 
-    let sample_event: Event = full_checkpoint.transactions[1]
-        .events
-        .as_ref()
-        .unwrap()
-        .data[0]
-        .clone();
+    let sample_event: Event = full_checkpoint.transactions[1].events.as_ref().unwrap()[0].clone();
     let sample_eid = EventID::from((
         *full_checkpoint.transactions[1].effects.transaction_digest(),
         0,
@@ -286,12 +276,7 @@ async fn test_event_target_success() {
 async fn test_event_target_fail_bad_event() {
     let (committee, full_checkpoint) = read_test_data().await;
 
-    let sample_event: Event = full_checkpoint.transactions[1]
-        .events
-        .as_ref()
-        .unwrap()
-        .data[0]
-        .clone();
+    let sample_event: Event = full_checkpoint.transactions[1].events.as_ref().unwrap()[0].clone();
     let sample_eid = EventID::from((
         *full_checkpoint.transactions[1].effects.transaction_digest(),
         1, // WRONG

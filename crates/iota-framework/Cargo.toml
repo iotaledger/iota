@@ -32,6 +32,7 @@ iota-common.workspace = true
 iota-move-build.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
+move-docgen.workspace = true
 move-package.workspace = true
 
 [lints]

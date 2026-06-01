@@ -1,0 +1,179 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 23 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 6-35:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6315600, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 37-39:
+//# programmable --sender A --inputs @A
+//> 0: P0::m::create_foo();
+//> TransferObjects([Result(0)], Input(0))
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 41:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 4, lines 43-45:
+//# programmable --sender A --inputs @A object(2,0)
+//> 0: P0::m::wrap_foo(Input(1));
+//> TransferObjects([Result(0)], Input(0))
+created: object(4,0)
+mutated: object(0,0)
+wrapped: object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800, storage_rebate: 2257200, non_refundable_storage_fee: 0
+
+task 5, line 47:
+//# transfer-object 4,0 --sender A --recipient A
+mutated: object(0,0), object(4,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800, storage_rebate: 2530800, non_refundable_storage_fee: 0
+
+task 6, line 49:
+//# transfer-object 4,0 --sender A --recipient A
+mutated: object(0,0), object(4,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800, storage_rebate: 2530800, non_refundable_storage_fee: 0
+
+task 7, line 51:
+//# transfer-object 4,0 --sender A --recipient A
+mutated: object(0,0), object(4,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800, storage_rebate: 2530800, non_refundable_storage_fee: 0
+
+task 8, line 53:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 9, line 55:
+//# advance-epoch
+Epoch advanced: 0
+
+task 10, lines 57-59:
+//# programmable --sender A --inputs @A object(4,0)
+//> 0: P0::m::unwrap_foo(Input(1));
+//> TransferObjects([Result(0)], Input(0))
+mutated: object(0,0)
+unwrapped: object(2,0)
+deleted: object(4,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 2530800, non_refundable_storage_fee: 0
+
+task 11, line 61:
+//# create-checkpoint
+Checkpoint created: 4
+
+task 12, lines 63-64:
+//# programmable --sender A --inputs object(2,0)
+//> 0: P0::m::mutate_foo(Input(0));
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 2257200, non_refundable_storage_fee: 0
+
+task 13, line 66:
+//# create-checkpoint
+Checkpoint created: 5
+
+task 14, line 68:
+//# advance-epoch
+Epoch advanced: 1
+
+task 15, lines 70-84:
+//# run-graphql
+Response: {
+  "data": {
+    "current_active_v8": {
+      "nodes": [
+        {
+          "status": "INDEXED",
+          "version": 8
+        }
+      ]
+    },
+    "lamport_v6": {
+      "nodes": [
+        {
+          "status": "WRAPPED_OR_DELETED",
+          "version": 3
+        }
+      ]
+    },
+    "previous_active_v7": {
+      "nodes": [
+        {
+          "status": "INDEXED",
+          "version": 7
+        }
+      ]
+    },
+    "real_tombstone_v3": {
+      "nodes": [
+        {
+          "status": "WRAPPED_OR_DELETED",
+          "version": 3
+        }
+      ]
+    }
+  }
+}
+
+task 16, lines 86-88:
+//# programmable --sender A --inputs @A
+//> 0: P0::m::create_foo();
+//> TransferObjects([Result(0)], Input(0))
+created: object(16,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 17, line 90:
+//# create-checkpoint
+Checkpoint created: 7
+
+task 18, line 92:
+//# advance-epoch
+Epoch advanced: 2
+
+task 19, lines 94-96:
+//# programmable --sender A --inputs @A
+//> 0: P0::m::create_foo();
+//> TransferObjects([Result(0)], Input(0))
+created: object(19,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 20, line 98:
+//# create-checkpoint
+Checkpoint created: 9
+
+task 21, line 100:
+//# advance-epoch
+Epoch advanced: 3
+
+task 22, lines 102-116:
+//# run-graphql --wait-for-checkpoint-pruned 4
+Response: {
+  "data": {
+    "current_active_v8": {
+      "nodes": [
+        {
+          "status": "INDEXED",
+          "version": 8
+        }
+      ]
+    },
+    "lamport_v6": {
+      "nodes": []
+    },
+    "previous_active_v7": {
+      "nodes": []
+    },
+    "real_tombstone_v3": {
+      "nodes": []
+    }
+  }
+}

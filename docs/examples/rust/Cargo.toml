@@ -20,7 +20,7 @@ tokio = "1.46.1"
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-move-build = { path = "../../../crates/iota-move-build" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0bb2128fc621c8323f1583f095a53564486ae779" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "058f623870be7c8fb47d3d52564107eabc2c2f96" }
 iota-types = { path = "../../../crates/iota-types" }
 move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
 
@@ -91,3 +91,8 @@ path = "abstract_account/authenticator-shared-object-swap.rs"
 [[example]]
 name = "authenticator-tx-data-cryptographic-protection"
 path = "abstract_account/authenticator-tx-data-cryptographic-protection.rs"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "move-binary-format", # `serialize` method is gated by its `fuzzing` feature
+]

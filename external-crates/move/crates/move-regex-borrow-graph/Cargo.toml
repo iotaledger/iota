@@ -7,6 +7,9 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
+petgraph.workspace = true
+
+# internal dependencies
 move-binary-format.workspace = true
 move-core-types.workspace = true
-petgraph.workspace = true

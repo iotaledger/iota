@@ -28,13 +28,16 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::StructTag;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     error::IotaError,
     iota_serde::BigInt,
     messages_checkpoint::{
@@ -354,10 +357,10 @@ impl ReadApi {
                         }
                         None | Some(None) => {
                             error!(
-                                "failed to fetch events with event digest {events_digest:?} for txn {transaction_digest}"
+                                "failed to fetch events with event digest {events_digest} for txn {transaction_digest}"
                             );
                             cache_entry.errors.push(format!(
-                                "failed to fetch events with event digest {events_digest:?}",
+                                "failed to fetch events with event digest {events_digest}",
                             ))
                         }
                     }
@@ -483,7 +486,7 @@ impl ReadApi {
 
 #[async_trait]
 impl ReadApiServer for ReadApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -545,7 +548,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_ids), fields(object_ids = object_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_objects(
         &self,
         object_ids: Vec<ObjectID>,
@@ -594,7 +597,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_past_object(
         &self,
         object_id: ObjectID,
@@ -606,7 +609,7 @@ impl ReadApiServer for ReadApi {
             let past_read = spawn_monitored_task!(async move {
             state.get_past_object_read(&object_id, version)
             .map_err(|e| {
-                error!("failed to call try_get_past_object for object: {object_id:?} version: {version:?} with error: {e:?}");
+                error!("failed to call try_get_past_object for object: {object_id} version: {version:?} with error: {e:?}");
                 Error::from(e)
             })}).await.map_err(Error::from)??;
             let options = options.unwrap_or_default();
@@ -654,7 +657,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_object_before_version(
         &self,
         object_id: ObjectID,
@@ -732,7 +735,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
         let transaction = async move {
             let transaction_kv_store = self.transaction_kv_store.clone();
@@ -757,7 +760,7 @@ impl ReadApiServer for ReadApi {
         Ok(transaction.map(|tx| *tx.digest()) == Some(digest))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn get_transaction_block(
         &self,
         digest: TransactionDigest,
@@ -820,7 +823,7 @@ impl ReadApiServer for ReadApi {
                 .get_transaction_perpetual_checkpoint(digest)
                 .await
                 .map_err(|e| {
-                    error!("failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
+                    error!("failed to retrieve checkpoint sequence for transaction {digest} with error: {e:?}");
                     Error::from(e)
                 })?;
 
@@ -848,7 +851,7 @@ impl ReadApiServer for ReadApi {
                         .multi_get_events_by_tx_digests(&[digest])
                         .await
                         .map_err(|e| {
-                            error!("failed to call get transaction events for transaction: {digest:?} with error {e:?}");
+                            error!("failed to call get transaction events for transaction: {digest} with error {e:?}");
                             Error::from(e)
                         })
                     })
@@ -920,7 +923,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digests), fields(digests = digests.iter().map(|d| d.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_transaction_blocks(
         &self,
         digests: Vec<TransactionDigest>,
@@ -936,7 +939,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, transaction_digest), fields(transaction_digest = %transaction_digest))]
     async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {
         async move {
             let state = self.state.clone();
@@ -948,15 +951,14 @@ impl ReadApiServer for ReadApi {
                     .await
                     .map_err(
                         |e| {
-                            error!("failed to get transaction events for transaction {transaction_digest:?} with error: {e:?}");
+                            error!("failed to get transaction events for transaction {transaction_digest} with error: {e:?}");
                             Error::StateRead(e.into())
                         })?
                     .pop()
                     .flatten();
                 Ok(match events {
-                    Some(events) => events
-                        .data
-                        .into_iter()
+                    Some(mut events) => events
+                        .drain(..)
                         .enumerate()
                         .map(|(seq, e)| {
                             let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
@@ -1272,10 +1274,8 @@ fn parse_template(template: &str, move_struct: &IotaMoveStruct) -> Result<String
                 let value = get_value_from_move_struct(move_struct, &var_name)?;
                 output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
             }
-            _ if !escaped => {
-                if in_braces {
-                    var_name.push(ch);
-                }
+            _ if !escaped && in_braces => {
+                var_name.push(ch);
             }
             _ => {}
         }

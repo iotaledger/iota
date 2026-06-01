@@ -29,7 +29,7 @@ use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
@@ -130,8 +130,7 @@ impl WriteApi {
             .chain(output_objects.iter())
             .collect::<Vec<_>>();
 
-        let tx_effects: TransactionEffects =
-            executed_transaction.effects()?.effects()?.try_into()?;
+        let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
 
         let tx_signatures = executed_transaction
             .signatures()?
@@ -142,7 +141,7 @@ impl WriteApi {
 
         let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
 
-        let tx_events = TransactionEvents::from(executed_transaction.events()?.events()?);
+        let tx_events = executed_transaction.events()?.events()?;
 
         let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
 
@@ -254,15 +253,14 @@ impl WriteApi {
 
         let executed_transaction = simulate_tx_response.executed_transaction()?;
 
-        let tx_effects: TransactionEffects =
-            executed_transaction.effects()?.effects()?.try_into()?;
+        let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
 
         let raw_effects = show_raw_txn_data_and_effects
             .then(|| bcs::to_bytes(&tx_effects))
             .transpose()?
             .unwrap_or_default();
 
-        let tx_events = TransactionEvents::from(executed_transaction.events()?.events()?);
+        let tx_events = executed_transaction.events()?.events()?;
 
         let tx_digest = *tx_effects.transaction_digest();
         // timestamp is None because it represent a checkpoint one, on a dev inspect
@@ -596,7 +594,7 @@ impl TxObjectResolver {
             self,
             effects,
             tx.input_objects().unwrap_or_else(|e| {
-                panic!("checkpointed tx {tx_digest:?} has invalid input objects: {e}")
+                panic!("checkpointed tx {tx_digest} has invalid input objects: {e}")
             }),
             None,
         )

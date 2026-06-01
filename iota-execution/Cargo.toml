@@ -42,3 +42,8 @@ tracing = [
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-machete]
+ignored = [
+  "move-vm-types-latest", # kept to be part of the cut
+]

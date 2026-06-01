@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{
+    ast::{COMPILE_UPGRADE, PUBLISH, UPGRADE},
     error::{Span, Spanned},
     token::{Lexeme, Token as T},
 };
@@ -194,6 +195,28 @@ impl<'l, I: Iterator<Item = &'l str>> Lexer<'l, I> {
         error
     }
 
+    /// Lex a command whose argument is a single shell token used as a package
+    /// path (e.g. `--publish <path>`). Consumes the next shell token whole —
+    /// without re-tokenizing its characters — and emits `token` widened over
+    /// the entire `--command <path>` span.
+    ///
+    /// With this helper:
+    ///   `--publish ./my_package` → path is `./my_package` (one shell token)
+    ///
+    /// Without it, the generic per-character path would lex `./my_package` as:
+    ///   `T::Dot`, `T::Unexpected("/")`, `T::Ident("my_package")`
+    /// and the parser would also have no dedicated token to bind the path to
+    /// its command.
+    fn eat_path_command(&mut self, dash: Spanned<&'l str>, token: T) -> Spanned<Lexeme<'l>> {
+        if let Some(next) = self.peek() {
+            return self.unexpected(next);
+        }
+        let Some(file) = self.eat_token() else {
+            return self.done(T::EarlyEof);
+        };
+        file.widen(dash).map(|src| Lexeme(token, src))
+    }
+
     /// Span pointing to the current offset in the input.
     fn offset(&self) -> Span {
         Span {
@@ -297,30 +320,9 @@ impl<'l, I: Iterator<Item = &'l str>> Iterator for Lexer<'l, I> {
                 };
 
                 match ident {
-                    sp!(_, "publish") => {
-                        if let Some(next) = self.peek() {
-                            break 'command self.unexpected(next);
-                        }
-
-                        let Some(file) = self.eat_token() else {
-                            break 'command self.done(T::EarlyEof);
-                        };
-
-                        file.widen(c).map(|src| Lexeme(T::Publish, src))
-                    }
-
-                    sp!(_, "upgrade") => {
-                        if let Some(next) = self.peek() {
-                            break 'command self.unexpected(next);
-                        }
-
-                        let Some(file) = self.eat_token() else {
-                            break 'command self.done(T::EarlyEof);
-                        };
-
-                        file.widen(c).map(|src| Lexeme(T::Upgrade, src))
-                    }
-
+                    sp!(_, PUBLISH) => self.eat_path_command(c, T::Publish),
+                    sp!(_, UPGRADE) => self.eat_path_command(c, T::Upgrade),
+                    sp!(_, COMPILE_UPGRADE) => self.eat_path_command(c, T::CompileUpgrade),
                     sp!(_, _) => ident.widen(c).map(|src| Lexeme(T::Command, src)),
                 }
             }

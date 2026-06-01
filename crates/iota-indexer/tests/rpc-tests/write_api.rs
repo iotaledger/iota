@@ -21,9 +21,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
@@ -101,8 +102,7 @@ async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64
         counter_value_str.parse().unwrap()
     } else {
         panic!(
-            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
-            value_field
+            "Counter value field is not a string (expected u64 serialized as string), got: {value_field:?}"
         );
     }
 }
@@ -744,8 +744,7 @@ fn test_parallel_shared_object_updates() {
                 let counter_value = get_counter_value(counter_obj, client).await;
                 assert_eq!(
                     counter_value, expected_count,
-                    "Counter value should be {} but was {} at iteration {}",
-                    expected_count, counter_value, i
+                    "Counter value should be {expected_count} but was {counter_value} at iteration {i}"
                 );
             }
 
@@ -1594,7 +1593,9 @@ fn dry_run_request_add_stake() {
         let validator = match client.get_latest_iota_system_state_v2().await.unwrap() {
             IotaSystemStateSummary::V1(s) => s.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(s) => s.active_validators[0].iota_address,
-            _ => unimplemented!("there is a new system state summary variant that must be handled"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         let tx_bytes: TransactionBlockBytes = client

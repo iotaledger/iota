@@ -6,7 +6,9 @@ use anyhow::{anyhow, bail};
 use iota_types::{
     base_types::ObjectRef,
     committee::Committee,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     event::{Event, EventID},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, EndOfEpochData},
     object::Object,
@@ -192,12 +194,12 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
 
             // The sequence number must be a valid index
             // Note: safe to unwrap as we have checked that its not None above
-            if event_id.event_seq as usize >= contents_proof.events.as_ref().unwrap().data.len() {
+            if event_id.event_seq as usize >= contents_proof.events.as_ref().unwrap().len() {
                 bail!("Event sequence number out of bounds");
             }
 
             // Now check that the contents of the event are the same
-            if &contents_proof.events.as_ref().unwrap().data[event_id.event_seq as usize] != event {
+            if &contents_proof.events.as_ref().unwrap()[event_id.event_seq as usize] != event {
                 bail!("Event contents do not match");
             }
         }

@@ -51,13 +51,16 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    Identifier, TypeTag,
+    crypto::{Intent, IntentMessage},
+};
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
@@ -1391,7 +1394,7 @@ impl IotaClientCommands {
                 ensure!(
                     recipients.len() == amounts.len(),
                     format!(
-                        "Found {:?} recipient addresses, but {:?} recipient amounts",
+                        "Found {} recipient addresses, but {} recipient amounts",
                         recipients.len(),
                         amounts.len()
                     ),
@@ -1445,7 +1448,7 @@ impl IotaClientCommands {
                 ensure!(
                     recipients.len() == amounts.len(),
                     format!(
-                        "Found {:?} recipient addresses, but {:?} recipient amounts",
+                        "Found {} recipient addresses, but {} recipient amounts",
                         recipients.len(),
                         amounts.len()
                     ),
@@ -1879,10 +1882,10 @@ impl IotaClientCommands {
                     context.config_mut().keystore_mut(),
                 )?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let msg: TransactionData =
-                    bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
-                        anyhow!("Cannot deserialize data as TransactionData {:?}", e)
-                    })?)?;
+                let msg: TransactionData = bcs::from_bytes(
+                    &Base64::decode(&data)
+                        .map_err(|e| anyhow!("Cannot deserialize data as TransactionData {e}"))?,
+                )?;
                 let intent_msg = IntentMessage::new(intent, msg.clone());
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
                 let mut hasher = DefaultHash::default();
@@ -3900,11 +3903,11 @@ async fn create_move_authenticator_signature(
         MoveAuthenticator::new_v1(
             call_args,
             type_args,
-            CallArg::Shared(SharedObjectRef {
-                object_id: ObjectID::from(address),
+            CallArg::Shared(SharedObjectRef::new(
+                ObjectID::from(address),
                 initial_shared_version,
-                mutable: false,
-            }),
+                false,
+            )),
         ),
     ))
 }

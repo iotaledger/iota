@@ -13,9 +13,12 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    Identifier, TypeTag,
+    crypto::{Intent, IntentMessage},
+};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
@@ -104,11 +107,11 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Shared(SharedObjectRef {
-                object_id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: true,
-            })],
+            vec![CallArg::Shared(SharedObjectRef::new(
+                counter_id,
+                counter_initial_shared_version,
+                true,
+            ))],
         )
     }
 
@@ -122,11 +125,11 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "value",
-            vec![CallArg::Shared(SharedObjectRef {
-                object_id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: false,
-            })],
+            vec![CallArg::Shared(SharedObjectRef::new(
+                counter_id,
+                counter_initial_shared_version,
+                false,
+            ))],
         )
     }
 
@@ -140,11 +143,11 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "delete",
-            vec![CallArg::Shared(SharedObjectRef {
-                object_id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: true,
-            })],
+            vec![CallArg::Shared(SharedObjectRef::new(
+                counter_id,
+                counter_initial_shared_version,
+                true,
+            ))],
         )
     }
 
@@ -192,11 +195,11 @@ impl TestTransactionBuilder {
             package_id,
             "random",
             "new",
-            vec![CallArg::Shared(SharedObjectRef {
-                object_id: ObjectID::RANDOMNESS_STATE,
-                initial_shared_version: randomness_initial_shared_version,
-                mutable: false,
-            })],
+            vec![CallArg::Shared(SharedObjectRef::new(
+                ObjectID::RANDOMNESS_STATE,
+                randomness_initial_shared_version,
+                false,
+            ))],
         )
     }
 
@@ -654,11 +657,11 @@ pub async fn emit_new_random_u128(
     let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
-    let random_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: ObjectID::RANDOMNESS_STATE,
+    let random_call_arg = CallArg::Shared(SharedObjectRef::new(
+        ObjectID::RANDOMNESS_STATE,
         initial_shared_version,
-        mutable: false,
-    });
+        false,
+    ));
 
     let txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, rgp)

@@ -79,7 +79,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 2. Fake coin balance should be 700.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -102,7 +102,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 3. Fake coin balance should be 500.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -125,7 +125,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 4. Fake coin balance should be 400.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -152,7 +152,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 2. Fake coin balance should be 700.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -175,7 +175,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 3. Fake coin balance should be 500.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -198,7 +198,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 4. Fake coin balance should be 400.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -227,7 +227,10 @@ module P0::fake {
 //# create-checkpoint
 
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
-# Outside available range
+# Backward-diff retention covers cp 2 even after the forward-diff snapshot
+# watermark has advanced past it; balance still serves historical data (700).
+# `availableRange.first` reflects the backward-history watermark and so
+# matches what balance can serve.
 {
   availableRange {
     first {
@@ -237,7 +240,7 @@ module P0::fake {
       sequenceNumber
     }
   }
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -260,7 +263,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 3. Fake coin balance should be 500.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -283,7 +286,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 4. Fake coin balance should be 400.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -320,7 +323,8 @@ module P0::fake {
 //# create-checkpoint
 
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
-# Outside available range
+# Same as the cp 2 view above, several checkpoints later — still in
+# backward-diff range, balance keeps serving historical data.
 {
   availableRange {
     first {
@@ -330,7 +334,7 @@ module P0::fake {
       sequenceNumber
     }
   }
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -351,7 +355,7 @@ module P0::fake {
 }
 
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
-# Outside available range
+# cp 3 view: in backward-diff range, returns the historical balance.
 {
   availableRange {
     first {
@@ -361,7 +365,7 @@ module P0::fake {
       sequenceNumber
     }
   }
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -382,7 +386,7 @@ module P0::fake {
 }
 
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
-# Outside available range
+# cp 4 view: in backward-diff range, returns the historical balance.
 {
   availableRange {
     first {
@@ -392,7 +396,7 @@ module P0::fake {
       sequenceNumber
     }
   }
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {

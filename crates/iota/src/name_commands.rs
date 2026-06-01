@@ -24,8 +24,9 @@ use iota_names::{
 };
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{IotaAddress, ObjectID},
     collection_types::{Entry, VecMap},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::Field,

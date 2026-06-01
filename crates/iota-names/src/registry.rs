@@ -71,7 +71,7 @@ impl TryFrom<Object> for NameRecord {
         object
             .to_rust::<Field<Name, Self>>()
             .map(|record| record.value)
-            .ok_or_else(|| IotaNamesError::MalformedObject(object.id()))
+            .map_err(|_| IotaNamesError::MalformedObject(object.id()))
     }
 }
 
@@ -82,7 +82,7 @@ impl TryFrom<MoveObject> for NameRecord {
         object
             .to_rust::<Field<Name, Self>>()
             .map(|record| record.value)
-            .ok_or_else(|| IotaNamesError::MalformedObject(object.id()))
+            .map_err(|_| IotaNamesError::MalformedObject(object.id()))
     }
 }
 

@@ -6,9 +6,10 @@ use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
 };
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, ObjectID, StructTag, TypeTag},
+    base_types::ObjectID,
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
@@ -67,7 +68,9 @@ fn test_staking() {
         let validator = match iota_system_state {
             IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         // Delegate some IOTA
@@ -148,7 +151,9 @@ fn test_unstaking() {
         let validator = match iota_system_state {
             IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         // Delegate some IOTA
@@ -285,7 +290,9 @@ fn test_timelocked_staking() {
             let validator = match iota_system_state {
                 IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
                 IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-                _ => panic!("unsupported IotaSystemStateSummary"),
+                _ => unimplemented!(
+                    "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                ),
             };
 
             let validator = builder.pure(validator).unwrap();
@@ -401,7 +408,9 @@ fn test_timelocked_unstaking() {
             let validator = match iota_system_state {
                 IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
                 IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-                _ => panic!("unsupported IotaSystemStateSummary"),
+                _ => unimplemented!(
+                    "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                ),
             };
 
             let validator = builder.pure(validator).unwrap();

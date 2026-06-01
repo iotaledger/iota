@@ -226,11 +226,8 @@ async fn transaction_manager_object_dependency() {
 
     // Enqueue two transactions with the same shared object input in read-only mode.
     let shared_version = 1000.into();
-    let shared_object_arg_read = CallArg::Shared(SharedObjectRef {
-        object_id: shared_object.id(),
-        initial_shared_version: 0.into(),
-        mutable: false,
-    });
+    let shared_object_arg_read =
+        CallArg::Shared(SharedObjectRef::new(shared_object.id(), 0.into(), false));
     let transaction_read_0 =
         make_transaction(gas_objects[0].clone(), vec![shared_object_arg_read.clone()]);
     let transaction_read_1 = make_transaction(gas_objects[1].clone(), vec![shared_object_arg_read]);
@@ -250,11 +247,8 @@ async fn transaction_manager_object_dependency() {
         .unwrap();
 
     // Enqueue one transaction with the same shared object in mutable mode.
-    let shared_object_arg_default = CallArg::Shared(SharedObjectRef {
-        object_id: shared_object.id(),
-        initial_shared_version: 0.into(),
-        mutable: true,
-    });
+    let shared_object_arg_default =
+        CallArg::Shared(SharedObjectRef::new(shared_object.id(), 0.into(), true));
     let transaction_default = make_transaction(
         gas_objects[2].clone(),
         vec![shared_object_arg_default.clone()],
@@ -270,11 +264,8 @@ async fn transaction_manager_object_dependency() {
     // Enqueue one transaction with two readonly shared object inputs,
     // `shared_object` and `shared_object_2`.
     let shared_version_2 = 1000.into();
-    let shared_object_arg_read_2 = CallArg::Shared(SharedObjectRef {
-        object_id: shared_object_2.id(),
-        initial_shared_version: 0.into(),
-        mutable: false,
-    });
+    let shared_object_arg_read_2 =
+        CallArg::Shared(SharedObjectRef::new(shared_object_2.id(), 0.into(), false));
     let transaction_read_2 = make_transaction(
         gas_objects[3].clone(),
         vec![shared_object_arg_default, shared_object_arg_read_2],
@@ -746,16 +737,10 @@ async fn transaction_manager_with_cancelled_transactions() {
     assert!(rx_ready_certificates.try_recv().is_err());
 
     // Enqueue one transaction with 2 shared object inputs and 1 owned input.
-    let shared_object_arg_1 = CallArg::Shared(SharedObjectRef {
-        object_id: shared_object_1.id(),
-        initial_shared_version: 0.into(),
-        mutable: true,
-    });
-    let shared_object_arg_2 = CallArg::Shared(SharedObjectRef {
-        object_id: shared_object_2.id(),
-        initial_shared_version: 0.into(),
-        mutable: true,
-    });
+    let shared_object_arg_1 =
+        CallArg::Shared(SharedObjectRef::new(shared_object_1.id(), 0.into(), true));
+    let shared_object_arg_2 =
+        CallArg::Shared(SharedObjectRef::new(shared_object_2.id(), 0.into(), true));
 
     // Changes the desired owned object version to a higher version. We will make it
     // available later.

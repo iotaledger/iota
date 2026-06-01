@@ -158,6 +158,11 @@ impl<C> ConsensusHandler<C> {
         }
         let transaction_scheduler =
             AsyncTransactionScheduler::start(transaction_manager, epoch_store.clone());
+
+        // Seed the gauges so series exist from epoch start, not only after the
+        // first commit.
+        publish_scoring_gauges(&epoch_store, &committee, &metrics);
+
         Self {
             epoch_store,
             last_consensus_stats,
@@ -399,6 +404,8 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .await
             .expect("Unrecoverable error in consensus handler");
 
+        publish_scoring_gauges(&self.epoch_store, &self.committee, &self.metrics);
+
         fail_point_if!("correlated-crash-after-consensus-commit-boundary", || {
             let key = [commit_sub_dag_index, self.epoch_store.epoch()];
             if iota_simulator::random::deterministic_probability_once(key, 0.01) {
@@ -411,6 +418,32 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         self.transaction_scheduler
             .schedule(transactions_to_schedule)
             .await;
+    }
+}
+
+/// Publishes the per-authority validator-scoring gauges sourced from
+/// `Scoreboard` and `ReportAggregator`. No-op when validator scores are
+/// disabled by protocol config.
+fn publish_scoring_gauges(
+    epoch_store: &AuthorityPerEpochStore,
+    committee: &ConsensusCommittee,
+    metrics: &AuthorityMetrics,
+) {
+    if !epoch_store.protocol_config().calculate_validator_scores() {
+        return;
+    }
+    let scores = epoch_store.scoreboard.current_scores();
+    let invalid_reports = epoch_store.report_aggregator.invalid_reports_counts();
+    for (i, authority) in committee.authorities() {
+        let labels = &[authority.hostname.as_str()];
+        metrics
+            .validator_scoreboard_scores
+            .with_label_values(labels)
+            .set(scores[i.value()] as i64);
+        metrics
+            .invalid_misbehavior_reports_by_authority
+            .with_label_values(labels)
+            .set(invalid_reports[i.value()] as i64);
     }
 }
 
@@ -882,6 +915,7 @@ mod tests {
             subdag_transactions,
             leader_header.timestamp_ms(),
             CommitRef::new(10, CommitDigest::MIN),
+            vec![],
             vec![],
         );
 
