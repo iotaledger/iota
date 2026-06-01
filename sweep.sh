@@ -323,8 +323,15 @@ echo "=== pre-flight checks ==="
 if sudo -n true 2>/dev/null; then
   echo "  sudo cache  ✓"
 else
-  echo "  sudo cache  ✗ — run \`sudo -v\` first"
-  PREFLIGHT_OK=0
+  # WARN, do not abort. Two reasons:
+  # (1) NOPASSWD-configured sudo for bootstrap.sh will work even when
+  #     `sudo -n true` fails (the test isn't covered by the NOPASSWD entry).
+  # (2) During long sweeps, the cache naturally expires between iters
+  #     (default 5-15 min). Aborting here triggered an infinite
+  #     fail → full_reset → fail loop in run_inner.sh. If sudo is
+  #     genuinely broken, the actual `sudo ./bootstrap.sh` call later
+  #     will fail loudly with a clear error at the right place.
+  echo "  sudo cache  ⚠ — not primed; if sudo prompts later the iter will hang. To prime: run \`sudo -v\` before invoking, or use a keep-alive loop."
 fi
 
 if [ "$EUID" -eq 0 ]; then

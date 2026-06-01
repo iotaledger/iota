@@ -94,6 +94,12 @@ POLICIES=(
 )
 
 P_TOTAL=${#POLICIES[@]}
+# Across-policy consecutive-failure escape hatch. sweep.sh tracks its own
+# fail_streak internally but resets to 0 on every fresh invocation, so a
+# pre-flight-level failure (e.g. sudo cache expired) used to infinite-loop:
+# sweep.sh aborts -> full_reset -> sweep.sh aborts -> ... Cap it here.
+MAX_CONSEC_FAILURES="${MAX_CONSEC_FAILURES:-3}"
+consec_failures=0
 for ((round = 1; round <= ITERS; round++)); do
   echo "=== run.sh round=$round/$ITERS  $(date -u +%H:%M:%S) ==="
   P_IDX=0
@@ -108,6 +114,14 @@ for ((round = 1; round <= ITERS; round++)); do
     if ! env $policy ITERS=1 POLICY_IDX=$P_IDX POLICY_TOTAL=$P_TOTAL ./sweep.sh; then
       echo "=== run.sh: sweep.sh exited non-zero — marking for reset ==="
       need_reset=1
+      consec_failures=$((consec_failures + 1))
+      if [ "$consec_failures" -ge "$MAX_CONSEC_FAILURES" ]; then
+        echo "=== run.sh: ABORT — $consec_failures consecutive policy failures (cap=$MAX_CONSEC_FAILURES). Check sudo cache, validator state, recent script edits. ==="
+        # Skip to teardown.
+        break 2
+      fi
+    else
+      consec_failures=0
     fi
   done
 done
