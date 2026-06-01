@@ -4,8 +4,8 @@
 
 use iota_sdk_types::TypeTag;
 use iota_types::{
-    error::ExecutionError, execution::ExecutionResult, invariant_violation,
-    transaction::Argument, transfer::Receiving,
+    error::ExecutionError, execution::ExecutionResult, invariant_violation, transaction::Argument,
+    transfer::Receiving,
 };
 
 use crate::{
