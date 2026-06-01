@@ -7111,9 +7111,7 @@ async fn test_move_authenticator_no_user_args() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    // Submit a PTB with NO `--auth-call-args` / `--auth-type-args`. Before
-    // the refactor this would bail at the CLI; now it succeeds with an empty
-    // MoveAuthenticator call-args vector.
+    // Submit a PTB with NO `--auth-call-args` / `--auth-type-args`.
     let ptb_resp = IotaClientCommands::PTB(PTB {
         args: vec![
             "--split-coins".to_string(),
