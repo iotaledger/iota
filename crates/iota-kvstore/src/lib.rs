@@ -2,9 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::NonZeroUsize;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_types::{
+    base_types::IotaAddress,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -22,6 +25,8 @@ mod bigtable;
 
 pub use bigtable::{client, worker::KvWorker};
 pub use iota_bigtable::{BigTableClient, Cell, Row, proto};
+
+use crate::bigtable::client::{TransactionSequenceNumber, TransactionsOrder};
 
 /// Read key-value data from a persistent store, such as objects, transactions,
 /// and checkpoints.
@@ -41,6 +46,28 @@ pub trait KeyValueStoreReader {
         &mut self,
         transactions: &[TransactionDigest],
     ) -> Result<Vec<TransactionData>, Self::Error>;
+
+    /// Fetches a list `(sequence number, digest)` pairs for transactions
+    /// affecting the given address, ordered by [`TransactionsOrder`] and capped
+    /// at `limit`.
+    ///
+    /// # Pagination
+    /// `cursor` is **exclusive**.
+    ///
+    /// - [`TransactionsOrder::NewestFirst`]: returns entries with `tx_seq <
+    ///   cursor`.
+    /// - [`TransactionsOrder::OldestFirst`]: returns entries with `tx_seq >
+    ///   cursor`.
+    ///
+    /// When `None`, the scan starts from the beginning of the requested
+    /// [`TransactionsOrder`].
+    async fn get_transaction_digests_by_address(
+        &mut self,
+        address: IotaAddress,
+        cursor: impl Into<Option<TransactionSequenceNumber>> + Send,
+        limit: impl TryInto<NonZeroUsize> + Send,
+        order: TransactionsOrder,
+    ) -> Result<Vec<(TransactionSequenceNumber, TransactionDigest)>, Self::Error>;
 
     /// Fetches a list of checkpoints by their sequence numbers.
     ///
@@ -73,6 +100,16 @@ pub trait KeyValueStoreWriter {
         &mut self,
         transactions: &[TransactionData],
     ) -> Result<(), Self::Error>;
+
+    /// Persists a mapping of `(` [`IotaAddress`], `transaction_sequence_number`
+    /// `)` to `TransactionDigest` for every affected address.
+    ///
+    /// An address is considered "affected" if it appears as the sender, a
+    /// recipient, or the gas payer.
+    async fn save_transactions_by_address<I>(&mut self, entries: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (IotaAddress, u64, TransactionDigest)> + Send,
+        I::IntoIter: Send;
 
     /// Persists a checkpoint to the store.
     async fn save_checkpoint(&mut self, checkpoint: &CheckpointData) -> Result<(), Self::Error>;
