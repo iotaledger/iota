@@ -10,13 +10,6 @@ use std::{
 
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
-// wasm32 doesn't link `iota-metrics` (it pulls in axum/anemo). Stub the helper
-// so the single call site below still compiles — it just no-ops a metrics
-// scope guard, which is fine for offline simulation.
-#[cfg(target_arch = "wasm32")]
-fn monitored_scope(_name: &'static str) -> Option<()> {
-    None
-}
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     auth_context::AuthContext,
@@ -52,6 +45,14 @@ use move_core_types::{account_address::AccountAddress, resolver::ResourceResolve
 use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
+
+// wasm32 doesn't link `iota-metrics` (it pulls in axum/anemo). Stub the helper
+// so the single call site below still compiles — it just no-ops a metrics
+// scope guard, which is fine for offline simulation.
+#[cfg(target_arch = "wasm32")]
+fn monitored_scope(_name: &'static str) -> Option<()> {
+    None
+}
 
 pub struct TemporaryStore<'backing> {
     // The backing store for retrieving Move packages onchain.
