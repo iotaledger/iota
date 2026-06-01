@@ -40,8 +40,8 @@ macro_rules! debug_fatal {
     }};
 }
 
-// On wasm32 the `iota-metrics` dep is excluded. Keep the macro available with
-// the same surface but without the metrics callout.
+// `iota-metrics` isn't available on wasm32; same macro without the metrics
+// callout.
 #[cfg(target_arch = "wasm32")]
 #[macro_export]
 macro_rules! debug_fatal {

@@ -143,10 +143,8 @@ impl BytecodeVerifierMetrics {
     }
 }
 
-// wasm32 doesn't link `prometheus`, but the execution path still references
-// `LimitsMetrics` / `BytecodeVerifierMetrics`. Provide no-op stubs with a
-// matching API: counters and histograms become zero-cost no-ops. There's no
-// registry to register against, so the constructors are `new_stub()`.
+// `prometheus` isn't available on wasm32; provide no-op stubs with a matching
+// API for the execution path. Constructed via `new_stub()` (no registry).
 #[cfg(target_arch = "wasm32")]
 mod wasm_stubs {
     #[derive(Default, Clone)]

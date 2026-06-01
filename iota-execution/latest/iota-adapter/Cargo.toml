@@ -38,8 +38,6 @@ move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime
 move-vm-types = { path = "../../../external-crates/move/crates/move-vm-types" }
 
 # `iota-metrics` pulls in axum/anemo/tokio-net and can't compile to wasm32.
-# We only use it for a single `monitored_scope` call wrapped in a cfg gate
-# below in `temporary_store.rs`.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 iota-metrics.workspace = true
 

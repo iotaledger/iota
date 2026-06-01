@@ -46,9 +46,7 @@ use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
 
-// wasm32 doesn't link `iota-metrics` (it pulls in axum/anemo). Stub the helper
-// so the single call site below still compiles — it just no-ops a metrics
-// scope guard, which is fine for offline simulation.
+// `iota-metrics` isn't available on wasm32; no-op the scope guard.
 #[cfg(target_arch = "wasm32")]
 fn monitored_scope(_name: &'static str) -> Option<()> {
     None
