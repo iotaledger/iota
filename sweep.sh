@@ -76,7 +76,7 @@ ITERS="${ITERS:-1}"
 START_PCT="${START_PCT:-}"
 SAT_PCT="${SAT_PCT:-}"
 MAX_PENDING="${MAX_PENDING:-}"
-SEMAPHORE_CAP="${SEMAPHORE_CAP:-}"
+SEMAPHORE_CAP="${SEMAPHORE_CAP:-${SEM_CAP:-500}}"
 SEM_SHEDDING="${SEM_SHEDDING:-}"
 
 # Pool config. Total NUM_PROCS = spammer + honest + honest_cl. Default
@@ -91,9 +91,9 @@ NUM_PROCS="${NUM_PROCS:-26}"
 # 50 QPS × 2 procs = 100 QPS total ≈ 0.25% of 40k spammer load,
 # negligible impact on cap-policy metrics. Set HONEST_PROC_COUNT=0 and
 # HONEST_CL_PROC_COUNT=0 to disable the honest experiment entirely.
-HONEST_PROC_COUNT="${HONEST_PROC_COUNT:-1}"
+HONEST_PROC_COUNT="${HONEST_PROC_COUNT:-0}"
 HONEST_CL_PROC_COUNT="${HONEST_CL_PROC_COUNT:-1}"
-HONEST_QPS_PER_PROC="${HONEST_QPS_PER_PROC:-50}"
+HONEST_QPS_PER_PROC="${HONEST_QPS_PER_PROC:-100}"
 HONEST_BURST_SIZE="${HONEST_BURST_SIZE:-1}"
 HONEST_BARRIER_PERIOD_MS="${HONEST_BARRIER_PERIOD_MS:-0}"
 HONEST_IFR="${HONEST_IFR:-4}"
@@ -197,12 +197,17 @@ echo
 # regenerates each validator's config from this overlay yaml.
 #
 # Args: $1 = yaml key, $2 = new integer value
-# If $2 is empty, no-op (leave the yaml as-is). Verifies the patch
-# actually landed by re-reading the yaml — sed silently does nothing
-# if the key is misspelled, and that's a foot-gun that wastes hours.
+# Fails loudly if $2 is empty (rather than silently inheriting the previous
+# policy's yaml value — a foot-gun where a typo or missing knob in a POLICIES
+# entry would silently mis-record an iter). Verifies the patch actually
+# landed by re-reading the yaml — sed silently does nothing if the key is
+# misspelled, and that's a foot-gun that wastes hours.
 patch_yaml_int() {
   local key="$1" value="$2"
-  [ -z "$value" ] && return 0
+  if [ -z "$value" ]; then
+    echo "Error: $key must be set (caller forgot to pass it in env / POLICY string)" >&2
+    exit 1
+  fi
   if ! [[ "$value" =~ ^[0-9]+$ ]]; then
     echo "Error: $key must be a positive integer, got '$value'" >&2
     exit 1
@@ -226,7 +231,10 @@ if [ -n "$START_PCT" ]; then
 fi
 patch_yaml_bool() {
   local key="$1" value="$2"
-  [ -z "$value" ] && return 0
+  if [ -z "$value" ]; then
+    echo "Error: $key must be set (caller forgot to pass it in env / POLICY string)" >&2
+    exit 1
+  fi
   if [ "$value" != "true" ] && [ "$value" != "false" ]; then
     echo "Error: $key must be 'true' or 'false', got '$value'" >&2
     exit 1
@@ -404,7 +412,16 @@ MAX_FAIL_STREAK=3
 for i in $(seq 1 $ITERS); do
   echo
   echo "=================================================="
-  echo "[sweep iter=$i/$ITERS  pct=${START_PCT:-(current yaml)}  fast=$FAST_MODE]  $(date -u +%H:%M:%S)"
+  # Build the header conditionally. When sweep.sh is called by run_inner.sh
+  # it always runs ITERS=1, so `iter=1/1` is noise — hide it in that case.
+  # POLICY_IDX / POLICY_TOTAL are set by run_inner.sh so the inner-loop
+  # position shows up here; standalone invocations omit those env vars and
+  # the field is dropped.
+  hdr="[sweep"
+  [ "${ITERS}" -gt 1 ] && hdr="$hdr iter=$i/$ITERS"
+  [ -n "${POLICY_IDX:-}" ] && hdr="$hdr policy=${POLICY_IDX}/${POLICY_TOTAL}"
+  hdr="$hdr  pct=${START_PCT:-(current yaml)}  fast=$FAST_MODE]  $(date -u +%H:%M:%S)"
+  echo "$hdr"
   echo "=================================================="
 
   # Kill any leftover stress.rs processes from a previous iter that may
@@ -540,6 +557,7 @@ for i in $(seq 1 $ITERS); do
     r_max=$(grep '^reject_max_pending:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     r_sem=$(grep '^reject_semaphore:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     useful_tps=$(grep '^useful_tps:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    queue_depth_p75=$(grep '^queue_depth_p75:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     admit_p50=$(grep '^admit_lat_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     admit_p99=$(grep '^admit_lat_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     permit_hold_p50=$(grep '^permit_hold_p50:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
@@ -579,6 +597,7 @@ for i in $(seq 1 $ITERS); do
     : "${pre_acquire_p50:=0}"; : "${pre_acquire_p99:=0}"
     : "${shed_pct_avg:=0}"; : "${shed_pct_max:=0}"
     : "${inflight_stddev:=0}"; : "${inflight_mean:=0}"; : "${saturation_75pct:=0}"
+    : "${queue_depth_p75:=0}"
     : "${consensus_lat_p50:=0}"; : "${consensus_lat_p90:=0}"; : "${consensus_lat_p95:=0}"
     : "${consensus_lat_p99:=0}"; : "${consensus_lat_p999:=0}"
     : "${spam_start_epoch:=0}"; : "${spam_end_epoch:=0}"
@@ -593,6 +612,22 @@ for i in $(seq 1 $ITERS); do
       'BEGIN{if(o>0) printf "%.4f", 100.0*s/o; else print 0}')
     iso=$(basename "$latest" | sed 's/multi-//')
     failed=0
+    silent_collapse=0
+    # Silent-collapse detection — runs BEFORE JSONL emit so the resulting
+    # record has failed=true and plot.py's existing filter excludes it
+    # from medians/boxplots. Signature: queue depth was empty most of the
+    # spam window (p75 < 100) despite a brief peak (peak > 5000) — i.e.
+    # validator accepted an initial burst, then died/restarted, then
+    # trickled along with empty queue for the remainder. This is the
+    # checkpoint-fork failure pattern; see project memory entry
+    # "checkpoint-fork-panic" for the root cause (CheckpointBuilder
+    # fatal! at crates/iota-core/src/checkpoints/mod.rs:545).
+    queue_p75_int_early=$(awk -v v="${queue_depth_p75:-0}" 'BEGIN{printf "%d", v}')
+    if [ "${queue_p75_int_early:-0}" -lt 100 ] && [ "${peak:-0}" -gt 5000 ]; then
+      failed=1
+      silent_collapse=1
+      echo "    [silent-collapse detected: queue p75=${queue_depth_p75} but peak=${peak} — marking iter as failed (spike-and-drain, likely checkpoint fork)]"
+    fi
   else
     iso=$(basename "$latest" 2>/dev/null | sed 's/multi-//' || echo "?")
     peak=0; ratio=0; r_prev=0; r_grad_react=0; r_grad_sat=0; r_max=0; r_sem=0
@@ -607,6 +642,7 @@ for i in $(seq 1 $ITERS); do
     spammer_success=0; spammer_fp=0; honest_success=0; honest_fp=0
     honest_cl_success=0; honest_cl_fp=0; ok=0; exits=""
     failed=1
+    silent_collapse=0
   fi
 
   # Per-pool client-side latency stats. Each stress process emits
@@ -730,7 +766,7 @@ print(json.dumps({
   # Emit one JSONL record. Values passed via env to avoid shell-quoting
   # hell inside the python one-liner. Time-series JSON blobs pass
   # through verbatim and are parsed inside the python helper.
-  ISO="$iso" ITER="$i" FAILED="$failed" \
+  ISO="$iso" ITER="$i" FAILED="$failed" SILENT_COLLAPSE="$silent_collapse" \
   ITER_START_EPOCH="$ITER_START_EPOCH" ITER_END_EPOCH="$ITER_END_EPOCH" \
   HOST_NAME="$HOST_NAME" HOST_NPROC="$HOST_NPROC" HOST_KERNEL="$HOST_KERNEL" HOST_MEM_GIB="$HOST_MEM_GIB" \
   IOTA_GIT_COMMIT="$IOTA_GIT_COMMIT" \
@@ -859,6 +895,12 @@ rec = {
   "iso_time": s("ISO"),
   "iter": i("ITER"),
   "failed": i("FAILED")==1,
+  # True when failed=true was set due to silent-collapse (queue p75 < 100
+  # despite high peak) rather than the harness exit-code path. Lets
+  # plot.py distinguish validator-fork-mid-spam from a real harness error.
+  # Both filter out of medians via the failed flag; the silent_collapse
+  # flag enables per-policy fork-rate statistics.
+  "silent_collapse": i("SILENT_COLLAPSE")==1,
   "iter_window": {
     # ITER_START/END span the entire stress-multi.sh invocation (~80s
     # including setup + cooldown). spam_start/end pinpoint the actual
@@ -1022,6 +1064,24 @@ maxp = rec["validator"]["max_pending_transactions"]
 rec["results"]["ratio_peak_over_max_pending"] = (
     round(peak / maxp, 4) if (peak is not None and maxp) else None
 )
+# Validator-side drop probability — the authoritative Claim-2 surface.
+#   drop_prob = (preventive + saturated + reactive) /
+#               (preventive + saturated + reactive + commits)
+# where commits ≈ useful_tps × spam_duration. Replaces the previously-
+# attempted spammer.reject_count / (admit + reject) which is structurally
+# unreachable in our open-loop + TD setup: TD honours the validator-side
+# retry_after_secs=30 hint before propagating SystemOverload rejections,
+# but OPEN_LOOP_TASK_TIMEOUT=2s fires long before then, so spammer-side
+# rejection events never materialise.
+_r = rec["results"]
+_iw = rec["iter_window"]
+_spam_dur = (_iw.get("spam_end_epoch") or 0) - (_iw.get("spam_start_epoch") or 0)
+_drops = (_r.get("reject_grad_preventive") or 0) \
+       + (_r.get("reject_grad_saturated") or 0) \
+       + (_r.get("reject_grad_reactive") or 0)
+_commits = (_r.get("useful_tps") or 0) * _spam_dur if _spam_dur > 0 else 0
+_decisions = _drops + _commits
+_r["validator_drop_prob"] = round(_drops / _decisions, 4) if _decisions > 0 else None
 print(json.dumps(rec))
 ' >> "$OUT_JSONL"
 
@@ -1039,6 +1099,43 @@ print(json.dumps(rec))
     echo "    peak=$peak  ratio=${ratio}×  tps=$useful_tps  rej[prev=$r_prev,sat=$r_grad_sat,react=$r_grad_react,max=$r_max,sem=$r_sem]  hold[p50=$permit_hold_p50,p99=$permit_hold_p99]  wait[p50=$permit_wait_p50,p99=$permit_wait_p99]  pre_acq[p50=$pre_acquire_p50,p99=$pre_acquire_p99]  shed[avg=$shed_pct_avg,max=$shed_pct_max]"
   fi
 
+  # Snapshot validator state at iter end (BEFORE the next iter's teardown
+  # or final exit) so a broken iter can be diagnosed post-hoc. Captures
+  # container exit status (was the target validator killed?), RSS/CPU,
+  # the last ~200 log lines per validator, and a Prometheus `up{}` probe.
+  # Saved into the iter's multi-* dir; if this iter is later flagged bad,
+  # the rename to runs/failed-<ts>/ preserves it indefinitely. Cheap
+  # (~1s) and invaluable when an iter shows tps≈50 with no drops.
+  if [ -n "${latest:-}" ] && [ -d "$latest" ]; then
+    {
+      echo "=== container state ($(date -u +%H:%M:%S)) ==="
+      docker ps -a --filter "name=validator-" \
+        --format 'table {{.Names}}\t{{.Status}}\t{{.Size}}' 2>/dev/null
+      echo
+      echo "=== docker stats (snapshot) ==="
+      docker stats --no-stream \
+        --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}' \
+        $(docker ps --filter "name=validator-" --format '{{.Names}}' 2>/dev/null) \
+        2>/dev/null
+      echo
+      echo "=== prometheus up{host=~validator.*} ==="
+      curl -sfG --max-time 3 "$PROM_URL/api/v1/query" \
+        --data-urlencode 'query=up{host=~"validator.*"}' 2>/dev/null \
+        | jq -c '.data.result[] | {host: .metric.host, up: .value[1]}' 2>/dev/null
+      echo
+      # 2000 lines is enough to catch the "panicked at <file>:<line>"
+      # message that precedes the stack trace, even when the validator
+      # is firing 10k+ DEBUG events/sec during heavy spam (200 lines was
+      # ~20ms of activity — too short to walk back to the panic origin).
+      for v in validator-1 validator-2 validator-3 validator-4; do
+        echo "=== ${v} last 2000 log lines ==="
+        (cd "$PRIVNET" && docker compose logs --tail 2000 --no-color "$v" 2>&1) \
+          | tail -2000
+        echo
+      done
+    } > "$latest/post-iter-health.txt" 2>&1
+  fi
+
   # FAST_MODE failure tracking: any non-zero stress.rs exit, or zero
   # peak_inflight (no txs reached validator at all) → state likely broken
   # (gas pool exhausted, validators wedged, etc).
@@ -1051,6 +1148,9 @@ print(json.dumps(rec))
   if [ "$failed" -eq 1 ] || [ "$ok" -ne 1 ] || [ "${peak:-0}" -le 0 ]; then
     iter_bad=1
   fi
+  # Silent-collapse detection is done EARLIER (right after summary.txt
+  # parse) so the JSONL record gets failed=true; that triggers iter_bad
+  # via the check above. No duplicate detection needed here.
   if [ "$iter_bad" -eq 1 ]; then
     fail_streak=$((fail_streak + 1))
     echo "    [fail_streak=$fail_streak/$MAX_FAIL_STREAK]"
@@ -1063,15 +1163,30 @@ print(json.dumps(rec))
       else
         echo "=== FAST_MODE: exiting non-zero so caller can reset before next iter ==="
       fi
-      ls -dt "$REPO"/runs/multi-* 2>/dev/null | tail -n +3 | xargs -r rm -rf
+      # Failed iter — rename to runs/failed-<ts>/ so it survives the
+      # cleanup pass below. The user can manually purge runs/failed-*
+      # once they're done diagnosing.
+      if [ -n "${latest:-}" ] && [ -d "$latest" ]; then
+        ts=$(basename "$latest" | sed 's|^multi-||;s|/$||')
+        mv "$latest" "$REPO/runs/failed-$ts" \
+          && echo "  preserved failed iter as runs/failed-$ts"
+      fi
+      ls -dt "$REPO"/runs/multi-* 2>/dev/null | tail -n +31 | xargs -r rm -rf
       exit 1
     fi
   else
     fail_streak=0
   fi
 
-  # Per-iter cleanup: keep last 2 multi-* dirs, drop older ones.
-  ls -dt "$REPO"/runs/multi-* 2>/dev/null | tail -n +3 | xargs -r rm -rf
+  # Per-iter cleanup: keep last 30 healthy multi-* dirs, drop older.
+  # Failed iters get renamed to runs/failed-<ts>/ above (or below for the
+  # non-FAST_MODE path) so they're never deleted by this pass.
+  if [ "$iter_bad" -eq 1 ] && [ -n "${latest:-}" ] && [ -d "$latest" ]; then
+    ts=$(basename "$latest" | sed 's|^multi-||;s|/$||')
+    mv "$latest" "$REPO/runs/failed-$ts" \
+      && echo "  preserved failed iter as runs/failed-$ts"
+  fi
+  ls -dt "$REPO"/runs/multi-* 2>/dev/null | tail -n +31 | xargs -r rm -rf
 done
 
 echo

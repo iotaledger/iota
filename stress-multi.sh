@@ -450,13 +450,22 @@ if [ "$WINDOW" -lt 10 ]; then WINDOW=10; fi
 
 # Helper: run an instant PromQL query and print the first sample's value
 # as a float, or empty string on error / no result.
+#
+# Pinned at SPAM_END_EPOCH via the `time=` param so every `[WINDOW:1s]`
+# subquery reads exactly the spam window (spam_end - WINDOW .. spam_end)
+# rather than the default "ending at now" — which would otherwise leak
+# ~5-10s of post-spam zero-inflight tail into the aggregates (biases
+# inflight_mean down, inflight_stddev up, latency percentiles down).
+# Same semantics as the PromQL `@${SPAM_END_EPOCH}` modifier but applied
+# at the API layer so every existing query is fixed without rewriting.
 prom_scalar() {
   local query="$1"
   if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
     return
   fi
   curl -sfG --max-time 5 "$PROM_URL/api/v1/query" \
-    --data-urlencode "query=$query" 2>/dev/null | python3 -c "
+    --data-urlencode "query=$query" \
+    --data-urlencode "time=$SPAM_END_EPOCH" 2>/dev/null | python3 -c "
 import sys, json
 try:
     d = json.load(sys.stdin)

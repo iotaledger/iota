@@ -52,7 +52,7 @@ colorize_stream() {
     -e $'s/.*fail_streak.*/\e[33m&\e[0m/' \
     -e $'s/.*validators ready after.*/\e[32m&\e[0m/' \
     -e $'s/.*drained after.*/\e[2m&\e[0m/' \
-    -e $'s/^\\[sweep iter=.*$/\e[1;34m&\e[0m/' \
+    -e $'s/^\\[sweep .*$/\e[1;34m&\e[0m/' \
     -e $'s/^>>> RESULT.*/\e[1;32m&\e[0m/'
 }
 
@@ -76,20 +76,33 @@ case "$MODE" in
         *"fail_streak"*)                  printf '%s\n' "${C_YELLOW}${line}${C_RESET}" ;;
         *"validators ready after"*)       printf '%s\n' "${C_GREEN}${line}${C_RESET}" ;;
         *"drained after"*)                printf '%s\n' "${C_DIM}${line}${C_RESET}" ;;
-        "[sweep iter"*)                   printf '%s\n' "${C_BOLD}${C_BLUE}${line}${C_RESET}" ;;
+        "[sweep "*)                       printf '%s\n' "${C_BOLD}${C_BLUE}${line}${C_RESET}" ;;
         ">>> RESULT"*)                    printf '%s\n' "${C_BOLD}${C_GREEN}${line}${C_RESET}" ;;
         *)                                printf '%s\n' "$line" ;;
       esac
     }
 
-    # Read the latest sweep.jsonl record and print a compact 5-metric
-    # summary line: peak (cap discipline) + tps + B_p99 + e2e_p99 +
-    # honest_cl fairness. Plus elapsed wall-clock for the iter.
+    # Read the latest sweep.jsonl record and print a compact summary line:
+    # peak (cap discipline), mean inflight (RED Claim 1), tps, latency p99s,
+    # and the preventive/saturated/reactive drop breakdown. Replaces the
+    # previous RED_ratio metric which compares incomparable quantities
+    # (open-loop blast/sink vs closed-loop drop_prob) and always reads ~10x
+    # regardless of policy. The drop-band breakdown is the real Claim-2
+    # surface — shows WHERE the validator rejected (soft zone vs hard cap).
     print_iter_summary() {
       local elapsed="$1"
       # Give JSONL a moment to flush after >>> RESULT prints.
       sleep 0.3
-      ELAPSED="$elapsed" python3 <<'PY'
+      # Snapshot validator-1 health (it's the spam target — see
+      # stress-multi.sh's process-0.log "Targeting 1 of 4 validators").
+      # Format "status/restart_count": e.g. "running/0" = ok, "running/3"
+      # = restarted 3 times (likely OOM killed + auto-restarted),
+      # "exited/N" = dead, "missing/0" = container not found.
+      local val1_health
+      val1_health=$(docker inspect validator-1 \
+        --format '{{.State.Status}}/{{.RestartCount}}' 2>/dev/null \
+        || echo "missing/0")
+      ELAPSED="$elapsed" VAL1_HEALTH="$val1_health" python3 <<'PY'
 import json, os, sys
 is_tty = os.environ.get("IS_TTY") == "1"
 def c(code, s): return f"\033[{code}m{s}\033[0m" if is_tty else s
@@ -117,50 +130,58 @@ try:
     over_str = f"+{over}" if over >= 0 else str(over)
     over_color = red if over > 0 else green
 
+    mean_inflight = res.get("inflight_mean", 0) or 0
     tps   = res.get("useful_tps", 0) or 0
     b_p99 = res.get("permit_wait_p99", 0) or 0
-    e2e   = res.get("consensus_lat_p99", 0) or 0
 
-    # RED-fairness ratio (Floyd & Jacobson 1993 Claim 2: uniform drop
-    # probability across sources). Computed as:
-    #   honest_admit_fraction / spammer_admit_fraction
-    # honest = honest_cl pool (closed-loop, has reliable bench_success);
-    # spammer admit = (useful_tps * spam_dur - honest_cl_commits) / spam_offered.
-    # 1.0 = uniform (RED-ideal); >>1 = honest gets timing-luck advantage
-    # under binary tail-drop; should be closer to 1 under graduated.
-    iw = r.get("iter_window") or {}
-    spam_dur = (iw.get("spam_end_epoch") or 0) - (iw.get("spam_start_epoch") or 0)
-    hcl = r.get("honest_cl") or {}
-    hcl_commits = hcl.get("bench_success") or 0
-    hcl_offered = hcl.get("offered") or 0
-    spam_offered = (r.get("spammer") or {}).get("offered") or 0
-    total_commits = tps * spam_dur
-    spam_commits = max(total_commits - hcl_commits, 0)
-    hcl_admit_frac = hcl_commits / hcl_offered if hcl_offered else 0
-    spam_admit_frac = spam_commits / spam_offered if spam_offered else 0
-    red_ratio = hcl_admit_frac / spam_admit_frac if spam_admit_frac else 0
-
-    # Color the ratio by closeness to 1.0 (uniform):
-    #   ≤2: green (close to uniform)
-    #   2-5: yellow (moderate bias)
-    #   >5: red (strong bias / phase-effect)
-    if red_ratio == 0:
-        ratio_str = dim("n/a")
-    elif red_ratio <= 2:
-        ratio_str = green(f"{red_ratio:.1f}")
-    elif red_ratio <= 5:
-        ratio_str = yellow(f"{red_ratio:.1f}")
+    # Drop-band breakdown — fraction of validator-side rejections that
+    # landed in each band:
+    #   P (preventive) — probabilistic soft-zone drop, RED working as
+    #                    designed. High P = graduated engaged.
+    #   S (saturated)  — 100% shedding in [sat_pct, max), graduated
+    #                    safety band.
+    #   R (reactive)   — hard-cap rejection. High R = binary regime, or
+    #                    graduated's saturation didn't hold.
+    prev  = res.get("reject_grad_preventive", 0) or 0
+    sat   = res.get("reject_grad_saturated", 0) or 0
+    react = res.get("reject_grad_reactive", 0) or 0
+    total = prev + sat + react
+    if total > 0:
+        p_pct = round(prev  / total * 100)
+        s_pct = round(sat   / total * 100)
+        r_pct = round(react / total * 100)
+        drops_str = (f"drops[P={green(str(p_pct))}% "
+                     f"S={yellow(str(s_pct))}% "
+                     f"R={red(str(r_pct))}%]")
     else:
-        ratio_str = red(f"{red_ratio:.1f}")
+        drops_str = dim("drops[none]")
+
+    # Validator-1 health — green if running with no restarts, yellow if
+    # running but was restarted (likely OOM-killed + auto-restarted),
+    # red if exited/dead/missing. Surfaces the "we killed the validator
+    # we were spamming to" failure mode at a glance.
+    val1_health = os.environ.get("VAL1_HEALTH", "?/0")
+    try:
+        v_status, v_restarts = val1_health.rsplit("/", 1)
+        v_restarts = int(v_restarts)
+    except ValueError:
+        v_status, v_restarts = val1_health, 0
+    if v_status == "running" and v_restarts == 0:
+        v1_str = f"v1={green(v_status)}"
+    elif v_status == "running":
+        v1_str = f"v1={yellow(f'{v_status}/restarts={v_restarts}')}"
+    else:
+        v1_str = f"v1={red(v_status)}"
 
     elapsed = os.environ.get("ELAPSED", "?")
     parts = [
         f"  {dim('↳')} {dim(f'{elapsed}s wall')}",
         f"peak={bold(peak)}{over_color(f'({over_str})')}",
+        f"mean={bold(f'{mean_inflight:.0f}')}",
         f"tps={bold(f'{tps:.0f}')}",
         f"B_p99={bold(f'{b_p99:.2f}s')}",
-        f"e2e_p99={bold(f'{e2e:.2f}s')}",
-        f"RED_ratio={ratio_str}",
+        drops_str,
+        v1_str,
     ]
     print("  ".join(parts))
 except (FileNotFoundError, IndexError, json.JSONDecodeError, KeyError):
@@ -172,11 +193,17 @@ PY
     # -F: follow by name (survives log rotation / fresh creation)
     # 2>/dev/null: don't complain if a log file doesn't exist yet
     tail -F sweep.log run.log 2>/dev/null \
-      | grep --line-buffered -E '^=== run\.sh|^=== run_inner|^\[sweep iter|^>>> RESULT|^=== FAST_MODE|fail_streak|validators ready after|exited non-zero|full network reset|drained after|FAILED' \
+      | grep --line-buffered -E '^=== run\.sh|^=== run_inner|^\[sweep |^>>> RESULT|^=== FAST_MODE|fail_streak|validators ready after|exited non-zero|full network reset|drained after|FAILED' \
       | while IFS= read -r line; do
           # Track iter start time for elapsed-wall reporting.
           case "$line" in
-            "[sweep iter"*) iter_start=$(date +%s) ;;
+            "[sweep "*) iter_start=$(date +%s) ;;
+          esac
+          # Blank line before a new round header for visual separation
+          # from the preceding "validators ready" / "final teardown" /
+          # "initial bring-up" cluster.
+          case "$line" in
+            "=== run.sh round="*) echo ;;
           esac
           colorize_line "$line"
           # After each iter completes, print the compact summary + blank

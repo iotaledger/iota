@@ -74,33 +74,38 @@ initial_bringup
 
 # ---------- interleaved sweep ----------
 # Policy list. SEM_CAP and SAT_PCT come from env vars (defaults set in
-# run.sh: SEM_CAP=750, SAT_PCT=95). Binary policies (pct=100) always
+# run.sh: SEM_CAP=500, SAT_PCT=95). Binary policies (pct=100) always
 # use sat=100 — sat<100 only makes sense in the graduated zone.
 POLICIES=(
-  "START_PCT=100 SAT_PCT=100       MAX_PENDING=1000 SEMAPHORE_CAP=$SEM_CAP SEM_SHEDDING=false"
-  "START_PCT=75  SAT_PCT=$SAT_PCT  MAX_PENDING=1000 SEMAPHORE_CAP=$SEM_CAP SEM_SHEDDING=false"
-  "START_PCT=50  SAT_PCT=100       MAX_PENDING=1000 SEMAPHORE_CAP=$SEM_CAP SEM_SHEDDING=false"
-  "START_PCT=50  SAT_PCT=$SAT_PCT  MAX_PENDING=1000 SEMAPHORE_CAP=$SEM_CAP SEM_SHEDDING=false"
-  "START_PCT=25  SAT_PCT=$SAT_PCT  MAX_PENDING=1000 SEMAPHORE_CAP=$SEM_CAP SEM_SHEDDING=false"
-  "START_PCT=100 SAT_PCT=100       MAX_PENDING=900  SEMAPHORE_CAP=$SEM_CAP SEM_SHEDDING=false"
-  "START_PCT=100 SAT_PCT=100       MAX_PENDING=500  SEMAPHORE_CAP=$SEM_CAP SEM_SHEDDING=false"
+  # 3 hard binary policies at different hard limit (max pending)
+  "MAX_PENDING=20000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=false"
+  "MAX_PENDING=19000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=false"
+  "MAX_PENDING=10000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=false"
+  # 1 graduated policy with 100% saturation
+  "MAX_PENDING=20000 START_PCT=50  SAT_PCT=100      SEM_SHEDDING=false"
+  # 3 graduated policies with 95% saturation and different soft limit
+  "MAX_PENDING=20000 START_PCT=75  SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=50  SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=25  SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
+  # 1 hard binary policy for production config
+  # "MAX_PENDING=20000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=true"
+  # 1 graduated policy (proposed) for production config
+  # "MAX_PENDING=20000 START_PCT=50  SAT_PCT=$SAT_PCT SEM_SHEDDING=true"
 )
-# START_PCT=100 SAT_PCT=100 MAX_PENDING=1000  SEMAPHORE_CAP=20  SEM_SHEDDING=true
-# START_PCT=50  SAT_PCT=90  MAX_PENDING=1000  SEMAPHORE_CAP=20  SEM_SHEDDING=true
-# START_PCT=100 SAT_PCT=100 MAX_PENDING=20000 SEMAPHORE_CAP=400 SEM_SHEDDING=true
-# START_PCT=50  SAT_PCT=90  MAX_PENDING=20000 SEMAPHORE_CAP=400 SEM_SHEDDING=true
 
-
-for ((round=1; round<=ITERS; round++)); do
+P_TOTAL=${#POLICIES[@]}
+for ((round = 1; round <= ITERS; round++)); do
   echo "=== run.sh round=$round/$ITERS  $(date -u +%H:%M:%S) ==="
+  P_IDX=0
   for policy in "${POLICIES[@]}"; do
+    P_IDX=$((P_IDX + 1))
     # If a previous iter signalled fatal failure, do a full reset
     # before attempting the next policy.
     if [ "${need_reset:-0}" -eq 1 ]; then
       full_reset
       need_reset=0
     fi
-    if ! env $policy ITERS=1 ./sweep.sh; then
+    if ! env $policy ITERS=1 POLICY_IDX=$P_IDX POLICY_TOTAL=$P_TOTAL ./sweep.sh; then
       echo "=== run.sh: sweep.sh exited non-zero — marking for reset ==="
       need_reset=1
     fi
