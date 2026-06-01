@@ -31,7 +31,7 @@ While all Notarization objects share a common underlying structure, the `Dynamic
     Control over a Dynamic Notarization can be transferred to another party, allowing for changes in ownership or management responsibilities. This is in direct contrast to a [Locked Notarization](./locked-notarization.mdx), which is non-transferable. This capability can be optionally restricted by a **Transfer Timelock**, a time-locking period during which the Ledger Object cannot be transferred. This is useful for scenarios where control should be temporarily fixed, such as during an audit or a contractual waiting period.
 
 -   **Flexible Metadata Structure**
-    All Notarizations feature a three-tiered metadata system, which the Dynamic method utilizes for flexibility:
+    All notarizations feature a three-tiered metadata system, which the Dynamic method utilizes for flexibility:
     -   **Immutable Description**: An optional string set once at the time of creation to describe the object's purpose. It cannot be changed in any notarization method.
     -   **State Metadata**: An optional string that is bundled with the `State` and can only be updated when the state itself is updated. It's useful for describing the specific version of the data (e.g., "Document Revision 2.1").
     -   **Updatable Metadata**: An optional, arbitrary string that can be modified independently of the core `state` at any time. Updating this field provides additional useful information (like a status note or a reference URL) without affecting the `state_version_count`. In a [Locked Notarization](./locked-notarization.mdx), this field is write-once.

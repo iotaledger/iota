@@ -1,4 +1,4 @@
-# IOTA Audit Trail Documentation Style Guide
+# IOTA Audit Trails Documentation Style Guide
 
 This file guides agents writing or editing pages under `docs/content/developer/iota-notarization/`.
 It supplements the parent `docs/CLAUDE.md` (Diataxis rules, code-embedding patterns, frontmatter requirements).
@@ -7,7 +7,7 @@ Everything in the parent file applies here; this file adds product-specific conv
 ## Product context
 
 The IOTA Notarization Toolkit, a set of IOTA ledger tools for verifiable on-chain data workflows and consists of the
-**Single Notarization** and **Audit Trail** components as been described in the
+**Single Notarization** and **Audit Trails** components as been described in the
 [external source repository Main Readme](https://github.com/iotaledger/notarization/blob/audit-trails-dev/README.md)
 
 The external source repository is **`https://github.com/iotaledger/notarization`**. The current tag is **`v0.1`**. 
@@ -25,12 +25,12 @@ of digital data by anchoring data to the IOTA ledger:
 -   **Dynamic Notarization**: For creating records of evolving data where only the most current version is relevant.
 
 
-### Audit Trail Component
+### Audit Trails Component
 
-IOTA Audit Trail provides tamper-proof, chronological records of activities on the IOTA ledger. 
+IOTA Audit Trails provides tamper-proof, chronological records of activities on the IOTA ledger. 
 It differs from IOTA Notarization: Notarization records _static facts_ (a document existed at time T); 
-Audit Trail records _sequences of events_ (who did what, when). 
-Audit Trail objects are **shared** on-chain and use **Role-Based Access Control (RBAC)** with Roles, Capabilities, and Record Tags.
+Audit Trails records _sequences of events_ (who did what, when). 
+`AuditTrail` objects are **shared** on-chain and use **Role-Based Access Control (RBAC)** with Roles, Capabilities, and Record Tags.
 
 ## Directory layout
 
@@ -42,7 +42,7 @@ iota-notarization
 ├── index.mdx                   # Toolkit landing / IOTA Notarization Toolkit introduction
 ├── contribute.mdx
 ├── audit-trail/
-│   ├── index.mdx               # Component landing / Audit Trail introduction page
+│   ├── index.mdx               # Component landing / Audit Trails introduction page
 │   ├── getting-started/        # Setup and installation guides
 │   │   ├── rust.mdx
 │   │   ├── wasm.mdx
@@ -54,13 +54,13 @@ iota-notarization
 │       └── wasm/
 ├── single-notarization/
 │   ├── index.mdx               # Component landing / Single Notarization introduction page
-│   ...                         # Same directory as been used for Audit Trail 
+│   ...                         # Same directory as been used for Audit Trails 
 ```
 
 ## Sidebar
 
-The sidebar is defined in `docs/content/sidebars/notarization.js` (the unified Notarization sidebar that covers both Single Notarization and Audit Trail).
-Every new page must be added there under the `Audit Trail` or `Single Notarization` category.
+The sidebar is defined in `docs/content/sidebars/notarization.js` (the unified Notarization sidebar that covers both Single Notarization and Audit Trails).
+Every new page must be added there under the `Audit Trails` or `Single Notarization` category.
 Keep the sidebar order aligned with the recommended reading path: introduction first, then getting-started, explanations, how-tos, references.
 
 ## Tags
@@ -69,7 +69,7 @@ Use tags registered in `docs/content/tags.yml`. Every page must include:
 
 1. Exactly one **Diataxis type tag**: `explanation`, `how-to`, `reference`, or `tutorial`.
 2. The **product tag**: `notarization`.
-3. A **component tag**: `audit-trail` or `single-notarization`.
+3. A **component tag**: `audit-trails` or `single-notarization`.
 4. Optional feature or technology tags (e.g., `rust`, `wasm`, `getting-started`).
 
 If you need a new tag, add it to `tags.yml` under the `# Notarization` section.
@@ -84,7 +84,7 @@ sidebar_label: '<Short label for the sidebar, if different from title>'
 tags:
   - <diataxis-type>   # one of: explanation, how-to, reference, tutorial
   - notarization      # product tag
-  - <component tag>   # `audit-trail` or `single-notarization`
+  - <component tag>   # `audit-trails` or `single-notarization`
   - <optional-extra>
 ---
 ```
@@ -101,10 +101,10 @@ The introduction page is the product's front door. Pattern:
 2. Banner image: Following banners exist:
    - `![IOTA Notarization Toolkit](/img/banner/banner_notarization.png)`
    - `![Single Notarization](/img/banner/banner_single_notarization.png)`
-   - `![Audit Trail](/img/banner/banner_audit_trail.png)`
+   - `![Audit Trails](/img/banner/banner_audit_trail.png)`
 3. One-paragraph product summary.
 4. Subsections covering: what the product solves, key use cases (with `:::info` admonitions for highlights), comparison to 
-   related products (e.g., Audit Trail vs. Dynamic Notarization), why IOTA, key actors, and a brief mention of RBAC linking to the explanation page.
+   related products (e.g., Audit Trails vs. Dynamic Notarization), why IOTA, key actors, and a brief mention of RBAC linking to the explanation page.
 5. No code on this page. Link out to getting-started and explanation pages instead.
 
 ### Explanation pages
@@ -190,23 +190,27 @@ They follow the same structure as regular how-tos but include additional section
 API reference for Wasm is auto-generated and placed in `references/wasm/`.
 The Rust API reference is an external link to 
 - Single Notarization: `https://iotaledger.github.io/notarization/notarization/index.html`
-- Audit Trail: `https://iotaledger.github.io/notarization/audit_trail/index.html`
+- Audit Trails: `https://iotaledger.github.io/notarization/audit_trail/index.html`
 
 Do not manually author reference pages — they are generated from the source repository.
 
 ## Writing style
 
-- **Audience**: developers integrating Audit Trail into their applications. Assume familiarity with IOTA basics and blockchain concepts.
+- **Audience**: developers integrating Audit Trails into their applications. Assume familiarity with IOTA basics and blockchain concepts.
 - **Tone**: technical, precise, direct. Avoid marketing language in explanation and how-to pages. The index page may use more persuasive language for use-case descriptions.
 - Use `:::info`, `:::tip`, and `:::warning` admonitions sparingly and only when the information genuinely warrants callout treatment.
-- Prefer "Audit Trail" (capitalized, two words) when referring to the product. Use lowercase "audit trail" only when referring to the generic concept.
+- **Product naming** (the [`Naming Conventions` in the notarization repo `CLAUDE.md`](https://github.com/iotaledger/notarization/blob/audit-trails-dev/CLAUDE.md) is the source of truth):
+  - Use **"Audit Trails"** (plural, title case) when referring to the **product / component / package / client** — e.g. "Audit Trails provides …", "the Audit Trails package", "IOTA Audit Trails".
+  - For a **single on-chain object**: use **"Audit Trail"** (singular, title case) in titles, headings, and general descriptive prose; use **"`AuditTrail` object"** (the Move type in backticks) in normal paragraphs that describe creating, deleting, updating, configuring, or otherwise directly interacting with the object (e.g. "creating a new `AuditTrail` object", "remove an `AuditTrail` object from the network").
+  - For **multiple instances**, use lowercase plural **"audit trails"** (except at the start of a sentence or in a heading).
+  - Use lowercase **"audit trail"** only for the generic, non-product concept (e.g. "an audit trail is a sequential log").
 - When referencing Move structs or types, use inline code: `AuditTrail`, `Capability`, `RoleMap`.
 - Use **bold** for introducing key terms on first use in a page.
 - Keep paragraphs short (3-5 sentences max). Use bullet lists for enumerations.
 
 ## Cross-referencing between products
 
-When comparing Audit Trail to Single Notarization, link to the sibling docs with relative paths:
+When comparing Audit Trails to Single Notarization, link to the sibling docs with relative paths:
 `../../single-notarization/explanations/dynamic-notarization.mdx`. Do not duplicate notarization content — summarize the distinction and link out.
 
 ## Keeping example-code line references up to date
@@ -218,9 +222,9 @@ When example code in that repository changes, those anchors go stale. The script
 
 Run the script after any commit in `iotaledger/notarization` that modifies files under:
 
-- `examples/audit-trail/`  (Rust examples for Audit Trail)
+- `examples/audit-trail/`  (Rust examples for Audit Trails)
 - `examples/notarization/` (Rust examples for Single Notarization)
-- `bindings/wasm/audit_trail_wasm/examples/` (TypeScript examples for Audit Trail)
+- `bindings/wasm/audit_trail_wasm/examples/` (TypeScript examples for Audit Trails)
 - `bindings/wasm/notarization_wasm/examples/` (TypeScript examples for Single Notarization)
 - `examples/utils/utils.rs`
 
@@ -275,7 +279,7 @@ Lines unchanged between the two refs map exactly; replaced or moved lines map to
 Before considering a page complete:
 
 - [ ] Frontmatter includes `description`, at least one Diataxis type tag, `notarization` and a <component tag>.
-- [ ] Page is added to `docs/content/sidebars/notarization.js` (under the `Audit Trail` or `Single Notarization` category).
+- [ ] Page is added to `docs/content/sidebars/notarization.js` (under the `Audit Trails` or `Single Notarization` category).
 - [ ] Any new tags are registered in `docs/content/tags.yml`.
 - [ ] Code blocks use the `reference` keyword with GitHub URLs (no inline code copies).
 - [ ] Both Rust and TypeScript tabs are present in how-to guides.

@@ -4,16 +4,16 @@ description: An explanation of the IOTA Audit Trail Move object, its data struct
 tags:
  - explanation
  - notarization
- - audit-trail
+ - audit-trails
 ---
 
 # The Audit Trail Object
 
-The core of the IOTA Audit Trail is the `AuditTrail` **shared** Move object — an on-chain ledger that stores a sequential, tamper-proof log of records. Unlike owned objects (such as a [Notarization](../../single-notarization/explanations/about-notarization.mdx)) that are controlled by a single address, an Audit Trail is a shared object that multiple authorized parties can write to, governed by [Role-Based Access Control](./role-based-access-control.mdx).
+The core of IOTA Audit Trails is the `AuditTrail` **shared** Move object — an on-chain ledger that stores a sequential, tamper-proof log of records. Unlike owned objects (such as a [Notarization](../../single-notarization/explanations/about-notarization.mdx)) that are controlled by a single address, an Audit Trail is a shared object that multiple authorized parties can write to, governed by [Role-Based Access Control](./role-based-access-control.mdx).
 
-IOTA Audit Trail is composed of two primary packages:
-- **Audit Trail Move Package**: The on-chain smart contracts that define the behavior, structure, and access control of Audit Trail objects.
-- **Audit Trail Client Packages (Rust crate / WASM bindings)**: Client-side packages that provide developers with convenient functions to create, manage, and query Audit Trail objects on the network.
+IOTA Audit Trails is composed of two primary packages:
+- **Audit Trails Move Package**: The on-chain smart contracts that define the behavior, structure, and access control of audit trails.
+- **Audit Trails Client Packages (Rust crate / WASM bindings)**: Client-side packages that provide developers with convenient functions to create, manage, and query audit trails on the network.
 
 ---
 
@@ -103,7 +103,7 @@ This bidirectional linking ensures that:
 
 ## Locking System
 
-The Audit Trail provides a configurable locking system that protects records and the trail itself from unauthorized or premature modification.
+Audit Trails provides a configurable locking system that protects records and the trail itself from unauthorized or premature modification.
 
 ```Move
 public struct LockingConfig has drop, store {
@@ -153,7 +153,7 @@ In addition to individual record deletion (which respects the `delete_record_win
 
 ## Trail Metadata
 
-The Audit Trail supports two tiers of metadata:
+Audit Trails supports two tiers of metadata:
 
 ### Immutable Metadata
 
@@ -215,7 +215,7 @@ Once destroyed, the trail's storage deposit is refunded to the owner. The Admin 
 
 ## Events
 
-The Audit Trail emits on-chain events for key operations, enabling off-chain systems to monitor and react to trail activity:
+Audit Trails emits on-chain events for key operations, enabling off-chain systems to monitor and react to trail activity:
 
 | Event | Emitted When |
 |-------|-------------|

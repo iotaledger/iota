@@ -4,7 +4,7 @@ sidebar_label: Delete Records
 description: How to delete individual records or batch-delete all records from an Audit Trail.
 tags:
   - notarization
-  - audit-trail
+  - audit-trails
   - how-to
 ---
 
@@ -13,13 +13,13 @@ import TabItem from '@theme/TabItem';
 
 # Delete Records
 
-This guide shows how to delete records from an Audit Trail — both individually by sequence number and in batch. Record deletion respects the trail's [locking configuration](./configure-locking.mdx), so records within a deletion window cannot be removed.
+This guide shows how to delete records from an `AuditTrail` object — both individually by sequence number and in batch. Record deletion respects the trail's [locking configuration](./configure-locking.mdx), so records within a deletion window cannot be removed.
 
 ## Prerequisites
 
-- An existing Audit Trail with records
+- An existing `AuditTrail` object with records
 - A capability with `DeleteRecord` and/or `DeleteAllRecords` permissions
-- Familiarity with [creating an Audit Trail](./create-audit-trail.mdx)
+- Familiarity with [creating an `AuditTrail` object](./create-audit-trail.mdx)
 
 ## Steps
 

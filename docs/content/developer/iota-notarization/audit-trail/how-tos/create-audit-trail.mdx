@@ -4,7 +4,7 @@ sidebar_label: Create an Audit Trail
 description: How to create an Audit Trail with metadata, an initial record, and role-based access control.
 tags:
   - notarization
-  - audit-trail
+  - audit-trails
   - how-to
 ---
 
@@ -13,13 +13,13 @@ import TabItem from '@theme/TabItem';
 
 # Create an Audit Trail
 
-This guide walks you through creating a new Audit Trail on the IOTA network, inspecting the built-in Admin role, defining a custom role, and issuing a capability for it.
+This guide walks you through creating a new `AuditTrail` object on the IOTA network, inspecting the built-in Admin role, defining a custom role, and issuing a capability for it.
 
 ## Prerequisites
 
 - A funded IOTA account
 - Access to an IOTA network (testnet, devnet, or local)
-- Audit Trail client packages installed ([Rust](../getting-started/rust.mdx) or [Wasm](../getting-started/wasm.mdx))
+- Audit Trails client packages installed ([Rust](../getting-started/rust.mdx) or [Wasm](../getting-started/wasm.mdx))
 
 ## Steps
 
@@ -117,7 +117,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 
 ## Expected Behavior
 
-- A new Audit Trail is created on-chain with a unique trail ID.
+- A new `AuditTrail` object is created on-chain with a unique trail ID.
 - The creator automatically receives an Admin capability with full permissions.
 - Custom roles can be defined and capabilities issued using the Admin capability.
 - Each capability is an on-chain object that can be transferred to other addresses.

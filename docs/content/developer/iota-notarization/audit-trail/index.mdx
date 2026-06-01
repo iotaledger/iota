@@ -1,19 +1,19 @@
 ---
-title: IOTA Audit Trail
-description: Discover how the IOTA Audit Trail component provides tamper-proof, chronological records of activities on the IOTA ledger.
+title: IOTA Audit Trails
+description: Discover how the IOTA Audit Trails component provides tamper-proof, chronological records of activities on the IOTA ledger.
 sidebar_label: Introduction
 tags:
  - reference
  - notarization
- - audit-trail
+ - audit-trails
 ---
-# IOTA Audit Trail
+# IOTA Audit Trails
 
-![IOTA Audit Trail](/img/banner/banner_audit_trail.png)
+![IOTA Audit Trails](/img/banner/banner_audit_trail.png)
 
-IOTA Audit Trail is one of the two components of the [IOTA Notarization Toolkit](../index.mdx), alongside [IOTA Single Notarization](../single-notarization/index.mdx). It provides a powerful Move smart contract and utility libraries for creating secure, chronological records of activities or transactions. Each record captures **who** (user), **what** (action), and **when** (timestamp) an event occurred, anchored immutably to the IOTA ledger. With built-in Role-Based Access Control (RBAC), flexible locking policies, and a tag-based categorization system, Audit Trail is designed for organizations that need verifiable accountability and compliance-ready event logs.
+IOTA Audit Trails is one of the two components of the [IOTA Notarization Toolkit](../index.mdx), alongside [IOTA Single Notarization](../single-notarization/index.mdx). It provides a powerful Move smart contract and utility libraries for creating secure, chronological records of activities or transactions. Each record captures **who** (user), **what** (action), and **when** (timestamp) an event occurred, anchored immutably to the IOTA ledger. With built-in Role-Based Access Control (RBAC), flexible locking policies, and a tag-based categorization system, Audit Trails is designed for organizations that need verifiable accountability and compliance-ready event logs.
 
-## Introduction to Audit Trail
+## Introduction to Audit Trails
 
 An audit trail is a sequential, tamper-proof log that records events in the order they occur. In traditional systems, audit logs are stored in centralized databases that can be altered, lost, or disputed. By moving this record to a Distributed Ledger, the IOTA Audit Trail guarantees that once an event is recorded, it cannot be retroactively modified or deleted without authorization — and every change is transparently tracked.
 
@@ -24,33 +24,33 @@ Unlike a simple log file, the IOTA Audit Trail is a first-class on-chain object 
 - **Flexible locking**: Time-based and count-based locking windows protect records from premature deletion, while write locks and trail deletion locks provide additional safeguards.
 - **Correction tracking**: (Planned Feature - Not MVP) Records can be marked as corrections of earlier entries, creating a bidirectional link that preserves the full history while highlighting the authoritative version.
 
-### Audit Trail for International Trade
+### Audit Trails for International Trade
 
 :::info TRUST
-IOTA Audit Trail enables organizations to create transparent, tamper-proof records of every step in international trade — from order placement to final delivery — building trust between parties across borders.
+IOTA Audit Trails enables organizations to create transparent, tamper-proof records of every step in international trade — from order placement to final delivery — building trust between parties across borders.
 :::
 
 International trade involves numerous stakeholders — exporters, importers, customs authorities, logistics providers, banks, and insurers — each maintaining their own records. Discrepancies between these records lead to disputes, delays, and fraud. The cost of reconciling conflicting documentation is a major friction point in global commerce.
 
-IOTA Audit Trail addresses this by providing a shared, immutable event log that all parties can independently verify. When a shipment leaves a warehouse, the event is recorded on-chain with a timestamp and the identity of the recording party. When customs clears the shipment, another record is appended. Each party can verify the complete chain of events without trusting any single intermediary. Role-Based Access Control ensures that only authorized participants — such as the logistics provider or the customs broker — can append records to the trail, while auditors and regulators can verify the full history with read-only access.
+IOTA Audit Trails addresses this by providing a shared, immutable event log that all parties can independently verify. When a shipment leaves a warehouse, the event is recorded on-chain with a timestamp and the identity of the recording party. When customs clears the shipment, another record is appended. Each party can verify the complete chain of events without trusting any single intermediary. Role-Based Access Control ensures that only authorized participants — such as the logistics provider or the customs broker — can append records to the trail, while auditors and regulators can verify the full history with read-only access.
 
-### Audit Trail for Digital Product Passports
+### Audit Trails for Digital Product Passports
 
 :::info TRACEABILITY
-IOTA Audit Trail provides the event history layer for Digital Product Passports, recording every lifecycle event from manufacturing to recycling with full traceability.
+IOTA Audit Trails provides the event history layer for Digital Product Passports, recording every lifecycle event from manufacturing to recycling with full traceability.
 :::
 
 A Digital Product Passport (DPP) requires a complete and verifiable history of a product's lifecycle — manufacturing conditions, quality inspections, ownership transfers, maintenance events, and disposal. Regulations such as the EU Digital Product Passport mandate that this information be accessible and trustworthy.
 
-IOTA Audit Trail serves as the event history layer for a DPP. While a [Dynamic Notarization](../single-notarization/explanations/dynamic-notarization.mdx) can capture the *current state* of a product (e.g., its current owner or status), the Audit Trail records *every event* that led to that state. For example, a DPP for an electric vehicle battery could use an Audit Trail to log manufacturing parameters, charge cycles, temperature readings, ownership transfers, and recycling events. Record tags can categorize events by type (`"manufacturing"`, `"maintenance"`, `"transfer"`), and role-based permissions ensure that only the manufacturer can log manufacturing events, only the service provider can log maintenance events, and so on.
+IOTA Audit Trails serves as the event history layer for a DPP. While a [Dynamic Notarization](../single-notarization/explanations/dynamic-notarization.mdx) can capture the *current state* of a product (e.g., its current owner or status), the Audit Trail records *every event* that led to that state. For example, a DPP for an electric vehicle battery could use an Audit Trail to log manufacturing parameters, charge cycles, temperature readings, ownership transfers, and recycling events. Record tags can categorize events by type (`"manufacturing"`, `"maintenance"`, `"transfer"`), and role-based permissions ensure that only the manufacturer can log manufacturing events, only the service provider can log maintenance events, and so on.
 
 The [Digital Product Passport real world example](./real-world-examples/digital-product-passport.mdx) demonstrates how to implement a Digital Product Passport following the example set by the [IOTA DPP demo](https://dpp.demo.iota.org/).
 
-### Audit Trail versus Dynamic Notarization
+### Audit Trails versus Dynamic Notarization
 
 The Notarization Toolkit offers two complementary options for recording data on-chain. Understanding their differences helps you choose the right tool:
 
-| Aspect | Audit Trail | Dynamic Notarization |
+| Aspect | Audit Trails | Dynamic Notarization |
 |--------|-------------|---------------------|
 | **Data model** | Append-only log of sequential records | Single mutable state object |
 | **On-chain visibility** | Full history of all records | Only the latest state |
@@ -60,7 +60,7 @@ The Notarization Toolkit offers two complementary options for recording data on-
 
 The two complement each other. For example, a Digital Product Passport might use a Dynamic Notarization to store the product's current status and an Audit Trail to record every lifecycle event. The Notarization provides fast lookup of the latest state, while the Audit Trail provides the complete, verifiable history.
 
-### Why IOTA for Audit Trail?
+### Why IOTA for Audit Trails?
 
 IOTA is uniquely suited for audit trail applications due to several key properties:
 
@@ -80,7 +80,7 @@ For a detailed explanation of the privacy challenges, the on-chain/off-chain pat
 
 ## Key Actors in the Audit Trail Process
 
-IOTA Audit Trail provides a flexible and configurable **Role-Based Access Control** ([RBAC](#role-based-access-control-in-audit-trail-rbac)) management that can be used to
+IOTA Audit Trails provides a flexible and configurable **Role-Based Access Control** ([RBAC](#role-based-access-control-in-audit-trail-rbac)) management that can be used to
 define clear roles for the participants in the audit process:
 
 ### Trail Creator (Admin)
