@@ -659,12 +659,14 @@ async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
 }
 
 /// Skip-cert via gRPC with no consensus quorum: with two of four validators
-/// stopped, the tx is submitted but never lands in a checkpoint within the
-/// timeout. The gRPC handler must surface a per-item error rather than a
-/// success with uncertified data. `finalize_item` maps this to
-/// `tonic::Code::DeadlineExceeded` (or `Internal` if the wait call itself
-/// failed); the contract checked here is "no successful response with
-/// uncertified data and no whole-RPC failure either."
+/// stopped, the tx either executes on a single validator but is never included
+/// in a checkpoint within the timeout, or the driver itself times out before
+/// getting any response. The gRPC handler must surface a per-item error rather
+/// than a success with uncertified data. Acceptable codes: `DeadlineExceeded`
+/// when the driver succeeds but checkpoint wait times out, `Internal` when the
+/// checkpoint wait itself fails, or `Unavailable` when the driver cannot reach
+/// enough validators before its own timeout fires. The contract checked here is
+/// "no successful response with uncertified data and no whole-RPC failure."
 #[sim_test]
 async fn execute_transaction_v1_skip_cert_no_quorum_yields_per_item_error() {
     let _env_guard = enable_white_flag_env();
@@ -719,8 +721,14 @@ async fn execute_transaction_v1_skip_cert_no_quorum_yields_per_item_error() {
         Some(execute_transaction_result::Result::Error(e)) => {
             let code = tonic::Code::from_i32(e.code);
             assert!(
-                matches!(code, tonic::Code::DeadlineExceeded | tonic::Code::Internal),
-                "skip-cert under quorum loss should yield DeadlineExceeded or Internal, got {code:?}: {e:?}"
+                matches!(
+                    code,
+                    tonic::Code::DeadlineExceeded
+                        | tonic::Code::Internal
+                        | tonic::Code::Unavailable
+                ),
+                "skip-cert under quorum loss should yield DeadlineExceeded, Internal, or \
+                 Unavailable, got {code:?}: {e:?}"
             );
         }
         Some(execute_transaction_result::Result::ExecutedTransaction(tx)) => panic!(
