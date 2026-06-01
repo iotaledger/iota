@@ -24,9 +24,9 @@ fun view_functions_metadata_happy_path() {
 
     let module_metadata = package_metadata_v2.modules_metadata_v2(&module_name);
 
-    let view_function_metadata = module_metadata.view_function_metadata(&view_function_name);
+    let view_function_metadata = module_metadata.view_function_metadata_v1(&view_function_name);
 
-    assert_eq(module_metadata.view_functions_metadata().length(), 1);
+    assert_eq(module_metadata.view_functions_metadata_v1().length(), 1);
     assert_ref_eq(view_function_metadata.view_function_name(), &view_function_name);
 
     test_utils::destroy(package_metadata_v2);

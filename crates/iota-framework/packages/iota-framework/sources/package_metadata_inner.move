@@ -129,7 +129,7 @@ public fun try_get_module_metadata_v2(
     })
 }
 
-public fun module_metadata(
+public fun module_metadata_v2(
     self: &PackageMetadataV2Inner,
     module_name: &ascii::String,
 ): ModuleMetadataV2 {
@@ -139,7 +139,7 @@ public fun module_metadata(
     *module_metadata
 }
 
-public fun try_get_authenticator_metadata(
+public fun try_get_authenticator_metadata_v2(
     self: &ModuleMetadataV2,
     function_name: &ascii::String,
 ): Option<AuthenticatorMetadataV2> {
@@ -148,7 +148,7 @@ public fun try_get_authenticator_metadata(
     })
 }
 
-public fun authenticator_metadata(
+public fun authenticator_metadata_v2(
     self: &ModuleMetadataV2,
     function_name: &ascii::String,
 ): AuthenticatorMetadataV2 {
@@ -166,15 +166,15 @@ public fun account_type(self: &AuthenticatorMetadataV2): TypeName {
     self.account_type
 }
 
-public fun view_functions_metadata(self: &ModuleMetadataV2): vector<ViewFunctionMetadataV1> {
+public fun view_functions_metadata_v1(self: &ModuleMetadataV2): vector<ViewFunctionMetadataV1> {
     self.view_functions_metadata
 }
 
-public fun view_function_metadata(
+public fun view_function_metadata_v1(
     self: &ModuleMetadataV2,
     function_name: &ascii::String,
 ): ViewFunctionMetadataV1 {
-    let view_functions_metadata = self.view_functions_metadata();
+    let view_functions_metadata = self.view_functions_metadata_v1();
     let mut index = view_functions_metadata.find_index!(|m| m.function_name == *function_name);
     assert!(index.is_some(), EAuthenticatorMetadataNotFound);
     let view_function_metadata = view_functions_metadata[index.extract()];
@@ -185,7 +185,7 @@ public fun try_get_view_function_metadata(
     self: &ModuleMetadataV2,
     function_name: &ascii::String,
 ): Option<ViewFunctionMetadataV1> {
-    let view_functions_metadata = self.view_functions_metadata();
+    let view_functions_metadata = self.view_functions_metadata_v1();
     view_functions_metadata.find_index!(|m| m.function_name == *function_name).and!(|index| {
         option::some(view_functions_metadata[index])
     })

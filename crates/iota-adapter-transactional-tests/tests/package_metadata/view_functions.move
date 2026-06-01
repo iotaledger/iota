@@ -18,11 +18,11 @@ public fun assert_view_metadata(metadata: &PackageMetadataV2) {
     let module_name = ascii::string(b"view_metadata");
     let view_function_name = ascii::string(b"answer");
     let module_metadata = metadata.modules_metadata_v2(&module_name);
-    let view_functions_metadata = module_metadata.view_functions_metadata();
+    let view_functions_metadata = module_metadata.view_functions_metadata_v1();
 
     assert!(view_functions_metadata.length() == 1, 0);
 
-    let view_function_metadata = module_metadata.view_function_metadata(&view_function_name);
+    let view_function_metadata = module_metadata.view_function_metadata_v1(&view_function_name);
     assert!(*view_function_metadata.view_function_name() == view_function_name, 1);
 }
 

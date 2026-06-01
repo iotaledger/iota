@@ -202,6 +202,21 @@ public fun package_version(metadata: &PackageMetadataV1): u64 {
     metadata.package_version
 }
 
+/// Return the storage ID of the package represented by this metadata
+public fun storage_id_v2(metadata: &PackageMetadataV2): ID {
+    metadata.storage_id
+}
+
+/// Return the runtime ID of the package represented by this metadata
+public fun runtime_id_v2(metadata: &PackageMetadataV2): ID {
+    metadata.runtime_id
+}
+
+/// Return the version of the package represented by this metadata
+public fun package_version_v2(metadata: &PackageMetadataV2): u64 {
+    metadata.package_version
+}
+
 /// Safely get the module metadata list of the package represented by this metadata
 public fun try_get_modules_metadata_v1(
     self: &PackageMetadataV1,

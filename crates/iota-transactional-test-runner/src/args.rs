@@ -88,6 +88,8 @@ pub struct IotaInitArgs {
     /// reader.
     #[clap(long)]
     pub grpc_api_url: Option<String>,
+    #[clap(long = "package-metadata-v2")]
+    pub package_metadata_v2: Option<bool>,
 }
 
 #[derive(Debug, clap::Parser)]

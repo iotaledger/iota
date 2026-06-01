@@ -23,7 +23,7 @@ public fun authenticate_random(
     _ctx: &TxContext,
 ) {}
 
-//# init-abstract-account --sender A --package-metadata object(3,0) --inputs "randomness_attack" "authenticate_random" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "randomness_attack" "authenticate_random" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
 //# view-object 4,2
 

@@ -33,7 +33,7 @@ public fun authenticate_ed25519(
     );
 }
 
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_ed25519" x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --create-function abstract_account_with_pub_key::abstract_account::create --account-type abstract_account_with_pub_key::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,2) --inputs "authenticate" "authenticate_ed25519" x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" --create-function abstract_account_with_pub_key::abstract_account::create --account-type abstract_account_with_pub_key::abstract_account::AbstractAccount
 
 //# view-object 4,0
 

@@ -160,6 +160,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             round passes) even with no fresh inbound traffic, e.g. after a
 //             validator restart. Without this it can stay pending forever and
 //             block epoch close.
+//             devnet. Start publishing package metadata using the V2 layout
+//             when the package requires it.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -526,6 +528,10 @@ struct FeatureFlags {
     // Conflicts are resolved deterministically post-consensus using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_white_flag_flow: bool,
+    // If true, package metadata can be published as PackageMetadataV2 when the
+    // package requires the V2 layout. If false, PackageMetadataV1 is used.
+    #[serde(skip_serializing_if = "is_false")]
+    package_metadata_v2: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1783,6 +1789,14 @@ impl ProtocolConfig {
     pub fn enable_white_flag_flow(&self) -> bool {
         self.feature_flags.enable_white_flag_flow
     }
+    pub fn package_metadata_v2(&self) -> bool {
+        let res = self.feature_flags.package_metadata_v2;
+        assert!(
+            !res || self.publish_package_metadata(),
+            "package_metadata_v2 requires publish_package_metadata to be enabled"
+        );
+        res
+    }
 }
 
 #[cfg(not(msim))]
@@ -2884,6 +2898,9 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
+                    if cfg.feature_flags.publish_package_metadata {
+                        cfg.feature_flags.package_metadata_v2 = true;
+                    }
                 }
                 28 => {
                     // AuthenticatorFunctionInfoV1 max BCS size:
@@ -3172,6 +3189,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_white_flag_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_white_flag_flow = val;
+    }
+
+    pub fn set_package_metadata_v2_for_testing(&mut self, val: bool) {
+        self.feature_flags.package_metadata_v2 = val;
     }
 }
 

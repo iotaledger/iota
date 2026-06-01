@@ -211,6 +211,7 @@ impl AdapterInitConfig {
             epochs_to_keep,
             data_ingestion_path,
             grpc_api_url,
+            package_metadata_v2,
         } = iota_args;
 
         let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
@@ -254,6 +255,12 @@ impl AdapterInitConfig {
             None
         };
 
+        if let Some(enable) = package_metadata_v2 {
+            if enable {
+                protocol_config.set_publish_package_metadata_for_testing(true);
+            }
+            protocol_config.set_package_metadata_v2_for_testing(enable);
+        }
         Self {
             additional_mapping: map,
             account_names: accounts,

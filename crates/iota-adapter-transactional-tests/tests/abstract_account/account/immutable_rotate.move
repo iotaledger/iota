@@ -18,9 +18,9 @@ public fun authenticate1(_account: &AbstractAccount, _auth_ctx: &AuthContext, _c
 #[authenticator]
 public fun authenticate2(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate1" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,2) --inputs "authenticate" "authenticate1" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
 //# view-object 4,2
 
-//# abstract --account immshared(4,2) --ptb-inputs object(4,2) object(3,1) "authenticate" "authenticate2"
+//# abstract --account immshared(4,2) --ptb-inputs object(4,2) object(3,2) "authenticate" "authenticate2"
 //> 0: simple_abstract_account::abstract_account::rotate_auth_function_ref(Input(0), Input(1), Input(2), Input(3))

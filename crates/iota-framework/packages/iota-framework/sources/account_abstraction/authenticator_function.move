@@ -3,7 +3,7 @@
 
 module iota::authenticator_function;
 
-use iota::package_metadata::PackageMetadataV1;
+use iota::package_metadata::{PackageMetadataV1, PackageMetadataV2};
 use std::ascii;
 use std::type_name;
 
@@ -47,6 +47,26 @@ public fun create_auth_function_ref_v1<Account: key>(
     );
     AuthenticatorFunctionRefV1 {
         package: package_metadata.storage_id(),
+        module_name,
+        function_name,
+    }
+}
+
+public fun create_auth_function_ref_v1_from_package_metadata_v2<Account: key>(
+    package_metadata: &PackageMetadataV2,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorFunctionRefV1<Account> {
+    let authenticator_metadata = package_metadata
+        .modules_metadata_v2(&module_name)
+        .authenticator_metadata_v2(&function_name);
+
+    assert!(
+        type_name::get<Account>() == authenticator_metadata.account_type(),
+        EAuthenticatorFunctionRefV1NotCompatibleWithAccount,
+    );
+    AuthenticatorFunctionRefV1 {
+        package: package_metadata.storage_id_v2(),
         module_name,
         function_name,
     }

@@ -6,12 +6,11 @@
 /// exercise the full range of auth-call-args parsing.
 module account_multi_auth::account;
 
-use std::string::String;
-
-use iota::clock::{Self, Clock};
-use iota::package_metadata::PackageMetadataV1;
 use iota::account;
 use iota::authenticator_function;
+use iota::clock::{Self, Clock};
+use iota::package_metadata::PackageMetadataV2;
+use std::string::String;
 
 public struct Account has key, store {
     id: UID,
@@ -27,11 +26,13 @@ fun init(_otw: ACCOUNT, ctx: &mut TxContext) {
 
 public fun link_auth(
     account: Account,
-    package: &PackageMetadataV1,
+    package: &PackageMetadataV2,
     module_name: std::ascii::String,
     function_name: std::ascii::String,
 ) {
-    let authenticator = authenticator_function::create_auth_function_ref_v1<Account>(
+    let authenticator = authenticator_function::create_auth_function_ref_v1_from_package_metadata_v2<
+        Account,
+    >(
         package,
         module_name,
         function_name,

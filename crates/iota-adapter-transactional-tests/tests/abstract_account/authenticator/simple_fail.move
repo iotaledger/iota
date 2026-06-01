@@ -23,7 +23,7 @@ public fun authenticate_hello_world(
     assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,2) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
 //# view-object 4,2
 

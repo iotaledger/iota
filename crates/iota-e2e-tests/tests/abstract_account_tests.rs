@@ -1816,7 +1816,7 @@ impl TestEnvironment {
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 Identifier::from_static("authenticator_function"),
-                Identifier::from_static("create_auth_function_ref_v1"),
+                Identifier::from_static("create_auth_function_ref_v1_from_package_metadata_v2"),
                 vec![delayed_abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {
@@ -2028,7 +2028,7 @@ impl TestEnvironment {
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             Identifier::from_static("authenticator_function"),
-            Identifier::from_static("create_auth_function_ref_v1"),
+            Identifier::from_static("create_auth_function_ref_v1_from_package_metadata_v2"),
             vec![abstract_account_type_tag(&aa_package_id)],
             arguments,
         ) {
@@ -2102,7 +2102,7 @@ impl TestEnvironment {
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
                 ObjectId::FRAMEWORK,
                 Identifier::from_static("authenticator_function"),
-                Identifier::from_static("create_auth_function_ref_v1"),
+                Identifier::from_static("create_auth_function_ref_v1_from_package_metadata_v2"),
                 vec![abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {

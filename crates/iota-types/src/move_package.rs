@@ -66,13 +66,15 @@ use crate::{
 };
 
 pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
-pub const PACKAGE_METADATA_STRUCT_NAME: Identifier = Identifier::from_static("PackageMetadata");
+pub const PACKAGE_METADATA_STRUCT_NAME: Identifier = Identifier::from_static("PackageMetadataV2");
 pub const PACKAGE_METADATA_INNER_MODULE_NAME: Identifier =
     Identifier::from_static("package_metadata_inner");
 pub const PACKAGE_METADATA_INNER_STRUCT_NAME: Identifier =
-    Identifier::from_static("PackageMetadata");
+    Identifier::from_static("PackageMetadataV2Inner");
 pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataKey");
+pub const PACKAGE_METADATA_V2_KEY_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadataV2Key");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -1016,11 +1018,44 @@ impl PackageMetadataKey {
     }
 }
 
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct PackageMetadataV2Key {
+    // This field is required to make a Rust struct compatible with an empty Move one.
+    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+    // allowed in the bytecode.
+    dummy_field: bool,
+}
+
+impl PackageMetadataV2Key {
+    pub fn tag() -> StructTag {
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_V2_KEY_STRUCT_NAME,
+            Vec::new(),
+        )
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataV2Key struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
 pub fn derive_package_metadata_id(package_storage_id: ObjectId) -> ObjectId {
     derived_object::derive_object_id(
         package_storage_id,
         &PackageMetadataKey::tag().into(),
         &PackageMetadataKey::default().to_bcs_bytes(),
+    )
+    .unwrap() // safe because type tag is known
+}
+
+pub fn derive_package_metadata_v2_id(package_storage_id: ObjectId) -> ObjectId {
+    derived_object::derive_object_id(
+        package_storage_id,
+        &PackageMetadataV2Key::tag().into(),
+        &PackageMetadataV2Key::default().to_bcs_bytes(),
     )
     .unwrap() // safe because type tag is known
 }

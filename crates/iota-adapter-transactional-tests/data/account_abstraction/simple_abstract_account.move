@@ -5,7 +5,7 @@ module simple_abstract_account::abstract_account;
 
 use iota::account;
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
-use iota::package_metadata::PackageMetadataV1;
+use iota::package_metadata::PackageMetadataV2;
 use std::ascii;
 
 public struct AbstractAccount has key {
@@ -13,12 +13,14 @@ public struct AbstractAccount has key {
 }
 
 public fun create(
-    package_metadata: &PackageMetadataV1,
+    package_metadata: &PackageMetadataV2,
     module_name: ascii::String,
     function_name: ascii::String,
     ctx: &mut TxContext,
 ): address {
-    let authenticator = authenticator_function::create_auth_function_ref_v1<AbstractAccount>(
+    let authenticator = authenticator_function::create_auth_function_ref_v1_from_package_metadata_v2<
+        AbstractAccount,
+    >(
         package_metadata,
         module_name,
         function_name,
@@ -28,12 +30,14 @@ public fun create(
 }
 
 public fun create_immutable(
-    package_metadata: &PackageMetadataV1,
+    package_metadata: &PackageMetadataV2,
     module_name: ascii::String,
     function_name: ascii::String,
     ctx: &mut TxContext,
 ): address {
-    let authenticator = authenticator_function::create_auth_function_ref_v1<AbstractAccount>(
+    let authenticator = authenticator_function::create_auth_function_ref_v1_from_package_metadata_v2<
+        AbstractAccount,
+    >(
         package_metadata,
         module_name,
         function_name,
@@ -70,11 +74,13 @@ public fun create_immutable_with_auth_function_ref(
 
 public fun rotate_auth_function_ref(
     account: &mut AbstractAccount,
-    package_metadata: &PackageMetadataV1,
+    package_metadata: &PackageMetadataV2,
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorFunctionRefV1<AbstractAccount> {
-    let authenticator = authenticator_function::create_auth_function_ref_v1<AbstractAccount>(
+    let authenticator = authenticator_function::create_auth_function_ref_v1_from_package_metadata_v2<
+        AbstractAccount,
+    >(
         package_metadata,
         module_name,
         function_name,

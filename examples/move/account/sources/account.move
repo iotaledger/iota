@@ -3,9 +3,9 @@
 
 module account::account;
 
-use iota::package_metadata::PackageMetadataV1;
 use iota::account;
 use iota::authenticator_function;
+use iota::package_metadata::PackageMetadataV2;
 
 public struct Account has key, store {
     id: UID,
@@ -20,8 +20,19 @@ fun init(_otw: ACCOUNT, ctx: &mut TxContext) {
     });
 }
 
-public fun link_auth(account: Account, package: &PackageMetadataV1, module_name: std::ascii::String, function_name: std::ascii::String) {
-    let authenticator = authenticator_function::create_auth_function_ref_v1<Account>(package, module_name, function_name);
+public fun link_auth(
+    account: Account,
+    package: &PackageMetadataV2,
+    module_name: std::ascii::String,
+    function_name: std::ascii::String,
+) {
+    let authenticator = authenticator_function::create_auth_function_ref_v1_from_package_metadata_v2<
+        Account,
+    >(
+        package,
+        module_name,
+        function_name,
+    );
     account::create_account_v1<Account>(account, authenticator);
 }
 

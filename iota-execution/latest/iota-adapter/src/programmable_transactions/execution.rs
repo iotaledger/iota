@@ -35,7 +35,8 @@ mod checked {
         move_package::{
             IotaAttribute, MovePackageExt, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
             UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket, derive_package_metadata_id,
-            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
+            derive_package_metadata_v2_id, normalize_deserialized_modules_with_metadata,
+            normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -977,7 +978,7 @@ mod checked {
 
     impl PackageMetadataHandler {
         fn from_protocol_config(protocol_config: &ProtocolConfig) -> Self {
-            if protocol_config.publish_package_metadata() {
+            if protocol_config.package_metadata_v2() {
                 Self::V2
             } else {
                 Self::V1
@@ -1040,7 +1041,7 @@ mod checked {
         ) -> Result<(), ExecutionError> {
             let (modules, auth_functions, type_names, _) =
                 package_metadata_constructor_args(modules_metadata);
-            let metadata_id = derive_package_metadata_id(storage_id);
+            let metadata_id = derive_package_metadata_v2_id(storage_id);
             let args = vec![
                 to_bcs_argument(
                     &AccountAddress::new(metadata_id.into_bytes()),

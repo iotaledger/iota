@@ -11,17 +11,17 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10161200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-16:
 //# publish --sender A --dependencies simple_abstract_account
-created: object(3,0), object(3,1)
+created: object(3,0), object(3,1), object(3,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8694400, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11187200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 18:
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
-events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [30, 14, 67, 118, 11, 92, 102, 11, 239, 78, 77, 214, 67, 10, 205, 181, 36, 33, 190, 149, 148, 225, 179, 198, 215, 89, 26, 58, 140, 199, 65, 139, 84, 68, 14, 208, 67, 101, 113, 89, 203, 61, 49, 48, 19, 65, 107, 184, 162, 72, 58, 252, 136, 15, 27, 175, 192, 187, 125, 19, 252, 32, 102, 92, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
+//# init-abstract-account --sender A --package-metadata object(3,2) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [46, 183, 148, 125, 129, 225, 63, 241, 94, 55, 16, 5, 125, 50, 184, 27, 60, 25, 53, 20, 8, 231, 0, 211, 6, 218, 227, 220, 220, 155, 59, 104, 234, 237, 193, 171, 133, 53, 222, 207, 140, 31, 25, 243, 190, 247, 149, 5, 180, 51, 177, 182, 12, 47, 208, 198, 67, 98, 36, 128, 114, 82, 153, 252, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6847600, storage_rebate: 980400, non_refundable_storage_fee: 0
