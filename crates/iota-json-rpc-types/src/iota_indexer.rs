@@ -23,11 +23,13 @@ pub struct IotaNameRecord {
     ///
     /// It is possible that the ID changes if the record expires and is
     /// purchased by someone else.
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub nft_id: ObjectID,
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,
     /// The target address that this name points to
+    #[serde_as(as = "Option<IotaAddressSchema>")]
     #[schemars(with = "Option<IotaAddressSchema>")]
     pub target_address: Option<IotaAddress>,
     /// Additional data which may be stored in a record

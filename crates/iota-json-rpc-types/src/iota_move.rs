@@ -142,6 +142,7 @@ pub struct IotaMoveModuleId {
 #[serde(rename_all = "camelCase")]
 pub struct MoveFunctionName {
     /// The package ID to which the function belongs.
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub package: ObjectID,
     /// The module name to which the function belongs.
@@ -419,10 +420,15 @@ pub enum IotaMoveValue {
     // u64 and u128 are converted to String to avoid overflow
     Number(u32),
     Bool(bool),
-    Address(#[schemars(with = "IotaAddressSchema")] IotaAddress),
+    Address(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     Vector(Vec<IotaMoveValue>),
     String(String),
     UID {
+        #[serde_as(as = "ObjectIDSchema")]
         #[schemars(with = "ObjectIDSchema")]
         id: ObjectID,
     },

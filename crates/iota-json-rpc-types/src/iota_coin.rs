@@ -94,16 +94,19 @@ impl Balance {
 #[serde(rename_all = "camelCase")]
 pub struct Coin {
     pub coin_type: String,
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub coin_object_id: ObjectID,
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub balance: u64,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub previous_transaction: TransactionDigest,
 }
@@ -129,6 +132,7 @@ pub struct IotaCoinMetadata {
     /// URL for the token logo
     pub icon_url: Option<String>,
     /// Object id for the CoinMetadata object
+    #[serde_as(as = "Option<ObjectIDSchema>")]
     #[schemars(with = "Option<ObjectIDSchema>")]
     pub id: Option<ObjectID>,
 }

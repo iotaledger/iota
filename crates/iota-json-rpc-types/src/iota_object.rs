@@ -199,6 +199,7 @@ pub struct DisplayFieldsResponse {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", rename = "ObjectData")]
 pub struct IotaObjectData {
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// Object version.
@@ -206,6 +207,7 @@ pub struct IotaObjectData {
     #[schemars(with = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
     /// The type of the object. Default to be None unless
@@ -225,6 +227,7 @@ pub struct IotaObjectData {
     /// Default to be None unless IotaObjectDataOptions.
     /// showPreviousTransaction is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde_as(as = "Option<Base58Schema>")]
     #[schemars(with = "Option<Base58Schema>")]
     pub previous_transaction: Option<TransactionDigest>,
     /// The amount of IOTA we would rebate if this object gets deleted.
@@ -639,16 +642,20 @@ impl TryInto<Object> for IotaObjectData {
     }
 }
 
+#[serde_as]
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", rename = "ObjectRef")]
 pub struct ObjectRefSchema {
     /// Hex code as string representing the object id
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// Object version.
+    #[serde_as(as = "SequenceNumberU64Schema")]
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
 }
@@ -975,6 +982,7 @@ pub struct IotaRawMoveObject {
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
+    #[serde_as(as = "SequenceNumberU64Schema")]
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     #[serde_as(as = "Base64")]
@@ -1104,8 +1112,10 @@ impl From<IotaUpgradeInfo> for UpgradeInfo {
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "RawMovePackage", rename_all = "camelCase")]
 pub struct IotaRawMovePackage {
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub id: ObjectID,
+    #[serde_as(as = "SequenceNumberU64Schema")]
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: SequenceNumber,
     #[schemars(with = "BTreeMap<String, Base64Schema>")]
@@ -1113,6 +1123,7 @@ pub struct IotaRawMovePackage {
     pub module_map: BTreeMap<String, Vec<u8>>,
     #[schemars(with = "Vec<IotaTypeOrigin>")]
     pub type_origin_table: Vec<TypeOrigin>,
+    #[serde_as(as = "BTreeMap<ObjectIDSchema, _>")]
     #[schemars(with = "BTreeMap<ObjectIDSchema, IotaUpgradeInfo>")]
     pub linkage_table: BTreeMap<ObjectID, UpgradeInfo>,
 }
@@ -1160,7 +1171,11 @@ pub enum IotaPastObjectResponse {
     /// The object exists and is found with this version
     VersionFound(IotaObjectData),
     /// The object does not exist
-    ObjectNotExists(#[schemars(with = "ObjectIDSchema")] ObjectID),
+    ObjectNotExists(
+        #[serde_as(as = "ObjectIDSchema")]
+        #[schemars(with = "ObjectIDSchema")]
+        ObjectID,
+    ),
     /// The object is found to be deleted with this version
     ObjectDeleted(
         #[schemars(with = "ObjectRefSchema")]
@@ -1169,15 +1184,22 @@ pub enum IotaPastObjectResponse {
     ),
     /// The object exists but not found with this version
     VersionNotFound(
-        #[schemars(with = "ObjectIDSchema")] ObjectID,
-        #[schemars(with = "SequenceNumberU64Schema")] SequenceNumber,
+        #[serde_as(as = "ObjectIDSchema")]
+        #[schemars(with = "ObjectIDSchema")]
+        ObjectID,
+        #[serde_as(as = "SequenceNumberU64Schema")]
+        #[schemars(with = "SequenceNumberU64Schema")]
+        SequenceNumber,
     ),
     /// The asked object version is higher than the latest
     VersionTooHigh {
+        #[serde_as(as = "ObjectIDSchema")]
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
+        #[serde_as(as = "SequenceNumberU64Schema")]
         #[schemars(with = "SequenceNumberU64Schema")]
         asked_version: SequenceNumber,
+        #[serde_as(as = "SequenceNumberU64Schema")]
         #[schemars(with = "SequenceNumberU64Schema")]
         latest_version: SequenceNumber,
     },
@@ -1248,6 +1270,7 @@ pub type ObjectsPage = Page<IotaObjectResponse, ObjectID>;
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Copy, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckpointedObjectID {
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     #[schemars(with = "Option<String>")]
@@ -1261,6 +1284,7 @@ pub struct CheckpointedObjectID {
 #[serde(rename = "GetPastObjectRequest", rename_all = "camelCase")]
 pub struct IotaGetPastObjectRequest {
     /// the ID of the queried object
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
     /// the version of the queried object.
@@ -1276,13 +1300,19 @@ pub enum IotaObjectDataFilter {
     MatchAny(Vec<IotaObjectDataFilter>),
     MatchNone(Vec<IotaObjectDataFilter>),
     /// Query by type a specified Package.
-    Package(#[schemars(with = "ObjectIDSchema")] ObjectID),
+    Package(
+        #[serde_as(as = "ObjectIDSchema")]
+        #[schemars(with = "ObjectIDSchema")]
+        ObjectID,
+    ),
     /// Query by type a specified Move module.
     MoveModule {
         /// the Move package ID
+        #[serde_as(as = "ObjectIDSchema")]
         #[schemars(with = "ObjectIDSchema")]
         package: ObjectID,
         /// the module name
+        #[serde_as(as = "IdentifierSchema")]
         #[schemars(with = "IdentifierSchema")]
         module: Identifier,
     },
@@ -1292,11 +1322,27 @@ pub enum IotaObjectDataFilter {
         #[serde_as(as = "StructTagSchema")]
         StructTag,
     ),
-    AddressOwner(#[schemars(with = "IotaAddressSchema")] IotaAddress),
-    ObjectOwner(#[schemars(with = "ObjectIDSchema")] ObjectID),
-    ObjectId(#[schemars(with = "ObjectIDSchema")] ObjectID),
+    AddressOwner(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
+    ObjectOwner(
+        #[serde_as(as = "ObjectIDSchema")]
+        #[schemars(with = "ObjectIDSchema")]
+        ObjectID,
+    ),
+    ObjectId(
+        #[serde_as(as = "ObjectIDSchema")]
+        #[schemars(with = "ObjectIDSchema")]
+        ObjectID,
+    ),
     // allow querying for multiple object ids
-    ObjectIds(#[schemars(with = "Vec<ObjectIDSchema>")] Vec<ObjectID>),
+    ObjectIds(
+        #[serde_as(as = "Vec<ObjectIDSchema>")]
+        #[schemars(with = "Vec<ObjectIDSchema>")]
+        Vec<ObjectID>,
+    ),
     Version(
         #[serde_as(as = "DisplayFromStr")]
         #[schemars(with = "String")]

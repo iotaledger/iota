@@ -51,9 +51,11 @@ impl From<IotaCommittee> for Committee {
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedStake {
     /// Validator's Address.
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub validator_address: IotaAddress,
     /// Staking pool object id.
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub staking_pool: ObjectID,
     pub stakes: Vec<Stake>,
@@ -63,8 +65,10 @@ pub struct DelegatedStake {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedTimelockedStake {
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub validator_address: IotaAddress,
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub staking_pool: ObjectID,
     pub stakes: Vec<TimelockedStake>,
@@ -89,6 +93,7 @@ pub enum StakeStatus {
 #[serde(rename_all = "camelCase")]
 pub struct Stake {
     /// ID of the StakedIota receipt object.
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub staked_iota_id: ObjectID,
     #[serde_as(as = "DisplayFromStr")]
@@ -108,6 +113,7 @@ pub struct Stake {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TimelockedStake {
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub timelocked_staked_iota_id: ObjectID,
     #[serde_as(as = "DisplayFromStr")]
@@ -139,6 +145,7 @@ pub struct ValidatorApys {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ValidatorApy {
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub address: IotaAddress,
     pub apy: f64,

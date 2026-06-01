@@ -7,6 +7,7 @@ use iota_types::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
 
@@ -15,6 +16,7 @@ use crate::iota_primitives::{
     SequenceNumberU64 as SequenceNumberU64Schema,
 };
 
+#[serde_as]
 #[derive(
     Eq,
     PartialEq,
@@ -32,11 +34,13 @@ use crate::iota_primitives::{
 pub enum IotaObjectResponseError {
     #[error("Object {object_id} does not exist")]
     NotExists {
+        #[serde_as(as = "ObjectIDSchema")]
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
     },
     #[error("Cannot find dynamic field for parent object {parent_object_id}")]
     DynamicFieldNotFound {
+        #[serde_as(as = "ObjectIDSchema")]
         #[schemars(with = "ObjectIDSchema")]
         parent_object_id: ObjectID,
     },
@@ -44,12 +48,15 @@ pub enum IotaObjectResponseError {
         "Object has been deleted object_id: {object_id} at version: {version} in digest {digest}"
     )]
     Deleted {
+        #[serde_as(as = "ObjectIDSchema")]
         #[schemars(with = "ObjectIDSchema")]
         object_id: ObjectID,
         /// Object version.
+        #[serde_as(as = "SequenceNumberU64Schema")]
         #[schemars(with = "SequenceNumberU64Schema")]
         version: SequenceNumber,
         /// Base64 string representing the object digest
+        #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },

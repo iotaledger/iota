@@ -192,10 +192,13 @@ pub struct IotaDynamicFieldInfo {
     #[serde_as(as = "DynamicFieldTypeSchema")]
     pub type_: DynamicFieldType,
     pub object_type: String,
+    #[serde_as(as = "ObjectIDSchema")]
     #[schemars(with = "ObjectIDSchema")]
     pub object_id: ObjectID,
+    #[serde_as(as = "SequenceNumberU64Schema")]
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: iota_types::base_types::SequenceNumber,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: iota_types::digests::ObjectDigest,
 }
