@@ -19,7 +19,7 @@ use diesel::{
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
-    sql_types::{BigInt, Bool},
+    sql_types::{BigInt, Bool, Bytea},
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use futures::FutureExt;
@@ -83,8 +83,8 @@ use crate::{
     pruning::watermark_task::WatermarkCache,
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
-        objects, objects_history, objects_snapshot, objects_version, optimistic_transactions,
-        packages, pruner_cp_watermark, transactions, tx_digests, tx_global_order,
+        objects, objects_snapshot, objects_version, optimistic_transactions, packages,
+        pruner_cp_watermark, transactions, tx_digests, tx_global_order,
     },
     store::{
         diesel_macro::{mark_in_blocking_pool, *},
@@ -344,9 +344,9 @@ impl IndexerReader {
     /// - If `before_version` is `false`, it looks for the exact version.
     /// - If `true`, it finds the latest version before the given one.
     ///
-    /// Searches the requested object version and checkpoint sequence number
-    /// in `objects_version` and fetches the requested object from
-    /// `objects_history`.
+    /// Searches the requested object version in `objects_version` and
+    /// fetches the requested object from `checkpointed_objects` (current
+    /// state) or `objects_backward_history` (superseded versions).
     ///
     /// Returns [`IndexerError::DataPruned`] if the object version exists but
     /// history was pruned
@@ -358,8 +358,8 @@ impl IndexerReader {
     ) -> IndexerResult<PastObjectRead> {
         let object_version_num = object_version.as_u64() as i64;
 
-        // Query objects_version to find the requested version and relevant
-        // checkpoint sequence number considering the `before_version` flag.
+        // Query objects_version to find the requested version considering the
+        // `before_version` flag.
         let object_version_info = self
             .db()
             .get_object_version(object_id, object_version, before_version)
@@ -381,10 +381,11 @@ impl IndexerReader {
             };
         };
 
-        // query objects_history for the object with the requested version.
+        // Fetch the row content for the resolved (id, version, checkpoint)
+        // from checkpointed_objects or objects_backward_history.
         let history_object = self
             .db()
-            .get_stored_history_object(
+            .get_object_at_version(
                 object_id,
                 object_version_info.object_version,
                 object_version_info.cp_sequence_number,
@@ -394,7 +395,7 @@ impl IndexerReader {
         match history_object {
             Some(obj) => obj.try_into_past_object_read(&self.package_resolver).await,
             None => Err(IndexerError::DataPruned(format!(
-                "Object version {} not found in objects_history for object {object_id}",
+                "Object version {} not found in checkpointed_objects or objects_backward_history for object {object_id}",
                 object_version_info.object_version
             ))),
         }
@@ -405,12 +406,13 @@ impl IndexerReader {
     /// - If `before_version` is `false`, it looks for the exact version.
     /// - If `true`, it finds the latest version before the given one.
     ///
-    /// Searches the requested object version and checkpoint sequence number
-    /// in `objects_version` and fetches the requested object from
-    /// `objects_history`.
+    /// Searches the requested object version in `objects_version` and
+    /// fetches the requested object from `checkpointed_objects` (current
+    /// state) or `objects_backward_history` (superseded versions).
     ///
     /// Retrieval order:
-    /// 1. Postgres database (`objects_version` + `objects_history`)
+    /// 1. Postgres database (`objects_version` + `checkpointed_objects` /
+    ///    `objects_backward_history`)
     /// 2. Historical fallback storage (if enabled)
     pub(crate) async fn get_past_object_read_with_fallback(
         &self,
@@ -2959,26 +2961,70 @@ impl<'a> DBReader<'a> {
         })
     }
 
-    pub async fn get_stored_history_object(
+    /// Looks up the row for `(object_id, object_version)` in
+    /// `checkpointed_objects` (current state) or
+    /// `objects_backward_history` (superseded versions).
+    ///
+    /// Sets `checkpoint_sequence_number` in the returned value from the
+    /// passed `cp_sequence_number`, because the cp column on
+    /// `objects_backward_history` records when the version was superseded,
+    /// not when it was introduced.
+    ///
+    /// Returns None if the given version was pruned or never existed.
+    pub async fn get_object_at_version(
         &self,
         object_id: ObjectID,
         object_version: i64,
-        checkpoint_sequence_number: i64,
+        cp_sequence_number: i64,
     ) -> IndexerResult<Option<StoredHistoryObject>> {
         let pool = self.main_reader.get_pool();
+        let object_id_bytes = object_id.as_bytes().to_vec();
         run_query_async!(&pool, move |conn| {
-            // Match on the primary key.
-            let query = objects_history::dsl::objects_history
-                .filter(objects_history::checkpoint_sequence_number.eq(checkpoint_sequence_number))
-                .filter(objects_history::object_id.eq(object_id.as_bytes()))
-                .filter(objects_history::object_version.eq(object_version))
-                .into_boxed();
-
-            query
-                .order_by(objects_history::object_version.desc())
-                .limit(1)
-                .first::<StoredHistoryObject>(conn)
-                .optional()
+            sql_query(
+                "SELECT \
+                        object_id, \
+                        object_version, \
+                        object_status, \
+                        object_digest, \
+                        $3 AS checkpoint_sequence_number, \
+                        owner_type, \
+                        owner_id, \
+                        object_type, \
+                        object_type_package, \
+                        object_type_module, \
+                        object_type_name, \
+                        serialized_object, \
+                        coin_type, \
+                        coin_balance, \
+                        df_kind \
+                    FROM checkpointed_objects \
+                    WHERE object_id = $1 AND object_version = $2 \
+                    UNION ALL \
+                    SELECT \
+                        object_id, \
+                        object_version, \
+                        object_status, \
+                        object_digest, \
+                        $3 AS checkpoint_sequence_number, \
+                        owner_type, \
+                        owner_id, \
+                        object_type, \
+                        object_type_package, \
+                        object_type_module, \
+                        object_type_name, \
+                        serialized_object, \
+                        coin_type, \
+                        coin_balance, \
+                        df_kind \
+                    FROM objects_backward_history \
+                    WHERE object_id = $1 AND object_version = $2 \
+                    LIMIT 1",
+            )
+            .bind::<Bytea, _>(object_id_bytes.clone())
+            .bind::<BigInt, _>(object_version)
+            .bind::<BigInt, _>(cp_sequence_number)
+            .get_result::<StoredHistoryObject>(conn)
+            .optional()
         })
     }
 
