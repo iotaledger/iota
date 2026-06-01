@@ -123,7 +123,7 @@ The `delete_record_window` controls when individual records can be deleted. It s
 | `TimeBased { seconds }` | A record is locked for the specified number of seconds after its `added_at` timestamp. Once the window expires, the record can be deleted. |
 | `CountBased { count }` | The most recent `count` records are locked. As new records are added, older records become eligible for deletion. |
 
-These modes are mutually exclusive. The time-based mode is useful for compliance requirements (e.g., "records must be retained for 90 days"), while the count-based mode is useful for rolling-window scenarios (e.g., "always keep the last 1000 records").
+These modes are mutually exclusive. The time-based mode is useful for compliance requirements (e.g., "records must be retained for 90 days"), while the count-based mode is useful for rolling-window scenarios (e.g., "always keep the last 1000 records"). A count-based window requires `count > 0`; to disable the deletion lock entirely, use `None` rather than `CountBased { count: 0 }` (a zero count is rejected).
 
 ### Trail Deletion Lock
 
@@ -147,7 +147,12 @@ Both the trail deletion lock and the write lock use the `TimeLock` enum:
 
 ### Batch Deletion
 
-In addition to individual record deletion (which respects the `delete_record_window`), the trail supports batch deletion via `delete_records_batch`. This operation deletes up to a specified number of records from the front of the trail and **bypasses the record locking window**. It requires the `DeleteAllRecords` permission — a separate, more powerful permission than `DeleteRecord`. This is designed for cleanup workflows where an administrator needs to purge old records in bulk.
+In addition to individual record deletion, the trail supports batch deletion via `delete_records_batch`. This operation
+deletes up to a specified number of records from the front of the trail and **also respects the locking window** — records
+that are still locked (or whose tag the caller's capability does not permit) are silently skipped rather than deleted.
+The set of locked records is determined and fixed when the transaction begins. It requires the `DeleteAllRecords`
+permission — a separate, more powerful permission than `DeleteRecord` — and returns the sequence numbers actually deleted,
+which may be fewer than requested. This is designed for cleanup workflows where an administrator needs to purge old, unlocked records in bulk.
 
 ---
 

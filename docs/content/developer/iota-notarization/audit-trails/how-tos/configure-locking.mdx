@@ -126,7 +126,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 | Lock Type | Options | Description |
 |-----------|---------|-------------|
 | **Write lock** | `None`, `Infinite`, `UnlockAtMs(timestamp)` | Controls whether new records can be added |
-| **Delete-record window** | `None`, `CountBased(n)`, `TimeBased(ms)` | Protects recent records from deletion |
+| **Delete-record window** | `None`, `CountBased(n)`, `TimeBased(ms)` | Protects recent records from deletion; `n` must be > 0 (use `None` for no lock) |
 | **Delete-trail lock** | `None`, `Infinite`, `UnlockAtMs(timestamp)` | Controls whether the trail can be deleted |
 
 ## Running Examples Locally

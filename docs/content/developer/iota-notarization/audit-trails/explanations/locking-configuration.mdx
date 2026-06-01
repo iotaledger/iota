@@ -45,11 +45,15 @@ A record is locked for a specified number of seconds after it was added. The loc
 
 The most recent `count` records are locked. As new records are added to the trail, older records naturally become eligible for deletion. The lock status of a record depends on how many records exist after it in the sequence.
 
+:::info COUNT MUST BE POSITIVE
+The `count` must be **positive** (`≥ 1`). A zero-count window would protect no records — making it identical to the `None` window — so it is rejected rather than silently accepted: constructing a count-based window with `count == 0` (`window_count_based(0)`) fails client-side with an invalid-argument error and would abort on-chain with `ECountWindowMustBePositive`. To express *no* deletion lock, use the `None` window (`window_none()`) instead.
+:::
+
 **Example**: With `CountBased { count: 1000 }`, the 1000 most recent records are always locked. If the trail has 1500 records, records 0 through 499 can be deleted. When record 1500 is added, record 500 also becomes deletable. This is useful for rolling-window scenarios where the trail should always retain a minimum number of recent records.
 
-### Batch Deletion Bypass
+### Batch Deletion and Locking
 
-The `delete_records_batch` operation — which requires the `DeleteAllRecords` permission (distinct from `DeleteRecord`) — **bypasses the record deletion window entirely**. It deletes records from the front of the trail regardless of their lock status. This is a deliberate design choice for administrative cleanup workflows. The separate permission ensures that only explicitly authorized administrators can perform this operation.
+The `delete_records_batch` operation — which requires the `DeleteAllRecords` permission (distinct from `DeleteRecord`) — deletes up to a given number of records from the front (oldest end) of the trail in a single call. It **respects the record deletion window**: any record that is still locked is silently **skipped** rather than deleted (records whose tag is not permitted by the caller's capability are skipped as well). The set of locked records is evaluated **once, when the transaction begins** — the count-window threshold is computed up front and time-based locks are evaluated against the timestamp captured at the start of the call — so a record's lock status stays stable for the whole batch. The call returns the sequence numbers it actually deleted, which may be fewer than requested (or none, if every candidate from front to back is locked or tag-filtered). Deleting a batch this way yields the same final state as calling `delete_record` once for each of those sequence numbers, provided the locking configuration is not changed and no records are added in between. The separate `DeleteAllRecords` permission ensures that only explicitly authorized administrators can perform this bulk operation.
 
 ---
 

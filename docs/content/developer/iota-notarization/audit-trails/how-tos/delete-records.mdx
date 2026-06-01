@@ -71,7 +71,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 
 ### 3. Batch-Delete Remaining Records
 
-Delete up to N records in a single transaction. The operation returns the number of records actually deleted.
+Delete up to N records from the front of the trail in a single transaction. The operation returns the sequence numbers of the records actually deleted — fewer than N if locked or tag-filtered records are skipped.
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>

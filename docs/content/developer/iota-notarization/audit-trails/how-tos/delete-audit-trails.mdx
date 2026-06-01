@@ -71,7 +71,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 
 ### 3. Empty the Trail with Batch Deletion
 
-Remove all records using `delete_records_batch` / `deleteBatch`. Verify the record count reaches zero.
+Remove the records using `delete_records_batch` / `deleteBatch`. The call deletes unlocked records from the front of the trail and returns the sequence numbers it removed; any locked records are skipped. Since this trail has no active delete lock, a single batch empties it — verify the record count reaches zero.
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>

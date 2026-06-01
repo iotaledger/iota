@@ -52,7 +52,7 @@ iota-notarization
 ├── CLAUDE.md                   # This file
 ├── index.mdx                   # Toolkit landing / IOTA Notarization Toolkit introduction
 ├── contribute.mdx
-├── audit-trail/
+├── audit-trails/
 │   ├── index.mdx               # Component landing / Audit Trails introduction page
 │   ├── getting-started/        # Setup and installation guides
 │   │   ├── rust.mdx
