@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Filesystem-backed configuration helpers.
-//!
-//! Everything in this module reaches into the filesystem / config-file
-//! machinery (and the network `Multiaddr` type), so the whole module is gated
-//! out on wasm32.
 
 use std::{
     fs,
@@ -62,7 +58,8 @@ pub fn validator_config_file(address: Multiaddr, i: usize) -> String {
     multiaddr_to_filename(address).unwrap_or(format!("validator-config-{i}.yaml"))
 }
 
-/// Config file name for the SSFN at the given address (or index).
+/// Config file name for the State Sync Full Node at the given address (or
+/// index).
 pub fn ssfn_config_file(address: Multiaddr, i: usize) -> String {
     multiaddr_to_filename(address).unwrap_or(format!("ssfn-config-{i}.yaml"))
 }
