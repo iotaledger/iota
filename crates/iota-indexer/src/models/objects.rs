@@ -8,7 +8,7 @@ use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectIDParseError, ObjectRef, SequenceNumber},
+    base_types::{ObjectIdParseError, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
     dynamic_field::{DynamicFieldType, Field},
     object::{Object, ObjectRead, PastObjectRead},
@@ -191,7 +191,7 @@ impl StoredHistoryObject {
         if let ObjectStatus::WrappedOrDeleted = object_status {
             let object_ref = ObjectRef::new(
                 ObjectId::from_bytes(self.object_id.clone())
-                    .map_err(|_| IndexerError::ObjectIdParse(ObjectIDParseError::TryFromSlice))?,
+                    .map_err(|_| IndexerError::ObjectIdParse(ObjectIdParseError::TryFromSlice))?,
                 SequenceNumber::from_u64(self.object_version as u64),
                 ObjectDigest::OBJECT_DELETED,
             );

@@ -704,7 +704,7 @@ pub fn dbg_object_id(name: u8) -> ObjectId {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, thiserror::Error)]
-pub enum ObjectIDParseError {
+pub enum ObjectIdParseError {
     #[error("ObjectId hex literal must start with 0x")]
     HexLiteralPrefixMissing,
 

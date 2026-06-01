@@ -9,7 +9,7 @@ use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
 use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectIDParseError, SequenceNumber},
+    base_types::{ObjectIdParseError, SequenceNumber},
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::SdkTypeConversionError,
 };
@@ -110,7 +110,7 @@ pub enum IndexerError {
     Uncategorized(#[from] anyhow::Error),
 
     #[error(transparent)]
-    ObjectIdParse(#[from] ObjectIDParseError),
+    ObjectIdParse(#[from] ObjectIdParseError),
 
     #[error("Invalid transaction digest with error: `{0}`")]
     InvalidTransactionDigest(String),
