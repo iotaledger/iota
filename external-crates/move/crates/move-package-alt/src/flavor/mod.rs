@@ -62,7 +62,7 @@ pub trait MoveFlavor: Debug {
     /// An [EnvironmentID] uniquely identifies a place that a package can be
     /// published. For example, an environment ID might be a chain
     /// identifier
-    // TODO: Given an [EnvironmentID] and an [ObjectId], ... should be uniquely
+    // TODO: Given an [EnvironmentID] and an [ObjectID], ... should be uniquely
     // determined
     type EnvironmentID: Debug + Serialize + DeserializeOwned + Clone + Eq;
 
