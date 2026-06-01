@@ -277,15 +277,14 @@ jobs:
           echo iota_tag="$(echo ${{ github.ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_OUTPUT
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Get binary checksums
-        uses: thewh1teagle/checksum@6577963a29f57d780d12a2e5495601298ba739d1 # v2
-        with:
-          tag: ${{ steps.tag.outputs.iota_tag }}
-          # These two parameters are needed to make the resulting checksum file work with shasum256 -c
-          reverse-order: true
-          separator: " "
-
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.iota_tag }}
+        run: |
+          gh api "repos/${{ github.repository }}/releases/tags/${TAG}" \
+            --jq '.assets[] | select(.name != "checksum.txt") | "\(.digest | sub("^sha256:"; ""))  \(.name)"' \
+            > checksum.txt
+          cat checksum.txt
       - run: ./scripts/homebrew/update_formula.sh ${{ steps.tag.outputs.iota_tag }}
         env:
           # GH_TOKEN needs write access to the repository specified by the homebrew-tap input,
