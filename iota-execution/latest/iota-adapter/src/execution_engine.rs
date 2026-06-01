@@ -1353,7 +1353,7 @@ mod checked {
                         }
                         EndOfEpochTransactionKind::ClaimRegistryCreate => {
                             assert!(protocol_config.enable_claim_registry());
-                            builder = setup_claim_registry_create(builder);
+                            setup_claim_registry_create(builder)?;
                         }
                     }
                 }
@@ -1947,7 +1947,7 @@ mod checked {
     /// networks that were deployed before the ClaimRegistry was introduced.
     fn setup_claim_registry_create(
         mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
         builder
             .move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
@@ -1957,7 +1957,7 @@ mod checked {
                 vec![],
             )
             .expect("Unable to generate claim_registry_create transaction!");
-        builder
+        Ok(builder.finish())
     }
 
     /// The function constructs a transaction that invokes
