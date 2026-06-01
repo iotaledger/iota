@@ -17,6 +17,17 @@ The external source repository also provides a `Naming Conventions` section in t
 [root `CLAUDE.md` file](https://github.com/iotaledger/notarization/blob/audit-trails-dev/CLAUDE.md) which can be seen
 as the source of truth regarding wording, terminology, prose and capitalization rules.
 
+### Object related phrasing
+The wiki-docs (Docusaurus pages contained in the `docs/content/developer/iota-notarization` folder) are often more general
+and therefore terms like "`AuditTrail` object" would often be surprising for new readers just started to explore the docs.    
+
+Therefore, the terms used to refer to one single on-chain object differ slighlty from the `Naming Conventions`:
+- If both, the TF product itself or a single on-chain object could be addressed, prefer the
+  TF product variant (i.e "Audit Trails") over addressing a single on-chain object
+- In cases where the creation, deletion or other direct interaction with an on-chain object is described,
+  use "Audit Trail" in titles and headlines and "`AuditTrail` object" in normal paragraphs.
+- If the the context is more general, the usage of "Audit Trail" is allowed to refer to one on-chain object
+
 ### Single Notarization Component
 
 Single Notarization provides two Notarization Methods for creating verifiable, on-chain records of any individual piece

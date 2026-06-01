@@ -1,10 +1,10 @@
 # Real-World How-To Pages — Style Guide
 
-This file guides agents writing or editing real-world how-to pages in this directory. It supplements the parent `docs/CLAUDE.md` (Diataxis rules, code-embedding patterns, frontmatter requirements) and `docs/content/developer/iota-notarization/audit-trail/CLAUDE.md` (Audit Trail–specific conventions). Everything in those files applies here; this file adds patterns specific to real-world scenario pages.
+This file guides agents writing or editing real-world how-to pages in this directory. It supplements the parent `docs/CLAUDE.md` (Diataxis rules, code-embedding patterns, frontmatter requirements) and `docs/content/developer/iota-notarization/audit-trails/CLAUDE.md` (Audit Trails–specific conventions). Everything in those files applies here; this file adds patterns specific to real-world scenario pages.
 
 ## Purpose
 
-Real-world pages are **how-to guides** that demonstrate a complete business scenario using the IOTA Audit Trail client packages. They show an experienced developer how to model a multi-party, role-scoped audit trail for a specific industry use case (e.g., customs clearance, clinical trials, digital product passports).
+Real-world pages are **how-to guides** that demonstrate a complete business scenario using the IOTA Audit Trails client packages. They show an experienced developer how to model a multi-party, role-scoped audit trail for a specific industry use case (e.g., customs clearance, clinical trials, digital product passports).
 
 ## Page structure
 
@@ -14,20 +14,20 @@ Every real-world how-to page follows this exact section order:
 
 ```yaml
 ---
-title: '<Scenario Name> - Audit Trail'
+title: '<Scenario Name> - Audit Trails'
 sidebar_label: '<Short Label>'
-description: 'Real-world example demonstrating how to use IOTA Audit Trail to <one-line goal>.'
+description: 'Real-world example demonstrating how to use IOTA Audit Trails to <one-line goal>.'
 tags:
   - notarization
-  - audit-trail
+  - audit-trails
   - how-to
 ---
 ```
 
-- `title` always ends with `- Audit Trail`.
+- `title` always ends with `- Audit Trails`.
 - `sidebar_label` is a short form for the navigation sidebar.
-- `description` starts with "Real-world example demonstrating how to use IOTA Audit Trail to…".
-- Tags always include exactly `audit-trail` and `how-to`. No additional tags.
+- `description` starts with "Real-world example demonstrating how to use IOTA Audit Trails to…".
+- Tags always include exactly `audit-trails` and `how-to`. No additional tags.
 
 ### 2. Imports
 
@@ -43,10 +43,10 @@ Always import both, even if you think only one is needed — both are used for c
 ```mdx
 # <Same as frontmatter title>
 
-This real-world example <one paragraph describing the scenario, the actors involved, and the key Audit Trail features demonstrated>.
+This real-world example <one paragraph describing the scenario, the actors involved, and the key Audit Trails features demonstrated>.
 ```
 
-The introduction is a single paragraph. It names the actors, summarises the workflow, and highlights the Audit Trail features in play (e.g., tag-scoped roles, write locking, time-constrained access).
+The introduction is a single paragraph. It names the actors, summarises the workflow, and highlights the Audit Trails features in play (e.g., tag-scoped roles, write locking, time-constrained access).
 
 ### 4. Business Context
 
@@ -102,7 +102,7 @@ Always cover all five fields in this exact order. Use inline code for field name
 
 - A funded IOTA account
 - Access to an IOTA network (testnet, devnet, or local)
-- Audit Trail client packages installed
+- Audit Trails client packages installed
 - Familiarity with [Role-Based Access Control](../explanations/role-based-access-control.mdx)<optional-extra-links>
 ```
 
@@ -226,7 +226,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 
 Before considering a page complete:
 
-- [ ] Frontmatter has `title`, `sidebar_label`, `description`, and tags `[audit-trail, how-to]`.
+- [ ] Frontmatter has `title`, `sidebar_label`, `description`, and tags `[audit-trails, how-to]`.
 - [ ] All 11 sections are present in the correct order.
 - [ ] Business Context has 3–5 benefit bullets.
 - [ ] Field Usage Strategy covers all five fields.
