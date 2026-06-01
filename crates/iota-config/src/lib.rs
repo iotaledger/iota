@@ -2,30 +2,48 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::{
     fs,
     io::BufWriter,
     path::{Path, PathBuf},
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 use anyhow::{Context, Result};
+#[cfg(not(target_arch = "wasm32"))]
 use serde::{Serialize, de::DeserializeOwned};
+#[cfg(not(target_arch = "wasm32"))]
 use tracing::trace;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod certificate_deny_config;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod genesis;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod local_ip_utils;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod migration_tx_data;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod node;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod node_config_metrics;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod object_storage_config;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod p2p;
+// `transaction_deny_config` + `verifier_signing_config` are the two modules
+// the execution path needs at sign-time. Everything else pulls in network /
+// filesystem / config-file machinery and is gated.
 pub mod transaction_deny_config;
 pub mod verifier_signing_config;
 
+#[cfg(not(target_arch = "wasm32"))]
 use iota_types::multiaddr::Multiaddr;
+#[cfg(not(target_arch = "wasm32"))]
 pub use node::{ConsensusConfig, ExecutionCacheConfig, NodeConfig, WritebackCacheConfig};
 
+#[cfg(not(target_arch = "wasm32"))]
 const IOTA_DIR: &str = ".iota";
 pub const IOTA_CONFIG_DIR: &str = "iota_config";
 pub const IOTA_NETWORK_CONFIG: &str = "network.yaml";
@@ -41,6 +59,7 @@ pub const AUTHORITIES_DB_NAME: &str = "authorities_db";
 pub const CONSENSUS_DB_NAME: &str = "consensus_db";
 pub const FULL_NODE_DB_PATH: &str = "full_node_db";
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn iota_config_dir() -> Result<PathBuf, anyhow::Error> {
     match std::env::var_os("IOTA_CONFIG_DIR") {
         Some(config_env) => Ok(config_env.into()),
@@ -59,6 +78,7 @@ pub fn iota_config_dir() -> Result<PathBuf, anyhow::Error> {
 
 /// Check if the genesis blob exists in the given directory or the default
 /// directory.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn genesis_blob_exists(config_dir: Option<PathBuf>) -> bool {
     if let Some(dir) = config_dir {
         dir.join(IOTA_GENESIS_FILENAME).exists()
@@ -74,14 +94,17 @@ pub fn genesis_blob_exists(config_dir: Option<PathBuf>) -> bool {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn validator_config_file(address: Multiaddr, i: usize) -> String {
     multiaddr_to_filename(address).unwrap_or(format!("validator-config-{i}.yaml"))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn ssfn_config_file(address: Multiaddr, i: usize) -> String {
     multiaddr_to_filename(address).unwrap_or(format!("ssfn-config-{i}.yaml"))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn multiaddr_to_filename(address: Multiaddr) -> Option<String> {
     if let Some(hostname) = address.hostname() {
         if let Some(port) = address.port() {
@@ -91,6 +114,7 @@ fn multiaddr_to_filename(address: Multiaddr) -> Option<String> {
     None
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub trait Config
 where
     Self: DeserializeOwned + Serialize,
@@ -120,11 +144,13 @@ where
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub struct PersistedConfig<C> {
     inner: C,
     path: PathBuf,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<C> PersistedConfig<C>
 where
     C: Config,
@@ -146,6 +172,7 @@ where
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<C> std::ops::Deref for PersistedConfig<C> {
     type Target = C;
 
@@ -154,6 +181,7 @@ impl<C> std::ops::Deref for PersistedConfig<C> {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<C> std::ops::DerefMut for PersistedConfig<C> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
