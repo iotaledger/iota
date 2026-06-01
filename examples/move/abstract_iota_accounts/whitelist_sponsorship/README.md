@@ -1,8 +1,8 @@
 # Whitelist Sponsorship Move Example
 
-The `WhitelistSponsorshipAccount` module defines a sponsoring account abstraction that pays gas only for transactions whose sender authenticator function is in an explicit whitelist, and only up to a per-user gas allowance. Two whitelists are attached as dynamic fields on the account: a `Bag` of accepted `AuthenticatorFunctionRefV1` entries (parametric in the sender account type) and a `Table<address, u64>` of per-user gas budgets.
+The `WhitelistSponsorshipAccount` defines a sponsoring account abstraction that pays gas only for transactions whose sender authenticator function is in an explicit whitelist, and only up to a per-user gas allowance. All policy state lives as inline struct fields on the account itself: the admin address, a `Bag` of accepted `AuthenticatorFunctionRefV1` entries (heterogeneous in the sender account type), and a `Table<address, u64>` of per-user gas budgets. The example splits responsibilities across two modules: the storage / admin surface lives in [`whitelist_sponsorship_account`](sources/whitelist_sponsorship_account.move); the `#[authenticator]` function and its PTB-scan helper live in [`whitelist_sponsorship_authentication`](sources/whitelist_sponsorship_authentication.move).
 
-Administration is split from consumption: a dedicated admin address manages the whitelists, while a sponsored user can only consume their allowance by including a `deduct_user_gas_allowance` command in the PTB they want sponsored. The sponsor's `authenticator` scans the PTB for that command, validates the sender's authenticator function against the whitelist, checks that the transaction is sponsored by this account, and rejects the transaction unless the deducted amount covers the gas budget.
+Administration is split from consumption: a dedicated admin address manages the whitelists, while a sponsored user can only consume their allowance by including a `deduct_user_gas_allowance` command in the PTB they want sponsored. That function takes no arguments beyond the sponsor account — it implicitly targets `ctx.sender()` and always deducts exactly `ctx.gas_budget()`. The sponsor's `authenticator` checks that the transaction is sponsored by this account, validates the sender's authenticator function against the whitelist, confirms the gas budget fits the sender's per-user allowance, and rejects the transaction unless the PTB includes a matching `deduct_user_gas_allowance` call for this sponsor.
 
 This example chains off the [OneSig Move Example](../onesig/README.md): the **sender** is a `OneSigAccount` (set up by following that README first) and the **sponsor** is a `WhitelistSponsorshipAccount`. Both authenticate via `MoveAuthenticator`, exercising the AA-sender / AA-sponsor flow.
 
@@ -31,7 +31,7 @@ export ONESIG_SENDER=$ABSTRACTACCOUNT
 export EXAMPLE_DIR="whitelist_sponsorship"
 export ACCOUNT_MODULE_NAME="whitelist_sponsorship_account"
 export ACCOUNT_TYPE_NAME="WhitelistSponsorshipAccount"
-export AUTH_MODULE_NAME="whitelist_sponsorship_account"
+export AUTH_MODULE_NAME="whitelist_sponsorship_authentication"
 export AUTH_FUNCTION_NAME="authenticator"
 export CREATE_MODULE_NAME="whitelist_sponsorship_account"
 export CREATE_FUNCTION_NAME="create"
@@ -84,7 +84,7 @@ iota client ptb \
 export GAS_BUDGET=100000000
 export UNSIGNED_TX_BYTES=$(iota client ptb \
 --move-call 0x2::clock::timestamp_ms @0x6 \
---move-call $WLS_PACKAGE_ID::$ACCOUNT_MODULE_NAME::deduct_user_gas_allowance @$SPONSOR_ACCOUNT @$ONESIG_SENDER $GAS_BUDGET \
+--move-call $WLS_PACKAGE_ID::$ACCOUNT_MODULE_NAME::deduct_user_gas_allowance @$SPONSOR_ACCOUNT \
 --sender @$ONESIG_SENDER \
 --gas-sponsor @$SPONSOR_ACCOUNT \
 --gas-coins @$SPONSOR_COIN \
@@ -126,7 +126,7 @@ echo "Signature hex: $SIGNATURE_HEX"
 # through the `MoveAuthenticator` path with empty args.
 export SIGNED_TX_BYTES=$(iota client ptb \
 --move-call 0x2::clock::timestamp_ms @0x6 \
---move-call $WLS_PACKAGE_ID::$ACCOUNT_MODULE_NAME::deduct_user_gas_allowance @$SPONSOR_ACCOUNT @$ONESIG_SENDER $GAS_BUDGET \
+--move-call $WLS_PACKAGE_ID::$ACCOUNT_MODULE_NAME::deduct_user_gas_allowance @$SPONSOR_ACCOUNT \
 --sender @$ONESIG_SENDER \
 --gas-sponsor @$SPONSOR_ACCOUNT \
 --gas-coins @$SPONSOR_COIN \

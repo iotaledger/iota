@@ -92,8 +92,6 @@ public fun authenticate_ed25519_for_sponsorship(
     auth_ctx: &AuthContext,
     ctx: &TxContext,
 ) {
-    assert!(has_public_key(account_id), EPublicKeyMissing);
-
     let mut msg = *ctx.digest();
     msg.append(*auth_ctx.sender_auth_digest());
 

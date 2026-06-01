@@ -1,42 +1,29 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// This module defines a `WhitelistSponsorshipAccount` whose authenticator allows the account
-/// to act as a sponsor for transactions whose sender authenticator function and gas budget are
-/// within the per-account whitelists maintained by `whitelists`.
+/// This module owns the storage and admin surface of `WhitelistSponsorshipAccount` — a sponsor
+/// account that gates which sender authenticator functions and which per-user gas budgets it is
+/// willing to pay for.
 ///
-/// The `authenticator` function enforces both whitelists by inspecting the sender's authenticator
-/// function via the `AuthContext` and the transaction gas budget via the `TxContext`. Because
-/// authenticators cannot mutate state, the sender is required to include a PTB command that calls
-/// `deduct_user_gas_allowance` on this account to pay back the gas budget against their allowance;
-/// `authenticator` scans the PTB to verify this.
+/// All policy state lives as inline struct fields so the authenticator hot path (in
+/// `whitelist_sponsorship_authentication`) borrows it directly without any extra hop to a
+/// dynamic-field-stored container:
+/// - The admin address.
+/// - A `Table<address, u64>` of per-user gas allowances.
+/// - A `Bag` of accepted sender authenticator functions, heterogeneous in the value's `T` so
+///   different authenticator-function types share one lookup space. Each whitelist membership
+///   check is a single `df::exists_` on the bag's UID.
 ///
-/// Administration of the whitelists is gated by a separate admin address stored on the account.
+/// `deduct_user_gas_allowance` is callable by the sponsored user from inside their PTB so they
+/// can pay back the gas budget the sponsor will spend — the authenticator scans the PTB for
+/// exactly this call.
 module whitelist_sponsorship::whitelist_sponsorship_account;
 
 use iota::account;
-use iota::address;
-use iota::auth_context::AuthenticatorFunctionInfoV1;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
-use iota::bag::Bag;
-use iota::bcs;
-use iota::dynamic_field as df;
-use iota::ptb_call_arg::CallArg;
-use iota::ptb_command::{Argument, ProgrammableMoveCall};
-use iota::table::Table;
+use iota::bag::{Self, Bag};
+use iota::table::{Self, Table};
 use std::ascii;
-use std::type_name;
-use whitelist_sponsorship::whitelists::{Self, AuthenticatorFunctionKey};
-
-/// Method-syntax alias for `ptb_command::function`, which clashes with the `function_name`
-/// accessor on `AuthenticatorFunctionKey`.
-use fun iota::ptb_command::function as ProgrammableMoveCall.move_call_function;
-
-/// Method-syntax alias for the deduct-call recognizer.
-use fun is_deduct_call as ProgrammableMoveCall.is_deduct_call;
-
-/// Method-syntax alias for the sponsor-first-arg check.
-use fun first_arg_is_sponsor as ProgrammableMoveCall.first_arg_is_sponsor;
 
 // === Errors ===
 
@@ -44,143 +31,72 @@ use fun first_arg_is_sponsor as ProgrammableMoveCall.first_arg_is_sponsor;
 const ENotAdmin: vector<u8> = b"Sender is not the admin of this account.";
 
 #[error(code = 1)]
-const EWhitelistsMissing: vector<u8> = b"Sponsorship whitelists missing.";
-
-#[error(code = 2)]
-const ENotASponsoredTransaction: vector<u8> = b"Transaction is not sponsored by this account.";
-
-#[error(code = 3)]
-const ESenderAuthenticatorFunctionMissing: vector<u8> = b"Sender does not use a MoveAuthenticator.";
-
-#[error(code = 4)]
-const EAuthenticatorFunctionNotWhitelisted: vector<u8> = b"Authenticator function not whitelisted.";
-
-#[error(code = 5)]
 const EUserGasAllowanceMissing: vector<u8> = b"User gas allowance missing.";
 
-#[error(code = 6)]
-const EGasBudgetExceedsAllowance: vector<u8> =
-    b"Transaction gas budget exceeds the sponsored user's allowance.";
+#[error(code = 2)]
+const EUserGasAllowanceAlreadyExists: vector<u8> = b"User gas allowance already exists.";
 
-#[error(code = 7)]
-const EInsufficientAllowanceDeducted: vector<u8> =
-    b"PTB does not deduct enough allowance to cover the gas budget.";
-
-#[error(code = 8)]
-const EInvalidDeductCall: vector<u8> = b"Invalid deduct allowance call in PTB.";
-
-#[error(code = 9)]
-const EAdminMissing: vector<u8> = b"Admin is not set on this account.";
-
-#[error(code = 10)]
-const ENotUserOrAdmin: vector<u8> = b"Sender is not the user or the admin.";
-
-#[error(code = 11)]
+#[error(code = 3)]
 const EInsufficientAllowanceForDeduction: vector<u8> =
     b"Allowance is insufficient for the deducted amount.";
 
-// === Constants ===
-
-/// The function name of `deduct_user_gas_allowance` in this module, used by the PTB scan.
-const DEDUCT_USER_GAS_ALLOWANCE_FUNC_NAME: vector<u8> = b"deduct_user_gas_allowance";
-
 // === Structs ===
 
-/// A sponsoring account whose authenticator enforces whitelists of accepted sender
-/// authenticator functions and per-user gas allowances.
+/// A sponsoring account whose authenticator enforces a whitelist of accepted sender
+/// authenticator functions and per-user gas allowances. All policy state lives as inline
+/// fields so the authenticator hot path borrows it directly: the admin, the per-user gas
+/// allowance table, and the `Bag` of accepted sender authenticator functions (heterogeneous
+/// in `T`, keyed by `AuthenticatorFunctionKey`).
 public struct WhitelistSponsorshipAccount has key {
     id: UID,
+    admin: address,
+    user_gas_allowances: Table<address, u64>,
+    authenticator_functions: Bag,
 }
 
-/// Dynamic field name for the account admin address.
-public struct AdminFieldName has copy, drop, store {}
+/// A type-erased identity of an authenticator function `(package, module, function)`. Entries
+/// with different `T` parameters in the source `AuthenticatorFunctionRefV1<T>` share the same
+/// lookup space because the key drops the type parameter.
+public struct AuthenticatorFunctionKey has copy, drop, store {
+    package: ID,
+    module_name: ascii::String,
+    function_name: ascii::String,
+}
 
 // === Account Helpers ===
 
-/// Creates a new `WhitelistSponsorshipAccount` as a shared object. Attaches the whitelists,
-/// the admin address, and the given authenticator.
+/// Creates a new `WhitelistSponsorshipAccount` as a shared object with the given admin and the
+/// given sponsor authenticator. The per-user gas allowance table and the authenticator-function
+/// whitelist are initialised empty.
 public fun create(
     admin: address,
     authenticator: AuthenticatorFunctionRefV1<WhitelistSponsorshipAccount>,
     ctx: &mut TxContext,
 ) {
-    let mut sponsorship_account = WhitelistSponsorshipAccount { id: object::new(ctx) };
-    let id = &mut sponsorship_account.id;
-
-    whitelists::attach_whitelists(id, ctx);
-    df::add(id, AdminFieldName {}, admin);
-
+    let sponsorship_account = WhitelistSponsorshipAccount {
+        id: object::new(ctx),
+        admin,
+        user_gas_allowances: table::new<address, u64>(ctx),
+        authenticator_functions: bag::new(ctx),
+    };
     account::create_account_v1(sponsorship_account, authenticator);
 }
 
-/// Deducts `amount` from `user`'s gas allowance on this sponsor account. Intended to be called
-/// from the sender's PTB during a sponsored transaction so the sender's allowance is reduced by
-/// the gas budget. `authenticator` scans the PTB for calls to this exact function.
+/// Deducts the transaction's `gas_budget` from the **sender's** gas allowance on this sponsor
+/// account. Intended to be called from the sender's PTB during a sponsored transaction so the
+/// sender's allowance is reduced by exactly the gas budget the sponsor will pay.
 ///
-/// Only the `user` themselves or the admin can call this.
-public fun deduct_user_gas_allowance(
-    self: &mut WhitelistSponsorshipAccount,
-    user: address,
-    amount: u64,
-    ctx: &TxContext,
-) {
-    assert!(ctx.sender() == user || ctx.sender() == self.borrow_admin(), ENotUserOrAdmin);
-    assert!(whitelists::has_whitelists(&self.id), EWhitelistsMissing);
-
-    let allowances = whitelists::borrow_mut_user_gas_allowances(&mut self.id);
-    assert!(allowances.contains(user), EUserGasAllowanceMissing);
-    let entry = allowances.borrow_mut(user);
+/// The sponsor authenticator scans the PTB for the presence of this call. Because the function
+/// implicitly targets `ctx.sender()` and always deducts `ctx.gas_budget()`, the authenticator
+/// only needs to confirm such a call exists — it doesn't have to read or compare any arguments
+/// besides the sponsor account itself.
+public fun deduct_user_gas_allowance(self: &mut WhitelistSponsorshipAccount, ctx: &TxContext) {
+    let sender = ctx.sender();
+    assert!(self.user_gas_allowances.contains(sender), EUserGasAllowanceMissing);
+    let amount = ctx.gas_budget();
+    let entry = self.user_gas_allowances.borrow_mut(sender);
     assert!(*entry >= amount, EInsufficientAllowanceForDeduction);
     *entry = *entry - amount;
-}
-
-// === Authenticators ===
-
-/// Authenticator for `WhitelistSponsorshipAccount`.
-///
-/// Aborts if:
-/// - the whitelists are not attached to the account,
-/// - the transaction is not sponsored by this account,
-/// - the sender does not use a `MoveAuthenticator`,
-/// - the sender's authenticator function is not in the whitelist,
-/// - the sender has no gas allowance,
-/// - the transaction gas budget exceeds the sender's allowance,
-/// - the PTB does not deduct at least the gas budget from the sender's allowance.
-#[authenticator]
-public fun authenticator(
-    account: &WhitelistSponsorshipAccount,
-    auth_ctx: &AuthContext,
-    ctx: &TxContext,
-) {
-    let account_id = account.borrow_uid();
-
-    // Check if the account was setup.
-    assert!(whitelists::has_whitelists(account_id), EWhitelistsMissing);
-
-    // Check if the transaction is sponsored by this account.
-    let sponsor_opt: Option<address> = ctx.sponsor();
-    assert!(sponsor_opt.is_some(), ENotASponsoredTransaction);
-    assert!(sponsor_opt.destroy_some() == account_id.to_address(), ENotASponsoredTransaction);
-
-    // Check that the sender uses a `MoveAuthenticator` whose function is in the whitelist.
-    let sender_info_opt = auth_ctx.sender_authenticator_function_info_v1();
-    assert!(sender_info_opt.is_some(), ESenderAuthenticatorFunctionMissing);
-    let key = key_from_info(sender_info_opt.borrow());
-    let whitelist = whitelists::borrow_authenticator_functions_whitelist(
-        account_id,
-    );
-    assert!(whitelist.contains(key), EAuthenticatorFunctionNotWhitelisted);
-
-    // Check that the transaction gas budget fits within the sender's allowance.
-    let sender = ctx.sender();
-    let allowances = whitelists::borrow_user_gas_allowances(account_id);
-    assert!(allowances.contains(sender), EUserGasAllowanceMissing);
-    assert!(ctx.gas_budget() <= *allowances.borrow(sender), EGasBudgetExceedsAllowance);
-
-    // Finally, check that the sender used a command in the PTB to deduct the allowance from the sponsor's account.
-    // This would be called directly in this authenticator if authenticators were allowed to modify the state.
-    let deducted = lookup_and_calculate_deductions(account_id, sender, auth_ctx);
-    assert!(deducted >= ctx.gas_budget(), EInsufficientAllowanceDeducted);
 }
 
 // === View Functions ===
@@ -195,40 +111,39 @@ public fun account_address(self: &WhitelistSponsorshipAccount): address {
     self.id.to_address()
 }
 
-/// Returns the admin address. Aborts with `EAdminMissing` if no admin is set.
+/// Returns the admin address.
 public fun borrow_admin(self: &WhitelistSponsorshipAccount): address {
-    assert!(df::exists_(&self.id, AdminFieldName {}), EAdminMissing);
-    *df::borrow(&self.id, AdminFieldName {})
+    self.admin
 }
 
-/// Returns true if the whitelists are attached.
-public fun has_whitelists(account: &WhitelistSponsorshipAccount): bool {
-    whitelists::has_whitelists(account.borrow_uid())
+/// Returns true if `key` names an accepted sender authenticator function for this account.
+public fun is_authenticator_function_whitelisted(
+    account: &WhitelistSponsorshipAccount,
+    key: AuthenticatorFunctionKey,
+): bool {
+    account.authenticator_functions.contains(key)
 }
 
 /// Borrows the bag of accepted sender authenticator functions.
-public fun borrow_authenticator_functions_whitelist(account: &WhitelistSponsorshipAccount): &Bag {
-    whitelists::borrow_authenticator_functions_whitelist(account.borrow_uid())
+public fun borrow_authenticator_functions(account: &WhitelistSponsorshipAccount): &Bag {
+    &account.authenticator_functions
 }
 
 /// Borrows the table of per-user gas allowances.
 public fun borrow_user_gas_allowances(account: &WhitelistSponsorshipAccount): &Table<address, u64> {
-    whitelists::borrow_user_gas_allowances(account.borrow_uid())
+    &account.user_gas_allowances
+}
+
+/// Constructs an `AuthenticatorFunctionKey` from its components.
+public fun new_authenticator_function_key(
+    package: ID,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorFunctionKey {
+    AuthenticatorFunctionKey { package, module_name, function_name }
 }
 
 // === Admin Functions ===
-
-/// Attach the (initially empty) whitelists to the account. Only the admin can call this.
-public fun attach_whitelists(self: &mut WhitelistSponsorshipAccount, ctx: &mut TxContext) {
-    assert!(ctx.sender() == self.borrow_admin(), ENotAdmin);
-    whitelists::attach_whitelists(&mut self.id, ctx);
-}
-
-/// Detach the whitelists from the account. Only the admin can call this.
-public fun detach_whitelists(self: &mut WhitelistSponsorshipAccount, ctx: &TxContext) {
-    assert!(ctx.sender() == self.borrow_admin(), ENotAdmin);
-    whitelists::detach_whitelists(&mut self.id);
-}
 
 /// Adds an authenticator function to the whitelist. Only the admin can call this.
 public fun add_authenticator_function<T: key>(
@@ -236,8 +151,9 @@ public fun add_authenticator_function<T: key>(
     auth_fn: AuthenticatorFunctionRefV1<T>,
     ctx: &TxContext,
 ) {
-    assert!(ctx.sender() == self.borrow_admin(), ENotAdmin);
-    whitelists::add_authenticator_function(&mut self.id, auth_fn);
+    assert!(ctx.sender() == self.admin, ENotAdmin);
+    let key = key_from_ref(&auth_fn);
+    self.authenticator_functions.add(key, auth_fn);
 }
 
 /// Removes an authenticator function from the whitelist. Only the admin can call this.
@@ -246,8 +162,9 @@ public fun remove_authenticator_function<T: key>(
     auth_fn: &AuthenticatorFunctionRefV1<T>,
     ctx: &TxContext,
 ) {
-    assert!(ctx.sender() == self.borrow_admin(), ENotAdmin);
-    whitelists::remove_authenticator_function(&mut self.id, auth_fn);
+    assert!(ctx.sender() == self.admin, ENotAdmin);
+    let key = key_from_ref(auth_fn);
+    let _: AuthenticatorFunctionRefV1<T> = self.authenticator_functions.remove(key);
 }
 
 /// Sets the maximum gas budget the sponsor will cover for `user`. Only the admin can call this.
@@ -257,8 +174,9 @@ public fun add_user_gas_allowance(
     allowance: u64,
     ctx: &TxContext,
 ) {
-    assert!(ctx.sender() == self.borrow_admin(), ENotAdmin);
-    whitelists::add_user_gas_allowance(&mut self.id, user, allowance);
+    assert!(ctx.sender() == self.admin, ENotAdmin);
+    assert!(!self.user_gas_allowances.contains(user), EUserGasAllowanceAlreadyExists);
+    self.user_gas_allowances.add(user, allowance);
 }
 
 /// Updates `user`'s gas allowance and returns the previous one. Only the admin can call this.
@@ -268,12 +186,11 @@ public fun rotate_user_gas_allowance(
     allowance: u64,
     ctx: &TxContext,
 ): u64 {
-    assert!(ctx.sender() == self.borrow_admin(), ENotAdmin);
-    whitelists::rotate_user_gas_allowance(
-        &mut self.id,
-        user,
-        allowance,
-    )
+    assert!(ctx.sender() == self.admin, ENotAdmin);
+    assert!(self.user_gas_allowances.contains(user), EUserGasAllowanceMissing);
+    let prev = self.user_gas_allowances.remove(user);
+    self.user_gas_allowances.add(user, allowance);
+    prev
 }
 
 /// Removes `user`'s gas allowance and returns the previous value. Only the admin can call this.
@@ -282,119 +199,34 @@ public fun remove_user_gas_allowance(
     user: address,
     ctx: &TxContext,
 ): u64 {
-    assert!(ctx.sender() == self.borrow_admin(), ENotAdmin);
-    whitelists::remove_user_gas_allowance(&mut self.id, user)
+    assert!(ctx.sender() == self.admin, ENotAdmin);
+    assert!(self.user_gas_allowances.contains(user), EUserGasAllowanceMissing);
+    self.user_gas_allowances.remove(user)
 }
 
-// === Package Functions ===
+/// Admin-side deduction: subtracts `amount` from `user`'s gas allowance without going through
+/// the sponsored-transaction flow. Useful for out-of-band rebalancing — not scanned by the
+/// authenticator and so does not, on its own, satisfy the sponsor's PTB-deduct requirement.
+public fun admin_deduct_user_gas_allowance(
+    self: &mut WhitelistSponsorshipAccount,
+    user: address,
+    amount: u64,
+    ctx: &TxContext,
+) {
+    assert!(ctx.sender() == self.admin, ENotAdmin);
+    assert!(self.user_gas_allowances.contains(user), EUserGasAllowanceMissing);
+    let entry = self.user_gas_allowances.borrow_mut(user);
+    assert!(*entry >= amount, EInsufficientAllowanceForDeduction);
+    *entry = *entry - amount;
+}
 
 // === Private Functions ===
 
-/// Derives an `AuthenticatorFunctionKey` from the framework's type-erased
-/// `AuthenticatorFunctionInfoV1` returned by `AuthContext`.
-fun key_from_info(info: &AuthenticatorFunctionInfoV1): AuthenticatorFunctionKey {
-    whitelists::new_authenticator_function_key(
-        info.package(),
-        *info.module_name(),
-        *info.function_name(),
-    )
+/// Derives an `AuthenticatorFunctionKey` from an `AuthenticatorFunctionRefV1<T>`.
+fun key_from_ref<T: key>(auth_fn: &AuthenticatorFunctionRefV1<T>): AuthenticatorFunctionKey {
+    AuthenticatorFunctionKey {
+        package: auth_fn.package(),
+        module_name: *auth_fn.module_name(),
+        function_name: *auth_fn.function_name(),
+    }
 }
-
-/// Scans the PTB commands for calls to `deduct_user_gas_allowance` on this sponsor account and
-/// `sender`, summing the deducted amounts. The expected call signature is
-/// `whitelist_sponsorship_account::deduct_user_gas_allowance(&mut WhitelistSponsorshipAccount, user, amount)`.
-fun lookup_and_calculate_deductions(
-    account_id: &UID,
-    sender: address,
-    auth_ctx: &AuthContext,
-): u64 {
-    let commands = auth_ctx.tx_commands();
-    let inputs = auth_ctx.tx_inputs();
-    let sponsor_address = account_id.to_address();
-
-    let mut total = 0u64;
-
-    commands.do_ref!(|command| {
-        command
-            .as_move_call()
-            .do!(
-                |call| if (
-                    call.is_deduct_call() && call.first_arg_is_sponsor(inputs, sponsor_address)
-                ) {
-                    // Args: [sponsor_account, user, amount].
-                    let args = call.arguments();
-                    assert!(args.length() == 3, EInvalidDeductCall);
-
-                    // The user argument must be a pure address equal to the sender.
-                    let user_addr = pure_address_at(inputs, &args[1]);
-                    assert!(user_addr == sender, EInvalidDeductCall);
-
-                    // The amount argument must be a pure u64.
-                    let amount = pure_u64_at(inputs, &args[2]);
-                    total = total + amount;
-                },
-            );
-    });
-
-    total
-}
-
-/// Returns true if `call` is a call to `deduct_user_gas_allowance` in this module.
-fun is_deduct_call(call: &ProgrammableMoveCall): bool {
-    let self_type = type_name::get<WhitelistSponsorshipAccount>();
-    if (
-        call.move_call_function() != &ascii::string(DEDUCT_USER_GAS_ALLOWANCE_FUNC_NAME)
-        || call.module_name() != &self_type.get_module()
-    ) {
-        return false
-    };
-
-    let call_package_addr = object::id_to_address(call.package());
-    let expected_package_addr = address::from_ascii_bytes(self_type.get_address().as_bytes());
-
-    call_package_addr == expected_package_addr
-}
-
-/// Returns true if the first argument of `call` is an object whose id equals `sponsor`.
-fun first_arg_is_sponsor(
-    call: &ProgrammableMoveCall,
-    inputs: &vector<CallArg>,
-    sponsor: address,
-): bool {
-    let args = call.arguments();
-    if (args.is_empty()) return false;
-
-    let input_ix_opt = args[0].input_index();
-    if (input_ix_opt.is_none()) return false;
-    let input_ix = input_ix_opt.destroy_some() as u64;
-    if (input_ix >= inputs.length()) return false;
-
-    let call_arg = &inputs[input_ix];
-    if (call_arg.is_pure_data()) return false;
-
-    let obj_data = call_arg.as_object_data().destroy_some();
-    let obj_id_opt = obj_data.object_id();
-    if (obj_id_opt.is_none()) return false;
-
-    object::id_to_address(&obj_id_opt.destroy_some()) == sponsor
-}
-
-/// Reads a pure `address` from the PTB input pointed to by `arg`.
-fun pure_address_at(inputs: &vector<CallArg>, arg: &Argument): address {
-    let input_idx = arg.input_index().destroy_some() as u64;
-    assert!(input_idx < inputs.length(), EInvalidDeductCall);
-    let bytes = inputs[input_idx].as_pure_data().destroy_some();
-    let mut bcs_stream = bcs::new(bytes);
-    bcs_stream.peel_address()
-}
-
-/// Reads a pure `u64` from the PTB input pointed to by `arg`.
-fun pure_u64_at(inputs: &vector<CallArg>, arg: &Argument): u64 {
-    let input_idx = arg.input_index().destroy_some() as u64;
-    assert!(input_idx < inputs.length(), EInvalidDeductCall);
-    let bytes = inputs[input_idx].as_pure_data().destroy_some();
-    let mut bcs_stream = bcs::new(bytes);
-    bcs_stream.peel_u64()
-}
-
-// === Test Functions ===
