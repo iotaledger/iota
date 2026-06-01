@@ -590,7 +590,7 @@ impl DataFetcher for RemoteFetcher {
                             .await?
                             .base_gas_price(),
                     ),
-                EndOfEpochTransactionKind::ClaimRegistryCreate => continue
+                    EndOfEpochTransactionKind::ClaimRegistryCreate => continue,
                 };
 
                 // Backfill cache

@@ -2392,10 +2392,10 @@ create
 claim
 	public(package) fun
 	0x2::claim_registry
-test_claim_account
+is_claimed
 	public fun
 	0x2::claim_registry
-is_claimed
+test_claim_account
 	public fun
 	0x2::claim_registry
 Clock

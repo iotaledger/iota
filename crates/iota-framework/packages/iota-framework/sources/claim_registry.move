@@ -28,8 +28,8 @@ const EAlreadyClaimed: vector<u8> =
     b"This address has already been claimed.";
 
 #[error(code = 4)]
-const ENotGenesis: vector<u8> =
-    b"ClaimRegistry can only be created during genesis.";
+const ENotSystemAddress: vector<u8> =
+    b"ClaimRegistry can only be created by the system address (@0x0).";
 
 // === Structs ===
 
@@ -49,7 +49,7 @@ public struct DummyAccount has key {
 /// Create and share the `ClaimRegistry` singleton. Called once during genesis.
 #[allow(unused_function)]
 fun create(ctx: &TxContext) {
-    assert!(ctx.sender() == @0x0, ENotGenesis);
+    assert!(ctx.sender() == @0x0, ENotSystemAddress);
     transfer::share_object(ClaimRegistry {
         id: object::new_uid_from_hash(@0x10),
     });
@@ -79,19 +79,6 @@ public(package) fun claim(
     object::new_uid_from_hash(derived_addr)
 }
 
-/// Creates a `DummyAccount` owned by the sender.
-///
-/// Provided so that transactional tests can exercise the full `claim` flow
-/// directly from a PTB without publishing an external module.
-public fun test_claim_account(
-    registry: &mut ClaimRegistry,
-    public_key: PublicKey,
-    ctx: &mut TxContext,
-) {
-    let uid = claim(registry, public_key, ctx);
-    transfer::share_object(DummyAccount { id: uid });
-}
-
 // === Public reads ===
 
 public fun is_claimed(registry: &ClaimRegistry, addr: address): bool {
@@ -108,4 +95,16 @@ public fun create_for_testing(ctx: &mut TxContext) {
 #[test_only]
 public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
     iota::public_key::from_prefixed_bytes(*prefixed_bytes).to_iota_address()
+}
+
+/// Creates a `DummyAccount` owned by the sender.
+///
+/// Provided so that transactional tests can exercise the full `claim` flow
+/// directly from a PTB without publishing an external module.
+public fun test_claim_account(
+    registry: &mut ClaimRegistry,
+    public_key: PublicKey,
+    ctx: &mut TxContext,
+) {
+    transfer::share_object(DummyAccount { id: claim(registry, public_key, ctx) });
 }
