@@ -86,28 +86,28 @@ fn test_serde_roundtrip() {
     let pk1 = kp1.public_key();
     let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk1, 1)], 1).unwrap();
     let sig: Ed25519Signature = kp1.sign(&*msg);
-    check_roundtrip(MultiSig::insecure_new(vec![sig.into()], 1, multisig_pk));
+    check_roundtrip(MultiSig::new_unchecked(vec![sig.into()], 1, multisig_pk));
 
     let pk2 = kp2.public_key();
     let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk2, 1)], 1).unwrap();
     let sig: Secp256k1Signature = kp2.sign(&*msg);
-    check_roundtrip(MultiSig::insecure_new(vec![sig.into()], 1, multisig_pk));
+    check_roundtrip(MultiSig::new_unchecked(vec![sig.into()], 1, multisig_pk));
 
     let pk3 = kp3.public_key();
     let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(pk3, 1)], 1).unwrap();
     let sig: Secp256r1Signature = kp3.sign(&*msg);
-    check_roundtrip(MultiSig::insecure_new(vec![sig.into()], 1, multisig_pk));
+    check_roundtrip(MultiSig::new_unchecked(vec![sig.into()], 1, multisig_pk));
 
     // Malformed multisig cannot be deserialized
     let multisig_pk =
-        MultiSigPublicKey::insecure_new(vec![MultisigMember::new(kp1.public_key(), 1)], 1);
-    let multisig = MultiSig::insecure_new(vec![], 0, multisig_pk);
+        MultiSigPublicKey::new_unchecked(vec![MultisigMember::new(kp1.public_key(), 1)], 1);
+    let multisig = MultiSig::new_unchecked(vec![], 0, multisig_pk);
     let user_sig = UserSignature::Multisig(multisig);
     assert!(UserSignature::from_bytes(user_sig.to_bytes()).is_err());
 
     // Malformed multisig_pk cannot be deserialized
-    let multisig_pk_1 = MultiSigPublicKey::insecure_new(vec![], 0);
-    let multisig_1 = MultiSig::insecure_new(vec![], 0, multisig_pk_1);
+    let multisig_pk_1 = MultiSigPublicKey::new_unchecked(vec![], 0);
+    let multisig_1 = MultiSig::new_unchecked(vec![], 0, multisig_pk_1);
     let user_sig_1 = UserSignature::Multisig(multisig_1);
     assert!(UserSignature::from_bytes(user_sig_1.to_bytes()).is_err());
 
@@ -233,14 +233,14 @@ fn test_max_sig() {
 
     // multisig_pk with unreachable threshold fails.
     assert!(
-        MultiSigPublicKey::insecure_new(members_with_weight(5, 3), 16)
+        MultiSigPublicKey::new_unchecked(members_with_weight(5, 3), 16)
             .validate()
             .is_err()
     );
 
     // multisig_pk with max weights for each pk and max reachable threshold is ok.
     assert!(
-        MultiSigPublicKey::insecure_new(
+        MultiSigPublicKey::new_unchecked(
             members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
             (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit),
         )
@@ -250,7 +250,7 @@ fn test_max_sig() {
 
     // multisig_pk with unreachable threshold fails.
     assert!(
-        MultiSigPublicKey::insecure_new(
+        MultiSigPublicKey::new_unchecked(
             members_with_weight(MAX_SIGNER_IN_MULTISIG, WeightUnit::MAX),
             (WeightUnit::MAX as ThresholdUnit) * (MAX_SIGNER_IN_MULTISIG as ThresholdUnit) + 1,
         )

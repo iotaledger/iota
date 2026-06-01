@@ -256,7 +256,7 @@ async fn test_multisig_e2e() {
     let pk1 = kp2.public_key(); // secp256k1
     let pk2 = kp3.public_key(); // secp256r1
 
-    let multisig_pk = MultiSigPublicKey::insecure_new(
+    let multisig_pk = MultiSigPublicKey::new_unchecked(
         vec![
             MultisigMember::new(pk0, 1),
             MultisigMember::new(pk1, 1),
@@ -351,7 +351,7 @@ async fn test_multisig_e2e() {
     let pk3: PublicKey = Secp256r1PrivateKey::generate(rand::thread_rng())
         .public_key()
         .into();
-    let wrong_multisig_pk = MultiSigPublicKey::insecure_new(
+    let wrong_multisig_pk = MultiSigPublicKey::new_unchecked(
         vec![
             MultisigMember::new(pk0, 1),
             MultisigMember::new(pk1, 1),

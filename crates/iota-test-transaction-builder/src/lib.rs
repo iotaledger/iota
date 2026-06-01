@@ -398,7 +398,7 @@ impl TestTransactionBuilder {
         let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
         let signatures = signers.iter().map(|s| s.sign(&*digest).into()).collect();
         let multisig =
-            GenericSignature::MultiSig(MultiSig::insecure_new(signatures, bitmap, multisig_pk));
+            GenericSignature::MultiSig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
 
         Transaction::from_generic_sig_data(data, vec![multisig])
     }

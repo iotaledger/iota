@@ -43,7 +43,7 @@ impl AuthenticatorTrait for MultiSig {
             });
         }
 
-        if self.has_scheme_signatures(SignatureScheme::PasskeyAuthenticator)
+        if self.contains_signature_scheme(SignatureScheme::PasskeyAuthenticator)
             && !verify_params.accept_passkey_in_multisig
         {
             return Err(IotaError::InvalidSignature {
