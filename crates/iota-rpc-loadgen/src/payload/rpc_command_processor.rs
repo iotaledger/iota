@@ -389,7 +389,8 @@ impl fmt::Display for CacheType {
         match self {
             CacheType::IotaAddress => write!(f, "IotaAddress"),
             CacheType::TransactionDigest => write!(f, "TransactionDigest"),
-            CacheType::ObjectId => write!(f, "ObjectId"),
+            // This is kept `ObjectID` (as opposed to `ObjectId`) to not invalidate existing caches
+            CacheType::ObjectId => write!(f, "ObjectID"),
         }
     }
 }
