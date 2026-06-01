@@ -6,7 +6,7 @@
 //!
 //! Everything in this module reaches into the filesystem / config-file
 //! machinery (and the network `Multiaddr` type), so the whole module is gated
-//! out on wasm32 with a single `#[cfg]` on its declaration in `lib.rs`.
+//! out on wasm32.
 
 use std::{
     fs,
