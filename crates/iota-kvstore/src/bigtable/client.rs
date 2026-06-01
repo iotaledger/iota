@@ -137,14 +137,27 @@ impl KeyValueStoreWriter for BigTableClient {
                 bcs::to_bytes(contents)?,
             ),
         ];
-        let row = Row::new(key.clone(), cells);
-        self.multi_set(CHECKPOINTS_TABLE, [row]).await?;
+        let row = Row::new(key, cells);
+        self.multi_set(CHECKPOINTS_TABLE, [row])
+            .await
+            .map_err(Into::into)
+    }
 
-        let cells = vec![Cell::new(DEFAULT_COLUMN_QUALIFIER.as_bytes().to_vec(), key)];
-        let row = Row::new(
-            checkpoint.checkpoint_summary.digest().inner().to_vec(),
-            cells,
-        );
+    async fn save_checkpoint_by_digest(
+        &mut self,
+        checkpoint: &CheckpointData,
+    ) -> Result<(), Self::Error> {
+        let key = checkpoint.checkpoint_summary.digest().inner();
+
+        let value = checkpoint
+            .checkpoint_summary
+            .sequence_number()
+            .to_be_bytes();
+
+        let cells = [Cell::new(DEFAULT_COLUMN_QUALIFIER.into(), value.into())];
+
+        let row = Row::new(key.into(), cells.into());
+
         self.multi_set(CHECKPOINTS_BY_DIGEST_TABLE, [row])
             .await
             .map_err(Into::into)
@@ -318,16 +331,20 @@ impl KeyValueStoreReader for BigTableClient {
         Ok(checkpoints)
     }
 
-    async fn get_checkpoints_by_digest(
+    async fn get_checkpoint_sequence_numbers<I>(
         &mut self,
-        digests: &[CheckpointDigest],
-    ) -> Result<Vec<Checkpoint>, Self::Error> {
+        digests: I,
+    ) -> Result<Vec<CheckpointSequenceNumber>, Self::Error>
+    where
+        I: IntoIterator<Item = CheckpointDigest> + Send,
+        I::IntoIter: Send,
+    {
         let keys = digests
-            .iter()
+            .into_iter()
             .map(|digest| digest.inner().to_vec())
             .collect::<Vec<_>>();
-        let seq_nums = self
-            .multi_get(CHECKPOINTS_BY_DIGEST_TABLE, keys, None)
+
+        self.multi_get(CHECKPOINTS_BY_DIGEST_TABLE, keys, None)
             .await?
             .into_iter()
             .filter_map(|row| {
@@ -336,8 +353,20 @@ impl KeyValueStoreReader for BigTableClient {
                     .next()
                     .map(|cell| cell.value.as_slice().try_into().map(u64::from_be_bytes))
             })
-            .collect::<Result<Vec<_>, _>>()?;
-        self.get_checkpoints(&seq_nums).await
+            .collect::<Result<Vec<CheckpointSequenceNumber>, _>>()
+            .map_err(Into::into)
+    }
+
+    async fn get_checkpoints_by_digest<I>(
+        &mut self,
+        digests: I,
+    ) -> Result<Vec<Checkpoint>, Self::Error>
+    where
+        I: IntoIterator<Item = CheckpointDigest> + Send,
+        I::IntoIter: Send,
+    {
+        let sequence_numbers = self.get_checkpoint_sequence_numbers(digests).await?;
+        self.get_checkpoints(&sequence_numbers).await
     }
 }
 
