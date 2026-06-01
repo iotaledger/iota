@@ -18,7 +18,7 @@ IOTA Single Notarization is composed of two primary packages:
 
 ## The `Notarization` Object
 
-The core of the Single Notarization component is the `Notarization` object, a unified Move `struct` that holds the notarized data and its associated metadata. The `Notarization` object is owned by an address allowing easier acces control compared to [IOTA Audit Trails](../../audit-trail/index.mdx) being a shared object which needs more complex access control features.
+The core of the Single Notarization component is the `Notarization` object, a unified Move `struct` that holds the notarized data and its associated metadata. The `Notarization` object is owned by an address allowing easier acces control compared to [IOTA Audit Trails](../../audit-trails/index.mdx) being a shared object which needs more complex access control features.
 
 The `Notarization` object is designed to be flexible and supports two distinct methods, `Locked` and `Dynamic`, which are determined by the `method` field upon creation.
 
