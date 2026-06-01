@@ -10,18 +10,20 @@ The IOTA Notarization Toolkit, a set of IOTA ledger tools for verifiable on-chai
 **Single Notarization** and **Audit Trails** components as been described in the
 [external source repository Main Readme](https://github.com/iotaledger/notarization/blob/audit-trails-dev/README.md)
 
-The external source repository is **`https://github.com/iotaledger/notarization`**. The current tag is **`v0.1`**. 
+The external source repository is **`https://github.com/iotaledger/notarization`**. The current tag is **`v0.1`**.
 Use this when constructing `reference` code-block URLs.
 
-The external source repository also provides a `Naming Conventions` section in the 
+The external source repository also provides a `Naming Conventions` section in the
 [root `CLAUDE.md` file](https://github.com/iotaledger/notarization/blob/audit-trails-dev/CLAUDE.md) which can be seen
 as the source of truth regarding wording, terminology, prose and capitalization rules.
 
 ### Object related phrasing
-The wiki-docs (Docusaurus pages contained in the `docs/content/developer/iota-notarization` folder) are often more general
-and therefore terms like "`AuditTrail` object" would often be surprising for new readers just started to explore the docs.    
 
-Therefore, the terms used to refer to one single on-chain object differ slighlty from the `Naming Conventions`:
+The wiki-docs (Docusaurus pages contained in the `docs/content/developer/iota-notarization` folder) are often more general
+and therefore terms like "`AuditTrail` object" would often be surprising for new readers just started to explore the docs.
+
+Therefore, the terms used to refer to one single on-chain object differ slightly from the `Naming Conventions`:
+
 - If both, the TF product itself or a single on-chain object could be addressed, prefer the
   TF product variant (i.e "Audit Trails") over addressing a single on-chain object
 - In cases where the creation, deletion or other direct interaction with an on-chain object is described,
@@ -31,16 +33,16 @@ Therefore, the terms used to refer to one single on-chain object differ slighlty
 ### Single Notarization Component
 
 Single Notarization provides two Notarization Methods for creating verifiable, on-chain records of any individual piece
-of digital data by anchoring data to the IOTA ledger: 
--   **Locked Notarization**: For creating permanent, static records that can not be changed until the object is destroyed.
--   **Dynamic Notarization**: For creating records of evolving data where only the most current version is relevant.
+of digital data by anchoring data to the IOTA ledger:
 
+- **Locked Notarization**: For creating permanent, static records that can not be changed until the object is destroyed.
+- **Dynamic Notarization**: For creating records of evolving data where only the most current version is relevant.
 
 ### Audit Trails Component
 
-IOTA Audit Trails provides tamper-proof, chronological records of activities on the IOTA ledger. 
-It differs from IOTA Notarization: Notarization records _static facts_ (a document existed at time T); 
-Audit Trails records _sequences of events_ (who did what, when). 
+IOTA Audit Trails provides tamper-proof, chronological records of activities on the IOTA ledger.
+It differs from IOTA Notarization: Notarization records _static facts_ (a document existed at time T);
+Audit Trails records _sequences of events_ (who did what, when).
 `AuditTrail` objects are **shared** on-chain and use **Role-Based Access Control (RBAC)** with Roles, Capabilities, and Record Tags.
 
 ## Directory layout
@@ -65,7 +67,7 @@ iota-notarization
 │       └── wasm/
 ├── single-notarization/
 │   ├── index.mdx               # Component landing / Single Notarization introduction page
-│   ...                         # Same directory as been used for Audit Trails 
+│   ...                         # Same directory as been used for Audit Trails
 ```
 
 ## Sidebar
@@ -114,7 +116,7 @@ The introduction page is the product's front door. Pattern:
    - `![Single Notarization](/img/banner/banner_single_notarization.png)`
    - `![Audit Trails](/img/banner/banner_audit_trail.png)`
 3. One-paragraph product summary.
-4. Subsections covering: what the product solves, key use cases (with `:::info` admonitions for highlights), comparison to 
+4. Subsections covering: what the product solves, key use cases (with `:::info` admonitions for highlights), comparison to
    related products (e.g., Audit Trails vs. Dynamic Notarization), why IOTA, key actors, and a brief mention of RBAC linking to the explanation page.
 5. No code on this page. Link out to getting-started and explanation pages instead.
 
@@ -189,7 +191,7 @@ Key rules:
 
 #### Real-world examples
 
-Place in `real-world-examples/`. These are longer how-to guides that demonstrate a complete business scenario (e.g., product passport, supply chain tracking). 
+Place in `real-world-examples/`. These are longer how-to guides that demonstrate a complete business scenario (e.g., product passport, supply chain tracking).
 They follow the same structure as regular how-tos but include additional sections:
 
 - **Business Context**: why this scenario matters.
@@ -199,7 +201,8 @@ They follow the same structure as regular how-tos but include additional section
 ### Reference pages
 
 API reference for Wasm is auto-generated and placed in `references/wasm/`.
-The Rust API reference is an external link to 
+The Rust API reference is an external link to
+
 - Single Notarization: `https://iotaledger.github.io/notarization/notarization/index.html`
 - Audit Trails: `https://iotaledger.github.io/notarization/audit_trail/index.html`
 
@@ -226,14 +229,14 @@ When comparing Audit Trails to Single Notarization, link to the sibling docs wit
 
 ## Keeping example-code line references up to date
 
-How-to guides embed snippets from the [notarization repository](https://github.com/iotaledger/notarization) using `#L<start>-L<end>` anchors. 
+How-to guides embed snippets from the [notarization repository](https://github.com/iotaledger/notarization) using `#L<start>-L<end>` anchors.
 When example code in that repository changes, those anchors go stale. The script `scripts/update_doc_refs.py` automates the remapping.
 
 ### When to run it
 
 Run the script after any commit in `iotaledger/notarization` that modifies files under:
 
-- `examples/audit-trail/`  (Rust examples for Audit Trails)
+- `examples/audit-trail/` (Rust examples for Audit Trails)
 - `examples/notarization/` (Rust examples for Single Notarization)
 - `bindings/wasm/audit_trail_wasm/examples/` (TypeScript examples for Audit Trails)
 - `bindings/wasm/notarization_wasm/examples/` (TypeScript examples for Single Notarization)
@@ -255,13 +258,13 @@ python3 docs/content/developer/iota-notarization/scripts/update_doc_refs.py \
 
 All flags can also be set via environment variables, which is convenient for CI or repeated use:
 
-| Flag | Env var | Description                                              |
-|------|---------|----------------------------------------------------------|
+| Flag                  | Env var             | Description                                              |
+| --------------------- | ------------------- | -------------------------------------------------------- |
 | `--notarization-repo` | `NOTARIZATION_REPO` | Path to the local notarization repo clone                |
-| `--docs-dir` | `DOCS_DIR` | Path to the `how-tos/` folder (auto-detected by default) |
-| `--old-ref` | `OLD_REF` | Git ref the docs currently reference                     |
-| `--new-ref` | `NEW_REF` | Git ref to update the docs to                            |
-| `--dry-run` | — | Print changes without writing any files                  |
+| `--docs-dir`          | `DOCS_DIR`          | Path to the `how-tos/` folder (auto-detected by default) |
+| `--old-ref`           | `OLD_REF`           | Git ref the docs currently reference                     |
+| `--new-ref`           | `NEW_REF`           | Git ref to update the docs to                            |
+| `--dry-run`           | —                   | Print changes without writing any files                  |
 
 ### Example workflow
 
@@ -281,7 +284,7 @@ All flags can also be set via environment variables, which is convenient for CI 
 
 ### How it works
 
-The script uses Python's `difflib.SequenceMatcher` to diff each example file between the two refs and builds a line-number mapping. 
+The script uses Python's `difflib.SequenceMatcher` to diff each example file between the two refs and builds a line-number mapping.
 For each `#L<start>-L<end>` anchor found in the MDX files, it looks up both boundary lines in that mapping and replaces the anchor with the new range.
 Lines unchanged between the two refs map exactly; replaced or moved lines map to their best counterpart in the new file.
 
