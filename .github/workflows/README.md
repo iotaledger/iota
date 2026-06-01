@@ -15,7 +15,7 @@ Written for both humans and LLMs assisting with edits.
    malicious code and your workflow pulls it on the next run.
    ```yaml
    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2  # good
-   - uses: actions/checkout@v6                                                  # bad
+   - uses: actions/checkout@v6 # bad
    ```
    The SHA is the security boundary; the `# v6.0.2` comment is informational.
    When bumping, look up the new release's SHA in the action's repo and
@@ -34,7 +34,7 @@ Written for both humans and LLMs assisting with edits.
    title, body, `github.head_ref`, commit messages, labels are
    attacker-chosen. Pass them via `env:` and reference the shell variable:
    ```yaml
-   - run: echo "Building $HEAD_REF"   # safe
+   - run: echo "Building $HEAD_REF" # safe
      env:
        HEAD_REF: ${{ github.head_ref }}
    ```
@@ -49,11 +49,11 @@ Written for both humans and LLMs assisting with edits.
 
 ## Triggers — pick the right one
 
-| Event | `github.ref` points to | Workflow/script loaded from | Fork PR token/secrets |
-| --- | --- | --- | --- |
-| `pull_request` | merge-ref (PR HEAD) | PR HEAD | **read-only, no secrets** |
-| `pull_request_target` | BASE branch | BASE | full default, secrets |
-| `workflow_dispatch` | the dispatched ref | that ref | full default, secrets |
+| Event                 | `github.ref` points to | Workflow/script loaded from | Fork PR token/secrets     |
+| --------------------- | ---------------------- | --------------------------- | ------------------------- |
+| `pull_request`        | merge-ref (PR HEAD)    | PR HEAD                     | **read-only, no secrets** |
+| `pull_request_target` | BASE branch            | BASE                        | full default, secrets     |
+| `workflow_dispatch`   | the dispatched ref     | that ref                    | full default, secrets     |
 
 - **`pull_request`** — the default for "test/lint this PR". GitHub
   auto-restricts the token and hides secrets for fork PRs, which is what
@@ -110,7 +110,7 @@ PR's `head_sha`.
 - Uncheck happens **before** dispatch — the load-bearing infinite-loop
   guard. Don't reorder.
 - Permission gate: only `write`/`maintain`/`admin` senders dispatch. The
-  maintainer's tick *is* the approval; a fork author ticking their own box
+  maintainer's tick _is_ the approval; a fork author ticking their own box
   unchecks but does not dispatch. (We use this instead of GitHub
   Environment approvals — code-only, no repo-settings change.)
 - `createWorkflowDispatch` uses `ref: 'develop'` so the dispatched workflow
