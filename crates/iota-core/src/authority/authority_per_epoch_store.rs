@@ -3888,7 +3888,16 @@ impl AuthorityPerEpochStore {
             );
         }
 
-        if randomness_state_updated {
+        // Advance the DKG state machine while it is still pending, even when no
+        // new messages or confirmations arrived this commit. Without this, a
+        // validator that restarts past the timeout round will never tick the
+        // state machine again (no new messages arrive after restart), so DKG
+        // can stay Pending forever -- deferring all randomness-using
+        // transactions and blocking epoch close.
+        let dkg_pending = randomness_manager
+            .as_ref()
+            .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
+        if randomness_state_updated || dkg_pending {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager
                     .advance_dkg(output, consensus_commit_info.round)
