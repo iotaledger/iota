@@ -1321,7 +1321,7 @@ async fn setup_lock_tier() -> LockTierSetup {
         object_ref,
         gas_ref,
         rgp,
-        _config_guard: _config_guard,
+        _config_guard,
     }
 }
 
