@@ -89,7 +89,7 @@ done
 #   role 8 (v9, v19, ...) : follower   - 22 ms spoke from its decade hub plus
 #                           88-96 ms directs; hub blocks complete its rounds
 #                           via embedded headers (AddBlockHeader)
-#   role 9 (v10, v20, ...): heavy tail - 350-375 +/- 50 ms fluctuating
+#   role 9 (v10, v20, ...): heavy tail - 390-415 +/- 100 ms fluctuating
 #                           directs, one 60 ms hub route delivered in netem
 #                           slot bursts (100-146 ms) whose ~2-round batches
 #                           interact with the 50 ms min block delay to skip
@@ -113,7 +113,7 @@ edge_params() {
     if [ "$i" -eq "$hub_j" ]; then
       echo "60 3 0 0 100 146"
     else
-      echo "$(( 350 + (7 * i) % 26 )) 50 70 0 0 0"
+      echo "$(( 390 + (7 * i) % 26 )) 100 70 0 0 0"
     fi
     return
   fi
