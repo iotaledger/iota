@@ -259,12 +259,6 @@ fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> Global
 /// Writes a snapshot with `num_objects` live objects to a temp remote store,
 /// reads it back into a fresh perpetual DB, and asserts the live object set
 /// round-trips.
-// TODO(iota-snapshot tests): the two cases (populated, empty) are merged into
-// `test_snapshot_round_trip` as a single `#[tokio::test]` to sidestep the
-// `typed_store::DBMetrics` global Prometheus registry race documented at
-// `crates/typed-store/src/metrics.rs` (`once_cell::sync::OnceCell`-based
-// initialization that races between concurrent test threads). Do not split
-// these back into separate tests until that registry is made re-entrant.
 async fn snapshot_round_trip(
     tmp_dir: &std::path::Path,
     num_objects: u64,
@@ -428,89 +422,41 @@ async fn writer_with_stub_returns_err(
         .expect_err("snapshot writer must reject when watermark is insufficient")
 }
 
+/// Populated case with compression — exercises the production path.
 #[tokio::test]
-async fn test_snapshot_round_trip() -> Result<(), anyhow::Error> {
-    // Populated case, with compression - exercises the production path.
-    let basic_dir = iota_common::tempdir();
-    snapshot_round_trip(basic_dir.path(), 1000, FileCompression::Zstd).await?;
-    // Empty database case.
-    let empty_dir = iota_common::tempdir();
-    snapshot_round_trip(empty_dir.path(), 0, FileCompression::Zstd).await?;
-    // Uncompressed case so the ref-file on-disk size assertion can run
-    // directly against the staged file.
-    let uncompressed_dir = iota_common::tempdir();
-    snapshot_round_trip(uncompressed_dir.path(), 100, FileCompression::None).await?;
-    // Per-object `previous_transaction_checkpoint` round-trip. Lives in the
-    // same `#[tokio::test]` as the other sub-cases to sidestep the
-    // `typed_store::DBMetrics` global Prometheus registry race (see comment
-    // on `snapshot_round_trip`).
-    let checkpoint_dir = iota_common::tempdir();
-    snapshot_restores_per_object_checkpoint(checkpoint_dir.path()).await?;
-
-    // V1-rejection: a perpetual DB containing any row whose
-    // `previous_transaction_checkpoint` is `None` (i.e. lifted from a pre-V2
-    // on-disk format) must cause the writer to error out before any `.obj`
-    // file is written. Two sub-cases cover the same boundary check at
-    // different layers:
-    //   - `lifted_v1_row`: V2 row with `previous_transaction_checkpoint: None`
-    //     inserted directly, isolating the writer's rejection check.
-    //   - `literal_v1_row`: literal `StoreObjectWrapper::V1` row inserted, forcing
-    //     `LiveSetIter::migrate()` to lift the row to V2(None) before the writer
-    //     sees it. Locks the end-to-end pipeline as a single assertion.
-    let lifted_v1_dir = iota_common::tempdir();
-    snapshot_writer_rejects_lifted_v1_row(lifted_v1_dir.path()).await?;
-    let literal_v1_dir = iota_common::tempdir();
-    snapshot_writer_rejects_literal_v1_row(literal_v1_dir.path()).await?;
-
-    // Watermark precondition: absent watermark rejects the snapshot.
-    // Matched against the full anyhow chain via `{err:#}` because
-    // `write_internal` wraps the inner error with a context message.
-    let watermark_absent_dir = iota_common::tempdir();
-    let err =
-        writer_with_stub_returns_err(watermark_absent_dir.path(), 0, TestGrpcIndexes::empty())
-            .await;
-    let msg = format!("{err:#}");
-    assert!(
-        msg.contains("`EpochIndexed` watermark is absent"),
-        "absent-watermark error chain did not match: {msg}"
-    );
-
-    // Watermark precondition: `Some(h)` with `h < snapshot_epoch` rejects
-    // the snapshot. The "watermark is at epoch N, but snapshot_epoch is M"
-    // wording is itself part of the operator-facing contract — pin both
-    // sides so a rewording that drops one is caught here.
-    let watermark_below_dir = iota_common::tempdir();
-    let err = writer_with_stub_returns_err(
-        watermark_below_dir.path(),
-        5,
-        TestGrpcIndexes::watermark_only(3),
-    )
-    .await;
-    let msg = format!("{err:#}");
-    assert!(
-        msg.contains("`EpochIndexed` watermark is at epoch 3"),
-        "too-low watermark error chain did not match (epoch 3): {msg}"
-    );
-    assert!(
-        msg.contains("snapshot_epoch is 5"),
-        "too-low watermark error chain did not match (snapshot_epoch 5): {msg}"
-    );
-
-    Ok(())
+async fn snapshot_round_trip_populated_zstd() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    snapshot_round_trip(dir.path(), 1000, FileCompression::Zstd).await
 }
 
-/// Asserts that per-object `previous_transaction_checkpoint` survives the
-/// snapshot round-trip end-to-end: stamped on `StoreObjectV2` at insert
-/// time, surfaced by `LiveSetIter`, BCS-encoded into `LiveObject` records
-/// in the `.obj` files, decoded by `LiveObjectIter`, and re-stamped onto
-/// the restored DB by `bulk_insert_live_objects`. Without this, a
-/// regression that, e.g., reverted the restore path to stamping `None`
-/// would still pass `snapshot_round_trip` (which only compares
-/// `object_reference`s) - this helper is the focused canary for the
-/// per-object checkpoint contract.
-async fn snapshot_restores_per_object_checkpoint(
-    tmp_dir: &std::path::Path,
-) -> Result<(), anyhow::Error> {
+/// Empty-DB case.
+#[tokio::test]
+async fn snapshot_round_trip_empty() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    snapshot_round_trip(dir.path(), 0, FileCompression::Zstd).await
+}
+
+/// Uncompressed case so the ref-file on-disk size assertion can run directly
+/// against the staged file.
+#[tokio::test]
+async fn snapshot_round_trip_uncompressed() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    snapshot_round_trip(dir.path(), 100, FileCompression::None).await
+}
+
+/// Per-object `previous_transaction_checkpoint` round-trip end-to-end:
+/// stamped on `StoreObjectV2` at insert time, surfaced by `LiveSetIter`,
+/// BCS-encoded into `LiveObject` records in the `.obj` files, decoded by
+/// `LiveObjectIter`, and re-stamped onto the restored DB by
+/// `bulk_insert_live_objects`. Without this, a regression that e.g.
+/// reverted the restore path to stamping `None` would still pass
+/// `snapshot_round_trip` (which only compares `object_reference`s) — this
+/// test is the focused canary for the per-object checkpoint contract.
+#[tokio::test]
+async fn snapshot_round_trip_per_object_checkpoint() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let tmp_dir = dir.path();
+
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(tmp_dir.join("local_dir")),
@@ -600,11 +546,16 @@ async fn snapshot_restores_per_object_checkpoint(
 /// containing checkpoint and there is no way to recover it; emitting them into
 /// the snapshot file would force downstream consumers to handle unknown
 /// checkpoints forever. The writer must fail loudly so an operator who hasn't
-/// synced from genesis under V2 sees the problem at publish time, not after the
-/// bad snapshot has been uploaded.
-async fn snapshot_writer_rejects_lifted_v1_row(
-    tmp_dir: &std::path::Path,
-) -> Result<(), anyhow::Error> {
+/// synced from genesis under V2 sees the problem at publish time, not after
+/// the bad snapshot has been uploaded. This test inserts the V2 row with
+/// `None` directly to isolate the writer's rejection check; the end-to-end
+/// V1->lift->reject pipeline is covered by
+/// `snapshot_writer_rejects_literal_v1_row`.
+#[tokio::test]
+async fn snapshot_writer_rejects_lifted_v1_row() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let tmp_dir = dir.path();
+
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(tmp_dir.join("local_dir")),
@@ -657,16 +608,18 @@ async fn snapshot_writer_rejects_lifted_v1_row(
     Ok(())
 }
 
-/// End-to-end variant of [`snapshot_writer_rejects_lifted_v1_row`]: inserts
-/// a literal `StoreObjectWrapper::V1` row directly into the perpetual
-/// `objects` map (bypassing `get_store_object`, which always produces V2),
-/// then runs the snapshot writer. The on-read `migrate()` step must lift
-/// the row to `StoreObjectV2(None)`, `LiveSetIter` must surface the `None`,
-/// and the writer must reject the publish — covering the full V1->lift->reject
+/// End-to-end variant of `snapshot_writer_rejects_lifted_v1_row`: inserts a
+/// literal `StoreObjectWrapper::V1` row directly into the perpetual `objects`
+/// map (bypassing `get_store_object`, which always produces V2), then runs
+/// the snapshot writer. The on-read `migrate()` step must lift the row to
+/// `StoreObjectV2(None)`, `LiveSetIter` must surface the `None`, and the
+/// writer must reject the publish — covering the full V1->lift->reject
 /// pipeline as a single assertion.
-async fn snapshot_writer_rejects_literal_v1_row(
-    tmp_dir: &std::path::Path,
-) -> Result<(), anyhow::Error> {
+#[tokio::test]
+async fn snapshot_writer_rejects_literal_v1_row() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let tmp_dir = dir.path();
+
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(tmp_dir.join("local_dir")),
@@ -707,6 +660,39 @@ async fn snapshot_writer_rejects_literal_v1_row(
     );
     assert_no_bucket_files(&remote_dir);
     Ok(())
+}
+
+/// Watermark precondition: absent watermark rejects the snapshot. Matched
+/// against the full anyhow chain via `{err:#}` because `write_internal` wraps
+/// the inner error with a context message.
+#[tokio::test]
+async fn snapshot_writer_rejects_absent_watermark() {
+    let dir = iota_common::tempdir();
+    let err = writer_with_stub_returns_err(dir.path(), 0, TestGrpcIndexes::empty()).await;
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("`EpochIndexed` watermark is absent"),
+        "absent-watermark error chain did not match: {msg}"
+    );
+}
+
+/// Watermark precondition: `Some(h)` with `h < snapshot_epoch` rejects the
+/// snapshot. The "watermark is at epoch N, but snapshot_epoch is M" wording is
+/// itself part of the operator-facing contract — pin both sides so a rewording
+/// that drops one is caught here.
+#[tokio::test]
+async fn snapshot_writer_rejects_watermark_below_snapshot_epoch() {
+    let dir = iota_common::tempdir();
+    let err = writer_with_stub_returns_err(dir.path(), 5, TestGrpcIndexes::watermark_only(3)).await;
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("`EpochIndexed` watermark is at epoch 3"),
+        "too-low watermark error chain did not match (epoch 3): {msg}"
+    );
+    assert!(
+        msg.contains("snapshot_epoch is 5"),
+        "too-low watermark error chain did not match (snapshot_epoch 5): {msg}"
+    );
 }
 
 /// Recursively scans `root` and asserts no `.obj` or `.ref` files exist.
