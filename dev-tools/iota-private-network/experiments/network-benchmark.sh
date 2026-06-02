@@ -113,15 +113,19 @@ latency_from_table() {
 
 # --- Optional latency matrix loaded from -L <file> ---
 # TSV with one row per directed edge:
-# `src \t dst \t rtt_ms \t jitter_ms \t loss_pct \t corr_pct`.
-# The 5th and 6th columns are optional. Indices are 1-based (validator-1 = 1).
+# `src \t dst \t rtt_ms \t jitter_ms \t loss_pct \t corr_pct \t slot_min_ms \t slot_max_ms`.
+# The 5th-8th columns are optional. Indices are 1-based (validator-1 = 1).
 # Comment lines starting with `#` and blank lines are ignored. When a
 # (src,dst) lookup misses the matrix the script transparently falls back to
-# the legacy latency_from_table above; loss/correlation fall back to 0.
+# the legacy latency_from_table above; loss/correlation/slot fall back to 0.
+# Non-zero slot columns emit `netem ... slot <min>ms <max>ms`, batching
+# delivery into bursts spaced uniformly in [min, max] (kernel >= 4.16).
 declare -A LATENCY_MATRIX
 declare -A JITTER_MATRIX
 declare -A LOSS_MATRIX
 declare -A CORR_MATRIX
+declare -A SLOT_MIN_MATRIX
+declare -A SLOT_MAX_MATRIX
 
 load_latency_matrix() {
   local file=$1
@@ -130,15 +134,17 @@ load_latency_matrix() {
     return 1
   fi
   local count=0
-  local src dst rtt jit loss corr
-  while IFS=$' \t' read -r src dst rtt jit loss corr _rest; do
+  local src dst rtt jit loss corr slot_min slot_max
+  while IFS=$' \t' read -r src dst rtt jit loss corr slot_min slot_max _rest; do
     [[ -z "${src:-}" || "${src:0:1}" == "#" ]] && continue
     LATENCY_MATRIX[$src,$dst]=$rtt
     JITTER_MATRIX[$src,$dst]=$jit
-    # Optional column: older TSVs (no loss column) get 0 here, so existing
-    # callers see no behavior change.
+    # Optional columns: older TSVs (no loss/corr/slot columns) get 0 here, so
+    # existing callers see no behavior change.
     LOSS_MATRIX[$src,$dst]=${loss:-0}
     CORR_MATRIX[$src,$dst]=${corr:-0}
+    SLOT_MIN_MATRIX[$src,$dst]=${slot_min:-0}
+    SLOT_MAX_MATRIX[$src,$dst]=${slot_max:-0}
     count=$(( count + 1 ))
   done < "$file"
   log "Loaded $count edges from latency matrix $file"
@@ -189,21 +195,36 @@ corr_for() {
   fi
 }
 
+slot_min_for() {
+  local A=$1 B=$2
+  local src=${A#validator-} dst=${B#validator-}
+  echo "${SLOT_MIN_MATRIX[$src,$dst]:-0}"
+}
+
+slot_max_for() {
+  local A=$1 B=$2
+  local src=${A#validator-} dst=${B#validator-}
+  echo "${SLOT_MAX_MATRIX[$src,$dst]:-0}"
+}
+
 
 # container_pid(container)
 # Returns host PID of Docker container
 container_pid() { docker inspect -f '{{.State.Pid}}' "$1"; }
 
 # Apply latency and mark packets from container A → B.
-# Args: A B delay_ms jitter_ms [loss_pct] [corr_pct]. Optional values default
-# to 0. When loss is 0 the `loss` netem keyword is omitted entirely (some
-# kernels treat `loss 0%` as enabling the loss accounting machinery even with
-# zero drop rate). Correlation is also omitted when 0.
+# Args: A B delay_ms jitter_ms [loss_pct] [corr_pct] [slot_min_ms] [slot_max_ms].
+# Optional values default to 0. When loss is 0 the `loss` netem keyword is
+# omitted entirely (some kernels treat `loss 0%` as enabling the loss
+# accounting machinery even with zero drop rate). Correlation is also omitted
+# when 0, and the slot clause is omitted unless both slot bounds are positive.
 apply_and_mark() {
   local A=$1 B=$2
   local D=$3 J=$4
   local L=${5:-0}
   local C=${6:-0}
+  local SMIN=${7:-0}
+  local SMAX=${8:-0}
   local IPB pid
   local lockfile="$LOCK_DIR/apply_and_mark_${A}.lock"
 
@@ -262,6 +283,10 @@ apply_and_mark() {
   # reject the qdisc and the edge would silently lose its latency.
   if [ "$J" != "0" ] && [ "$C" != "0" ] && [ "$C" != "0.0" ] && [ "$C" != "0.00" ]; then
     delay_args+=("${C}%")
+  fi
+  # Slot batching: deliver queued packets in bursts spaced U(SMIN, SMAX) ms.
+  if [ "${SMIN%.*}" -gt 0 ] 2>/dev/null && [ "${SMAX%.*}" -gt 0 ] 2>/dev/null; then
+    delay_args+=(slot "${SMIN}ms" "${SMAX}ms")
   fi
   if [ "$L" = "0" ] || [ "$L" = "0.0" ] || [ "$L" = "0.00" ]; then
     tc_err=$(nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" handle "${mark}0:" netem "${delay_args[@]}" 2>&1) || \
@@ -471,8 +496,10 @@ initially_apply_latency() {
         J=$(jitter_for "$A" "$B")
         L=$(loss_for "$A" "$B")
         C=$(corr_for "$A" "$B")
-        log "Injecting ${D}ms±${J}ms latency corr=${C}% loss=${L}% $A → $B"
-        apply_and_mark "$A" "$B" "$D" "$J" "$L" "$C"
+        SMIN=$(slot_min_for "$A" "$B")
+        SMAX=$(slot_max_for "$A" "$B")
+        log "Injecting ${D}ms±${J}ms latency corr=${C}% loss=${L}% slot=${SMIN}-${SMAX}ms $A → $B"
+        apply_and_mark "$A" "$B" "$D" "$J" "$L" "$C" "$SMIN" "$SMAX"
       done
     ) &
   done
@@ -516,7 +543,9 @@ reapply_latencies_and_fuzz_loop() {
                     J=$(jitter_for "$v" "$u")
                     L=$(loss_for "$v" "$u")
                     C=$(corr_for "$v" "$u")
-                    apply_and_mark "$v" "$u" "$D" "$J" "$L" "$C" &
+                    SMIN=$(slot_min_for "$v" "$u")
+                    SMAX=$(slot_max_for "$v" "$u")
+                    apply_and_mark "$v" "$u" "$D" "$J" "$L" "$C" "$SMIN" "$SMAX" &
                 done
                 wait
 

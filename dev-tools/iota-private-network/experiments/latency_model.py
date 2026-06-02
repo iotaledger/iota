@@ -3,18 +3,39 @@
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-"""Fixed non-metric latency model for private-network experiments.
+"""Deterministic role-based latency model for private-network experiments.
 
-The canonical model is an explicit 10-site directed matrix. One ordinary site
-is a hub with fast asymmetric spokes, while the remaining ordinary links stay
-in a narrow latency band. The tenth site is a single heavy-tail profile with
-much larger inbound and outbound delays. For 10 validators this produces
-107 / 720 (14.9%) ordered triangle-inequality violations.
+Validators are assigned one of four roles, repeating every ten validators:
 
-Larger validator sets repeat the ten site profiles in order. This is simple,
-deterministic, and preserves the original 10-validator matrix as the top-left
-submatrix. The seed argument remains accepted for CLI compatibility but does
-not affect latency generation.
+- ``hub`` (validator 1): ordinary band member with slightly fast inbound
+  spokes (47-49 ms), so its quorum occasionally completes just under the
+  50 ms minimum block delay (small ``MinBlockDelayTimeout`` share).
+- ``band`` (validators 2-8): a narrow asymmetric 48-54 ms mesh. Quorums
+  complete via direct full blocks (``AddBlock`` dominates globally).
+- ``relay follower`` (validator 9): one fast 22 ms spoke from the hub plus
+  slow 88-96 ms direct edges. Every hub block arrives one round ahead of the
+  direct mesh and completes the round via its embedded headers, so this
+  validator proposes almost exclusively on ``AddBlockHeader`` while staying
+  at the global pace.
+- ``heavy tail`` (validator 10): large fluctuating direct inbound
+  (350-375 ms +/- 50 ms) with a single decent route from the hub (60 ms)
+  whose delivery is bursty (netem ``slot 98-142 ms``, i.e. effective
+  per-packet latency swinging 60-200 ms). Bursts carry ~2 rounds each; the
+  50 ms min-block-delay deferral converts part of them into round skips,
+  which pushes this validator ~1.3 blk/s below the pace (the required
+  block-rate spread) and keeps a visible ``AddBlockHeader`` +
+  ``MinBlockDelayTimeout`` mix. Outbound stays moderate (70-95 ms) so its
+  stale leader blocks never stall the healthy quorum.
+
+The expected pre-upgrade signature for 10 validators (testnet image,
+measured in epoch 0 over 120 s) is a 16.5-19.5 blk/s band with >= 1 blk/s
+spread and block-creation reasons ordered AddBlock >> AddBlockHeader >
+MinBlockDelayTimeout.
+
+The model is fully deterministic; the seed argument is accepted for CLI
+compatibility but does not affect latency generation. Larger validator sets
+repeat the ten roles per decade; the n=10 matrix is the validated
+configuration.
 """
 
 from __future__ import annotations
@@ -23,71 +44,70 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-SITE_NAMES: tuple[str, ...] = (
-    "ordinary-hub",
-    "ordinary-b",
-    "ordinary-c",
-    "ordinary-d",
-    "ordinary-e",
-    "ordinary-f",
-    "ordinary-g",
-    "ordinary-h",
-    "ordinary-i",
+ROLE_NAMES: tuple[str, ...] = (
+    "hub",
+    "band-b",
+    "band-c",
+    "band-d",
+    "band-e",
+    "band-f",
+    "band-g",
+    "band-h",
+    "relay-follower",
     "heavy-tail",
 )
 
-# Directed per-edge netem delays in milliseconds. The values are intentionally
-# asymmetric. Zeros on the diagonal are replaced with same_site_delay_ms when
-# a larger validator set places multiple validators at the same site profile.
-SITE_DELAY_MS: tuple[tuple[int, ...], ...] = (
-    (0, 50, 51, 49, 50, 51, 49, 50, 51, 20),
-    (2, 0, 53, 54, 55, 56, 57, 58, 54, 40),
-    (3, 56, 0, 53, 54, 55, 56, 57, 58, 60),
-    (4, 55, 56, 0, 53, 54, 55, 56, 57, 80),
-    (1, 54, 55, 56, 0, 53, 54, 55, 56, 100),
-    (2, 58, 54, 55, 56, 0, 53, 54, 55, 120),
-    (3, 57, 58, 54, 55, 56, 0, 53, 54, 140),
-    (4, 56, 57, 58, 54, 55, 56, 0, 53, 160),
-    (1, 55, 56, 57, 58, 54, 55, 56, 0, 180),
-    (20, 80, 140, 200, 260, 320, 380, 440, 500, 0),
-)
-
-HEAVY_TAIL_SITE = SITE_NAMES.index("heavy-tail")
+HUB_ROLE = 0
+FOLLOWER_ROLE = 8
+HEAVY_ROLE = 9
 
 
 @dataclass
 class LatencyConfig:
-    """Knobs for the fixed ten-site latency model."""
+    """Knobs for the role-based latency model."""
 
     num_validators: int
     # Accepted for compatibility with scripts that also seed disruptions.
     seed: int = 42
-    same_site_delay_ms: int = 4
-    heavy_tail_same_site_delay_ms: int = 250
-    jitter_divisor: int = 16
-    jitter_min_ms: int = 2
-    jitter_max_ms: int = 8
+
+    # Ordinary mesh: delay = band_lo_ms + (3*src + 5*dst) % 7.
+    band_lo_ms: int = 48
+    # Inbound spokes to the hub: fast_in_ms + src % 3.
+    fast_in_ms: int = 47
+    # Relay follower: hub spoke and slow direct mesh.
+    follower_relay_ms: int = 22
+    follower_in_ms: int = 88
+    follower_out_ms: int = 58
+    follower_jitter_ms: int = 8
+    # Heavy tail: bursty hub spoke, deep fluctuating directs, moderate out.
+    heavy_relay_ms: int = 60
+    heavy_relay_slot_min_ms: int = 98
+    heavy_relay_slot_max_ms: int = 142
+    heavy_in_ms: int = 350
+    heavy_in_jitter_ms: int = 50
+    heavy_in_corr_pct: float = 70.0
+    heavy_out_ms: int = 70
+    heavy_out_jitter_ms: int = 25
     jitter_correlation_pct: float = 30.0
-    heavy_tail_jitter_ms: int = 75
-    heavy_tail_jitter_correlation_pct: float = 70.0
 
     def __post_init__(self) -> None:
         if self.num_validators < 2:
             raise ValueError("num_validators must be >= 2")
-        if self.same_site_delay_ms <= 0:
-            raise ValueError("same_site_delay_ms must be > 0")
-        if self.heavy_tail_same_site_delay_ms <= 0:
-            raise ValueError("heavy_tail_same_site_delay_ms must be > 0")
-        if self.jitter_divisor <= 0:
-            raise ValueError("jitter_divisor must be > 0")
-        if not (0 <= self.jitter_min_ms <= self.jitter_max_ms):
-            raise ValueError("require 0 <= jitter_min_ms <= jitter_max_ms")
-        if not (0.0 <= self.jitter_correlation_pct <= 100.0):
-            raise ValueError("jitter_correlation_pct must be in [0, 100]")
-        if self.heavy_tail_jitter_ms < 0:
-            raise ValueError("heavy_tail_jitter_ms must be >= 0")
-        if not (0.0 <= self.heavy_tail_jitter_correlation_pct <= 100.0):
-            raise ValueError("heavy_tail_jitter_correlation_pct must be in [0, 100]")
+        if min(
+            self.band_lo_ms,
+            self.fast_in_ms,
+            self.follower_relay_ms,
+            self.follower_in_ms,
+            self.follower_out_ms,
+            self.heavy_relay_ms,
+            self.heavy_in_ms,
+            self.heavy_out_ms,
+        ) <= 0:
+            raise ValueError("delays must be > 0")
+        if not (
+            0 < self.heavy_relay_slot_min_ms <= self.heavy_relay_slot_max_ms
+        ):
+            raise ValueError("require 0 < slot_min <= slot_max")
 
 
 @dataclass
@@ -98,85 +118,127 @@ class LatencyMatrix:
     """
 
     cfg: LatencyConfig
-    site_of: dict[int, str]
+    role_of: dict[int, str]
     rtt_ms: dict[tuple[int, int], int]
     jitter_ms: dict[tuple[int, int], int]
     correlation_pct: dict[tuple[int, int], float]
     loss_pct: dict[tuple[int, int], float]
+    slot_min_ms: dict[tuple[int, int], int]
+    slot_max_ms: dict[tuple[int, int], int]
 
 
-def _site_index(validator: int) -> int:
-    return (validator - 1) % len(SITE_NAMES)
+def _role(validator: int) -> int:
+    return (validator - 1) % len(ROLE_NAMES)
+
+
+def _hub_of(validator: int) -> int:
+    """Hub validator index of `validator`'s decade."""
+    return validator - _role(validator)
+
+
+# Edge tuple: (delay_ms, jitter_ms, corr_pct, loss_pct, slot_min, slot_max)
+def _edge(cfg: LatencyConfig, i: int, j: int) -> tuple[int, int, float, float, int, int]:
+    corr = cfg.jitter_correlation_pct
+    # heavy tail inbound: bursty hub spoke, deep fluctuating directs
+    if _role(j) == HEAVY_ROLE:
+        if i == _hub_of(j):
+            return (
+                cfg.heavy_relay_ms,
+                3,
+                0.0,
+                0.0,
+                cfg.heavy_relay_slot_min_ms,
+                cfg.heavy_relay_slot_max_ms,
+            )
+        return (
+            cfg.heavy_in_ms + (7 * i) % 26,
+            cfg.heavy_in_jitter_ms,
+            cfg.heavy_in_corr_pct,
+            0.0,
+            0,
+            0,
+        )
+    # heavy tail outbound: moderate, never stalls healthy quorums
+    if _role(i) == HEAVY_ROLE:
+        return cfg.heavy_out_ms + (9 * j) % 26, cfg.heavy_out_jitter_ms, corr, 0.0, 0, 0
+    # relay follower inbound: hub spoke wins every round
+    if _role(j) == FOLLOWER_ROLE:
+        if i == _hub_of(j):
+            return cfg.follower_relay_ms, 2, corr, 0.0, 0, 0
+        return cfg.follower_in_ms + (3 * i) % 9, cfg.follower_jitter_ms, corr, 0.0, 0, 0
+    if _role(i) == FOLLOWER_ROLE:
+        return cfg.follower_out_ms + (5 * j) % 9, cfg.follower_jitter_ms, corr, 0.0, 0, 0
+    # fast inbound spokes to the hub
+    if _role(j) == HUB_ROLE:
+        return cfg.fast_in_ms + i % 3, 3, corr, 0.0, 0, 0
+    # ordinary band mesh
+    delay = cfg.band_lo_ms + (3 * i + 5 * j) % 7
+    return delay, 3 + delay % 3, corr, 0.0, 0, 0
 
 
 def generate(cfg: LatencyConfig) -> LatencyMatrix:
-    """Expand the fixed ten-site table to the requested validator count."""
-    site_of = {
-        validator: SITE_NAMES[_site_index(validator)]
+    """Expand the role table to the requested validator count."""
+    role_of = {
+        validator: ROLE_NAMES[_role(validator)]
         for validator in range(1, cfg.num_validators + 1)
     }
     rtt: dict[tuple[int, int], int] = {}
     jitter: dict[tuple[int, int], int] = {}
     correlation: dict[tuple[int, int], float] = {}
     loss: dict[tuple[int, int], float] = {}
+    slot_min: dict[tuple[int, int], int] = {}
+    slot_max: dict[tuple[int, int], int] = {}
 
     for src in range(1, cfg.num_validators + 1):
         for dst in range(1, cfg.num_validators + 1):
             if src == dst:
                 continue
-            src_site = _site_index(src)
-            dst_site = _site_index(dst)
-            delay = SITE_DELAY_MS[src_site][dst_site]
-            if src_site == dst_site:
-                delay = (
-                    cfg.heavy_tail_same_site_delay_ms
-                    if src_site == HEAVY_TAIL_SITE
-                    else cfg.same_site_delay_ms
-                )
-
             edge = (src, dst)
-            rtt[edge] = delay
-            if src_site == HEAVY_TAIL_SITE or dst_site == HEAVY_TAIL_SITE:
-                jitter[edge] = cfg.heavy_tail_jitter_ms
-                correlation[edge] = cfg.heavy_tail_jitter_correlation_pct
-            else:
-                jitter[edge] = min(
-                    cfg.jitter_max_ms,
-                    max(cfg.jitter_min_ms, round(delay / cfg.jitter_divisor)),
-                )
-                correlation[edge] = cfg.jitter_correlation_pct
-            loss[edge] = 0.0
+            (
+                rtt[edge],
+                jitter[edge],
+                correlation[edge],
+                loss[edge],
+                slot_min[edge],
+                slot_max[edge],
+            ) = _edge(cfg, src, dst)
 
     return LatencyMatrix(
         cfg=cfg,
-        site_of=site_of,
+        role_of=role_of,
         rtt_ms=rtt,
         jitter_ms=jitter,
         correlation_pct=correlation,
         loss_pct=loss,
+        slot_min_ms=slot_min,
+        slot_max_ms=slot_max,
     )
 
 
 def write_tsv(matrix: LatencyMatrix, path: Path) -> None:
-    """Write `src dst delay_ms jitter_ms loss_pct corr_pct` TSV rows."""
+    """Write `src dst delay jitter loss corr slot_min slot_max` TSV rows.
+
+    The slot columns are consumed by network-benchmark.sh as netem
+    ``slot <min>ms <max>ms`` (bursty delivery); zeros mean no slot clause.
+    """
     cfg = matrix.cfg
     lines = [
-        f"# latency-matrix n={cfg.num_validators} model=fixed-ten-site-non-metric",
+        f"# latency-matrix n={cfg.num_validators} model=role-based",
         "# seed is intentionally ignored by latency generation",
-        f"# site profiles repeat every {len(SITE_NAMES)} validators",
-        f"# same-site delay={cfg.same_site_delay_ms}ms",
-        f"# ordinary jitter={cfg.jitter_min_ms}-{cfg.jitter_max_ms}ms "
-        f"corr={cfg.jitter_correlation_pct:.0f}%",
-        f"# heavy-tail jitter={cfg.heavy_tail_jitter_ms}ms "
-        f"corr={cfg.heavy_tail_jitter_correlation_pct:.0f}%",
-        "# src\tdst\tdelay_ms\tjitter_ms\tloss_pct\tcorr_pct",
+        f"# roles repeat every {len(ROLE_NAMES)} validators: "
+        "hub / band x7 / relay-follower / heavy-tail",
+        f"# heavy-tail relay slot {cfg.heavy_relay_slot_min_ms}-"
+        f"{cfg.heavy_relay_slot_max_ms} ms",
+        "# src\tdst\tdelay_ms\tjitter_ms\tloss_pct\tcorr_pct\tslot_min_ms\tslot_max_ms",
     ]
     for (src, dst), delay in sorted(matrix.rtt_ms.items()):
         lines.append(
             f"{src}\t{dst}\t{delay}\t"
             f"{matrix.jitter_ms[(src, dst)]}\t"
             f"{matrix.loss_pct[(src, dst)]:.2f}\t"
-            f"{matrix.correlation_pct[(src, dst)]:.0f}"
+            f"{matrix.correlation_pct[(src, dst)]:.0f}\t"
+            f"{matrix.slot_min_ms[(src, dst)]}\t"
+            f"{matrix.slot_max_ms[(src, dst)]}"
         )
     path.write_text("\n".join(lines) + "\n")
 
@@ -189,84 +251,41 @@ def _percentile(values: list[float], q: float) -> float:
     return sorted_values[index]
 
 
-def _triangle_violations(matrix: LatencyMatrix) -> tuple[int, int]:
-    """Count ordered triples (i, j, k) with delay[i,k] > delay[i,j] + delay[j,k]."""
-    n = matrix.cfg.num_validators
-    rtt = matrix.rtt_ms
-    total = 0
-    violations = 0
-    for i in range(1, n + 1):
-        for j in range(1, n + 1):
-            if j == i:
-                continue
-            for k in range(1, n + 1):
-                if k == i or k == j:
-                    continue
-                total += 1
-                if rtt[(i, k)] > rtt[(i, j)] + rtt[(j, k)]:
-                    violations += 1
-    return violations, total
-
-
-def _asymmetry(matrix: LatencyMatrix) -> tuple[float, int]:
-    """Return (mean absolute difference, max absolute difference) in ms."""
-    n = matrix.cfg.num_validators
-    differences = [
-        abs(matrix.rtt_ms[(i, j)] - matrix.rtt_ms[(j, i)])
-        for i in range(1, n + 1)
-        for j in range(i + 1, n + 1)
-    ]
-    if not differences:
-        return 0.0, 0
-    return sum(differences) / len(differences), max(differences)
-
-
 def summarize(matrix: LatencyMatrix) -> list[str]:
     """Return human-readable summary lines."""
     cfg = matrix.cfg
     n = cfg.num_validators
-    rtt = matrix.rtt_ms
-    all_rtt = list(rtt.values())
-    ordinary_jitter = [
-        jitter
-        for (src, dst), jitter in matrix.jitter_ms.items()
-        if _site_index(src) != HEAVY_TAIL_SITE
-        and _site_index(dst) != HEAVY_TAIL_SITE
-    ]
+    all_rtt = list(matrix.rtt_ms.values())
     mean = sum(all_rtt) / len(all_rtt) if all_rtt else 0.0
-    violations, triples = _triangle_violations(matrix)
-    violation_rate = violations / triples if triples else 0.0
-    asymmetry_mean, asymmetry_max = _asymmetry(matrix)
     inbound_means = sorted(
-        sum(rtt[(src, dst)] for src in range(1, n + 1) if src != dst) / (n - 1)
+        sum(matrix.rtt_ms[(src, dst)] for src in range(1, n + 1) if src != dst)
+        / (n - 1)
         for dst in range(1, n + 1)
     )
+    heavies = [v for v in range(1, n + 1) if _role(v) == HEAVY_ROLE]
+    followers = [v for v in range(1, n + 1) if _role(v) == FOLLOWER_ROLE]
 
     return [
         f"  Validators        : {n}",
-        f"  Model             : fixed {len(SITE_NAMES)}-site non-metric matrix",
-        f"  Delay mean / p50 / p90 / p99 / max : "
+        "  Model             : role-based (hub / band / relay-follower / heavy-tail)",
+        f"  Delay mean / p50 / p90 / max : "
         f"{mean:.1f} / {_percentile(all_rtt, 0.5)} / {_percentile(all_rtt, 0.9)} / "
-        f"{_percentile(all_rtt, 0.99)} / {max(all_rtt)} ms",
+        f"{max(all_rtt)} ms",
         f"  Per-validator inbound mean delay spread: "
-        f"min {inbound_means[0]:.0f} / p25 {_percentile(inbound_means, 0.25):.0f} / "
-        f"p50 {_percentile(inbound_means, 0.5):.0f} / "
-        f"p75 {_percentile(inbound_means, 0.75):.0f} / "
+        f"min {inbound_means[0]:.0f} / p50 {_percentile(inbound_means, 0.5):.0f} / "
         f"max {inbound_means[-1]:.0f} ms",
-        f"  Ordinary jitter   : {min(ordinary_jitter)}-{max(ordinary_jitter)} ms, "
-        f"correlation {cfg.jitter_correlation_pct:.0f}%",
-        f"  Heavy-tail jitter : {cfg.heavy_tail_jitter_ms} ms, "
-        f"correlation {cfg.heavy_tail_jitter_correlation_pct:.0f}%",
-        f"  Asymmetry         : mean |A-B - B-A| = {asymmetry_mean:.1f} ms, "
-        f"max = {asymmetry_max} ms",
-        f"  Triangle violations: {violations}/{triples} ({100 * violation_rate:.1f}%)",
+        f"  Relay followers   : {followers or '-'} (hub spoke "
+        f"{cfg.follower_relay_ms} ms, directs {cfg.follower_in_ms}+ ms)",
+        f"  Heavy tails       : {heavies or '-'} (directs {cfg.heavy_in_ms}+ ms "
+        f"±{cfg.heavy_in_jitter_ms} ms, hub spoke {cfg.heavy_relay_ms} ms "
+        f"slot {cfg.heavy_relay_slot_min_ms}-{cfg.heavy_relay_slot_max_ms} ms)",
     ]
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Inspect the fixed latency model")
+    parser = argparse.ArgumentParser(description="Inspect the role-based latency model")
     parser.add_argument("-n", "--num-validators", type=int, default=10)
     parser.add_argument(
         "-s",
