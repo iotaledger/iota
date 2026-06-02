@@ -7,7 +7,6 @@ use std::fmt::{Display, Formatter, Result};
 use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectRef, SequenceNumber},
-    iota_serde::IotaStructTag,
     object::Owner,
 };
 use schemars::JsonSchema;
