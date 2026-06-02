@@ -291,6 +291,15 @@ impl RandomnessManager {
             "random beacon: state initialized with authority={name}, total_weight={total_weight}, t={t}, num_nodes={num_nodes}, oracle initial_prefix={prefix_str:?}",
         );
 
+        // Reset DKG metrics to a clean baseline for this epoch. The success/failure
+        // branches below restore the right value if a persisted verdict exists;
+        // pending starts at 0 across the board.
+        epoch_store.metrics.epoch_random_beacon_dkg_failed.set(0);
+        epoch_store
+            .metrics
+            .epoch_random_beacon_dkg_num_shares
+            .set(0);
+
         // Load existing data from store.
         let highest_completed_round = tables
             .randomness_highest_completed_round
