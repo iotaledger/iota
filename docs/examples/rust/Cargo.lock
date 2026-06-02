@@ -3081,6 +3081,7 @@ name = "iota-common"
 version = "1.25.0-alpha"
 dependencies = [
  "futures",
+ "getrandom 0.2.17",
  "iota-macros",
  "iota-metrics",
  "once_cell",
@@ -3539,13 +3540,14 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=61f631005b809af3d10e977ed22816a8843103ac#61f631005b809af3d10e977ed22816a8843103ac"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4a922ac5e12e382f3a5fd783431858151c90330e#4a922ac5e12e382f3a5fd783431858151c90330e"
 dependencies = [
  "ed25519-dalek",
  "iota-sdk-types",
  "k256",
  "p256",
  "rand_core 0.6.4",
+ "sha2 0.10.9",
  "signature 2.2.0",
  "thiserror 2.0.18",
 ]
@@ -3553,7 +3555,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=61f631005b809af3d10e977ed22816a8843103ac#61f631005b809af3d10e977ed22816a8843103ac"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4a922ac5e12e382f3a5fd783431858151c90330e#4a922ac5e12e382f3a5fd783431858151c90330e"
 dependencies = [
  "base64ct",
  "bcs",
