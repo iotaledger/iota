@@ -121,7 +121,7 @@ impl<'de> DeserializeAs<'de, NativeObjectID> for ObjectID {
 }
 
 /// A schema type that defines the JSON representation of the
-/// [`SequenceNumber`](iota_types::base_types::SequenceNumber) type as a string
+/// [`SequenceNumber`] type as a string
 /// and provides an alternate serialization usable via `#[serde_as]`.
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -170,7 +170,7 @@ impl<'de> DeserializeAs<'de, iota_types::base_types::SequenceNumber> for Sequenc
 }
 
 /// A schema type that defines the JSON representation of the
-/// [`SequenceNumber`](iota_types::base_types::SequenceNumber) type as a u64
+/// [`SequenceNumber`] type as a u64
 /// integer and uses the default serialization.
 pub struct SequenceNumberU64;
 
