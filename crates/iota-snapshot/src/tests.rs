@@ -24,7 +24,7 @@ use iota_types::{
     base_types::ObjectID,
     committee::EpochId,
     crypto::AuthorityStrongQuorumSignInfo,
-    digests::TransactionDigest,
+    digests::{ChainIdentifier, TransactionDigest},
     effects::TransactionEvents,
     gas::GasCostSummary,
     global_state_hash::GlobalStateHash,
@@ -41,7 +41,7 @@ use iota_types::{
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
-    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV1, OBJECT_REF_BYTES,
+    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
     reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
 };
 
@@ -158,6 +158,7 @@ fn fully_populated_epoch_info(epoch: EpochId) -> EpochInfoV2 {
 /// `EpochInfoV2 → EpochInfoV1Entry` translation.
 fn fully_populated_snapshot_epoch_entry(epoch: EpochId) -> EpochInfoV1Entry {
     EpochInfoV1Entry {
+        epoch,
         start_checkpoint: 0,
         start_system_state: bcs::to_bytes(&test_system_state())
             .expect("test_system_state must BCS-encode"),
@@ -284,6 +285,7 @@ async fn snapshot_round_trip(
         &local_store_config,
         &remote_store_config,
         TestGrpcIndexes::with_epochs_through(0),
+        ChainIdentifier::default(),
         file_compression,
         NonZeroUsize::new(1).unwrap(),
     )
@@ -411,6 +413,7 @@ async fn writer_with_stub_returns_err(
         &local_store_config,
         &remote_store_config,
         stub,
+        ChainIdentifier::default(),
         FileCompression::None,
         NonZeroUsize::new(1).unwrap(),
     )
@@ -523,6 +526,7 @@ async fn snapshot_restores_per_object_checkpoint(
         &local_store_config,
         &remote_store_config,
         TestGrpcIndexes::with_epochs_through(0),
+        ChainIdentifier::default(),
         FileCompression::None,
         NonZeroUsize::new(1).unwrap(),
     )
@@ -617,6 +621,7 @@ async fn snapshot_writer_rejects_lifted_v1_row(
         &local_store_config,
         &remote_store_config,
         TestGrpcIndexes::with_epochs_through(0),
+        ChainIdentifier::default(),
         FileCompression::None,
         NonZeroUsize::new(1).unwrap(),
     )
@@ -678,6 +683,7 @@ async fn snapshot_writer_rejects_literal_v1_row(
         &local_store_config,
         &remote_store_config,
         TestGrpcIndexes::with_epochs_through(0),
+        ChainIdentifier::default(),
         FileCompression::None,
         NonZeroUsize::new(1).unwrap(),
     )
@@ -738,7 +744,7 @@ async fn test_v2_manifest_missing_epoch_info_is_rejected() {
 
     // Manifest with file_metadata containing a bogus reference entry but no
     // EPOCH_INFO. The reader should reject this up-front.
-    let manifest = Manifest::V1(ManifestV1 {
+    let manifest = Manifest::V2(ManifestV2 {
         snapshot_version: 2,
         address_length: ObjectID::LENGTH as u64,
         file_metadata: vec![FileMetadata {
@@ -749,6 +755,7 @@ async fn test_v2_manifest_missing_epoch_info_is_rejected() {
             sha3_digest: [0u8; 32],
         }],
         epoch: 0,
+        chain_id: ChainIdentifier::default(),
     });
     let manifest_path = epoch_dir.join("MANIFEST");
     write_manifest_file(&manifest_path, &manifest).unwrap();
@@ -846,15 +853,16 @@ fn epoch_info_v1_bcs_round_trip() {
 /// file layout and break every existing snapshot consumer.
 ///
 /// Asserts that `bcs(entry)` equals the concatenation:
-///   `first_checkpoint.to_le_bytes()
+///   `epoch.to_le_bytes() ++ start_checkpoint.to_le_bytes()
 ///    ++ uvarint(start_system_state.len()) ++ start_system_state
-///    ++ bcs(last_checkpoint_summary: Option<...>)
-///    ++ bcs(end_of_epoch_tx_events: Option<...>)`.
-/// This both verifies the relative order of the four fields and
+///    ++ bcs(last_checkpoint_summary: CertifiedCheckpointSummary)
+///    ++ bcs(end_of_epoch_tx_events: TransactionEvents)`.
+/// This both verifies the relative order of the fields and
 /// detects any encoding-shape change in the inner types.
 #[test]
 fn snapshot_epoch_info_field_order_is_locked() {
     let entry = EpochInfoV1Entry {
+        epoch: 0x0102_0304_0506_0708,
         // Distinct, recognizable u64 — easy to spot in a hex dump if
         // this assertion ever needs to be debugged.
         start_checkpoint: 0xDEAD_BEEF_CAFE_F00D,
@@ -872,6 +880,7 @@ fn snapshot_epoch_info_field_order_is_locked() {
     let events_bytes = bcs::to_bytes(&entry.end_of_epoch_tx_events).expect("events serialization");
 
     let mut expected = Vec::with_capacity(entry_bytes.len());
+    expected.extend_from_slice(&entry.epoch.to_le_bytes());
     expected.extend_from_slice(&entry.start_checkpoint.to_le_bytes());
     expected.extend_from_slice(&start_system_state_bytes);
     expected.extend_from_slice(&summary_bytes);

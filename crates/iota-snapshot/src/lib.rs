@@ -38,6 +38,7 @@ use iota_storage::{
 };
 use iota_types::{
     base_types::ObjectID,
+    digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -225,36 +226,62 @@ pub struct ManifestV1 {
     pub epoch: u64,
 }
 
+/// `ManifestV1` plus `chain_id`, letting a restore reject a foreign-chain
+/// snapshot.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ManifestV2 {
+    pub snapshot_version: u8,
+    pub address_length: u64,
+    pub file_metadata: Vec<FileMetadata>,
+    pub epoch: u64,
+    pub chain_id: ChainIdentifier,
+}
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Manifest {
     V1(ManifestV1),
+    V2(ManifestV2),
 }
 
 impl Manifest {
     pub fn snapshot_version(&self) -> u8 {
         match self {
             Self::V1(manifest) => manifest.snapshot_version,
+            Self::V2(manifest) => manifest.snapshot_version,
         }
     }
     pub fn address_length(&self) -> u64 {
         match self {
             Self::V1(manifest) => manifest.address_length,
+            Self::V2(manifest) => manifest.address_length,
         }
     }
     pub fn file_metadata(&self) -> &Vec<FileMetadata> {
         match self {
             Self::V1(manifest) => &manifest.file_metadata,
+            Self::V2(manifest) => &manifest.file_metadata,
         }
     }
     pub fn epoch(&self) -> u64 {
         match self {
             Self::V1(manifest) => manifest.epoch,
+            Self::V2(manifest) => manifest.epoch,
+        }
+    }
+    /// Producing chain's identifier; `None` for V1.
+    pub fn chain_id(&self) -> Option<ChainIdentifier> {
+        match self {
+            Self::V1(_) => None,
+            Self::V2(manifest) => Some(manifest.chain_id),
         }
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpochInfoV1Entry {
+    /// Epoch this entry describes.
+    pub epoch: iota_types::committee::EpochId,
+
     /// First checkpoint of this epoch (`0` for genesis; otherwise the prior
     /// epoch's `last_checkpoint_summary.sequence_number + 1`).
     pub start_checkpoint: iota_types::messages_checkpoint::CheckpointSequenceNumber,

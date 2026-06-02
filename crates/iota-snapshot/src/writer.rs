@@ -31,6 +31,7 @@ use iota_storage::{
 };
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
+    digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
@@ -48,7 +49,7 @@ use tracing::debug;
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FILE_MAX_BYTES,
     FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest,
-    ManifestV1, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
+    ManifestV2, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
     compute_sha3_checksum, create_file_metadata,
 };
 
@@ -287,6 +288,8 @@ pub struct StateSnapshotWriterV1 {
     /// See the `Watermark::EpochIndexed` precondition in
     /// `write_epoch_info`.
     grpc_indexes: Arc<dyn GrpcIndexes>,
+    /// Chain identifier written into the `ManifestV2`.
+    chain_id: ChainIdentifier,
     concurrency: usize,
 }
 
@@ -296,6 +299,7 @@ impl StateSnapshotWriterV1 {
         local_staging_store: &Arc<DynObjectStore>,
         remote_object_store: &Arc<DynObjectStore>,
         grpc_indexes: Arc<dyn GrpcIndexes>,
+        chain_id: ChainIdentifier,
         file_compression: FileCompression,
         concurrency: NonZeroUsize,
     ) -> Result<Self> {
@@ -305,6 +309,7 @@ impl StateSnapshotWriterV1 {
             remote_object_store: remote_object_store.clone(),
             local_staging_store: local_staging_store.clone(),
             grpc_indexes,
+            chain_id,
             concurrency: concurrency.get(),
         })
     }
@@ -313,6 +318,7 @@ impl StateSnapshotWriterV1 {
         local_store_config: &ObjectStoreConfig,
         remote_store_config: &ObjectStoreConfig,
         grpc_indexes: Arc<dyn GrpcIndexes>,
+        chain_id: ChainIdentifier,
         file_compression: FileCompression,
         concurrency: NonZeroUsize,
     ) -> Result<Self> {
@@ -329,6 +335,7 @@ impl StateSnapshotWriterV1 {
             remote_object_store,
             local_staging_store,
             grpc_indexes,
+            chain_id,
             concurrency: concurrency.get(),
         })
     }
@@ -592,6 +599,7 @@ impl StateSnapshotWriterV1 {
             );
 
             entries.push(EpochInfoV1Entry {
+                epoch: epoch_id,
                 start_checkpoint: epoch_info.start_checkpoint,
                 start_system_state: bcs::to_bytes(&epoch_info.system_state)?,
                 last_checkpoint_summary,
@@ -624,11 +632,12 @@ impl StateSnapshotWriterV1 {
     fn write_manifest(&mut self, epoch: u64, file_metadata: Vec<FileMetadata>) -> Result<()> {
         let (f, manifest_file_path) = self.manifest_file(epoch)?;
         let mut wbuf = BufWriter::new(f);
-        let manifest: Manifest = Manifest::V1(ManifestV1 {
+        let manifest: Manifest = Manifest::V2(ManifestV2 {
             snapshot_version: 2,
             address_length: ObjectID::LENGTH as u64,
             file_metadata,
             epoch,
+            chain_id: self.chain_id,
         });
         let serialized_manifest = bcs::to_bytes(&manifest)?;
         wbuf.write_all(&serialized_manifest)?;
