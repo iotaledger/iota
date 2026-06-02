@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{MoveStruct as MoveObject, ObjectData as Data};
+pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner, ObjectData as Data};
 use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -335,21 +335,6 @@ impl MoveObjectExt for MoveObject {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-#[serde(rename = "Object")]
-pub struct ObjectInner {
-    /// The meat of the object
-    pub data: Data,
-    /// The owner that unlocks this object
-    pub owner: Owner,
-    /// The digest of the transaction that created or last mutated this object
-    pub previous_transaction: TransactionDigest,
-    /// The amount of IOTA we would rebate if this object gets deleted.
-    /// This number is re-calculated each time the object is mutated based on
-    /// the present storage gas price.
-    pub storage_rebate: u64,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 #[serde(from = "ObjectInner")]
 pub struct Object(Arc<ObjectInner>);
 
@@ -493,7 +478,7 @@ impl std::ops::DerefMut for Object {
     }
 }
 
-impl ObjectInner {
+impl Object {
     /// Returns true if the object is a system package.
     pub fn is_system_package(&self) -> bool {
         self.is_package() && self.id().is_system_package()
@@ -536,7 +521,7 @@ impl ObjectInner {
     }
 
     pub fn digest(&self) -> ObjectDigest {
-        ObjectDigest::new(default_hash(self))
+        ObjectDigest::new(default_hash(self.as_inner()))
     }
 
     pub fn id(&self) -> ObjectId {
