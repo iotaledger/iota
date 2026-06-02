@@ -3,133 +3,153 @@
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-"""Deterministic latency model for the migration test.
+"""Fixed non-metric latency model for private-network experiments.
 
-The matrix intentionally sits just above Starfish's 50 ms minimum block delay.
-Each validator gets a small inbound delay offset, so every validator remains in
-the same broad production band while still creating a visible fastest-to-slowest
-spread. The model is deliberately simple: per-destination delay bias, tiny
-per-edge noise, and bounded jitter.
+The canonical model is an explicit 10-site directed matrix. One ordinary site
+is a hub with fast asymmetric spokes, while the remaining ordinary links stay
+in a narrow latency band. The tenth site is a single heavy-tail profile with
+much larger inbound and outbound delays. For 10 validators this produces
+107 / 720 (14.9%) ordered triangle-inequality violations.
+
+Larger validator sets repeat the ten site profiles in order. This is simple,
+deterministic, and preserves the original 10-validator matrix as the top-left
+submatrix. The seed argument remains accepted for CLI compatibility but does
+not affect latency generation.
 """
 
 from __future__ import annotations
 
-import random
 from dataclasses import dataclass
 from pathlib import Path
 
 
+SITE_NAMES: tuple[str, ...] = (
+    "ordinary-hub",
+    "ordinary-b",
+    "ordinary-c",
+    "ordinary-d",
+    "ordinary-e",
+    "ordinary-f",
+    "ordinary-g",
+    "ordinary-h",
+    "ordinary-i",
+    "heavy-tail",
+)
+
+# Directed per-edge netem delays in milliseconds. The values are intentionally
+# asymmetric. Zeros on the diagonal are replaced with same_site_delay_ms when
+# a larger validator set places multiple validators at the same site profile.
+SITE_DELAY_MS: tuple[tuple[int, ...], ...] = (
+    (0, 50, 51, 49, 50, 51, 49, 50, 51, 20),
+    (2, 0, 53, 54, 55, 56, 57, 58, 54, 40),
+    (3, 56, 0, 53, 54, 55, 56, 57, 58, 60),
+    (4, 55, 56, 0, 53, 54, 55, 56, 57, 80),
+    (1, 54, 55, 56, 0, 53, 54, 55, 56, 100),
+    (2, 58, 54, 55, 56, 0, 53, 54, 55, 120),
+    (3, 57, 58, 54, 55, 56, 0, 53, 54, 140),
+    (4, 56, 57, 58, 54, 55, 56, 0, 53, 160),
+    (1, 55, 56, 57, 58, 54, 55, 56, 0, 180),
+    (20, 80, 140, 200, 260, 320, 380, 440, 500, 0),
+)
+
+HEAVY_TAIL_SITE = SITE_NAMES.index("heavy-tail")
+
+
 @dataclass
 class LatencyConfig:
-    """Knobs for a simple near-threshold latency model."""
+    """Knobs for the fixed ten-site latency model."""
 
     num_validators: int
+    # Accepted for compatibility with scripts that also seed disruptions.
     seed: int = 42
-
-    # Kept for CLI compatibility. The active validator set is ranked directly
-    # so every N in the migration-test range gets the full delay spread.
-    default_matrix_validators: int = 20
-
-    # The fastest validator receives enough prior-round blocks shortly after
-    # the min delay; the slowest is only a few ms behind. This keeps the target
-    # interval around 53-57 ms, i.e. about 17.5-19.3 blocks/s.
-    base_delay_ms: int = 53
-    validator_delay_spread_ms: int = 4
-    edge_noise_ms: int = 1
-    jitter_base_ms: int = 4
-    jitter_spread_ms: int = 3
+    same_site_delay_ms: int = 4
+    heavy_tail_same_site_delay_ms: int = 250
+    jitter_divisor: int = 16
+    jitter_min_ms: int = 2
+    jitter_max_ms: int = 8
     jitter_correlation_pct: float = 30.0
-
-    min_rtt_ms: int = 1
+    heavy_tail_jitter_ms: int = 75
+    heavy_tail_jitter_correlation_pct: float = 70.0
 
     def __post_init__(self) -> None:
         if self.num_validators < 2:
             raise ValueError("num_validators must be >= 2")
-        if self.default_matrix_validators < 2:
-            raise ValueError("default_matrix_validators must be >= 2")
-        if self.base_delay_ms <= 0:
-            raise ValueError("base_delay_ms must be > 0")
-        if self.validator_delay_spread_ms < 0 or self.edge_noise_ms < 0:
-            raise ValueError("delay spread and edge noise must be >= 0")
-        if self.jitter_base_ms < 0 or self.jitter_spread_ms < 0:
-            raise ValueError("jitter values must be >= 0")
+        if self.same_site_delay_ms <= 0:
+            raise ValueError("same_site_delay_ms must be > 0")
+        if self.heavy_tail_same_site_delay_ms <= 0:
+            raise ValueError("heavy_tail_same_site_delay_ms must be > 0")
+        if self.jitter_divisor <= 0:
+            raise ValueError("jitter_divisor must be > 0")
+        if not (0 <= self.jitter_min_ms <= self.jitter_max_ms):
+            raise ValueError("require 0 <= jitter_min_ms <= jitter_max_ms")
         if not (0.0 <= self.jitter_correlation_pct <= 100.0):
             raise ValueError("jitter_correlation_pct must be in [0, 100]")
+        if self.heavy_tail_jitter_ms < 0:
+            raise ValueError("heavy_tail_jitter_ms must be >= 0")
+        if not (0.0 <= self.heavy_tail_jitter_correlation_pct <= 100.0):
+            raise ValueError("heavy_tail_jitter_correlation_pct must be in [0, 100]")
 
 
 @dataclass
 class LatencyMatrix:
     """Output of `generate`.
 
-    Indices in the maps are 1-based to match container names
-    (validator-1, ...).
+    Validator indices in the maps are 1-based to match container names.
     """
 
     cfg: LatencyConfig
-    delay_bias_ms: dict[int, float]       # validator -> inbound delay offset
-    rtt_ms: dict[tuple[int, int], int]    # (src, dst) -> ms (1-based, src != dst)
+    site_of: dict[int, str]
+    rtt_ms: dict[tuple[int, int], int]
     jitter_ms: dict[tuple[int, int], int]
     correlation_pct: dict[tuple[int, int], float]
     loss_pct: dict[tuple[int, int], float]
 
 
-_MASK64 = 0xFFFF_FFFF_FFFF_FFFF
-
-
-def _rng_for(cfg: LatencyConfig, *indices: int, salt: int) -> random.Random:
-    """Return a Random instance seeded by `(cfg.seed, indices..., salt)`.
-
-    Different salts give independent streams; different `indices` tuples give
-    different streams within a salt.
-    """
-    h = (cfg.seed & 0xFFFF_FFFF) * 1_000_003 + salt * 7_919
-    for idx in indices:
-        # Each index is mixed in with a 1-shift so swapping (i, j) → (j, i)
-        # produces a different state (directed edges need to differ).
-        h = ((h * 65_537) + (idx * 7_919) + 1) & _MASK64
-    return random.Random(h)
+def _site_index(validator: int) -> int:
+    return (validator - 1) % len(SITE_NAMES)
 
 
 def generate(cfg: LatencyConfig) -> LatencyMatrix:
-    n = cfg.num_validators
-    ranked = sorted(range(n), key=lambda k: _rng_for(cfg, k, salt=1).random())
-    rank_of = {validator: rank for rank, validator in enumerate(ranked)}
-    denom = max(1, n - 1)
-    delay_bias = {
-        validator + 1: cfg.validator_delay_spread_ms * rank_of[validator] / denom
-        for validator in range(n)
+    """Expand the fixed ten-site table to the requested validator count."""
+    site_of = {
+        validator: SITE_NAMES[_site_index(validator)]
+        for validator in range(1, cfg.num_validators + 1)
     }
-
     rtt: dict[tuple[int, int], int] = {}
     jitter: dict[tuple[int, int], int] = {}
     correlation: dict[tuple[int, int], float] = {}
     loss: dict[tuple[int, int], float] = {}
 
-    for i in range(n):
-        for j in range(n):
-            if i == j:
+    for src in range(1, cfg.num_validators + 1):
+        for dst in range(1, cfg.num_validators + 1):
+            if src == dst:
                 continue
-            edge_noise = (
-                _rng_for(cfg, i, j, salt=2).randint(
-                    -cfg.edge_noise_ms, cfg.edge_noise_ms
+            src_site = _site_index(src)
+            dst_site = _site_index(dst)
+            delay = SITE_DELAY_MS[src_site][dst_site]
+            if src_site == dst_site:
+                delay = (
+                    cfg.heavy_tail_same_site_delay_ms
+                    if src_site == HEAVY_TAIL_SITE
+                    else cfg.same_site_delay_ms
                 )
-            )
-            dst_bias = delay_bias[j + 1]
-            value = cfg.base_delay_ms + dst_bias + edge_noise
 
-            rtt_val = max(cfg.min_rtt_ms, int(round(value)))
-            rtt[(i + 1, j + 1)] = rtt_val
-
-            rank_frac = rank_of[j] / denom
-            jitter[(i + 1, j + 1)] = int(
-                round(cfg.jitter_base_ms + cfg.jitter_spread_ms * rank_frac)
-            )
-            correlation[(i + 1, j + 1)] = cfg.jitter_correlation_pct
-            loss[(i + 1, j + 1)] = 0.0
+            edge = (src, dst)
+            rtt[edge] = delay
+            if src_site == HEAVY_TAIL_SITE or dst_site == HEAVY_TAIL_SITE:
+                jitter[edge] = cfg.heavy_tail_jitter_ms
+                correlation[edge] = cfg.heavy_tail_jitter_correlation_pct
+            else:
+                jitter[edge] = min(
+                    cfg.jitter_max_ms,
+                    max(cfg.jitter_min_ms, round(delay / cfg.jitter_divisor)),
+                )
+                correlation[edge] = cfg.jitter_correlation_pct
+            loss[edge] = 0.0
 
     return LatencyMatrix(
         cfg=cfg,
-        delay_bias_ms=delay_bias,
+        site_of=site_of,
         rtt_ms=rtt,
         jitter_ms=jitter,
         correlation_pct=correlation,
@@ -138,32 +158,22 @@ def generate(cfg: LatencyConfig) -> LatencyMatrix:
 
 
 def write_tsv(matrix: LatencyMatrix, path: Path) -> None:
-    """Write `src \\t dst \\t rtt_ms \\t jitter_ms \\t loss_pct \\t corr_pct`
-    rows (1-based indices). The bash reader treats the 5th and 6th columns as
-    optional so older TSVs without `loss_pct` or `corr_pct` still load
-    (missing values fall back to 0).
-
-    Header comment lines (starting with `#`) are skipped by the bash reader.
-    """
+    """Write `src dst delay_ms jitter_ms loss_pct corr_pct` TSV rows."""
     cfg = matrix.cfg
-    bias_lines = [
-        f"# validator-{v} inbound_bias_ms={bias:.1f}"
-        for v, bias in sorted(matrix.delay_bias_ms.items())
-    ]
     lines = [
-        f"# latency-matrix n={cfg.num_validators} seed={cfg.seed} "
-        f"default_matrix_validators={cfg.default_matrix_validators} "
-        f"base_delay_ms={cfg.base_delay_ms} "
-        f"validator_delay_spread_ms={cfg.validator_delay_spread_ms} "
-        f"edge_noise_ms={cfg.edge_noise_ms}",
-        f"# jitter={cfg.jitter_base_ms}-{cfg.jitter_base_ms + cfg.jitter_spread_ms}ms "
+        f"# latency-matrix n={cfg.num_validators} model=fixed-ten-site-non-metric",
+        "# seed is intentionally ignored by latency generation",
+        f"# site profiles repeat every {len(SITE_NAMES)} validators",
+        f"# same-site delay={cfg.same_site_delay_ms}ms",
+        f"# ordinary jitter={cfg.jitter_min_ms}-{cfg.jitter_max_ms}ms "
         f"corr={cfg.jitter_correlation_pct:.0f}%",
-        *bias_lines,
-        "# src\tdst\trtt_ms\tjitter_ms\tloss_pct\tcorr_pct",
+        f"# heavy-tail jitter={cfg.heavy_tail_jitter_ms}ms "
+        f"corr={cfg.heavy_tail_jitter_correlation_pct:.0f}%",
+        "# src\tdst\tdelay_ms\tjitter_ms\tloss_pct\tcorr_pct",
     ]
-    for (src, dst), rtt in sorted(matrix.rtt_ms.items()):
+    for (src, dst), delay in sorted(matrix.rtt_ms.items()):
         lines.append(
-            f"{src}\t{dst}\t{rtt}\t"
+            f"{src}\t{dst}\t{delay}\t"
             f"{matrix.jitter_ms[(src, dst)]}\t"
             f"{matrix.loss_pct[(src, dst)]:.2f}\t"
             f"{matrix.correlation_pct[(src, dst)]:.0f}"
@@ -174,13 +184,13 @@ def write_tsv(matrix: LatencyMatrix, path: Path) -> None:
 def _percentile(values: list[float], q: float) -> float:
     if not values:
         return 0
-    s = sorted(values)
-    k = max(0, min(len(s) - 1, int(round(q * (len(s) - 1)))))
-    return s[k]
+    sorted_values = sorted(values)
+    index = max(0, min(len(sorted_values) - 1, round(q * (len(sorted_values) - 1))))
+    return sorted_values[index]
 
 
 def _triangle_violations(matrix: LatencyMatrix) -> tuple[int, int]:
-    """Count ordered triples (i, j, k) with rtt[i,k] > rtt[i,j] + rtt[j,k]."""
+    """Count ordered triples (i, j, k) with delay[i,k] > delay[i,j] + delay[j,k]."""
     n = matrix.cfg.num_validators
     rtt = matrix.rtt_ms
     total = 0
@@ -199,73 +209,71 @@ def _triangle_violations(matrix: LatencyMatrix) -> tuple[int, int]:
 
 
 def _asymmetry(matrix: LatencyMatrix) -> tuple[float, int]:
-    """Returns (mean abs diff, max abs diff) over unordered pairs in ms."""
+    """Return (mean absolute difference, max absolute difference) in ms."""
     n = matrix.cfg.num_validators
-    diffs: list[int] = []
-    for i in range(1, n + 1):
-        for j in range(i + 1, n + 1):
-            diffs.append(abs(matrix.rtt_ms[(i, j)] - matrix.rtt_ms[(j, i)]))
-    if not diffs:
+    differences = [
+        abs(matrix.rtt_ms[(i, j)] - matrix.rtt_ms[(j, i)])
+        for i in range(1, n + 1)
+        for j in range(i + 1, n + 1)
+    ]
+    if not differences:
         return 0.0, 0
-    return sum(diffs) / len(diffs), max(diffs)
+    return sum(differences) / len(differences), max(differences)
 
 
 def summarize(matrix: LatencyMatrix) -> list[str]:
-    """Human-readable summary lines (one per line, no trailing newline)."""
+    """Return human-readable summary lines."""
     cfg = matrix.cfg
     n = cfg.num_validators
     rtt = matrix.rtt_ms
     all_rtt = list(rtt.values())
-    mean = sum(all_rtt) / len(all_rtt) if all_rtt else 0.0
-    v_count, v_total = _triangle_violations(matrix)
-    v_rate = (v_count / v_total) if v_total else 0.0
-    asym_mean, asym_max = _asymmetry(matrix)
-
-    # Per-validator inbound mean delay drives local block-production spread.
-    in_means = [
-        sum(rtt[(i, v)] for i in range(1, n + 1) if i != v) / (n - 1)
-        for v in range(1, n + 1)
+    ordinary_jitter = [
+        jitter
+        for (src, dst), jitter in matrix.jitter_ms.items()
+        if _site_index(src) != HEAVY_TAIL_SITE
+        and _site_index(dst) != HEAVY_TAIL_SITE
     ]
-    in_means.sort()
-    biases = sorted(matrix.delay_bias_ms.values())
-    lines = [
+    mean = sum(all_rtt) / len(all_rtt) if all_rtt else 0.0
+    violations, triples = _triangle_violations(matrix)
+    violation_rate = violations / triples if triples else 0.0
+    asymmetry_mean, asymmetry_max = _asymmetry(matrix)
+    inbound_means = sorted(
+        sum(rtt[(src, dst)] for src in range(1, n + 1) if src != dst) / (n - 1)
+        for dst in range(1, n + 1)
+    )
+
+    return [
         f"  Validators        : {n}",
-        f"  RTT mean / p50 / p90 / p99 / max : "
+        f"  Model             : fixed {len(SITE_NAMES)}-site non-metric matrix",
+        f"  Delay mean / p50 / p90 / p99 / max : "
         f"{mean:.1f} / {_percentile(all_rtt, 0.5)} / {_percentile(all_rtt, 0.9)} / "
         f"{_percentile(all_rtt, 0.99)} / {max(all_rtt)} ms",
         f"  Per-validator inbound mean delay spread: "
-        f"min {in_means[0]:.0f} / p25 {_percentile(in_means, 0.25):.0f} / "
-        f"p50 {_percentile(in_means, 0.5):.0f} / "
-        f"p75 {_percentile(in_means, 0.75):.0f} / "
-        f"max {in_means[-1]:.0f} ms",
-        f"  Inbound bias spread: "
-        f"min {biases[0]:.1f} / p50 {_percentile(biases, 0.5):.1f} / "
-        f"max {biases[-1]:.1f} ms",
-        f"  Jitter             : {cfg.jitter_base_ms}-"
-        f"{cfg.jitter_base_ms + cfg.jitter_spread_ms} ms, "
+        f"min {inbound_means[0]:.0f} / p25 {_percentile(inbound_means, 0.25):.0f} / "
+        f"p50 {_percentile(inbound_means, 0.5):.0f} / "
+        f"p75 {_percentile(inbound_means, 0.75):.0f} / "
+        f"max {inbound_means[-1]:.0f} ms",
+        f"  Ordinary jitter   : {min(ordinary_jitter)}-{max(ordinary_jitter)} ms, "
         f"correlation {cfg.jitter_correlation_pct:.0f}%",
+        f"  Heavy-tail jitter : {cfg.heavy_tail_jitter_ms} ms, "
+        f"correlation {cfg.heavy_tail_jitter_correlation_pct:.0f}%",
+        f"  Asymmetry         : mean |A-B - B-A| = {asymmetry_mean:.1f} ms, "
+        f"max = {asymmetry_max} ms",
+        f"  Triangle violations: {violations}/{triples} ({100 * violation_rate:.1f}%)",
     ]
 
-    lines.extend([
-        f"  Asymmetry         : mean |A→B−B→A| = {asym_mean:.1f} ms, "
-        f"max = {asym_max} ms",
-        f"  Triangle violations: {v_count}/{v_total} ({100 * v_rate:.1f}%)",
-    ])
-    return lines
 
-
-# Small self-check when run directly. Useful for tuning the defaults.
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Inspect the latency model output")
-    parser.add_argument("-n", "--num-validators", type=int, default=30)
-    parser.add_argument("-s", "--seed", type=int, default=42)
+    parser = argparse.ArgumentParser(description="Inspect the fixed latency model")
+    parser.add_argument("-n", "--num-validators", type=int, default=10)
     parser.add_argument(
-        "--default-matrix-validators",
+        "-s",
+        "--seed",
         type=int,
-        default=20,
-        help="kept for compatibility; the simple model ranks the active set",
+        default=42,
+        help="accepted for CLI compatibility; ignored by latency generation",
     )
     parser.add_argument(
         "-o",
@@ -275,12 +283,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    cfg = LatencyConfig(
-        num_validators=args.num_validators,
-        seed=args.seed,
-        default_matrix_validators=args.default_matrix_validators,
-    )
-    matrix = generate(cfg)
+    matrix = generate(LatencyConfig(num_validators=args.num_validators, seed=args.seed))
     if args.output is not None:
         write_tsv(matrix, args.output)
     for line in summarize(matrix):

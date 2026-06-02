@@ -391,7 +391,7 @@ On exit, `run-all-fuzz.sh`:
 
 ## Rolling Migration Test: `run-migration-test.py`
 
-`run-migration-test.py` validates that a rolling upgrade from a released validator image to a locally-built image succeeds across an epoch boundary. It pulls the old image from Docker Hub, bootstraps a local network, applies a deterministic per-edge latency matrix (`latency_model.py`), and performs a rolling upgrade.
+`run-migration-test.py` validates that a rolling upgrade from a released validator image to a locally-built image succeeds across an epoch boundary. It pulls the old image from Docker Hub, bootstraps a local network, applies a fixed asymmetric non-metric ten-site latency matrix (`latency_model.py`), and performs a rolling upgrade. The canonical matrix includes one ordinary hub with fast asymmetric spokes and one heavy-tail validator profile with `75ms` jitter and `70%` correlation; it breaks about 15% of ordered triangle inequalities. Larger validator sets repeat the same ten site profiles in order.
 
 Two modes (`--mode`, default `simple`):
 
@@ -430,8 +430,8 @@ Supported flags:
 - `-e <MINUTES>`\
   Epoch duration in minutes (default: `10`).
 
-- `--block-validation-seconds <S>`\
-  Pre-upgrade block-production validation window after latency is applied; runs for 10–22 validator setups (default: `120`, `0` disables).
+- `--block-measurement-seconds <S>`\
+  Pre-upgrade block-production measurement window after latency is applied (default: `120`, `0` disables). The legacy name `--block-validation-seconds` is accepted as an alias.
 
 - `--load-qps <QPS>`\
   Start a stress load generator at target QPS (default: `0` = disabled).
@@ -448,7 +448,7 @@ Supported flags:
 2. **Compose generation** — write `docker-compose.migration.yaml` for N validators with Prometheus/Grafana
 3. **Genesis bootstrap** — generate genesis template and validator configs
 4. **Network startup** — start validators, verify all are running (exact name matching, hard failure)
-5. **Latency injection** — generate the deterministic latency matrix and launch `network-benchmark.sh -L` to apply it; optionally start the load generator and validate pre-upgrade block production
+5. **Latency injection** — generate the fixed non-metric latency matrix and launch `network-benchmark.sh -L` to apply it; optionally start the load generator and report pre-upgrade block production
 6. **Pre-rolling wait** — fixed warm-up offset into epoch 0 (simple) or mid-epoch wait (advanced)
 7. **Rolling upgrade** — upgrade validators one-by-one; hard failure if any validator isn't running afterwards
 8. **Post-upgrade** — simple: wait for the next epoch boundary and run the stable-window comparison; advanced: keep-DB and wipe-DB restart stress across two post-upgrade epochs, then extended checkpoint liveness observation

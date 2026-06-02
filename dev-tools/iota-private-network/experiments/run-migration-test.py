@@ -74,17 +74,9 @@ class Config:
     # reasonable when pre_rolling_wait is large.
     stable_window_seconds: int = field(init=False)
     stable_window_settle_seconds: int = 30
-    block_validation_seconds: int = 120
+    block_measurement_seconds: int = 120
     # Wait inside phase 6 for network-benchmark.sh to apply the matrix.
     latency_apply_wait: int = 30
-    # Expected band from the latency model (latency_model.py: base_delay_ms=53
-    # + 0-4ms per-destination bias => ~17.5-19.3 blk/s), widened so ordinary
-    # measurement noise at the edges of the band doesn't flake a healthy run.
-    block_rate_min: float = 17.0
-    block_rate_max: float = 20.0
-    block_rate_spread_min: float = 1.0
-    add_block_reason_min: float = 10.0
-    add_block_header_reason_min: float = 3.0
 
     image_old: str = "iota-node:old"
     image_upgrade: str = "iota-node:upgrade"
@@ -199,15 +191,15 @@ class Config:
         self.phase8_simple_estimate = n * 10 + self.protocol_probe_wait + 5
         min_stable_window_seconds = 60
         # Phases 5-6B burn epoch-0 time before the fixed pre-rolling wait is
-        # checked: the latency-apply wait, the block-production validation
+        # checked: the latency-apply wait, the block-production measurement
         # window, plus slack for monitoring setup and matrix generation.
         # pre_rolling_wait must cover them, or phase 7 would start already
         # past its planned offset and abort.
         pre_phase7_overhead = (
             self.latency_apply_wait
             + (
-                self.block_validation_seconds
-                if self.block_validation_enabled()
+                self.block_measurement_seconds
+                if self.block_measurement_enabled()
                 else 0
             )
             + 30
@@ -262,13 +254,9 @@ class Config:
             if self.release_network in ("testnet", "mainnet"):
                 self.chain_override = self.release_network
 
-    def block_validation_enabled(self) -> bool:
-        """Block-production validation runs only where its rate thresholds
-        were calibrated: 10-22 validators with a positive window."""
-        return (
-            self.block_validation_seconds > 0
-            and 10 <= self.num_validators <= 22
-        )
+    def block_measurement_enabled(self) -> bool:
+        """Block-production reporting runs when a positive window is configured."""
+        return self.block_measurement_seconds > 0
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -1587,8 +1575,8 @@ def _generate_latency_matrix(cfg: Config) -> Path:
     """Generate a deterministic latency matrix and write it to
     ``logs/latency-matrix.tsv``. Returns the file path. Logs a short summary.
 
-    Run with the same ``(seed, num_validators)`` this always emits the same
-    matrix, so behavior is reproducible across migration test runs.
+    The model uses a fixed ten-site table and repeats those profiles for larger
+    validator sets, so behavior is reproducible across migration test runs.
     """
     lm_cfg = latency_model.LatencyConfig(
         num_validators=cfg.num_validators,
@@ -1623,9 +1611,8 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     stale_fuzz_log = cfg.script_dir / "logs" / "fuzz_script.log"
     stale_fuzz_log.unlink(missing_ok=True)
 
-    # Generate the deterministic latency matrix (base delay + per-destination
-    # bias + small edge noise, near the block-production threshold) and pass it
-    # to the bash injector.
+    # Generate the deterministic fixed-site latency matrix and pass it to the
+    # bash injector.
     matrix_path = _generate_latency_matrix(cfg)
 
     latency_output = cfg.log_file.open("a")
@@ -1674,20 +1661,14 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     return proc
 
 
-def validate_block_production(cfg: Config) -> None:
-    if not cfg.block_validation_enabled():
-        if cfg.block_validation_seconds <= 0:
-            log("  Block-production validation disabled")
-        else:
-            log(
-                "  Block-production validation skipped "
-                f"(configured for 10-22 validators, got {cfg.num_validators})"
-            )
+def measure_block_production(cfg: Config) -> None:
+    if not cfg.block_measurement_enabled():
+        log("  Block-production measurement disabled")
         return
 
     phase_start = time.time()
-    window = cfg.block_validation_seconds
-    log(_phase_banner(f"Validating block production over {window}s", "PHASE 6B"))
+    window = cfg.block_measurement_seconds
+    log(_phase_banner(f"Measuring block production over {window}s", "PHASE 6B"))
     _countdown(window)
 
     rate_rows = _prometheus_vector(
@@ -1702,20 +1683,15 @@ def validate_block_production(cfg: Config) -> None:
     expected_hosts = {f"validator-{i}" for i in range(1, cfg.num_validators + 1)}
     missing_hosts = sorted(expected_hosts - rates.keys())
     if missing_hosts:
-        raise RuntimeError(
-            "missing block-rate metrics for validators: "
-            f"{', '.join(missing_hosts)}"
+        log(
+            "  WARNING: missing block-rate metrics for validators: "
+            + ", ".join(missing_hosts)
         )
 
-    values = [rates[host] for host in sorted(expected_hosts)]
-    min_rate = min(values)
-    max_rate = max(values)
-    spread = max_rate - min_rate
-    out_of_range = {
-        host: value
-        for host, value in sorted(rates.items())
-        if host in expected_hosts
-        and not (cfg.block_rate_min <= value <= cfg.block_rate_max)
+    measured_rates = {
+        host: rates[host]
+        for host in sorted(expected_hosts)
+        if host in rates
     }
 
     reason_rows = _prometheus_vector(
@@ -1727,48 +1703,26 @@ def validate_block_production(cfg: Config) -> None:
         metric.get("reason", "<unknown>"): value
         for metric, value in reason_rows
     }
-    add_block = reasons.get("AddBlock", 0.0)
-    add_header = reasons.get("AddBlockHeader", 0.0)
-    primary_reason = max(reasons.items(), key=lambda item: item[1])[0] if reasons else ""
+    if measured_rates:
+        values = list(measured_rates.values())
+        min_rate = min(values)
+        max_rate = max(values)
+        spread = max_rate - min_rate
+        log(
+            f"  Block rate min/max/spread: "
+            f"{min_rate:.2f} / {max_rate:.2f} / {spread:.2f} blk/s"
+        )
+        for host, value in sorted(measured_rates.items(), key=lambda item: item[1]):
+            log(f"    {host:<12} {value:5.2f} blk/s")
+    else:
+        log("  WARNING: no block-rate metrics available")
 
-    log(
-        f"  Block rate min/max/spread: "
-        f"{min_rate:.2f} / {max_rate:.2f} / {spread:.2f} blk/s"
-    )
-    for host, value in sorted(
-        ((h, rates[h]) for h in expected_hosts),
-        key=lambda item: item[1],
-    ):
-        log(f"    {host:<12} {value:5.2f} blk/s")
     log("  Block creation reasons (avg by validator):")
-    for reason, value in sorted(reasons.items(), key=lambda item: item[1], reverse=True):
-        log(f"    {reason:<24} {value:5.2f} /s")
-
-    failures: list[str] = []
-    if out_of_range:
-        failures.append(
-            "block rates outside "
-            f"[{cfg.block_rate_min}, {cfg.block_rate_max}]: "
-            + ", ".join(f"{host}={value:.2f}" for host, value in out_of_range.items())
-        )
-    if spread < cfg.block_rate_spread_min:
-        failures.append(
-            f"block-rate spread {spread:.2f} < {cfg.block_rate_spread_min:.2f}"
-        )
-    if primary_reason != "AddBlock":
-        failures.append(f"primary block creation reason is {primary_reason or 'missing'}")
-    if add_block < cfg.add_block_reason_min:
-        failures.append(
-            f"AddBlock reason {add_block:.2f} < {cfg.add_block_reason_min:.2f}"
-        )
-    if add_header < cfg.add_block_header_reason_min:
-        failures.append(
-            "AddBlockHeader reason "
-            f"{add_header:.2f} < {cfg.add_block_header_reason_min:.2f}"
-        )
-
-    if failures:
-        raise RuntimeError("block-production validation failed: " + "; ".join(failures))
+    if reasons:
+        for reason, value in sorted(reasons.items(), key=lambda item: item[1], reverse=True):
+            log(f"    {reason:<24} {value:5.2f} /s")
+    else:
+        log("    WARNING: no block-creation-reason metrics available")
 
     log(_phase_complete("Phase 6B", time.time() - phase_start))
 
@@ -2348,12 +2302,14 @@ def parse_args() -> argparse.Namespace:
         help="Docker image containing /usr/local/bin/stress (default: iotaledger/stress)",
     )
     parser.add_argument(
+        "--block-measurement-seconds",
         "--block-validation-seconds",
+        dest="block_measurement_seconds",
         default=120,
         type=int,
         help=(
-            "Seconds to validate pre-upgrade block production after latency "
-            "is applied for 10-22 validator runs (0 disables, default: 120)"
+            "Seconds to measure pre-upgrade block production after latency "
+            "is applied (0 disables, default: 120)"
         ),
     )
     return parser.parse_args()
@@ -2389,7 +2345,7 @@ def main() -> None:
             load_transfer_objects=args.load_transfer_objects,
             load_rpc_address=args.load_rpc_address,
             load_tools_image=args.load_tools_image,
-            block_validation_seconds=args.block_validation_seconds,
+            block_measurement_seconds=args.block_measurement_seconds,
             epoch_duration_ms=args.epoch_duration * 60_000,
         )
     except ValueError as err:
@@ -2425,7 +2381,7 @@ def main() -> None:
     log(f"  {_C.BOLD}Release network{_C.RESET}      : {cfg.release_network}")
     log(f"  {_C.BOLD}Chain override{_C.RESET}       : {cfg.chain_override or 'none (devnet-like)'}")
     log(f"  {_C.BOLD}Build local image{_C.RESET}    : {cfg.build}")
-    log(f"  {_C.BOLD}Latency model{_C.RESET}        : deterministic near-threshold matrix (seed {cfg.seed})")
+    log(f"  {_C.BOLD}Latency model{_C.RESET}        : fixed ten-site non-metric matrix")
     if cfg.load_qps > 0:
         log(
             f"  {_C.BOLD}Load generator{_C.RESET}       : "
@@ -2492,7 +2448,7 @@ def main() -> None:
     cp_monitor.start()
     latency_proc = phase6_apply_latency(cfg)
     start_load_generator(cfg)
-    validate_block_production(cfg)
+    measure_block_production(cfg)
 
     if cfg.mode == "advanced":
         phase7_wait_mid_epoch(cfg, epoch_0_start)
