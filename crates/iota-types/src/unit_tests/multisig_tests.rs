@@ -336,7 +336,7 @@ fn multisig_get_indices() {
     )
     .unwrap();
 
-    assert!(multi_sig1.get_indices().unwrap() == vec![1, 2]);
+    assert!(multi_sig1.indices().unwrap() == vec![1, 2]);
 
     let multi_sig2 = MultiSig::new(
         vec![
@@ -348,11 +348,11 @@ fn multisig_get_indices() {
     )
     .unwrap();
 
-    assert!(multi_sig2.get_indices().unwrap() == vec![0, 1, 2]);
+    assert!(multi_sig2.indices().unwrap() == vec![0, 1, 2]);
 
     let invalid_multisig = MultiSig::new(vec![sig3.into(), sig2.into(), sig1.into()], multisig_pk);
 
-    // The signatures are in the wrong order, so get_indices should fail.
+    // The signatures are in the wrong order, so indices should fail.
     assert!(invalid_multisig.is_err());
 }
 

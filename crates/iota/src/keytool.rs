@@ -427,7 +427,7 @@ impl KeyToolCommand {
             KeyToolCommand::DecodeMultiSig { multisig, tx_bytes } => {
                 let members = multisig.committee().members();
                 let signatures = multisig.signatures();
-                let indices = multisig.get_indices()?;
+                let indices = multisig.indices()?;
                 let address = IotaAddress::from(multisig.committee());
 
                 let pub_keys = members
@@ -516,7 +516,7 @@ impl KeyToolCommand {
                     GenericSignature::MultiSig(multisig) => {
                         let members = multisig.committee().members();
                         let signatures = multisig.signatures();
-                        let indices = multisig.get_indices()?;
+                        let indices = multisig.indices()?;
                         let address = IotaAddress::from(multisig.committee());
 
                         let mut participating_signatures = vec![];
