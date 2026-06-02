@@ -6,14 +6,9 @@
 use std::{collections::BTreeMap, ops::RangeBounds};
 
 use bytes::Bytes;
-use fastcrypto::hash::{HashFunction, Sha3_256};
-use iota_storage::{
-    SHA3_BYTES,
-    blob::{Blob, BlobEncoding},
-    object_store::{
-        ObjectStoreGetExt, ObjectStorePutExt,
-        util::{exists, get, put},
-    },
+use iota_storage::object_store::{
+    ObjectStoreGetExt, ObjectStorePutExt,
+    util::{exists, get, put},
 };
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
 use object_store::path::Path;
@@ -22,7 +17,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     IngestionError,
     errors::IngestionResult as Result,
-    history::{EPOCH_BOUNDARIES_FILE_MAGIC, EPOCH_BOUNDARIES_FILENAME, MAGIC_BYTES},
+    history::{
+        EPOCH_BOUNDARIES_FILE_MAGIC, EPOCH_BOUNDARIES_FILENAME, finalize_magic_blob,
+        read_magic_blob,
+    },
 };
 
 /// Stores the epoch boundaries.
@@ -126,53 +124,13 @@ pub async fn read_epoch_boundaries_or_default<S: ObjectStoreGetExt>(
 ///
 /// Fails if the magic byte or the trailing SHA3-256 checksum does not match.
 pub fn read_epoch_boundaries_from_bytes(vec: Vec<u8>) -> Result<EpochBoundaries> {
-    let file_size = vec.len();
-    let mut reader = Cursor::new(vec);
-
-    // Reads from the beginning of the file and verifies the magic byte.
-    reader.rewind()?;
-    let magic = reader.read_u32::<BigEndian>()?;
-    if magic != EPOCH_BOUNDARIES_FILE_MAGIC {
-        return Err(IngestionError::HistoryRead(format!(
-            "unexpected magic byte in epoch boundaries: {magic}",
-        )));
-    }
-
-    // Reads the SHA3 checksum stored at the end of the file.
-    reader.seek(SeekFrom::End(-(SHA3_BYTES as i64)))?;
-    let mut sha3_digest = [0u8; SHA3_BYTES];
-    reader.read_exact(&mut sha3_digest)?;
-
-    // Reads the content and verifies it against the stored checksum.
-    reader.rewind()?;
-    let mut content_buf = vec![0u8; file_size - SHA3_BYTES];
-    reader.read_exact(&mut content_buf)?;
-    let mut hasher = Sha3_256::default();
-    hasher.update(&content_buf);
-    let computed_digest = hasher.finalize().digest;
-    if computed_digest != sha3_digest {
-        return Err(IngestionError::HistoryRead(format!(
-            "epoch boundaries corrupted, computed checksum: {computed_digest:?}, stored checksum: {sha3_digest:?}"
-        )));
-    }
-    reader.rewind()?;
-    reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
-    Ok(Blob::read(&mut reader)?.decode()?)
+    read_magic_blob(vec, EPOCH_BOUNDARIES_FILE_MAGIC, EPOCH_BOUNDARIES_FILENAME)
 }
 
 /// Encodes the epoch boundaries with its magic byte and a trailing SHA3-256
 /// checksum.
 pub fn finalize_epoch_boundaries(boundaries: &EpochBoundaries) -> Result<Bytes> {
-    let mut buf = BufWriter::new(vec![]);
-    buf.write_u32::<BigEndian>(EPOCH_BOUNDARIES_FILE_MAGIC)?;
-    let blob = Blob::encode(boundaries, BlobEncoding::Bcs)?;
-    blob.write(&mut buf)?;
-    buf.flush()?;
-    let mut hasher = Sha3_256::default();
-    hasher.update(buf.get_ref());
-    let computed_digest = hasher.finalize().digest;
-    buf.write_all(&computed_digest)?;
-    Ok(Bytes::from(buf.into_inner().map_err(|e| e.into_error())?))
+    finalize_magic_blob(boundaries, EPOCH_BOUNDARIES_FILE_MAGIC)
 }
 
 /// Writes the epoch boundaries to the store.
@@ -192,6 +150,7 @@ pub async fn write_epoch_boundaries<S: ObjectStorePutExt>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{IngestionError, history::MAGIC_BYTES};
 
     fn sample() -> EpochBoundaries {
         [(0, 5), (1, 100), (2, 1000)].into_iter().collect()
