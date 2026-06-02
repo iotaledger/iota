@@ -1,5 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::num::NonZeroUsize;
+
 use axum::{
     Json,
     body::Body,
@@ -7,7 +10,9 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use iota_kvstore::client::TransactionSequenceNumber;
 use iota_storage::http_key_value_store::{ItemType, Key};
+use iota_types::base_types::IotaAddress;
 use serde::Deserialize;
 
 use crate::{
@@ -161,5 +166,76 @@ pub async fn multi_get_data(
     };
 
     let bcs_data = bcs::to_bytes(&results).map_err(|_| ApiError::InternalServerError)?;
+    Ok(bcs_data.into_response())
+}
+
+#[derive(Deserialize, Debug)]
+pub(crate) struct TransactionDigestsByAddressQuery {
+    pub(crate) cursor: Option<TransactionSequenceNumber>,
+    pub(crate) limit: Option<NonZeroUsize>,
+    #[serde(default)]
+    pub(crate) oldest_first: bool,
+}
+
+/// Retrieves a paginated list of transactions that affect a given address.
+///
+/// An address is considered "affected" by a transaction if it appears as the
+/// sender, a recipient, or the gas payer.
+///
+/// # Path Parameters
+///
+/// * `address`: Base64-url-encoded [`IotaAddress`].
+///
+/// # Query Parameters
+///
+/// * `cursor` (optional): The [`TransactionSequenceNumber`] used as an
+///   exclusive pagination boundary. Omit for the first request.
+/// * `limit` (optional): The maximum number of results to return. Defaults to
+///   the server's configured `multiget_max_items` when omitted.
+/// * `oldest_first` (optional, default `false`):
+///   - `true`: Ascending sequence order (oldest first).
+///   - `false`: Descending sequence order (newest first).
+///
+/// # Responses
+///
+/// * `200 OK`: A BCS-encoded `Vec<(TransactionSequenceNumber,
+///   TransactionDigest)>`. Returns an empty list when no transaction digests
+///   are found in the range scan.
+/// * `400 Bad Request`: Returned if the provided `address` is malformed or
+///   invalid.
+/// * `500 Internal Server Error`: Returned if an error occurs interacting with
+///   the KV store.
+pub async fn transaction_digests_by_address(
+    State(app_state): State<SharedRestServerAppState>,
+    Path(address): Path<String>,
+    Query(query): Query<TransactionDigestsByAddressQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let address = base64_url::decode(&address)
+        .map_err(|_| ApiError::BadRequest("address is not valid base64-url".into()))?;
+
+    let address = IotaAddress::from_bytes(&address)
+        .map_err(|_| ApiError::BadRequest("invalid address".into()))?;
+
+    let TransactionDigestsByAddressQuery {
+        cursor,
+        limit,
+        oldest_first,
+    } = query;
+
+    let max_limit = app_state.multiget_max_items.get();
+    let limit = limit.map_or(max_limit, |l| l.get());
+
+    if limit > max_limit {
+        return Err(ApiError::BadRequest(format!(
+            "limit too large: maximum allowed is {max_limit}",
+        )));
+    }
+
+    let transactions = app_state
+        .kv_store_client
+        .transactions_by_address(address, cursor, limit, oldest_first)
+        .await?;
+
+    let bcs_data = bcs::to_bytes(&transactions).map_err(|_| ApiError::InternalServerError)?;
     Ok(bcs_data.into_response())
 }
