@@ -311,16 +311,11 @@ where
         } else if needs_cache_rebuild {
             let Some(seq) = seq else {
                 // Timed out waiting for the tx to land in a local checkpoint.
-                // TD-success-with-UncertifiedSingleValidator falls through to
-                // the safety guard; recovery (response is None) gets a
-                // TimeoutBeforeFinality.
-                if response.is_none() {
-                    return Err(QuorumDriverError::TimeoutBeforeFinality);
-                }
-                return Ok((
-                    response.expect("response is Some on the safety-guard branch"),
-                    false,
-                ));
+                // In this branch `response` is either `None` (recovery) or
+                // `UncertifiedSingleValidator` (TD skip-cert) — both must
+                // surface as `TimeoutBeforeFinality` rather than leaking
+                // uncorroborated single-validator effects to the client.
+                return Err(QuorumDriverError::TimeoutBeforeFinality);
             };
             match response.as_mut() {
                 Some(existing) => Self::reconcile_effects_from_cache(
