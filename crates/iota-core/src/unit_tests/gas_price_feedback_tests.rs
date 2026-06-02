@@ -11,7 +11,6 @@ use iota_sdk_types::{
     CancelledTransaction, ConsensusDeterminedVersionAssignments, ObjectId, VersionAssignment,
 };
 use iota_types::{
-    self,
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
