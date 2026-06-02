@@ -236,17 +236,17 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         let digest = intent_msg.signing_digest();
 
         // TODO https://github.com/iotaledger/iota/issues/11607
-        let authenticator = iota_sdk_types::PasskeyAuthenticator::from_bytes(&self.as_bytes())
+        let authenticator = iota_sdk_types::PasskeyAuthenticator::from_bytes(self.as_bytes())
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid passkey authenticator bytes".to_string(),
             })?;
 
-        Ok(PasskeyVerifier::new()
+        PasskeyVerifier::new()
             .with_address(author)
             .verify(&*digest, &authenticator)
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Invalid passkey authentication: {e}"),
-            })?)
+            })
     }
 }
 

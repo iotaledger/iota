@@ -37,10 +37,10 @@ impl AuthenticatorTrait for MultiSig {
             .with_accept_passkey_in_multisig(verify_params.accept_passkey_in_multisig)
             .with_additional_multisig_checks(verify_params.additional_multisig_checks);
 
-        Ok(verifier
+        verifier
             .verify(&*digest, self)
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Invalid multisig: {e}"),
-            })?)
+            })
     }
 }
