@@ -16,7 +16,10 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{Command, Identifier, StructTag, TypeTag};
+use iota_sdk_types::{
+    CancelledTransaction, Command, ConsensusDeterminedVersionAssignments, Identifier, StructTag,
+    TypeTag, VersionAssignment,
+};
 use iota_types::{
     base_types::{
         AuthorityName, IotaAddress, TxContext, dbg_addr, dbg_object_id, random_object_ref,
@@ -34,10 +37,7 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{
-        AuthorityCapabilitiesV1, CancelledTransaction, ConsensusDeterminedVersionAssignments,
-        VersionAssignment,
-    },
+    messages_consensus::AuthorityCapabilitiesV1,
     object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,

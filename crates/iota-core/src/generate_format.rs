@@ -7,7 +7,8 @@ use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use iota_sdk_types::{
-    ChangeEpoch, Command, Identifier, ObjectId, StructTag, TypeTag,
+    ChangeEpoch, Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+    Identifier, ObjectId, StructTag, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
@@ -35,7 +36,6 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
-    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
     messages_grpc::ObjectInfoRequestKind,
     move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey},
