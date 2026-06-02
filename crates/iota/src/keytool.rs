@@ -1163,6 +1163,7 @@ impl PrintableResult for CommandOutput {}
 /// 2) Base64 encoded 32 bytes private key (assumes scheme is Ed25519)
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.
+///
 /// Build and validate a [`MultiSigPublicKey`] from a list of public keys and
 /// their corresponding weights. The number of keys must match the number of
 /// weights.
