@@ -18,7 +18,7 @@ use iota_types::{
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::MovePackageExt,
     object::{Object, Owner},
     storage::{
@@ -27,7 +27,6 @@ use iota_types::{
         TransactionInfo, error::Error as StorageError,
     },
 };
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use typed_store::{
@@ -420,11 +419,15 @@ impl IndexStoreTables {
     }
 
     fn needs_to_do_initialization(&self, checkpoint_store: &CheckpointStore) -> bool {
-        (match self.meta.get(&()) {
+        // Schema mismatch (or unreadable meta) -> migration may be pending
+        // and the watermark CF may be from an incompatible schema.
+        let schema_mismatch = match self.meta.get(&()) {
             Ok(Some(metadata)) => metadata.version != CURRENT_DB_VERSION,
             Ok(None) => true,
             Err(_) => true,
-        }) || self.is_indexed_watermark_out_of_date(checkpoint_store)
+        };
+
+        schema_mismatch || self.is_indexed_watermark_out_of_date(checkpoint_store)
     }
 
     // Check if the index watermark is behind the highest_executed_checkpoint.
@@ -437,48 +440,62 @@ impl IndexStoreTables {
         watermark < highest_executed_checkpoint
     }
 
-    #[tracing::instrument(skip_all)]
-    fn init(
-        &mut self,
-        authority_store: &AuthorityStore,
-        checkpoint_store: &CheckpointStore,
+    /// Advance `Watermark::EpochIndexed` only if there is no gap.
+    fn try_advance_epoch_indexed_watermark(
+        &self,
+        prev_epoch: EpochId,
+        batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
-        info!("Initializing gRPC indexes");
+        let next_expected = self
+            .watermark
+            .get(&Watermark::EpochIndexed)?
+            .map_or(0, |e| e.saturating_add(1));
+        if prev_epoch == next_expected {
+            batch.insert_batch(&self.watermark, [(Watermark::EpochIndexed, prev_epoch)])?;
+        }
+        Ok(())
+    }
 
-        let highest_executed_checkpoint =
-            checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
-        let lowest_available_checkpoint = checkpoint_store
+    /// Range of checkpoints that transaction-digest indexing can cover.
+    /// Returns `None` when there is nothing to do (no executed checkpoints,
+    /// or the lower bound has overtaken the upper).
+    fn transaction_index_range(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
+    ) -> Result<Option<std::ops::RangeInclusive<CheckpointSequenceNumber>>, StorageError> {
+        let lowest = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
             .map(|c| c.saturating_add(1))
             .unwrap_or(0);
-        let lowest_available_checkpoint_objects = authority_store
+        Ok(highest_executed_checkpoint
+            .and_then(|highest| (lowest <= highest).then_some(lowest..=highest)))
+    }
+
+    /// Precondition for local epoch indexing: returns true if the on-disk
+    /// history reaches back to genesis for both the checkpoint store and the
+    /// object store.
+    fn epoch_history_reaches_genesis(
+        &self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<bool, StorageError> {
+        // Both watermarks are `None` -> nothing has been pruned.
+        // Some(0) would mean that the genesis checkpoint is pruned.
+        let contents_pruned = checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .is_some();
+        let objects_pruned = authority_store
             .perpetual_tables
             .get_highest_pruned_checkpoint()?
-            .map(|c| c.saturating_add(1))
-            .unwrap_or(0);
+            .is_some();
+        Ok(!contents_pruned && !objects_pruned)
+    }
 
-        // Doing backfill requires processing objects so we have to restrict our
-        // backfill range to the range of checkpoints that we have objects for.
-        let lowest_available_checkpoint =
-            lowest_available_checkpoint.max(lowest_available_checkpoint_objects);
-
-        let checkpoint_range = highest_executed_checkpoint.map(|highest_executed_checkpoint| {
-            lowest_available_checkpoint..=highest_executed_checkpoint
-        });
-
-        if let Some(checkpoint_range) = checkpoint_range {
-            self.index_existing_transactions(authority_store, checkpoint_store, checkpoint_range)?;
-        }
-
-        // `index_existing_transactions` writes `Watermark::EpochIndexed` and
-        // `epoch_info` rows per batch under `into_par_iter`, which can leave
-        // the watermark non-monotonic and the rows in inconsistent states.
-        // Recompute the watermark from the actual table contents so the
-        // snapshot writer's precondition reflects what was really indexed.
-        self.reconcile_epoch_indexed_watermark()?;
-
-        self.initialize_current_epoch(authority_store, checkpoint_store)?;
-
+    /// Phase 2 of `init`: rebuild the live-state indexes by scanning the
+    /// current live object set in parallel. Must re-run on any drift to keep
+    /// them consistent.
+    fn index_live_object_set(&self, authority_store: &AuthorityStore) -> Result<(), StorageError> {
         let coin_index = Mutex::new(HashMap::new());
 
         let make_live_object_indexer = GrpcParLiveObjectSetIndexer {
@@ -492,12 +509,68 @@ impl IndexStoreTables {
         )?;
 
         self.coin.multi_insert(coin_index.into_inner().unwrap())?;
+        Ok(())
+    }
 
+    /// Runs only when `needs_to_do_initialization` is true (fresh DB, schema
+    /// mismatch, crashed mid-init, or the index watermark falling behind
+    /// `highest_executed_checkpoint`).
+    /// The on-disk DB needs to be wiped before this is called, so `init` always
+    /// starts from an empty store.
+    #[tracing::instrument(skip_all)]
+    fn init(
+        &mut self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(), StorageError> {
+        info!("Initializing gRPC indexes");
+
+        let highest_executed_checkpoint =
+            checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
+
+        // Phase 1 — history-derived indexes. The two index families have
+        // different pruning constraints:
+        //   - Transactions need only `CheckpointContents`, so they span
+        //     `transaction_index_range` (checkpoint-store pruning).
+        //   - Epoch boundaries additionally need object data, so they can only be
+        //     locally indexed when `epoch_history_reaches_genesis` (both stores reach
+        //     back to genesis). Otherwise a partial replay would leave gaps in
+        //     `epochs_v2` with no way to fill them from the local store, and we defer
+        //     to `backfill_epochs`, which will pull the missing rows from a formal
+        //     snapshot.
+        let tx_range =
+            self.transaction_index_range(checkpoint_store, highest_executed_checkpoint)?;
+        let epoch_history_reaches_genesis =
+            self.epoch_history_reaches_genesis(authority_store, checkpoint_store)?;
+
+        // `tx_range` is `None` only when no checkpoints have ever been
+        // executed on this node — and in that state there are no epoch
+        // transitions to observe either, so skipping the entire block
+        // (both phase-1 indexing and any `backfill_epochs` call) is
+        // correct.
+        if let Some(range) = tx_range {
+            self.index_historical_checkpoints(
+                authority_store,
+                checkpoint_store,
+                range,
+                epoch_history_reaches_genesis,
+            )?;
+            if !epoch_history_reaches_genesis {
+                self.backfill_epochs()?;
+            }
+        }
+        self.initialize_current_epoch_info(authority_store, checkpoint_store)?;
+
+        // Phase 2 — live-state indexes from the current live object set.
+        self.index_live_object_set(authority_store)?;
+
+        // `Watermark::Indexed` and `meta` are written last so a crash
+        // before this point leaves a recoverably-inconsistent on-disk
+        // state that the next `new` call wipes and re-inits.
         self.watermark.insert(
             &Watermark::Indexed,
             &highest_executed_checkpoint.unwrap_or(0),
         )?;
-
         self.meta.insert(
             &(),
             &MetadataInfo {
@@ -510,30 +583,86 @@ impl IndexStoreTables {
         Ok(())
     }
 
+    /// Stub for archive-backed epoch backfill. Invoked from `init` when
+    /// `epoch_history_reaches_genesis` returns false, so a local replay
+    /// would leave gaps in `epochs_v2`. The real implementation
+    /// will pull the missing rows from a historical archive — for now
+    /// it's a no-op and the node simply runs without populated
+    /// `epochs_v2` rows until the backfill PR lands. The snapshot V2
+    /// writer's `EpochIndexed` precondition will keep it from publishing
+    /// in the meantime.
+    ///
+    /// TODO: until this is implemented, `initialize_current_epoch_info`
+    /// may fail on pruned-bootstrap nodes whose available checkpoint
+    /// history doesn't reach the previous epoch's close-of-epoch
+    /// checkpoint (its fallback `scan_for_epoch_start_checkpoint` walks
+    /// backwards looking for that checkpoint and returns an error if
+    /// pruning has advanced past it). The contract for the real backfill
+    /// is to populate `epochs_v2[0..=current_epoch - 1]` before
+    /// `initialize_current_epoch_info` runs, so the current-epoch seed
+    /// can derive `start_checkpoint` from `epochs_v2[current_epoch - 1]`
+    /// without falling back to the scan.
+    fn backfill_epochs(&self) -> Result<(), StorageError> {
+        info!("backfill_epochs stub invoked - no-op until archive-backed backfill lands");
+        Ok(())
+    }
+
+    /// Index history-derived indexes by replaying every checkpoint in
+    /// `checkpoint_range` in order. When `index_epochs_locally` is true, epoch
+    /// boundaries are processed via `index_epoch`.
     #[tracing::instrument(skip(self, authority_store, checkpoint_store))]
-    fn index_existing_transactions(
+    fn index_historical_checkpoints(
         &mut self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
         checkpoint_range: std::ops::RangeInclusive<u64>,
+        index_epochs_locally: bool,
     ) -> Result<(), StorageError> {
         info!(
-            "Indexing {} checkpoints in range {checkpoint_range:?}",
+            "Indexing {} checkpoints in range {checkpoint_range:?} (index_epochs_locally={index_epochs_locally})",
             checkpoint_range.size_hint().0
         );
         let start_time = Instant::now();
 
-        checkpoint_range.into_par_iter().try_for_each(|seq| {
-            let checkpoint_data =
-                sparse_checkpoint_data_for_backfill(authority_store, checkpoint_store, seq)?;
+        for checkpoint_sequence_number in checkpoint_range {
+            let summary = checkpoint_store
+                .get_checkpoint_by_sequence_number(checkpoint_sequence_number)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!(
+                        "missing checkpoint {checkpoint_sequence_number}"
+                    ))
+                })?;
+            let contents = checkpoint_store
+                .get_checkpoint_contents(&summary.content_digest)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!(
+                        "missing checkpoint {checkpoint_sequence_number}"
+                    ))
+                })?;
+
+            let is_epoch_boundary =
+                summary.end_of_epoch_data.is_some() || checkpoint_sequence_number == 0;
 
             let mut batch = self.transaction_checkpoints.batch();
+            if index_epochs_locally && is_epoch_boundary {
+                // Boundary (or genesis): `index_epoch` needs the EndOfEpoch /
+                // Genesis transaction's output objects (for system state) and
+                // its events, so load the full sparse `CheckpointData`.
+                let checkpoint_data =
+                    assemble_sparse_checkpoint_data(authority_store, summary, contents)?;
+                self.index_epoch(&checkpoint_data, &mut batch)?;
+                self.index_transactions(
+                    checkpoint_sequence_number,
+                    &checkpoint_data.checkpoint_contents,
+                    &mut batch,
+                )?;
+            } else {
+                // Fast path: only transaction digests are needed.
+                self.index_transactions(checkpoint_sequence_number, &contents, &mut batch)?;
+            }
 
-            self.index_epoch(&checkpoint_data, &mut batch)?;
-            self.index_transactions(&checkpoint_data, &mut batch)?;
-
-            batch.write().map_err(StorageError::from)
-        })?;
+            batch.write()?;
+        }
 
         info!(
             "Indexing checkpoints took {} seconds",
@@ -576,7 +705,11 @@ impl IndexStoreTables {
         let mut batch = self.transaction_checkpoints.batch();
 
         self.index_epoch(checkpoint, &mut batch)?;
-        self.index_transactions(checkpoint, &mut batch)?;
+        self.index_transactions(
+            checkpoint.checkpoint_summary.sequence_number,
+            &checkpoint.checkpoint_contents,
+            &mut batch,
+        )?;
         self.index_objects(checkpoint, &mut batch)?;
 
         batch.insert_batch(
@@ -600,6 +733,8 @@ impl IndexStoreTables {
         checkpoint: &CheckpointData,
         batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
+        // Early return if this checkpoint doesn't have epoch info (non-boundary
+        // checkpoint).
         let Some((epoch_info, end_of_epoch_events)) = checkpoint.epoch_info()? else {
             return Ok(());
         };
@@ -628,7 +763,7 @@ impl IndexStoreTables {
                 previous_epoch.last_checkpoint_summary = Some(last_checkpoint_summary);
                 previous_epoch.end_of_epoch_tx_events = end_of_epoch_tx_events;
                 batch.insert_batch(&self.epochs_v2, [(prev_epoch, previous_epoch)])?;
-                batch.insert_batch(&self.watermark, [(Watermark::EpochIndexed, prev_epoch)])?;
+                self.try_advance_epoch_indexed_watermark(prev_epoch, batch)?;
             }
         }
 
@@ -658,50 +793,9 @@ impl IndexStoreTables {
         self.watermark.get(&Watermark::EpochIndexed)
     }
 
-    /// Re-derive `Watermark::EpochIndexed` from the actual contents of the
-    /// `epochs_v2` table, set it to the contiguous-prefix maximum, and
-    /// remove the watermark entirely if no epoch is fully populated.
-    ///
-    /// The snapshot writer's precondition requires that *all* rows in
-    /// `[0, watermark]` are fully populated, so the walk stops at the
-    /// first gap (missing row) or partially-populated row. Even though
-    /// the parallel init path may stamp a higher value into the watermark
-    /// from a racing batch, the value written here is the only one that
-    /// honours that invariant.
-    ///
-    /// The contiguous-prefix walk relies on `safe_iter` returning rows in
-    /// ascending `EpochId` order. `typed_store` encodes integer keys big-
-    /// endian (see `bincode::DefaultOptions::with_big_endian` in
-    /// `typed-store/src/util.rs`), so RocksDB byte-order iteration is
-    /// numeric ascending. A future codec change would silently break this
-    /// walk.
-    fn reconcile_epoch_indexed_watermark(&self) -> Result<(), TypedStoreError> {
-        let mut expected: EpochId = 0;
-        for result in self.epochs_v2.safe_iter() {
-            let (epoch_id, entry) = result?;
-            if epoch_id != expected {
-                break;
-            }
-            if entry.last_checkpoint_summary.is_none() || entry.end_of_epoch_tx_events.is_none() {
-                break;
-            }
-            expected += 1;
-        }
-
-        if expected == 0 {
-            self.watermark.remove(&Watermark::EpochIndexed)?;
-            debug!("EpochIndexed watermark reconciled: absent (no fully-populated epochs)");
-        } else {
-            let highest = expected - 1;
-            self.watermark.insert(&Watermark::EpochIndexed, &highest)?;
-            debug!("EpochIndexed watermark reconciled to epoch {highest}");
-        }
-        Ok(())
-    }
-
     // After attempting to reindex past epochs, ensure that the current epoch is at
     // least partially initialized
-    fn initialize_current_epoch(
+    fn initialize_current_epoch_info(
         &mut self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
@@ -773,9 +867,9 @@ impl IndexStoreTables {
     ) -> Result<u64, StorageError> {
         // Scan from current checkpoint backwards to 0 to find the start of this epoch.
         let mut last_checkpoint_seq_number_of_prev_epoch = None;
-        for seq in (0..=current_checkpoint_seq_number).rev() {
+        for checkpoint_seq_number in (0..=current_checkpoint_seq_number).rev() {
             let Some(chkpt) = checkpoint_store
-                .get_checkpoint_by_sequence_number(seq)
+                .get_checkpoint_by_sequence_number(checkpoint_seq_number)
                 .ok()
                 .flatten()
             else {
@@ -805,14 +899,16 @@ impl IndexStoreTables {
 
     fn index_transactions(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint_seq_number: CheckpointSequenceNumber,
+        contents: &CheckpointContents,
         batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
-        let seq = checkpoint.checkpoint_summary.sequence_number;
-        for tx in &checkpoint.transactions {
-            let digest = tx.transaction.digest();
-            batch.insert_batch(&self.transaction_checkpoints, [(digest, seq)])?;
-        }
+        batch.insert_batch(
+            &self.transaction_checkpoints,
+            contents
+                .iter()
+                .map(|d| (d.transaction, checkpoint_seq_number)),
+        )?;
 
         Ok(())
     }
@@ -1440,19 +1536,12 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 // ---------------------------------------------------------------------------
 
 // Load a CheckpointData struct without event data
-fn sparse_checkpoint_data_for_backfill(
+fn assemble_sparse_checkpoint_data(
     authority_store: &AuthorityStore,
-    checkpoint_store: &CheckpointStore,
-    checkpoint: u64,
+    summary: VerifiedCheckpoint,
+    contents: CheckpointContents,
 ) -> Result<CheckpointData, StorageError> {
     use iota_types::full_checkpoint_content::CheckpointTransaction;
-
-    let summary = checkpoint_store
-        .get_checkpoint_by_sequence_number(checkpoint)?
-        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint}")))?;
-    let contents = checkpoint_store
-        .get_checkpoint_contents(&summary.content_digest)?
-        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint}")))?;
 
     let transaction_digests = contents
         .iter()
@@ -1629,5 +1718,56 @@ mod tests {
             tables2.epochs_v2.get(&old_info.epoch).unwrap().is_some(),
             "migrated data must survive reopen"
         );
+    }
+
+    /// `try_advance_epoch_indexed_watermark` must advance `EpochIndexed`
+    /// only when `prev_epoch` extends the contiguous prefix by exactly
+    /// one. This guards the snapshot writer's `[0, watermark]` "every row
+    /// fully populated" invariant against pre-bootstrap gaps and replaces
+    /// the post-loop reconciliation pass that used to live in `init`.
+    #[tokio::test]
+    async fn try_advance_epoch_indexed_watermark_is_gap_aware() {
+        let tmp_dir = iota_common::tempdir();
+        let tables = IndexStoreTables::open_tables_read_write(
+            tmp_dir.path().to_path_buf(),
+            MetricConf::default(),
+            None,
+            None,
+        );
+
+        let advance = |epoch| {
+            let mut batch = tables.watermark.batch();
+            tables
+                .try_advance_epoch_indexed_watermark(epoch, &mut batch)
+                .unwrap();
+            batch.write().unwrap();
+            tables.watermark.get(&Watermark::EpochIndexed).unwrap()
+        };
+
+        // From absent: prev_epoch=5 must NOT advance (bootstrap mid-history).
+        assert_eq!(
+            advance(5),
+            None,
+            "absent watermark + non-zero prev_epoch must stay absent"
+        );
+
+        // From absent: prev_epoch=0 advances to 0 (genesis close).
+        assert_eq!(advance(0), Some(0), "absent watermark + 0 advances to 0");
+
+        // From 0: prev_epoch=2 must NOT advance (gap at 1).
+        assert_eq!(
+            advance(2),
+            Some(0),
+            "non-contiguous advance must be a no-op"
+        );
+
+        // From 0: prev_epoch=1 advances to 1.
+        assert_eq!(advance(1), Some(1), "contiguous advance succeeds");
+
+        // From 1: prev_epoch=1 again is a no-op (already covered).
+        assert_eq!(advance(1), Some(1), "re-advance to same value is a no-op");
+
+        // From 1: prev_epoch=2 advances to 2.
+        assert_eq!(advance(2), Some(2), "next contiguous epoch advances");
     }
 }

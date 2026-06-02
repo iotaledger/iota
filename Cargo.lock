@@ -5701,7 +5701,6 @@ dependencies = [
  "prometheus",
  "quinn-proto",
  "rand 0.8.6",
- "rayon",
  "reqwest",
  "roaring",
  "rstest",
