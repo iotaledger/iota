@@ -1286,7 +1286,7 @@ mod checked {
                 )
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                let mut builder = ProgrammableTransactionBuilder::new();
+                let builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
 
                 if let Some((i, tx)) = txns.into_iter().enumerate().next() {
