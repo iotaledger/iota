@@ -8,8 +8,8 @@ validator:
   db-path: /opt/iota/db/authorities_db
   consensus-config:
     db-path: /opt/iota/db/consensus_db
-    max-pending-transactions: 500
-    max-pending-local-submissions: 750
+    max-pending-transactions: 20000
+    max-pending-local-submissions: 500
     graduated-load-shedding-soft-limit-pct: 100
     graduated-load-shedding-saturation-pct: 100
     semaphore-shedding-enabled: false

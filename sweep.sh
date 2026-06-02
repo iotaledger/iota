@@ -537,6 +537,7 @@ for i in $(seq 1 $ITERS); do
   IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" \
   BURST_SIZE="$BURST_SIZE" \
   OPEN_LOOP="$OPEN_LOOP" \
+  OPEN_LOOP_MAX_INFLIGHT_PER_WORKER="${OPEN_LOOP_MAX_INFLIGHT_PER_WORKER:-}" \
   BARRIER_PERIOD_MS="$BARRIER_PERIOD_MS" \
   GAS_CHUNK_SIZE="$GAS_CHUNK_SIZE" \
   ./stress-multi.sh 2>&1 | tail -50 | tee "$REPO/runs/sweep-iter.log"
@@ -630,17 +631,21 @@ for i in $(seq 1 $ITERS); do
     # Silent-collapse detection — runs BEFORE JSONL emit so the resulting
     # record has failed=true and plot.py's existing filter excludes it
     # from medians/boxplots. Signature: queue depth was empty most of the
-    # spam window (p75 < 100) despite a brief peak (peak > 5000) — i.e.
-    # validator accepted an initial burst, then died/restarted, then
-    # trickled along with empty queue for the remainder. This is the
+    # spam window (p75 < 100) despite a brief peak (peak > max_pending/4)
+    # — i.e. validator accepted an initial burst, then died/restarted,
+    # then trickled along with empty queue for the remainder. This is the
     # checkpoint-fork failure pattern; see project memory entry
     # "checkpoint-fork-panic" for the root cause (CheckpointBuilder
     # fatal! at crates/iota-core/src/checkpoints/mod.rs:545).
+    # Threshold scales to max_pending/4 so detection works at any cap
+    # (max=5K → 1250, max=10K → 2500, max=20K → 5000 = legacy default).
     queue_p75_int_early=$(awk -v v="${queue_depth_p75:-0}" 'BEGIN{printf "%d", v}')
-    if [ "${queue_p75_int_early:-0}" -lt 100 ] && [ "${peak:-0}" -gt 5000 ]; then
+    sc_peak_threshold=$(( ${val_max_pending:-20000} / 4 ))
+    [ "$sc_peak_threshold" -lt 100 ] && sc_peak_threshold=100
+    if [ "${queue_p75_int_early:-0}" -lt 100 ] && [ "${peak:-0}" -gt "$sc_peak_threshold" ]; then
       failed=1
       silent_collapse=1
-      echo "    [silent-collapse detected: queue p75=${queue_depth_p75} but peak=${peak} — marking iter as failed (spike-and-drain, likely checkpoint fork)]"
+      echo "    [silent-collapse detected: queue p75=${queue_depth_p75} but peak=${peak} > ${sc_peak_threshold} (max/4) — marking iter as failed (spike-and-drain, likely checkpoint fork)]"
     fi
   else
     iso=$(basename "$latest" 2>/dev/null | sed 's/multi-//' || echo "?")

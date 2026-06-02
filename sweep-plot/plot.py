@@ -1011,7 +1011,7 @@ def plot_group(group):
             and "validator_drop_prob" in df.columns
             and df["validator_drop_prob"].notna().any()):
         boxplot("validator_drop_prob",
-                "Validator drop probability — drops / (drops + commits) — RED Claim 2",
+                "Validator drop probability — rejected / (rejected + finalized) — [higher = better]",
                 "Drop probability",
                 out_dir / "drop-prob.png", policies,
                 tick_labels=short_labels)
