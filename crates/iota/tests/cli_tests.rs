@@ -7078,3 +7078,143 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
 
     Ok(())
 }
+
+/// Tests that the CLI can sign for an abstract account whose authenticator
+/// function takes no user-facing inputs, without supplying `--auth-call-args`
+/// or `--auth-type-args`.
+#[sim_test]
+async fn test_move_authenticator_no_user_args() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let sender_address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    // Bind the AA to `account::authenticate_no_args`, which has no
+    // user-facing parameters (only `&Account`, `&AuthContext`, `&TxContext`).
+    let account_address = setup_move_authenticator_account(
+        context,
+        sender_address,
+        "examples/move/account",
+        "account",
+        "authenticate_no_args",
+        2_000_000_000,
+    )
+    .await?;
+
+    // Switch to the AA so subsequent commands treat it as the active address.
+    IotaClientCommands::Switch {
+        address: Some(IotaAddress::from(account_address).into()),
+        env: None,
+    }
+    .execute(context)
+    .await?;
+
+    // Submit a PTB with NO `--auth-call-args` / `--auth-type-args`.
+    let ptb_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[1]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{account_address}"),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+    assert!(matches!(
+        ptb_resp,
+        IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
+    ));
+
+    Ok(())
+}
+
+/// Tests that the CLI can submit a sponsored transaction where the sender is
+/// an abstract account with a 1-argument authenticator and the sponsor is an
+/// abstract account whose authenticator takes no user-facing inputs: passing
+/// `--auth-call-args` for the sender but omitting `--sponsor-auth-call-args`
+/// entirely.
+#[sim_test]
+async fn test_move_authenticator_sender_and_sponsor_no_sponsor_args() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let publisher = test_cluster.get_address_0();
+    let recipient = test_cluster.get_address_1();
+    let context = &mut test_cluster.wallet;
+
+    // Sender AA: authenticator requires the literal "hello" as its only user arg.
+    let sender_aa = setup_move_authenticator_account(
+        context,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
+    .await?;
+
+    // Sponsor AA: authenticator takes no user-facing args.
+    let sponsor_aa = setup_move_authenticator_account(
+        context,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate_no_args",
+        2_000_000_000,
+    )
+    .await?;
+    assert_ne!(sender_aa, sponsor_aa);
+
+    // Sponsored PTB splitting a nano off the sponsor's gas and transferring it
+    // to `recipient`. Sender is authenticated via `--auth-call-args hello`;
+    // sponsor has no user-facing inputs, so `--sponsor-auth-call-args` is
+    // omitted and the CLI must still route the sponsor through the
+    // `MoveAuthenticator` path with an empty call-args vector.
+    let ptb_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[1]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{recipient}"),
+            "--sender".to_string(),
+            format!("@{sender_aa}"),
+            "--gas-sponsor".to_string(),
+            format!("@{sponsor_aa}"),
+            "--auth-call-args".to_string(),
+            "hello".to_string(),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+
+    let IotaClientCommandResult::TransactionBlock(tx) = ptb_resp else {
+        panic!("Expected TransactionBlock result, got {ptb_resp:?}");
+    };
+    let effects = tx.effects.as_ref().unwrap();
+    assert!(
+        effects.status().is_ok(),
+        "Sponsored tx with a no-user-args sponsor authenticator should succeed: {:?}",
+        effects.status()
+    );
+    let tx_block = tx.transaction.as_ref().expect("transaction block");
+    assert_eq!(tx_block.data.sender(), &IotaAddress::from(sender_aa));
+    assert_eq!(
+        tx_block.data.gas_data().owner,
+        IotaAddress::from(sponsor_aa)
+    );
+
+    Ok(())
+}
