@@ -1572,22 +1572,32 @@ def phase5_start_monitoring(cfg: Config) -> None:
 
 
 def _generate_latency_matrix(cfg: Config) -> Path:
-    """Generate a deterministic latency matrix and write it to
-    ``logs/latency-matrix.tsv``. Returns the file path. Logs a short summary.
+    """Dump the effective latency matrix to ``logs/latency-matrix.tsv``.
 
-    The model uses a fixed ten-site table and repeats those profiles for larger
-    validator sets, so behavior is reproducible across migration test runs.
+    network-benchmark.sh natively computes the role-based model (the single
+    source of truth) for any validator count; ``-D`` writes the matrix it
+    would apply without touching docker or netem state. The dump serves as
+    the run's audit artifact and feeds the logged summary.
     """
-    lm_cfg = latency_model.LatencyConfig(
-        num_validators=cfg.num_validators,
-        seed=cfg.seed,
-    )
-    matrix = latency_model.generate(lm_cfg)
     matrix_path = cfg.log_dir / "latency-matrix.tsv"
-    latency_model.write_tsv(matrix, matrix_path)
+    run(
+        [
+            "./network-benchmark.sh",
+            "-n",
+            str(cfg.num_validators),
+            "-g",
+            str(cfg.geodistributed).lower(),
+            "-o",
+            str(cfg.log_file.resolve()),
+            "-D",
+            str(matrix_path.resolve()),
+        ],
+        cwd=cfg.script_dir,
+        quiet=True,
+    )
 
     log(f"  {_C.BOLD}Latency matrix{_C.RESET}    : {matrix_path}")
-    for line in latency_model.summarize(matrix):
+    for line in latency_model.summarize(latency_model.read_tsv(matrix_path)):
         log(line)
     return matrix_path
 
@@ -1611,9 +1621,9 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     stale_fuzz_log = cfg.script_dir / "logs" / "fuzz_script.log"
     stale_fuzz_log.unlink(missing_ok=True)
 
-    # Generate the deterministic fixed-site latency matrix and pass it to the
-    # bash injector.
-    matrix_path = _generate_latency_matrix(cfg)
+    # Dump the effective matrix for the log; the injector below computes the
+    # same role-based model natively, so no -L override is passed.
+    _generate_latency_matrix(cfg)
 
     latency_output = cfg.log_file.open("a")
 
@@ -1635,8 +1645,6 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
             str(cfg.geodistributed).lower(),
             "-o",
             str(cfg.log_file.resolve()),
-            "-L",
-            str(matrix_path.resolve()),
         ],
         cwd=cfg.script_dir,
         stdout=latency_output,
@@ -2381,7 +2389,10 @@ def main() -> None:
     log(f"  {_C.BOLD}Release network{_C.RESET}      : {cfg.release_network}")
     log(f"  {_C.BOLD}Chain override{_C.RESET}       : {cfg.chain_override or 'none (devnet-like)'}")
     log(f"  {_C.BOLD}Build local image{_C.RESET}    : {cfg.build}")
-    log(f"  {_C.BOLD}Latency model{_C.RESET}        : fixed ten-site non-metric matrix")
+    log(
+        f"  {_C.BOLD}Latency model{_C.RESET}        : "
+        "role-based, built into network-benchmark.sh"
+    )
     if cfg.load_qps > 0:
         log(
             f"  {_C.BOLD}Load generator{_C.RESET}       : "

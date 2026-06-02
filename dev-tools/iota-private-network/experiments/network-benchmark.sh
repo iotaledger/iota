@@ -23,10 +23,11 @@ RESTART_TIMEOUT=60      # Seconds to wait before restarting (timeout duration)
 RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | simple-restart
 GEODISTRIBUTED=false  # Large geodistributed latencies or small ones
 LOG_FILE="logs/fuzz_script.log" # Output file for script
-LATENCY_FILE=""  # Optional TSV with deterministic per-edge latencies
+LATENCY_FILE=""  # Optional TSV overriding the built-in role-based model
+DUMP_FILE=""     # Write the effective latency matrix as TSV and exit
 
 # --- Command-line arguments ---
-while getopts "g:n:s:b:l:r:d:w:M:o:L:" opt; do
+while getopts "g:n:s:b:l:r:d:w:M:o:L:D:" opt; do
   case "$opt" in
     g) GEODISTRIBUTED="$OPTARG" ;;
     n) NUMBER_VALIDATORS="$OPTARG" ;;
@@ -39,7 +40,8 @@ while getopts "g:n:s:b:l:r:d:w:M:o:L:" opt; do
     M) RESTART_MODE="$OPTARG" ;;
     o) LOG_FILE="$OPTARG" ;;
     L) LATENCY_FILE="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool] [-L latency_matrix.tsv]"; exit 1 ;;
+    D) DUMP_FILE="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool] [-L latency_matrix.tsv] [-D dump_matrix.tsv]"; exit 1 ;;
   esac
 done
 shift $((OPTIND-1))
@@ -59,8 +61,12 @@ log() {
 # files from a previous run — including one killed with SIGKILL, which bypasses
 # any trap — can never make `exec 200>` fail and silently skip latency setup.
 LOCK_DIR="$(dirname "$LOG_FILE")/network-benchmark-locks"
-rm -rf "$LOCK_DIR"
-mkdir -p "$LOCK_DIR"
+# Dump mode never takes locks and usually runs unprivileged, where sweeping
+# root-owned lock files from a previous sudo run would fail under set -e.
+if [ -z "$DUMP_FILE" ]; then
+  rm -rf "$LOCK_DIR"
+  mkdir -p "$LOCK_DIR"
+fi
 
 
 # --- Prepare validator list ---
@@ -70,45 +76,124 @@ for i in $(seq 1 "$NUMBER_VALIDATORS"); do
 done
 
 
-# === RTT latency table ===
-RTT_LATENCY_TABLE=(
-  "1 14 104 112 198 65 68 110 201 146"
-  "14 1 106 122 196 78 67 103 189 142"
-  "104 106 1 215 281 163 29 50 143 238"
-  "112 122 215 1 309 175 176 220 299 254"
-  "198 196 281 309 1 137 254 268 150 101"
-  "65 78 163 175 137 1 127 172 226 108"
-  "68 67 29 176 254 127 1 38 125 199"
-  "110 103 50 220 268 172 38 1 148 245"
-  "201 189 143 299 150 226 125 148 1 140"
-  "146 142 238 254 101 108 199 245 140 1"
-)
+# === Built-in role-based latency model ===
+# Deterministic directed per-edge netem parameters for any validator count.
+# Roles repeat every 10 validators (validator v has role (v-1) % 10):
+#   role 0 (v1, v11, ...) : hub        - band member with mildly fast
+#                           50-52 ms inbound spokes; anchors the round pace
+#                           ~2 ms above the band quorum loop so direct blocks
+#                           keep completing quorums (AddBlock) on fresh runs
+#   roles 1-7             : band       - narrow asymmetric 48-54 ms mesh;
+#                           direct full blocks complete quorums (AddBlock)
+#   role 8 (v9, v19, ...) : follower   - 22 ms spoke from its decade hub plus
+#                           88-96 ms directs; hub blocks complete its rounds
+#                           via embedded headers (AddBlockHeader)
+#   role 9 (v10, v20, ...): heavy tail - 350-375 +/- 50 ms fluctuating
+#                           directs, one 60 ms hub route delivered in netem
+#                           slot bursts (100-146 ms) whose ~2-round batches
+#                           interact with the 50 ms min block delay to skip
+#                           rounds (block-rate spread), 70-95 ms outbound so
+#                           its stale leader blocks never stall the quorum
+# With -g false all delays and jitters are divided by 4 and slot clauses are
+# dropped (legacy "small latencies" mode).
 
 # === Subfunctions ===
 
-# latency_from_table(i, j)
-# Returns RTT between validator i and j from RTT table, scaled by GEODISTRIBUTED.
-latency_from_table() {
+# edge_params(i, j)
+# Echoes "delay_ms jitter_ms corr_pct loss_pct slot_min_ms slot_max_ms" for
+# the directed edge validator-i -> validator-j (1-based, i != j).
+edge_params() {
   local i=$1 j=$2
-  local size=${#RTT_LATENCY_TABLE[@]}
-  local idx_i=$(( i % size ))
-  local idx_j=$(( j % size ))
-  IFS=' ' read -r -a row <<< "${RTT_LATENCY_TABLE[$idx_i]}"
-  local val=${row[$idx_j]}
-
-  local divisor
-  if [ "$GEODISTRIBUTED" = true ]; then
-    divisor=2
-  else
-    divisor=8
+  local role_i=$(( (i - 1) % 10 )) role_j=$(( (j - 1) % 10 ))
+  local hub_j=$(( j - (j - 1) % 10 ))
+  local d
+  # heavy-tail inbound: bursty hub spoke, deep fluctuating directs
+  if [ "$role_j" -eq 9 ]; then
+    if [ "$i" -eq "$hub_j" ]; then
+      echo "60 3 0 0 100 146"
+    else
+      echo "$(( 350 + (7 * i) % 26 )) 50 70 0 0 0"
+    fi
+    return
   fi
-
-  local res=$(( val / divisor ))
-  if [ "$res" -gt "$val" ]; then
-    res=$MAX
+  # heavy-tail outbound: moderate, never stalls healthy quorums
+  if [ "$role_i" -eq 9 ]; then
+    echo "$(( 70 + (9 * j) % 26 )) 25 30 0 0 0"
+    return
   fi
+  # relay-follower inbound: hub spoke wins every round
+  if [ "$role_j" -eq 8 ]; then
+    if [ "$i" -eq "$hub_j" ]; then
+      echo "22 2 30 0 0 0"
+    else
+      echo "$(( 88 + (3 * i) % 9 )) 8 30 0 0 0"
+    fi
+    return
+  fi
+  if [ "$role_i" -eq 8 ]; then
+    echo "$(( 58 + (5 * j) % 9 )) 8 30 0 0 0"
+    return
+  fi
+  # fast inbound spokes to the hub
+  if [ "$role_j" -eq 0 ]; then
+    echo "$(( 50 + i % 3 )) 3 30 0 0 0"
+    return
+  fi
+  # ordinary band mesh
+  d=$(( 48 + (3 * i + 5 * j) % 7 ))
+  echo "$d $(( 3 + d % 3 )) 30 0 0 0"
+}
 
-  echo "$res"
+# Fill the matrix arrays from the built-in model for all directed edges.
+# Applies the -g false downscaling here so accessors stay pure lookups.
+populate_builtin_matrix() {
+  local i j d jit corr loss smin smax
+  for ((i=1; i<=NUMBER_VALIDATORS; i++)); do
+    for ((j=1; j<=NUMBER_VALIDATORS; j++)); do
+      [ "$i" -eq "$j" ] && continue
+      # Explicit IFS: the script-global IFS has no space, so the
+      # space-separated edge_params output would not split otherwise.
+      IFS=' ' read -r d jit corr loss smin smax <<< "$(edge_params "$i" "$j")"
+      if [ "$GEODISTRIBUTED" != true ]; then
+        d=$(( d / 4 )); [ "$d" -lt 1 ] && d=1
+        jit=$(( jit / 4 ))
+        smin=0; smax=0
+      fi
+      LATENCY_MATRIX[$i,$j]=$d
+      JITTER_MATRIX[$i,$j]=$jit
+      LOSS_MATRIX[$i,$j]=$loss
+      CORR_MATRIX[$i,$j]=$corr
+      SLOT_MIN_MATRIX[$i,$j]=$smin
+      SLOT_MAX_MATRIX[$i,$j]=$smax
+    done
+  done
+  log "Populated built-in role-based latency matrix for $NUMBER_VALIDATORS validators"
+}
+
+# Write the effective matrix as a TSV (same format -L consumes) and return.
+dump_matrix() {
+  local file=$1
+  local i j
+  # C locale: %.2f must emit dot decimals regardless of the host LC_NUMERIC,
+  # since latency_model.py and the -L loss/corr guards expect "0.00".
+  local LC_ALL=C
+  {
+    echo "# latency-matrix n=$NUMBER_VALIDATORS model=role-based geodistributed=$GEODISTRIBUTED"
+    echo "# roles repeat every 10 validators: hub / band x7 / relay-follower / heavy-tail"
+    echo "# src	dst	delay_ms	jitter_ms	loss_pct	corr_pct	slot_min_ms	slot_max_ms"
+    for ((i=1; i<=NUMBER_VALIDATORS; i++)); do
+      for ((j=1; j<=NUMBER_VALIDATORS; j++)); do
+        [ "$i" -eq "$j" ] && continue
+        # Same miss defaults as the accessors, so dumping a partial -L
+        # matrix works instead of tripping set -u.
+        printf '%s\t%s\t%s\t%s\t%.2f\t%.0f\t%s\t%s\n' \
+          "$i" "$j" \
+          "${LATENCY_MATRIX[$i,$j]:-1}" "${JITTER_MATRIX[$i,$j]:-0}" \
+          "${LOSS_MATRIX[$i,$j]:-0}" "${CORR_MATRIX[$i,$j]:-0}" \
+          "${SLOT_MIN_MATRIX[$i,$j]:-0}" "${SLOT_MAX_MATRIX[$i,$j]:-0}"
+      done
+    done
+  } > "$file"
 }
 
 # --- Optional latency matrix loaded from -L <file> ---
@@ -116,8 +201,8 @@ latency_from_table() {
 # `src \t dst \t rtt_ms \t jitter_ms \t loss_pct \t corr_pct \t slot_min_ms \t slot_max_ms`.
 # The 5th-8th columns are optional. Indices are 1-based (validator-1 = 1).
 # Comment lines starting with `#` and blank lines are ignored. When a
-# (src,dst) lookup misses the matrix the script transparently falls back to
-# the legacy latency_from_table above; loss/correlation/slot fall back to 0.
+# (src,dst) lookup misses a partially specified matrix the accessors fall
+# back to 1 ms delay and zero jitter/loss/correlation/slot.
 # Non-zero slot columns emit `netem ... slot <min>ms <max>ms`, batching
 # delivery into bursts spaced uniformly in [min, max] (kernel >= 4.16).
 declare -A LATENCY_MATRIX
@@ -152,27 +237,19 @@ load_latency_matrix() {
 }
 
 # latency_for / jitter_for / loss_for / corr_for take validator NAMES
-# (validator-1, validator-2, ...) and return ms / ms / percent. They consult
-# the loaded matrix first and fall back to safe defaults so older invocations
-# without -L keep working.
+# (validator-1, validator-2, ...) and return ms / ms / percent. The matrix
+# arrays are always populated before use (either from -L or the built-in
+# role-based model), so these are pure lookups.
 latency_for() {
   local A=$1 B=$2
   local src=${A#validator-} dst=${B#validator-}
-  if [ -n "${LATENCY_MATRIX[$src,$dst]:-}" ]; then
-    echo "${LATENCY_MATRIX[$src,$dst]}"
-  else
-    latency_from_table "$(( src - 1 ))" "$(( dst - 1 ))"
-  fi
+  echo "${LATENCY_MATRIX[$src,$dst]:-1}"
 }
 
 jitter_for() {
   local A=$1 B=$2
   local src=${A#validator-} dst=${B#validator-}
-  if [ -n "${JITTER_MATRIX[$src,$dst]:-}" ]; then
-    echo "${JITTER_MATRIX[$src,$dst]}"
-  else
-    echo $(( RANDOM % 3 ))
-  fi
+  echo "${JITTER_MATRIX[$src,$dst]:-0}"
 }
 
 loss_for() {
@@ -567,9 +644,18 @@ reapply_latencies_and_fuzz_loop() {
 log "Starting fuzz manager"
 RANDOM=$SEED
 
-# Load latency matrix if provided; otherwise legacy table is used via fallback.
-if [ -n "$LATENCY_FILE" ]; then
-  load_latency_matrix "$LATENCY_FILE" || true
+# Load the -L matrix override if provided; otherwise compute the built-in
+# role-based model. A missing/unreadable -L file also falls back to it.
+if [ -z "$LATENCY_FILE" ] || ! load_latency_matrix "$LATENCY_FILE"; then
+  populate_builtin_matrix
+fi
+
+# Dump-and-exit mode: write the effective matrix (for logging, inspection,
+# or as a -L input) without touching docker or netem state.
+if [ -n "$DUMP_FILE" ]; then
+  dump_matrix "$DUMP_FILE"
+  log "Dumped latency matrix to $DUMP_FILE"
+  exit 0
 fi
 
 # Initially set latencies

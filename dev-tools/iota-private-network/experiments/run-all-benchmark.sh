@@ -13,7 +13,10 @@ CLEANING=false
 # =================== CONSTANTS ===================
 DEFAULT_NUM_VALIDATORS=4
 DEFAULT_BUILD=true
-DEFAULT_GEODISTRIBUTED=false
+# Default true: the role-based model in network-benchmark.sh was tuned with
+# its full geodistributed values (-g false divides delays by 4 and drops the
+# heavy-tail slot bursts).
+DEFAULT_GEODISTRIBUTED=true
 DEFAULT_SEED=42
 DEFAULT_PERCENT_BLOCK=0       # percent chance to block a connection
 DEFAULT_PERCENT_LOSS=0       # percent chance to apply netem loss
@@ -308,14 +311,17 @@ cd - >/dev/null
 
 # --- 5) Launch combined latency + fuzz watcher in background ---
 LATENCY_MATRIX="$LOG_DIR/latency-matrix.tsv"
-log "Generating deterministic latency matrix: $LATENCY_MATRIX"
-# Capture instead of piping: a pipe would mask a latency_model.py failure
-# (the while-loop's exit code wins under pipefail) and the run would
-# silently fall back to the legacy built-in RTT table.
-matrix_summary=$(python3 "$SCRIPT_DIR/latency_model.py" \
+log "Dumping effective latency matrix: $LATENCY_MATRIX"
+# network-benchmark.sh natively computes the role-based model; -D writes the
+# matrix it will apply (audit artifact + input for the summary below).
+./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
-    -s "$SEED" \
-    -o "$LATENCY_MATRIX")
+    -g "$GEODISTRIBUTED" \
+    -o "$LOG_FILE" \
+    -D "$LATENCY_MATRIX"
+# Capture instead of piping: a pipe would mask a latency_model.py failure
+# (the while-loop's exit code wins under pipefail).
+matrix_summary=$(python3 "$SCRIPT_DIR/latency_model.py" "$LATENCY_MATRIX")
 while IFS= read -r line; do log "$line"; done <<< "$matrix_summary"
 
 ./network-benchmark.sh \
@@ -328,8 +334,7 @@ while IFS= read -r line; do log "$line"; done <<< "$matrix_summary"
     -w "$RESTART_TIMEOUT" \
     -M "$RESTART_MODE" \
     -g "$GEODISTRIBUTED" \
-    -o "$LOG_FILE" \
-    -L "$LATENCY_MATRIX" &
+    -o "$LOG_FILE" &
 
 # --- 6) Launch spammer if enabled ---
 if [ "$SPAMMER_ENABLE" = true ]; then
