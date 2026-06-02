@@ -719,7 +719,13 @@ impl ConsensusAdapter {
             }
 
             // If transaction is received by consensus or checkpoint while we wait, we are done.
-            _ = &mut processed_via_consensus_or_checkpoint => {
+            // Capture the resolved `ProcessedMethod` so the latency metric and
+            // `latency_observer` accurately reflect whether the early-fire was a
+            // consensus processing, a checkpoint sync, or a `dropped_tx_status_cache`
+            // hit. Without this, the guard would stay at its default `Consensus`,
+            // mislabeling cache-hit retries.
+            method = &mut processed_via_consensus_or_checkpoint => {
+                guard.processed_method = method;
                 None
             }
         };
@@ -1031,12 +1037,13 @@ impl ConsensusAdapter {
                 Either::Right(future::pending())
             };
 
-            // We wait for each transaction individually to be processed by consensus or
-            // executed in a checkpoint. We could equally just get notified in
-            // aggregate when all transactions are processed, but with this approach can get
-            // notified in a more fine-grained way as transactions can be marked
-            // as processed in different ways. This is mostly a concern for the soft-bundle
-            // transactions.
+            // We wait for each transaction individually to be processed by consensus,
+            // executed in a checkpoint or dropped. We could equally just get
+            // notified in aggregate when all transactions are processed, but
+            // with this approach can get notified in a more fine-grained way as
+            // transactions can be marked as processed in different ways. This
+            // is mostly a concern for the soft-bundle transactions.
+            let dropped_digest = transaction_digests.first().copied();
             notifications.push(async move {
                 tokio::select! {
                     processed = epoch_store.consensus_messages_processed_notify(vec![transaction_key]) => {
@@ -1051,18 +1058,29 @@ impl ConsensusAdapter {
                     _ = checkpoint_synced_future => {
                         self.metrics.sequencing_certificate_processed.with_label_values(&["synced_checkpoint"]).inc();
                     }
+                    _ = async move {
+                        if let Some(d) = dropped_digest {
+                            let _err = epoch_store.notify_read_dropped_digests(d).await;
+                        } else {
+                            future::pending::<()>().await;
+                        }
+                    } => {
+                        self.metrics.sequencing_certificate_processed.with_label_values(&["dropped"]).inc();
+                        return ProcessedMethod::Dropped;
+                    }
                 }
                 ProcessedMethod::Checkpoint
             });
         }
 
         let processed_methods = notifications.collect::<Vec<ProcessedMethod>>().await;
-        for method in processed_methods {
-            if method == ProcessedMethod::Checkpoint {
-                return ProcessedMethod::Checkpoint;
-            }
+        if processed_methods.contains(&ProcessedMethod::Dropped) {
+            ProcessedMethod::Dropped
+        } else if processed_methods.contains(&ProcessedMethod::Checkpoint) {
+            ProcessedMethod::Checkpoint
+        } else {
+            ProcessedMethod::Consensus
         }
-        ProcessedMethod::Consensus
     }
 
     /// Submits an `EndOfPublish` message to consensus with exponential
@@ -1277,10 +1295,11 @@ struct InflightDropGuard<'a> {
     processed_method: ProcessedMethod,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 enum ProcessedMethod {
     Consensus,
     Checkpoint,
+    Dropped,
 }
 
 impl<'a> InflightDropGuard<'a> {
@@ -1349,6 +1368,7 @@ impl Drop for InflightDropGuard<'_> {
         let processed_method = match self.processed_method {
             ProcessedMethod::Consensus => "processed_via_consensus",
             ProcessedMethod::Checkpoint => "processed_via_checkpoint",
+            ProcessedMethod::Dropped => "dropped",
         };
         self.adapter
             .metrics
@@ -1368,8 +1388,9 @@ impl Drop for InflightDropGuard<'_> {
                 self.tx_type,
                 "shared_certificate" | "owned_certificate" | "checkpoint_signature" | "soft_bundle"
             );
-            // if tx has been processed by checkpoint state sync, then exclude from the
-            // latency calculations as this can introduce to misleading results.
+            // Exclude checkpoint-synced and dropped txs from the latency observer:
+            // their latency reflects state-sync timing or rejection, not consensus
+            // throughput, and would skew the observed consensus latency.
             if sampled && self.processed_method == ProcessedMethod::Consensus {
                 self.adapter.latency_observer.report(latency);
             }
