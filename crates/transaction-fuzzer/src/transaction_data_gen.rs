@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
     transaction::{
         GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
@@ -43,7 +44,7 @@ pub fn gen_object_ref() -> impl Strategy<Value = ObjectRef> {
     )
         .prop_map(move |(addr, seq, seed)| {
             ObjectRef::new(
-                ObjectID::new(addr.into_bytes()),
+                ObjectId::new(addr.into_bytes()),
                 seq,
                 ObjectDigest::new(seed),
             )

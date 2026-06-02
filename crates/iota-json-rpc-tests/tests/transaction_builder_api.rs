@@ -17,9 +17,9 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     digests::ObjectDigest,
     gas_coin::GAS,
     object::Owner,
@@ -34,7 +34,7 @@ fn assert_same_object_changes_ignoring_version_and_digest(
 ) {
     fn collect_changes_mask_version_and_digest(
         changes: Vec<ObjectChange>,
-    ) -> BTreeMap<ObjectID, ObjectChange> {
+    ) -> BTreeMap<ObjectId, ObjectChange> {
         changes
             .into_iter()
             .map(|mut change| {
@@ -387,7 +387,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let new_coin_ids: Vec<ObjectID> = tx_response
+    let new_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .created()
@@ -453,7 +453,7 @@ async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let new_coin_ids: Vec<ObjectID> = tx_response
+    let new_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .created()
@@ -529,7 +529,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
         .await
         .unwrap();
 
-    let deleted_coin_ids: Vec<ObjectID> = tx_response
+    let deleted_coin_ids: Vec<ObjectId> = tx_response
         .effects
         .unwrap()
         .deleted()
@@ -576,7 +576,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             address,
             vec![
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::FRAMEWORK,
+                    package_object_id: ObjectId::FRAMEWORK,
                     module: "pay".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![GAS::type_tag()]?,
@@ -602,7 +602,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
 
     // Assert results of the move call
     {
-        let created_coin_ids: Vec<ObjectID> = tx_response
+        let created_coin_ids: Vec<ObjectId> = tx_response
             .effects
             .unwrap()
             .created()
@@ -669,7 +669,7 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
             address,
             vec![
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::FRAMEWORK,
+                    package_object_id: ObjectId::FRAMEWORK,
                     module: "coin".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![StructTag::new_gas()]?,
@@ -679,7 +679,7 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
                         .collect(),
                 }),
                 RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                    package_object_id: ObjectID::FRAMEWORK,
+                    package_object_id: ObjectId::FRAMEWORK,
                     module: "transfer".to_string(),
                     function: "public_transfer".to_string(),
                     type_arguments: type_args![StructTag::new_gas_coin()]?,
@@ -701,7 +701,7 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
 
     // Assert results of the move call
     {
-        let created_coin_ids: Vec<ObjectID> = tx_response
+        let created_coin_ids: Vec<ObjectId> = tx_response
             .effects
             .unwrap()
             .created()
@@ -762,7 +762,7 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
     let coin = &objects[1].object()?;
 
     // now do the call
-    let package_id = ObjectID::FRAMEWORK;
+    let package_id = ObjectId::FRAMEWORK;
     let module = "pay".to_string();
     let function = "split".to_string();
 

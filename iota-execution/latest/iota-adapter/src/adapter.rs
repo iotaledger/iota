@@ -16,6 +16,7 @@ mod checked {
         transaction_context::TransactionContext,
     };
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
         auth_context::AuthContext,
         base_types::*,
@@ -98,7 +99,7 @@ mod checked {
     /// via `NativeContext` instance.
     pub fn new_native_extensions<'r>(
         child_resolver: &'r dyn ChildObjectResolver,
-        input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_objects: BTreeMap<ObjectId, object_runtime::InputObject>,
         is_metered: bool,
         protocol_config: &'r ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
@@ -129,7 +130,7 @@ mod checked {
     /// ID (which must be 0x0) to be `object_id`.
     pub fn substitute_package_id(
         modules: &mut [CompiledModule],
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<(), ExecutionError> {
         let new_address = AccountAddress::new(object_id.into_bytes());
 

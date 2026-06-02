@@ -23,6 +23,7 @@ mod leader_scoring;
 mod leader_timeout;
 mod linearizer;
 mod metrics;
+mod misbehavior_store;
 #[cfg(not(msim))]
 mod network;
 #[cfg(msim)]
@@ -68,6 +69,7 @@ pub use block_header::{
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use context::Clock;
+pub use misbehavior_store::{MisbehaviorCounts, MisbehaviorCountsV1};
 pub use network::tonic_network::to_socket_addr;
 #[cfg(msim)]
 pub use storage::delete_all_transactions_from_store;

@@ -7,9 +7,8 @@ use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_types::{
-    base_types::ObjectID,
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
@@ -34,7 +33,7 @@ use crate::authority::{
 #[cfg_attr(msim, ignore)]
 async fn test_publishing_with_unpublished_deps() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -99,7 +98,7 @@ async fn test_publishing_with_unpublished_deps() {
 #[cfg_attr(msim, ignore)]
 async fn test_publish_empty_package() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_object = authority.get_object(&gas).await;
@@ -152,7 +151,7 @@ async fn test_publish_empty_package() {
 #[cfg_attr(msim, ignore)]
 async fn test_publish_duplicate_modules() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let gas_object = authority.get_object(&gas).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
@@ -317,7 +316,7 @@ async fn test_custom_property_check_unpublished_dependencies() {
 #[cfg_attr(msim, ignore)]
 async fn test_publish_extraneous_bytes_modules() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let gas_object = authority.get_object(&gas).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
@@ -439,7 +438,7 @@ async fn test_publish_extraneous_bytes_modules() {
 #[cfg_attr(msim, ignore)]
 async fn test_publish_max_packages() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
     let (_, modules, dependencies) = build_package("object_basics", false);
@@ -467,7 +466,7 @@ async fn test_publish_max_packages() {
 #[cfg_attr(msim, ignore)]
 async fn test_publish_more_than_max_packages_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
     let (_, modules, dependencies) = build_package("object_basics", false);

@@ -6,13 +6,13 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package_and_make_counter,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas::GasCostSummary,
     gas_coin::GAS,
@@ -79,7 +79,7 @@ async fn split_n_tx(
 
     TestTransactionBuilder::new(sender, gas, gas_price)
         .move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::PAY_MODULE.as_str(),
             PAY_SPLIT_VEC_FUNC_NAME.as_str(),
             vec![
@@ -149,7 +149,7 @@ async fn create_txes(
 
     let merge_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
         .move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE.as_str(),
             COIN_JOIN_FUNC_NAME.as_str(),
             vec![

@@ -4,11 +4,11 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, ensure};
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_stardust_types::block::output as stardust;
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
@@ -41,7 +41,7 @@ pub(super) fn verify_alias_output(
     tokens_counter: &mut TokensAmountCounter,
     address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
-    let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
+    let alias_id = ObjectId::new(*output.alias_id_non_null(&output_id));
 
     let created_output_obj = created_objects.output().and_then(|id| {
         storage

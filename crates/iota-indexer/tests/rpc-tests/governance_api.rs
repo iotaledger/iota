@@ -6,10 +6,9 @@ use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
 };
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::ObjectID,
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
@@ -262,7 +261,7 @@ fn test_timelocked_staking() {
 
             // Step 1: Get the IOTA balance from the coin object.
             let iota_balance = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("into_balance"),
                 vec![GAS::type_tag()],
@@ -272,7 +271,7 @@ fn test_timelocked_staking() {
             // Step 2: Timelock the IOTA balance.
             let timelock_timestamp = builder.pure(u64::MAX).unwrap();
             let timelocked_iota_balance = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::from_static("timelock"),
                 Identifier::from_static("lock"),
                 vec![TypeTag::Struct(Box::new(StructTag::new_balance(
@@ -299,7 +298,7 @@ fn test_timelocked_staking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::SYSTEM,
+                ObjectId::SYSTEM,
                 Identifier::TIMELOCKED_STAKING_MODULE,
                 Identifier::from_static("request_add_stake"),
                 vec![],
@@ -380,7 +379,7 @@ fn test_timelocked_unstaking() {
 
             // Step 1: Get the IOTA balance from the coin object.
             let iota_balance = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("into_balance"),
                 vec![GAS::type_tag()],
@@ -390,7 +389,7 @@ fn test_timelocked_unstaking() {
             // Step 2: Timelock the IOTA balance.
             let timelock_timestamp = builder.pure(u64::MAX).unwrap();
             let timelocked_iota_balance = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::from_static("timelock"),
                 Identifier::from_static("lock"),
                 vec![TypeTag::Struct(Box::new(StructTag::new_balance(
@@ -417,7 +416,7 @@ fn test_timelocked_unstaking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::SYSTEM,
+                ObjectId::SYSTEM,
                 Identifier::TIMELOCKED_STAKING_MODULE,
                 Identifier::from_static("request_add_stake"),
                 vec![],
@@ -467,7 +466,7 @@ fn test_timelocked_unstaking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::SYSTEM,
+                ObjectId::SYSTEM,
                 Identifier::TIMELOCKED_STAKING_MODULE,
                 Identifier::from_static("request_withdraw_stake"),
                 vec![],

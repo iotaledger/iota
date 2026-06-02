@@ -15,10 +15,9 @@ use iota_indexer::{
     },
     schema::{checkpoints, events},
 };
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
-    event::Event as NativeEvent,
+    base_types::IotaAddress as NativeIotaAddress, event::Event as NativeEvent,
     parse_iota_struct_tag,
 };
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
@@ -305,7 +304,7 @@ impl Event {
         let sender = NativeIotaAddress::from_bytes(sender_bytes)
             .map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =
-            ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
+            ObjectId::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
         let type_ = parse_iota_struct_tag(&stored.event_type)
             .map_err(|e| Error::Internal(e.to_string()))?;
         let module = Identifier::new(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;

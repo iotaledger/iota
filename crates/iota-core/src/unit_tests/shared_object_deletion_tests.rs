@@ -6,8 +6,9 @@
 use std::sync::Arc;
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     committee::EpochId,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -41,7 +42,7 @@ use crate::{
 pub struct TestRunner {
     pub sender: IotaAddress,
     pub sender_key: AccountKeyPair,
-    pub gas_object_ids: Vec<ObjectID>,
+    pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
     pub package: ObjectRef,
 }
@@ -60,7 +61,7 @@ impl TestRunner {
 
         let mut gas_object_ids = vec![];
         for _ in 0..20 {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
             authority_state.insert_genesis_object(gas_object).await;
             gas_object_ids.push(gas_object_id);
@@ -109,7 +110,7 @@ impl TestRunner {
         .await
     }
 
-    pub fn get_object_latest_version(&mut self, obj_id: ObjectID) -> SequenceNumber {
+    pub fn get_object_latest_version(&mut self, obj_id: ObjectId) -> SequenceNumber {
         self.authority_state
             .get_object_cache_reader()
             .get_latest_object_ref_or_tombstone(obj_id)
@@ -120,7 +121,7 @@ impl TestRunner {
     pub async fn mutate_n_times(
         &mut self,
         mut n: u64,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) {
         while n > 0 {
@@ -160,7 +161,7 @@ impl TestRunner {
 
     pub async fn delete_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -183,7 +184,7 @@ impl TestRunner {
 
     pub async fn delete_shared_obj_tx_immut(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -207,7 +208,7 @@ impl TestRunner {
     pub async fn delete_shared_obj_with_owned_tx(
         &mut self,
         owned_obj: ObjectRef,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -234,9 +235,9 @@ impl TestRunner {
 
     pub async fn delete_shared_obj_with_shared_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
-        shared_obj_id_2: ObjectID,
+        shared_obj_id_2: ObjectId,
         initial_shared_version_2: SequenceNumber,
     ) -> Transaction {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -269,7 +270,7 @@ impl TestRunner {
     pub async fn mutate_shared_obj_with_owned_tx(
         &mut self,
         owned_obj: ObjectRef,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -295,9 +296,9 @@ impl TestRunner {
 
     pub async fn mutate_shared_obj_with_shared_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
-        shared_obj_id_2: ObjectID,
+        shared_obj_id_2: ObjectId,
         initial_shared_version_2: SequenceNumber,
     ) -> Transaction {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -328,7 +329,7 @@ impl TestRunner {
 
     pub async fn vec_delete_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -351,8 +352,8 @@ impl TestRunner {
 
     pub async fn mutate_and_read(
         &mut self,
-        so1: (ObjectID, SequenceNumber, bool),
-        so2: (ObjectID, SequenceNumber, bool),
+        so1: (ObjectId, SequenceNumber, bool),
+        so2: (ObjectId, SequenceNumber, bool),
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg1 = delete_object_transaction_builder
@@ -391,7 +392,7 @@ impl TestRunner {
 
     pub async fn mutate_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -414,7 +415,7 @@ impl TestRunner {
 
     pub async fn read_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -437,7 +438,7 @@ impl TestRunner {
 
     pub async fn wrap_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -460,7 +461,7 @@ impl TestRunner {
 
     pub async fn transfer_to_single_owner_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -483,7 +484,7 @@ impl TestRunner {
 
     pub async fn freeze_shared_obj_tx(
         &mut self,
-        shared_obj_id: ObjectID,
+        shared_obj_id: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> Transaction {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
@@ -507,7 +508,7 @@ impl TestRunner {
     pub async fn create_signed_transaction_from_pt(
         &mut self,
         pt: ProgrammableTransaction,
-        account_id: ObjectID,
+        account_id: ObjectId,
     ) -> Transaction {
         build_programmable_transaction(
             &self.authority_state,
@@ -544,7 +545,7 @@ impl TestRunner {
 
     pub fn object_exists_in_marker_table(
         &mut self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: &SequenceNumber,
         epoch: EpochId,
     ) -> Option<TransactionDigest> {

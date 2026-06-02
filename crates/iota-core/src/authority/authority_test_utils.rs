@@ -184,7 +184,7 @@ pub async fn init_state_with_committee(
         .await
 }
 
-pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectID)>>(
+pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectId)>>(
     objects: I,
 ) -> Arc<AuthorityState> {
     let state = TestAuthorityBuilder::new().build().await;
@@ -197,7 +197,7 @@ pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectID)>
 }
 
 pub async fn init_state_with_ids_and_versions<
-    I: IntoIterator<Item = (IotaAddress, ObjectID, SequenceNumber)>,
+    I: IntoIterator<Item = (IotaAddress, ObjectId, SequenceNumber)>,
 >(
     objects: I,
 ) -> Arc<AuthorityState> {
@@ -237,13 +237,13 @@ pub async fn init_state_with_objects_and_committee<I: IntoIterator<Item = Object
 
 pub async fn init_state_with_object_id(
     address: IotaAddress,
-    object: ObjectID,
+    object: ObjectId,
 ) -> Arc<AuthorityState> {
     init_state_with_ids(std::iter::once((address, object))).await
 }
 
 pub async fn init_state_with_ids_and_expensive_checks<
-    I: IntoIterator<Item = (IotaAddress, ObjectID)>,
+    I: IntoIterator<Item = (IotaAddress, ObjectId)>,
 >(
     objects: I,
     config: ExpensiveSafetyCheckConfig,

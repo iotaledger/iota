@@ -6,9 +6,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTransactionKind,
     ObjectChange,
 };
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, SequenceNumber},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
@@ -157,10 +157,10 @@ pub struct IndexedEvent {
     pub checkpoint_sequence_number: u64,
     pub transaction_digest: TransactionDigest,
     pub senders: Vec<IotaAddress>,
-    pub package: ObjectID,
+    pub package: ObjectId,
     pub module: String,
     pub event_type: String,
-    pub event_type_package: ObjectID,
+    pub event_type_package: ObjectId,
     pub event_type_module: String,
     /// Struct name of the event, without type parameters.
     pub event_type_name: String,
@@ -200,9 +200,9 @@ pub struct EventIndex {
     pub tx_sequence_number: u64,
     pub event_sequence_number: u64,
     pub sender: IotaAddress,
-    pub emit_package: ObjectID,
+    pub emit_package: ObjectId,
     pub emit_module: String,
-    pub type_package: ObjectID,
+    pub type_package: ObjectId,
     pub type_module: String,
     /// Struct name of the event, without type parameters.
     pub type_name: String,
@@ -248,9 +248,9 @@ impl EventIndex {
             tx_sequence_number: rng.gen(),
             event_sequence_number: rng.gen(),
             sender: IotaAddress::random(),
-            emit_package: ObjectID::random(),
+            emit_package: ObjectId::random(),
             emit_module: rng.gen::<u64>().to_string(),
-            type_package: ObjectID::random(),
+            type_package: ObjectId::random(),
             type_module: rng.gen::<u64>().to_string(),
             type_name: rng.gen::<u64>().to_string(),
             type_instantiation: rng.gen::<u64>().to_string(),
@@ -367,7 +367,7 @@ impl IndexedObject {
 
 #[derive(Clone, Debug)]
 pub struct IndexedDeletedObject {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub object_version: u64,
     pub checkpoint_sequence_number: u64,
 }
@@ -377,7 +377,7 @@ impl IndexedDeletedObject {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         IndexedDeletedObject {
-            object_id: ObjectID::random(),
+            object_id: ObjectId::random(),
             object_version: rng.gen(),
             checkpoint_sequence_number: rng.gen(),
         }
@@ -386,7 +386,7 @@ impl IndexedDeletedObject {
 
 #[derive(Debug)]
 pub struct IndexedPackage {
-    pub package_id: ObjectID,
+    pub package_id: ObjectId,
     pub move_package: MovePackage,
     pub checkpoint_sequence_number: u64,
 }
@@ -412,13 +412,13 @@ pub struct TxIndex {
     pub tx_kind: IotaTransactionKind,
     pub transaction_digest: TransactionDigest,
     pub checkpoint_sequence_number: u64,
-    pub input_objects: Vec<ObjectID>,
-    pub changed_objects: Vec<ObjectID>,
+    pub input_objects: Vec<ObjectId>,
+    pub changed_objects: Vec<ObjectId>,
     pub payers: Vec<IotaAddress>,
     pub sender: IotaAddress,
     pub recipients: Vec<IotaAddress>,
-    pub move_calls: Vec<(ObjectID, String, String)>,
-    pub wrapped_or_deleted_objects: Vec<ObjectID>,
+    pub move_calls: Vec<(ObjectId, String, String)>,
+    pub wrapped_or_deleted_objects: Vec<ObjectId>,
 }
 
 #[cfg(any(test, feature = "pg_integration"))]
@@ -442,8 +442,8 @@ impl TxIndex {
             IotaTransactionKind::ProgrammableTransaction
         };
 
-        let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
-        let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let input_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
+        let changed_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
         let payers = repeat_with(IotaAddress::random)
             .take(rng.gen_range(0..MAX_PAYERS))
             .collect();
@@ -452,14 +452,14 @@ impl TxIndex {
             .collect();
         let move_calls = repeat_with(|| {
             (
-                ObjectID::random(),
+                ObjectId::random(),
                 rand::random::<u64>().to_string(),
                 rand::random::<u64>().to_string(),
             )
         })
         .take(rng.gen_range(0..MAX_MOVE_CALLS))
         .collect();
-        let wrapped_or_deleted_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
+        let wrapped_or_deleted_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
 
         TxIndex {
             tx_sequence_number: rng.gen(),
@@ -482,7 +482,7 @@ impl TxIndex {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum IndexedObjectChange {
     Published {
-        package_id: ObjectID,
+        package_id: ObjectId,
         version: SequenceNumber,
         digest: ObjectDigest,
         modules: Vec<String>,
@@ -492,7 +492,7 @@ pub enum IndexedObjectChange {
         recipient: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         digest: ObjectDigest,
     },
@@ -502,7 +502,7 @@ pub enum IndexedObjectChange {
         owner: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         previous_version: SequenceNumber,
         digest: ObjectDigest,
@@ -512,7 +512,7 @@ pub enum IndexedObjectChange {
         sender: IotaAddress,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     },
     /// Wrapped object
@@ -520,7 +520,7 @@ pub enum IndexedObjectChange {
         sender: IotaAddress,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     },
     /// Unwrapped object
@@ -529,7 +529,7 @@ pub enum IndexedObjectChange {
         owner: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         digest: ObjectDigest,
     },
@@ -539,7 +539,7 @@ pub enum IndexedObjectChange {
         owner: Owner,
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         digest: ObjectDigest,
     },

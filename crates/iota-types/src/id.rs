@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -14,8 +14,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::ObjectID,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, iota_sdk_types_conversions::struct_tag_sdk_to_core,
 };
 
 pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
@@ -34,17 +33,17 @@ pub struct UID {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct ID {
-    pub bytes: ObjectID,
+    pub bytes: ObjectId,
 }
 
 impl UID {
-    pub fn new(bytes: ObjectID) -> Self {
+    pub fn new(bytes: ObjectId) -> Self {
         Self {
             id: { ID::new(bytes) },
         }
     }
 
-    pub fn object_id(&self) -> &ObjectID {
+    pub fn object_id(&self) -> &ObjectId {
         &self.id.bytes
     }
 
@@ -70,7 +69,7 @@ impl fmt::Display for UID {
 }
 
 impl ID {
-    pub fn new(object_id: ObjectID) -> Self {
+    pub fn new(object_id: ObjectId) -> Self {
         Self { bytes: object_id }
     }
 

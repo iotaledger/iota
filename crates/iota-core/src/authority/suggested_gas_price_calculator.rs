@@ -3,7 +3,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use iota_types::{base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction};
+use iota_sdk_types::ObjectId;
+use iota_types::executable_transaction::VerifiedExecutableTransaction;
 use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
@@ -39,7 +40,7 @@ impl ScheduledTransactionCongestionInfo {
 type PerObjectCongestionInfo = BTreeMap<ExecutionTime, ScheduledTransactionCongestionInfo>;
 
 /// Holds shared object congestion data for a single consensus commit round.
-type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
+type PerCommitCongestionInfo = HashMap<ObjectId, PerObjectCongestionInfo>;
 
 /// `SuggestedGasPriceCalculator` calculates suggested gas prices for
 /// deferred/cancelled shared-object transactions, using congestion
@@ -267,7 +268,7 @@ impl SuggestedGasPriceCalculator {
 #[cfg(test)]
 pub mod suggested_gas_price_calculator_test_utils {
     use iota_protocol_config::PerObjectCongestionControlMode;
-    use iota_types::base_types::ObjectID;
+    use iota_sdk_types::ObjectId;
 
     use super::SuggestedGasPriceCalculator;
     use crate::authority::{
@@ -281,7 +282,7 @@ pub mod suggested_gas_price_calculator_test_utils {
     };
 
     pub(crate) fn new_suggested_gas_price_calculator_with_initial_values_for_test(
-        init_values: &[(ObjectID, ExecutionTime, u64)],
+        init_values: &[(ObjectId, ExecutionTime, u64)],
         congestion_control_parameters: CongestionControlParameters,
         reference_gas_price: u64,
     ) -> SuggestedGasPriceCalculator {
@@ -349,7 +350,8 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-    use iota_types::{base_types::ObjectID, executable_transaction::VerifiedExecutableTransaction};
+    use iota_sdk_types::ObjectId;
+    use iota_types::executable_transaction::VerifiedExecutableTransaction;
     use rstest::rstest;
 
     use super::SuggestedGasPriceCalculator;
@@ -374,14 +376,14 @@ mod tests {
         order_idx: usize,
         gas_price: u64,
         gas_budget: u64,
-        input_shared_objects: Vec<(ObjectID, /* mutability */ bool)>,
+        input_shared_objects: Vec<(ObjectId, /* mutability */ bool)>,
     }
 
     /// Build a set of `TransactionData` with two shared objects for tests.
     fn build_transactions_data_for_test(
         maxgp: u64,
-        object_1: ObjectID,
-        object_2: ObjectID,
+        object_1: ObjectId,
+        object_2: ObjectId,
     ) -> Vec<TransactionData> {
         [
             // (gas price, gas budget, input shared objects)
@@ -480,7 +482,7 @@ mod tests {
         tx_data: &TransactionData,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
-    ) -> Option<(Vec<ObjectID>, u64)> {
+    ) -> Option<(Vec<ObjectId>, u64)> {
         let (certificate, sequencing_result) =
             build_and_try_sequencing_certificate(tx_data, shared_object_congestion_tracker);
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
@@ -516,11 +518,11 @@ mod tests {
             REFERENCE_GAS_PRICE,
         );
 
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
-        let object_3 = ObjectID::random();
-        let object_4 = ObjectID::random();
-        let object_5 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
+        let object_3 = ObjectId::random();
+        let object_4 = ObjectId::random();
+        let object_5 = ObjectId::random();
 
         // Construct the first certificate that touches shared objects:
         // - `object_1` by mutable reference,
@@ -713,8 +715,8 @@ mod tests {
         // if `max_congestion_limit_overshoot_per_commit` is `None`.
         #[values(false, true)] use_congestion_limit_overshoot: bool,
     ) {
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
 
         // Congestion control and other parameters used in
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -991,8 +993,8 @@ mod tests {
         // if `max_congestion_limit_overshoot_per_commit` is `None`.
         #[values(false, true)] use_congestion_limit_overshoot: bool,
     ) {
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
 
         // Congestion control and other parameters used in
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -1432,8 +1434,8 @@ mod tests {
         // `SharedObjectCongestionTracker`.
         #[values(false, true)] use_congestion_limit_overshoot: bool,
     ) {
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
 
         // Congestion control and other parameters used in
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -1765,8 +1767,8 @@ mod tests {
         // `SharedObjectCongestionTracker`.
         #[values(false, true)] use_congestion_limit_overshoot: bool,
     ) {
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
 
         // Congestion control and other parameters used in
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -2251,8 +2253,8 @@ mod tests {
         )]
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
     ) {
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
 
         // Congestion control and other parameters used in
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
@@ -2333,8 +2335,8 @@ mod tests {
         )]
         per_object_congestion_control_mode: PerObjectCongestionControlMode,
     ) {
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
 
         // Congestion control and other parameters used in
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`

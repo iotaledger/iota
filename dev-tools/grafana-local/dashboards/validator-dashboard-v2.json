@@ -1,0 +1,469 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Validator-facing metrics for IOTA nodes. Initially focused on Starfish validator scoring and misbehavior tracking; intended to grow into the replacement for the legacy validator dashboard.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "Validator Scoring",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Environment}" },
+      "description": "Per-authority validator score published by the local Scoreboard after each consensus commit. Range [0, MAX_SCORE]; higher is better. Updates only when at least one misbehavior report has been received in the current epoch.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 1 },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": ["last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${Environment}" },
+          "editorMode": "code",
+          "expr": "validator_scoreboard_scores{network=\"$network\", host=~\"$validator\", authority=~\"$authority\"}",
+          "legendFormat": "{{host}} / {{authority}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Scoreboard scores",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
+      "id": 3,
+      "panels": [],
+      "title": "Misbehavior — Block Faults",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Environment}" },
+      "description": "Provably faulty blocks per authority. Header carries a valid signature but violates protocol rules — attributed to the block author. `in_memory` (faults observed since last flush) is stacked on top of `persisted` (cumulative on disk); the sum is the running total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 40,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 11 },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": ["last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${Environment}" },
+          "editorMode": "code",
+          "expr": "faulty_blocks_provable_by_authority{network=\"$network\", host=~\"$validator\", authority=~\"$authority\"}",
+          "legendFormat": "{{host}} / {{authority}} ({{source}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Provably faulty blocks (by author)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Environment}" },
+      "description": "Unprovably faulty blocks per peer. Header rejected before/around signature verification (bad signature, pre-signature checks, malformed bytes) — author field can't be trusted, so attributed to the sending peer. `in_memory` stacked on `persisted`; sum is the running total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 40,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 11 },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": ["last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${Environment}" },
+          "editorMode": "code",
+          "expr": "faulty_blocks_unprovable_by_peer{network=\"$network\", host=~\"$validator\", peer=~\"$authority\"}",
+          "legendFormat": "{{host}} / {{peer}} ({{source}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Unprovably faulty blocks (by sending peer)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+      "id": 6,
+      "panels": [],
+      "title": "Misbehavior — DAG Faults",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Environment}" },
+      "description": "Committed slots where an authority failed to propose. `in_memory` is recomputed wholesale over the current DAG window each flush; `persisted` accumulates from rounds that have been evicted from the window. The two never overlap, so the sum is the running total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 40,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 21 },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": ["last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${Environment}" },
+          "editorMode": "code",
+          "expr": "missing_proposals_by_authority{network=\"$network\", host=~\"$validator\", authority=~\"$authority\"}",
+          "legendFormat": "{{host}} / {{authority}} ({{source}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Missing proposals",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Environment}" },
+      "description": "Slots where an authority signed conflicting blocks for the same (authority, round). Same `in_memory` (current window) vs `persisted` (evicted rounds) decomposition as missing proposals; the two are disjoint and stack to the running total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 40,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 21 },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": ["last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${Environment}" },
+          "editorMode": "code",
+          "expr": "equivocations_by_authority{network=\"$network\", host=~\"$validator\", authority=~\"$authority\"}",
+          "legendFormat": "{{host}} / {{authority}} ({{source}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Equivocations",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "id": 9,
+      "panels": [],
+      "title": "Misbehavior Reports",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Environment}" },
+      "description": "Cumulative invalid misbehavior reports received from each reporting authority in the current epoch. Resets at reconfigure. Elevated values can indicate a faulty or adversarial reporter.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 31 },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": ["last", "sum"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${Environment}" },
+          "editorMode": "code",
+          "expr": "invalid_misbehavior_reports_by_authority{network=\"$network\", host=~\"$validator\", authority=~\"$authority\"}",
+          "legendFormat": "{{host}} / {{authority}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Invalid misbehavior reports (cumulative)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "revision": 1,
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["iota", "validator", "starfish", "scoring"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "Environment",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": { "selected": false, "text": "local", "value": "local" },
+        "datasource": { "type": "prometheus", "uid": "${Environment}" },
+        "definition": "label_values(uptime,network)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Network",
+        "multi": false,
+        "name": "network",
+        "options": [],
+        "query": {
+          "query": "label_values(uptime,network)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "prometheus", "uid": "${Environment}" },
+        "definition": "label_values(uptime{network=\"$network\"},host)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Validator (reporting host)",
+        "multi": true,
+        "name": "validator",
+        "options": [],
+        "query": {
+          "query": "label_values(uptime{network=\"$network\"},host)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "prometheus", "uid": "${Environment}" },
+        "definition": "label_values(validator_scoreboard_scores{network=\"$network\"},authority)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Authority (subject)",
+        "multi": true,
+        "name": "authority",
+        "options": [],
+        "query": {
+          "query": "label_values(validator_scoreboard_scores{network=\"$network\"},authority)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "IOTA Validators v2",
+  "uid": "iota-validators-v2",
+  "version": 1,
+  "weekStart": ""
+}

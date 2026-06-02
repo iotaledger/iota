@@ -9,9 +9,9 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     coin::Coin,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -28,7 +28,7 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
     effects: &TransactionEffects,
     input_objs: Vec<InputObjectKind>,
-    mocked_coin: Option<ObjectID>,
+    mocked_coin: Option<ObjectId>,
 ) -> Result<Vec<BalanceChange>, E> {
     let (_, gas_owner) = effects.gas_object();
 
@@ -62,7 +62,7 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
             InputObjectKind::ImmOrOwnedMoveObject(o) => Some((o.object_id, o.digest)),
             InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
         })
-        .collect::<HashMap<ObjectID, ObjectDigest>>();
+        .collect::<HashMap<ObjectId, ObjectDigest>>();
     let unwrapped_then_deleted = effects
         .unwrapped_then_deleted()
         .iter()
@@ -91,8 +91,8 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
 
 pub async fn get_balance_changes<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
-    modified_at_version: &[(ObjectID, SequenceNumber, Option<ObjectDigest>)],
-    all_mutated: &[(ObjectID, SequenceNumber, Option<ObjectDigest>)],
+    modified_at_version: &[(ObjectId, SequenceNumber, Option<ObjectDigest>)],
+    all_mutated: &[(ObjectId, SequenceNumber, Option<ObjectDigest>)],
 ) -> Result<Vec<BalanceChange>, E> {
     // 1. subtract all input coins
     let balances = fetch_coins(object_provider, modified_at_version)
@@ -131,7 +131,7 @@ pub async fn get_balance_changes<P: ObjectProvider<Error = E>, E>(
 
 async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
-    objects: &[(ObjectID, SequenceNumber, Option<ObjectDigest>)],
+    objects: &[(ObjectId, SequenceNumber, Option<ObjectDigest>)],
 ) -> Result<Vec<(Owner, TypeTag, u64)>, E> {
     let mut all_mutated_coins = vec![];
     for (id, version, digest_opt) in objects {
@@ -165,19 +165,19 @@ pub trait ObjectProvider {
     type Error;
     async fn get_object(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error>;
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Option<Object>, Self::Error>;
 }
 
 pub struct ObjectProviderCache<P> {
-    object_cache: RwLock<BTreeMap<(ObjectID, SequenceNumber), Object>>,
-    last_version_cache: RwLock<BTreeMap<(ObjectID, SequenceNumber), SequenceNumber>>,
+    object_cache: RwLock<BTreeMap<(ObjectId, SequenceNumber), Object>>,
+    last_version_cache: RwLock<BTreeMap<(ObjectId, SequenceNumber), SequenceNumber>>,
     provider: P,
 }
 
@@ -217,7 +217,7 @@ impl<P> ObjectProviderCache<P> {
 
     pub fn new_with_cache(
         provider: P,
-        written_objects: BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        written_objects: BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
     ) -> Self {
         let mut object_cache = BTreeMap::new();
         let mut last_version_cache = BTreeMap::new();
@@ -256,7 +256,7 @@ where
 
     async fn get_object(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error> {
         if let Some(o) = self.object_cache.read().await.get(&(*id, *version)) {
@@ -272,7 +272,7 @@ where
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Option<Object>, Self::Error> {
         if let Some(version) = self.last_version_cache.read().await.get(&(*id, *version)) {

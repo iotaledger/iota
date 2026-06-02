@@ -287,7 +287,7 @@ pub fn init_move_call_transaction(
 ) -> Transaction {
     let mut data = TransactionData::new_move_call(
         sender,
-        ObjectID::SYSTEM,
+        ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
         Identifier::from_static("request_add_validator"),
         vec![],
@@ -344,9 +344,9 @@ async fn do_transaction_test_impl(
     let (sender1, sender_key1): (_, AccountKeyPair) = get_key_pair();
     let (sender2, sender_key2): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id1 = ObjectID::random();
-    let gas_object_id2 = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id1 = ObjectId::random();
+    let gas_object_id2 = ObjectId::random();
     let authority_state = init_state_with_ids(vec![
         (sender1, object_id),
         (sender1, gas_object_id1),
@@ -478,7 +478,7 @@ async fn do_transaction_test_impl(
     }
 }
 
-async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<ObjectID>) {
+async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<ObjectId>) {
     for object_id in object_ids {
         let object = authority_state.get_object(&object_id).await.unwrap();
         assert!(
@@ -503,7 +503,7 @@ async fn test_oversized_txn() {
     telemetry_subscribers::init_for_testing();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let max_txn_size = authority_state
         .epoch_store_for_testing()
@@ -564,8 +564,8 @@ async fn test_very_large_certificate() {
     telemetry_subscribers::init_for_testing();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -655,8 +655,8 @@ async fn test_handle_certificate_errors() {
     telemetry_subscribers::init_for_testing();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -831,7 +831,7 @@ async fn test_handle_soft_bundle_certificates() {
     let mut gas_object_ids = Vec::new();
     for _i in 0..4 {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
 
         let obj = Object::with_id_owner_for_testing(gas_object_id, address);
         authority.insert_genesis_object(obj).await;

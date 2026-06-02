@@ -7,7 +7,7 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
@@ -19,7 +19,6 @@ use self::{
 use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
 use crate::{
     MoveTypeTagTrait,
-    base_types::ObjectID,
     committee::CommitteeWithNetworkMetadata,
     dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
@@ -230,7 +229,7 @@ pub fn get_iota_system_state_wrapper(
     object_store: &dyn ObjectStore,
 ) -> Result<IotaSystemStateWrapper, IotaError> {
     let wrapper = object_store
-        .try_get_object(&ObjectID::SYSTEM_STATE)?
+        .try_get_object(&ObjectId::SYSTEM_STATE)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())
@@ -325,7 +324,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
 /// that the validator is stored in the table as Validator type.
 pub fn get_validator_from_table<K>(
     object_store: &dyn ObjectStore,
-    table_id: ObjectID,
+    table_id: ObjectId,
     key: &K,
     protocol_version: Option<u64>,
 ) -> Result<IotaValidatorSummary, IotaError>
@@ -383,7 +382,7 @@ where
 
 pub fn get_validators_from_table_vec<S, ValidatorType>(
     object_store: &S,
-    table_id: ObjectID,
+    table_id: ObjectId,
     table_size: u64,
 ) -> Result<Vec<ValidatorType>, IotaError>
 where

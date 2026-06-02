@@ -47,6 +47,7 @@ use iota_core::{
 use iota_network::default_iota_network_config;
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_types::ObjectId;
 use iota_snapshot::{reader::StateSnapshotReaderV1, setup_db_state};
 use iota_storage::{
     object_store::{
@@ -139,7 +140,7 @@ async fn make_clients(
 
 type ObjectVersionResponses = (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64);
 pub struct ObjectData {
-    requested_id: ObjectID,
+    requested_id: ObjectId,
     responses: Vec<(AuthorityName, Multiaddr, ObjectVersionResponses)>,
 }
 
@@ -354,7 +355,7 @@ impl std::fmt::Display for VerboseObjectOutput {
 }
 
 pub async fn get_object(
-    obj_id: ObjectID,
+    obj_id: ObjectId,
     version: Option<u64>,
     validator: Option<AuthorityName>,
     clients: Arc<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>>,
@@ -483,7 +484,7 @@ pub async fn get_transaction_block(
 
 async fn get_object_impl(
     client: &NetworkAuthorityClient,
-    id: ObjectID,
+    id: ObjectId,
     version: Option<u64>,
 ) -> (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64) {
     let start = Instant::now();

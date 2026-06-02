@@ -6,8 +6,9 @@ use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber},
+    base_types::{ObjectIdParseError, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
     dynamic_field::{DynamicFieldType, Field},
     object::{Object, ObjectRead, PastObjectRead},
@@ -182,15 +183,15 @@ impl StoredHistoryObject {
         let object_status = ObjectStatus::try_from(self.object_status).map_err(|_| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "Object {} has an invalid object status: {}",
-                ObjectID::from_bytes(self.object_id.clone()).unwrap(),
+                ObjectId::from_bytes(self.object_id.clone()).unwrap(),
                 self.object_status
             ))
         })?;
 
         if let ObjectStatus::WrappedOrDeleted = object_status {
             let object_ref = ObjectRef::new(
-                ObjectID::from_bytes(self.object_id.clone())
-                    .map_err(|_| IndexerError::ObjectIdParse(ObjectIDParseError::TryFromSlice))?,
+                ObjectId::from_bytes(self.object_id.clone())
+                    .map_err(|_| IndexerError::ObjectIdParse(ObjectIdParseError::TryFromSlice))?,
                 SequenceNumber::from_u64(self.object_version as u64),
                 ObjectDigest::OBJECT_DELETED,
             );
@@ -482,7 +483,7 @@ impl StoredObject {
     }
 
     pub fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
-        let object_id = ObjectID::from_bytes(self.object_id.clone()).map_err(|_| {
+        let object_id = ObjectId::from_bytes(self.object_id.clone()).map_err(|_| {
             IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
         })?;
         let object_digest =
@@ -722,7 +723,7 @@ mod tests {
             vec![vec_coins_type],
         );
 
-        let id = ObjectID::ZERO;
+        let id = ObjectId::ZERO;
         let gas = 10;
 
         let contents = bcs::to_bytes(&vec![GasCoin::new(id, gas)]).unwrap();
@@ -825,7 +826,7 @@ impl StoredBackwardHistoryObject {
     ///
     /// Used for `NotYetCreated` and `WrappedOrDeleted` statuses.
     pub fn from_empty(
-        object_id: ObjectID,
+        object_id: ObjectId,
         object_version: i64,
         status: BackwardHistoryObjectStatus,
         superseded_at_checkpoint: i64,

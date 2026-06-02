@@ -4,8 +4,9 @@
 
 use std::{fmt::Formatter, sync::LazyLock};
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::ObjectRef,
     digests::TransactionDigest,
     move_package::{MovePackage, MovePackageExt},
     object::{OBJECT_START_VERSION, Object},
@@ -33,18 +34,18 @@ pub struct SystemPackageMetadata {
 /// id or compiled bytecode).
 #[derive(Clone, Serialize, PartialEq, Eq, Deserialize)]
 pub struct SystemPackage {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub bytes: Vec<Vec<u8>>,
-    pub dependencies: Vec<ObjectID>,
+    pub dependencies: Vec<ObjectId>,
 }
 
 impl SystemPackageMetadata {
     pub fn new(
         name: impl ToString,
         path: impl ToString,
-        id: ObjectID,
+        id: ObjectId,
         raw_bytes: &'static [u8],
-        dependencies: &[ObjectID],
+        dependencies: &[ObjectId],
     ) -> Self {
         SystemPackageMetadata {
             name: name.to_string(),
@@ -55,7 +56,7 @@ impl SystemPackageMetadata {
 }
 
 impl SystemPackage {
-    pub fn new(id: ObjectID, raw_bytes: &'static [u8], dependencies: &[ObjectID]) -> Self {
+    pub fn new(id: ObjectId, raw_bytes: &'static [u8], dependencies: &[ObjectId]) -> Self {
         let bytes: Vec<Vec<u8>> = bcs::from_bytes(raw_bytes).unwrap();
         Self {
             id,
@@ -123,34 +124,34 @@ impl BuiltInFramework {
         // TODO: Is it possible to derive dependencies from the bytecode instead of
         // manually specifying them?
         define_system_package_metadata!([
-            (ObjectID::STD, "MoveStdlib", "move-stdlib", []),
+            (ObjectId::STD, "MoveStdlib", "move-stdlib", []),
             (
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 "Iota",
                 "iota-framework",
-                [ObjectID::STD]
+                [ObjectId::STD]
             ),
             (
-                ObjectID::SYSTEM,
+                ObjectId::SYSTEM,
                 "IotaSystem",
                 "iota-system",
-                [ObjectID::STD, ObjectID::FRAMEWORK]
+                [ObjectId::STD, ObjectId::FRAMEWORK]
             ),
             (
-                ObjectID::STARDUST,
+                ObjectId::STARDUST,
                 "Stardust",
                 "stardust",
-                [ObjectID::STD, ObjectID::FRAMEWORK]
+                [ObjectId::STD, ObjectId::FRAMEWORK]
             ),
         ])
         .iter()
     }
 
-    pub fn all_package_ids() -> Vec<ObjectID> {
+    pub fn all_package_ids() -> Vec<ObjectId> {
         Self::iter_system_packages().map(|p| p.id).collect()
     }
 
-    pub fn get_package_by_id(id: &ObjectID) -> &'static SystemPackage {
+    pub fn get_package_by_id(id: &ObjectId) -> &'static SystemPackage {
         Self::iter_system_packages().find(|s| &s.id == id).unwrap()
     }
 
@@ -187,9 +188,9 @@ pub fn legacy_test_cost() -> InternalGas {
 ///   (indicates support for a protocol upgrade with a framework upgrade).
 pub async fn compare_system_package<S: ObjectStore>(
     object_store: &S,
-    id: &ObjectID,
+    id: &ObjectId,
     modules: &[CompiledModule],
-    dependencies: Vec<ObjectID>,
+    dependencies: Vec<ObjectId>,
     binary_config: &BinaryConfig,
 ) -> Option<ObjectRef> {
     let cur_object = match object_store.try_get_object(id) {

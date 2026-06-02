@@ -93,7 +93,7 @@ pub fn create_object_move_transaction(
     secret: &dyn Signer<Signature>,
     dest: IotaAddress,
     value: u64,
-    package_id: ObjectID,
+    package_id: ObjectId,
     gas_object_ref: ObjectRef,
     gas_price: u64,
 ) -> Transaction {
@@ -125,7 +125,7 @@ pub fn delete_object_move_transaction(
     src: IotaAddress,
     secret: &dyn Signer<Signature>,
     object_ref: ObjectRef,
-    framework_obj_id: ObjectID,
+    framework_obj_id: ObjectId,
     gas_object_ref: ObjectRef,
     gas_price: u64,
 ) -> Transaction {
@@ -151,7 +151,7 @@ pub fn set_object_move_transaction(
     secret: &dyn Signer<Signature>,
     object_ref: ObjectRef,
     value: u64,
-    framework_obj_id: ObjectID,
+    framework_obj_id: ObjectId,
     gas_object_ref: ObjectRef,
     gas_price: u64,
 ) -> Transaction {
@@ -259,7 +259,7 @@ where
     }
 }
 
-pub async fn get_latest_ref<A>(authority: Arc<SafeClient<A>>, object_id: ObjectID) -> ObjectRef
+pub async fn get_latest_ref<A>(authority: Arc<SafeClient<A>>, object_id: ObjectId) -> ObjectRef
 where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {

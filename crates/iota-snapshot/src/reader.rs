@@ -27,6 +27,7 @@ use integer_encoding::VarIntReader;
 use iota_common::stream_ext::TrySpawnStreamExt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
+use iota_sdk_types::ObjectId;
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
@@ -36,7 +37,7 @@ use iota_storage::{
     },
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectDigest, ObjectRef, SequenceNumber},
     global_state_hash::GlobalStateHash,
 };
 use object_store::path::Path;
@@ -118,8 +119,8 @@ impl StateSnapshotReaderV1 {
         if snapshot_version != 1u8 {
             bail!("Unexpected snapshot version: {}", snapshot_version);
         }
-        if manifest.address_length() as usize > ObjectID::LENGTH {
-            bail!("Max possible address length is: {}", ObjectID::LENGTH);
+        if manifest.address_length() as usize > ObjectId::LENGTH {
+            bail!("Max possible address length is: {}", ObjectId::LENGTH);
         }
         if manifest.epoch() != epoch {
             bail!("Download manifest is not for epoch: {}", epoch,);
@@ -654,7 +655,7 @@ impl ObjectRefIter {
             .read_u64::<BigEndian>()?;
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
         let object_ref = ObjectRef::new(
-            ObjectID::from_bytes(object_id)?,
+            ObjectId::from_bytes(object_id)?,
             SequenceNumber::from_u64(*sequence_number),
             ObjectDigest::from_bytes(sha3_digest)?,
         );

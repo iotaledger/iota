@@ -18,8 +18,8 @@ use diesel::{
 };
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectID,
     digests::{ChainIdentifier, CheckpointDigest},
     messages_checkpoint::CheckpointSequenceNumber,
 };
@@ -2715,8 +2715,8 @@ fn retain_latest_indexed_objects(
 ) -> (Vec<IndexedObject>, Vec<IndexedDeletedObject>) {
     use std::collections::HashMap;
 
-    let mut mutations = HashMap::<ObjectID, IndexedObject>::new();
-    let mut deletions = HashMap::<ObjectID, IndexedDeletedObject>::new();
+    let mut mutations = HashMap::<ObjectId, IndexedObject>::new();
+    let mut deletions = HashMap::<ObjectId, IndexedDeletedObject>::new();
 
     for change in tx_object_changes {
         // Remove mutation / deletion with a following deletion / mutation,

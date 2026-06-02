@@ -6,9 +6,9 @@ use std::{fmt, fmt::Display, str::FromStr};
 
 use fastcrypto::encoding::{Base58, Base64};
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{IotaAddress, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
     object::bounded_visitor::BoundedVisitor,
@@ -77,7 +77,7 @@ pub struct IotaEvent {
     pub id: EventID,
     /// Move package where this event was emitted.
     #[schemars(with = "ObjectIDSchema")]
-    pub package_id: ObjectID,
+    pub package_id: ObjectId,
     #[schemars(with = "IdentifierSchema")]
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
@@ -289,7 +289,7 @@ impl IotaEvent {
                 tx_digest: TransactionDigest::random(),
                 event_seq: 0,
             },
-            package_id: ObjectID::random(),
+            package_id: ObjectId::random(),
             transaction_module: Identifier::from_str("random_for_testing").unwrap(),
             sender: IotaAddress::random(),
             type_: StructTag::from_str("0x6666::random_for_testing::RandomForTesting").unwrap(),
@@ -339,7 +339,7 @@ pub enum EventFilter {
         TransactionDigest,
     ),
     /// Return events emitted in a specified Package.
-    Package(#[schemars(with = "ObjectIDSchema")] ObjectID),
+    Package(#[schemars(with = "ObjectIDSchema")] ObjectId),
     /// Return events emitted in a specified Move module.
     /// If the event is defined in Module A but emitted in a tx with Module B,
     /// query `MoveModule` by module B returns the event.
@@ -347,7 +347,7 @@ pub enum EventFilter {
     MoveModule {
         /// the Move package ID
         #[schemars(with = "ObjectIDSchema")]
-        package: ObjectID,
+        package: ObjectId,
         /// the module name
         #[schemars(with = "IdentifierSchema")]
         module: Identifier,
@@ -367,7 +367,7 @@ pub enum EventFilter {
     MoveEventModule {
         /// the Move package ID
         #[schemars(with = "ObjectIDSchema")]
-        package: ObjectID,
+        package: ObjectId,
         /// the module name
         #[schemars(with = "IdentifierSchema")]
         module: Identifier,

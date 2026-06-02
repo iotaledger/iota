@@ -29,7 +29,7 @@ use crate::authority::authority_tests::{
 async fn test_object_wrapping_unwrapping() {
     telemetry_subscribers::init_for_testing();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -258,7 +258,7 @@ async fn test_object_wrapping_unwrapping() {
 #[cfg_attr(msim, ignore)]
 async fn test_object_owning_another_object() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -454,7 +454,7 @@ async fn test_object_owning_another_object() {
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -516,7 +516,7 @@ async fn test_create_then_delete_parent_child() {
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -613,7 +613,7 @@ async fn test_create_then_delete_parent_child_wrap() {
 #[cfg_attr(msim, ignore)]
 async fn test_remove_child_when_no_prior_version_exists() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -706,7 +706,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap_separate() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -810,7 +810,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_empty() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
@@ -958,7 +958,7 @@ async fn test_entry_point_vector_empty() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_primitive() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1000,7 +1000,7 @@ async fn test_entry_point_vector_primitive() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1130,7 +1130,7 @@ async fn test_entry_point_vector() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1409,7 +1409,7 @@ async fn test_entry_point_vector_error() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1543,7 +1543,7 @@ async fn test_entry_point_vector_any() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1824,7 +1824,7 @@ async fn test_entry_point_vector_any_error() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -1909,7 +1909,7 @@ async fn test_entry_point_string() {
 #[cfg_attr(msim, ignore)]
 async fn test_nested_string() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -2054,7 +2054,7 @@ async fn test_nested_string() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -2096,7 +2096,7 @@ async fn test_entry_point_string_vec() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -2216,7 +2216,7 @@ async fn test_entry_point_string_error() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -2272,7 +2272,7 @@ async fn test_entry_point_string_vec_error() {
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_option_error() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -2374,16 +2374,16 @@ async fn test_entry_point_string_option_error() {
 
 async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
-    gas: &ObjectID,
+    gas: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    package_id: ObjectID,
+    package_id: ObjectId,
     t: TypeTag,
     value: T,
 ) {
     fn make_and_drop(
         builder: &mut ProgrammableTransactionBuilder,
-        package: ObjectID,
+        package: ObjectId,
         t: &TypeTag,
         args: Vec<Argument>,
     ) {
@@ -2540,7 +2540,7 @@ macro_rules! make_vec_tests_for_type {
         #[cfg_attr(msim, ignore)]
         async fn $test() {
             let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-            let gas = ObjectID::random();
+            let gas = ObjectId::random();
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
             let package = build_and_publish_test_package(
                 &authority,
@@ -2632,9 +2632,9 @@ make_vec_tests_for_type!(
 );
 make_vec_tests_for_type!(
     test_make_move_vec_address_id,
-    ObjectID,
+    ObjectId,
     TypeTag::Struct(Box::new(StructTag::new_id())),
-    ObjectID::ZERO
+    ObjectId::ZERO
 );
 make_vec_tests_for_type!(test_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
 make_vec_tests_for_type!(
@@ -2646,7 +2646,7 @@ make_vec_tests_for_type!(
 
 async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
-    gas: &ObjectID,
+    gas: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     t: TypeTag,
@@ -2747,7 +2747,7 @@ macro_rules! make_vec_error_tests_for_type {
         #[cfg_attr(msim, ignore)]
         async fn $test() {
             let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-            let gas = ObjectID::random();
+            let gas = ObjectId::random();
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
             error_test_make_move_vec_for_type(&authority, &gas, &sender, &sender_key, $tag, $value)
                 .await;
@@ -2820,9 +2820,9 @@ make_vec_error_tests_for_type!(
 );
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address_id,
-    ObjectID,
+    ObjectId,
     TypeTag::Struct(Box::new(StructTag::new_id())),
-    ObjectID::ZERO
+    ObjectId::ZERO
 );
 make_vec_error_tests_for_type!(test_error_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
 make_vec_error_tests_for_type!(
@@ -2836,7 +2836,7 @@ make_vec_error_tests_for_type!(
 #[cfg_attr(msim, ignore)]
 async fn test_make_move_vec_empty() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let mut builder = ProgrammableTransactionBuilder::new();
@@ -2914,7 +2914,7 @@ pub fn build_test_package(test_dir: &str, with_unpublished_deps: bool) -> Vec<Ve
 pub fn build_package(
     code_dir: &str,
     with_unpublished_deps: bool,
-) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectID>) {
+) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectId>) {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", code_dir]);
@@ -2929,7 +2929,7 @@ pub async fn build_and_try_publish_test_package(
     authority: &AuthorityState,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     test_dir: &str,
     gas_budget: u64,
     gas_price: u64,
@@ -2969,7 +2969,7 @@ pub async fn build_and_publish_test_package(
     authority: &AuthorityState,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
 ) -> ObjectRef {
@@ -2989,7 +2989,7 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
 ) -> (ObjectRef, ObjectRef) {
@@ -3031,7 +3031,7 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
 pub async fn collect_packages_and_upgrade_caps(
     authority: &AuthorityState,
     effects: &TransactionEffects,
-) -> HashMap<ObjectID, ObjectRef> {
+) -> HashMap<ObjectId, ObjectRef> {
     let packages: HashMap<_, _> = effects
         .created()
         .into_iter()
@@ -3056,7 +3056,7 @@ pub async fn run_multi_txns(
     authority: &AuthorityState,
     sender: IotaAddress,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     builder: ProgrammableTransactionBuilder,
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     // build the transaction data
@@ -3077,7 +3077,7 @@ pub async fn run_multi_txns(
 pub fn build_multi_publish_txns(
     builder: &mut ProgrammableTransactionBuilder,
     sender: IotaAddress,
-    packages: Vec<(Vec<Vec<u8>>, Vec<ObjectID>)>,
+    packages: Vec<(Vec<Vec<u8>>, Vec<ObjectId>)>,
 ) {
     for (modules, dep_ids) in packages {
         let upgrade_cap = builder.publish_upgradeable(modules, dep_ids);
@@ -3086,11 +3086,11 @@ pub fn build_multi_publish_txns(
 }
 
 pub struct UpgradeData {
-    pub package_id: ObjectID,
+    pub package_id: ObjectId,
     pub upgrade_cap: ObjectRef,
     pub policy: u8,
     pub digest: Vec<u8>,
-    pub dep_ids: Vec<ObjectID>,
+    pub dep_ids: Vec<ObjectId>,
     pub modules: Vec<Vec<u8>>,
 }
 
@@ -3107,7 +3107,7 @@ pub fn build_multi_upgrade_txns(
         let policy = builder.pure(package_upgrade.policy).unwrap();
         let digest = builder.pure(package_upgrade.digest).unwrap();
         let ticket = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::PACKAGE_MODULE,
             Identifier::from_static("authorize_upgrade"),
             vec![],
@@ -3120,7 +3120,7 @@ pub fn build_multi_upgrade_txns(
             package_upgrade.modules,
         );
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::PACKAGE_MODULE,
             Identifier::from_static("commit_upgrade"),
             vec![],

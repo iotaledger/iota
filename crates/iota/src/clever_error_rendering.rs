@@ -17,8 +17,7 @@
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_sdk::apis::ReadApi;
-use iota_sdk_types::Identifier;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::{Identifier, ObjectId};
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
@@ -70,7 +69,7 @@ pub(crate) async fn render_clever_error_opt(
 
         let IotaRawData::Package(package) = read_api
             .get_object_with_options(
-                ObjectID::new(address.into_bytes()),
+                ObjectId::new(address.into_bytes()),
                 IotaObjectDataOptions::bcs_lossless(),
             )
             .await

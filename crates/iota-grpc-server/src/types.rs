@@ -16,9 +16,9 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_types::{
-    base_types::{ObjectID, VersionNumber},
+    base_types::VersionNumber,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
@@ -618,7 +618,7 @@ impl GrpcReader {
             .map_err(Into::into)
     }
 
-    pub fn get_object(&self, object_id: &ObjectID) -> anyhow::Result<Option<Object>> {
+    pub fn get_object(&self, object_id: &ObjectId) -> anyhow::Result<Option<Object>> {
         self.state_reader
             .try_get_object(object_id)
             .map_err(Into::into)
@@ -626,7 +626,7 @@ impl GrpcReader {
 
     pub fn get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> anyhow::Result<Option<Object>> {
         self.state_reader
@@ -706,8 +706,8 @@ impl GrpcReader {
     /// so callers get items *after* the cursor (exclusive lower bound).
     pub fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
         let skip = usize::from(cursor.is_some());
         let iter = self.require_indexes()?.dynamic_field_iter(parent, cursor)?;
@@ -731,7 +731,7 @@ impl GrpcReader {
     /// Iterate over all versions of a package by its original package ID.
     pub fn package_versions_iter(
         &self,
-        original_package_id: ObjectID,
+        original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>, crate::error::RpcError> {
         let indexes = self

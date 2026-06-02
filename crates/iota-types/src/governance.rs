@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Balance,
-    base_types::ObjectID,
     committee::EpochId,
     error::IotaError,
     gas_coin::NANOS_PER_IOTA,
@@ -56,11 +55,11 @@ pub struct StakedIota {
 }
 
 impl StakedIota {
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         self.id.id.bytes
     }
 
-    pub fn pool_id(&self) -> ObjectID {
+    pub fn pool_id(&self) -> ObjectId {
         self.pool_id.bytes
     }
 

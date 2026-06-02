@@ -7,8 +7,8 @@ use iota_json_rpc_types::{
     BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions, IotaObjectResponseError,
 };
 use iota_sdk::IotaClient;
-use iota_sdk_types::TypeTag;
-use iota_types::{base_types::ObjectID, gas_coin::GasCoin, object::Owner, parse_iota_type_tag};
+use iota_sdk_types::{ObjectId, TypeTag};
+use iota_types::{gas_coin::GasCoin, object::Owner, parse_iota_type_tag};
 use tracing::{debug, trace};
 
 /// A util struct that helps verify IOTA Object.
@@ -20,14 +20,14 @@ use tracing::{debug, trace};
 /// respectfully.
 #[derive(Debug)]
 pub struct ObjectChecker {
-    object_id: ObjectID,
+    object_id: ObjectId,
     owner: Option<Owner>,
     is_deleted: bool,
     is_iota_coin: Option<bool>,
 }
 
 impl ObjectChecker {
-    pub fn new(object_id: ObjectID) -> ObjectChecker {
+    pub fn new(object_id: ObjectId) -> ObjectChecker {
         Self {
             object_id,
             owner: None,

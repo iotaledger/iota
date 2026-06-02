@@ -6,9 +6,9 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::{Identifier, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, TypeTag};
 use iota_types::{
-    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SharedObjectRef, TransactionData},
 };
@@ -70,7 +70,7 @@ async fn run_thread<F, Fut>(
     thread_id: u64,
     test_env: Arc<TestEnv>,
     target_epoch: EpochId,
-    gas_id: ObjectID,
+    gas_id: ObjectId,
     tx_creation_func: F,
     tx_may_fail: bool,
 ) where
@@ -133,7 +133,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
         .await
         .move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             "coin",
             if deny {
                 "deny_list_v1_add"
@@ -142,7 +142,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
             },
             vec![
                 CallArg::Shared(SharedObjectRef::new(
-                    ObjectID::DENY_LIST,
+                    ObjectId::DENY_LIST,
                     test_env.deny_list_object_init_version,
                     true,
                 )),
@@ -171,7 +171,7 @@ async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tran
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
         .await
         .move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             "pay",
             "split_and_transfer",
             vec![
@@ -199,7 +199,7 @@ async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tr
         .unwrap();
     let amount_input = pt_builder.pure(1u64).unwrap();
     let split_coin = pt_builder.programmable_move_call(
-        ObjectID::FRAMEWORK,
+        ObjectId::FRAMEWORK,
         Identifier::COIN_MODULE,
         Identifier::from_static("split"),
         vec![test_env.regulated_coin_type.clone()],
@@ -217,15 +217,15 @@ async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tr
 
 struct TestEnv {
     test_cluster: TestCluster,
-    regulated_coin_id: ObjectID,
+    regulated_coin_id: ObjectId,
     regulated_coin_type: TypeTag,
     regulated_coin_owner: IotaAddress,
-    deny_cap_id: ObjectID,
+    deny_cap_id: ObjectId,
     deny_list_object_init_version: SequenceNumber,
 }
 
 impl TestEnv {
-    async fn get_latest_object_ref(&self, object_id: &ObjectID) -> ObjectRef {
+    async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectRef {
         self.test_cluster
             .get_object_from_fullnode_store(object_id)
             .await
@@ -241,7 +241,7 @@ async fn create_test_env() -> TestEnv {
         .build()
         .await;
     let deny_list_object_init_version = test_cluster
-        .get_object_from_fullnode_store(&ObjectID::DENY_LIST)
+        .get_object_from_fullnode_store(&ObjectId::DENY_LIST)
         .await
         .unwrap()
         .version();

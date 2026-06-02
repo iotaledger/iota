@@ -18,10 +18,10 @@ mod checked {
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{Identifier, StructTag, TypeTag};
+    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
     use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, ObjectID, TxContext},
+        base_types::{IotaAddress, TxContext},
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
@@ -263,7 +263,7 @@ mod checked {
         }
 
         /// Create a new ID and update the state
-        pub fn fresh_id(&mut self) -> Result<ObjectID, ExecutionError> {
+        pub fn fresh_id(&mut self) -> Result<ObjectId, ExecutionError> {
             let object_id = self.tx_context.borrow_mut().fresh_id();
             self.native_extensions
                 .get_mut()
@@ -275,8 +275,8 @@ mod checked {
         /// Create a new ID and update the state
         pub(crate) fn package_derived_metadata_id(
             &mut self,
-            package_storage_id: ObjectID,
-        ) -> Result<ObjectID, ExecutionError> {
+            package_storage_id: ObjectId,
+        ) -> Result<ObjectId, ExecutionError> {
             let object_id = derive_package_metadata_id(package_storage_id);
 
             self.native_extensions
@@ -287,7 +287,7 @@ mod checked {
         }
 
         /// Delete an ID and update the state
-        pub fn delete_id(&mut self, object_id: ObjectID) -> Result<(), ExecutionError> {
+        pub fn delete_id(&mut self, object_id: ObjectId) -> Result<(), ExecutionError> {
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.delete_id(object_id))
@@ -299,7 +299,7 @@ mod checked {
         /// ID of the link context package on success.
         pub fn set_link_context(
             &mut self,
-            package_id: ObjectID,
+            package_id: ObjectId,
         ) -> Result<AccountAddress, ExecutionError> {
             if self.linkage_view.has_linkage(package_id) {
                 // Setting same context again, can skip.
@@ -670,7 +670,7 @@ mod checked {
         /// and `dependencies`
         pub fn upgrade_package<'p>(
             &self,
-            storage_id: ObjectID,
+            storage_id: ObjectId,
             previous_package: &MovePackage,
             new_modules: &[CompiledModule],
             dependencies: impl IntoIterator<Item = &'p MovePackage>,
@@ -944,7 +944,7 @@ mod checked {
             let user_events = user_events
                 .into_iter()
                 .map(|(module_id, tag, contents)| {
-                    let package_id = ObjectID::new(module_id.address().into_bytes());
+                    let package_id = ObjectId::new(module_id.address().into_bytes());
                     let module = Identifier::new_unchecked(module_id.name().as_str());
                     let sender = ref_context.borrow().sender();
                     Event {
@@ -1223,7 +1223,7 @@ mod checked {
     /// or is not a package.
     fn package_for_linkage(
         linkage_view: &LinkageView,
-        package_id: ObjectID,
+        package_id: ObjectId,
     ) -> VMResult<PackageObject> {
         use move_binary_format::errors::PartialVMError;
         use move_core_types::vm_status::StatusCode;
@@ -1438,9 +1438,9 @@ mod checked {
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
         override_as_immutable: bool,
-        id: ObjectID,
+        id: ObjectId,
     ) -> Result<InputValue, ExecutionError> {
         let Some(obj) = state_view.read_object(&id) else {
             // protected by transaction input checker
@@ -1501,7 +1501,7 @@ mod checked {
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
         call_arg: CallArg,
     ) -> Result<InputValue, ExecutionError> {
         Ok(match call_arg {
@@ -1524,7 +1524,7 @@ mod checked {
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
         obj_arg: CallArg,
     ) -> Result<InputValue, ExecutionError> {
         match obj_arg {
@@ -1567,7 +1567,7 @@ mod checked {
 
     /// Generate an additional write for an ObjectValue
     fn add_additional_write(
-        additional_writes: &mut BTreeMap<ObjectID, AdditionalWrite>,
+        additional_writes: &mut BTreeMap<ObjectId, AdditionalWrite>,
         owner: Owner,
         object_value: ObjectValue,
     ) -> Result<(), ExecutionError> {
@@ -1579,10 +1579,10 @@ mod checked {
             ObjectContents::Raw(bytes) => bytes,
         };
         let object_id =
-            ObjectID::from_bytes(bytes.get(..ObjectID::LENGTH).ok_or_else(|| {
+            ObjectId::from_bytes(bytes.get(..ObjectId::LENGTH).ok_or_else(|| {
                 ExecutionError::invariant_violation("No id for Raw object bytes")
             })?)
-            .expect("ObjectID::LENGTH bytes is always a valid ObjectID");
+            .expect("ObjectId::LENGTH bytes is always a valid ObjectId");
         let additional_write = AdditionalWrite {
             recipient: owner,
             type_,
@@ -1596,9 +1596,9 @@ mod checked {
     /// transaction, now we return exactly that amount. Gas will be charged
     /// by the execution engine
     fn refund_max_gas_budget(
-        additional_writes: &mut BTreeMap<ObjectID, AdditionalWrite>,
+        additional_writes: &mut BTreeMap<ObjectId, AdditionalWrite>,
         gas_charger: &mut GasCharger,
-        gas_id: ObjectID,
+        gas_id: ObjectId,
     ) -> Result<(), ExecutionError> {
         let Some(AdditionalWrite { bytes, .. }) = additional_writes.get_mut(&gas_id) else {
             invariant_violation!("Gas object cannot be wrapped or destroyed")
@@ -1622,14 +1622,14 @@ mod checked {
         vm: &MoveVM,
         linkage_view: &LinkageView,
         protocol_config: &ProtocolConfig,
-        objects_modified_at: &BTreeMap<ObjectID, LoadedRuntimeObject>,
-        id: ObjectID,
+        objects_modified_at: &BTreeMap<ObjectId, LoadedRuntimeObject>,
+        id: ObjectId,
         type_: Type,
         contents: Vec<u8>,
     ) -> Result<MoveObject, ExecutionError> {
         debug_assert_eq!(
             id,
-            ObjectID::from_bytes(&contents[..ObjectID::LENGTH])
+            ObjectId::from_bytes(&contents[..ObjectId::LENGTH])
                 .expect("object contents should start with an id")
         );
         let old_obj_ver = objects_modified_at
@@ -1679,7 +1679,7 @@ mod checked {
 
         fn get_module(&self, module_id: &ModuleId) -> Option<&Vec<u8>> {
             for package in self.new_packages {
-                if package.id != ObjectID::from(module_id.address().into_bytes()) {
+                if package.id != ObjectId::from(module_id.address().into_bytes()) {
                     continue;
                 }
 

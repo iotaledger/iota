@@ -13,8 +13,9 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{EpochId, ObjectID},
+    base_types::EpochId,
     digests::{CheckpointContentsDigest, TransactionDigest},
     effects::TransactionEffectsAPI,
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
@@ -104,7 +105,7 @@ pub struct PrintTransactionOptions {
 #[derive(Parser)]
 pub struct PrintObjectOptions {
     #[arg(long, help = "The object id to print")]
-    id: ObjectID,
+    id: ObjectId,
     #[arg(long, help = "The object version to print")]
     version: Option<u64>,
 }
@@ -141,7 +142,7 @@ pub struct RemoveTransactionOptions {
 #[derive(Parser)]
 pub struct RemoveObjectLockOptions {
     #[arg(long, help = "The object ID to remove")]
-    id: ObjectID,
+    id: ObjectId,
 
     #[arg(long, help = "The object version to remove")]
     version: u64,

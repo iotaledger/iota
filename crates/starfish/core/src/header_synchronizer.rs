@@ -49,6 +49,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
+    misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
@@ -351,6 +352,7 @@ pub(crate) struct HeaderSynchronizer<C: NetworkClient, V: BlockVerifier, D: Core
     /// reinitialization. `None` on deployments where fast sync is disabled
     /// — the gate becomes an unconditional pass-through.
     fast_sync_active: Option<Arc<AtomicBool>>,
+    misbehavior_store: Arc<MisbehaviorStore>,
 }
 
 impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchronizer<C, V, D> {
@@ -366,6 +368,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
         fast_sync_active: Option<Arc<AtomicBool>>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> Arc<HeaderSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
             channel("consensus_synchronizer_commands", 1_000);
@@ -397,6 +400,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 dag_state.clone(),
                 receiver,
                 commands_sender.clone(),
+                misbehavior_store.clone(),
             );
             tasks.spawn(monitored_future!(fetch_blocks_from_authority_async));
             fetch_block_senders.insert(index, sender);
@@ -429,6 +433,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 commands_sender: commands_sender_clone,
                 dag_state,
                 fast_sync_active,
+                misbehavior_store,
             };
             s.run().await;
         }));
@@ -593,6 +598,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         dag_state: Arc<RwLock<DagState>>,
         mut receiver: Receiver<BlocksGuard>,
         commands_sender: Sender<Command>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) {
         const MAX_RETRIES: u32 = 3;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
@@ -647,7 +653,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 transactions_synchronizer.clone(),
                                 context.clone(),
                                 commands_sender.clone(),
-                                "live"
+                                "live",
+                                misbehavior_store.clone(),
                             ).await {
                                 warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                                 context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
@@ -688,6 +695,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         context: Arc<Context>,
         commands_sender: Sender<Command>,
         sync_method: &str,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> ConsensusResult<()> {
         if serialized_headers.is_empty() {
             return Ok(());
@@ -713,6 +721,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let verified_cache = verified_cache.clone();
                 let context = context.clone();
                 let sync_method = sync_method.to_string();
+                let misbehavior_store = misbehavior_store.clone();
                 move || {
                     Self::verify_block_headers(
                         serialized_headers,
@@ -721,6 +730,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         &context,
                         peer_index,
                         &sync_method,
+                        &misbehavior_store,
                     )
                 }
             })
@@ -823,6 +833,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         context: &Context,
         peer_index: AuthorityIndex,
         sync_method: &str,
+        misbehavior_store: &MisbehaviorStore,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let mut verified_block_headers = Vec::new();
         let mut skipped_count = 0u64;
@@ -836,7 +847,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             }
 
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
-                .map_err(ConsensusError::MalformedHeader)?;
+                .map_err(ConsensusError::MalformedHeader)
+                .inspect_err(|e| {
+                    // Author is unknown when deserialization fails — blame the peer.
+                    misbehavior_store.record_faulty_block_header(peer_index, peer_index, e);
+                })?;
 
             if let Err(e) = block_verifier.verify(&signed_block_header) {
                 // TODO: we might want to use a different metric to track the invalid "served"
@@ -849,6 +864,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .synchronizer_invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
+                misbehavior_store.record_faulty_block_header(
+                    peer_index,
+                    signed_block_header.author(),
+                    &e,
+                );
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }
@@ -952,6 +972,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         let network_client = self.network_client.clone();
         let block_verifier = self.block_verifier.clone();
         let core_dispatcher = self.core_dispatcher.clone();
+        let misbehavior_store = self.misbehavior_store.clone();
 
         self.fetch_own_last_header_task
             .spawn(monitored_future!(async move {
@@ -970,7 +991,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 let process_block_headers = |block_headers: Vec<Bytes>, authority_index: AuthorityIndex| -> ConsensusResult<Vec<VerifiedBlockHeader >> {
                                     let mut result = Vec::new();
                                     for serialized_block_header in block_headers {
-                                        let signed_block_header = bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
+                                        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                                            .map_err(ConsensusError::MalformedHeader)
+                                            .inspect_err(|e| {
+                                                // Author unknown when deserialization fails — blame the peer.
+                                                misbehavior_store.record_faulty_block_header(
+                                                    authority_index,
+                                                    authority_index,
+                                                    e,
+                                                );
+                                            })?;
                                         block_verifier.verify(&signed_block_header).tap_err(|err|{
                                             let hostname = context.committee.authority(authority_index).hostname.clone();
                                             context
@@ -979,6 +1009,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 .synchronizer_invalid_block_headers
                                                 .with_label_values(&[hostname.as_str(), "synchronizer_own_block_header", err.clone().name()])
                                                 .inc();
+                                            misbehavior_store.record_faulty_block_header(
+                                                authority_index,
+                                                signed_block_header.author(),
+                                                err,
+                                            );
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
                                         })?;
 
@@ -1107,6 +1142,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         let commands_sender = self.commands_sender.clone();
         let dag_state = self.dag_state.clone();
         let transactions_synchronizer = self.transactions_synchronizer.clone();
+        let misbehavior_store = self.misbehavior_store.clone();
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         trace!(
@@ -1191,6 +1227,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         context.clone(),
                         commands_sender.clone(),
                         "periodic",
+                        misbehavior_store.clone(),
                     )
                     .await
                     {
@@ -1581,6 +1618,7 @@ mod tests {
             FETCH_BLOCK_HEADERS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, HeaderSynchronizer,
             InflightBlockHeadersMap, SyncMethod,
         },
+        misbehavior_store::MisbehaviorStore,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::GenericTransactionRef,
@@ -2124,6 +2162,7 @@ mod tests {
             dag_state.clone(),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2134,6 +2173,7 @@ mod tests {
             dag_state,
             false,
             None,
+            misbehavior_store,
         );
 
         // Create some test block headers
@@ -2193,6 +2233,7 @@ mod tests {
             dag_state.clone(),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2203,6 +2244,7 @@ mod tests {
             dag_state,
             false,
             None,
+            misbehavior_store,
         );
 
         // Create some test block headers
@@ -2330,6 +2372,7 @@ mod tests {
             .await;
 
         // WHEN start the synchronizer and wait for a couple of seconds
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
@@ -2340,6 +2383,7 @@ mod tests {
             dag_state,
             false,
             None,
+            misbehavior_store,
         );
 
         sleep(8 * FETCH_REQUEST_TIMEOUT).await;
@@ -2485,6 +2529,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2595,6 +2640,7 @@ mod tests {
             dag_state.clone(),
             false,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
@@ -2750,6 +2796,7 @@ mod tests {
             dag_state,
             true,
             None,
+            Arc::new(MisbehaviorStore::new(&context)),
         );
 
         // Wait at least for the timeout time
@@ -3229,6 +3276,7 @@ mod tests {
         )));
 
         // Create a Synchronizer
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let result = HeaderSynchronizer::<
             MockNetworkClient,
             NoopBlockVerifier,
@@ -3245,6 +3293,7 @@ mod tests {
             context.clone(),
             commands_sender.clone(),
             "live",
+            misbehavior_store.clone(),
         )
         .await;
 
@@ -3286,6 +3335,7 @@ mod tests {
             context.clone(),
             commands_sender,
             "live",
+            misbehavior_store,
         )
         .await;
 

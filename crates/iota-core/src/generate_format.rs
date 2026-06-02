@@ -11,13 +11,13 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    ChangeEpoch, Command, Identifier, SimpleSignature, StructTag, TypeTag,
+    ChangeEpoch, Command, Identifier, ObjectId, SimpleSignature, StructTag, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
     base_types::{
-        self, ExecutionData, IotaAddress, MoveObjectType, ObjectDigest, ObjectID,
-        TransactionDigest, TransactionEffectsDigest,
+        self, ExecutionData, IotaAddress, MoveObjectType, ObjectDigest, TransactionDigest,
+        TransactionEffectsDigest,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -229,7 +229,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig2).unwrap();
     tracer.trace_value(&mut samples, &sig3).unwrap();
     // ObjectID and IotaAddress are the same length
-    let oid: ObjectID = addr.into();
+    let oid: ObjectId = addr.into();
     tracer.trace_value(&mut samples, &oid).unwrap();
 
     // ObjectDigest and Transaction digest use the `serde_as`speedup for ser/de =>
@@ -251,14 +251,14 @@ fn get_registry() -> Result<Registry> {
     let tot = TypeOrigin {
         module_name: Identifier::from_static("module_name"),
         datatype_name: Identifier::from_static("datatype_name"),
-        package: ObjectID::random(),
+        package: ObjectId::random(),
     };
     tracer.trace_value(&mut samples, &tot).unwrap();
 
     // We need Event sample here, because our GenesisTransaction contains an
     // Event while, sui's doesn't.
     let event = Event {
-        package_id: ObjectID::random(),
+        package_id: ObjectId::random(),
         module: Identifier::from_static("foo"),
         sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
@@ -270,23 +270,23 @@ fn get_registry() -> Result<Registry> {
     // MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with, and
     // Identifier's custom serde (DisplayFromStr) is incompatible with
     // serde_reflection's tracing deserializer for map keys.
-    let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0);
+    let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0);
     tracer
         .trace_value(&mut samples, &Data::Struct(sample_move_obj))
         .unwrap();
     let sample_upgrade_info = iota_types::move_package::UpgradeInfo {
-        upgraded_id: ObjectID::ZERO,
+        upgraded_id: ObjectId::ZERO,
         upgraded_version: 1u64.into(),
     };
     tracer
         .trace_value(&mut samples, &sample_upgrade_info)
         .unwrap();
     let sample_move_pkg = MovePackage {
-        id: ObjectID::ZERO,
+        id: ObjectId::ZERO,
         version: 1u64.into(),
         modules: BTreeMap::from([(Identifier::from_static("module"), vec![0u8])]),
         type_origin_table: vec![tot.clone()],
-        linkage_table: BTreeMap::from([(ObjectID::ZERO, sample_upgrade_info)]),
+        linkage_table: BTreeMap::from([(ObjectId::ZERO, sample_upgrade_info)]),
     };
     tracer.trace_value(&mut samples, &sample_move_pkg).unwrap();
     tracer
@@ -302,7 +302,7 @@ fn get_registry() -> Result<Registry> {
     // fields (MoveLocation, both ExecutionStatus variants), then use repeated
     // trace_type_once calls to let the deserializer discover remaining variants.
     let move_location = MoveLocation {
-        package: ObjectID::ZERO,
+        package: ObjectId::ZERO,
         module: Identifier::from_static("foo"),
         function: 0,
         instruction: 0,
@@ -343,7 +343,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(
             &mut samples,
             &CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
-                ObjectID::ZERO,
+                ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::random(),
             )),
@@ -352,14 +352,14 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &CallArg::Shared(SharedObjectRef::new(ObjectID::ZERO, 1u64.into(), false)),
+            &CallArg::Shared(SharedObjectRef::new(ObjectId::ZERO, 1u64.into(), false)),
         )
         .unwrap();
     tracer
         .trace_value(
             &mut samples,
             &CallArg::Receiving(iota_types::base_types::ObjectRef::new(
-                ObjectID::ZERO,
+                ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::random(),
             )),
@@ -380,7 +380,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &TransactionKind::Programmable(sample_pt))
         .unwrap();
     let sample_genesis_obj = GenesisObject::new(
-        Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
         Owner::Address(IotaAddress::ZERO),
     );
     tracer
@@ -431,7 +431,7 @@ fn get_registry() -> Result<Registry> {
     // so we need to trace ObjectInner directly to avoid a format conflict
     // (Struct vs NewTypeStruct both named "Object").
     let sample_obj_inner = ObjectInner {
-        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
         owner: Owner::Address(IotaAddress::ZERO),
         previous_transaction: TransactionDigest::default(),
         storage_rebate: 0,
@@ -440,7 +440,7 @@ fn get_registry() -> Result<Registry> {
 
     // Trace TransactionEvents via trace_value
     let sample_events = TransactionEvents(vec![Event {
-        package_id: ObjectID::ZERO,
+        package_id: ObjectId::ZERO,
         module: Identifier::from_static("foo"),
         sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
@@ -460,7 +460,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(
             &mut samples,
             &Command::new_move_call(
-                ObjectID::ZERO,
+                ObjectId::ZERO,
                 Identifier::from_static("foo"),
                 Identifier::from_static("bar"),
                 vec![TypeTag::U64],
@@ -489,7 +489,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &Command::new_publish(vec![vec![0u8]], vec![ObjectID::ZERO]),
+            &Command::new_publish(vec![vec![0u8]], vec![ObjectId::ZERO]),
         )
         .unwrap();
     tracer
@@ -509,8 +509,8 @@ fn get_registry() -> Result<Registry> {
             &mut samples,
             &Command::new_upgrade(
                 vec![vec![0u8]],
-                vec![ObjectID::ZERO],
-                ObjectID::ZERO,
+                vec![ObjectId::ZERO],
+                ObjectId::ZERO,
                 Argument::Input(0),
             ),
         )
@@ -553,7 +553,7 @@ fn get_registry() -> Result<Registry> {
             )]),
             IotaAddress::ZERO,
             vec![iota_types::base_types::ObjectRef::new(
-                ObjectID::ZERO,
+                ObjectId::ZERO,
                 1u64.into(),
                 ObjectDigest::default(),
             )],

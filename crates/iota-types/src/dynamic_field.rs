@@ -15,7 +15,7 @@ use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    MoveTypeTagTrait, ObjectID, SequenceNumber,
+    MoveTypeTagTrait, ObjectId, SequenceNumber,
     base_types::{IotaAddress, ObjectDigest},
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
@@ -62,7 +62,7 @@ pub struct DynamicFieldInfo {
     pub bcs_name: Vec<u8>,
     pub type_: DynamicFieldType,
     pub object_type: String,
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub digest: ObjectDigest,
 }
@@ -149,7 +149,7 @@ impl DynamicFieldInfo {
 
     pub fn parse_move_object(
         move_struct: &MoveStruct,
-    ) -> IotaResult<(MoveValue, DynamicFieldType, ObjectID)> {
+    ) -> IotaResult<(MoveValue, DynamicFieldType, ObjectId)> {
         let name = extract_field_from_move_struct(move_struct, "name").ok_or_else(|| {
             IotaError::ObjectDeserialization {
                 error: "Cannot extract [name] field from iota::dynamic_field::Field".to_string(),
@@ -209,7 +209,7 @@ pub fn extract_field_from_move_struct<'a>(
     })
 }
 
-fn extract_object_id(value: &MoveStruct) -> Option<ObjectID> {
+fn extract_object_id(value: &MoveStruct) -> Option<ObjectId> {
     // id:UID is the first value in an object
     let uid_value = &value.fields.first()?.1;
 
@@ -221,7 +221,7 @@ fn extract_object_id(value: &MoveStruct) -> Option<ObjectID> {
     extract_id_value(id_value)
 }
 
-pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
+pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectId> {
     // the id struct has a single bytes field
     let id_bytes_value = match id_value {
         MoveValue::Struct(MoveStruct { fields, .. }) => &fields.first()?.1,
@@ -229,7 +229,7 @@ pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
     };
     // the bytes field should be an address
     match id_bytes_value {
-        MoveValue::Address(addr) => Some(ObjectID::new(addr.into_bytes())),
+        MoveValue::Address(addr) => Some(ObjectId::new(addr.into_bytes())),
         _ => None,
     }
 }
@@ -245,7 +245,7 @@ pub fn derive_dynamic_field_id<T>(
     parent: T,
     key_type_tag: &TypeTag,
     key_bytes: &[u8],
-) -> Result<ObjectID, bcs::Error>
+) -> Result<ObjectId, bcs::Error>
 where
     T: Into<IotaAddress>,
 {
@@ -270,10 +270,10 @@ where
     hasher.update(k_tag_bytes);
     let hash = hasher.finalize();
 
-    // truncate into an ObjectID and return
+    // truncate into an ObjectId and return
     // OK to access slice because digest should never be shorter than
-    // ObjectID::LENGTH.
-    let id = ObjectID::from_bytes(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap();
+    // ObjectId::LENGTH.
+    let id = ObjectId::from_bytes(&hash.as_ref()[0..ObjectId::LENGTH]).unwrap();
     tracing::trace!("derive_dynamic_field_id result: {:?}", id);
     Ok(id)
 }
@@ -285,7 +285,7 @@ where
 /// itself, not the value in the field.
 pub fn get_dynamic_field_object_from_store<K>(
     object_store: &dyn ObjectStore,
-    parent_id: ObjectID,
+    parent_id: ObjectId,
     key: &K,
 ) -> Result<Object, IotaError>
 where
@@ -305,7 +305,7 @@ where
 /// the field instead of the Field object itself.
 pub fn get_dynamic_field_from_store<K, V>(
     object_store: &dyn ObjectStore,
-    parent_id: ObjectID,
+    parent_id: ObjectId,
     key: &K,
 ) -> Result<V, IotaError>
 where

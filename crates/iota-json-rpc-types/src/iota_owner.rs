@@ -1,8 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, SequenceNumber},
     object::Owner,
 };
 use schemars::JsonSchema;
@@ -107,7 +108,7 @@ impl From<OwnerSchema> for Owner {
     fn from(value: OwnerSchema) -> Self {
         match value {
             OwnerSchema::AddressOwner(address) => Owner::Address(address),
-            OwnerSchema::ObjectOwner(address) => Owner::Object(ObjectID::from(address)),
+            OwnerSchema::ObjectOwner(address) => Owner::Object(ObjectId::from(address)),
             OwnerSchema::Shared {
                 initial_shared_version,
             } => Owner::Shared(initial_shared_version),

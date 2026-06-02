@@ -14,13 +14,12 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_swarm_config::genesis_config::{
     AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::ObjectID,
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -520,7 +519,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
             StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
-                UID::new(ObjectID::random()),
+                UID::new(ObjectId::random()),
                 iota_types::balance::Balance::new(principal),
                 expiration_timestamp_ms,
                 label.clone(),
@@ -677,7 +676,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
             StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
-                UID::new(ObjectID::random()),
+                UID::new(ObjectId::random()),
                 iota_types::balance::Balance::new(principal),
                 expiration_timestamp_ms,
                 label.clone(),

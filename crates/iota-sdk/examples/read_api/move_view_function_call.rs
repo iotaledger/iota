@@ -12,7 +12,8 @@ mod utils;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{DevInspectResults, IotaTypeTag};
 use iota_sdk::IotaClient;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use serde_json::json;
 use utils::setup_for_read;
 
@@ -29,7 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
         "clock",
         "timestamp_ms",
         vec![],
-        vec![IotaJsonValue::new(json!(ObjectID::CLOCK))?],
+        vec![IotaJsonValue::new(json!(ObjectId::CLOCK))?],
     )
     .await?
     .results;
@@ -44,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
         "random",
         "load_inner",
         vec![],
-        vec![IotaJsonValue::new(json!(ObjectID::RANDOMNESS_STATE))?],
+        vec![IotaJsonValue::new(json!(ObjectId::RANDOMNESS_STATE))?],
     )
     .await?
     .results;
@@ -56,7 +57,7 @@ async fn main() -> Result<(), anyhow::Error> {
 async fn move_view_function_dev_inspect(
     sender: IotaAddress,
     client: &IotaClient,
-    package_id: ObjectID,
+    package_id: ObjectId,
     module_name: &str,
     function_name: &str,
     type_args: Vec<IotaTypeTag>,

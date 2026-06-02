@@ -4,9 +4,8 @@
 
 use std::str::FromStr;
 
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
-    base_types::ObjectID,
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
 };
@@ -20,7 +19,7 @@ use crate::authority::{
 #[cfg_attr(msim, ignore)]
 async fn test_same_module_type_param() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -79,7 +78,7 @@ async fn test_same_module_type_param() {
 #[cfg_attr(msim, ignore)]
 async fn test_different_module_type_param() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -139,7 +138,7 @@ async fn test_different_module_type_param() {
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -205,7 +204,7 @@ async fn test_nested_type_param() {
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param_different_module() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -271,7 +270,7 @@ async fn test_nested_type_param_different_module() {
 #[cfg_attr(msim, ignore)]
 async fn test_different_package_type_param() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(
@@ -342,7 +341,7 @@ async fn test_different_package_type_param() {
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param_different_package() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
+    let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
     let package = build_and_publish_test_package(

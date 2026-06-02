@@ -13,8 +13,9 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
@@ -26,7 +27,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), balance),
+        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), balance),
         owner,
         TransactionDigest::GENESIS_MARKER,
     )

@@ -12,12 +12,10 @@ use async_graphql::{
     dataloader::Loader,
     *,
 };
-use diesel::{
-    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper, sql_types,
-};
+use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, SelectableHelper, sql_types};
 use iota_indexer::{
     models::objects::{StoredHistoryObject, StoredObject},
-    schema::{objects, objects_history, objects_version},
+    schema::objects,
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
 use iota_sdk_types::{StructTag, TypeTag};
@@ -1546,19 +1544,15 @@ impl Loader<HistoricalKey> for Db {
             .into_iter()
             .unzip();
 
-        let active = NativeObjectStatus::Active as i16;
         let wrapped_or_deleted = NativeObjectStatus::WrappedOrDeleted as i16;
 
         // For each `(object_id, object_version)` pair, locate the row content
         // in `checkpointed_objects` (current state of the object, which may
         // be a `WrappedOrDeleted` tombstone) or `objects_backward_history`.
         //
-        // Only `ACTIVE` rows from `objects_backward_history` are joined
-        // (`bh.object_status = $3`) because they are the only rows that
-        // carry the real `(object_id, object_version)`. The other two statuses
-        // use placeholder versions, so matching on them by `(object_id,
-        // object_version)` could by chance return incorrect row (with
-        // incorrect version).
+        // Non-real tombstone versions from `objects_backward_history` are naturally
+        // excluded because we fetch only real versions that exist in
+        // `objects_version`.
         //
         // `object_status` is taken from whichever source matched, falling
         // back to `WrappedOrDeleted` only when `objects_version` knows the
@@ -1571,16 +1565,11 @@ impl Loader<HistoricalKey> for Db {
         // watermark — outside that window the backward-history rows have
         // been pruned, so a missing match might mean "pruned out" rather
         // than "tombstone".
-        //
-        // `objects_version` is the existence oracle and the source of
-        // `cp_sequence_number` (the checkpoint at which the version was
-        // committed), used by the in-memory `checkpoint_viewed_at` filter
-        // below.
         let sql = "SELECT \
                 v.object_id, \
                 v.object_version, \
                 v.cp_sequence_number AS checkpoint_sequence_number, \
-                COALESCE(co.object_status, bh.object_status, $4::int2) AS object_status, \
+                COALESCE(co.object_status, bh.object_status, $3::int2) AS object_status, \
                 COALESCE(co.object_digest, bh.object_digest) AS object_digest, \
                 COALESCE(co.owner_type, bh.owner_type) AS owner_type, \
                 COALESCE(co.owner_id, bh.owner_id) AS owner_id, \
@@ -1602,12 +1591,11 @@ impl Loader<HistoricalKey> for Db {
             LEFT JOIN objects_backward_history bh \
                    ON bh.object_id = v.object_id \
                   AND bh.object_version = v.object_version \
-                  AND bh.object_status = $3 \
             WHERE co.object_id IS NOT NULL \
                OR bh.object_id IS NOT NULL \
                OR v.cp_sequence_number >= COALESCE(\
                       (SELECT min_available_cp FROM watermarks \
-                       WHERE entity = $5), 0)";
+                       WHERE entity = $4), 0)";
 
         let objects: Vec<StoredHistoryObject> = self
             .execute(move |conn| {
@@ -1615,7 +1603,6 @@ impl Loader<HistoricalKey> for Db {
                     diesel::sql_query(sql)
                         .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
                         .bind::<sql_types::Array<sql_types::BigInt>, _>(versions.clone())
-                        .bind::<sql_types::SmallInt, _>(active)
                         .bind::<sql_types::SmallInt, _>(wrapped_or_deleted)
                         .bind::<sql_types::Text, _>(BACKWARD_HISTORY_WATERMARK_ENTITY)
                 })
@@ -1760,29 +1747,83 @@ impl Loader<ParentVersionKey> for Db {
                 .insert(key.id.into_vec());
         }
 
+        let wrapped_or_deleted = NativeObjectStatus::WrappedOrDeleted as i16;
+
+        // For each id, pick the largest version `≤ parent_version` from
+        // `objects_version` (versions table contains all current and past versions of
+        // objects), then locate the row content in `checkpointed_objects`
+        // (current state of the object, which may be a `WrappedOrDeleted`
+        // tombstone) or `objects_backward_history`.
+        //
+        // Non-real tombstone versions from `objects_backward_history` are naturally
+        // excluded because we fetch only real versions that exist in
+        // `objects_version`.
+        //
+        // `object_status` is taken from whichever source matched, falling
+        // back to `WrappedOrDeleted` only when `objects_version` knows the
+        // version but neither table has a row for it. This mirrors the
+        // tombstone synthesis in
+        // `backward_view::historical::tombstones_from_objects_version`.
+        //
+        // The synthetic `WrappedOrDeleted` fallback is only safe when the
+        // version's `cp_sequence_number` is at or above the backward-history
+        // watermark — outside that window the backward-history rows have
+        // been pruned, so a missing match might mean "pruned out" rather
+        // than "tombstone".
+        let sql = "WITH ids AS (SELECT unnest($1::bytea[]) AS object_id), \
+                        latest_per_id AS (\
+                       SELECT i.object_id, o.object_version, o.cp_sequence_number \
+                       FROM ids i \
+                       JOIN LATERAL (\
+                           SELECT object_version, cp_sequence_number \
+                           FROM objects_version \
+                           WHERE object_id = i.object_id \
+                             AND object_version <= $2::bigint \
+                           ORDER BY object_version DESC \
+                           LIMIT 1) o ON TRUE) \
+                   SELECT \
+                       v.object_id, \
+                       v.object_version, \
+                       v.cp_sequence_number AS checkpoint_sequence_number, \
+                       COALESCE(co.object_status, bh.object_status, $3::int2) AS object_status, \
+                       COALESCE(co.object_digest, bh.object_digest) AS object_digest, \
+                       COALESCE(co.owner_type, bh.owner_type) AS owner_type, \
+                       COALESCE(co.owner_id, bh.owner_id) AS owner_id, \
+                       COALESCE(co.object_type, bh.object_type) AS object_type, \
+                       COALESCE(co.object_type_package, bh.object_type_package) AS object_type_package, \
+                       COALESCE(co.object_type_module, bh.object_type_module) AS object_type_module, \
+                       COALESCE(co.object_type_name, bh.object_type_name) AS object_type_name, \
+                       COALESCE(co.serialized_object, bh.serialized_object) AS serialized_object, \
+                       COALESCE(co.coin_type, bh.coin_type) AS coin_type, \
+                       COALESCE(co.coin_balance, bh.coin_balance) AS coin_balance, \
+                       COALESCE(co.df_kind, bh.df_kind) AS df_kind \
+                   FROM latest_per_id v \
+                   LEFT JOIN checkpointed_objects co \
+                          ON co.object_id = v.object_id \
+                         AND co.object_version = v.object_version \
+                   LEFT JOIN objects_backward_history bh \
+                          ON bh.object_id = v.object_id \
+                         AND bh.object_version = v.object_version \
+                   WHERE co.object_id IS NOT NULL \
+                      OR bh.object_id IS NOT NULL \
+                      OR v.cp_sequence_number >= COALESCE(\
+                             (SELECT min_available_cp FROM watermarks \
+                              WHERE entity = $4), 0)";
+
         // Issue concurrent reads for each group of keys.
         let futures = keys_by_cursor_and_parent_version
             .into_iter()
             .map(|(group_key, ids)| {
+                let parent_version = group_key.parent_version as i64;
+                let ids: Vec<Vec<u8>> = ids.into_iter().collect();
+
                 self.execute(move |conn| {
                     let stored: Vec<StoredHistoryObject> = conn.results(move || {
-                        use objects_history::dsl as h;
-                        use objects_version::dsl as v;
-
-                        h::objects_history
-                            .inner_join(
-                                v::objects_version.on(v::cp_sequence_number
-                                    .eq(h::checkpoint_sequence_number)
-                                    .and(v::object_id.eq(h::object_id))
-                                    .and(v::object_version.eq(h::object_version))),
-                            )
-                            .select(StoredHistoryObject::as_select())
-                            .filter(v::object_id.eq_any(ids.iter().cloned()))
-                            .filter(v::object_version.le(group_key.parent_version as i64))
-                            .distinct_on(v::object_id)
-                            .order_by(v::object_id)
-                            .then_order_by(v::object_version.desc())
-                            .into_boxed()
+                        diesel::sql_query(sql)
+                            .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
+                            .bind::<sql_types::BigInt, _>(parent_version)
+                            .bind::<sql_types::SmallInt, _>(wrapped_or_deleted)
+                            .bind::<sql_types::Text, _>(BACKWARD_HISTORY_WATERMARK_ENTITY)
                     })?;
 
                     Ok::<_, diesel::result::Error>(
