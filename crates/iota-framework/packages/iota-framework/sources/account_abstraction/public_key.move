@@ -134,16 +134,18 @@ public fun raw_bytes(self: &PublicKey): &vector<u8> {
 }
 
 /// Derives the IOTA address for this public key, mirroring Rust `IotaAddress::from(&PublicKey)`:
-///   Ed25519:   Blake2b256(pubkey)           — no flag prefix
+///   Ed25519:   Blake2b256(pubkey)
 ///   Secp256k1: Blake2b256([0x01] || pubkey)
 ///   Secp256r1: Blake2b256([0x02] || pubkey)
-///   MultiSig:  Blake2b256([0x03] || pubkey)
+///   MultiSig:  Blake2b256([0x03] || threshold_le16 || (scheme_flag || pk || weight_u8)*)
 ///   Passkey:   Blake2b256([0x06] || pubkey)
 public fun to_iota_address(self: &PublicKey): address {
     let scheme = self.scheme;
     let raw = self.raw_bytes;
     let data = if (scheme == signature_scheme::ed25519()) {
         raw
+    } else if (scheme == signature_scheme::multisig()) {
+        multisig_hash_input(&raw)
     } else {
         let mut v = vector[scheme.flag()];
         v.append(raw);
@@ -157,6 +159,40 @@ public fun to_iota_address(self: &PublicKey): address {
 // === Package Functions ===
 
 // === Private Functions ===
+
+/// Builds the hash preimage for a MultiSig address, matching the Rust node:
+///   [0x03] || threshold_le16 || (scheme_flag || pk_bytes || weight_u8)*
+///
+/// BCS stores signers before threshold; the hash puts threshold first.
+fun multisig_hash_input(raw_bytes: &vector<u8>): vector<u8> {
+    let mut bcs = bcs::new(*raw_bytes);
+    let num_signers = bcs.peel_vec_length();
+
+    let mut signer_bytes: vector<u8> = vector[];
+    let mut i = 0;
+    while (i < num_signers) {
+        let tag = bcs.peel_enum_tag();
+        let key_len = if (tag == MULTISIG_KEY_TAG_ED25519) ED25519_PUBLIC_KEY_LENGTH
+                      else SECP256_PUBLIC_KEY_LENGTH;
+        let scheme_flag = if (tag == MULTISIG_KEY_TAG_ED25519) 0x00u8
+            else if (tag == MULTISIG_KEY_TAG_SECP256K1) 0x01u8
+            else if (tag == MULTISIG_KEY_TAG_SECP256R1) 0x02u8
+            else 0x06u8; // PASSKEY
+        signer_bytes.push_back(scheme_flag);
+        let mut j = 0;
+        while (j < key_len) {
+            signer_bytes.push_back(bcs.peel_u8());
+            j = j + 1;
+        };
+        signer_bytes.push_back(bcs.peel_u8()); // weight
+        i = i + 1;
+    };
+
+    let threshold = bcs.peel_u16();
+    let mut data = vector[0x03u8, threshold as u8, (threshold >> 8) as u8];
+    data.append(signer_bytes);
+    data
+}
 
 fun scheme_from_flag(flag: u8): SignatureScheme {
     if (flag == 0x00) signature_scheme::ed25519()

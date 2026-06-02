@@ -2287,6 +2287,9 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
+multisig_hash_input
+	fun
+	0x2::public_key
 scheme_from_flag
 	fun
 	0x2::public_key

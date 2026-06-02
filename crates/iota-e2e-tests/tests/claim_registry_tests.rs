@@ -18,7 +18,7 @@ use iota_types::{
     execution_status::ExecutionFailureStatus,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, ObjectArg},
+    transaction::{Argument, CallArg, ObjectArg},
 };
 use move_command_line_common::error_bitset::ErrorBitset;
 use move_core_types::ident_str;
@@ -29,7 +29,8 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 // ---------------------------------------------------------------------------
 
 /// Verify that `ClaimRegistry` is created via `EndOfEpochTransaction` when a
-/// network started at protocol v22 upgrades to v23.
+/// network started at protocol v25 upgrades to v26 (where
+/// `enable_claim_registry` first activates).
 #[cfg(msim)]
 #[sim_test]
 async fn test_claim_registry_created_on_protocol_upgrade() {
@@ -38,8 +39,8 @@ async fn test_claim_registry_created_on_protocol_upgrade() {
 
     telemetry_subscribers::init_for_testing();
 
-    const PRE: u64 = 22;
-    const POST: u64 = 23;
+    const PRE: u64 = 25;
+    const POST: u64 = 26;
 
     let test_cluster = TestClusterBuilder::new()
         .with_protocol_version(ProtocolVersion::new(PRE))
@@ -96,53 +97,63 @@ async fn registry_call_arg(cluster: &TestCluster, mutable: bool) -> CallArg {
     })
 }
 
-/// Build a PTB that calls `claim_registry::claim` twice on the same address.
-/// The first call succeeds (marks the address), the second aborts with
-/// EAlreadyClaimed. Used to test the duplicate-claim rejection without needing
-/// to consume the ticket.
+/// Builds a `PublicKey` result in a PTB from scheme-prefixed bytes.
+fn add_from_prefixed_bytes(
+    b: &mut ProgrammableTransactionBuilder,
+    prefixed_pubkey_bytes: Vec<u8>,
+) -> anyhow::Result<Argument> {
+    let pk_bytes_arg = b.pure(prefixed_pubkey_bytes)?;
+    Ok(b.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        ident_str!("public_key").to_owned(),
+        ident_str!("from_prefixed_bytes").to_owned(),
+        vec![],
+        vec![pk_bytes_arg],
+    ))
+}
+
+/// Build a PTB that calls `claim_registry::test_claim_account` twice on the
+/// same address. The first call succeeds, the second aborts with
+/// EAlreadyClaimed.
 fn build_double_claim_pt(
     registry_arg: CallArg,
-    scheme: u8,
-    pubkey_bytes: Vec<u8>,
+    prefixed_pubkey_bytes: Vec<u8>,
 ) -> anyhow::Result<iota_types::transaction::ProgrammableTransaction> {
     let mut b = ProgrammableTransactionBuilder::new();
     let reg = b.input(registry_arg)?;
-    let scheme_arg = b.pure(scheme)?;
-    let pk = b.pure(pubkey_bytes)?;
+    let pk = add_from_prefixed_bytes(&mut b, prefixed_pubkey_bytes)?;
     b.programmable_move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
         ident_str!("claim_registry").to_owned(),
-        ident_str!("claim").to_owned(),
+        ident_str!("test_claim_account").to_owned(),
         vec![],
-        vec![reg, scheme_arg, pk],
+        vec![reg, pk],
     );
     b.programmable_move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
         ident_str!("claim_registry").to_owned(),
-        ident_str!("claim").to_owned(),
+        ident_str!("test_claim_account").to_owned(),
         vec![],
-        vec![reg, scheme_arg, pk],
+        vec![reg, pk],
     );
     Ok(b.finish())
 }
 
-/// Build a PTB that calls `claim_registry::claim` once (expects abort at call
-/// site).
+/// Build a PTB that calls `claim_registry::test_claim_account` once (expects
+/// abort at call site for address-mismatch or other errors).
 fn build_claim_pt(
     registry_arg: CallArg,
-    scheme: u8,
-    pubkey_bytes: Vec<u8>,
+    prefixed_pubkey_bytes: Vec<u8>,
 ) -> anyhow::Result<iota_types::transaction::ProgrammableTransaction> {
     let mut b = ProgrammableTransactionBuilder::new();
     let reg = b.input(registry_arg)?;
-    let scheme_arg = b.pure(scheme)?;
-    let pk = b.pure(pubkey_bytes)?;
+    let pk = add_from_prefixed_bytes(&mut b, prefixed_pubkey_bytes)?;
     b.programmable_move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
         ident_str!("claim_registry").to_owned(),
-        ident_str!("claim").to_owned(),
+        ident_str!("test_claim_account").to_owned(),
         vec![],
-        vec![reg, scheme_arg, pk],
+        vec![reg, pk],
     );
     Ok(b.finish())
 }
@@ -168,14 +179,16 @@ async fn test_claim_registry_duplicate_claim_fails() -> anyhow::Result<()> {
         .keystore_mut()
         .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)?;
 
-    let pubkey_bytes: Vec<u8> = cluster
-        .wallet
-        .config()
-        .keystore()
-        .get_key(&derived_address)?
-        .public()
-        .as_ref()
-        .to_vec();
+    let mut prefixed_pubkey_bytes: Vec<u8> = vec![0x00u8]; // Ed25519 flag
+    prefixed_pubkey_bytes.extend(
+        cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&derived_address)?
+            .public()
+            .as_ref(),
+    );
 
     let rgp = cluster.get_reference_gas_price().await;
     cluster
@@ -183,7 +196,7 @@ async fn test_claim_registry_duplicate_claim_fails() -> anyhow::Result<()> {
         .await;
 
     let registry_arg = registry_call_arg(&cluster, true).await;
-    let pt = build_double_claim_pt(registry_arg, 0x00, pubkey_bytes)?;
+    let pt = build_double_claim_pt(registry_arg, prefixed_pubkey_bytes)?;
     let tx = cluster
         .test_transaction_builder_with_sender(derived_address)
         .await
@@ -231,12 +244,14 @@ async fn test_claim_registry_wrong_pubkey_fails() -> anyhow::Result<()> {
         .cloned()
         .expect("test cluster must have at least one account");
 
-    let wrong_pubkey: Vec<u8> =
+    let mut wrong_prefixed: Vec<u8> = vec![0x00u8]; // Ed25519 flag
+    wrong_prefixed.extend(
         Hex::decode("cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88")
-            .expect("valid hex");
+            .expect("valid hex"),
+    );
 
     let registry_arg = registry_call_arg(&cluster, true).await;
-    let pt = build_claim_pt(registry_arg, 0x00, wrong_pubkey)?;
+    let pt = build_claim_pt(registry_arg, wrong_prefixed)?;
     let tx = cluster
         .test_transaction_builder_with_sender(sender)
         .await

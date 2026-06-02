@@ -244,11 +244,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
 
-    // If true, the ClaimRegistry singleton is created (or already exists).
-    // Used to gate genesis creation and epoch-change creation for existing networks.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_claim_registry: bool,
-
     // If true, use the hardened OTW check
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
@@ -483,6 +478,11 @@ struct FeatureFlags {
     // If true, perform additional borrow checks
     #[serde(skip_serializing_if = "is_false")]
     additional_borrow_checks: bool,
+
+    // If true, the ClaimRegistry singleton is created (or already exists).
+    // Used to gate genesis creation and epoch-change creation for existing networks.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_claim_registry: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2787,10 +2787,9 @@ impl ProtocolConfig {
                     cfg.max_age_of_jwk_in_epochs = None;
                 }
                 26 => {
-                    // Introduce a module to allow Move code to query protocol
-                    // feature flags at runtime.
-                    cfg.feature_flags.enable_claim_registry = true;
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable claim registry in devnet only.
+                        cfg.feature_flags.enable_claim_registry = true;
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
                         // Set the cost for built-in Move authenticators to 0 for now.

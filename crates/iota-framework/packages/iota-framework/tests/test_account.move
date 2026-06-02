@@ -22,5 +22,5 @@ public fun create(
 ) {
     let flag = public_key.scheme().flag();
     let uid = iota::claim_registry::claim(registry, public_key, ctx);
-    transfer::share_object(Account { id: uid, scheme: flag });
+    transfer::transfer(Account { id: uid, scheme: flag }, ctx.sender());
 }

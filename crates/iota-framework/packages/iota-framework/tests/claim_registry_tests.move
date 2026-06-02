@@ -28,7 +28,7 @@ const SECP256R1_PK: vector<u8> =
 
 // Minimal BCS-encoded MultiSigPublicKey: 1 Ed25519 signer (ED25519_PK raw), weight=1, threshold=1.
 // Layout: [0x03 (MultiSig flag)] || ULEB128(num_signers=1) | ULEB128(tag=0 Ed25519) | 32-byte key | u8(weight=1) | u16-LE(threshold=1)
-// address = Blake2b256([0x03] || raw_bytes)
+// address = Blake2b256([0x03] || threshold_le16 || (scheme_flag || pk || weight)*)
 const MULTISIG_PK: vector<u8> =
     x"030100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
 
@@ -37,6 +37,18 @@ const MULTISIG_PK: vector<u8> =
 // address = Blake2b256([0x06] || raw_bytes)
 const PASSKEY_PK: vector<u8> =
     x"060227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+
+// Expected IOTA addresses for the keys above.
+// Computed independently by the Rust node (Blake2b256 via fastcrypto), not by
+// the Move to_iota_address() under test.
+// Ed25519:  Blake2b256(raw)
+// Others:   Blake2b256([flag] || raw)
+// MultiSig: Blake2b256([0x03] || threshold_le16 || (scheme_flag || pk || weight)*)
+const ED25519_ADDR:   address = @0xcef6bafea1d59edb73ff5ec9e8aa58354796e1b572b695d64237ce9c15a34a03;
+const SECP256K1_ADDR: address = @0x2fecbdf2652b089c64d127158d388621fdbbd156533fbcca5a0082aa0d2939fa;
+const SECP256R1_ADDR: address = @0x318f591092f10b67a81963954fb9539ea3919444417726be4e1b95ce44fe2fc0;
+const PASSKEY_ADDR:   address = @0xa2f90cd2552d45ab5ba157dacf19597e2018108c6a80e4d7a4a5680d1542a7e8;
+const MULTISIG_ADDR:  address = @0x5792280ab4865b96d664366ef04edfd2953f5d67465b4f08d290d89f0616ab31;
 
 // ============================================================
 // Helpers
@@ -72,7 +84,7 @@ fun test_registry_created() {
 #[test]
 fun test_claim_ed25519_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(&ED25519_PK);
+    let sender = ED25519_ADDR;
 
     scenario.next_tx(sender);
     {
@@ -94,7 +106,7 @@ fun test_claim_ed25519_happy_path() {
 #[test]
 fun test_claim_secp256k1_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(&SECP256K1_PK);
+    let sender = SECP256K1_ADDR;
 
     scenario.next_tx(sender);
     {
@@ -116,7 +128,7 @@ fun test_claim_secp256k1_happy_path() {
 #[test]
 fun test_claim_secp256r1_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(&SECP256R1_PK);
+    let sender = SECP256R1_ADDR;
 
     scenario.next_tx(sender);
     {
@@ -138,7 +150,7 @@ fun test_claim_secp256r1_happy_path() {
 #[test]
 fun test_claim_multisig_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(&MULTISIG_PK);
+    let sender = MULTISIG_ADDR;
 
     scenario.next_tx(sender);
     {
@@ -160,7 +172,7 @@ fun test_claim_multisig_happy_path() {
 #[test]
 fun test_claim_passkey_happy_path() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(&PASSKEY_PK);
+    let sender = PASSKEY_ADDR;
 
     scenario.next_tx(sender);
     {
@@ -186,7 +198,7 @@ fun test_claim_passkey_happy_path() {
 #[test]
 fun test_custom_account_creation() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(&ED25519_PK);
+    let sender = ED25519_ADDR;
 
     scenario.next_tx(sender);
     {
@@ -330,21 +342,18 @@ fun test_claim_ed25519_wrong_key_length() {
 }
 
 // ============================================================
-// derive_address correctness
+// to_iota_address — cross-checked against Rust-computed vectors
 // ============================================================
 
+// These constants are independent of the Move code under test: they were
+// computed by the Rust node using fastcrypto's Blake2b256.
 #[test]
-fun test_derive_address_ed25519_is_deterministic() {
-    let addr1 = claim_registry::derive_address_for_testing(&ED25519_PK);
-    let addr2 = claim_registry::derive_address_for_testing(&ED25519_PK);
-    assert!(addr1 == addr2);
-}
-
-#[test]
-fun test_derive_address_differs_by_scheme() {
-    let addr_ed = claim_registry::derive_address_for_testing(&ED25519_PK);
-    let addr_k1 = claim_registry::derive_address_for_testing(&SECP256K1_PK);
-    assert!(addr_ed != addr_k1);
+fun test_to_iota_address_vectors() {
+    assert!(public_key::from_prefixed_bytes(ED25519_PK).to_iota_address()   == ED25519_ADDR);
+    assert!(public_key::from_prefixed_bytes(SECP256K1_PK).to_iota_address() == SECP256K1_ADDR);
+    assert!(public_key::from_prefixed_bytes(SECP256R1_PK).to_iota_address() == SECP256R1_ADDR);
+    assert!(public_key::from_prefixed_bytes(PASSKEY_PK).to_iota_address()   == PASSKEY_ADDR);
+    assert!(public_key::from_prefixed_bytes(MULTISIG_PK).to_iota_address()  == MULTISIG_ADDR);
 }
 
 #[test]
