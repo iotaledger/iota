@@ -740,26 +740,17 @@ impl KeyToolCommand {
                 pks,
                 weights,
             } => {
-                if pks.len() != weights.len() {
-                    bail!(
-                        "Number of public keys ({}) does not match number of weights ({})",
-                        pks.len(),
-                        weights.len()
-                    );
-                }
-
-                let mut members = Vec::new();
-                let mut multisig_output = Vec::new();
-                for (pk, w) in pks.into_iter().zip(weights) {
-                    multisig_output.push(MultiSigOutput {
-                        address: IotaAddress::from(&pk),
-                        public_base64_key_with_flag: pk.to_base64(),
-                        weight: w,
-                    });
-                    members.push(MultisigMember::new(pk, w));
-                }
-                let multisig_pk = MultiSigPublicKey::new(members, threshold)?;
+                let multisig_pk = multisig_public_key(pks, weights, threshold)?;
                 let address: IotaAddress = (&multisig_pk).into();
+                let multisig_output = multisig_pk
+                    .members()
+                    .iter()
+                    .map(|member| MultiSigOutput {
+                        address: IotaAddress::from(member.public_key()),
+                        public_base64_key_with_flag: member.public_key().to_base64(),
+                        weight: member.weight(),
+                    })
+                    .collect();
                 let output = MultiSigAddress {
                     multisig_address: address.to_string(),
                     multisig: multisig_output,
@@ -774,19 +765,7 @@ impl KeyToolCommand {
                 weights,
                 threshold,
             } => {
-                if pks.len() != weights.len() {
-                    bail!(
-                        "Number of public keys ({}) does not match number of weights ({})",
-                        pks.len(),
-                        weights.len()
-                    );
-                }
-                let members = pks
-                    .into_iter()
-                    .zip(weights)
-                    .map(|(pk, w)| MultisigMember::new(pk, w))
-                    .collect();
-                let multisig_pk = MultiSigPublicKey::new(members, threshold)?;
+                let multisig_pk = multisig_public_key(pks, weights, threshold)?;
                 let address: IotaAddress = (&multisig_pk).into();
                 let multisig = MultiSig::new(sigs, multisig_pk)?;
                 let multisig_serialized = Base64::encode(multisig.as_ref());
@@ -1184,6 +1163,29 @@ impl PrintableResult for CommandOutput {}
 /// 2) Base64 encoded 32 bytes private key (assumes scheme is Ed25519)
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.
+/// Build and validate a [`MultiSigPublicKey`] from a list of public keys and
+/// their corresponding weights. The number of keys must match the number of
+/// weights.
+fn multisig_public_key(
+    pks: Vec<SdkPublicKey>,
+    weights: Vec<WeightUnit>,
+    threshold: ThresholdUnit,
+) -> Result<MultiSigPublicKey, anyhow::Error> {
+    if pks.len() != weights.len() {
+        bail!(
+            "Number of public keys ({}) does not match number of weights ({})",
+            pks.len(),
+            weights.len()
+        );
+    }
+    let members = pks
+        .into_iter()
+        .zip(weights)
+        .map(|(pk, w)| MultisigMember::new(pk, w))
+        .collect();
+    Ok(MultiSigPublicKey::new(members, threshold)?)
+}
+
 fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow::Error> {
     let ikp = match IotaKeyPair::decode(&value) {
         Ok(s) => s,
