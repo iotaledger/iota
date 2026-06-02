@@ -49,7 +49,7 @@ Supports the following flags:
 
 - `-n <NUM>`: number of validators (default: `4`; any number between `4` and `30` is supported)
 - `-b <true|false>`: rebuild Docker images before running (default: `true`)
-- `-g <true|false>`: enable geodistributed large network latencies (default: `false`)
+- `-g <true|false>`: enable geodistributed large network latencies (default: `true`; `false` divides all delays by 4 and drops the heavy-tail slot bursts)
 - `-s <SEED>`: seed for pseudorandom disruptions (default: `42`)
 - `-x <PERCENT_BLOCK>`: percent of validator pairs to block connections (default: `0`)
 - `-l <PERCENT_NETEM>`: percent of validators to apply packet loss (default: `0`)
@@ -66,11 +66,11 @@ The script should be run from inside the `iota/dev-tools/iota-private-network/ex
 **Usage:**
 
 ```bash
-# Run default 4-validator Starfish network with small latencies without any additional disruptions
+# Run default 4-validator Starfish network with geodistributed latencies without any additional disruptions
 ./run-all-benchmark.sh
 
-# Run 10-validator network with large geodistributed latencies for one hour without rebuilding images
-./run-all-benchmark.sh -n 10 -g true -b false
+# Run 10-validator network with small latencies for one hour without rebuilding images
+./run-all-benchmark.sh -n 10 -g false -b false
 
 # Run 30-validator network with geodistributed latencies, 10% blocked connections, 5% chances for packet loss, 10% for restarts and running for 2 hours
 ./run-all-benchmark.sh -n 30 -g true -x 10 -l 5 -r 10 -t 7200
@@ -430,8 +430,11 @@ Supported flags:
 - `-e <MINUTES>`\
   Epoch duration in minutes (default: `10`).
 
+- `--geodistributed <true|false>`\
+  Use the full geodistributed latency values (default: `true`; `false` divides all delays by 4 and drops the heavy-tail slot bursts).
+
 - `--block-measurement-seconds <S>`\
-  Pre-upgrade block-production measurement window after latency is applied (default: `120`, `0` disables). The legacy name `--block-validation-seconds` is accepted as an alias.
+  Pre-upgrade block-production measurement window after latency is applied (default: `120`, `0` disables; simple mode only — the advanced schedule does not budget for it). The legacy name `--block-validation-seconds` is accepted as an alias.
 
 - `--load-qps <QPS>`\
   Start a stress load generator at target QPS (default: `0` = disabled).

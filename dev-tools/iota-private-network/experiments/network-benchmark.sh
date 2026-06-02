@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Apply fuzz disruptions deterministically using derived pseudorandom numbers
-# Mimics latencies between docker containers
+# Mimics latencies between docker containers via a built-in role-based model
 # Supports packet loss, connection blocking, and periodic validator restarts
-# Logs to console only. Exits immediately, leaving disruptions applied.
+# Logs to a file and keeps running to reapply rules after container
+# restarts; -D dumps the effective latency matrix and exits immediately.
 
 set -euo pipefail
 IFS=$'\n\t'

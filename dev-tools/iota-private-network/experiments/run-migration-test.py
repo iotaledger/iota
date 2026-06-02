@@ -94,7 +94,7 @@ class Config:
     load_in_flight_ratio: int = 5
     load_transfer_objects: int = 100
     load_rpc_address: str = "http://fullnode-1:9000"
-    load_tools_image: str = "iotaledger/iota-tools"
+    load_tools_image: str = "iotaledger/stress"
     load_primary_gas_owner_id: str = (
         "0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0"
     )
@@ -1679,6 +1679,11 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
 
 
 def measure_block_production(cfg: Config) -> None:
+    if cfg.mode == "advanced":
+        # The advanced schedule must fit phases 7-9 inside epoch 0; the
+        # measurement window does not, so it is simple-mode only.
+        log("  Block-production measurement skipped in advanced mode")
+        return
     if not cfg.block_measurement_enabled():
         log("  Block-production measurement disabled")
         return
@@ -2537,6 +2542,11 @@ def main() -> None:
     run(["sudo", "pkill", "-f", r"network-benchmark\.sh"], check=False, quiet=True)
     if latency_proc.poll() is None:
         latency_proc.terminate()
+
+    # Re-snapshot the script log so the timestamped archive includes the
+    # liveness and stable-window reports logged after _archive_final_logs.
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    shutil.copy2(cfg.log_file, cfg.log_dir / f"migration_script_{ts}.log")
 
 
 if __name__ == "__main__":
