@@ -23,9 +23,9 @@ fi
 ITERS="${ITERS:-1}"
 export ITERS
 
-# Semaphore cap applied to all policies in run_inner.sh. Production-shape
-# default is 500; override per workload via env. Same on WS and EPYC.
-SEM_CAP="${SEM_CAP:-500}"
+# Semaphore cap applied to all policies in run_inner.sh.
+# Current calibration: 400 (TPS sem-bound at ~1100 tx/s on WS).
+SEM_CAP="${SEM_CAP:-400}"
 export SEM_CAP
 
 # Saturation pct for GRADUATED policies (the 100%-shed threshold).
@@ -36,12 +36,18 @@ export SEM_CAP
 SAT_PCT="${SAT_PCT:-95}"
 export SAT_PCT
 
-# Examples:
-#   ITERS=20 ./run.sh                      (WS default: sem=750, sat=95)
-#   ITERS=20 SEM_CAP=500 SAT_PCT=90 ./run.sh  (EPYC: amplification sweet spot, conservative sat)
-#   ITERS=20 SEM_CAP=500 ./run.sh          (EPYC with sat=95 — direct cross-machine comparison)
+# Per-worker spammer in-flight cap (Rust default 200 too high).
+# 40 × 16 workers × 25 procs = 16K total spammer in-flight — calibrated
+# to push validator queue to ~13-16K mean at max=20K, hits cap frequently.
+OPEN_LOOP_MAX_INFLIGHT_PER_WORKER="${OPEN_LOOP_MAX_INFLIGHT_PER_WORKER:-40}"
+export OPEN_LOOP_MAX_INFLIGHT_PER_WORKER
 
-echo "config: ITERS=$ITERS  SEM_CAP=$SEM_CAP  SAT_PCT=$SAT_PCT (graduated only; binary uses 100)"
+# Examples:
+#   ITERS=20 ./run.sh
+#   ITERS=20 SEM_CAP=500 SAT_PCT=90 ./run.sh   (different sem / sat)
+#   ITERS=20 OPEN_LOOP=true ./run.sh           (open-loop instead of closed)
+
+echo "config: ITERS=$ITERS  SEM_CAP=$SEM_CAP  SAT_PCT=$SAT_PCT  OPEN_LOOP_CAP=$OPEN_LOOP_MAX_INFLIGHT_PER_WORKER"
 
 nohup ./run_inner.sh >> run.log 2>&1 &
 

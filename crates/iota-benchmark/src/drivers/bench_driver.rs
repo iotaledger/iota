@@ -60,6 +60,22 @@ use tokio_util::sync::CancellationToken;
 /// more pressure (and have headroom).
 const DEFAULT_OPEN_LOOP_MAX_INFLIGHT_PER_WORKER: usize = 200;
 
+/// AIMD (additive-increase multiplicative-decrease) per-worker
+/// congestion control, modeled on TCP. When `AIMD=true` (closed-loop
+/// only), each worker maintains a `cwnd` that gates fresh sends: it
+/// fires a new tx only if `num_in_flight < cwnd`. On `NextOp::Response`
+/// (success) cwnd grows by `AIMD_INC`. On `NextOp::Retry` or
+/// `NextOp::Failure` (validator rejection — overload signal) cwnd
+/// shrinks by a factor of `AIMD_DEC`. Clamped to `[AIMD_MIN, AIMD_MAX]`,
+/// where `AIMD_MAX` defaults to `OPEN_LOOP_MAX_INFLIGHT_PER_WORKER`.
+/// Each worker has an independent cwnd (matches TCP per-connection cwnd).
+/// Purpose: produce the classical RED sawtooth in queue depth and make
+/// the validator's smooth-vs-cliff drop policy visible at the spammer side.
+const DEFAULT_AIMD_INITIAL_CAP: usize = 8;
+const DEFAULT_AIMD_MIN_CAP: usize = 1;
+const DEFAULT_AIMD_INC: usize = 1;
+const DEFAULT_AIMD_DEC: usize = 2;
+
 /// Per-task timeout for open-loop submissions. Each spawned task drops
 /// its in-flight semaphore permit after at most this long, regardless
 /// of whether the validator has returned a response. This decouples
@@ -888,6 +904,45 @@ async fn run_bench_worker(
     let open_loop_inflight = Arc::new(Semaphore::new(open_loop_cap));
     let mut num_open_loop_dropped: u64 = 0;
 
+    // AIMD state (per worker, closed-loop). When `AIMD=true`, gates
+    // fresh sends on `num_in_flight < aimd_cwnd`. cwnd grows by
+    // `aimd_inc` on NextOp::Response (AI) and shrinks by a factor of
+    // `aimd_dec` on NextOp::Retry / NextOp::Failure (MD). Clamped to
+    // [aimd_min, aimd_max]. Per-worker locals — no atomics needed; each
+    // worker is a single async task and its cwnd is independent (matches
+    // TCP per-connection cwnd).
+    let aimd_enabled = std::env::var("AIMD")
+        .map(|s| s == "true" || s == "1")
+        .unwrap_or(false);
+    let aimd_min: u64 = std::env::var("AIMD_MIN")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_AIMD_MIN_CAP as u64);
+    let aimd_max: u64 = std::env::var("AIMD_MAX")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(open_loop_cap as u64);
+    let aimd_initial: u64 = std::env::var("AIMD_INITIAL")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_AIMD_INITIAL_CAP as u64);
+    let aimd_inc: u64 = std::env::var("AIMD_INC")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_AIMD_INC as u64);
+    let aimd_dec: u64 = std::env::var("AIMD_DEC")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_AIMD_DEC as u64)
+        .max(1);
+    let mut aimd_cwnd: u64 = aimd_initial.clamp(aimd_min, aimd_max);
+    if aimd_enabled {
+        info!(
+            "AIMD on (worker={}): min={} max={} initial={} inc=+{} dec=/{}",
+            worker.id, aimd_min, aimd_max, aimd_initial, aimd_inc, aimd_dec
+        );
+    }
+
     let mut stat_start_time: Instant = Instant::now();
 
     // Handles the transaction response when sent to proxy.
@@ -1155,6 +1210,12 @@ async fn run_bench_worker(
                     // Otherwise send a fresh request
                     if free_pool.is_empty() {
                         num_no_gas += 1;
+                    } else if aimd_enabled && !worker.open_loop && num_in_flight >= aimd_cwnd {
+                        // AIMD gate (closed-loop only): cwnd is the
+                        // per-worker outstanding cap. When at cap, skip
+                        // this tick — the worker will fire again next
+                        // tick (cwnd may have grown in the meantime, or
+                        // a response may have decremented num_in_flight).
                     } else {
                         let mut payload = free_pool.pop_front().unwrap();
                         num_in_flight += 1;
@@ -1247,6 +1308,11 @@ async fn run_bench_worker(
                     NextOp::Retry(b) => {
                         retry_queue.push_back(b);
 
+                        if aimd_enabled {
+                            // MD: validator rejected (overload signal) — halve cwnd.
+                            aimd_cwnd = std::cmp::max(aimd_min, aimd_cwnd / aimd_dec);
+                        }
+
                         // Update total benchmark progress
                         if update_progress(1) {
                             break;
@@ -1255,6 +1321,10 @@ async fn run_bench_worker(
                     NextOp::Failure => {
                         error!("Permanent failure to execute payload. May result in gas objects being leaked");
                         num_error_txes += 1;
+                        if aimd_enabled {
+                            // MD on permanent failure too — treat as adverse signal.
+                            aimd_cwnd = std::cmp::max(aimd_min, aimd_cwnd / aimd_dec);
+                        }
                         // Update total benchmark progress
                         if update_progress(1) {
                             break;
@@ -1280,6 +1350,10 @@ async fn run_bench_worker(
                         num_success_txes += 1;
                         num_success_cmds += num_commands as u64;
                         num_in_flight -= 1;
+                        if aimd_enabled {
+                            // AI: success — grow cwnd by aimd_inc, clamped to aimd_max.
+                            aimd_cwnd = std::cmp::min(aimd_max, aimd_cwnd + aimd_inc);
+                        }
                         worker_gas_used += gas_cost_summary.gas_used();
                         worker_computation_cost += gas_cost_summary.computation_cost;
                         free_pool.push_back(payload);

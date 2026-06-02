@@ -783,10 +783,12 @@ def _line_style_for(policy_str):
 
 def plot_inflight_timeseries(out_path, policies, tick_labels, data_df, raw_recs):
     """Inflight depth over the spam window (the iconic RED sawtooth-vs-smooth
-    figure). One line per policy. Picks the iter with median tps for that
-    policy to avoid outliers. Slices to spam_start_epoch..spam_end_epoch
-    using iter_window so the line covers only the actual 15s spam, not
-    the surrounding setup/cooldown."""
+    figure). One line per policy = MEAN across all healthy iters at each
+    0.1s offset relative to spam_start. Within each iter, raw 10Hz
+    Prometheus samples are sliced to [spam_start_epoch, spam_end_epoch]
+    via iter_window. Samples are binned by 0.1s offset and the mean
+    across iters is computed per bin. Cross-iter averaging dampens
+    per-iter noise and reveals the underlying queue-dynamics signal."""
     fig, ax = plt.subplots(figsize=(11, 6))
     # Map raw_rec → policy string the same way df["policy"] was built.
     def rec_policy(r):
@@ -804,32 +806,33 @@ def plot_inflight_timeseries(out_path, policies, tick_labels, data_df, raw_recs)
         elif ss is False: parts.append("sem_shed=false")
         return " ".join(parts)
 
+    from collections import defaultdict
     plotted_any = False
     for i, p in enumerate(policies):
-        # Pick records for this policy, choose median-tps one.
+        # All healthy iters for this policy.
         candidates = [r for r in raw_recs
                      if not r.get("failed") and rec_policy(r) == p]
         if not candidates:
             continue
-        candidates.sort(key=lambda r: r.get("results", {}).get("useful_tps", 0))
-        rec = candidates[len(candidates) // 2]
-        ts = (rec.get("timeseries") or {}).get("inflight")
-        if not ts:
+        # Bin samples by 0.1s offset relative to spam_start, collect across iters.
+        by_offset = defaultdict(list)
+        for rec in candidates:
+            ts = (rec.get("timeseries") or {}).get("inflight")
+            if not ts:
+                continue
+            iw = rec.get("iter_window") or {}
+            spam_start = iw.get("spam_start_epoch") or 0
+            spam_end = iw.get("spam_end_epoch") or 0
+            for t, v in ts:
+                if spam_start <= t <= spam_end:
+                    by_offset[round(t - spam_start, 1)].append(v)
+        if not by_offset:
             continue
-        iw = rec.get("iter_window") or {}
-        spam_start = iw.get("spam_start_epoch") or 0
-        spam_end = iw.get("spam_end_epoch") or 0
-        # Slice to spam window; t-axis relative to spam_start.
-        xs, ys = [], []
-        for t, v in ts:
-            if spam_start <= t <= spam_end:
-                xs.append(t - spam_start)
-                ys.append(v)
-        if not xs:
-            continue
+        xs = sorted(by_offset.keys())
+        ys = [sum(by_offset[x]) / len(by_offset[x]) for x in xs]
         color, linestyle, linewidth = _line_style_for(p)
-        ax.plot(xs, ys, label=tick_labels[i], linewidth=linewidth,
-                linestyle=linestyle, alpha=0.9, color=color)
+        ax.plot(xs, ys, label=f"{tick_labels[i]} (n={len(candidates)})",
+                linewidth=linewidth, linestyle=linestyle, alpha=0.9, color=color)
         plotted_any = True
 
     if not plotted_any:
@@ -848,7 +851,13 @@ def plot_inflight_timeseries(out_path, policies, tick_labels, data_df, raw_recs)
                    alpha=0.6, label=f"max_pending={m}")
     ax.set_xlabel("Seconds since spam start")
     ax.set_ylabel("In-flight transactions")
-    ax.set_title("In-flight depth over the spam window — RED's iconic sawtooth vs smooth")
+    ax.set_title("In-flight depth over the spam window (mean across iters) — RED's iconic sawtooth vs smooth")
+    # Zoom y-axis to upper half: [0.5 × max_pending, max_pending × 1.05].
+    # The interesting queue dynamics (oscillation, cap-vs-soft-zone behavior)
+    # live in the upper half; cropping the empty bottom doubles the visual
+    # resolution for sawtooth observation.
+    if maxes:
+        ax.set_ylim(0.5 * max(maxes), max(maxes) * 1.05)
     ax.minorticks_on()
     ax.grid(which="major", alpha=0.5)
     ax.grid(which="minor", alpha=0.5, linestyle=":", linewidth=0.8)

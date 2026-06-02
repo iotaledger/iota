@@ -106,7 +106,7 @@ HONEST_OPEN_LOOP="${HONEST_OPEN_LOOP:-true}"
 
 # Spammer pool config (canonical settings from burst-sweep.sh).
 QPS_TOTAL="${QPS_TOTAL:-40000}"
-DURATION="${DURATION:-15s}"
+DURATION="${DURATION:-60s}"
 WORKERS="${WORKERS:-16}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-20}"
 BURST_SIZE="${BURST_SIZE:-1800}"
@@ -116,7 +116,7 @@ BURST_SIZE="${BURST_SIZE:-1800}"
 # nominal QPS under heavy validator contention. Use for cap-safety and
 # goodput experiments where sustained validator-gate pressure matters
 # more than per-tx correctness. Honest pool is always closed-loop.
-OPEN_LOOP="${OPEN_LOOP:-true}"
+OPEN_LOOP="${OPEN_LOOP:-false}"
 BARRIER_PERIOD_MS="${BARRIER_PERIOD_MS:-500}"
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 NUM_VALIDATORS_TO_TARGET="${NUM_VALIDATORS_TO_TARGET:-1}"
@@ -792,6 +792,7 @@ print(json.dumps({
   SPAM_NUM_PROCS="$N_SPAMMER" SPAM_QPS_PER="$QPS_PER_SPAMMER" SPAM_QPS_TOTAL="$QPS_TOTAL" \
   SPAM_BURST="$BURST_SIZE" SPAM_BAR_MS="$BARRIER_PERIOD_MS" SPAM_DURATION="$DURATION" SPAM_DURATION_SECS="$DURATION_SECS" \
   SPAM_WORKERS="$WORKERS" SPAM_IFR="$IN_FLIGHT_RATIO" SPAM_OPEN_LOOP="$OPEN_LOOP" \
+  SPAM_OPEN_LOOP_CAP="${OPEN_LOOP_MAX_INFLIGHT_PER_WORKER:-}" \
   SPAM_GAS_CHUNK="$GAS_CHUNK_SIZE" SPAM_NUM_VALIDATORS="$NUM_VALIDATORS_TO_TARGET" \
   SPAM_OFFERED="$SPAMMER_OFFERED" \
   HON_PROC_COUNT="$HONEST_PROC_COUNT" HON_QPS_PER="$HONEST_QPS_PER_PROC" HON_BURST="$HONEST_BURST_SIZE" \
@@ -947,6 +948,7 @@ rec = {
     "workers": i("SPAM_WORKERS"),
     "in_flight_ratio": i("SPAM_IFR"),
     "open_loop": b("SPAM_OPEN_LOOP"),
+    "open_loop_max_inflight_per_worker": i("SPAM_OPEN_LOOP_CAP"),
     "gas_chunk_size": i("SPAM_GAS_CHUNK"),
     "num_validators_to_target": i("SPAM_NUM_VALIDATORS"),
     "offered": i("SPAM_OFFERED"),

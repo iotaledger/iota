@@ -236,7 +236,7 @@ where
                 };
                 let delay = if overload {
                     // Increase delay during overload.
-                    const OVERLOAD_ADDITIONAL_DELAY: Duration = Duration::from_secs(10);
+                    const OVERLOAD_ADDITIONAL_DELAY: Duration = Duration::from_millis(200);
                     backoff.next().unwrap() + OVERLOAD_ADDITIONAL_DELAY
                 } else {
                     backoff.next().unwrap()

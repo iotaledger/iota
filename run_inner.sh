@@ -83,15 +83,15 @@ initial_bringup
 # use sat=100 — sat<100 only makes sense in the graduated zone.
 POLICIES=(
   # 3 hard binary policies at different hard limit (max pending)
-  "MAX_PENDING=20000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=false"
-  "MAX_PENDING=19000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=false"
-  "MAX_PENDING=10000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=100      SAT_PCT=100      SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=$SAT_PCT SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=50       SAT_PCT=50       SEM_SHEDDING=false"
   # 1 graduated policy with 100% saturation
-  "MAX_PENDING=20000 START_PCT=50  SAT_PCT=100      SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=50       SAT_PCT=100      SEM_SHEDDING=false"
   # 3 graduated policies with 95% saturation and different soft limit
-  "MAX_PENDING=20000 START_PCT=75  SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
-  "MAX_PENDING=20000 START_PCT=50  SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
-  "MAX_PENDING=20000 START_PCT=25  SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=75       SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=50       SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
+  "MAX_PENDING=20000 START_PCT=25       SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
   # 1 hard binary policy for production config
   # "MAX_PENDING=20000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=true"
   # 1 graduated policy (proposed) for production config
