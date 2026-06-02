@@ -25,7 +25,6 @@ use fastcrypto::{
 };
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
-use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
@@ -136,7 +135,6 @@ const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 // TODO: the configs are still tied to the indexer crate, eventually we'd like a
 // new command that is more agnostic
 pub struct OffChainConfig {
-    pub snapshot_config: SnapshotLagConfig,
     pub epochs_to_keep: Option<u64>,
     /// Dir for simulacrum to write checkpoint files to. To be passed to the
     /// offchain indexer if it uses file-based ingestion.
@@ -210,7 +208,6 @@ impl AdapterInitConfig {
             reference_gas_price,
             default_gas_price,
             move_auth,
-            snapshot_config,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -250,7 +247,6 @@ impl AdapterInitConfig {
 
         let offchain_config = if simulator {
             Some(OffChainConfig {
-                snapshot_config,
                 epochs_to_keep,
                 data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().keep()),
                 grpc_api_url,

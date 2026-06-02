@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Check that if the sender and gas sponsor of a tx are the same, that the historical data returned
-// is also the same. Check that the data for an object at version is consistent. Verify that when
-// objects_snapshot has caught up to [0, 3), we can still see all objects since all are live.
+// is also the same. Check that the data for an object at version is consistent. Verify that we can
+// see all objects since all are live across the available consistent range.
 
 
 // cp | version
