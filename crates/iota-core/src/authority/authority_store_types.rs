@@ -23,15 +23,13 @@ use serde::{Deserialize, Serialize};
 //   f(V_n) -> V_(n+1)
 //
 // must be defined. This way we can iteratively migrate the very oldest version
-// to the very newest version at any point in the future. Reads call
-// `StoreObjectWrapper::migrate().into_inner()` to lift older versions to the
-// latest before use; see `AuthorityPerpetualTables::object`.
+// to the very newest version at any point in the future.
 //
 // To change the format of the object table value types (StoreObject and
 // StoreMoveObject), use the following process:
-// - Add a new variant `StoreObjectV{N+1}` to the `StoreObjectWrapper` enum.
-// - Define `From<StoreObjectV{N}> for StoreObjectV{N+1}` for the lift, and
-//   extend `migrate()` to chain `V{N}` -> `V{N+1}`.
+// - Add a new variant to the enum to store the new version type.
+// - Define `From<StoreObjectV{N}> for StoreObjectV{N+1}` to update older
+//   versions, and extend `migrate()` to chain `V{N}` -> `V{N+1}`.
 // - Advance `pub type StoreObject = StoreObjectV{N+1}` and update
 //   `From<StoreObject> for StoreObjectWrapper` to wrap the new variant.
 // - Update `get_store_object` (and any other writers) to construct the new
@@ -60,18 +58,18 @@ impl StoreObjectWrapper {
     // versions.
     pub fn inner(&self) -> &StoreObject {
         match self {
-            Self::V2(v2) => v2,
             Self::V1(_) => {
                 panic!("object should have been migrated to latest version at read time")
             }
+            Self::V2(v2) => v2,
         }
     }
     pub fn into_inner(self) -> StoreObject {
         match self {
-            Self::V2(v2) => v2,
             Self::V1(_) => {
                 panic!("object should have been migrated to latest version at read time")
             }
+            Self::V2(v2) => v2,
         }
     }
 }
@@ -99,12 +97,6 @@ pub struct StoreObjectValue {
     pub storage_rebate: u64,
 }
 
-/// Latest stored object format. Adds `previous_transaction_checkpoint` to
-/// `Value`, recording the checkpoint sequence number that contained the
-/// transaction whose effects produced this object version. The snapshot V2
-/// writer in `iota-snapshot` reads this field and emits it on each `.obj`
-/// record so consumers can attribute live objects to the checkpoint that
-/// produced their current version.
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum StoreObjectV2 {
     Value(Box<StoreObjectValueV2>),
@@ -120,30 +112,11 @@ pub struct StoreObjectValueV2 {
     pub owner: Owner,
     pub previous_transaction: TransactionDigest,
     /// Checkpoint sequence number of the checkpoint that contained
-    /// `previous_transaction`.
-    ///
-    /// **When this is `None`.** Any row whose on-disk representation is
-    /// `StoreObjectV1` (i.e. written by a pre-V2 build of `iota-core`, or
-    /// restored from a pre-V2 snapshot) is lifted to `StoreObjectV2` by
-    /// `migrate()` on read with this field set to `None`: pre-V2 rows
-    /// never recorded the checkpoint and it is unrecoverable. A node that
-    /// has only ever run V2 — synced from genesis under V2, or restored
-    /// from a V2 snapshot — will never observe `None` here. Any consumer
-    /// that reads this field must handle both cases.
-    ///
-    /// **Producer.** Stamped at write time by `AuthorityStore::build_db_batch`,
-    /// called from the cache layer with the real containing-checkpoint
-    /// sequence number (`Some(seq)`). `None` is only ever produced by the
-    /// V1 -> V2 lazy lift described above.
-    ///
-    /// **Consumer.** Surfaced inline in the BCS-encoded `LiveObject` records
-    /// the snapshot V2 writer emits into bucketed `.obj` files. The indexer
-    /// reads it to populate object-history tables (i.e. "which checkpoint
-    /// last touched this object") without an archive replay. The snapshot
-    /// writer refuses to publish if any live-set row carries `None`; a
-    /// node that wants to publish V2 snapshots must therefore have synced
-    /// from genesis under V2 or been started from a V2 state so that
-    /// no lifted-V1 rows are present.
+    /// `previous_transaction`. Only needed for the formal snapshot writer. The
+    /// snapshot writer refuses to publish if any live-set row carries
+    /// `None`; a node that wants to publish V2 snapshots must therefore
+    /// have synced from genesis under V2 or been started from a V2 state so
+    /// that no lifted-V1 rows are present.
     pub previous_transaction_checkpoint: Option<CheckpointSequenceNumber>,
     pub storage_rebate: u64,
 }
@@ -181,10 +154,7 @@ pub enum StoreData {
 
 /// Build a `StoreObjectWrapper` for a newly written object version. The caller
 /// supplies the checkpoint sequence number that contains the transaction whose
-/// effects produced this object version. Production write paths always know
-/// the checkpoint (`WritebackCache` flushes objects at checkpoint commit time)
-/// and pass `Some(seq)`; `None` is only used by the V1 -> V2 lazy migration on
-/// read, since pre-V2 rows never recorded the checkpoint.
+/// effects produced this object version.
 pub fn get_store_object(
     object: Object,
     previous_transaction_checkpoint: Option<CheckpointSequenceNumber>,
@@ -344,14 +314,7 @@ mod tests {
     /// Locks the BCS field-order layout of `StoreObjectValueV2` against a
     /// golden byte vector. Reordering or renaming any field would silently
     /// corrupt every on-disk V2 row; this test fails loudly on any such
-    /// change. If a deliberate schema change is required, follow the
-    /// versioning recipe at the top of this file (introduce
-    /// `StoreObjectV3` rather than mutating `V2`).
-    ///
-    /// Field order: data | owner | previous_transaction |
-    ///              previous_transaction_checkpoint | storage_rebate.
-    /// Covers both `Some(seq)` (the production case) and `None` (lifted V1
-    /// row) since the BCS encoding of the `Option` discriminant differs.
+    /// change.
     #[test]
     fn store_object_value_v2_bcs_layout_is_locked() {
         // `Some(seq)` case - the production write path.

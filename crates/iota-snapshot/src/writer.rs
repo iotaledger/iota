@@ -222,13 +222,6 @@ impl LiveObjectSetWriterV1 {
 
     /// Writes a live object to the object file. Creates a new partition
     /// (new object file and reference file) if it exceeds the maximum size.
-    ///
-    /// Builds a [`SnapshotLiveObject`] right before BCS encoding so the
-    /// on-disk schema is `previous_transaction_checkpoint: u64` (not
-    /// `Option<u64>`). A `LiveObject` whose checkpoint is `None` (lifted from
-    /// a pre-V2 on-disk row) is rejected here — there is no recoverable
-    /// checkpoint, and emitting that into the snapshot file would force
-    /// downstream consumers to handle unknown checkpoints forever.
     fn write_object(&mut self, live_object: &LiveObject) -> Result<()> {
         let previous_transaction_checkpoint =
             live_object.previous_transaction_checkpoint.ok_or_else(|| {
