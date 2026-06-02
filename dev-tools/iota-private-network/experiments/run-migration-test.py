@@ -33,7 +33,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-import latency_model
 
 
 # ========================= Configuration =========================
@@ -1596,9 +1595,19 @@ def _generate_latency_matrix(cfg: Config) -> Path:
         quiet=True,
     )
 
+    rows = [
+        line.split("\t")
+        for line in matrix_path.read_text().splitlines()
+        if line and not line.startswith("#")
+    ]
+    delays = [int(row[2]) for row in rows]
+    slot_edges = sum(1 for row in rows if len(row) > 7 and int(row[7]) > 0)
     log(f"  {_C.BOLD}Latency matrix{_C.RESET}    : {matrix_path}")
-    for line in latency_model.summarize(latency_model.read_tsv(matrix_path)):
-        log(line)
+    log(
+        f"  Edges: {len(rows)}, delay mean/max: "
+        f"{sum(delays) / len(delays):.1f}/{max(delays)} ms, "
+        f"slot-burst edges: {slot_edges}"
+    )
     return matrix_path
 
 

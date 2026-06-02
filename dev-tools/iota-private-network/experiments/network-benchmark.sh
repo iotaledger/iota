@@ -175,7 +175,7 @@ dump_matrix() {
   local file=$1
   local i j
   # C locale: %.2f must emit dot decimals regardless of the host LC_NUMERIC,
-  # since latency_model.py and the -L loss/corr guards expect "0.00".
+  # since the -L loss/corr guards and TSV consumers expect "0.00".
   local LC_ALL=C
   {
     echo "# latency-matrix n=$NUMBER_VALIDATORS model=role-based geodistributed=$GEODISTRIBUTED"

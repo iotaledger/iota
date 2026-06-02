@@ -311,18 +311,14 @@ cd - >/dev/null
 
 # --- 5) Launch combined latency + fuzz watcher in background ---
 LATENCY_MATRIX="$LOG_DIR/latency-matrix.tsv"
-log "Dumping effective latency matrix: $LATENCY_MATRIX"
 # network-benchmark.sh natively computes the role-based model; -D writes the
-# matrix it will apply (audit artifact + input for the summary below).
+# matrix it will apply (the run's audit artifact).
 ./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
     -g "$GEODISTRIBUTED" \
     -o "$LOG_FILE" \
     -D "$LATENCY_MATRIX"
-# Capture instead of piping: a pipe would mask a latency_model.py failure
-# (the while-loop's exit code wins under pipefail).
-matrix_summary=$(python3 "$SCRIPT_DIR/latency_model.py" "$LATENCY_MATRIX")
-while IFS= read -r line; do log "$line"; done <<< "$matrix_summary"
+log "Latency matrix dumped: $LATENCY_MATRIX ($(grep -cv '^#' "$LATENCY_MATRIX") edges)"
 
 ./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
