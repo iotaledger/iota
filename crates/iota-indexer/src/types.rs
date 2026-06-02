@@ -6,7 +6,7 @@ use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
 };
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, SequenceNumber},
     crypto::AggregateAuthoritySignature,
