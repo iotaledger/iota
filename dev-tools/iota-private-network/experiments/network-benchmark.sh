@@ -245,7 +245,7 @@ apply_and_mark() {
   # Mark packets A → B inside the container namespace (idempotent).
   # `-w 5` makes iptables wait up to 5s for the host-shared /run/xtables.lock
   # instead of returning EAGAIN — needed because nsenter + iptables across
-  # 20 netns still contends a single host-level xtables lock file.
+  # many netns still contend a single host-level xtables lock file.
   local ipt_err
   if ! ipt_err=$(nsenter -t "$pid" -n iptables -w 5 -t mangle -C OUTPUT -d "${IPB}" -j MARK --set-mark "$mark" 2>&1); then
     if ! ipt_err=$(nsenter -t "$pid" -n iptables -w 5 -t mangle -A OUTPUT -d "${IPB}" -j MARK --set-mark "$mark" 2>&1); then
@@ -258,7 +258,9 @@ apply_and_mark() {
   nsenter -t "$pid" -n tc class replace dev eth0 parent 1: classid "$classid" htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
   local tc_err
   local delay_args=(delay "${D}ms" "${J}ms")
-  if [ "$C" != "0" ] && [ "$C" != "0.0" ] && [ "$C" != "0.00" ]; then
+  # Correlation is only meaningful with non-zero jitter; with J=0 tc may
+  # reject the qdisc and the edge would silently lose its latency.
+  if [ "$J" != "0" ] && [ "$C" != "0" ] && [ "$C" != "0.0" ] && [ "$C" != "0.00" ]; then
     delay_args+=("${C}%")
   fi
   if [ "$L" = "0" ] || [ "$L" = "0.0" ] || [ "$L" = "0.00" ]; then
@@ -309,7 +311,11 @@ block_connection() {
   local pid ipB
   ipB=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$B")
   pid=$(container_pid "$A")
-  nsenter -t "$pid" -n iptables -w 5 -A OUTPUT -d "$ipB" -j DROP
+  # Idempotent (`-C` before `-A`): the reapply watcher re-invokes this after
+  # container restarts, and repeated calls must not stack duplicate rules.
+  if ! nsenter -t "$pid" -n iptables -w 5 -C OUTPUT -d "$ipB" -j DROP 2>/dev/null; then
+    nsenter -t "$pid" -n iptables -w 5 -A OUTPUT -d "$ipB" -j DROP
+  fi
   log "Blocked traffic $A → $B"
 }
 
@@ -450,8 +456,8 @@ restart_loop() {
 
 
 initially_apply_latency() {
-  # One background worker per SOURCE validator; each worker applies all 19
-  # outbound rules sequentially against its own netns. Caps live concurrency
+  # One background worker per SOURCE validator; each worker applies all its
+  # outbound rules (one per peer) sequentially against its own netns. Caps live concurrency
   # to NUMBER_VALIDATORS instead of NUMBER_VALIDATORS*(NUMBER_VALIDATORS-1),
   # which previously caused silent /run/xtables.lock contention and left a
   # random ~30% of (src,dst) pairs without their netem qdisc.

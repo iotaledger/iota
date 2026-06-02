@@ -74,6 +74,17 @@ class Config:
     # reasonable when pre_rolling_wait is large.
     stable_window_seconds: int = field(init=False)
     stable_window_settle_seconds: int = 30
+    block_validation_seconds: int = 120
+    # Wait inside phase 6 for network-benchmark.sh to apply the matrix.
+    latency_apply_wait: int = 30
+    # Expected band from the latency model (latency_model.py: base_delay_ms=53
+    # + 0-4ms per-destination bias => ~17.5-19.3 blk/s), widened so ordinary
+    # measurement noise at the edges of the band doesn't flake a healthy run.
+    block_rate_min: float = 17.0
+    block_rate_max: float = 20.0
+    block_rate_spread_min: float = 1.0
+    add_block_reason_min: float = 10.0
+    add_block_header_reason_min: float = 3.0
 
     image_old: str = "iota-node:old"
     image_upgrade: str = "iota-node:upgrade"
@@ -129,11 +140,12 @@ class Config:
         )
         self.fresh_db_restart_pause_min = self.rolling_restart_pause_min
         self.fresh_db_restart_pause_max = self.rolling_restart_pause_max
-        # Time to wait after validator-1 is up before reading its logs for
-        # the new max_protocol_version. iota-node logs the version within a
-        # few seconds of startup; 5s is plenty and isn't worth scaling with
-        # the advanced-mode rolling-pause budget.
-        self.protocol_probe_wait = 5
+        # Upper bound on waiting for validator-1's logs to show the new
+        # max_protocol_version after restart. The probe polls and exits as
+        # soon as the line appears (usually a few seconds); the bound covers
+        # slow starts (image load, WAL replay) and is charged to the phase-8
+        # estimates below.
+        self.protocol_probe_wait = 15
         self.restart_settle_wait = min(10, max(1, self.rolling_restart_pause_max // 3))
 
         # Keep the post-upgrade restarts inside the same epoch by scaling the
@@ -182,11 +194,27 @@ class Config:
         # compose CLI overhead (~4-6s parsing the compose YAML + env file)
         # plus container start (~3-5s). With `stop -t 1` and no per-validator
         # log save / `docker ps` check, this lands around 10s. Plus the
-        # one-time 5s protocol probe after validator-1.
-        self.phase8_simple_estimate = n * 10 + self.protocol_probe_wait
+        # one-time protocol probe after validator-1 and the final liveness
+        # sweep (5s settle + one `docker ps`).
+        self.phase8_simple_estimate = n * 10 + self.protocol_probe_wait + 5
         min_stable_window_seconds = 60
-        min_pre_rolling_wait = (
-            self.stable_window_settle_seconds + min_stable_window_seconds
+        # Phases 5-6B burn epoch-0 time before the fixed pre-rolling wait is
+        # checked: the latency-apply wait, the block-production validation
+        # window, plus slack for monitoring setup and matrix generation.
+        # pre_rolling_wait must cover them, or phase 7 would start already
+        # past its planned offset and abort.
+        pre_phase7_overhead = (
+            self.latency_apply_wait
+            + (
+                self.block_validation_seconds
+                if self.block_validation_enabled()
+                else 0
+            )
+            + 30
+        )
+        min_pre_rolling_wait = max(
+            self.stable_window_settle_seconds + min_stable_window_seconds,
+            pre_phase7_overhead,
         )
         self.pre_rolling_wait = (
             epoch_s
@@ -205,7 +233,9 @@ class Config:
                 raise ValueError(
                     "epoch duration is too short for the simple migration schedule: "
                     f"need at least {required}s for {self.num_validators} validators "
-                    f"({min_stable_window_seconds}s stable window, "
+                    f"({min_pre_rolling_wait}s pre-rolling wait covering "
+                    f"{pre_phase7_overhead}s phase 5-6B overhead and a "
+                    f"{min_stable_window_seconds}s stable window, "
                     f"{self.phase8_simple_estimate}s phase-8 estimate, "
                     f"{self.timeline_safety_margin}s safety, "
                     f"{self.epoch_start_slop_seconds}s epoch-start slop), "
@@ -231,6 +261,14 @@ class Config:
         if not self.chain_override:
             if self.release_network in ("testnet", "mainnet"):
                 self.chain_override = self.release_network
+
+    def block_validation_enabled(self) -> bool:
+        """Block-production validation runs only where its rate thresholds
+        were calibrated: 10-22 validators with a positive window."""
+        return (
+            self.block_validation_seconds > 0
+            and 10 <= self.num_validators <= 22
+        )
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -539,12 +577,45 @@ def _prometheus_scalar(expr: str) -> str | None:
         return None
 
 
-def get_current_epoch() -> int:
+def _prometheus_vector(expr: str) -> list[tuple[dict[str, str], float]]:
+    data = _prometheus_query(expr)
+    if not data:
+        return []
+    rows: list[tuple[dict[str, str], float]] = []
+    try:
+        for result in data["data"]["result"]:
+            value = float(result["value"][1])
+            if value == value:  # NaN guard
+                rows.append((dict(result["metric"]), value))
+    except (KeyError, TypeError, ValueError):
+        return []
+    return rows
+
+
+def get_current_epoch() -> int | None:
+    """Current epoch from Prometheus, or None when the query fails.
+
+    None (unknown) is deliberately distinct from 0 (genesis epoch) so a
+    transient Prometheus failure can't masquerade as an epoch reading.
+    """
     try:
         value = _prometheus_scalar("max(current_epoch)")
-        return int(value) if value is not None else 0
+        return int(value) if value is not None else None
     except Exception:
-        return 0
+        return None
+
+
+def get_current_epoch_or_raise(attempts: int = 5, delay: float = 2.0) -> int:
+    """get_current_epoch with retries; raises after repeated query failures."""
+    for attempt in range(attempts):
+        epoch = get_current_epoch()
+        if epoch is not None:
+            return epoch
+        if attempt < attempts - 1:
+            time.sleep(delay)
+    raise RuntimeError(
+        f"could not read current epoch from Prometheus after {attempts} attempts"
+    )
 
 
 def wait_for_epoch_change(cfg: Config, epoch_before: int) -> int:
@@ -553,9 +624,12 @@ def wait_for_epoch_change(cfg: Config, epoch_before: int) -> int:
     timeout = cfg.epoch_duration_ms // 1000 * 3 // 2  # 1.5x epoch duration
     start = time.time()
 
+    last_known = epoch_before
     while True:
         epoch_now = get_current_epoch()
-        if epoch_now > epoch_before:
+        if epoch_now is not None:
+            last_known = epoch_now
+        if epoch_now is not None and epoch_now > epoch_before:
             print()  # finish status line
             log(f"  {_C.GREEN}Epoch advanced to {epoch_now}{_C.RESET} (was {epoch_before})")
             return epoch_now
@@ -564,10 +638,11 @@ def wait_for_epoch_change(cfg: Config, epoch_before: int) -> int:
         if elapsed >= timeout:
             print()  # finish status line
             log(f"  {_C.YELLOW}WARNING: Epoch did not advance within {timeout}s — proceeding anyway{_C.RESET}")
-            return epoch_now
+            return last_known
 
         bar = _progress_bar(elapsed, timeout)
-        log_status(f"  Epoch wait: {bar} epoch={epoch_now}, {elapsed}s / {timeout}s")
+        epoch_label = "?" if epoch_now is None else str(epoch_now)
+        log_status(f"  Epoch wait: {bar} epoch={epoch_label}, {elapsed}s / {timeout}s")
         time.sleep(30)
 
 
@@ -1452,6 +1527,21 @@ def _read_validator_protocol_info(validator: str = "validator-1", *, last: bool 
     return max_protocol, consensus
 
 
+def _probe_protocol_info(validator: str, deadline_s: int) -> tuple[str, str]:
+    """Poll a freshly (re)started validator's logs for its protocol info.
+
+    Returns as soon as the max_protocol_version line appears, bounded by
+    *deadline_s* so a slow start degrades to 'unknown' instead of stalling
+    the schedule.
+    """
+    deadline = time.time() + deadline_s
+    while True:
+        proto, consensus = _read_validator_protocol_info(validator, last=True)
+        if proto or time.time() >= deadline:
+            return proto, consensus
+        time.sleep(2)
+
+
 # ========================= Phase 5: Start Monitoring =========================
 
 
@@ -1494,7 +1584,7 @@ def phase5_start_monitoring(cfg: Config) -> None:
 
 
 def _generate_latency_matrix(cfg: Config) -> Path:
-    """Generate a deterministic, region-based latency matrix and write it to
+    """Generate a deterministic latency matrix and write it to
     ``logs/latency-matrix.tsv``. Returns the file path. Logs a short summary.
 
     Run with the same ``(seed, num_validators)`` this always emits the same
@@ -1533,8 +1623,9 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     stale_fuzz_log = cfg.script_dir / "logs" / "fuzz_script.log"
     stale_fuzz_log.unlink(missing_ok=True)
 
-    # Generate the deterministic latency matrix (region-based, with heavy-tail
-    # validators + log-normal per-edge noise) and pass it to the bash injector.
+    # Generate the deterministic latency matrix (base delay + per-destination
+    # bias + small edge noise, near the block-production threshold) and pass it
+    # to the bash injector.
     matrix_path = _generate_latency_matrix(cfg)
 
     latency_output = cfg.log_file.open("a")
@@ -1568,7 +1659,7 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     _latency_proc = proc
 
     # Wait for latency application (no readiness marker on develop version)
-    latency_wait = 30
+    latency_wait = cfg.latency_apply_wait
     for sec in range(latency_wait):
         if proc.poll() is not None:
             raise RuntimeError(
@@ -1581,6 +1672,105 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
 
     log(_phase_complete("Phase 6"))
     return proc
+
+
+def validate_block_production(cfg: Config) -> None:
+    if not cfg.block_validation_enabled():
+        if cfg.block_validation_seconds <= 0:
+            log("  Block-production validation disabled")
+        else:
+            log(
+                "  Block-production validation skipped "
+                f"(configured for 10-22 validators, got {cfg.num_validators})"
+            )
+        return
+
+    phase_start = time.time()
+    window = cfg.block_validation_seconds
+    log(_phase_banner(f"Validating block production over {window}s", "PHASE 6B"))
+    _countdown(window)
+
+    rate_rows = _prometheus_vector(
+        "sum by(host) ("
+        f"rate(consensus_accepted_block_headers{{source=\"own\"}}[{window}s])"
+        ")"
+    )
+    rates = {
+        metric.get("host", "<unknown>"): value
+        for metric, value in rate_rows
+    }
+    expected_hosts = {f"validator-{i}" for i in range(1, cfg.num_validators + 1)}
+    missing_hosts = sorted(expected_hosts - rates.keys())
+    if missing_hosts:
+        raise RuntimeError(
+            "missing block-rate metrics for validators: "
+            f"{', '.join(missing_hosts)}"
+        )
+
+    values = [rates[host] for host in sorted(expected_hosts)]
+    min_rate = min(values)
+    max_rate = max(values)
+    spread = max_rate - min_rate
+    out_of_range = {
+        host: value
+        for host, value in sorted(rates.items())
+        if host in expected_hosts
+        and not (cfg.block_rate_min <= value <= cfg.block_rate_max)
+    }
+
+    reason_rows = _prometheus_vector(
+        "avg by(reason) ("
+        f"rate(consensus_proposed_blocks[{window}s])"
+        ")"
+    )
+    reasons = {
+        metric.get("reason", "<unknown>"): value
+        for metric, value in reason_rows
+    }
+    add_block = reasons.get("AddBlock", 0.0)
+    add_header = reasons.get("AddBlockHeader", 0.0)
+    primary_reason = max(reasons.items(), key=lambda item: item[1])[0] if reasons else ""
+
+    log(
+        f"  Block rate min/max/spread: "
+        f"{min_rate:.2f} / {max_rate:.2f} / {spread:.2f} blk/s"
+    )
+    for host, value in sorted(
+        ((h, rates[h]) for h in expected_hosts),
+        key=lambda item: item[1],
+    ):
+        log(f"    {host:<12} {value:5.2f} blk/s")
+    log("  Block creation reasons (avg by validator):")
+    for reason, value in sorted(reasons.items(), key=lambda item: item[1], reverse=True):
+        log(f"    {reason:<24} {value:5.2f} /s")
+
+    failures: list[str] = []
+    if out_of_range:
+        failures.append(
+            "block rates outside "
+            f"[{cfg.block_rate_min}, {cfg.block_rate_max}]: "
+            + ", ".join(f"{host}={value:.2f}" for host, value in out_of_range.items())
+        )
+    if spread < cfg.block_rate_spread_min:
+        failures.append(
+            f"block-rate spread {spread:.2f} < {cfg.block_rate_spread_min:.2f}"
+        )
+    if primary_reason != "AddBlock":
+        failures.append(f"primary block creation reason is {primary_reason or 'missing'}")
+    if add_block < cfg.add_block_reason_min:
+        failures.append(
+            f"AddBlock reason {add_block:.2f} < {cfg.add_block_reason_min:.2f}"
+        )
+    if add_header < cfg.add_block_header_reason_min:
+        failures.append(
+            "AddBlockHeader reason "
+            f"{add_header:.2f} < {cfg.add_block_header_reason_min:.2f}"
+        )
+
+    if failures:
+        raise RuntimeError("block-production validation failed: " + "; ".join(failures))
+
+    log(_phase_complete("Phase 6B", time.time() - phase_start))
 
 
 # ========================= Phase 7: Wait Mid-Epoch =========================
@@ -1734,8 +1924,9 @@ def phase8_rolling_upgrade(
         # After first validator, extract upgrade protocol info
         if i == 1:
             print()  # finish status line
-            time.sleep(cfg.protocol_probe_wait)
-            upgrade_proto, upgrade_consensus = _read_validator_protocol_info("validator-1", last=True)
+            upgrade_proto, upgrade_consensus = _probe_protocol_info(
+                "validator-1", cfg.protocol_probe_wait
+            )
             log(f"  {_C.BOLD}Protocol Version Comparison{_C.RESET}")
             log(
                 f"  {_C.YELLOW}Old{_C.RESET}     ({cfg.release_network:>8s})            : "
@@ -1746,6 +1937,27 @@ def phase8_rolling_upgrade(
                 f"  {_C.GREEN}Upgrade{_C.RESET} ({local_branch}@{local_commit}) : "
                 f"max_protocol={upgrade_proto or 'unknown'}, "
                 f"consensus={upgrade_consensus or 'unknown'}"
+            )
+
+    if cfg.mode == "simple":
+        # `docker compose up -d` exits 0 even if the node crashes right after
+        # start, so sweep once at the end: every upgraded validator must
+        # still be running. (Advanced mode checks per validator above.)
+        time.sleep(5)
+        result = run(
+            ["docker", "ps", "--format", "{{.Names}}"], capture=True, quiet=True
+        )
+        running_names = set(result.stdout.strip().splitlines())
+        missing = [
+            f"validator-{i}"
+            for i in range(1, cfg.num_validators + 1)
+            if f"validator-{i}" not in running_names
+        ]
+        if missing:
+            print()  # newline before error
+            raise RuntimeError(
+                "validators not running after rolling upgrade: "
+                + ", ".join(missing)
             )
 
     duration = time.time() - upgrade_start
@@ -1849,7 +2061,7 @@ def phase9_post_upgrade_restarts(
     upgrade_consensus: str,
 ) -> int:
     # --- 9a: Epoch 0 — restart with DB intact ---
-    epoch_0 = get_current_epoch()
+    epoch_0 = get_current_epoch_or_raise()
     phase_start = time.time()
     log(_phase_banner(f"Epoch {epoch_0} — restart with DB intact", "PHASE 9a"))
     log(f"  Waiting {cfg.restart_pause_keep_db}s before restart...")
@@ -2135,6 +2347,15 @@ def parse_args() -> argparse.Namespace:
         default="iotaledger/stress",
         help="Docker image containing /usr/local/bin/stress (default: iotaledger/stress)",
     )
+    parser.add_argument(
+        "--block-validation-seconds",
+        default=120,
+        type=int,
+        help=(
+            "Seconds to validate pre-upgrade block production after latency "
+            "is applied for 10-22 validator runs (0 disables, default: 120)"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -2168,6 +2389,7 @@ def main() -> None:
             load_transfer_objects=args.load_transfer_objects,
             load_rpc_address=args.load_rpc_address,
             load_tools_image=args.load_tools_image,
+            block_validation_seconds=args.block_validation_seconds,
             epoch_duration_ms=args.epoch_duration * 60_000,
         )
     except ValueError as err:
@@ -2203,18 +2425,18 @@ def main() -> None:
     log(f"  {_C.BOLD}Release network{_C.RESET}      : {cfg.release_network}")
     log(f"  {_C.BOLD}Chain override{_C.RESET}       : {cfg.chain_override or 'none (devnet-like)'}")
     log(f"  {_C.BOLD}Build local image{_C.RESET}    : {cfg.build}")
-    log(f"  {_C.BOLD}Geodistributed{_C.RESET}      : {cfg.geodistributed}")
+    log(f"  {_C.BOLD}Latency model{_C.RESET}        : deterministic near-threshold matrix (seed {cfg.seed})")
     if cfg.load_qps > 0:
         log(
-            f"  {_C.BOLD}Load generator{_C.RESET}      : "
+            f"  {_C.BOLD}Load generator{_C.RESET}       : "
             f"{cfg.load_qps} qps, in-flight ratio {cfg.load_in_flight_ratio}, "
             f"transfer-object {cfg.load_transfer_objects}, rpc {cfg.load_rpc_address}"
         )
     else:
-        log(f"  {_C.BOLD}Load generator{_C.RESET}      : disabled")
+        log(f"  {_C.BOLD}Load generator{_C.RESET}       : disabled")
     log(f"  {_C.BOLD}Protocol probe wait{_C.RESET}  : {cfg.protocol_probe_wait}s")
     if cfg.mode == "advanced":
-        log(f"  {_C.BOLD}Rolling start offset{_C.RESET}: <= {cfg.mid_epoch_wait}s from epoch start")
+        log(f"  {_C.BOLD}Rolling start offset{_C.RESET} : <= {cfg.mid_epoch_wait}s from epoch start")
         log(f"  {_C.BOLD}Next-validator pause{_C.RESET} : {cfg.upgrade_delay}s")
         log(
             f"  {_C.BOLD}Epoch-0 schedule cap{_C.RESET} : "
@@ -2270,13 +2492,14 @@ def main() -> None:
     cp_monitor.start()
     latency_proc = phase6_apply_latency(cfg)
     start_load_generator(cfg)
+    validate_block_production(cfg)
 
     if cfg.mode == "advanced":
         phase7_wait_mid_epoch(cfg, epoch_0_start)
         simple_upgrade_epoch = None
     else:
         phase7_wait_fixed(cfg, epoch_0_start)
-        simple_upgrade_epoch = get_current_epoch()
+        simple_upgrade_epoch = get_current_epoch_or_raise()
     upgrade_proto, upgrade_consensus = phase8_rolling_upgrade(
         cfg, old_max_proto, old_consensus, local_branch, local_commit
     )
@@ -2293,7 +2516,7 @@ def main() -> None:
         phase10_observation(cfg, epoch_1)
         simple_observed_epoch = None
     else:
-        epoch_after_upgrade = get_current_epoch()
+        epoch_after_upgrade = get_current_epoch_or_raise()
         if (
             simple_upgrade_epoch is not None
             and epoch_after_upgrade != simple_upgrade_epoch

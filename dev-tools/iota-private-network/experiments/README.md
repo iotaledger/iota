@@ -391,7 +391,12 @@ On exit, `run-all-fuzz.sh`:
 
 ## Rolling Migration Test: `run-migration-test.py`
 
-`run-migration-test.py` validates that a rolling upgrade from a released validator image to a locally-built image succeeds across an epoch boundary. It pulls the old image from Docker Hub, bootstraps a local network, applies network latency, performs a mid-epoch rolling upgrade, and then stress-tests restarts (keep-DB and wipe-DB) over multiple epochs.
+`run-migration-test.py` validates that a rolling upgrade from a released validator image to a locally-built image succeeds across an epoch boundary. It pulls the old image from Docker Hub, bootstraps a local network, applies a deterministic per-edge latency matrix (`latency_model.py`), and performs a rolling upgrade.
+
+Two modes (`--mode`, default `simple`):
+
+- **simple** — fast back-to-back rolling upgrade after a short fixed warm-up inside epoch 0, then a stable-window comparison (same-length measurement windows before the upgrade and after the next epoch boundary). No post-upgrade restarts.
+- **advanced** — full schedule: mid-epoch wait, randomized per-validator offline windows during the rolling upgrade, then keep-DB and wipe-DB restart stress across two post-upgrade epochs.
 
 The script must be run from inside:
 
@@ -407,23 +412,26 @@ iota/dev-tools/iota-private-network/experiments/
 
 Supported flags:
 
+- `--mode <simple|advanced>`\
+  Test schedule, see above (default: `simple`).
+
 - `-r <network>`\
-  Release network to pull the old image from (`devnet`, `testnet`, `mainnet`, `alphanet`; default: `devnet`).
+  Release network to pull the old image from (`devnet`, `testnet`, `mainnet`, `alphanet`; default: `testnet`).
 
 - `-b <true|false>`\
   Build the local upgrade image before running (default: `true`).
 
 - `-n <N>`\
-  Number of validators (2–100, default: `20`).
+  Number of validators (2–100, default: `10`).
 
 - `-c <chain>`\
-  Chain override for protocol feature flags (`testnet`, `mainnet`, or empty for devnet-like; default: empty).
+  Chain override for protocol feature flags (`testnet`, `mainnet`, or empty; default: empty, which **inherits from `-r`** — `testnet`/`mainnet` set the matching override, `devnet`/`alphanet` set none. With the default `-r testnet` the network therefore runs with testnet feature flags).
 
 - `-e <MINUTES>`\
-  Epoch duration in minutes (default: `15`).
+  Epoch duration in minutes (default: `10`).
 
-- `--geodistributed <true|false>`\
-  Use large geodistributed latencies (default: `true`).
+- `--block-validation-seconds <S>`\
+  Pre-upgrade block-production validation window after latency is applied; runs for 10–22 validator setups (default: `120`, `0` disables).
 
 - `--load-qps <QPS>`\
   Start a stress load generator at target QPS (default: `0` = disabled).
@@ -440,28 +448,25 @@ Supported flags:
 2. **Compose generation** — write `docker-compose.migration.yaml` for N validators with Prometheus/Grafana
 3. **Genesis bootstrap** — generate genesis template and validator configs
 4. **Network startup** — start validators, verify all are running (exact name matching, hard failure)
-5. **Latency injection** — launch `network-benchmark.sh` with geodistributed latencies
-6. **Load generator** (optional) — start stress benchmark, health-check container after startup
-7. **Mid-epoch wait** — progress bar until rolling upgrade window
-8. **Rolling upgrade** — upgrade validators one-by-one, hard failure if any doesn't restart
-9. **Epoch boundary** — wait for protocol version switch
-10. **Restart stress** — keep-DB and wipe-DB restarts across two post-upgrade epochs
-11. **Observation** — extended checkpoint liveness monitoring
+5. **Latency injection** — generate the deterministic latency matrix and launch `network-benchmark.sh -L` to apply it; optionally start the load generator and validate pre-upgrade block production
+6. **Pre-rolling wait** — fixed warm-up offset into epoch 0 (simple) or mid-epoch wait (advanced)
+7. **Rolling upgrade** — upgrade validators one-by-one; hard failure if any validator isn't running afterwards
+8. **Post-upgrade** — simple: wait for the next epoch boundary and run the stable-window comparison; advanced: keep-DB and wipe-DB restart stress across two post-upgrade epochs, then extended checkpoint liveness observation
 
 ### Examples
 
 ```bash
-# Default: 20 validators, devnet release, 15-min epochs
+# Default: simple mode, 10 validators, testnet release (testnet chain flags), 10-min epochs
 ./run-migration-test.py
 
-# Testnet release, 10 validators, 10-min epochs
-./run-migration-test.py -r testnet -n 10 -e 10
+# Full restart-stress schedule
+./run-migration-test.py --mode advanced
+
+# Devnet release (no chain override), 20 validators, 15-min epochs
+./run-migration-test.py -r devnet -n 20 -e 15
 
 # With load generator at 100 QPS
 ./run-migration-test.py --load-qps 100
-
-# Mainnet chain flags, low-latency mode
-./run-migration-test.py -c mainnet --geodistributed false
 ```
 
 ### Logs

@@ -309,11 +309,14 @@ cd - >/dev/null
 # --- 5) Launch combined latency + fuzz watcher in background ---
 LATENCY_MATRIX="$LOG_DIR/latency-matrix.tsv"
 log "Generating deterministic latency matrix: $LATENCY_MATRIX"
-python3 "$SCRIPT_DIR/latency_model.py" \
+# Capture instead of piping: a pipe would mask a latency_model.py failure
+# (the while-loop's exit code wins under pipefail) and the run would
+# silently fall back to the legacy built-in RTT table.
+matrix_summary=$(python3 "$SCRIPT_DIR/latency_model.py" \
     -n "$NUM_VALIDATORS" \
     -s "$SEED" \
-    -o "$LATENCY_MATRIX" \
-    | while IFS= read -r line; do log "$line"; done
+    -o "$LATENCY_MATRIX")
+while IFS= read -r line; do log "$line"; done <<< "$matrix_summary"
 
 ./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
