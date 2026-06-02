@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_json_rpc_types::BalanceChange as StoredBalanceChange;
+use iota_indexer::types::IndexedBalanceChange as StoredBalanceChange;
 
 use crate::{
     error::Error,

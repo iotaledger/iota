@@ -48,9 +48,9 @@ use crate::{
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
-        IndexedObject, IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult,
-        TxIndex,
+        EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedDeletedObject,
+        IndexedEpochInfoEvent, IndexedEvent, IndexedObject, IndexedObjectChange, IndexedPackage,
+        IndexedTransaction, IndexerResult, TxIndex,
     },
 };
 
@@ -802,10 +802,7 @@ impl InMemTxChanges {
         tx: &TransactionData,
         effects: &TransactionEffects,
         tx_digest: &TransactionDigest,
-    ) -> IndexerResult<(
-        Vec<iota_json_rpc_types::BalanceChange>,
-        Vec<IndexedObjectChange>,
-    )> {
+    ) -> IndexerResult<(Vec<IndexedBalanceChange>, Vec<IndexedObjectChange>)> {
         let _timer = self
             .metrics
             .indexing_tx_object_changes_latency
@@ -829,7 +826,10 @@ impl InMemTxChanges {
             }),
             None,
         )
-        .await?;
+        .await?
+        .into_iter()
+        .map(IndexedBalanceChange::from)
+        .collect();
         Ok((balance_change, object_change))
     }
 }
