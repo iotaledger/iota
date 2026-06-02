@@ -130,8 +130,8 @@ pub enum ObjectChange {
         #[schemars(with = "OwnerSchema")]
         #[serde_as(as = "OwnerSchema")]
         owner: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
         #[serde_as(as = "ObjectIdSchema")]
         #[schemars(with = "ObjectIdSchema")]
