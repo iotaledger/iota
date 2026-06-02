@@ -17,9 +17,9 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Identifier, StructTag, crypto::Intent};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, crypto::Intent};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     object::Owner,
@@ -45,12 +45,12 @@ pub struct Connection {
 
     /// Object ID of the game's package.
     #[arg(long, short, env = "PKG")]
-    package_id: ObjectID,
+    package_id: ObjectId,
 }
 
 pub(crate) struct Client {
     wallet: WalletContext,
-    package: ObjectID,
+    package: ObjectId,
 }
 
 impl Client {
@@ -78,7 +78,7 @@ impl Client {
 
     /// Fetch the details of a game object from on-chain (can be either shared
     /// or owned).
-    pub(crate) async fn game(&self, id: ObjectID) -> Result<Game> {
+    pub(crate) async fn game(&self, id: ObjectId) -> Result<Game> {
         let client = self.client().await?;
 
         // (1) Read from RPC
@@ -120,7 +120,7 @@ impl Client {
             bail!("It is not a Game object, it has type {}.", raw.type_);
         }
 
-        let package = ObjectID::new(raw.type_.address().into_bytes());
+        let package = ObjectId::new(raw.type_.address().into_bytes());
         if package != self.package {
             bail!(
                 "It is expected to be from package {} but is from package {}.",
@@ -279,7 +279,7 @@ impl Client {
     /// Create a new shared game, between the wallet's active address and the
     /// given `opponent`. Returns the ID of the Game that was created on
     /// success.
-    pub(crate) async fn new_shared_game(&mut self, opponent: IotaAddress) -> Result<ObjectID> {
+    pub(crate) async fn new_shared_game(&mut self, opponent: IotaAddress) -> Result<ObjectId> {
         let player = self.wallet.active_address()?;
 
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -304,7 +304,7 @@ impl Client {
     /// player's and the opponent's.
     ///
     /// Returns the ID for the Game that was created on success.
-    pub async fn new_owned_game(&mut self, opponent_key: PublicKey) -> Result<ObjectID> {
+    pub async fn new_owned_game(&mut self, opponent_key: PublicKey) -> Result<ObjectId> {
         let player = self.wallet.active_address()?;
         let player_key = self.wallet.config().keystore().get_key(&player)?.public();
 
@@ -552,8 +552,8 @@ impl Client {
     }
 
     /// Execute a PTB, expecting it to create a shared or owned Game, and return
-    /// its ObjectID.
-    async fn execute_for_game(&self, data: TransactionData) -> Result<ObjectID> {
+    /// its ObjectId.
+    async fn execute_for_game(&self, data: TransactionData) -> Result<ObjectId> {
         let tx = self.wallet.sign_transaction(&data);
         let IotaTransactionBlockResponse {
             object_changes: Some(object_changes),

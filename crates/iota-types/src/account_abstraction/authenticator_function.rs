@@ -1,11 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
+    base_types::{IotaAddress, ObjectRef, TransactionDigest},
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
     object::{Data, Object, Owner},
@@ -33,7 +33,7 @@ impl From<AuthenticatorFunctionRef> for Option<AuthenticatorFunctionRefV1> {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefV1 {
-    pub package: ObjectID,
+    pub package: ObjectId,
     pub module: String,
     pub function: String,
 }
@@ -85,7 +85,7 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefForExecution {
     pub authenticator_function_ref: AuthenticatorFunctionRef,
-    pub loaded_object_id: ObjectID,
+    pub loaded_object_id: ObjectId,
     pub loaded_object_metadata: DynamicallyLoadedObjectMetadata,
 }
 

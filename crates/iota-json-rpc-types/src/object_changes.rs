@@ -4,9 +4,9 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectRef, SequenceNumber},
     iota_serde::IotaStructTag,
     object::Owner,
 };
@@ -17,7 +17,7 @@ use serde_with::serde_as;
 use crate::{
     iota_owner::OwnerSchema,
     iota_primitives::{
-        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema, StructTag as StructTagSchema,
     },
 };
@@ -31,9 +31,9 @@ pub enum ObjectChange {
     /// Module published
     #[serde(rename_all = "camelCase")]
     Published {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        package_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        package_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -54,9 +54,9 @@ pub enum ObjectChange {
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -76,9 +76,9 @@ pub enum ObjectChange {
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -98,9 +98,9 @@ pub enum ObjectChange {
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -114,9 +114,9 @@ pub enum ObjectChange {
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -133,9 +133,9 @@ pub enum ObjectChange {
         #[schemars(with = "String")]
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -155,9 +155,9 @@ pub enum ObjectChange {
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -168,7 +168,7 @@ pub enum ObjectChange {
 }
 
 impl ObjectChange {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         match self {
             ObjectChange::Published { package_id, .. } => *package_id,
             ObjectChange::Transferred { object_id, .. }
@@ -276,7 +276,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ Recipient: {recipient}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ Recipient: {recipient}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
             ObjectChange::Mutated {
@@ -290,7 +290,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ Owner: {owner}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ Owner: {owner}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
             ObjectChange::Deleted {
@@ -301,7 +301,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ ObjectType: {object_type} \n │ Version: {version}\n └──"
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ ObjectType: {object_type} \n │ Version: {version}\n └──"
                 )
             }
             ObjectChange::Wrapped {
@@ -312,7 +312,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ ObjectType: {object_type} \n │ Version: {version}\n └──"
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ ObjectType: {object_type} \n │ Version: {version}\n └──"
                 )
             }
             ObjectChange::Unwrapped {
@@ -325,7 +325,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
+                    " ┌──\n │ ObjectId: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
                     object_id,
                     sender,
                     owner,
@@ -344,7 +344,7 @@ impl Display for ObjectChange {
             } => {
                 write!(
                     f,
-                    " ┌──\n │ ObjectID: {object_id}\n │ Sender: {sender} \n │ Owner: {owner}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
+                    " ┌──\n │ ObjectId: {object_id}\n │ Sender: {sender} \n │ Owner: {owner}\n │ ObjectType: {object_type} \n │ Version: {version}\n │ Digest: {digest}\n └──"
                 )
             }
         }

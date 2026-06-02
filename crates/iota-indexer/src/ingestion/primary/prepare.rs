@@ -12,8 +12,9 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     digests::TransactionDigest,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
@@ -466,7 +467,7 @@ impl PrimaryWorker {
         let move_calls = tx
             .move_calls()
             .iter()
-            .map(|(p, m, f)| (*<&ObjectID>::clone(p), m.to_string(), f.to_string()))
+            .map(|(p, m, f)| (*<&ObjectId>::clone(p), m.to_string(), f.to_string()))
             .collect();
 
         let db_tx_indices = TxIndex {
@@ -650,7 +651,7 @@ impl PrimaryWorker {
             // 1. Input objects that were mutated or removed (deleted/wrapped) had an active
             //    prior state — record it from input_objects. Collect the affected IDs so we
             //    can iterate input_objects once.
-            let superseded_ids: HashSet<ObjectID> = effects
+            let superseded_ids: HashSet<ObjectId> = effects
                 .mutated()
                 .into_iter()
                 .map(|(r, _)| r.object_id)
@@ -745,8 +746,8 @@ impl PrimaryWorker {
 }
 
 pub struct InMemObjectCache {
-    id_map: HashMap<ObjectID, Object>,
-    seq_map: HashMap<(ObjectID, SequenceNumber), Object>,
+    id_map: HashMap<ObjectId, Object>,
+    seq_map: HashMap<(ObjectId, SequenceNumber), Object>,
 }
 
 impl InMemObjectCache {
@@ -762,7 +763,7 @@ impl InMemObjectCache {
         self.seq_map.insert((obj.id(), obj.version()), obj);
     }
 
-    pub fn get(&self, id: &ObjectID, version: Option<&SequenceNumber>) -> Option<&Object> {
+    pub fn get(&self, id: &ObjectId, version: Option<&SequenceNumber>) -> Option<&Object> {
         if let Some(version) = version {
             self.seq_map.get(&(*id, *version))
         } else {
@@ -840,7 +841,7 @@ impl ObjectProvider for InMemTxChanges {
 
     async fn get_object(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error> {
         let object = self
@@ -860,7 +861,7 @@ impl ObjectProvider for InMemTxChanges {
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Option<Object>, Self::Error> {
         // First look up the exact version in object_cache.
@@ -919,7 +920,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
 impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self
             .objects
@@ -931,7 +932,7 @@ impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self

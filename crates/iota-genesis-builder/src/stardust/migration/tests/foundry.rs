@@ -3,17 +3,13 @@
 
 use anyhow::{Result, anyhow};
 use iota_protocol_config::ProtocolConfigValue::u64;
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_stardust_types::block::output::{
     AliasId, FoundryOutput, Output, SimpleTokenScheme, feature::Irc30Metadata,
 };
 use iota_types::{
-    balance::Balance,
-    base_types::{IotaAddress, ObjectID},
-    coin::CoinMetadata,
-    coin_manager::CoinManager,
-    object::Object,
-    stardust::coin_type::CoinType,
+    balance::Balance, base_types::IotaAddress, coin::CoinMetadata, coin_manager::CoinManager,
+    object::Object, stardust::coin_type::CoinType,
 };
 use primitive_types::U256;
 use url::Url;
@@ -354,7 +350,7 @@ fn create_gas_coin() -> Result<()> {
     let coin = gas_coin_object.as_coin_maybe().unwrap();
 
     // Check if the gas coin id is the same as the output id.
-    assert_eq!(gas_coin_object.id(), ObjectID::new(output_id.hash()));
+    assert_eq!(gas_coin_object.id(), ObjectId::new(output_id.hash()));
 
     // Check if the owner of the gas coin is the package object.
     assert_eq!(

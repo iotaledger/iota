@@ -2695,9 +2695,9 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
-    use iota_sdk_types::Identifier;
+    use iota_sdk_types::{Identifier, ObjectId};
     use iota_types::{
-        base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
+        base_types::{SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt,
@@ -2730,7 +2730,7 @@ mod tests {
             vec![GenesisObject::new(
                 object::Data::Package(
                     MovePackage::new(
-                        ObjectID::random(),
+                        ObjectId::random(),
                         SequenceNumber::default(),
                         BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 40000])]),
                         100_000,

@@ -22,7 +22,6 @@ tracing.workspace = true
 # internal dependencies
 iota-common.workspace = true
 iota-macros.workspace = true
-iota-metrics.workspace = true
 iota-move-natives = { path = "../iota-move-natives", package = "iota-move-natives-latest" }
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
@@ -37,6 +36,10 @@ move-vm-config.workspace = true
 move-vm-profiler = { path = "../../../external-crates/move/crates/move-vm-profiler" }
 move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
 move-vm-types = { path = "../../../external-crates/move/crates/move-vm-types" }
+
+# `iota-metrics` pulls in axum/anemo/tokio-net and can't compile to wasm32.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+iota-metrics.workspace = true
 
 [features]
 tracing = [

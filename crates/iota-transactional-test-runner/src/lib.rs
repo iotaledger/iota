@@ -19,9 +19,10 @@ use iota_core::authority::{
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
+use iota_sdk_types::ObjectId;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, VersionNumber},
+    base_types::{IotaAddress, VersionNumber},
     committee::EpochId,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
@@ -397,14 +398,14 @@ impl ReadStore for ValidatorWithFullnode {
 impl ObjectStore for ValidatorWithFullnode {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator.get_object_store().try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator

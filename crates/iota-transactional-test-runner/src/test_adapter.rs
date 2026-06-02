@@ -33,15 +33,13 @@ use iota_json_rpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Command, Identifier, TypeTag};
+use iota_sdk_types::{Command, Identifier, ObjectId, TypeTag};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{
-        IOTA_ADDRESS_LENGTH, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber,
-    },
+    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -106,21 +104,21 @@ use crate::{
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum FakeID {
-    Known(ObjectID),
+    Known(ObjectId),
     Enumerated(u64, u64),
 }
 
 const DEFAULT_GAS_PRICE: u64 = 1_000;
 
-const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
-    ObjectID::STD,
-    ObjectID::FRAMEWORK,
-    ObjectID::SYSTEM,
-    ObjectID::STARDUST,
-    ObjectID::SYSTEM_STATE,
-    ObjectID::CLOCK,
-    ObjectID::DENY_LIST,
-    ObjectID::RANDOMNESS_STATE,
+const WELL_KNOWN_OBJECTS: &[ObjectId] = &[
+    ObjectId::STD,
+    ObjectId::FRAMEWORK,
+    ObjectId::SYSTEM,
+    ObjectId::STARDUST,
+    ObjectId::SYSTEM_STATE,
+    ObjectId::CLOCK,
+    ObjectId::DENY_LIST,
+    ObjectId::RANDOMNESS_STATE,
 ];
 // TODO use the file name as a seed
 const RNG_SEED: [u8; 32] = [
@@ -168,10 +166,10 @@ pub struct IotaTestAdapter {
     /// name.
     package_upgrade_mapping: BTreeMap<Symbol, Symbol>,
     accounts: BTreeMap<String, TestAccount>,
-    abstract_accounts: BTreeMap<ObjectID, TestAccount>,
+    abstract_accounts: BTreeMap<ObjectId, TestAccount>,
     default_account: TestAccount,
     default_syntax: SyntaxChoice,
-    object_enumeration: BiBTreeMap<ObjectID, FakeID>,
+    object_enumeration: BiBTreeMap<ObjectId, FakeID>,
     /// Mapping from task ID to a transaction digest, for use in named variable
     /// substitution.
     digest_enumeration: BTreeMap<u64, TransactionDigest>,
@@ -279,18 +277,18 @@ impl AdapterInitConfig {
 struct TestAccount {
     address: IotaAddress,
     key_pair: Option<AccountKeyPair>,
-    gas: ObjectID,
+    gas: ObjectId,
 }
 
 #[derive(Debug)]
 struct TxnSummary {
-    created: Vec<ObjectID>,
-    mutated: Vec<ObjectID>,
-    unwrapped: Vec<ObjectID>,
-    deleted: Vec<ObjectID>,
-    unwrapped_then_deleted: Vec<ObjectID>,
-    wrapped: Vec<ObjectID>,
-    unchanged_shared: Vec<ObjectID>,
+    created: Vec<ObjectId>,
+    mutated: Vec<ObjectId>,
+    unwrapped: Vec<ObjectId>,
+    deleted: Vec<ObjectId>,
+    unwrapped_then_deleted: Vec<ObjectId>,
+    wrapped: Vec<ObjectId>,
+    unchanged_shared: Vec<ObjectId>,
     events: Vec<Event>,
     gas_summary: GasCostSummary,
 }
@@ -498,7 +496,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let Some(addr) = mapping.get(&d) else {
                     bail!("There is no published module address corresponding to name address {d}");
                 };
-                let id = ObjectID::new(addr.into_bytes());
+                let id = ObjectId::new(addr.into_bytes());
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
@@ -507,7 +505,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
-        dependencies.extend([ObjectID::STD, ObjectID::FRAMEWORK]);
+        dependencies.extend([ObjectId::STD, ObjectId::FRAMEWORK]);
 
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1407,7 +1405,7 @@ impl IotaTestAdapter {
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(ObjectID, GenericSignature)> {
+    ) -> anyhow::Result<(ObjectId, GenericSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
         let auth_inputs: Vec<CallArg> = auth_inputs_resolved
@@ -1522,7 +1520,7 @@ impl IotaTestAdapter {
 
         let mut parts = args.split(",");
 
-        let id: ObjectID = parts
+        let id: ObjectId = parts
             .next()
             .context("bcs(...) cursors must have at least one argument")?
             .trim()
@@ -1599,19 +1597,19 @@ impl IotaTestAdapter {
         let digest_arg = builder.pure(digest).unwrap();
 
         let upgrade_ticket = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::PACKAGE_MODULE,
             Identifier::from_static("authorize_upgrade"),
             vec![],
             vec![Argument::Input(0), upgrade_arg, digest_arg],
         );
 
-        let package_id = ObjectID::new(before_upgrade.into_bytes());
+        let package_id = ObjectId::new(before_upgrade.into_bytes());
         let upgrade_receipt =
             builder.upgrade(package_id, upgrade_ticket, dependencies, modules_bytes);
 
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::PACKAGE_MODULE,
             Identifier::from_static("commit_upgrade"),
             vec![],
@@ -1689,7 +1687,7 @@ impl IotaTestAdapter {
                     self.fake_to_real_object_id(payment)
                         .expect("Could not find specified payment object")
                 })
-                .collect::<Vec<ObjectID>>()
+                .collect::<Vec<ObjectId>>()
         };
 
         payments
@@ -1771,7 +1769,7 @@ impl IotaTestAdapter {
             .into_iter()
             .map(|arg| arg.into_argument(&mut builder, self))
             .collect::<anyhow::Result<_>>()?;
-        let package_id = ObjectID::new(module_id.address().into_bytes());
+        let package_id = ObjectId::new(module_id.address().into_bytes());
 
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_price = gas_price.unwrap_or(self.gas_price);
@@ -2000,7 +1998,7 @@ impl IotaTestAdapter {
         })
     }
 
-    fn get_object(&self, id: &ObjectID, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
+    fn get_object(&self, id: &ObjectId, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
         let obj_res = if let Some(v) = version {
             ObjectStore::try_get_object_by_key(&*self.executor, id, v)
         } else {
@@ -2014,7 +2012,7 @@ impl IotaTestAdapter {
 
     // stable way of sorting objects by type. Does not however, produce a stable
     // sorting between objects of the same type
-    fn get_object_sorting_key(&self, id: &ObjectID) -> String {
+    fn get_object_sorting_key(&self, id: &ObjectId) -> String {
         match &self.get_object(id, None).unwrap().data {
             object::Data::Struct(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
             object::Data::Package(pkg) => pkg
@@ -2026,15 +2024,15 @@ impl IotaTestAdapter {
         }
     }
 
-    pub(crate) fn fake_to_real_object_id(&self, fake_id: FakeID) -> Option<ObjectID> {
+    pub(crate) fn fake_to_real_object_id(&self, fake_id: FakeID) -> Option<ObjectId> {
         self.object_enumeration.get_by_right(&fake_id).copied()
     }
 
-    pub(crate) fn real_to_fake_object_id(&self, id: &ObjectID) -> Option<FakeID> {
+    pub(crate) fn real_to_fake_object_id(&self, id: &ObjectId) -> Option<FakeID> {
         self.object_enumeration.get_by_left(id).copied()
     }
 
-    fn enumerate_fake(&mut self, id: ObjectID) -> FakeID {
+    fn enumerate_fake(&mut self, id: ObjectId) -> FakeID {
         if let Some(fake) = self.object_enumeration.get_by_left(&id) {
             return *fake;
         }
@@ -2134,7 +2132,7 @@ impl IotaTestAdapter {
             .join(", ")
     }
 
-    fn list_objs(&self, objs: &[ObjectID], summarize: bool) -> String {
+    fn list_objs(&self, objs: &[ObjectId], summarize: bool) -> String {
         if summarize {
             return format!("{}", objs.len());
         }
@@ -2204,7 +2202,7 @@ impl IotaTestAdapter {
         {
             return known.clone();
         }
-        match self.real_to_fake_object_id(&ObjectID::new(parsed.into_bytes())) {
+        match self.real_to_fake_object_id(&ObjectId::new(parsed.into_bytes())) {
             None => "_".to_string(),
             Some(FakeID::Known(id)) => id.to_string(),
             Some(fake) => format!("fake({fake})"),
@@ -2219,21 +2217,21 @@ impl IotaTestAdapter {
         &self,
         dependencies: Vec<String>,
         include_std: bool,
-    ) -> anyhow::Result<Vec<ObjectID>> {
+    ) -> anyhow::Result<Vec<ObjectId>> {
         let mut dependencies: Vec<_> = dependencies
             .into_iter()
             .map(|d| {
                 let Some(addr) = self.compiled_state.named_address_mapping.get(&d) else {
                     bail!("There is no published module address corresponding to name address {d}");
                 };
-                let id: ObjectID = ObjectID::new(addr.into_bytes());
+                let id: ObjectId = ObjectId::new(addr.into_bytes());
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         if include_std {
-            dependencies.extend([ObjectID::STD, ObjectID::FRAMEWORK]);
+            dependencies.extend([ObjectId::STD, ObjectId::FRAMEWORK]);
         }
         Ok(dependencies)
     }
@@ -2336,7 +2334,7 @@ impl IotaTestAdapter {
     fn resolve_create_function(
         &self,
         create_function: &str,
-    ) -> anyhow::Result<(ObjectID, String, String)> {
+    ) -> anyhow::Result<(ObjectId, String, String)> {
         let (named_addr, aa_module_name, create_fn_name) = self.parse_namespace(create_function)?;
 
         let aa_package_addr = self
@@ -2347,7 +2345,7 @@ impl IotaTestAdapter {
             .into_inner();
 
         Ok((
-            ObjectID::new(aa_package_addr.into_bytes()),
+            ObjectId::new(aa_package_addr.into_bytes()),
             aa_module_name,
             create_fn_name,
         ))
@@ -2373,7 +2371,7 @@ impl IotaTestAdapter {
         &mut self,
         package_metadata: ParsedValue<IotaExtraValueArgs>,
         inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
-        aa_pkg_id: ObjectID,
+        aa_pkg_id: ObjectId,
         aa_module_name: &str,
         aa_create_fn_name: &str,
     ) -> anyhow::Result<ProgrammableTransaction> {
@@ -2562,7 +2560,7 @@ struct AccountSetup {
     pub default_account: TestAccount,
     pub named_address_mapping: BTreeMap<String, NumericalAddress>,
     pub objects: Vec<Object>,
-    pub account_objects: BTreeMap<String, ObjectID>,
+    pub account_objects: BTreeMap<String, ObjectId>,
     pub accounts: BTreeMap<String, TestAccount>,
 }
 
@@ -2589,7 +2587,7 @@ async fn init_val_fullnode_executor(
     let mut mk_account = || {
         let (address, key_pair) = get_key_pair_from_rng(&mut rng);
         let obj = Object::with_id_owner_gas_for_testing(
-            ObjectID::new(rng.gen()),
+            ObjectId::new(rng.gen()),
             address,
             GAS_FOR_TESTING,
         );
@@ -2815,14 +2813,14 @@ async fn update_named_address_mapping(
 impl ObjectStore for IotaTestAdapter {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         ObjectStore::try_get_object(&*self.executor, object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         ObjectStore::try_get_object_by_key(&*self.executor, object_id, version)

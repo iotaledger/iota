@@ -11,11 +11,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
-use iota_sdk_types::Command;
+use iota_sdk_types::{Command, ObjectId};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_system_state::{
         IotaSystemStateTrait,
@@ -74,9 +74,9 @@ struct StressTestRunner {
     pub active_validators: BTreeSet<IotaAddress>,
     pub preactive_validators: BTreeMap<IotaAddress, u64>,
     pub removed_validators: BTreeSet<IotaAddress>,
-    pub delegation_requests_this_epoch: BTreeMap<ObjectID, IotaAddress>,
+    pub delegation_requests_this_epoch: BTreeMap<ObjectId, IotaAddress>,
     pub delegation_withdraws_this_epoch: u64,
-    pub delegations: BTreeMap<ObjectID, IotaAddress>,
+    pub delegations: BTreeMap<ObjectId, IotaAddress>,
     pub reports: BTreeMap<IotaAddress, BTreeSet<IotaAddress>>,
     pub rng: StdRng,
 }
@@ -320,7 +320,7 @@ mod add_stake {
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
                 move_call! {
                     builder,
-                    (ObjectID::SYSTEM)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
+                    (ObjectId::SYSTEM)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
                 };
                 builder.finish()
             };

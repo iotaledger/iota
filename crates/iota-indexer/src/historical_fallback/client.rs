@@ -10,9 +10,10 @@ use futures::{
     TryStreamExt,
     stream::{self, StreamExt},
 };
+use iota_sdk_types::ObjectId;
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     messages_checkpoint::{
@@ -123,7 +124,7 @@ pub(crate) trait KeyValueStoreClient {
 
     async fn multi_get_objects(
         &self,
-        object_refs: &[(ObjectID, SequenceNumber)],
+        object_refs: &[(ObjectId, SequenceNumber)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<Object>>>;
 }
@@ -593,7 +594,7 @@ impl KeyValueStoreClient for HttpRestKVClient {
     #[instrument(level = "trace", skip_all)]
     async fn multi_get_objects(
         &self,
-        object_refs: &[(ObjectID, SequenceNumber)],
+        object_refs: &[(ObjectId, SequenceNumber)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<Object>>> {
         let keys = object_refs

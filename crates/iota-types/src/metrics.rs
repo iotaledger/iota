@@ -142,3 +142,94 @@ impl BytecodeVerifierMetrics {
         }
     }
 }
+
+// `prometheus` isn't available on wasm32; provide no-op stubs with a matching
+// API for the execution path. Constructed via `new_stub()` (no registry).
+#[cfg(target_arch = "wasm32")]
+mod wasm_stubs {
+    #[derive(Default, Clone)]
+    pub struct StubCounter;
+    impl StubCounter {
+        pub fn inc(&self) {}
+        pub fn inc_by(&self, _v: u64) {}
+    }
+
+    #[derive(Default, Clone)]
+    pub struct StubCounterVec;
+    impl StubCounterVec {
+        pub fn with_label_values(&self, _labels: &[&str]) -> StubCounter {
+            StubCounter
+        }
+    }
+
+    pub struct StubTimer;
+    impl StubTimer {
+        pub fn observe_duration(self) {}
+        pub fn stop_and_record(self) -> f64 {
+            0.0
+        }
+        pub fn stop_and_discard(self) -> f64 {
+            0.0
+        }
+    }
+
+    #[derive(Default, Clone)]
+    pub struct StubHistogram;
+    impl StubHistogram {
+        pub fn observe(&self, _v: f64) {}
+        pub fn start_timer(&self) -> StubTimer {
+            StubTimer
+        }
+    }
+
+    pub struct LimitsMetrics {
+        pub excessive_estimated_effects_size: StubCounterVec,
+        pub excessive_written_objects_size: StubCounterVec,
+        pub excessive_new_move_object_ids: StubCounterVec,
+        pub excessive_deleted_move_object_ids: StubCounterVec,
+        pub excessive_transferred_move_object_ids: StubCounterVec,
+        pub excessive_object_runtime_cached_objects: StubCounterVec,
+        pub excessive_object_runtime_store_entries: StubCounterVec,
+    }
+
+    impl LimitsMetrics {
+        pub fn new_stub() -> Self {
+            Self {
+                excessive_estimated_effects_size: StubCounterVec,
+                excessive_written_objects_size: StubCounterVec,
+                excessive_new_move_object_ids: StubCounterVec,
+                excessive_deleted_move_object_ids: StubCounterVec,
+                excessive_transferred_move_object_ids: StubCounterVec,
+                excessive_object_runtime_cached_objects: StubCounterVec,
+                excessive_object_runtime_store_entries: StubCounterVec,
+            }
+        }
+    }
+
+    pub struct BytecodeVerifierMetrics {
+        pub verifier_timeout_metrics: StubCounterVec,
+        pub verifier_runtime_per_module_success_latency: StubHistogram,
+        pub verifier_runtime_per_ptb_success_latency: StubHistogram,
+        pub verifier_runtime_per_module_timeout_latency: StubHistogram,
+        pub verifier_runtime_per_ptb_timeout_latency: StubHistogram,
+    }
+
+    impl BytecodeVerifierMetrics {
+        pub const OVERALL_TAG: &'static str = "overall";
+        pub const SUCCESS_TAG: &'static str = "success";
+        pub const TIMEOUT_TAG: &'static str = "failed";
+
+        pub fn new_stub() -> Self {
+            Self {
+                verifier_timeout_metrics: StubCounterVec,
+                verifier_runtime_per_module_success_latency: StubHistogram,
+                verifier_runtime_per_ptb_success_latency: StubHistogram,
+                verifier_runtime_per_module_timeout_latency: StubHistogram,
+                verifier_runtime_per_ptb_timeout_latency: StubHistogram,
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub use wasm_stubs::*;

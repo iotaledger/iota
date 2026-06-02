@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     iota_system_state::iota_system_state_summary::{
         IotaSystemStateSummary as NativeSystemStateSummary,
         IotaSystemStateSummaryV1 as NativeSystemStateSummaryV1,
@@ -17,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::iota_primitives::{
-    Base64 as Base64Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+    Base64 as Base64Schema, IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
 };
 
 /// This is the JSON-RPC type for IOTA system state objects.
@@ -102,9 +103,9 @@ pub struct IotaSystemStateSummaryV1 {
     #[serde_as(as = "DisplayFromStr")]
     pub iota_total_supply: u64,
     /// The `TreasuryCap<IOTA>` object ID.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub iota_treasury_cap_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub iota_treasury_cap_id: ObjectId,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "String")]
@@ -202,9 +203,9 @@ pub struct IotaSystemStateSummaryV1 {
     pub active_validators: Vec<IotaValidatorSummary>,
     /// ID of the object that contains the list of new validators that will join
     /// at the end of the epoch.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub pending_active_validators_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub pending_active_validators_id: ObjectId,
     /// Number of new validators that will join at the end of the epoch.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
@@ -216,27 +217,27 @@ pub struct IotaSystemStateSummaryV1 {
     pub pending_removals: Vec<u64>,
     /// ID of the object that maps from staking pool's ID to the iota address of
     /// a validator.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub staking_pool_mappings_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub staking_pool_mappings_id: ObjectId,
     /// Number of staking pool mappings.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub staking_pool_mappings_size: u64,
     /// ID of the object that maps from a staking pool ID to the inactive
     /// validator that has that pool as its staking pool.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub inactive_pools_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub inactive_pools_id: ObjectId,
     /// Number of inactive staking pools.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub inactive_pools_size: u64,
     /// ID of the object that stores preactive validators, mapping their
     /// addresses to their `Validator` structs.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub validator_candidates_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub validator_candidates_id: ObjectId,
     /// Number of preactive validators.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
@@ -391,9 +392,9 @@ pub struct IotaSystemStateSummaryV2 {
     #[serde_as(as = "DisplayFromStr")]
     pub iota_total_supply: u64,
     /// The `TreasuryCap<IOTA>` object ID.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub iota_treasury_cap_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub iota_treasury_cap_id: ObjectId,
     /// The storage rebates of all the objects on-chain stored in the storage
     /// fund.
     #[schemars(with = "String")]
@@ -500,9 +501,9 @@ pub struct IotaSystemStateSummaryV2 {
     pub active_validators: Vec<IotaValidatorSummary>,
     /// ID of the object that contains the list of new validators that will join
     /// at the end of the epoch.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub pending_active_validators_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub pending_active_validators_id: ObjectId,
     /// Number of new validators that will join at the end of the epoch.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
@@ -514,27 +515,27 @@ pub struct IotaSystemStateSummaryV2 {
     pub pending_removals: Vec<u64>,
     /// ID of the object that maps from staking pool's ID to the iota address of
     /// a validator.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub staking_pool_mappings_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub staking_pool_mappings_id: ObjectId,
     /// Number of staking pool mappings.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub staking_pool_mappings_size: u64,
     /// ID of the object that maps from a staking pool ID to the inactive
     /// validator that has that pool as its staking pool.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub inactive_pools_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub inactive_pools_id: ObjectId,
     /// Number of inactive staking pools.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub inactive_pools_size: u64,
     /// ID of the object that stores preactive validators, mapping their
     /// addresses to their `Validator` structs.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub validator_candidates_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub validator_candidates_id: ObjectId,
     /// Number of preactive validators.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
@@ -718,9 +719,9 @@ pub struct IotaValidatorSummary {
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub voting_power: u64,
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub operation_cap_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub operation_cap_id: ObjectId,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub gas_price: u64,
@@ -742,9 +743,9 @@ pub struct IotaValidatorSummary {
 
     // Staking pool information
     /// ID of the staking pool object.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub staking_pool_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub staking_pool_id: ObjectId,
     /// The epoch at which this pool became active.
     #[schemars(with = "Option<String>")]
     #[serde_as(as = "Option<DisplayFromStr>")]
@@ -781,9 +782,9 @@ pub struct IotaValidatorSummary {
     #[serde_as(as = "DisplayFromStr")]
     pub pending_pool_token_withdraw: u64,
     /// ID of the exchange rate table object.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub exchange_rates_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub exchange_rates_id: ObjectId,
     /// Number of exchange rates in the table.
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]

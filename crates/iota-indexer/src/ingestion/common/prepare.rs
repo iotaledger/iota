@@ -6,9 +6,9 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::ObjectRef,
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
@@ -157,7 +157,7 @@ impl RemovedObject {
         self.indexed_object.object_version
     }
 
-    pub(crate) fn object_id(&self) -> ObjectID {
+    pub(crate) fn object_id(&self) -> ObjectId {
         self.indexed_object.object_id
     }
 
@@ -221,8 +221,8 @@ pub(crate) fn retain_latest_objects_from_checkpoint_batch(
 ) -> CheckpointObjectChanges {
     use std::collections::HashMap;
 
-    let mut mutations = HashMap::<ObjectID, LiveObject>::new();
-    let mut deletions = HashMap::<ObjectID, RemovedObject>::new();
+    let mut mutations = HashMap::<ObjectId, LiveObject>::new();
+    let mut deletions = HashMap::<ObjectId, RemovedObject>::new();
 
     for change in checkpoint_batch_object_changes {
         // Remove mutation / deletion with a following deletion / mutation,

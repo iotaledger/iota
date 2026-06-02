@@ -7,10 +7,11 @@ use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use futures::FutureExt;
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
+use iota_sdk_types::ObjectId;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, SequenceNumber},
     digests::TransactionDigest,
     object::{Object, Owner},
     storage::{InputKey, MarkerValue, ObjectKey},
@@ -42,7 +43,7 @@ async fn create_writeback_cache() -> Arc<WritebackCache> {
 async fn test_writeback_immediate_return_canceled_shared() {
     let cache = create_writeback_cache().await;
     let canceled_key = InputKey::VersionedObject {
-        id: ObjectID::random(),
+        id: ObjectId::random(),
         version: SequenceNumber::CANCELLED_READ,
     };
     let receiving_keys = HashSet::new();
@@ -55,7 +56,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
     assert_eq!(result.len(), 1);
 
     let congested_key = InputKey::VersionedObject {
-        id: ObjectID::random(),
+        id: ObjectId::random(),
         version: SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
     };
 
@@ -66,7 +67,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
     assert_eq!(result.len(), 1);
 
     let randomness_unavailable_key = InputKey::VersionedObject {
-        id: ObjectID::random(),
+        id: ObjectId::random(),
         version: SequenceNumber::RANDOMNESS_UNAVAILABLE,
     };
 
@@ -80,7 +81,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
 #[tokio::test]
 async fn test_writeback_immediate_return_cached_object() {
     let cache = create_writeback_cache().await;
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let version = SequenceNumber::from(1);
     let object = Object::with_id_owner_version_for_testing(object_id, version, Owner::Immutable);
 
@@ -123,7 +124,7 @@ async fn test_writeback_immediate_return_cached_package() {
 #[tokio::test]
 async fn test_writeback_immediate_return_shared_deleted() {
     let cache = create_writeback_cache().await;
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let version = SequenceNumber::from(1);
     let epoch_id = 0;
 
@@ -153,7 +154,7 @@ async fn test_writeback_immediate_return_shared_deleted() {
 #[tokio::test]
 async fn test_writeback_wait_for_object() {
     let cache = create_writeback_cache().await;
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let version = SequenceNumber::from(1);
 
     let input_keys = vec![InputKey::VersionedObject {
@@ -253,7 +254,7 @@ async fn test_writeback_wait_for_package() {
 #[tokio::test]
 async fn test_writeback_wait_for_shared_deleted() {
     let cache = create_writeback_cache().await;
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let version = SequenceNumber::from(1);
     let epoch_id = 0;
 
@@ -289,7 +290,7 @@ async fn test_writeback_wait_for_shared_deleted() {
 #[tokio::test]
 async fn test_writeback_receiving_object_higher_version() {
     let cache = create_writeback_cache().await;
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let requested_version = SequenceNumber::from(1);
     let higher_version = SequenceNumber::from(2);
     let object = Object::with_id_owner_version_for_testing(

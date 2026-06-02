@@ -8,8 +8,9 @@
 use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -329,7 +330,7 @@ impl TransactionKeyValueStore {
 
     pub async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
         self.inner.get_object(object_id, version).await
@@ -388,7 +389,7 @@ pub trait TransactionKeyValueStoreTrait {
 
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
 
@@ -538,7 +539,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     #[instrument(level = "trace", skip_all)]
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         let mut res = self.primary.get_object(object_id, version).await?;

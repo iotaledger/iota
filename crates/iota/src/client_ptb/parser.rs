@@ -4,8 +4,7 @@
 
 use std::iter::Peekable;
 
-use iota_sdk_types::Identifier;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::{Identifier, ObjectId};
 use move_core_types::parsing::{
     address::{NumericalAddress, ParsedAddress},
     parser::{parse_u8, parse_u16, parse_u32, parse_u64, parse_u128, parse_u256},
@@ -44,7 +43,7 @@ struct ProgramParsingState {
     tx_digest_set: bool,
     dry_run_set: bool,
     dev_inspect_set: bool,
-    gas_object_ids: Option<Vec<Spanned<ObjectID>>>,
+    gas_object_ids: Option<Vec<Spanned<ObjectId>>>,
     gas_budget: Option<Spanned<u64>>,
     gas_price: Option<Spanned<u64>>,
     gas_sponsor: Option<Spanned<NumericalAddress>>,
@@ -426,7 +425,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
 
     /// Parse the gas payments
     /// The expected format is: `--gas-coins <address> [<address> ...]`
-    fn parse_gas_coins(&mut self) -> PTBResult<Vec<Spanned<ObjectID>>> {
+    fn parse_gas_coins(&mut self) -> PTBResult<Vec<Spanned<ObjectId>>> {
         // Need at least one gas coin.
         let mut coins = vec![self.parse_object_id_literal()?];
         while matches!(self.peek(), sp!(_, Lexeme(Token::At, _))) {
@@ -761,11 +760,11 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
     }
 
     /// Parse a numeric address literal (must be prefixed by an `@` symbol) as
-    /// an ObjectID.
-    fn parse_object_id_literal(&mut self) -> PTBResult<Spanned<ObjectID>> {
+    /// an ObjectId.
+    fn parse_object_id_literal(&mut self) -> PTBResult<Spanned<ObjectId>> {
         Ok(self
             .parse_address_literal()?
-            .map(|a| ObjectID::new(a.into_bytes())))
+            .map(|a| ObjectId::new(a.into_bytes())))
     }
 
     // Parse an array of arguments. Each element of the array is separated by a

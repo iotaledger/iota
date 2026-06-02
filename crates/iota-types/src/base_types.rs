@@ -12,10 +12,8 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
-pub use iota_sdk_types::{
-    MoveObjectType, ObjectId as ObjectID, ObjectReference as ObjectRef, Version as SequenceNumber,
-};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+pub use iota_sdk_types::{MoveObjectType, ObjectReference as ObjectRef, Version as SequenceNumber};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -75,7 +73,7 @@ pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
 pub fn random_object_ref() -> ObjectRef {
     ObjectRef::new(
-        ObjectID::random(),
+        ObjectId::random(),
         SequenceNumber::default(),
         ObjectDigest::new([0; 32]),
     )
@@ -175,7 +173,7 @@ impl FromStr for ObjectType {
 
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct ObjectInfo {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub digest: ObjectDigest,
     pub type_: ObjectType,
@@ -219,7 +217,7 @@ impl From<&ObjectInfo> for ObjectRef {
     }
 }
 
-pub const IOTA_ADDRESS_LENGTH: usize = ObjectID::LENGTH;
+pub const IOTA_ADDRESS_LENGTH: usize = ObjectId::LENGTH;
 
 pub use iota_sdk_types::Address as IotaAddress;
 
@@ -438,7 +436,7 @@ pub struct MoveLegacyTxContext {
     epoch: EpochId,
     // Timestamp that the epoch started at
     epoch_timestamp_ms: CheckpointTimestamp,
-    // Number of `ObjectID`'s generated during execution of the current transaction
+    // Number of `ObjectId`'s generated during execution of the current transaction
     ids_created: u64,
 }
 
@@ -466,7 +464,7 @@ pub struct TxContext {
     epoch: EpochId,
     /// Timestamp that the epoch started at
     epoch_timestamp_ms: CheckpointTimestamp,
-    /// Number of `ObjectID`'s generated during execution of the current
+    /// Number of `ObjectId`'s generated during execution of the current
     /// transaction
     ids_created: u64,
     // Reference gas price
@@ -602,8 +600,8 @@ impl TxContext {
 
     /// Derive a globally unique object ID by hashing self.digest |
     /// self.ids_created
-    pub fn fresh_id(&mut self) -> ObjectID {
-        let id = ObjectID::derive_id(self.digest(), self.ids_created);
+    pub fn fresh_id(&mut self) -> ObjectId {
+        let id = ObjectId::derive_id(self.digest(), self.ids_created);
         self.ids_created += 1;
         id
     }
@@ -700,14 +698,14 @@ impl TxContext {
     }
 }
 
-/// Generate a fake ObjectID with repeated one byte.
-pub fn dbg_object_id(name: u8) -> ObjectID {
-    ObjectID::new([name; ObjectID::LENGTH])
+/// Generate a fake ObjectId with repeated one byte.
+pub fn dbg_object_id(name: u8) -> ObjectId {
+    ObjectId::new([name; ObjectId::LENGTH])
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, thiserror::Error)]
-pub enum ObjectIDParseError {
-    #[error("ObjectID hex literal must start with 0x")]
+pub enum ObjectIdParseError {
+    #[error("ObjectId hex literal must start with 0x")]
     HexLiteralPrefixMissing,
 
     #[error("Could not convert from bytes slice")]

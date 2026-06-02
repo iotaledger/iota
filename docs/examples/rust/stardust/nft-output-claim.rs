@@ -14,7 +14,6 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -23,7 +22,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Identifier, TypeTag, crypto::Intent};
+use iota_sdk_types::{Identifier, ObjectId, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -54,7 +53,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Get an NftOutput object
     let nft_output_object_id =
-        ObjectID::from_hex("0xad87a60921c62f84d57301ea127d1706b406cde5ec6fa4d3af2a80f424fab93a")?;
+        ObjectId::from_hex("0xad87a60921c62f84d57301ea127d1706b406cde5ec6fa4d3af2a80f424fab93a")?;
 
     let nft_output_object = iota_client
         .read_api()
@@ -112,7 +111,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(nft_output_object_ref))?];
         // Finally call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             Identifier::from_static("nft_output"),
             Identifier::from_static("extract_assets"),
             type_arguments,
@@ -129,7 +128,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![extracted_base_token];
             let type_arguments = vec![GAS::type_tag()];
             let iota_coin = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,
@@ -148,7 +147,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 // Extract native token balance
                 // Transfer native token balance
                 extracted_native_tokens_bag = builder.programmable_move_call(
-                    ObjectID::STARDUST,
+                    ObjectId::STARDUST,
                     Identifier::from_static("utilities"),
                     Identifier::from_static("extract_and_send_to"),
                     type_arguments,
@@ -162,7 +161,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],

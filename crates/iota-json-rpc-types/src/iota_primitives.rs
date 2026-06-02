@@ -23,10 +23,11 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_sdk_types::{
-    Digest, Identifier as NativeIdentifier, StructTag as NativeStructTag, TypeTag as NativeTypeTag,
+    Digest, Identifier as NativeIdentifier, ObjectId as NativeObjectId,
+    StructTag as NativeStructTag, TypeTag as NativeTypeTag,
 };
 use iota_types::{
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID as NativeObjectID, SequenceNumber},
+    base_types::{IotaAddress as NativeIotaAddress, SequenceNumber},
     iota_serde::{to_iota_struct_tag_string, to_iota_type_tag_string},
     parse_iota_struct_tag, parse_iota_type_tag,
     signature::GenericSignature as NativeGenericSignature,
@@ -80,10 +81,10 @@ impl<'de> DeserializeAs<'de, NativeIotaAddress> for IotaAddress {
 }
 
 /// A schema type that defines the JSON representation of the
-/// [`ObjectID`](iota_types::base_types::ObjectID) type.
-pub struct ObjectID;
+/// [`ObjectId`](iota_sdk_types::ObjectId) type.
+pub struct ObjectId;
 
-impl JsonSchema for ObjectID {
+impl JsonSchema for ObjectId {
     fn schema_name() -> String {
         "ObjectID".to_owned()
     }
@@ -102,8 +103,8 @@ impl JsonSchema for ObjectID {
     }
 }
 
-impl SerializeAs<NativeObjectID> for ObjectID {
-    fn serialize_as<S>(value: &NativeObjectID, serializer: S) -> Result<S::Ok, S::Error>
+impl SerializeAs<NativeObjectId> for ObjectId {
+    fn serialize_as<S>(value: &NativeObjectId, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -111,8 +112,8 @@ impl SerializeAs<NativeObjectID> for ObjectID {
     }
 }
 
-impl<'de> DeserializeAs<'de, NativeObjectID> for ObjectID {
-    fn deserialize_as<D>(deserializer: D) -> Result<NativeObjectID, D::Error>
+impl<'de> DeserializeAs<'de, NativeObjectId> for ObjectId {
+    fn deserialize_as<D>(deserializer: D) -> Result<NativeObjectId, D::Error>
     where
         D: Deserializer<'de>,
     {

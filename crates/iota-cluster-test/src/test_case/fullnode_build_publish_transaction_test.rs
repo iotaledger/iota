@@ -5,7 +5,8 @@
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_move_build::test_utils::compile_basics_package;
-use iota_types::{base_types::ObjectID, object::Owner};
+use iota_sdk_types::ObjectId;
+use iota_types::object::Owner;
 use jsonrpsee::rpc_params;
 
 use crate::{TestCaseImpl, TestContext};
@@ -32,7 +33,7 @@ impl TestCaseImpl for FullNodeBuildPublishTransactionTest {
             ctx.get_wallet_address(),
             all_module_bytes,
             dependencies,
-            None::<ObjectID>,
+            None::<ObjectId>,
             // Doesn't need to be scaled by RGP since most of the cost is storage
             50_000_000.to_string()
         ];

@@ -49,6 +49,7 @@ zstd = "0.13"
 iota-config.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
@@ -63,7 +64,6 @@ tokio = { workspace = true, features = ["test-util"] }
 # internal dependencies
 iota-common.workspace = true
 iota-macros.workspace = true
-iota-sdk-types.workspace = true
 iota-test-transaction-builder.workspace = true
 
 [target.'cfg(msim)'.dependencies]

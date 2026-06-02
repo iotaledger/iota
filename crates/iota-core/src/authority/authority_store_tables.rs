@@ -158,7 +158,7 @@ pub struct AuthorityPerpetualTables {
 
 #[derive(DBMapUtils)]
 pub struct AuthorityPrunerTables {
-    pub(crate) object_tombstones: DBMap<ObjectID, SequenceNumber>,
+    pub(crate) object_tombstones: DBMap<ObjectId, SequenceNumber>,
 }
 
 impl AuthorityPrunerTables {
@@ -244,7 +244,7 @@ impl AuthorityPerpetualTables {
     // or eq to the parent.
     pub fn find_object_lt_or_eq_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         let mut iter = self.objects.reversed_safe_iter_with_bounds(
@@ -321,7 +321,7 @@ impl AuthorityPerpetualTables {
 
     pub fn get_latest_object_ref_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<ObjectRef>, IotaError> {
         let mut iterator = self.objects.reversed_safe_iter_with_bounds(
             Some(ObjectKey::min_for_id(&object_id)),
@@ -338,7 +338,7 @@ impl AuthorityPerpetualTables {
 
     pub fn get_latest_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
         let mut iterator = self.objects.reversed_safe_iter_with_bounds(
             Some(ObjectKey::min_for_id(&object_id)),
@@ -419,7 +419,7 @@ impl AuthorityPerpetualTables {
 
     pub fn get_newer_object_keys(
         &self,
-        object: &(ObjectID, SequenceNumber),
+        object: &(ObjectId, SequenceNumber),
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
@@ -456,8 +456,8 @@ impl AuthorityPerpetualTables {
 
     pub fn range_iter_live_object_set(
         &self,
-        lower_bound: Option<ObjectID>,
-        upper_bound: Option<ObjectID>,
+        lower_bound: Option<ObjectId>,
+        upper_bound: Option<ObjectId>,
     ) -> LiveSetIter<'_> {
         let lower_bound = lower_bound.as_ref().map(ObjectKey::min_for_id);
         let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
@@ -509,7 +509,7 @@ impl ObjectStore for AuthorityPerpetualTables {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         let obj_entry = self
             .objects
@@ -527,7 +527,7 @@ impl ObjectStore for AuthorityPerpetualTables {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self
@@ -554,7 +554,7 @@ pub enum LiveObject {
 }
 
 impl LiveObject {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         match self {
             LiveObject::Normal(obj) => obj.id(),
             LiveObject::Wrapped(key) => key.0,

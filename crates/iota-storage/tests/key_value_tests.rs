@@ -7,10 +7,11 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::ObjectId;
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectID, VersionNumber, random_object_ref},
+    base_types::{ExecutionDigests, VersionNumber, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
@@ -188,7 +189,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
 
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
         Ok(self.objects.get(&ObjectKey(object_id, version)).cloned())
@@ -434,7 +435,7 @@ mod simtests {
 
     fn random_events() -> TransactionEvents {
         let event = Event {
-            package_id: ObjectID::random(),
+            package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
             type_: StructTag::new(

@@ -3408,7 +3408,7 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIDSchema>",
+        "name": "Page<Coin,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
@@ -3683,7 +3683,7 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIDSchema>",
+        "name": "Page<Coin,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
@@ -3976,7 +3976,7 @@
         }
       ],
       "result": {
-        "name": "Page<IotaDynamicFieldInfo,ObjectIDSchema>",
+        "name": "Page<IotaDynamicFieldInfo,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_DynamicFieldInfo_and_ObjectID"
@@ -4269,7 +4269,7 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIDSchema>",
+        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
@@ -4761,7 +4761,7 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIDSchema>",
+        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"

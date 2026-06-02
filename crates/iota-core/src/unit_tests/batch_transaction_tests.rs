@@ -25,7 +25,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
-    let all_ids = (0..TOTAL).map(|_| ObjectID::random()).collect::<Vec<_>>();
+    let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
     let (authority_state, package) = init_state_with_ids_and_object_basics(
         [sender; TOTAL].into_iter().zip(all_ids.clone().into_iter()),
     )
@@ -110,7 +110,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
-    let all_ids = (0..TOTAL).map(|_| ObjectID::random()).collect::<Vec<_>>();
+    let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
     let (authority_state, package) = init_state_with_ids_and_object_basics(
         [sender; TOTAL].into_iter().zip(all_ids.clone().into_iter()),
     )
@@ -172,7 +172,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (authority_state, package) = init_state_with_ids_and_object_basics([]).await;
     let rgp = authority_state.reference_gas_price_for_testing()?;
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(
         gas_object_id,
         sender,

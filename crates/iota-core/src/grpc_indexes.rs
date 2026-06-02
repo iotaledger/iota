@@ -10,9 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, SequenceNumber},
     committee::EpochId,
     digests::TransactionDigest,
     error::IotaResult,
@@ -71,9 +71,9 @@ pub struct CoinIndexKey {
 /// Coin index value with regulated coin metadata.
 #[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct CoinIndexInfo {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
-    pub regulated_coin_metadata_object_id: Option<ObjectID>,
+    pub coin_metadata_object_id: Option<ObjectId>,
+    pub treasury_object_id: Option<ObjectId>,
+    pub regulated_coin_metadata_object_id: Option<ObjectId>,
 }
 
 impl From<CoinIndexInfo> for iota_types::storage::CoinInfo {
@@ -149,7 +149,7 @@ pub struct OwnerIndexKey {
     pub object_type_identifier: u64,
     pub object_type_params: u64,
     pub inverted_balance: Option<u64>,
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -254,7 +254,7 @@ fn owner_bounds(
             object_type_identifier: lower_id,
             object_type_params: lower_params,
             inverted_balance: None,
-            object_id: ObjectID::ZERO,
+            object_id: ObjectId::ZERO,
         }
     };
 
@@ -273,7 +273,7 @@ fn owner_bounds(
         object_type_identifier: upper_bound_id,
         object_type_params: upper_bound_params,
         inverted_balance: Some(u64::MAX),
-        object_id: ObjectID::MAX,
+        object_id: ObjectId::MAX,
     };
 
     (lower_bound, upper_bound)
@@ -365,7 +365,7 @@ struct IndexStoreTables {
     /// An index of dynamic fields (children objects).
     ///
     /// Allows an efficient iterator to list all of the dynamic fields owned by
-    /// a particular ObjectID. Only the key is stored; field metadata is loaded
+    /// a particular ObjectId. Only the key is stored; field metadata is loaded
     /// on demand from the object store.
     dynamic_field: DBMap<DynamicFieldKey, ()>,
 
@@ -799,7 +799,7 @@ impl IndexStoreTables {
         // always created, never mutated in-place, so changed_objects() would only add
         // noise from unrelated object mutations.
         let mut package_version_index: Vec<(PackageVersionKey, PackageVersionInfo)> = Vec::new();
-        let mut regulated_coin_keys: Vec<(CoinIndexKey, ObjectID)> = Vec::new();
+        let mut regulated_coin_keys: Vec<(CoinIndexKey, ObjectId)> = Vec::new();
         for tx in &checkpoint.transactions {
             for object in tx.created_objects() {
                 if let Some((key, info)) = try_create_package_version_info(object) {
@@ -872,12 +872,12 @@ impl IndexStoreTables {
 
     fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, TypedStoreError>
     {
-        let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectID::ZERO));
-        let upper_bound = DynamicFieldKey::new(parent, ObjectID::MAX);
+        let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectId::ZERO));
+        let upper_bound = DynamicFieldKey::new(parent, ObjectId::MAX);
         let iter = self
             .dynamic_field
             .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound))
@@ -897,7 +897,7 @@ impl IndexStoreTables {
 
     fn package_versions_iter(
         &self,
-        original_package_id: ObjectID,
+        original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
         let lower_bound = PackageVersionKey {
@@ -1043,8 +1043,8 @@ impl GrpcIndexesStore {
 
     pub fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, TypedStoreError>
     {
         self.tables.dynamic_field_iter(parent, cursor)
@@ -1059,7 +1059,7 @@ impl GrpcIndexesStore {
 
     pub fn package_versions_iter(
         &self,
-        original_package_id: ObjectID,
+        original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
         self.tables
@@ -1124,8 +1124,8 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
 
     fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_>,
     > {
@@ -1148,7 +1148,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
 
     fn package_versions_iter(
         &self,
-        original_package_id: ObjectID,
+        original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> iota_types::storage::error::Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>
     {
@@ -1203,7 +1203,7 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
 
 /// Returns `(CoinIndexKey, regulated_coin_metadata_object_id)` if `object` is
 /// a `RegulatedCoinMetadata<T>`.  Used to populate the `coin` table.
-fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, ObjectID)> {
+fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, ObjectId)> {
     let move_object_type = object.type_()?;
     if !move_object_type.is_regulated_coin_metadata() {
         return None;

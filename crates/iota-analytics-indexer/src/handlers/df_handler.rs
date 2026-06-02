@@ -10,10 +10,9 @@ use iota_data_ingestion_core::Worker;
 use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES,
-    base_types::ObjectID,
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
@@ -114,7 +113,7 @@ impl DynamicFieldHandler {
         checkpoint: u64,
         timestamp_ms: u64,
         object: &Object,
-        all_written_objects: &HashMap<ObjectID, Object>,
+        all_written_objects: &HashMap<ObjectId, Object>,
         state: &mut State,
     ) -> Result<()> {
         let move_obj_opt = object.data.as_struct_opt();

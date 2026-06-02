@@ -10,9 +10,9 @@ use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
-use iota_sdk_types::{Command, Identifier, MoveCall, TransferObjects, TypeTag};
+use iota_sdk_types::{Command, Identifier, MoveCall, ObjectId, TransferObjects, TypeTag};
 use iota_types::{
-    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -59,7 +59,7 @@ use crate::{
     iota_owner::OwnerSchema,
     iota_primitives::{
         Base58 as Base58Schema, Base64 as Base64Schema, GenericSignature as GenericSignatureSchema,
-        IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema,
         SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
     },
@@ -784,7 +784,7 @@ pub trait IotaTransactionBlockEffectsAPI {
 
     /// Return an iterator of mutated objects, but excluding the gas object.
     fn mutated_excluding_gas(&self) -> Vec<OwnedObjectRef>;
-    fn modified_at_versions(&self) -> Vec<(ObjectID, SequenceNumber)>;
+    fn modified_at_versions(&self) -> Vec<(ObjectId, SequenceNumber)>;
     fn all_changed_objects(&self) -> Vec<(&OwnedObjectRef, WriteKind)>;
     fn all_deleted_objects(&self) -> Vec<(&ObjectRef, DeleteKind)>;
 }
@@ -796,9 +796,9 @@ pub trait IotaTransactionBlockEffectsAPI {
     rename_all = "camelCase"
 )]
 pub struct IotaTransactionBlockEffectsModifiedAtVersions {
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    object_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    object_id: ObjectId,
     #[schemars(with = "SequenceNumberStringSchema")]
     #[serde_as(as = "SequenceNumberStringSchema")]
     sequence_number: SequenceNumber,
@@ -933,7 +933,7 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
             .collect()
     }
 
-    fn modified_at_versions(&self) -> Vec<(ObjectID, SequenceNumber)> {
+    fn modified_at_versions(&self) -> Vec<(ObjectId, SequenceNumber)> {
         self.modified_at_versions
             .iter()
             .map(|v| (v.object_id, v.sequence_number))
@@ -1847,9 +1847,9 @@ impl Display for IotaTransactionBlock {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaGenesisTransaction {
-    #[serde_as(as = "Vec<ObjectIDSchema>")]
-    #[schemars(with = "Vec<ObjectIDSchema>")]
-    pub objects: Vec<ObjectID>,
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    pub objects: Vec<ObjectId>,
     #[schemars(with = "Vec<IotaEventID>")]
     pub events: Vec<EventID>,
 }
@@ -1883,9 +1883,9 @@ pub struct IotaConsensusCommitPrologueV1 {
 pub enum IotaConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
     CancelledTransactions(
-        #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIDSchema, SequenceNumberU64Schema)>)>")]
-        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIDSchema, SequenceNumberU64Schema)>)>")]
-        Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64Schema)>)>")]
+        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64Schema)>)>")]
+        Vec<(TransactionDigest, Vec<(ObjectId, SequenceNumber)>)>,
     ),
 }
 
@@ -1976,9 +1976,9 @@ pub enum IotaEndOfEpochTransactionKind {
 pub enum IotaInputObjectKind {
     // A Move package, must be immutable.
     MovePackage(
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
     ),
     // A Move object, either immutable, or owned mutable.
     ImmOrOwnedMoveObject(
@@ -1988,9 +1988,9 @@ pub enum IotaInputObjectKind {
     ),
     // A Move object that's shared and mutable.
     SharedMoveObject {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         initial_shared_version: SequenceNumber,
@@ -2161,18 +2161,18 @@ pub enum IotaCommand {
     /// Publishes a Move package. It takes the package bytes and a list of the
     /// package's transitive dependencies to link against on-chain.
     Publish(
-        #[serde_as(as = "Vec<ObjectIDSchema>")]
-        #[schemars(with = "Vec<ObjectIDSchema>")]
-        Vec<ObjectID>,
+        #[serde_as(as = "Vec<ObjectIdSchema>")]
+        #[schemars(with = "Vec<ObjectIdSchema>")]
+        Vec<ObjectId>,
     ),
     /// Upgrades a Move package
     Upgrade(
-        #[serde_as(as = "Vec<ObjectIDSchema>")]
-        #[schemars(with = "Vec<ObjectIDSchema>")]
-        Vec<ObjectID>,
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        ObjectID,
+        #[serde_as(as = "Vec<ObjectIdSchema>")]
+        #[schemars(with = "Vec<ObjectIdSchema>")]
+        Vec<ObjectId>,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
         IotaArgument,
     ),
     /// `forall T: Vec<T> -> vector<T>`
@@ -2316,9 +2316,9 @@ pub enum PtbInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaProgrammableMoveCall {
     /// The package containing the module and function.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub package: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub package: ObjectId,
     /// The specific module in the package containing the function.
     pub module: String,
     /// The function to be called.
@@ -2451,18 +2451,18 @@ pub struct TransferObjectParams {
     #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub recipient: IotaAddress,
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub object_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub object_id: ObjectId,
 }
 
 #[serde_as]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MoveCallParams {
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub package_object_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub package_object_id: ObjectId,
     pub module: String,
     pub function: String,
     #[serde(default)]
@@ -2519,7 +2519,7 @@ pub struct OwnedObjectRef {
 }
 
 impl OwnedObjectRef {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         self.reference.object_id
     }
     pub fn version(&self) -> SequenceNumber {
@@ -2578,7 +2578,7 @@ impl IotaCallArg {
         }
     }
 
-    pub fn object(&self) -> Option<&ObjectID> {
+    pub fn object(&self) -> Option<&ObjectId> {
         match self {
             IotaCallArg::Object(IotaObjectArg::SharedObject { object_id, .. })
             | IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject { object_id, .. })
@@ -2615,9 +2615,9 @@ pub enum IotaObjectArg {
     // A Move object, either immutable, or owned mutable.
     #[serde(rename_all = "camelCase")]
     ImmOrOwnedObject {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -2630,9 +2630,9 @@ pub enum IotaObjectArg {
     // object.
     #[serde(rename_all = "camelCase")]
     SharedObject {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         initial_shared_version: SequenceNumber,
@@ -2641,9 +2641,9 @@ pub enum IotaObjectArg {
     // A reference to a Move object that's going to be received in the transaction.
     #[serde(rename_all = "camelCase")]
     Receiving {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
@@ -2676,24 +2676,24 @@ pub enum TransactionFilter {
     ),
     /// Query by move function.
     MoveFunction {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        package: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        package: ObjectId,
         module: Option<String>,
         function: Option<String>,
     },
     /// Query by input object.
     InputObject(
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
     ),
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
     ChangedObject(
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
     ),
     /// Query by sender address.
     FromAddress(
@@ -2825,32 +2825,32 @@ pub enum TransactionFilterV2 {
     ),
     /// Query by move function.
     MoveFunction {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        package: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        package: ObjectId,
         module: Option<String>,
         function: Option<String>,
     },
     /// Query by input object.
     InputObject(
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
     ),
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
     ChangedObject(
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
     ),
     /// Query transactions that wrapped or deleted the specified object.
     /// Includes transactions that either created and immediately wrapped
     /// the object or unwrapped and immediately deleted it.
     WrappedOrDeletedObject(
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
     ),
     /// Query by sender address.
     FromAddress(

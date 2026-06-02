@@ -4,8 +4,8 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::StructTag;
-use iota_types::{base_types::ObjectID, iota_sdk_types_conversions::struct_tag_core_to_sdk};
+use iota_sdk_types::{ObjectId, StructTag};
+use iota_types::iota_sdk_types_conversions::struct_tag_core_to_sdk;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, runtime_value as R,
@@ -125,8 +125,8 @@ fn consistent_value_before_current_epoch(
     current_epoch: u64,
 ) -> PartialVMResult<Value> {
     let Some(field) = object_runtime.config_setting_unsequenced_read(
-        ObjectID::new(config_addr.into_bytes()),
-        ObjectID::new(name_df_addr.into_bytes()),
+        ObjectId::new(config_addr.into_bytes()),
+        ObjectId::new(name_df_addr.into_bytes()),
         field_setting_ty,
         field_setting_layout,
         &field_setting_tag,

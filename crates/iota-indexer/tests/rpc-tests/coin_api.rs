@@ -15,10 +15,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -222,7 +222,7 @@ fn get_all_coins_with_cursor() {
 
         let first_page_results = client.get_all_coins(*owner, None, Some(4)).await.unwrap();
         assert!(first_page_results.has_next_page);
-        let second_page_results: iota_json_rpc_types::Page<iota_json_rpc_types::Coin, ObjectID> =
+        let second_page_results: iota_json_rpc_types::Page<iota_json_rpc_types::Coin, ObjectId> =
             client
                 .get_all_coins(*owner, first_page_results.next_cursor, Some(4))
                 .await
@@ -665,7 +665,7 @@ async fn get_coins_fullnode_indexer(
     client: &HttpClient,
     owner: IotaAddress,
     coin_type: Option<String>,
-    cursor: Option<ObjectID>,
+    cursor: Option<ObjectId>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
     let result_fullnode = cluster
@@ -684,7 +684,7 @@ async fn get_all_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     owner: IotaAddress,
-    cursor: Option<ObjectID>,
+    cursor: Option<ObjectId>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
     let result_fullnode = cluster
@@ -785,12 +785,12 @@ pub async fn execute_move_call(
     client: &HttpClient,
     address: IotaAddress,
     account_keypair: &dyn Signer<Signature>,
-    package_object_id: ObjectID,
+    package_object_id: ObjectId,
     module: String,
     function: String,
     type_arguments: Vec<IotaTypeTag>,
     arguments: Vec<IotaJsonValue>,
-    gas: Option<ObjectID>,
+    gas: Option<ObjectId>,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = client
         .move_call(
@@ -853,7 +853,7 @@ async fn mint_trusted_coin(
         http_client,
         address,
         account_keypair,
-        ObjectID::FRAMEWORK,
+        ObjectId::FRAMEWORK,
         Identifier::COIN_MODULE.to_string(),
         "mint_and_transfer".into(),
         type_args![coin_name.clone()].unwrap(),

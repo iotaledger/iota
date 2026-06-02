@@ -5,12 +5,13 @@
 use std::collections::BTreeMap;
 
 use better_any::{Tid, TidAble};
+use iota_sdk_types::ObjectId;
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 
 use crate::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
     error::{IotaError, IotaResult},
     inner_temporary_store::WrittenObjects,
@@ -28,11 +29,11 @@ use crate::{
 // Keeping this functionally identical to AuthorityTemporaryStore is a pain.
 #[derive(Debug, Default, Tid)]
 pub struct InMemoryStorage {
-    persistent: BTreeMap<ObjectID, Object>,
+    persistent: BTreeMap<ObjectId, Object>,
 }
 
 impl BackingPackageStore for InMemoryStorage {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         load_package_object_from_object_store(self, package_id)
     }
 }
@@ -40,8 +41,8 @@ impl BackingPackageStore for InMemoryStorage {
 impl ChildObjectResolver for InMemoryStorage {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
+        parent: &ObjectId,
+        child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         let child_object = match self.persistent.get(child).cloned() {
@@ -67,8 +68,8 @@ impl ChildObjectResolver for InMemoryStorage {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
@@ -106,14 +107,14 @@ impl ModuleResolver for &mut InMemoryStorage {
 impl ObjectStore for InMemoryStorage {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> crate::storage::error::Result<Option<Object>> {
         Ok(self.persistent.get(object_id).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> crate::storage::error::Result<Option<Object>> {
         Ok(self
@@ -133,14 +134,14 @@ impl ObjectStore for InMemoryStorage {
 impl ObjectStore for &mut InMemoryStorage {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> crate::storage::error::Result<Option<Object>> {
         Ok(self.persistent.get(object_id).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> crate::storage::error::Result<Option<Object>> {
         Ok(self
@@ -191,11 +192,11 @@ impl InMemoryStorage {
         input_objects.into()
     }
 
-    pub fn get_object(&self, id: &ObjectID) -> Option<&Object> {
+    pub fn get_object(&self, id: &ObjectId) -> Option<&Object> {
         self.persistent.get(id)
     }
 
-    pub fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<&Object>> {
+    pub fn get_objects(&self, objects: &[ObjectId]) -> Vec<Option<&Object>> {
         let mut result = Vec::new();
         for id in objects {
             result.push(self.get_object(id));
@@ -208,15 +209,15 @@ impl InMemoryStorage {
         self.persistent.insert(id, object);
     }
 
-    pub fn remove_object(&mut self, object_id: ObjectID) -> Option<Object> {
+    pub fn remove_object(&mut self, object_id: ObjectId) -> Option<Object> {
         self.persistent.remove(&object_id)
     }
 
-    pub fn objects(&self) -> &BTreeMap<ObjectID, Object> {
+    pub fn objects(&self) -> &BTreeMap<ObjectId, Object> {
         &self.persistent
     }
 
-    pub fn into_inner(self) -> BTreeMap<ObjectID, Object> {
+    pub fn into_inner(self) -> BTreeMap<ObjectId, Object> {
         self.persistent
     }
 

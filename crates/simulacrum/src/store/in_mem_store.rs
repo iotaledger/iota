@@ -8,9 +8,10 @@ use std::{
 };
 
 use iota_config::genesis;
+use iota_sdk_types::ObjectId;
 use iota_types::{
     base_types::{
-        AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber, address_from_iota_pub_key,
+        AuthorityName, IotaAddress, ObjectRef, SequenceNumber, address_from_iota_pub_key,
     },
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
@@ -56,8 +57,8 @@ pub struct InMemoryStore {
     historical_system_states: HashMap<EpochId, iota_types::iota_system_state::IotaSystemState>,
 
     // Object data
-    live_objects: HashMap<ObjectID, SequenceNumber>,
-    objects: HashMap<ObjectID, BTreeMap<SequenceNumber, Object>>,
+    live_objects: HashMap<ObjectId, SequenceNumber>,
+    objects: HashMap<ObjectId, BTreeMap<SequenceNumber, Object>>,
 }
 
 impl InMemoryStore {
@@ -120,12 +121,12 @@ impl InMemoryStore {
         self.events.get(digest)
     }
 
-    pub fn get_object(&self, id: &ObjectID) -> Option<&Object> {
+    pub fn get_object(&self, id: &ObjectId) -> Option<&Object> {
         let version = self.live_objects.get(id)?;
         self.get_object_at_version(id, *version)
     }
 
-    pub fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<&Object> {
+    pub fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<&Object> {
         self.objects
             .get(id)
             .and_then(|versions| versions.get(&version))
@@ -136,7 +137,7 @@ impl InMemoryStore {
     }
 
     pub fn get_clock(&self) -> iota_types::clock::Clock {
-        self.get_object(&ObjectID::CLOCK)
+        self.get_object(&ObjectId::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
@@ -235,7 +236,7 @@ impl InMemoryStore {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     ) {
         let deleted_objects = effects.deleted();
         let tx_digest = *effects.transaction_digest();
@@ -259,7 +260,7 @@ impl InMemoryStore {
 
     pub fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
         deleted_objects: Vec<ObjectRef>,
     ) {
         for deleted_object in deleted_objects {
@@ -280,7 +281,7 @@ impl InMemoryStore {
 impl BackingPackageStore for InMemoryStore {
     fn get_package_object(
         &self,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
     ) -> iota_types::error::IotaResult<Option<PackageObject>> {
         load_package_object_from_object_store(self, package_id)
     }
@@ -289,8 +290,8 @@ impl BackingPackageStore for InMemoryStore {
 impl ChildObjectResolver for InMemoryStore {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
+        parent: &ObjectId,
+        child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let child_object = match crate::store::SimulatorStore::get_object(self, child) {
@@ -319,8 +320,8 @@ impl ChildObjectResolver for InMemoryStore {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> iota_types::error::IotaResult<Option<Object>> {
@@ -362,14 +363,14 @@ impl ModuleResolver for InMemoryStore {
 impl ObjectStore for InMemoryStore {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object(object_id).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object_at_version(object_id, version).cloned())
@@ -577,11 +578,11 @@ impl SimulatorStore for InMemoryStore {
         self.get_highest_checkpoint().cloned()
     }
 
-    fn get_object(&self, id: &ObjectID) -> Option<Object> {
+    fn get_object(&self, id: &ObjectId) -> Option<Object> {
         self.get_object(id).cloned()
     }
 
-    fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object> {
+    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object> {
         self.get_object_at_version(id, version).cloned()
     }
 
@@ -625,7 +626,7 @@ impl SimulatorStore for InMemoryStore {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     ) {
         self.insert_executed_transaction(transaction, effects, events, written_objects)
     }
@@ -644,7 +645,7 @@ impl SimulatorStore for InMemoryStore {
 
     fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
         deleted_objects: Vec<ObjectRef>,
     ) {
         self.update_objects(written_objects, deleted_objects)

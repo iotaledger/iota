@@ -1,10 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    digests::ObjectDigest,
-};
+use iota_sdk_types::ObjectId;
+use iota_types::{base_types::SequenceNumber, digests::ObjectDigest};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -12,7 +10,7 @@ use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
 
 use crate::iota_primitives::{
-    Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+    Base58 as Base58Schema, ObjectId as ObjectIdSchema,
     SequenceNumberU64 as SequenceNumberU64Schema,
 };
 
@@ -34,23 +32,23 @@ use crate::iota_primitives::{
 pub enum IotaObjectResponseError {
     #[error("Object {object_id} does not exist")]
     NotExists {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
     },
     #[error("Cannot find dynamic field for parent object {parent_object_id}")]
     DynamicFieldNotFound {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        parent_object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        parent_object_id: ObjectId,
     },
     #[error(
         "Object has been deleted object_id: {object_id} at version: {version} in digest {digest}"
     )]
     Deleted {
-        #[serde_as(as = "ObjectIDSchema")]
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         /// Object version.
         #[serde_as(as = "SequenceNumberU64Schema")]
         #[schemars(with = "SequenceNumberU64Schema")]

@@ -18,6 +18,7 @@ use iota_core::{authority_aggregator::AuthorityAggregatorBuilder, authority_clie
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
+use iota_sdk_types::ObjectId;
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
@@ -51,7 +52,7 @@ pub enum ToolCommand {
         /// Either id or address must be provided
         /// The object to check
         #[arg(long, help = "The object ID to fetch")]
-        id: Option<ObjectID>,
+        id: Option<ObjectId>,
         /// Either id or address must be provided
         /// If provided, check all gas objects owned by this account
         #[arg(long)]
@@ -68,7 +69,7 @@ pub enum ToolCommand {
     /// Fetch the same object from all validators
     FetchObject {
         #[arg(long, help = "The object ID to fetch")]
-        id: ObjectID,
+        id: ObjectId,
 
         #[arg(long, help = "Fetch object at a specific sequence")]
         version: Option<u64>,
@@ -416,7 +417,7 @@ pub enum ToolCommand {
 async fn check_locked_object(
     iota_client: &Arc<IotaClient>,
     committee: Arc<BTreeMap<AuthorityPublicKeyBytes, u64>>,
-    id: ObjectID,
+    id: ObjectId,
     rescue: bool,
 ) -> anyhow::Result<()> {
     let clients = Arc::new(make_clients(iota_client).await?);

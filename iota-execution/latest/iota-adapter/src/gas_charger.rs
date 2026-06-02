@@ -9,8 +9,9 @@ pub use checked::*;
 pub mod checked {
 
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
-        base_types::{ObjectID, ObjectRef},
+        base_types::ObjectRef,
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         digests::TransactionDigest,
         error::ExecutionError,
@@ -39,7 +40,7 @@ pub mod checked {
         gas_coins: Vec<ObjectRef>,
         // this is the first gas coin in `gas_coins` and the one that all others will
         // be smashed into. It can be None for system transactions when `gas_coins` is empty.
-        smashed_gas_coin: Option<ObjectID>,
+        smashed_gas_coin: Option<ObjectId>,
         gas_status: IotaGasStatus,
     }
 
@@ -78,7 +79,7 @@ pub mod checked {
 
         // Return the logical gas coin for this transactions or None if no gas coin was
         // present (system transactions).
-        pub fn gas_coin(&self) -> Option<ObjectID> {
+        pub fn gas_coin(&self) -> Option<ObjectId> {
             self.smashed_gas_coin
         }
 
@@ -126,7 +127,7 @@ pub mod checked {
         pub fn smash_gas(&mut self, temporary_store: &mut TemporaryStore<'_>) {
             let gas_coin_count = self.gas_coins.len();
             if gas_coin_count == 0
-                || (gas_coin_count == 1 && self.gas_coins[0].object_id == ObjectID::ZERO)
+                || (gas_coin_count == 1 && self.gas_coins[0].object_id == ObjectId::ZERO)
             {
                 return; // self.smashed_gas_coin is None
             }
@@ -204,7 +205,7 @@ pub mod checked {
 
         pub fn track_storage_mutation(
             &mut self,
-            object_id: ObjectID,
+            object_id: ObjectId,
             new_size: usize,
             storage_rebate: u64,
         ) -> u64 {

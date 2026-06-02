@@ -5,12 +5,15 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    ObjectId,
+    crypto::{Intent, IntentMessage},
+};
 use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
     IotaAddress,
-    base_types::{ObjectID, dbg_addr, random_object_ref},
+    base_types::{dbg_addr, random_object_ref},
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, Signature, Signer,
@@ -60,7 +63,7 @@ where
 pub fn create_fake_transaction() -> Transaction {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -79,7 +82,7 @@ pub fn create_fake_transaction() -> Transaction {
 
 pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
     let object =
-        Object::immutable_with_id_for_testing(ObjectID::generate(StdRng::from_seed([0; 32])));
+        Object::immutable_with_id_for_testing(ObjectId::generate(StdRng::from_seed([0; 32])));
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);

@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{AuthorityName, EpochId, IotaAddress, ObjectID},
+    base_types::{AuthorityName, EpochId, IotaAddress},
     committee::{Committee, StakeUnit},
 };
 use schemars::JsonSchema;
@@ -12,7 +13,7 @@ use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
     IotaAuthorityPublicKeyBytes,
-    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema},
 };
 
 /// RPC representation of the [Committee] type.
@@ -55,9 +56,9 @@ pub struct DelegatedStake {
     #[schemars(with = "IotaAddressSchema")]
     pub validator_address: IotaAddress,
     /// Staking pool object id.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub staking_pool: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub staking_pool: ObjectId,
     pub stakes: Vec<Stake>,
 }
 
@@ -68,9 +69,9 @@ pub struct DelegatedTimelockedStake {
     #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub validator_address: IotaAddress,
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub staking_pool: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub staking_pool: ObjectId,
     pub stakes: Vec<TimelockedStake>,
 }
 
@@ -93,9 +94,9 @@ pub enum StakeStatus {
 #[serde(rename_all = "camelCase")]
 pub struct Stake {
     /// ID of the StakedIota receipt object.
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub staked_iota_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub staked_iota_id: ObjectId,
     #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub stake_request_epoch: EpochId,
@@ -113,9 +114,9 @@ pub struct Stake {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TimelockedStake {
-    #[serde_as(as = "ObjectIDSchema")]
-    #[schemars(with = "ObjectIDSchema")]
-    pub timelocked_staked_iota_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub timelocked_staked_iota_id: ObjectId,
     #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub stake_request_epoch: EpochId,

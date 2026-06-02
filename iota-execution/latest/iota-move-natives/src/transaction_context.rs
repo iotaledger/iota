@@ -5,8 +5,9 @@
 use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TxContext},
+    base_types::{IotaAddress, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
 };
@@ -114,7 +115,7 @@ impl TransactionContext {
         self.tx_context.borrow().ids_created()
     }
 
-    pub fn fresh_id(&self) -> ObjectID {
+    pub fn fresh_id(&self) -> ObjectId {
         self.tx_context.borrow_mut().fresh_id()
     }
 

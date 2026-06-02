@@ -44,3 +44,13 @@ public fun authenticate(
 ) {
     assert!(msg == std::ascii::string(b"hello"), 0);
 }
+
+/// An unsecure example authenticator function that takes no user-facing inputs.
+/// Used by the CLI tests that exercise signing an abstract account without
+/// `--auth-call-args` / `--auth-type-args`.
+#[authenticator]
+public fun authenticate_no_args(
+    _account: &Account,
+    _auth_ctx: &iota::auth_context::AuthContext,
+    _ctx: &TxContext,
+) {}

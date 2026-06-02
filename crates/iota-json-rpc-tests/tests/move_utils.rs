@@ -9,7 +9,8 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, ObjectValueKind,
 };
 use iota_macros::sim_test;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -18,7 +19,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
     let move_modules = http_client
-        .get_normalized_move_modules_by_package(ObjectID::FRAMEWORK)
+        .get_normalized_move_modules_by_package(ObjectId::FRAMEWORK)
         .await?;
 
     assert_eq!(
@@ -102,7 +103,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
 async fn get_normalized_move_modules_by_package_wrong_package() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
-    let wrong_package_address = ObjectID::ZERO;
+    let wrong_package_address = ObjectId::ZERO;
 
     let response = http_client
         .get_normalized_move_modules_by_package(wrong_package_address)
@@ -123,7 +124,7 @@ async fn get_normalized_move_module() -> Result<(), anyhow::Error> {
     let module_name = "coin";
 
     let move_module = http_client
-        .get_normalized_move_module(ObjectID::FRAMEWORK, module_name.into())
+        .get_normalized_move_module(ObjectId::FRAMEWORK, module_name.into())
         .await?;
 
     assert_eq!(move_module.file_format_version, 6);
@@ -209,7 +210,7 @@ async fn get_normalized_move_module_wrong_module() -> Result<(), anyhow::Error> 
     let wrong_module_name = "foobar";
 
     let response = http_client
-        .get_normalized_move_module(ObjectID::FRAMEWORK, wrong_module_name.into())
+        .get_normalized_move_module(ObjectId::FRAMEWORK, wrong_module_name.into())
         .await;
 
     assert!(response.is_err_and(|e| e.to_string().contains("No module found with module name")));
@@ -224,7 +225,7 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
     let module_name = "coin";
 
     let move_struct = http_client
-        .get_normalized_move_struct(ObjectID::FRAMEWORK, module_name.into(), "Coin".into())
+        .get_normalized_move_struct(ObjectId::FRAMEWORK, module_name.into(), "Coin".into())
         .await?;
 
     assert_eq!(move_struct.abilities.abilities.len(), 2);
@@ -295,7 +296,7 @@ async fn get_normalized_move_struct_wrong_struct_name() -> Result<(), anyhow::Er
 
     let response = http_client
         .get_normalized_move_struct(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             module_name.into(),
             wrong_struct_name.into(),
         )
@@ -316,7 +317,7 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
     let module_name = "coin";
 
     let move_function = http_client
-        .get_normalized_move_function(ObjectID::FRAMEWORK, module_name.into(), "split".into())
+        .get_normalized_move_function(ObjectId::FRAMEWORK, module_name.into(), "split".into())
         .await?;
 
     assert!(matches!(
@@ -420,7 +421,7 @@ async fn get_normalized_move_function_wrong_function_name() -> Result<(), anyhow
 
     let response = http_client
         .get_normalized_move_function(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             module_name.into(),
             wrong_function_name.into(),
         )
@@ -441,7 +442,7 @@ async fn get_move_function_arg_types() -> Result<(), anyhow::Error> {
     let module_name = "coin";
 
     let arg_types = http_client
-        .get_move_function_arg_types(ObjectID::FRAMEWORK, module_name.into(), "split".into())
+        .get_move_function_arg_types(ObjectId::FRAMEWORK, module_name.into(), "split".into())
         .await?;
 
     assert_eq!(arg_types.len(), 3);
@@ -471,7 +472,7 @@ async fn get_move_function_arg_types_wrong_function_name() -> Result<(), anyhow:
 
     let response = http_client
         .get_move_function_arg_types(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             module_name.into(),
             wrong_function_name.into(),
         )

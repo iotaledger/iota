@@ -5,9 +5,10 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
+use iota_sdk_types::ObjectId;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, SequenceNumber},
     gas_coin::GasCoin,
     object::{MoveObject, MoveObjectExt, Owner},
     parse_iota_struct_tag,
@@ -24,7 +25,7 @@ use crate::{IotaMoveStruct, IotaMoveValue, ObjectChange};
 
 #[test]
 fn test_move_value_to_iota_coin() {
-    let id = ObjectID::random();
+    let id = ObjectId::random();
     let value = 10000;
     let coin = GasCoin::new(id, value);
 
@@ -123,7 +124,7 @@ fn test_serde() {
     let test_values = [
         IotaMoveValue::Number(u32::MAX),
         IotaMoveValue::UID {
-            id: ObjectID::random(),
+            id: ObjectId::random(),
         },
         IotaMoveValue::String("some test string".to_string()),
         IotaMoveValue::Address(IotaAddress::random()),
@@ -189,7 +190,7 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
             sender: IotaAddress::ZERO,
             owner: Owner::Immutable,
             object_type: parse_iota_struct_tag(tag).unwrap(),
-            object_id: ObjectID::random(),
+            object_id: ObjectId::random(),
             version: Default::default(),
             digest: ObjectDigest::random(),
         };

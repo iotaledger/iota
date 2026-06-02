@@ -4,8 +4,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use iota_sdk_types::ObjectId;
+
 use crate::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionEventsDigest},
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
@@ -24,19 +26,19 @@ pub struct TestEffectsBuilder {
     /// Override the execution status if provided.
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
-    shared_input_versions: BTreeMap<ObjectID, SequenceNumber>,
+    shared_input_versions: BTreeMap<ObjectId, SequenceNumber>,
     events_digest: Option<TransactionEventsDigest>,
-    created_objects: Vec<(ObjectID, Owner)>,
+    created_objects: Vec<(ObjectId, Owner)>,
     /// Objects that are mutated: (ID, old version, new owner).
-    mutated_objects: Vec<(ObjectID, SequenceNumber, Owner)>,
+    mutated_objects: Vec<(ObjectId, SequenceNumber, Owner)>,
     /// Objects that are deleted: (ID, old version).
-    deleted_objects: Vec<(ObjectID, SequenceNumber)>,
+    deleted_objects: Vec<(ObjectId, SequenceNumber)>,
     /// Objects that are wrapped: (ID, old version).
-    wrapped_objects: Vec<(ObjectID, SequenceNumber)>,
+    wrapped_objects: Vec<(ObjectId, SequenceNumber)>,
     /// Objects that are unwrapped: (ID, new owner).
-    unwrapped_objects: Vec<(ObjectID, Owner)>,
+    unwrapped_objects: Vec<(ObjectId, Owner)>,
     /// Immutable objects that are read.
-    frozen_objects: BTreeSet<ObjectID>,
+    frozen_objects: BTreeSet<ObjectId>,
 }
 
 impl TestEffectsBuilder {
@@ -62,7 +64,7 @@ impl TestEffectsBuilder {
 
     pub fn with_shared_input_versions(
         mut self,
-        versions: BTreeMap<ObjectID, SequenceNumber>,
+        versions: BTreeMap<ObjectId, SequenceNumber>,
     ) -> Self {
         assert!(self.shared_input_versions.is_empty());
         self.shared_input_versions = versions;
@@ -76,7 +78,7 @@ impl TestEffectsBuilder {
 
     pub fn with_created_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectID, Owner)>,
+        objects: impl IntoIterator<Item = (ObjectId, Owner)>,
     ) -> Self {
         self.created_objects.extend(objects);
         self
@@ -85,7 +87,7 @@ impl TestEffectsBuilder {
     pub fn with_mutated_objects(
         mut self,
         // Object ID, old version, and new owner.
-        objects: impl IntoIterator<Item = (ObjectID, SequenceNumber, Owner)>,
+        objects: impl IntoIterator<Item = (ObjectId, SequenceNumber, Owner)>,
     ) -> Self {
         self.mutated_objects.extend(objects);
         self
@@ -93,7 +95,7 @@ impl TestEffectsBuilder {
 
     pub fn with_wrapped_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectID, SequenceNumber)>,
+        objects: impl IntoIterator<Item = (ObjectId, SequenceNumber)>,
     ) -> Self {
         self.wrapped_objects.extend(objects);
         self
@@ -101,7 +103,7 @@ impl TestEffectsBuilder {
 
     pub fn with_unwrapped_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectID, Owner)>,
+        objects: impl IntoIterator<Item = (ObjectId, Owner)>,
     ) -> Self {
         self.unwrapped_objects.extend(objects);
         self
@@ -109,13 +111,13 @@ impl TestEffectsBuilder {
 
     pub fn with_deleted_objects(
         mut self,
-        objects: impl IntoIterator<Item = (ObjectID, SequenceNumber)>,
+        objects: impl IntoIterator<Item = (ObjectId, SequenceNumber)>,
     ) -> Self {
         self.deleted_objects.extend(objects);
         self
     }
 
-    pub fn with_frozen_objects(mut self, objects: impl IntoIterator<Item = ObjectID>) -> Self {
+    pub fn with_frozen_objects(mut self, objects: impl IntoIterator<Item = ObjectId>) -> Self {
         self.frozen_objects.extend(objects);
         self
     }

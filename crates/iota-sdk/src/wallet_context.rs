@@ -14,9 +14,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_sdk_types::{StructTag, crypto::Intent};
+use iota_sdk_types::{ObjectId, StructTag, crypto::Intent};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     crypto::IotaKeyPair,
     gas_coin::GasCoin,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
@@ -165,7 +165,7 @@ impl WalletContext {
     }
 
     /// Get the latest object reference given a object id.
-    pub async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef, anyhow::Error> {
+    pub async fn get_object_ref(&self, object_id: ObjectId) -> Result<ObjectRef, anyhow::Error> {
         let client = self.get_client().await?;
         Ok(client
             .read_api()
@@ -217,8 +217,8 @@ impl WalletContext {
         Ok(values_objects)
     }
 
-    /// Get the address that owns the object of the provided [`ObjectID`].
-    pub async fn get_object_owner(&self, id: &ObjectID) -> Result<IotaAddress, anyhow::Error> {
+    /// Get the address that owns the object of the provided [`ObjectId`].
+    pub async fn get_object_owner(&self, id: &ObjectId) -> Result<IotaAddress, anyhow::Error> {
         let client = self.get_client().await?;
         let object = client
             .read_api()
@@ -232,10 +232,10 @@ impl WalletContext {
             .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
     }
 
-    /// Get the address that owns the object, if an [`ObjectID`] is provided.
+    /// Get the address that owns the object, if an [`ObjectId`] is provided.
     pub async fn try_get_object_owner(
         &self,
-        id: &Option<ObjectID>,
+        id: &Option<ObjectId>,
     ) -> Result<Option<IotaAddress>, anyhow::Error> {
         if let Some(id) = id {
             Ok(Some(self.get_object_owner(id).await?))
@@ -247,7 +247,7 @@ impl WalletContext {
     /// Infer the sender of a transaction based on the gas objects provided. If
     /// no gas objects are provided, assume the active address is the
     /// sender.
-    pub async fn infer_sender(&mut self, gas: &[ObjectID]) -> Result<IotaAddress, anyhow::Error> {
+    pub async fn infer_sender(&mut self, gas: &[ObjectId]) -> Result<IotaAddress, anyhow::Error> {
         if gas.is_empty() {
             return self.active_address();
         }
@@ -271,7 +271,7 @@ impl WalletContext {
         &self,
         address: IotaAddress,
         budget: u64,
-        forbidden_gas_objects: BTreeSet<ObjectID>,
+        forbidden_gas_objects: BTreeSet<ObjectId>,
     ) -> Result<(u64, IotaObjectData), anyhow::Error> {
         for o in self.gas_objects(address).await? {
             if o.0 >= budget && !forbidden_gas_objects.contains(&o.1.object_id) {

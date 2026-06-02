@@ -9,14 +9,14 @@ use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
     network_config::NetworkConfig,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, address_from_iota_pub_key},
+    base_types::{IotaAddress, ObjectRef, address_from_iota_pub_key},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
@@ -132,7 +132,7 @@ async fn transfer_with_account(
 
 async fn handle_move_call_transaction(
     state: &Arc<AuthorityState>,
-    package: ObjectID,
+    package: ObjectId,
     module_name: &'static str,
     function_name: &'static str,
     args: Vec<CallArg>,
@@ -277,7 +277,7 @@ async fn test_package_denied() {
         accounts[0].0,
         &accounts[0].1,
         accounts[0].2[0],
-        [("c", ObjectID::ZERO)],
+        [("c", ObjectId::ZERO)],
         vec![],
         &state,
     )
@@ -288,7 +288,7 @@ async fn test_package_denied() {
         accounts[0].0,
         &accounts[0].1,
         accounts[0].2[1],
-        [("b", ObjectID::ZERO), ("c", package_c)],
+        [("b", ObjectId::ZERO), ("c", package_c)],
         vec![package_c],
         &state,
     )
@@ -312,7 +312,7 @@ async fn test_package_denied() {
         accounts[0].2[3],
         package_c,
         cap_c,
-        [("c", ObjectID::ZERO)],
+        [("c", ObjectId::ZERO)],
         vec![],
         &state,
     )
@@ -325,7 +325,7 @@ async fn test_package_denied() {
         accounts[0].2[4],
         package_b,
         cap_b,
-        [("b", ObjectID::ZERO), ("c", package_c)],
+        [("b", ObjectId::ZERO), ("c", package_c)],
         [("C", package_c_prime)],
         &state,
     )

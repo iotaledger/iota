@@ -4,14 +4,14 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_stardust_types::block::{
     address::Address,
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,
@@ -79,7 +79,7 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     native_tokens_bag: impl Into<Option<Bag>>,
-    created_native_tokens: Option<&[ObjectID]>,
+    created_native_tokens: Option<&[ObjectId]>,
     storage: &InMemoryStorage,
     tokens_counter: &mut TokensAmountCounter,
 ) -> Result<()> {
@@ -357,7 +357,7 @@ pub(super) fn verify_parent(
     address: &Address,
     storage: &InMemoryStorage,
 ) -> Result<()> {
-    let object_id = ObjectID::from(stardust_to_iota_address(address)?);
+    let object_id = ObjectId::from(stardust_to_iota_address(address)?);
     let parent = storage.get_object(&object_id);
     match address {
         Address::Alias(address) => {
