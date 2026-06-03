@@ -1202,11 +1202,14 @@ async fn test_v2_attestor_mismatch() {
     let digest = *tx.digest();
 
     // attestor_index 1 != certificate_author_index 0 → mismatch.
+    // Cost is also below the protocol floor (`min_cost - 1`), so BOTH the
+    // mismatch and the floor checks would fire. This pins the check order:
+    // mismatch must be reported before the floor.
     let min_cost = epoch_store.protocol_config().base_tx_cost_fixed();
     let mut transactions = vec![make_user_tx_v2(
         tx,
         starfish_config::AuthorityIndex::new_for_test(1),
-        min_cost,
+        min_cost - 1,
     )];
 
     let (dropped, locks, user_tx_digests) =
