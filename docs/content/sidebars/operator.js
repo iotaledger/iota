@@ -62,6 +62,19 @@ const operator = [
     },
     {
         type: 'category',
+        label: 'Extended Data Services',
+        link: {
+            type: 'doc',
+            id: 'operator/extended-data-services/overview',
+        },
+        items: [
+            'operator/extended-data-services/iota-indexer',
+            'operator/extended-data-services/json-rpc',
+            'operator/extended-data-services/graphql',
+        ],
+    },
+    {
+        type: 'category',
         label: 'Extensions',
         items: [
             'operator/extensions/indexer-functions',
