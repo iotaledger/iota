@@ -88,40 +88,46 @@ Run from inside the `iota/dev-tools/iota-private-network/experiments/` directory
 ```
 ---
 
-## Optional Transaction Spammer
+## Transaction Spammers
 
-The experiment suite can optionally include a transaction spammer to generate load on the validator network during the run.
-It supports two types of spammer tools, by default the stress test from the iota benchmark, and optionally the `iota-spammer` from a private repository.
+Enable a spammer with `-S true`; both `run-benchmark.py` and `run-fuzz.py` then
+bring up `fullnode-1` as the RPC target and generate load against it. Two
+options are selectable with `-C`:
 
-### With default spammer enabled:
+### 1. `stress` (default) — the `iota-benchmark` tool
+
+The `stress` binary is the **`iota-benchmark`** load tool, distributed as the
+`iotaledger/stress` Docker image (built from the
+[`iotaledger/network-benchmark`](https://github.com/iotaledger/network-benchmark)
+repo). It submits `--target-qps` transfer transactions through `fullnode-1`.
+
+The runner **auto-pulls the image if it is missing**. `iotaledger/stress` is a
+private registry image, so run `docker login` first (or build/tag it locally,
+or pass a different `--spammer-image`); if it still can't be obtained the run
+continues without load and logs a warning rather than aborting.
 
 ```bash
+# stress at 500 TPS
 ./run-benchmark.py -n 4 -S true -T 500
+# custom / locally-built image
+./run-benchmark.py -n 4 -S true -T 500 --spammer-image my-stress:local
 ```
 
-This will load the default spammer with a TPS of 500.
+Stream its output with `docker logs stress-benchmark`.
 
-### Required Setup for optional Spammer
+### 2. `iota-spammer` — external sizable-transaction spammer
 
-To enable the optional spammer set `-S true` and '-C iota-spammer' you must clone the following **private** repository:
-
-```
-https://github.com/iotaledger/iota-spammer
-```
-
-Place it at the following relative path from the runner, or update the path in the runner accordingly:
-
-```
-../../../iota-spammer
-```
-
-The optional spammer allows a special transaction type, called `sizable`, and can be used as follows:
+`iota-spammer` is a script from the **private**
+[`iotaledger/iota-spammer`](https://github.com/iotaledger/iota-spammer) repo.
+Clone it to `~/iota-spammer` (i.e. `../../../iota-spammer` from the runner). It
+adds a `sizable` transaction type whose payload size is set with `-Z`:
 
 ```bash
-./run-benchmark.py -n 4 -S true -T 100 -Z 10KiB
+./run-benchmark.py -n 4 -S true -C iota-spammer -T 100 -Z 10KiB
 ```
 
-This will launch the spammer from the external repository with the configured transaction rate, TPS=100, and size, 10KiB.
+Logs are written to `logs/spammer.log`. If the script is absent the run
+continues without load.
 
 ## Main Fuzz Runner: `run-fuzz.py`
 
@@ -266,61 +272,17 @@ All drops installed by the fuzz script are tagged with\
 
 ---
 
-## Optional Transaction Spammer
+## Transaction Spammers (fuzz)
 
-The experiment suite can optionally include a transaction spammer to generate load on the validator network.
-
-Two modes are supported:
-
-1. **`stress`** (default)\
-   Uses the stress binary inside a Docker container (`iotaledger/stress`) to send transactions against `fullnode-1`.
-
-2. **`iota-spammer`** (external repo, optional)\
-   Uses a custom spammer script from a private repository.
-
-### Enable default stress benchmark spammer
+`run-fuzz.py` supports the same two spammers as the benchmark — `stress` (the
+`iota-benchmark` tool via `iotaledger/stress`, auto-pulled) and the external
+`iota-spammer` — selected with `-C` and enabled with `-S true`. See
+[Transaction Spammers](#transaction-spammers) above for setup, the auto-pull
+behavior, and `--spammer-image`. Example:
 
 ```
-./run-fuzz.py -n 4 -S true -T 500
+./run-fuzz.py -n 4 -t geo-high -S true -C stress -T 500
 ```
-
-- Brings up `fullnode-1` as the spammer's RPC target.
-- Runs the stress benchmark with `target-qps = 500` using Starfish (default).
-- Stream logs with `docker logs stress-benchmark`.
-
-### Enable `iota-spammer` (external repo)
-
-To use the `iota-spammer`:
-
-1. Clone the private repository:
-
-   ```
-   git clone https://github.com/iotaledger/iota-spammer
-   ```
-
-2. Place it at the following relative path from the runner (`~/iota-spammer`, resolved from `$HOME`):
-
-   ```
-   ../../../iota-spammer
-   ```
-
-3. Run `run-fuzz.py` with `-C iota-spammer`:
-
-   ```
-   ./run-fuzz.py \
-     -n 4 \
-     -S true \
-     -C iota-spammer \
-     -T 100 \
-     -Z 10KiB
-   ```
-
-This launches the external spammer script with:
-
-- TPS = 100
-- transaction size ≈ 10 KiB (as interpreted by the spammer).
-
-Logs are written to `logs/spammer.log`.
 
 ---
 

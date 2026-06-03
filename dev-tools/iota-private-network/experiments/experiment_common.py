@@ -24,8 +24,10 @@ from __future__ import annotations
 import json
 import re
 import selectors
+import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -258,17 +260,20 @@ def cache_sudo() -> None:
     """Prompt for sudo once and refresh the timestamp in the background.
 
     The latency injector, bootstrap, and teardown all need root; caching
-    upfront keeps a long run from prompting mid-way. Background-refreshed
-    every 240s (ahead of the default 5-minute sudo timeout)."""
-    import shutil as _shutil
-    if _shutil.which("sudo") is None:
+    upfront keeps a long run from prompting mid-way. Refreshed every 240s by a
+    daemon thread (ahead of the default 5-minute sudo timeout); the thread dies
+    with the process, so no keepalive subprocess leaks across runs."""
+    if shutil.which("sudo") is None:
         return
     log("Caching sudo credentials (you may be prompted for your password)...")
     subprocess.run(["sudo", "-v"], check=True)
-    subprocess.Popen(
-        ["bash", "-c", "while true; do sleep 240; sudo -vn 2>/dev/null || true; done"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+
+    def _refresh() -> None:
+        while True:
+            time.sleep(240)
+            subprocess.run(["sudo", "-vn"], check=False, capture_output=True)
+
+    threading.Thread(target=_refresh, daemon=True).start()
 
 
 # ========================= Prometheus =========================
@@ -365,7 +370,7 @@ def generate_compose_file(
     base_image: str,
     chain_override: str,
     network_name: str = "iota-network",
-    subnet: str = "10.0.1.0/24",
+    ip_prefix: str = "10.0.1",
     ip_base: int = 10,
     image_env_prefix: str | None = None,
     include_fullnode: bool = False,
@@ -415,7 +420,7 @@ def generate_compose_file(
         lines.append('        max-size: "1g"')
         lines.append("    networks:")
         lines.append(f"      {network_name}:")
-        lines.append(f"        ipv4_address: 10.0.1.{ip_base + i}")
+        lines.append(f"        ipv4_address: {ip_prefix}.{ip_base + i}")
         lines.append("    volumes:")
         lines.append(
             f"      - ./configs/validators/validator-{i}-8080.yaml:"
@@ -454,7 +459,7 @@ def generate_compose_file(
         lines.append('        max-size: "1g"')
         lines.append("    networks:")
         lines.append(f"      {network_name}:")
-        lines.append("        ipv4_address: 10.0.1.250")
+        lines.append(f"        ipv4_address: {ip_prefix}.250")
         lines.append("    volumes:")
         lines.append(
             "      - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro"
@@ -470,7 +475,7 @@ def generate_compose_file(
     lines.append("    driver: bridge")
     lines.append("    ipam:")
     lines.append("      config:")
-    lines.append(f"        - subnet: {subnet}")
+    lines.append(f"        - subnet: {ip_prefix}.0/24")
     path.write_text("\n".join(lines) + "\n")
 
 
@@ -517,14 +522,16 @@ def compose_up_validators(
 def start_grafana(grafana_dir: Path, override_file: str | None = None) -> None:
     """(Re)create the Grafana/Prometheus stack on the experiment network.
 
-    Always `up -d` (never skip): a stack left on a different network by a
-    prior run is recreated on drift, so Prometheus lands on the network whose
-    validators it must scrape (`iota-network` here; the migration runner
-    passes its own override)."""
+    `--force-recreate` (never skip): the experiment network is torn down and
+    recreated between runs, so a monitoring container left over from a prior
+    run still references the old network ID and fails to start with
+    "network ... not found". Force-recreating rebinds the whole stack to the
+    current network — the one whose validators Prometheus must scrape
+    (`iota-network` here; the migration runner passes its own override)."""
     cmd = ["docker", "compose", "--ansi", "never", "-f", "docker-compose.yaml"]
     if override_file:
         cmd += ["-f", override_file]
-    cmd += ["up", "-d"]
+    cmd += ["up", "-d", "--force-recreate", "--remove-orphans"]
     run_timed(cmd, "Starting monitoring stack", cwd=grafana_dir)
     print()
     log(f"  Grafana: {_C.CYAN}http://localhost:3000/dashboards{_C.RESET}")
@@ -598,6 +605,25 @@ def apply_latency(
     print()
     log(f"  Latency applied after {apply_wait}s wait")
     return proc
+
+
+def ensure_image(image: str) -> bool:
+    """Return True if *image* is available locally, pulling it if missing.
+
+    Pull failures are non-fatal (the spammer is optional): logs a clear hint
+    and returns False so the caller can skip load without aborting the run."""
+    present = subprocess.run(
+        ["docker", "image", "inspect", image],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ).returncode == 0
+    if present:
+        return True
+    log(f"  Image {image} not present locally; pulling...")
+    if run(["docker", "pull", image], check=False, quiet=True).returncode == 0:
+        return True
+    log(f"  WARNING: could not pull {image} (private registry — try `docker login` — "
+        "or build it from the iotaledger/network-benchmark repo).")
+    return False
 
 
 def save_validator_logs(log_dir: Path, num: int, prefix: str = "exp") -> None:
