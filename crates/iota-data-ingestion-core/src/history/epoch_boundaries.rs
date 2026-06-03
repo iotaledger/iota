@@ -3,7 +3,7 @@
 
 //! Maintain the sequence number of the last checkpoint of each epoch.
 
-use std::{collections::BTreeMap, ops::RangeBounds};
+use std::{collections::BTreeMap, ops::RangeBounds, time::Duration};
 
 use bytes::Bytes;
 use iota_storage::object_store::{
@@ -22,6 +22,8 @@ use crate::{
         read_magic_blob,
     },
 };
+
+const GET_TIMEOUT_SECS: u64 = 5;
 
 /// Stores the epoch boundaries.
 ///
@@ -113,7 +115,12 @@ pub async fn read_epoch_boundaries_or_default<S: ObjectStoreGetExt>(
     if !exists(&remote_store, &EpochBoundaries::file_path()).await {
         return Ok(Default::default());
     }
-    let bytes = get(&remote_store, &EpochBoundaries::file_path()).await?;
+    let bytes = tokio::time::timeout(
+        Duration::from_secs(GET_TIMEOUT_SECS),
+        get(&remote_store, &EpochBoundaries::file_path()),
+    )
+    .await
+    .map_err(|e| IngestionError::EpochBoundary(e.to_string()))??;
     read_epoch_boundaries_from_bytes(bytes.to_vec())
 }
 
