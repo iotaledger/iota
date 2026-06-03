@@ -1294,13 +1294,14 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "28",
+              "maxSupportedProtocolVersion": "29",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "additional_borrow_checks": false,
                 "additional_multisig_checks": false,
                 "adjust_rewards_by_score": false,
+                "always_advance_dkg_to_resolution": false,
                 "calculate_validator_scores": false,
                 "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,

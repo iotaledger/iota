@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 28;
+pub const MAX_PROTOCOL_VERSION: u64 = 29;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -153,6 +153,13 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             via new AuthContext accessors.
 //             Enable Move-based account authentication in mainnet.
 //             Enable Move-based sponsor account authentication in testnet.
+// Version 29: Keep advancing the random beacon DKG state machine on every
+//             commit while it is still pending -- regardless of whether new DKG
+//             messages or confirmations arrived that commit -- so DKG resolves
+//             from persisted state (completing, or failing once the timeout
+//             round passes) even with no fresh inbound traffic, e.g. after a
+//             validator restart. Without this it can stay pending forever and
+//             block epoch close.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -496,6 +503,15 @@ struct FeatureFlags {
     // If true, enables the optimistic commit rule (StarfishSpeed) in Starfish consensus.
     #[serde(skip_serializing_if = "is_false")]
     consensus_starfish_speed: bool,
+
+    // If true, keep advancing the random beacon DKG state machine on every
+    // consensus commit while DKG is still pending, even when no new messages or
+    // confirmations were processed that commit. This lets a validator resolve
+    // DKG from already-persisted state (completing, or failing once the timeout
+    // round passes) with no fresh inbound traffic -- e.g. after a restart --
+    // instead of staying pending forever.
+    #[serde(skip_serializing_if = "is_false")]
+    always_advance_dkg_to_resolution: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1745,6 +1761,10 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn always_advance_dkg_to_resolution(&self) -> bool {
+        self.feature_flags.always_advance_dkg_to_resolution
+    }
 }
 
 #[cfg(not(msim))]
@@ -2868,6 +2888,14 @@ impl ProtocolConfig {
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
                 }
+                29 => {
+                    // Keep advancing the random beacon DKG state machine on every commit
+                    // while it is still pending so DKG resolves from persisted state
+                    // (completing, or failing once the timeout round passes) even with no
+                    // fresh inbound traffic -- e.g. after a validator restart -- instead of
+                    // staying pending forever and blocking epoch close.
+                    cfg.feature_flags.always_advance_dkg_to_resolution = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3109,6 +3137,10 @@ impl ProtocolConfig {
 
     pub fn set_consensus_starfish_speed_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_starfish_speed = val;
+    }
+
+    pub fn set_always_advance_dkg_to_resolution_for_testing(&mut self, val: bool) {
+        self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 }
 
