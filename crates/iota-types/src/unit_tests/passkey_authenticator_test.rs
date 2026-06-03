@@ -32,8 +32,7 @@ use url::Url;
 
 use crate::{
     base_types::{IotaAddress, dbg_addr},
-    crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
-    error::IotaError,
+    crypto::{DefaultHash, PublicKey, SignatureScheme},
     object::Object,
     passkey_authenticator::PasskeyAuthenticator,
     signature::GenericSignature,
@@ -261,12 +260,7 @@ async fn test_passkey_fails_invalid_json() {
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
     let err = passkey.unwrap_err();
-    // assert_eq!(
-    //     err,
-    //     IotaError::InvalidSignature {
-    //         error: "Invalid client data json".to_string()
-    //     }
-    // );
+    assert!(err.to_string().contains("Invalid client data json"));
     const CORRECT_LEN: usize = DefaultHash::OUTPUT_SIZE;
     let client_data_json_too_short = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
@@ -315,12 +309,7 @@ async fn test_passkey_fails_invalid_challenge() {
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
     let err = passkey.unwrap_err();
-    // assert_eq!(
-    //     err,
-    //     IotaError::InvalidSignature {
-    //         error: "Invalid encoded challenge".to_string()
-    //     }
-    // );
+    assert!(err.to_string().contains("Invalid encoded challenge"),);
 }
 
 #[tokio::test]
@@ -335,12 +324,7 @@ async fn test_passkey_fails_wrong_client_data_type() {
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
     let err = passkey.unwrap_err();
-    // assert_eq!(
-    //     err,
-    //     IotaError::InvalidSignature {
-    //         error: "Invalid client data type".to_string()
-    //     }
-    // );
+    assert!(err.to_string().contains("Invalid client data type"),);
 }
 
 #[tokio::test]
