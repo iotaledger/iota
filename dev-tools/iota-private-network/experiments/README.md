@@ -47,7 +47,7 @@ docker pull nicolaka/netshoot
 
 Supports the following flags:
 
-- `-n <NUM>`: number of validators (default: `4`; any number between `4` and `30` is supported)
+- `-n <NUM>`: number of validators (default: `4`; `4`–`19`, bounded by the validator services in `docker-compose.yaml`; for larger networks use `run-migration-test.py`, which generates its compose)
 - `-b <true|false>`: rebuild Docker images before running (default: `true`)
 - `-g <true|false>`: enable geodistributed large network latencies (default: `true`; `false` divides all delays by 4 and drops the heavy-tail slot bursts)
 - `-s <SEED>`: seed for pseudorandom disruptions (default: `42`)

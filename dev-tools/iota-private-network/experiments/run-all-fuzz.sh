@@ -305,6 +305,18 @@ log "Fuzz round span (env)      : ${FUZZ_ROUND_SPAN}"
 log "Fuzz restart duration (env): ${FUZZ_RESTART_DURATION}"
 log "==========================="
 
+# --- Validate validator count against the static compose file ---
+# run.sh brings up validator-1..N from the static docker-compose.yaml, which
+# defines a fixed number of services. Asking for more fails deep inside run.sh
+# with a cryptic "no such service: validator-N"; catch it here with a clear
+# message. (run-migration-test.py generates its compose, so it supports more.)
+MAX_VALIDATORS=$(grep -c 'container_name: validator-' "$NETWORK_DIR/docker-compose.yaml" 2>/dev/null || echo 0)
+if [ "$MAX_VALIDATORS" -gt 0 ] && [ "$NUM_VALIDATORS" -gt "$MAX_VALIDATORS" ]; then
+  log "ERROR: -n $NUM_VALIDATORS exceeds the $MAX_VALIDATORS validator services in docker-compose.yaml."
+  log "       Use -n <= $MAX_VALIDATORS, or run-migration-test.py (which generates its compose) for larger networks."
+  exit 1
+fi
+
 # --- Pre-clean to ensure a fresh start (explicit, not via trap) ---
 log "Pre-clean: invoking cleanup to ensure a fresh state before starting experiments..."
 if [ -f "$CLEANUP_SCRIPT" ]; then
