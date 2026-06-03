@@ -4416,93 +4416,125 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind:
-                    ConsensusTransactionKind::UserTransactionV1(_)
-                    | ConsensusTransactionKind::UserTransactionV2(_),
+                kind: ConsensusTransactionKind::UserTransactionV1(t),
                 ..
-            }) => {
-                let (transaction, attestation): (&Transaction, Option<Attestation>) =
-                    match &transaction {
-                        SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                            kind: ConsensusTransactionKind::UserTransactionV1(t),
-                            ..
-                        }) => (t, None),
-                        SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                            kind: ConsensusTransactionKind::UserTransactionV2(a),
-                            ..
-                        }) => (&a.transaction, Some(a.attestation.clone())),
-                        _ => unreachable!(),
-                    };
-                if transaction.is_system_tx() {
-                    warn!("User transaction contains system transaction, ignoring");
-                    return Ok(ConsensusTransactionResult::Ignored);
-                }
-                if self.has_sent_end_of_publish(certificate_author)?
-                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
-                {
-                    // A validator that has sent EndOfPublish must not inject new user
-                    // transactions. Previously-deferred transactions are excluded because
-                    // consensus may replay them and they should still be processed.
-                    warn!(
-                        "[Byzantine authority] Authority {:?} sent a new user transaction \
-                         {:?} after it sent EndOfPublish message to consensus",
-                        certificate_author.concise(),
-                        transaction.digest()
-                    );
-                    return Ok(ConsensusTransactionResult::Ignored);
-                }
-                // TODO: re-think the epoch-switching flow
-                if !self
-                    .get_reconfig_state_read_lock_guard()
-                    .should_accept_consensus_certs()
-                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
-                {
-                    debug!(
-                        "Ignoring white flag transaction {:?} because of end of epoch",
-                        transaction.digest()
-                    );
-                    return Ok(ConsensusTransactionResult::Ignored);
-                }
-                // TODO: verify that all the same validation actions are performed as for a
-                // Certificate. Possibly extract common code to a separate
-                // function to avoid code duplication.
-
-                // Create `VerifiedExecutableTransaction` with `ConsensusOrdered` proof.
-                // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
-                // pre-consensus signatures), the `ConsensusOrdered` certificate proof
-                // is authorized by consensus ordering post owned-object conflict resolution.
-                let executable_tx = VerifiedExecutableTransaction::new_unchecked(
-                    ExecutableTransaction::new_from_data_and_sig(
-                        transaction.data().clone(),
-                        CertificateProof::ConsensusOrdered(self.epoch()),
-                    ),
-                );
-                let attested_executable_tx =
-                    VerifiedExecutableAttestedTransaction::new(executable_tx, attestation);
-
-                let scheduling_result = self.try_schedule(
-                    &attested_executable_tx,
-                    commit_round,
-                    dkg_failed,
-                    generating_randomness,
-                    previously_deferred_tx_digests,
-                    shared_object_congestion_tracker,
-                );
-
-                self.handle_scheduling_result(
-                    scheduling_result,
-                    attested_executable_tx,
-                    previously_deferred_tx_digests,
-                    dkg_failed,
-                    shared_object_congestion_tracker,
-                    suggested_gas_price_calculator,
-                    authority_metrics,
-                )
-            }
+            }) => self.try_schedule_user_transaction(
+                t,
+                None,
+                certificate_author,
+                commit_round,
+                dkg_failed,
+                generating_randomness,
+                previously_deferred_tx_digests,
+                shared_object_congestion_tracker,
+                suggested_gas_price_calculator,
+                authority_metrics,
+            ),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV2(a),
+                ..
+            }) => self.try_schedule_user_transaction(
+                &a.transaction,
+                Some(a.attestation.clone()),
+                certificate_author,
+                commit_round,
+                dkg_failed,
+                generating_randomness,
+                previously_deferred_tx_digests,
+                shared_object_congestion_tracker,
+                suggested_gas_price_calculator,
+                authority_metrics,
+            ),
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))
             }
         }
+    }
+
+    /// Validates and schedules a post-consensus user transaction
+    /// (`UserTransactionV1` or `UserTransactionV2`).
+    ///
+    /// Factored out of `process_consensus_transaction` so the outer
+    /// `match` can flatly dispatch on the kind: one arm per variant,
+    /// no inner re-discriminating match, no `unreachable!()` arm.
+    fn try_schedule_user_transaction(
+        &self,
+        transaction: &Transaction,
+        attestation: Option<Attestation>,
+        certificate_author: &AuthorityName,
+        commit_round: CommitRound,
+        dkg_failed: bool,
+        generating_randomness: bool,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
+        shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
+        authority_metrics: &Arc<AuthorityMetrics>,
+    ) -> IotaResult<ConsensusTransactionResult> {
+        if transaction.is_system_tx() {
+            warn!("User transaction contains system transaction, ignoring");
+            return Ok(ConsensusTransactionResult::Ignored);
+        }
+        if self.has_sent_end_of_publish(certificate_author)?
+            && !previously_deferred_tx_digests.contains_key(transaction.digest())
+        {
+            // A validator that has sent EndOfPublish must not inject new user
+            // transactions. Previously-deferred transactions are excluded because
+            // consensus may replay them and they should still be processed.
+            warn!(
+                "[Byzantine authority] Authority {:?} sent a new user transaction \
+                 {:?} after it sent EndOfPublish message to consensus",
+                certificate_author.concise(),
+                transaction.digest()
+            );
+            return Ok(ConsensusTransactionResult::Ignored);
+        }
+        // TODO: re-think the epoch-switching flow
+        if !self
+            .get_reconfig_state_read_lock_guard()
+            .should_accept_consensus_certs()
+            && !previously_deferred_tx_digests.contains_key(transaction.digest())
+        {
+            debug!(
+                "Ignoring white flag transaction {:?} because of end of epoch",
+                transaction.digest()
+            );
+            return Ok(ConsensusTransactionResult::Ignored);
+        }
+        // TODO: verify that all the same validation actions are performed as for a
+        // Certificate. Possibly extract common code to a separate
+        // function to avoid code duplication.
+
+        // Create `VerifiedExecutableTransaction` with `ConsensusOrdered` proof.
+        // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
+        // pre-consensus signatures), the `ConsensusOrdered` certificate proof
+        // is authorized by consensus ordering post owned-object conflict resolution.
+        let executable_tx = VerifiedExecutableTransaction::new_unchecked(
+            ExecutableTransaction::new_from_data_and_sig(
+                transaction.data().clone(),
+                CertificateProof::ConsensusOrdered(self.epoch()),
+            ),
+        );
+        let attested_executable_tx =
+            VerifiedExecutableAttestedTransaction::new(executable_tx, attestation);
+
+        let scheduling_result = self.try_schedule(
+            &attested_executable_tx,
+            commit_round,
+            dkg_failed,
+            generating_randomness,
+            previously_deferred_tx_digests,
+            shared_object_congestion_tracker,
+        );
+
+        self.handle_scheduling_result(
+            scheduling_result,
+            attested_executable_tx,
+            previously_deferred_tx_digests,
+            dkg_failed,
+            shared_object_congestion_tracker,
+            suggested_gas_price_calculator,
+            authority_metrics,
+        )
     }
 
     /// Handles `SchedulingResult`, i.e., the output of the
