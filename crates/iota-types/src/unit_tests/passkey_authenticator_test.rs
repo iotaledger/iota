@@ -255,46 +255,59 @@ async fn test_passkey_fails_invalid_json() {
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let client_data_json_missing_type = r#"{"challenge":"9-fH7nX8Nb1JvUynz77mv1kXOkGkg1msZb2qhvZssGI","origin":"http://localhost:5173","crossOrigin":false}"#;
     let passkey = PasskeyAuthenticator::new(
-        response.authenticator_data.clone(),
+        response.authenticator_data,
         client_data_json_missing_type.to_string(),
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
     let err = passkey.unwrap_err();
-    assert!(err.to_string().contains("Invalid client data json"));
-    const CORRECT_LEN: usize = DefaultHash::OUTPUT_SIZE;
-    let client_data_json_too_short = format!(
-        r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
-        Base64UrlUnpadded::encode_string(&[0; CORRECT_LEN - 1])
-    );
-    let passkey = PasskeyAuthenticator::new(
-        response.authenticator_data.clone(),
-        client_data_json_too_short,
-        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
-    );
-    assert!(passkey.is_err());
+    assert!(err.to_string().contains("missing field"));
+}
 
-    let client_data_json_too_long = format!(
-        r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
-        Base64UrlUnpadded::encode_string(&[0; CORRECT_LEN + 1])
-    );
-    let passkey_2 = PasskeyAuthenticator::new(
-        response.authenticator_data.clone(),
-        client_data_json_too_long,
-        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
-    );
-    assert!(passkey_2.is_err());
+/// The passkey authenticator parses the challenge leniently: any valid
+/// base64url string is accepted at construction regardless of its decoded
+/// length. Whether the challenge actually matches the transaction's signing
+/// digest is enforced at verification, not construction.
+#[tokio::test]
+async fn test_passkey_challenge_checked_at_verification_not_construction() {
+    let origin = Url::parse("https://www.iota.org").unwrap();
+    let request = make_credential_creation_option(&origin);
+    let response = create_credential_and_sign_test_tx(&origin, request).await;
 
-    let client_data_json_correct = format!(
-        r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
-        Base64UrlUnpadded::encode_string(&[0; CORRECT_LEN])
-    );
-    let passkey_3 = PasskeyAuthenticator::new(
-        response.authenticator_data,
-        client_data_json_correct,
-        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
-    );
+    // Challenges shorter than, equal to, and longer than the signing digest all
+    // construct successfully.
+    const LEN: usize = DefaultHash::OUTPUT_SIZE;
+    for challenge_len in [LEN - 1, LEN, LEN + 1] {
+        let challenge_bytes = vec![0u8; challenge_len];
+        let client_data_json = format!(
+            r#"{{"type":"webauthn.get","challenge":"{}","origin":"http://localhost:5173","crossOrigin":false}}"#,
+            Base64UrlUnpadded::encode_string(&challenge_bytes)
+        );
+        assert!(
+            PasskeyAuthenticator::new(
+                response.authenticator_data.clone(),
+                client_data_json,
+                SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+            )
+            .is_ok()
+        );
+    }
 
-    assert!(passkey_3.is_ok());
+    // A well-formed but wrong challenge constructs fine, then fails verification
+    // because it does not match the transaction's signing digest.
+    let wrong_challenge_json = format!(
+        r#"{{"type":"webauthn.get","challenge":"{}","origin":"http://localhost:5173","crossOrigin":false}}"#,
+        Base64UrlUnpadded::encode_string(&[0u8; LEN])
+    );
+    let sig = GenericSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(
+            response.authenticator_data,
+            wrong_challenge_json,
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+        )
+        .unwrap(),
+    );
+    let res = sig.verify_authenticator(&response.intent_msg, response.sender, &Default::default());
+    assert!(res.is_err());
 }
 
 #[tokio::test]
@@ -309,7 +322,10 @@ async fn test_passkey_fails_invalid_challenge() {
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
     let err = passkey.unwrap_err();
-    assert!(err.to_string().contains("Invalid encoded challenge"),);
+    assert!(
+        err.to_string()
+            .contains("unable to decode base64urlunpadded challenge")
+    );
 }
 
 #[tokio::test]
@@ -324,7 +340,7 @@ async fn test_passkey_fails_wrong_client_data_type() {
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
     let err = passkey.unwrap_err();
-    assert!(err.to_string().contains("Invalid client data type"),);
+    assert!(err.to_string().contains("unknown variant"),);
 }
 
 #[tokio::test]
