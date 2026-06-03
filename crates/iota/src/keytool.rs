@@ -1156,14 +1156,6 @@ impl Debug for CommandOutput {
 
 impl PrintableResult for CommandOutput {}
 
-/// Converts legacy formatted private key to 33 bytes bech32 encoded private key
-/// or vice versa. It can handle:
-/// 1) Hex encoded 32 byte private key (assumes scheme is Ed25519), this is the
-///    legacy wallet format
-/// 2) Base64 encoded 32 bytes private key (assumes scheme is Ed25519)
-/// 3) Base64 encoded 33 bytes private key with flag.
-/// 4) Bech32 encoded 33 bytes private key with flag.
-///
 /// Build and validate a [`MultiSigPublicKey`] from a list of public keys and
 /// their corresponding weights. The number of keys must match the number of
 /// weights.
@@ -1187,6 +1179,13 @@ fn multisig_public_key(
     Ok(MultiSigPublicKey::new(members, threshold)?)
 }
 
+/// Converts legacy formatted private key to 33 bytes bech32 encoded private key
+/// or vice versa. It can handle:
+/// 1) Hex encoded 32 byte private key (assumes scheme is Ed25519), this is the
+///    legacy wallet format
+/// 2) Base64 encoded 32 bytes private key (assumes scheme is Ed25519)
+/// 3) Base64 encoded 33 bytes private key with flag.
+/// 4) Bech32 encoded 33 bytes private key with flag.
 fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow::Error> {
     let ikp = match IotaKeyPair::decode(&value) {
         Ok(s) => s,
