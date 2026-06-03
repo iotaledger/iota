@@ -19,7 +19,7 @@ cp -Rv ./docs/wasm/* ../../../content/developer/iota-notarization/single-notariz
 
 # Download and copy audit-trails docs
 cd ../audit-trails
-curl -sL https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota-audit-trail/0.1/audit-trail-wasm.tar.gz | tar xzv
+curl -sL https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota-notarization/0.1/audit-trail-wasm.tar.gz | tar xzv
 # For unknown reasons the path to the audit-trails docs in the extracted tar archive has an additional folder `audit-trail-docs`:
 # * Path for single-notarization: ./docs/wasm/*
 # * Path for audit-trail:         ./audit-trail-docs/docs/wasm/*
