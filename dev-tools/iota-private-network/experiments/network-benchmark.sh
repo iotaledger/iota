@@ -624,12 +624,18 @@ reapply_latencies_and_fuzz_loop() {
                 continue
             fi
 
-            # Compare against the full expected edge count: a partial wipe
-            # (some netem qdiscs lost, others surviving) must heal too, not
-            # only the all-gone case after a container restart.
+            # Compare against the expected netem count: a partial wipe (some
+            # qdiscs lost, others surviving) must heal too, not only the
+            # all-gone case after a container restart. A loss-selected source
+            # carries a single bare `netem loss` root (apply_loss replaces the
+            # whole htb tree and drops the per-edge latency), so its expected
+            # count is 1, not n-1 — otherwise the trigger fires every second
+            # and thrashes latency against loss.
+            local expected=$(( ${#validators[@]} - 1 ))
+            (( ${fuzz_loss_amount["$v"]:-0} > 0 )) && expected=1
             netem_count=$(nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null | grep -c "netem" || true)
-            if [ "${netem_count:-0}" -lt $(( ${#validators[@]} - 1 )) ]; then
-                log "Reapplying latency + fuzz for $v (netem ${netem_count:-0}/$(( ${#validators[@]} - 1 )) — container restarted or tc removed)"
+            if [ "${netem_count:-0}" -lt "$expected" ]; then
+                log "Reapplying latency + fuzz for $v (netem ${netem_count:-0}/$expected — container restarted or tc removed)"
 
                 # --- Reapply latency ---
                 for u in "${validators[@]}"; do
@@ -644,14 +650,16 @@ reapply_latencies_and_fuzz_loop() {
                 done
                 wait
 
-                # --- Reapply fuzz (blocking) ---
+                # --- Reapply fuzz (blocking) --- guarded: a transient
+                # nsenter/iptables failure must not abort the watcher loop
+                # under set -e.
                 for target in ${fuzz_block_targets["$v"]}; do
-                    block_connection "$v" "$target"
+                    block_connection "$v" "$target" || true
                 done
 
                 # --- Reapply fuzz (netem loss) ---
                 loss=${fuzz_loss_amount["$v"]}
-                (( loss > 0 )) && apply_loss "$v" "$loss"
+                (( loss > 0 )) && { apply_loss "$v" "$loss" || true; }
             fi
         done
         sleep 1

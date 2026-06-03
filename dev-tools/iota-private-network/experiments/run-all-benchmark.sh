@@ -312,17 +312,18 @@ fi
 log "Sleep 5s to boot validators..."
 sleep 5
 
-# --- 4) Run grafana dashboard if not already running ---
+# --- 4) Run grafana dashboard ---
 GRAFANA_DIR="../../grafana-local"
 cd "$GRAFANA_DIR" || { log "Grafana folder not found"; exit 1; }
 
-# Check if any Grafana container is already running
-if docker compose ps --services --filter "status=running" | grep -q grafana; then
-  log "Grafana already running, skipping start"
-else
-  log "Starting Grafana dashboard..."
-  docker compose up -d
-fi
+# Always (re)create on the benchmark network (iota-network), explicitly
+# pinning the base compose. A prior migration-test run leaves the stack on
+# migration-network, where Prometheus cannot reach the benchmark validators
+# on iota-network (every target shows "down" and Grafana stays empty). A
+# plain `up -d` recreates the containers when the network config drifts, so
+# this self-heals; run.sh (step 3) already created iota-network by now.
+log "Starting Grafana dashboard on the benchmark network..."
+docker compose -f docker-compose.yaml up -d
 log "Grafana URL: http://localhost:3000/dashboards"
 cd - >/dev/null
 

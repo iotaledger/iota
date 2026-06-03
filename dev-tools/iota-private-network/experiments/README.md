@@ -55,10 +55,14 @@ Supports the following flags:
 - `-l <PERCENT_NETEM>`: percent of validators to apply packet loss (default: `0`)
 - `-r <PERCENT_RESTART>`: percent of validators to restart periodically (default: `0`)
 - `-t <RUN_DURATION>`: total experiment duration in seconds (default: `3600`)
+- `-d <RESTART_DURATION>`: seconds a validator stays stopped per restart (default: `120`)
+- `-w <RESTART_TIMEOUT>`: seconds to wait before restarting (default: `60`)
+- `-M <RESTART_MODE>`: `preserve-consensus` | `full-reset` | `simple-restart` (default: `preserve-consensus`)
+- `-E <EPOCH_DURATION_MS>`: epoch duration in milliseconds (default: `1200000`, 20 min)
 - `-m`: optional flag to output network metric statistics (packets and bytes).
 - `-S <true|false>`: enable the transaction spammer (default: `false`)
-- `-T <TPS>`: transactions per second used by the spammer (default: `100`)
-- `-Z <TRX_SIZE>`: number of shared objects per transaction for the spammer (default: `10`)
+- `-T <TPS>`: transactions per second used by the spammer (default: `10`)
+- `-Z <SIZE>`: per-transaction size for the `iota-spammer` spammer, e.g. `10KiB` (default: `10KiB`)
 - `-C <spammer_type>`: type of spammer to use (default: `stress`; another option: `iota-spammer`)
 
 The script should be run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
