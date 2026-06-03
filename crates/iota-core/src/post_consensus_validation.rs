@@ -43,7 +43,7 @@ use std::{
 use iota_types::{
     attestation::Attestation,
     base_types::{ObjectRef, TransactionDigest},
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::{InputObjectKind, VerifiedTransaction},
 };
@@ -347,10 +347,21 @@ pub async fn validate_and_resolve_conflicts(
                 if e.is_storage_or_epoch_error() {
                     return Err(e);
                 }
+                // The helper performs two distinct steps; surface which one
+                // failed so triage doesn't mistake a stale-attestation input
+                // for an actual deny-list violation.
+                let reason = match &e {
+                    IotaError::UserInput {
+                        error:
+                            UserInputError::CoinTypeGlobalPause { .. }
+                            | UserInputError::AddressDeniedForCoin { .. },
+                    } => "coin deny-list re-check",
+                    _ => "input load (likely stale attestation)",
+                };
                 warn!(
                     ?digest,
                     error = ?e,
-                    "UserTransactionV2 failed post-consensus coin deny-list re-check, dropping"
+                    "UserTransactionV2 failed post-consensus {reason}, dropping"
                 );
                 dropped.push((digest, e));
                 keep[i] = false;
