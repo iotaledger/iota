@@ -16,7 +16,9 @@ mod checked {
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-    use iota_sdk_types::{Command, Identifier, ObjectId};
+    use iota_sdk_types::{
+        ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command, Identifier, ObjectId,
+    };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
@@ -46,10 +48,9 @@ mod checked {
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
-            CheckedInputObjects, EndOfEpochTransactionKind, GasData, GenesisTransaction,
-            InputObjects, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef,
-            SystemPackage, TransactionKind, TransactionKindExt,
+            Argument, CallArg, CheckedInputObjects, EndOfEpochTransactionKind, GasData,
+            GenesisTransaction, InputObjects, ProgrammableTransaction, RandomnessStateUpdate,
+            SharedObjectRef, SystemPackage, TransactionKind, TransactionKindExt,
         },
     };
     use move_binary_format::CompiledModule;

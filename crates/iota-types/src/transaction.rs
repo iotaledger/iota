@@ -17,10 +17,9 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
-    Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind,
-    GasPayment as GasData, GenesisObject, GenesisTransaction, ProgrammableTransaction,
-    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
-    Transaction as TransactionData, TransactionExpiration, TransactionKind,
+    Argument, EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
+    ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
+    SystemPackage, Transaction as TransactionData, TransactionExpiration, TransactionKind,
     TransactionV1 as TransactionDataV1,
 };
 use iota_sdk_types::{
