@@ -11,8 +11,10 @@
 /// - The admin address.
 /// - A `Table<address, u64>` of per-user gas allowances.
 /// - A `Bag` of accepted sender authenticator functions, heterogeneous in the value's `T` so
-///   different authenticator-function types share one lookup space. Each whitelist membership
-///   check is a single `df::exists_` on the bag's UID.
+///   different authenticator-function types share one lookup space.
+/// - `package_addr` — the published address of *this* package, captured once at `create` time
+///   via `type_name::get<WhitelistSponsorshipAccount>()`. The authenticator reads it on every
+///   call to avoid paying for runtime reflection in the hot path.
 ///
 /// `deduct_user_gas_allowance` is callable by the sponsored user from inside their PTB so they
 /// can pay back the gas budget the sponsor will spend — the authenticator scans the PTB for
@@ -45,13 +47,15 @@ const EInsufficientAllowanceForDeduction: vector<u8> =
 /// A sponsoring account whose authenticator enforces a whitelist of accepted sender
 /// authenticator functions and per-user gas allowances. All policy state lives as inline
 /// fields so the authenticator hot path borrows it directly: the admin, the per-user gas
-/// allowance table, and the `Bag` of accepted sender authenticator functions (heterogeneous
-/// in `T`, keyed by `AuthenticatorFunctionKey`).
+/// allowance table, the `Bag` of accepted sender authenticator functions (heterogeneous in
+/// `T`, keyed by `AuthenticatorFunctionKey`), and a cached `package_addr` set once at
+/// `create` time via `type_name::get<WhitelistSponsorshipAccount>()`.
 public struct WhitelistSponsorshipAccount has key {
     id: UID,
     admin: address,
     user_gas_allowances: Table<address, u64>,
     authenticator_functions: Bag,
+    package_addr: address,
 }
 
 /// A type-erased identity of an authenticator function `(package, module, function)`. Entries
@@ -73,11 +77,17 @@ public fun create(
     authenticator: AuthenticatorFunctionRefV1<WhitelistSponsorshipAccount>,
     ctx: &mut TxContext,
 ) {
+    // Compute the package address once, here, via runtime reflection — the authenticator reads
+    // this back as `account.package_addr` on every call, avoiding the per-call cost.
+    let self_type = std::type_name::get<WhitelistSponsorshipAccount>();
+    let package_addr = iota::address::from_ascii_bytes(self_type.get_address().as_bytes());
+
     let sponsorship_account = WhitelistSponsorshipAccount {
         id: object::new(ctx),
         admin,
         user_gas_allowances: table::new<address, u64>(ctx),
         authenticator_functions: bag::new(ctx),
+        package_addr,
     };
     account::create_account_v1(sponsorship_account, authenticator);
 }
@@ -114,6 +124,13 @@ public fun account_address(self: &WhitelistSponsorshipAccount): address {
 /// Returns the admin address.
 public fun borrow_admin(self: &WhitelistSponsorshipAccount): address {
     self.admin
+}
+
+/// Returns the cached package address (the published address of this package, captured at
+/// `create` time via `type_name::get<WhitelistSponsorshipAccount>()`). The authenticator reads
+/// this on every call to avoid the per-authenticator reflection cost.
+public fun borrow_package_addr(self: &WhitelistSponsorshipAccount): address {
+    self.package_addr
 }
 
 /// Returns true if `key` names an accepted sender authenticator function for this account.

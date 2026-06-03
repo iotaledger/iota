@@ -11,11 +11,9 @@
 /// `whitelist_sponsorship_account` — it never reaches into the struct's fields directly.
 module whitelist_sponsorship::whitelist_sponsorship_authentication;
 
-use iota::address;
 use iota::auth_context::AuthenticatorFunctionInfoV1;
 use iota::ptb_command::ProgrammableMoveCall;
 use std::ascii;
-use std::type_name;
 use whitelist_sponsorship::whitelist_sponsorship_account::{
     Self,
     AuthenticatorFunctionKey,
@@ -47,6 +45,10 @@ const EDeductCallMissing: vector<u8> =
 
 // === Constants ===
 
+/// The module name of `whitelist_sponsorship_account`, used by the PTB scan to identify calls
+/// to `deduct_user_gas_allowance`.
+const DEDUCT_USER_GAS_ALLOWANCE_MODULE_NAME: vector<u8> = b"whitelist_sponsorship_account";
+
 /// The function name of `deduct_user_gas_allowance` in `whitelist_sponsorship_account`, used by
 /// the PTB scan.
 const DEDUCT_USER_GAS_ALLOWANCE_FUNC_NAME: vector<u8> = b"deduct_user_gas_allowance";
@@ -61,7 +63,7 @@ const DEDUCT_USER_GAS_ALLOWANCE_FUNC_NAME: vector<u8> = b"deduct_user_gas_allowa
 /// - the sender's authenticator function is not in the whitelist,
 /// - the sender has no gas allowance,
 /// - the transaction gas budget exceeds the sender's allowance,
-/// - the PTB does not include a `deduct_user_gas_allowance` call for this sponsor and sender.
+/// - the PTB does not include a `deduct_user_gas_allowance` call for this sponsor.
 #[authenticator]
 public fun authenticator(
     account: &WhitelistSponsorshipAccount,
@@ -93,8 +95,13 @@ public fun authenticator(
     // Finally, confirm the sender included a `deduct_user_gas_allowance` call in the PTB.
     // The call implicitly targets `ctx.sender()` and always deducts exactly `ctx.gas_budget()`,
     // so the authenticator only needs to confirm such a call exists for this sponsor — no user
-    // or amount argument is read here.
-    assert!(has_matching_deduct_call(sponsor_address, auth_ctx), EDeductCallMissing);
+    // or amount argument is read here. The expected package address is read from the account's
+    // cached `package_addr` field, set once at `create` time via `type_name::get`, so the hot
+    // path doesn't pay for runtime reflection.
+    assert!(
+        has_matching_deduct_call(sponsor_address, account.borrow_package_addr(), auth_ctx),
+        EDeductCallMissing,
+    );
 }
 
 // === Private Functions ===
@@ -110,20 +117,17 @@ fun key_from_info(info: &AuthenticatorFunctionInfoV1): AuthenticatorFunctionKey 
 }
 
 /// Scans the PTB commands for a call to `deduct_user_gas_allowance` on this sponsor account,
-/// returning `true` on the first match. The expected call signature is
-/// `whitelist_sponsorship_account::deduct_user_gas_allowance(&mut WhitelistSponsorshipAccount)` —
-/// the function implicitly targets `ctx.sender()` and deducts `ctx.gas_budget()`, so the scan
-/// only verifies that such a call exists for this sponsor.
-fun has_matching_deduct_call(sponsor_address: address, auth_ctx: &AuthContext): bool {
+/// returning `true` on the first match.
+fun has_matching_deduct_call(
+    sponsor_address: address,
+    expected_package_addr: address,
+    auth_ctx: &AuthContext,
+): bool {
     let commands = auth_ctx.tx_commands();
     let inputs = auth_ctx.tx_inputs();
 
-    // Hoist the type-reflection lookups out of the per-command loop: each `type_name::get` and
-    // `address::from_ascii_bytes` is far more expensive than the cheap byte-compares it feeds.
-    let self_type = type_name::get<WhitelistSponsorshipAccount>();
+    let expected_module = ascii::string(DEDUCT_USER_GAS_ALLOWANCE_MODULE_NAME);
     let expected_function = ascii::string(DEDUCT_USER_GAS_ALLOWANCE_FUNC_NAME);
-    let expected_module = self_type.get_module();
-    let expected_package_addr = address::from_ascii_bytes(self_type.get_address().as_bytes());
 
     'found: {
         commands.do_ref!(|command| {
