@@ -33,7 +33,7 @@ use iota_json_rpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Command, Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{Command, ExecutionStatus, Identifier, ObjectId, TypeTag};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -45,7 +45,6 @@ use iota_types::{
     digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
-    execution_status::ExecutionStatus,
     gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{

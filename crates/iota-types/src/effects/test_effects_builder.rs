@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ExecutionStatus, ObjectId};
 
 use crate::{
     base_types::{ObjectRef, SequenceNumber},
@@ -14,7 +14,6 @@ use crate::{
         TransactionEffectsExt,
     },
     execution::SharedInput,
-    execution_status::ExecutionStatus,
     gas::GasCostSummary,
     message_envelope::Message,
     object::Owner,

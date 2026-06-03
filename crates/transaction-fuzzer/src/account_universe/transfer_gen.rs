@@ -6,10 +6,10 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{ExecutionError, ExecutionStatus};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     error::{IotaError, UserInputError},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, TransactionKind},
@@ -525,7 +525,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             } => {
                 self.fix_balance_and_gas_coins(payer, false);
                 Ok(ExecutionStatus::Failure {
-                    error: ExecutionFailureStatus::InsufficientCoinBalance,
+                    error: ExecutionError::InsufficientCoinBalance,
                     command: Some(0),
                 })
             }
@@ -535,7 +535,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             } => {
                 self.fix_balance_and_gas_coins(payer, false);
                 Ok(ExecutionStatus::Failure {
-                    error: ExecutionFailureStatus::InsufficientGas,
+                    error: ExecutionError::InsufficientGas,
                     command: None,
                 })
             }

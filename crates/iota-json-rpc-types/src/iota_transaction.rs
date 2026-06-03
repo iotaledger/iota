@@ -11,8 +11,9 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command, Identifier, MoveCall,
-    ObjectId, TransferObjects, TypeTag,
+    ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+    ExecutionError as ExecutionFailureStatus, ExecutionStatus, Identifier, MoveCall, ObjectId,
+    TransferObjects, TypeTag,
 };
 use iota_types::{
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
@@ -21,7 +22,6 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::BigInt,
