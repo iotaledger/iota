@@ -1,15 +1,21 @@
 # Run Local Network & Mimic Artificial Latency & Fuzz Disruptions Suite
 
-This suite of Bash scripts automates network perturbation experiments against an IOTA private validator network.\
+This suite automates network perturbation experiments against an IOTA private validator network.\
 Use it to:
 
 - bring up a local validator cluster,
-- mimic realistic latencies (geo-distributed, ring, star, random, …),
+- mimic realistic latencies (role-based model, or topology profiles: geo-distributed, ring, star, random, …),
 - introduce controlled failures (packet loss, blocked connections, validator restarts),
 - optionally spam the network with transactions,
 - collect logs and basic network statistics.
 
-All orchestration is done via `run-all-fuzz.sh`, which internally uses `network-fuzz.sh` to apply latency and disruptions.
+Three Python runners orchestrate the workflows, sharing `experiment_common.py` (logging, subprocess helpers, Prometheus queries, and the network phases). Each **generates its docker compose file per run** — one service block per validator — so they scale to any validator count (the static `docker-compose.yaml` only matters for the legacy injectors' fallback). The runners drive two lower-level Bash injectors:
+
+- `run-benchmark.py` → `network-benchmark.sh` (deterministic role-based latency model + optional block/loss/restart).
+- `run-fuzz.py` → `network-fuzz.sh` (topology latency profiles + loss/block/restart + heal rounds / TTL).
+- `run-migration-test.py` → `network-benchmark.sh` (rolling upgrade across an epoch boundary).
+
+Run every runner from inside `iota/dev-tools/iota-private-network/experiments/`.
 
 ---
 
@@ -34,50 +40,51 @@ docker pull nicolaka/netshoot
 ```
 
 ---
-## Main Benchmark Script
+## Main Benchmark Runner
 
-`run-all-benchmark.sh` automates the full workflow:
+`run-benchmark.py` automates the full workflow:
 
-1. Optionally rebuilds the `iota-node` and `iota-tools` Docker images.
-2. Bootstraps the validator network.
-3. Runs the private network.
-4. Runs grafana (available at `http://localhost:3000/dashboards`)
-5. Applies network latencies and controlled disruptions (packet loss, connection blocking, validator restarts).
-6. Periodically collects logs and saves them with timestamps.
+1. Optionally rebuilds the `iota-node`, `iota-tools`, and `iota-indexer` Docker images.
+2. Generates a docker compose file for N validators and bootstraps genesis.
+3. Starts the validators (and a fullnode when the spammer is enabled).
+4. Starts Grafana/Prometheus on the experiment network (available at `http://localhost:3000/dashboards`).
+5. Applies the role-based latency model (`network-benchmark.sh`) plus optional block/loss/restart disruptions, then optionally measures pre-disruption block production.
+6. Optionally drives a transaction spammer, runs for a fixed duration collecting logs, and tears everything down.
 
 Supports the following flags:
 
-- `-n <NUM>`: number of validators (default: `4`; `4`–`19`, bounded by the validator services in `docker-compose.yaml`; for larger networks use `run-migration-test.py`, which generates its compose)
+- `-n <NUM>`: number of validators (default: `4`; scales to any N — compose is generated per run)
 - `-b <true|false>`: rebuild Docker images before running (default: `true`)
 - `-g <true|false>`: enable geodistributed large network latencies (default: `true`; `false` divides all delays by 4 and drops the heavy-tail slot bursts)
 - `-s <SEED>`: seed for pseudorandom disruptions (default: `42`)
 - `-x <PERCENT_BLOCK>`: percent of validator pairs to block connections (default: `0`)
-- `-l <PERCENT_NETEM>`: percent of validators to apply packet loss (default: `0`)
+- `-l <PERCENT_LOSS>`: percent of validators to apply packet loss (default: `0`)
 - `-r <PERCENT_RESTART>`: percent of validators to restart periodically (default: `0`)
 - `-t <RUN_DURATION>`: total experiment duration in seconds (default: `3600`)
 - `-d <RESTART_DURATION>`: seconds a validator stays stopped per restart (default: `120`)
 - `-w <RESTART_TIMEOUT>`: seconds to wait before restarting (default: `60`)
 - `-M <RESTART_MODE>`: `preserve-consensus` | `full-reset` | `simple-restart` (default: `preserve-consensus`)
 - `-E <EPOCH_DURATION_MS>`: epoch duration in milliseconds (default: `1200000`, 20 min)
-- `-m`: optional flag to output network metric statistics (packets and bytes).
+- `-m`: output per-validator network metric statistics (packets and bytes) at teardown.
 - `-S <true|false>`: enable the transaction spammer (default: `false`)
 - `-T <TPS>`: transactions per second used by the spammer (default: `10`)
 - `-Z <SIZE>`: per-transaction size for the `iota-spammer` spammer, e.g. `10KiB` (default: `10KiB`)
 - `-C <spammer_type>`: type of spammer to use (default: `stress`; another option: `iota-spammer`)
+- `-c <testnet|mainnet>`: protocol-config chain override (default: empty → `testnet`)
 
-The script should be run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
+Run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
 
 **Usage:**
 
 ```bash
 # Run default 4-validator Starfish network with geodistributed latencies without any additional disruptions
-./run-all-benchmark.sh
+./run-benchmark.py
 
 # Run 10-validator network with small latencies for one hour without rebuilding images
-./run-all-benchmark.sh -n 10 -g false -b false
+./run-benchmark.py -n 10 -g false -b false
 
 # Run 30-validator network with geodistributed latencies, 10% blocked connections, 5% chances for packet loss, 10% for restarts and running for 2 hours
-./run-all-benchmark.sh -n 30 -g true -x 10 -l 5 -r 10 -t 7200
+./run-benchmark.py -n 30 -g true -x 10 -l 5 -r 10 -t 7200
 ```
 ---
 
@@ -89,7 +96,7 @@ It supports two types of spammer tools, by default the stress test from the iota
 ### With default spammer enabled:
 
 ```bash
-./run-all-benchmark.sh -n 4 -S true -T 500
+./run-benchmark.py -n 4 -S true -T 500
 ```
 
 This will load the default spammer with a TPS of 500.
@@ -102,7 +109,7 @@ To enable the optional spammer set `-S true` and '-C iota-spammer' you must clon
 https://github.com/iotaledger/iota-spammer
 ```
 
-Place it at the following relative path from `run-all-benchmark.sh`, or update the path in the script accordingly:
+Place it at the following relative path from the runner, or update the path in the runner accordingly:
 
 ```
 ../../../iota-spammer
@@ -111,124 +118,74 @@ Place it at the following relative path from `run-all-benchmark.sh`, or update t
 The optional spammer allows a special transaction type, called `sizable`, and can be used as follows:
 
 ```bash
-./run-all-benchmark.sh -n 4 -S true -T 100 -Z 10KiB
+./run-benchmark.py -n 4 -S true -T 100 -Z 10KiB
 ```
 
 This will launch the spammer from the external repository with the configured transaction rate, TPS=100, and size, 10KiB.
 
-## Main Fuzz Script: `run-all-fuzz.sh`
+## Main Fuzz Runner: `run-fuzz.py`
 
-`run-all-fuzz.sh` automates the full workflow:
+`run-fuzz.py` automates the full workflow:
 
 1. Optionally rebuilds the `iota-node`, `iota-tools`, and `iota-indexer` Docker images.
-2. Bootstraps the validator network.
-3. Runs the private network.
-4. Starts Grafana (available at `http://localhost:3000/dashboards`).
+2. Generates a docker compose file for N validators and bootstraps genesis.
+3. Starts the validators (and a fullnode when the spammer is enabled).
+4. Starts Grafana/Prometheus on the experiment network (available at `http://localhost:3000/dashboards`).
 5. Launches `network-fuzz.sh` to apply network latencies and controlled disruptions:
-   - artificial RTTs (topology-dependent),
+   - topology-dependent artificial RTTs,
    - packet loss on a subset of validators,
-   - host-level connection blocking (bidirectional),
+   - host-level connection blocking (bidirectional, `DOCKER-USER` chain),
    - periodic validator restarts,
    - optional heal rounds and TTL.
-6. Periodically collects validator logs and saves them with timestamps.
-7. Optionally runs a transaction spammer to generate load.
+6. Optionally runs a transaction spammer, runs for a fixed duration collecting logs, and tears everything down (including the host `fuzzdrop` iptables rules).
 
-The script must be run from inside:
-
-```
-iota/dev-tools/iota-private-network/experiments/
-```
-
----
-
-## Usage
+Run from inside `iota/dev-tools/iota-private-network/experiments/`:
 
 ```
-./run-all-fuzz.sh [options]
+./run-fuzz.py [options]
 ```
 
 Supported flags:
 
-- `-n <NUM>`\
-  Number of validators (default: `4`; supports `4`–`19`).
-
-- `-b <true|false>`\
-  Rebuild Docker images before running (default: `true`).
-
-- `-t <topology>`\
-  Topology / latency profile for the fuzz script. Accepted values:
-  - `ring`
-  - `star`
-  - `non-triangle`
-  - `random`
-  - `geo-high`
-  - `geo-low`
-
-  Default: `false` (mapped to `geo-low`).
-
-- `-s <SEED>`\
-  Seed for deterministic pseudorandom disruptions (default: `42`).
-
-- `-x <PERCENT_BLOCK>`\
-  Percentage of unordered validator pairs to block at the host level (0–100).\
-  For each selected pair `(i, j)`, traffic is blocked bidirectionally via `iptables` (`i ↔ j`).
-
-- `-l <PERCENT_LOSS>`\
-  Percentage of validators to apply `tc netem` packet loss to (0–100).\
-  Selected validators get a random loss in `[1%, 5%]`.
-
-- `-r <PERCENT_RESTART>`\
-  Percentage of validators to restart periodically (0–100).\
-  The fuzz script chooses a deterministic batch per round, stops them for a configurable duration, then restarts them.
-
-- `-d <RUN_DURATION>`\
-  Total experiment duration in seconds (default: `3600`).
-
-- `-m`\
-  Enable printing network metrics (TX/RX bytes and packets per validator) at the end.
-
-- `-S <true|false>`\
-  Enable the transaction spammer (default: `false`).
-
-- `-T <TPS>`\
-  Transactions per second used by the spammer (default: `10`).
-
-- `-Z <SIZE>`\
-  For `iota-spammer`**: size per transaction, e.g. `10KiB` (default: `10KiB`).
-
-- `-C <spammer_type>`\
-  Spammer type (default: `stress`; alternative: `iota-spammer`).
+- `-n <NUM>`: number of validators (default: `4`; scales to any N — compose is generated per run).
+- `-b <true|false>`: rebuild Docker images before running (default: `true`).
+- `-t <topology>`: topology / latency profile — `ring` | `star` | `non-triangle` | `random` | `geo-high` | `geo-low` (default: `geo-low`).
+- `-s <SEED>`: seed for deterministic pseudorandom disruptions (default: `42`).
+- `-x <PERCENT_BLOCK>`: percent of unordered validator pairs to block bidirectionally at the host level (default: `0`).
+- `-l <PERCENT_LOSS>`: percent of validators to apply `tc netem` packet loss to (default: `0`).
+- `-r <PERCENT_RESTART>`: percent of validators to restart periodically (default: `0`).
+- `-d <RUN_DURATION>`: total experiment duration in seconds (default: `3600`).
+- `--restart-duration <SECONDS>`: seconds a validator stays stopped per restart (default: `120`).
+- `--round-span <SECONDS>`: fuzz round length (default: `0` = `2 * restart_duration`).
+- `--ttl <SECONDS>`: fuzz TTL; the fuzzer stops itself when reached (default: `0` = none).
+- `--heal-every-round <N>` / `--heal-num-rounds <N>`: periodic heal rounds (default: `0` = disabled).
+- `-E <EPOCH_DURATION_MS>`: epoch duration in milliseconds (default: `1200000`, 20 min).
+- `-m`: output per-validator network metric statistics at teardown.
+- `-S <true|false>`: enable the transaction spammer (default: `false`).
+- `-T <TPS>`: transactions per second used by the spammer (default: `10`).
+- `-Z <SIZE>`: per-transaction size for the `iota-spammer` spammer, e.g. `10KiB` (default: `10KiB`).
+- `-C <spammer_type>`: spammer type (default: `stress`; alternative: `iota-spammer`).
+- `-c <testnet|mainnet>`: protocol-config chain override (default: empty → `testnet`).
 
 - `-h`\
   Show help and exit.
 
-### Environment overrides for network fuzzing
+### Fuzz round / heal tuning
 
-These environment variables fine-tune how `network-fuzz.sh` behaves (they are passed through by `run-all.sh`):
+These `run-fuzz.py` flags control the fuzzer's round schedule and are passed
+through to `network-fuzz.sh`:
 
-- `FUZZ_TTL`\
-  TTL in seconds for the fuzz script (`--ttl` argument). `0` disables TTL.\
-  When TTL is reached, `network-fuzz.sh` creates a stopfile and shuts itself down cleanly.
-
-- `FUZZ_ROUND_SPAN`\
-  Duration of a fuzz “round” in seconds (`--round-span`).\
-  `0` means “use `2 * RESTART_DURATION` inside `network-fuzz.sh`”.
-
-- `FUZZ_RESTART_DURATION`\
-  Duration (seconds) to stop validators during restart rounds.\
-  Passed as `-d` to `network-fuzz.sh` (default inside `run-all-fuzz.sh`: `120`).
-
-- `HEAL_EVERY_ROUND`\
-  If `> 0`, every `HEAL_EVERY_ROUND`-th fuzz round becomes a “heal window”.
-
-- `HEAL_NUM_ROUNDS`\
-  Number of consecutive rounds after the heal trigger during which **no restarts** are applied (but `tc` may still be active, depending on configuration).
+- `--ttl <SECONDS>` (`0` disables): when reached, `network-fuzz.sh` writes a stopfile and shuts itself down cleanly.
+- `--round-span <SECONDS>` (`0` = `2 * restart_duration`): duration of one fuzz round.
+- `--restart-duration <SECONDS>`: how long validators stay stopped during restart rounds.
+- `--heal-every-round <N>` (`0` disabled): every Nth round becomes a heal window.
+- `--heal-num-rounds <N>`: consecutive rounds after a heal trigger during which **no restarts** are applied.
 
 ---
 
 ## Internal Fuzzing Script: `network-fuzz.sh` (Overview)
 
-You normally don’t call `network-fuzz.sh` directly; `run-all-fuzz.sh` does it for you.\
+You normally don’t call `network-fuzz.sh` directly; `run-fuzz.py` does it for you.\
 Conceptual behavior:
 
 - Builds a latency matrix `LAT_MS[i|j]` based on the chosen topology (`geo-high`, `geo-low`, `ring`, `star`, `non-triangle`, `random`).
@@ -244,7 +201,7 @@ Conceptual behavior:
   - optionally runs heal rounds (removing all `fuzzdrop:` rules and zeroing packet loss).
 
 All drops installed by the fuzz script are tagged with\
-`-m comment --comment "fuzzdrop:..."` and cleaned up by the fuzz cleanup logic and by `run-all-fuzz.sh` before and after runs.
+`-m comment --comment "fuzzdrop:..."` and cleaned up by the fuzz cleanup logic and by `run-fuzz.py` at teardown.
 
 ---
 
@@ -253,32 +210,30 @@ All drops installed by the fuzz script are tagged with\
 ### 1. Default 4-validator Starfish network, low latencies, no extra disruptions
 
 ```
-./run-all-fuzz.sh
+./run-fuzz.py
 ```
 
 - 4 validators
 - protocol `starfish` (default)
-- topology `false` → `geo-low` (low RTTs)
+- topology `geo-low` (low RTTs)
 - no blocked pairs, no packet loss, no restarts
 - no spammer
 
 ### 2. 10-validator Starfish network, high geo-distributed latencies, 1-hour run, no rebuild
 
 ```
-./run-all-fuzz.sh \
+./run-fuzz.py \
   -n 10 \
   -b false \
-  -t true \
+  -t geo-high \
   -d 3600
 ```
 
-Here `-t true` maps to `geo-high`.
-
-### 3. 19-validator Starfish, geo-high RTTs, 10% blocked pairs, 5% loss, 10% restarts, 2-hour run
+### 3. 25-validator Starfish, geo-high RTTs, 10% blocked pairs, 5% loss, 10% restarts, 2-hour run
 
 ```
-./run-all-fuzz.sh \
-  -n 19 \
+./run-fuzz.py \
+  -n 25 \
   -b true \
   -t geo-high \
   -x 10 \
@@ -294,16 +249,16 @@ Here `-t true` maps to `geo-high`.
 ### 4. Same as above, but with a fuzz TTL and heal rounds
 
 ```
-FUZZ_TTL=3600 \
-HEAL_EVERY_ROUND=3 \
-HEAL_NUM_ROUNDS=1 \
-./run-all-fuzz.sh \
-  -n 19 \
+./run-fuzz.py \
+  -n 25 \
   -t geo-high \
   -x 10 \
   -l 5 \
   -r 10 \
-  -d 7200
+  -d 7200 \
+  --ttl 3600 \
+  --heal-every-round 3 \
+  --heal-num-rounds 1
 ```
 
 - `network-fuzz.sh` will self-terminate after 3600 seconds.
@@ -326,12 +281,12 @@ Two modes are supported:
 ### Enable default stress benchmark spammer
 
 ```
-./run-all-fuzz.sh -n 4 -S true -T 500
+./run-fuzz.py -n 4 -S true -T 500
 ```
 
-- Starts `faucet-1`.
+- Brings up `fullnode-1` as the spammer's RPC target.
 - Runs the stress benchmark with `target-qps = 500` using Starfish (default).
-- Writes spammer logs to `logs/spammer.log`.
+- Stream logs with `docker logs stress-benchmark`.
 
 ### Enable `iota-spammer` (external repo)
 
@@ -343,16 +298,16 @@ To use the `iota-spammer`:
    git clone https://github.com/iotaledger/iota-spammer
    ```
 
-2. Place it at the following relative path from `run-all-fuzz.sh`, or adjust the `SPAMMER_SCRIPT` path in `run-all-fuzz.sh`:
+2. Place it at the following relative path from the runner (`~/iota-spammer`, resolved from `$HOME`):
 
    ```
    ../../../iota-spammer
    ```
 
-3. Run `run-all-fuzz.sh` with `SPAMMER_TYPE=iota-spammer`:
+3. Run `run-fuzz.py` with `-C iota-spammer`:
 
    ```
-   ./run-all-fuzz.sh \
+   ./run-fuzz.py \
      -n 4 \
      -S true \
      -C iota-spammer \
@@ -376,20 +331,20 @@ Logs are written to `logs/spammer.log`.
   - `logs/experiment_script_<TIMESTAMP>.log`
 
 - Per-validator logs (periodically updated “latest” + final snapshot):
-  - `logs/exp-validator-<i>-latest.log`
-  - `logs/experiment-validator-<i>-<TIMESTAMP>.log`
+  - `logs/exp-validator-<i>-latest.log` / `logs/fuzz-validator-<i>-latest.log`
+  - `logs/experiment-<TIMESTAMP>-validator-<i>.log` / `logs/fuzz-<TIMESTAMP>-validator-<i>.log`
 
 - Fuzz script logs:
-  - `logs/fuzz_<TIMESTAMP>.log` (or the file specified via `-o` in `network-fuzz.sh`).
+  - `logs/fuzz_<TIMESTAMP>.log` (the file `run-fuzz.py` passes via `-o` to `network-fuzz.sh`).
 
 - Spammer logs (if enabled):
-  - `logs/spammer.log`
+  - `logs/spammer.log` (iota-spammer) or `docker logs stress-benchmark` (stress).
 
-On exit, `run-all-fuzz.sh`:
+On exit, `run-fuzz.py`:
 
-- kills fuzz and spam processes,
-- runs `cleanup.sh` (external script) to tear down Docker containers,
-- attempts to clear any remaining `tc` and `fuzzdrop:` rules.
+- kills the fuzzer and spam processes,
+- tears down the generated compose project,
+- clears any remaining `fuzzdrop:` rules from the host `DOCKER-USER` chain.
 
 ---
 
