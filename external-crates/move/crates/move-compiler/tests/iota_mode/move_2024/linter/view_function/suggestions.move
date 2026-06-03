@@ -150,6 +150,20 @@ module a::m {
         (a, b)
     }
 
+    public fun returns_generic_obj_reference(
+        input: &GenericObject<Wrapped>,
+    ): &GenericObject<Wrapped> {
+        input
+    }
+
+    public fun returns_u64_reference(input: &u64): &u64 {
+        input
+    }
+
+    public fun returns_tuple_with_reference(input: &u64): (&u64, u64) {
+        (input, 0)
+    }
+
     public native fun native_view(v: u64): u64;
 
     public native fun native_view_no_param(): bool;

@@ -570,38 +570,9 @@ module 0x0.m {
     }
 }
 
-//# publish --view-functions returns_generic_obj_reference
+//# publish --view-functions returns_mut_reference
 module 0x0.m {
-    import 0x2.object;
-
-    struct Wrapped has copy, drop, store {
-        value: u64,
-    }
-
-    struct GenericObject<T: store> has key, store {
-        id: object.UID,
-        inner: T,
-    }
-
-    public returns_generic_obj_reference(
-        input: &Self.GenericObject<Self.Wrapped>,
-    ): &Self.GenericObject<Self.Wrapped> {
-        label l0:
-        abort 0;
-    }
-}
-
-//# publish --view-functions returns_u64_reference
-module 0x0.m {
-    public returns_u64_reference(input: &u64): &u64 {
-        label l0:
-        abort 0;
-    }
-}
-
-//# publish --view-functions returns_tuple_with_reference
-module 0x0.m {
-    public returns_tuple_with_reference(input: &u64): &u64 * u64 {
+    public returns_mut_reference(input: &u64): &mut u64 {
         label l0:
         abort 0;
     }

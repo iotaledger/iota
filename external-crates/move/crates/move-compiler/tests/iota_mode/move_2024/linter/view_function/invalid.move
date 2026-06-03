@@ -217,23 +217,11 @@ module a::m {
         abort ABORT_CODE
     }
 
-    public fun returns_generic_obj_reference(
-        input: &GenericObject<Wrapped>,
-    ): &GenericObject<Wrapped> {
-        input
-    }
-
-    public fun returns_u64_reference(input: &u64): &u64 {
-        input
-    }
-
-    public fun returns_tuple_with_reference(input: &u64): (&u64, u64) {
-        (input, 0)
-    }
-
     public native fun store_only_type_param<T: store>(x: T): u64;
 
     public native fun native_mut_ref(x: &mut u64): u64;
+
+    public native fun returns_mut_reference(input: &u64): &mut u64;
 }
 
 module iota::object {

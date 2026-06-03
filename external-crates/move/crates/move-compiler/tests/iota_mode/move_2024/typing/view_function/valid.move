@@ -166,6 +166,23 @@ module a::m {
     }
 
     #[view]
+    public fun returns_generic_obj_reference(
+        input: &GenericObject<Wrapped>,
+    ): &GenericObject<Wrapped> {
+        input
+    }
+
+    #[view]
+    public fun returns_u64_reference(input: &u64): &u64 {
+        input
+    }
+
+    #[view]
+    public fun returns_tuple_with_reference(input: &u64): (&u64, u64) {
+        (input, 0)
+    }
+
+    #[view]
     public native fun native_view(v: u64): u64;
 
     #[view]

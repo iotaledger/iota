@@ -84,7 +84,7 @@ fn verify_view_parameter_type(
 }
 
 /// A valid view return type must:
-/// - contain no references, including nested references
+/// - contain no mutable references, including nested mutable references
 /// - be safe to return by value, which means it cannot be an object or a value
 ///   that could contain an object
 fn verify_view_return_type(
@@ -92,9 +92,9 @@ fn verify_view_return_type(
     function_type_args: &[AbilitySet],
     return_type: &SignatureToken,
 ) -> Result<(), String> {
-    if contains_reference_type(return_type) {
+    if contains_mutable_reference_type(return_type) {
         return Err(format!(
-            "Invalid view function return type: {}. View functions cannot return references.",
+            "Invalid view function return type: {}. View functions cannot return mutable references.",
             format_signature_token(module, return_type),
         ));
     }
@@ -107,32 +107,6 @@ fn verify_view_return_type(
     }
 
     Ok(())
-}
-
-/// Returns true if `signature_token` contains either an immutable or mutable
-/// reference, including references nested in vectors or datatype
-/// instantiations.
-fn contains_reference_type(signature_token: &SignatureToken) -> bool {
-    use SignatureToken as S;
-    match signature_token {
-        S::Reference(_) | S::MutableReference(_) => true,
-        S::Vector(inner) => contains_reference_type(inner),
-        S::DatatypeInstantiation(instantiation) => {
-            let (_, type_arguments) = &**instantiation;
-            type_arguments.iter().any(contains_reference_type)
-        }
-        S::Bool
-        | S::U8
-        | S::U16
-        | S::U32
-        | S::U64
-        | S::U128
-        | S::U256
-        | S::Address
-        | S::Signer
-        | S::TypeParameter(_)
-        | S::Datatype(_) => false,
-    }
 }
 
 /// Returns true if `signature_token` contains a mutable reference, including a
@@ -172,8 +146,7 @@ fn contains_mutable_reference_type(signature_token: &SignatureToken) -> bool {
 /// - a vector whose element type is by-value-safe
 ///
 /// References are never considered by-value here. Mutable references are
-/// rejected before this check for parameters, and all references are rejected
-/// before this check for returns.
+/// rejected before this check.
 fn contains_view_unsafe_by_value_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
@@ -531,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_reference_return_type() {
+    fn accepts_immutable_reference_return_type() {
         let module = module_with_view_signature(
             Visibility::Public,
             vec![],
@@ -539,11 +512,11 @@ mod tests {
             vec![SignatureToken::Reference(Box::new(SignatureToken::U64))],
         );
 
-        assert_error_contains(&module, "cannot return references");
+        verify(&module).unwrap();
     }
 
     #[test]
-    fn rejects_nested_reference_return_type() {
+    fn accepts_nested_immutable_reference_return_type() {
         let module = module_with_view_signature(
             Visibility::Public,
             vec![],
@@ -553,6 +526,20 @@ mod tests {
             )))],
         );
 
-        assert_error_contains(&module, "cannot return references");
+        verify(&module).unwrap();
+    }
+
+    #[test]
+    fn rejects_mutable_reference_return_type() {
+        let module = module_with_view_signature(
+            Visibility::Public,
+            vec![],
+            vec![SignatureToken::Reference(Box::new(SignatureToken::U64))],
+            vec![SignatureToken::MutableReference(Box::new(
+                SignatureToken::U64,
+            ))],
+        );
+
+        assert_error_contains(&module, "cannot return mutable references");
     }
 }

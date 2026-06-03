@@ -204,28 +204,10 @@ warning[Lint W99010]: function can be marked '#[view]'
     = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99010]: function can be marked '#[view]'
-    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:153:23
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:153:16
     │
-153 │     public native fun native_view(v: u64): u64;
-    │                       ^^^^^^^^^^^ Function 'native_view' satisfies view constraints and can be annotated with '#[view]'
-    │
-    = Add '#[view]' to make the function explicitly callable as a view function.
-    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
-
-warning[Lint W99010]: function can be marked '#[view]'
-    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:155:23
-    │
-155 │     public native fun native_view_no_param(): bool;
-    │                       ^^^^^^^^^^^^^^^^^^^^ Function 'native_view_no_param' satisfies view constraints and can be annotated with '#[view]'
-    │
-    = Add '#[view]' to make the function explicitly callable as a view function.
-    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
-
-warning[Lint W99010]: function can be marked '#[view]'
-    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:157:23
-    │
-157 │     public native fun native_type_param<T: key>(): u64;
-    │                       ^^^^^^^^^^^^^^^^^ Function 'native_type_param' satisfies view constraints and can be annotated with '#[view]'
+153 │     public fun returns_generic_obj_reference(
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'returns_generic_obj_reference' satisfies view constraints and can be annotated with '#[view]'
     │
     = Add '#[view]' to make the function explicitly callable as a view function.
     = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
@@ -233,8 +215,8 @@ warning[Lint W99010]: function can be marked '#[view]'
 warning[Lint W99010]: function can be marked '#[view]'
     ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:159:16
     │
-159 │     public fun unused_unconstrained_type_param<T>(): u64 {
-    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unused_unconstrained_type_param' satisfies view constraints and can be annotated with '#[view]'
+159 │     public fun returns_u64_reference(input: &u64): &u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^ Function 'returns_u64_reference' satisfies view constraints and can be annotated with '#[view]'
     │
     = Add '#[view]' to make the function explicitly callable as a view function.
     = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
@@ -242,17 +224,35 @@ warning[Lint W99010]: function can be marked '#[view]'
 warning[Lint W99010]: function can be marked '#[view]'
     ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:163:16
     │
-163 │     public fun unconstrained_type_param_by_ref<T>(x: &T): u64 {
-    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unconstrained_type_param_by_ref' satisfies view constraints and can be annotated with '#[view]'
+163 │     public fun returns_tuple_with_reference(input: &u64): (&u64, u64) {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'returns_tuple_with_reference' satisfies view constraints and can be annotated with '#[view]'
     │
     = Add '#[view]' to make the function explicitly callable as a view function.
     = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99010]: function can be marked '#[view]'
-    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:168:16
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:167:23
     │
-168 │     public fun unconstrained_type_param_vector_by_ref<T>(x: &vector<T>): u64 {
-    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unconstrained_type_param_vector_by_ref' satisfies view constraints and can be annotated with '#[view]'
+167 │     public native fun native_view(v: u64): u64;
+    │                       ^^^^^^^^^^^ Function 'native_view' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:169:23
+    │
+169 │     public native fun native_view_no_param(): bool;
+    │                       ^^^^^^^^^^^^^^^^^^^^ Function 'native_view_no_param' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:171:23
+    │
+171 │     public native fun native_type_param<T: key>(): u64;
+    │                       ^^^^^^^^^^^^^^^^^ Function 'native_type_param' satisfies view constraints and can be annotated with '#[view]'
     │
     = Add '#[view]' to make the function explicitly callable as a view function.
     = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
@@ -260,7 +260,34 @@ warning[Lint W99010]: function can be marked '#[view]'
 warning[Lint W99010]: function can be marked '#[view]'
     ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:173:16
     │
-173 │     public fun unconstrained_type_param_option_by_ref<T>(x: &Option<T>): u64 {
+173 │     public fun unused_unconstrained_type_param<T>(): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unused_unconstrained_type_param' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:177:16
+    │
+177 │     public fun unconstrained_type_param_by_ref<T>(x: &T): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unconstrained_type_param_by_ref' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:182:16
+    │
+182 │     public fun unconstrained_type_param_vector_by_ref<T>(x: &vector<T>): u64 {
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unconstrained_type_param_vector_by_ref' satisfies view constraints and can be annotated with '#[view]'
+    │
+    = Add '#[view]' to make the function explicitly callable as a view function.
+    = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99010]: function can be marked '#[view]'
+    ┌─ tests/iota_mode/move_2024/linter/view_function/suggestions.move:187:16
+    │
+187 │     public fun unconstrained_type_param_option_by_ref<T>(x: &Option<T>): u64 {
     │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Function 'unconstrained_type_param_option_by_ref' satisfies view constraints and can be annotated with '#[view]'
     │
     = Add '#[view]' to make the function explicitly callable as a view function.
