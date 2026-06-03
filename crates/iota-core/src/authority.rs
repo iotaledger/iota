@@ -5764,6 +5764,7 @@ impl AuthorityState {
         Ok(())
     }
 
+    #[allow(clippy::type_complexity)]
     fn read_objects_for_validation(
         &self,
         transaction: &VerifiedTransaction,
