@@ -110,6 +110,95 @@ The [sync](https://github.com/iotaledger/iota/blob/releases/iota-v1.19.0-release
 
   In both modes, checkpoints are fetched in batches starting from the `current_checkpoint_number` until the `batch_size` is reached. Capacity limitations are enforced during iteration — if the limit is exceeded, fetching stops and the collected checkpoints are returned.
 
+### Checkpoint Filtering
+
+When streaming checkpoint data from a remote Full Node via gRPC, you can configure server-side transaction filters. This ensures that the Full Node only transmits checkpoints containing transactions matching your filter criteria, reducing bandwidth usage and optimizing indexer performance.
+
+Server-side filters are configured using the [`CheckpointReaderConfigExt`](src/reader/config.rs) type, which wraps the base [`CheckpointReaderConfig`](src/reader/v2.rs) and allows you to attach a [`TransactionFilter`](src/reader/filters/fullnode.rs).
+
+#### Filter Types
+
+The ingestion core framework supports three main filter types:
+
+- **[`TransactionFilter`](src/reader/filters/fullnode.rs):** Applied directly to transaction attributes (e.g., sender, receiver, execution status, kinds).
+- **[`EventFilter`](src/reader/filters/fullnode.rs):** Matches transactions that emit events matching specific criteria (e.g., event type, package emitted in). Passed to a transaction filter via `.event(...)`.
+- **[`CommandFilter`](src/reader/filters/fullnode.rs):** Matches transactions containing commands matching specific criteria (e.g., Move calls, transfer objects, coin splits/merges). Passed to a transaction filter via `.command(...)`.
+
+#### Composition Rules
+
+- **Implicit AND:** When calling leaf methods on a builder chain (e.g., `.kinds(...).sender(...)`), the filters are implicitly combined using a logical `AND` operation.
+- **Logical OR:** Use the `.or(other_filter)` builder method to combine filters with a logical `OR`.
+- **Logical NOT:** Use the `.negate()` builder method (or the `!` operator, if `std::ops::Not` is in scope) to apply a logical `NOT` to the filter built so far.
+
+> [!NOTE]
+> The `.negate()` operator wraps the entire filter accumulated up to that point. For complex expressions, construct sub-filters separately as named variables and combine them with `.or(...)`.
+
+#### Examples
+
+##### 1. Basic Configuration
+
+To enable checkpoint filtering, construct a `CheckpointReaderConfigExt` and associate it with a `TransactionFilter`:
+
+```rust
+use iota_data_ingestion_core::{
+    ReaderOptions,
+    filters::fullnode::TransactionFilter,
+    reader::config::{CheckpointReaderConfigExt, RemoteUrl},
+};
+
+let config = CheckpointReaderConfigExt::new(ReaderOptions::default())
+    .with_remote_store_url(RemoteUrl::Fullnode("http://127.0.0.1:50051".into()))
+    .with_fullnode_transaction_filter(
+        TransactionFilter::new()
+            .execution_status(true)
+    );
+```
+
+##### 2. Chained AND Composition
+
+```rust
+use iota_data_ingestion_core::filters::fullnode::{TransactionFilter, TransactionKind};
+
+// Matches successfully executed programmable transactions
+let filter = TransactionFilter::new()
+    .kinds([TransactionKind::Programmable])
+    .execution_status(true);
+```
+
+##### 3. OR and NOT Composition
+
+```rust
+use iota_data_ingestion_core::filters::fullnode::{TransactionFilter, TransactionKind};
+
+// Matches:
+// (Programmable AND success AND sender == Alice) OR NOT(receiver == Bob)
+let filter = TransactionFilter::new()
+    .kinds([TransactionKind::Programmable])
+    .execution_status(true)
+    .sender(alice)
+    .or(!TransactionFilter::new().receiver(bob));
+```
+
+##### 4. Filtering by Emitted Events
+
+```rust
+use iota_data_ingestion_core::filters::fullnode::{EventFilter, TransactionFilter};
+
+// Matches transactions that emit a specific Move event type
+let filter = TransactionFilter::new()
+    .event(EventFilter::new().event_type("0xabcd::my_module::Foo"));
+```
+
+##### 5. Filtering by Transaction Commands
+
+```rust
+use iota_data_ingestion_core::filters::fullnode::{CommandFilter, TransactionFilter};
+
+// Matches transactions containing a Move call function to `my_module::my_function`
+let filter = TransactionFilter::new()
+    .command(CommandFilter::move_call_to(package_id, "my_module", "my_function"));
+```
+
 ### Progress Store
 
 The [ProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/trait.ProgressStore.html) plays a crucial role in tracking the progress of checkpoint synchronization for each WorkerPool. This ensures that the WorkerPool can resume synchronization from the last successfully processed checkpoint after an Indexer restart. The framework offers two built-in implementations:
