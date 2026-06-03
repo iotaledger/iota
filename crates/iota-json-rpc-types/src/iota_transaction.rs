@@ -10,7 +10,10 @@ use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
-use iota_sdk_types::{Command, Identifier, MoveCall, ObjectId, TransferObjects, TypeTag};
+use iota_sdk_types::{
+    ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command, Identifier, MoveCall,
+    ObjectId, TransferObjects, TypeTag,
+};
 use iota_types::{
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
@@ -33,9 +36,9 @@ use iota_types::{
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
-        EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ProgrammableTransaction,
-        SenderSignedData, SharedObjectRef, TransactionData, TransactionDataAPI, TransactionKind,
+        Argument, CallArg, EndOfEpochTransactionKind, GenesisObject, InputObjectKind,
+        ProgrammableTransaction, SenderSignedData, SharedObjectRef, TransactionData,
+        TransactionDataAPI, TransactionKind,
     },
 };
 use move_binary_format::CompiledModule;
