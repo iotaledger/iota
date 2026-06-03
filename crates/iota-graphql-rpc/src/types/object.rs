@@ -106,12 +106,6 @@ pub enum ObjectStatus {
     NotIndexed,
     /// The object is fetched from the index.
     Indexed,
-    /// The object is deleted or wrapped and only partial information can be
-    /// loaded from the indexer.
-    #[graphql(
-        deprecation = "will be removed with v1.26, as such objects can be considered non-existent"
-    )]
-    WrappedOrDeleted,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, InputObject)]
@@ -264,8 +258,6 @@ pub(crate) struct HistoricalObjectCursor {
             contents of a genesis or system package upgrade transaction.
             - INDEXED: The object is retrieved from the off-chain index and
             represents the most recent or historical state of the object.
-            - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-            information can be loaded.
         "#
     ),
     field(
@@ -469,8 +461,6 @@ impl Object {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(self).status().await
     }
@@ -946,7 +936,7 @@ impl Object {
     ) -> Result<Option<Self>, Error> {
         let DataLoader(loader) = &ctx.data_unchecked();
 
-        match key {
+        let object = match key {
             ObjectLookup::VersionAt {
                 version,
                 checkpoint_viewed_at,
@@ -987,7 +977,15 @@ impl Object {
                     })
                     .await
             }
+        }?;
+
+        if let Some(object) = &object {
+            if matches!(object.kind, ObjectKind::WrappedOrDeleted(_)) {
+                return Ok(None);
+            }
         }
+
+        Ok(object)
     }
 
     /// Query for a singleton object identified by its type. Note: the object is
@@ -1961,7 +1959,7 @@ impl From<&ObjectKind> for ObjectStatus {
         match kind {
             ObjectKind::NotIndexed(_) => ObjectStatus::NotIndexed,
             ObjectKind::Indexed(_, _) => ObjectStatus::Indexed,
-            ObjectKind::WrappedOrDeleted(_) => ObjectStatus::WrappedOrDeleted,
+            ObjectKind::WrappedOrDeleted(_) => ObjectStatus::Indexed,
         }
     }
 }
