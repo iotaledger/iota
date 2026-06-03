@@ -105,16 +105,14 @@ where
             }
         };
 
-        // Tower contract: the cloned service is the one ready to call, so swap
-        // the clone in and keep the previously-ready inner for this request.
+        // Tower contract: `self.inner` is the ready one (poll_ready set it up),
+        // so call it and leave the clone for the next request.
         let cloned = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, cloned);
 
         Box::pin(async move {
             if !traffic_controller.check(&client, &None).await {
-                let response = Status::resource_exhausted("Too many requests").into_http();
-                tally(&traffic_controller, client, Code::ResourceExhausted);
-                return Ok(response);
+                return Ok(Status::resource_exhausted("Too many requests").into_http());
             }
 
             let result = inner.call(req).await;
