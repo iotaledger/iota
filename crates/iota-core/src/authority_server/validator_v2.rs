@@ -229,13 +229,26 @@ impl ValidatorService {
             if epoch_store.protocol_config().enable_validator_attestation() {
                 let state_for_attest = state.clone();
                 let epoch_store_for_attest = epoch_store.clone();
-                let (result, verified_tx) = tokio::task::spawn_blocking(move || {
+                let join_result = tokio::task::spawn_blocking(move || {
                     let result =
                         state_for_attest.attest_transaction(&verified_tx, &epoch_store_for_attest);
                     (result, verified_tx)
                 })
-                .await
-                .expect("attest_transaction blocking task panicked");
+                .await;
+                let (result, verified_tx) = match join_result {
+                    Ok(pair) => pair,
+                    Err(join_err) => {
+                        // A panic inside `attest_transaction` (e.g., an
+                        // arithmetic panic in Move VM dry-run) surfaces here
+                        // as a `JoinError`. Convert to a rejection rather
+                        // than re-panicking on the per-tx task.
+                        let err = IotaError::GenericAuthority {
+                            error: format!("attest_transaction task failed: {join_err}"),
+                        };
+                        let weight = normalize(&err);
+                        return (TxStatusUpdate::Rejected { error: err }, weight);
+                    }
+                };
                 match result {
                     Ok((data, objs)) => (Some(data), objs, verified_tx),
                     Err(e) => {
