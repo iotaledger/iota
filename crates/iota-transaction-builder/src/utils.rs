@@ -12,7 +12,7 @@ use iota_json::{
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
@@ -21,7 +21,7 @@ use iota_types::{
     move_package::{MovePackage, MovePackageExt},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedObjectRef},
+    transaction::{CallArg, SharedObjectRef},
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,

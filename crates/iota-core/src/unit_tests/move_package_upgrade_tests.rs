@@ -11,7 +11,7 @@ use std::{
 
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::{AccountKeyPair, get_key_pair},
@@ -26,7 +26,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::ident_str;
 

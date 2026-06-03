@@ -16,17 +16,17 @@ use std::{
 use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{
-    Argument, EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
-    ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
-    SystemPackage, Transaction as TransactionData, TransactionExpiration, TransactionKind,
-    TransactionV1 as TransactionDataV1,
-};
 use iota_sdk_types::{
-    CancelledTransaction, Command, ConsensusCommitPrologueV1,
+    Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, Digest, Identifier, Input, MakeMoveVector, MergeCoins,
     MoveCall, ObjectId, Publish, SplitCoins, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
+};
+pub use iota_sdk_types::{
+    EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
+    ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
+    SystemPackage, Transaction as TransactionData, TransactionExpiration, TransactionKind,
+    TransactionV1 as TransactionDataV1,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};

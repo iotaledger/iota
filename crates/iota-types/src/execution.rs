@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{Argument, ObjectId, TypeTag};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,6 @@ use crate::{
     event::Event,
     object::{Data, MoveObjectExt, Object, Owner},
     storage::BackingPackageStore,
-    transaction::Argument,
 };
 
 /// A type containing all of the information needed to work with a deleted

@@ -480,8 +480,7 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Command, Identifier};
-    use iota_types::transaction::Argument;
+    use iota_sdk_types::{Argument, Command, Identifier};
 
     use super::*;
 
