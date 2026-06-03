@@ -75,7 +75,9 @@ class Config:
     stable_window_settle_seconds: int = 30
     block_measurement_seconds: int = 120
     # Wait inside phase 6 for network-benchmark.sh to apply the matrix.
-    latency_apply_wait: int = 30
+    # The injector applies the full matrix in a few seconds and its watcher
+    # heals any wiped edge within ~2s, so 15s covers apply + consensus settle.
+    latency_apply_wait: int = 15
 
     image_old: str = "iota-node:old"
     image_upgrade: str = "iota-node:upgrade"

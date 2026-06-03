@@ -89,12 +89,14 @@ done
 #   role 8 (v9, v19, ...) : follower   - 22 ms spoke from its decade hub plus
 #                           88-96 ms directs; hub blocks complete its rounds
 #                           via embedded headers (AddBlockHeader)
-#   role 9 (v10, v20, ...): heavy tail - 390-415 +/- 100 ms fluctuating
-#                           directs, one 60 ms hub route delivered in netem
-#                           slot bursts (100-146 ms) whose ~2-round batches
-#                           interact with the 50 ms min block delay to skip
-#                           rounds (block-rate spread), 70-95 ms outbound so
-#                           its stale leader blocks never stall the quorum
+#   role 9 (v10, v20, ...): heavy tail - 540-659 +/- 150 ms deep volatile
+#                           directs (corr 80: slow wander across ~390-810 ms),
+#                           one 60 ms hub route delivered in netem slot
+#                           bursts (100-146 ms at n=10, +2 ms per validator
+#                           above 10) whose ~2-round batches interact with
+#                           the 50 ms min block delay to skip rounds
+#                           (block-rate spread), 70-95 ms outbound so its
+#                           stale leader blocks never stall the quorum
 # With -g false all delays and jitters are divided by 4 and slot clauses are
 # dropped (legacy "small latencies" mode).
 
@@ -111,9 +113,14 @@ edge_params() {
   # heavy-tail inbound: bursty hub spoke, deep fluctuating directs
   if [ "$role_j" -eq 9 ]; then
     if [ "$i" -eq "$hub_j" ]; then
-      echo "60 3 0 0 100 146"
+      # Slot bounds scale with validator count: the band round gets longer as
+      # N grows, so fixed 100-146 ms bursts skip fewer rounds and the
+      # heavy-tail's block-rate deficit shrinks below the >=1 blk/s target.
+      # +2 ms per validator above 10 restores it; n=10 stays exactly 100-146.
+      local slot_shift=$(( NUMBER_VALIDATORS > 10 ? 2 * (NUMBER_VALIDATORS - 10) : 0 ))
+      echo "60 3 0 0 $(( 100 + slot_shift )) $(( 146 + slot_shift ))"
     else
-      echo "$(( 390 + (7 * i) % 26 )) 100 70 0 0 0"
+      echo "$(( 540 + (23 * i) % 120 )) 150 80 0 0 0"
     fi
     return
   fi
@@ -333,8 +340,14 @@ apply_and_mark() {
   mark=${idxB:-1}
   classid="1:$((100 + mark))"
 
-  # Ensure a classful root qdisc exists once per container
-  if ! nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null | grep -q "htb 1:"; then
+  # Ensure a classful root qdisc exists once per container. The root is only
+  # ever deleted on a SUCCESSFUL read that shows a non-htb root: treating a
+  # transient `tc show` failure as "no root" used to del the root here and
+  # silently wipe every netem qdisc already applied on this source.
+  local qdisc_show
+  if ! qdisc_show=$(nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null); then
+    log "Warning: tc qdisc show failed for $A; skipping root-qdisc check"
+  elif ! grep -q "htb 1:" <<< "$qdisc_show"; then
     nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
     nsenter -t "$pid" -n tc qdisc add dev eth0 root handle 1: htb default 1 2>/dev/null || \
       log "Warning: failed to create htb root qdisc for $A"
@@ -611,8 +624,12 @@ reapply_latencies_and_fuzz_loop() {
                 continue
             fi
 
-            if ! nsenter -t "$pid" -n tc qdisc show dev eth0 | grep -q "netem"; then
-                log "Reapplying latency + fuzz for $v (container restarted or tc removed)"
+            # Compare against the full expected edge count: a partial wipe
+            # (some netem qdiscs lost, others surviving) must heal too, not
+            # only the all-gone case after a container restart.
+            netem_count=$(nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null | grep -c "netem" || true)
+            if [ "${netem_count:-0}" -lt $(( ${#validators[@]} - 1 )) ]; then
+                log "Reapplying latency + fuzz for $v (netem ${netem_count:-0}/$(( ${#validators[@]} - 1 )) — container restarted or tc removed)"
 
                 # --- Reapply latency ---
                 for u in "${validators[@]}"; do
