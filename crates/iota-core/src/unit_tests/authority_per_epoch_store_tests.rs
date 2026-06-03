@@ -79,6 +79,8 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
     assert_eq!(result[2].unwrap(), checkpoint_sequence_2);
 }
 
+const GAS_PRICE: u64 = 1_000;
+
 /// Builds a minimal `VerifiedExecutableAttestedTransaction` with the given gas
 /// budget and optional attestation. The transaction body is irrelevant — only
 /// the gas budget and the attached attestation matter for
@@ -87,7 +89,6 @@ fn build_attested_tx(
     gas_budget: u64,
     attestation: Option<Attestation>,
 ) -> VerifiedExecutableAttestedTransaction {
-    const GAS_PRICE: u64 = 1_000;
     let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
     let gas_object = random_object_ref();
     let tx = VerifiedExecutableTransaction::new_system(
@@ -108,7 +109,8 @@ fn build_attested_tx(
 }
 
 /// Under `TotalComputationCost`, the estimated execution duration is the
-/// attested computation cost when present, and the gas budget otherwise.
+/// attested computation cost when present, and `gas_budget / gas_price`
+/// otherwise.
 #[test]
 fn test_get_estimated_execution_duration_total_computation_cost_mode() {
     let params = CongestionControlParameters::new_for_test(
@@ -140,28 +142,31 @@ fn test_get_estimated_execution_duration_total_computation_cost_mode() {
         attested_cost,
     );
 
-    // Unattested transaction falls back to the gas budget.
+    // Unattested transaction falls back to gas_budget converted to gas units.
     let unattested_tx = build_attested_tx(gas_budget, None);
     assert_eq!(
         params.get_estimated_execution_duration(&unattested_tx),
-        gas_budget,
+        gas_budget / GAS_PRICE,
     );
 }
 
 /// Attaches a validator attestation with the given `estimated_computation_cost`
 /// to a transaction produced by `build_transaction`.
 fn attest(
-    mut tx: VerifiedExecutableAttestedTransaction,
+    tx: VerifiedExecutableAttestedTransaction,
     estimated_computation_cost: u64,
 ) -> VerifiedExecutableAttestedTransaction {
-    tx.attestation = Some(Attestation::Validator {
-        payload: AttestationData::V1 {
-            estimated_computation_cost,
-            object_versions: vec![],
-        },
-        attestor_index: AuthorityIndex::new_for_test(0),
-    });
-    tx
+    let (inner, _) = tx.into_parts();
+    VerifiedExecutableAttestedTransaction::new(
+        inner,
+        Some(Attestation::Validator {
+            payload: AttestationData::V1 {
+                estimated_computation_cost,
+                object_versions: vec![],
+            },
+            attestor_index: AuthorityIndex::new_for_test(0),
+        }),
+    )
 }
 
 /// Within `TotalComputationCost` mode, a commit of attested transactions is
@@ -177,9 +182,10 @@ fn attest(
 fn test_total_computation_cost_attested_vs_unattested_commit_scheduling() {
     // Per-commit limit is large enough to schedule three attested transactions
     // (cost 30 each → cumulative 90) but too small to schedule even a single
-    // unattested transaction (gas budget 200 > limit 100).
+    // unattested transaction whose gas budget converts to 200 gas units
+    // (`gas_budget / gas_price`) > limit 100.
     const MAX_EXECUTION_DURATION_PER_COMMIT: u64 = 100;
-    const TX_GAS_BUDGET: u64 = 200;
+    const TX_GAS_BUDGET: u64 = 200 * TEST_ONLY_GAS_PRICE;
     const TX_ATTESTED_COST: u64 = 30;
 
     let params = CongestionControlParameters::new_for_test(

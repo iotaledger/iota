@@ -90,14 +90,19 @@ impl VerifiedExecutableTransaction {
 /// versions.
 #[derive(Clone, Debug)]
 pub struct VerifiedExecutableAttestedTransaction {
-    pub tx: VerifiedExecutableTransaction,
+    tx: VerifiedExecutableTransaction,
     /// `None` for unattested transactions (e.g., `UserTransactionV1`).
-    pub attestation: Option<Attestation>,
+    attestation: Option<Attestation>,
 }
 
 impl VerifiedExecutableAttestedTransaction {
     pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
         Self { tx, attestation }
+    }
+
+    /// Returns the attached attestation, if any.
+    pub fn attestation(&self) -> Option<&Attestation> {
+        self.attestation.as_ref()
     }
 
     /// Returns the attestor's estimated computation cost, or `None` if the
@@ -106,6 +111,11 @@ impl VerifiedExecutableAttestedTransaction {
         self.attestation
             .as_ref()
             .map(|a| a.estimated_computation_cost())
+    }
+
+    /// Consume the wrapper and return its parts.
+    pub fn into_parts(self) -> (VerifiedExecutableTransaction, Option<Attestation>) {
+        (self.tx, self.attestation)
     }
 }
 
