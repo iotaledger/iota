@@ -257,8 +257,15 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
         // budget. Under simtest the combined cost (upstream whitelist /
         // allowance checks + the per-command name comparisons + the rest of
         // the scan) overruns the two tightest budgets.
+        // The authenticator reads `expected_package_addr` from the account's
+        // cached `package_addr` field (set once at `create` time via
+        // `type_name::get`) and compares the module/function names against
+        // byte constants, so the per-call PTB scan never calls
+        // `type_name::get` or `address::from_ascii_bytes`. That keeps the
+        // hot path cheap enough to fit at G20k under simtest — only G10k
+        // is still too tight.
         "whitelist_sponsorship" => {
-            if simtest && matches!(budget, G10k | G20k | G30k | G40k | G50k) {
+            if simtest && matches!(budget, G10k) {
                 Fail
             } else {
                 Pass
