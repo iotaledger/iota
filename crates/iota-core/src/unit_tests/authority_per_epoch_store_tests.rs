@@ -10,7 +10,9 @@ use iota_types::{
     attestation::{Attestation, AttestationData},
     base_types::{ObjectID, TransactionDigest, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
-    executable_transaction::{VerifiedExecutableAttestedTransaction, VerifiedExecutableTransaction},
+    executable_transaction::{
+        VerifiedExecutableAttestedTransaction, VerifiedExecutableTransaction,
+    },
     transaction::VerifiedTransaction,
 };
 use starfish_config::AuthorityIndex;
@@ -115,12 +117,12 @@ fn build_attested_tx(
 fn test_get_estimated_execution_duration_total_computation_cost_mode() {
     let params = CongestionControlParameters::new_for_test(
         PerObjectCongestionControlMode::TotalComputationCost,
-        false,             // congestion_control_min_free_execution_slot
-        Some(1_000_000),   // max_execution_duration_per_commit
-        Some(0),           // max_congestion_limit_overshoot_per_commit
-        0,                 // max_gas_price (irrelevant here)
-        false,             // use_congestion_limit_overshoot_in_gas_price_feedback_mechanism
-        true,              // use_separate_gas_price_feedback_mechanism_for_randomness
+        false,           // congestion_control_min_free_execution_slot
+        Some(1_000_000), // max_execution_duration_per_commit
+        Some(0),         // max_congestion_limit_overshoot_per_commit
+        0,               // max_gas_price (irrelevant here)
+        false,           // use_congestion_limit_overshoot_in_gas_price_feedback_mechanism
+        true,            // use_separate_gas_price_feedback_mechanism_for_randomness
     );
 
     let gas_budget = 12_345;

@@ -79,7 +79,9 @@ use iota_types::{
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{Event, EventID, SystemEpochInfoEvent},
-    executable_transaction::{VerifiedExecutableAttestedTransaction, VerifiedExecutableTransaction},
+    executable_transaction::{
+        VerifiedExecutableAttestedTransaction, VerifiedExecutableTransaction,
+    },
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
     fp_ensure,
@@ -1813,20 +1815,6 @@ impl AuthorityState {
                     reference_gas_price,
                 )?;
 
-            // Re-run the sender-side coin deny list check.
-            if certificate.attestation().is_some() {
-                let tx_receiving_objects = self
-                    .input_loader
-                    .read_receiving_objects(&tx_data.receiving_objects(), epoch_store.epoch())?;
-                check_coin_deny_list_v1(
-                    tx_data.sender(),
-                    &tx_checked_input_objects,
-                    &tx_receiving_objects,
-                    &vec![],
-                    &self.get_object_store(),
-                )?;
-            }
-
             let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
             epoch_store.executor().execute_transaction_to_effects(
@@ -1918,20 +1906,6 @@ impl AuthorityState {
                 protocol_config,
                 reference_gas_price,
             )?;
-
-            // Re-run the sender-side coin deny list check.
-            if certificate.attestation().is_some() {
-                let tx_receiving_objects = self
-                    .input_loader
-                    .read_receiving_objects(&tx_data.receiving_objects(), epoch_store.epoch())?;
-                check_coin_deny_list_v1(
-                    tx_data.sender(),
-                    &authenticator_and_tx_checked_input_objects,
-                    &tx_receiving_objects,
-                    &vec![],
-                    &self.get_object_store(),
-                )?;
-            }
 
             debug_assert_eq!(
                 move_authenticators.len(),
@@ -5756,6 +5730,38 @@ impl AuthorityState {
             tx_checked_input_objects,
             per_authenticator_checked_inputs,
         })
+    }
+
+    /// Re-runs the sender-side coin deny-list check for an attested
+    /// (`UserTransactionV2`) transaction in the post-consensus phase.
+    ///
+    /// The attestor performs this check at attestation time, but the deny
+    /// list is a Move object whose state may change between attestation and
+    /// execution. Running the check at execution time would crash the
+    /// validator, so we run it during post-consensus validation where the
+    /// transaction can still be dropped.
+    pub(crate) fn check_coin_deny_list_for_attested_tx(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch: EpochId,
+    ) -> IotaResult<()> {
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
+            self.read_objects_for_validation(transaction, epoch)?;
+        let tx_checked = CheckedInputObjects::new_for_deny_list_check_only(tx_input_objects);
+        let per_authenticator_checked: Vec<CheckedInputObjects> = per_authenticator_inputs
+            .into_iter()
+            .map(|(io, _)| CheckedInputObjects::new_for_deny_list_check_only(io))
+            .collect();
+        let per_authenticator_refs: Vec<&CheckedInputObjects> =
+            per_authenticator_checked.iter().collect();
+        check_coin_deny_list_v1(
+            transaction.data().transaction_data().sender(),
+            &tx_checked,
+            &tx_receiving_objects,
+            &per_authenticator_refs,
+            &self.get_object_store(),
+        )?;
+        Ok(())
     }
 
     fn read_objects_for_validation(

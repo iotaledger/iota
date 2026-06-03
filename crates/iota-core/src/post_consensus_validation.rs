@@ -29,9 +29,10 @@
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
 //!   — drop with error. Cheap; performed before expensive checks.
-//! - Check #6: `handle_transaction_validation_checks()` — drop with error.
-//!   Skipped for attested transactions (`UserTransactionV2`). Only reached when
-//!   all locks are free.
+//! - Check #6: `handle_transaction_validation_checks()` for
+//!   `UserTransactionV1`, or just the coin deny-list re-check for attested
+//!   `UserTransactionV2` (`check_coin_deny_list_for_attested_tx()`). Drop with
+//!   error. Only reached when all locks are free.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
@@ -300,13 +301,13 @@ pub async fn validate_and_resolve_conflicts(
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
         //
-        // For `UserTransactionV2` (attested transactions) this check is
-        // skipped. Each part of it is either re-applied during execution or is
-        // not safety-critical to run post-consensus:
+        // For `UserTransactionV2` (attested transactions) the only part
+        // re-run here is the coin deny-list check — see below. The rest is
+        // either re-applied during execution or is not safety-critical to
+        // run post-consensus:
         //   - `TransactionDenyConfig` (sender/object/package deny lists, feature
         //     kill-switches): loaded from each validator's local `NodeConfig` so it
         //     shouldn't be re-run post- consensus.
-        //   - Coin deny list v1 will be enforced at execution time.
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
         //     when the ref doesn't match current state.
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
@@ -315,6 +316,11 @@ pub async fn validate_and_resolve_conflicts(
         //   - Gas, ownership, `MoveAuthenticator` execution: re-applied in the
         //     execution pipeline (`check_certificate_input` and
         //     `authenticate_then_execute_transaction_to_effects`).
+        //
+        // Coin deny list v1 MUST be re-checked here for attested
+        // transactions: the attestor's view may be stale if a deny-list
+        // update tx was sequenced between attestation and consensus, and
+        // running this check at execution time would crash the validator.
         if attestation.is_none() {
             let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
             if let Err(e) = authority_state
@@ -328,6 +334,23 @@ pub async fn validate_and_resolve_conflicts(
                     ?digest,
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
+        } else {
+            let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
+            if let Err(e) = authority_state
+                .check_coin_deny_list_for_attested_tx(&verified_tx, epoch_store.epoch())
+            {
+                if e.is_storage_or_epoch_error() {
+                    return Err(e);
+                }
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed post-consensus coin deny-list re-check, dropping"
                 );
                 dropped.push((digest, e));
                 keep[i] = false;

@@ -389,10 +389,7 @@ impl TransactionManager {
         certs: Vec<VerifiedExecutableTransaction>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
-        let certs = certs
-            .into_iter()
-            .map(|cert| (cert.into(), None))
-            .collect();
+        let certs = certs.into_iter().map(|cert| (cert.into(), None)).collect();
         self.enqueue_impl(certs, epoch_store)
     }
 
