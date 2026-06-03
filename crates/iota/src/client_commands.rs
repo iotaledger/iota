@@ -52,7 +52,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Identifier, TypeTag,
+    Identifier, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage},
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
@@ -60,7 +60,7 @@ use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
@@ -158,7 +158,7 @@ pub enum IotaClientCommands {
     Call {
         /// Object ID of the package, which contains the module
         #[arg(long)]
-        package: ObjectID,
+        package: ObjectId,
         /// The name of the module in the package
         #[arg(long)]
         module: String,
@@ -191,10 +191,10 @@ pub enum IotaClientCommands {
     DynamicFieldQuery {
         /// The ID of the parent object
         #[arg(name = "object_id")]
-        id: ObjectID,
+        id: ObjectId,
         /// Optional paging cursor
         #[arg(long)]
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         /// Maximum item returned per page
         #[arg(long, default_value = "50")]
         limit: usize,
@@ -263,10 +263,10 @@ pub enum IotaClientCommands {
     MergeCoin {
         /// The address of the coin to merge into.
         #[arg(long)]
-        primary_coin: ObjectID,
+        primary_coin: ObjectId,
         /// The address of the coin to be merged.
         #[arg(long)]
-        coin_to_merge: ObjectID,
+        coin_to_merge: ObjectId,
         #[command(flatten)]
         payment: PaymentArgs,
         #[command(flatten)]
@@ -316,7 +316,7 @@ pub enum IotaClientCommands {
     Object {
         /// Object ID of the object to fetch
         #[arg(name = "object_id")]
-        id: ObjectID,
+        id: ObjectId,
         /// Return the bcs serialized version of the object
         #[arg(long)]
         bcs: bool,
@@ -335,7 +335,7 @@ pub enum IotaClientCommands {
         /// The input coins to be used for pay recipients, following the
         /// specified amounts.
         #[arg(long, num_args(1..))]
-        input_coins: Vec<ObjectID>,
+        input_coins: Vec<ObjectId>,
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
         #[arg(long, num_args(1..))]
@@ -357,7 +357,7 @@ pub enum IotaClientCommands {
         /// The input coins to be used for pay recipients, including the gas
         /// coin.
         #[arg(long, num_args(1..))]
-        input_coins: Vec<ObjectID>,
+        input_coins: Vec<ObjectId>,
         /// The recipient address (or its alias if it's an address in the
         /// keystore).
         #[arg(long)]
@@ -376,7 +376,7 @@ pub enum IotaClientCommands {
         /// coin. If not provided, coins will be selected automatically which
         /// fulfill the requested amounts.
         #[arg(long, num_args(1..))]
-        input_coins: Option<Vec<ObjectID>>,
+        input_coins: Option<Vec<ObjectId>>,
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
         #[arg(long, num_args(1..))]
@@ -444,7 +444,7 @@ pub enum IotaClientCommands {
     SplitCoin {
         /// ID of the coin object to split
         #[arg(long)]
-        coin_id: ObjectID,
+        coin_id: ObjectId,
         /// Specific amounts to split out from the coin, separated by space,
         /// e.g. `--amounts 1 2 1000000000` (1 NANO, 2 NANOS, 1 IOTA)
         #[arg(long, num_args(1..))]
@@ -485,7 +485,7 @@ pub enum IotaClientCommands {
         to: KeyIdentity,
         /// ID of the object to transfer
         #[arg(long)]
-        object_id: ObjectID,
+        object_id: ObjectId,
         #[command(flatten)]
         payment: PaymentArgs,
         #[command(flatten)]
@@ -500,7 +500,7 @@ pub enum IotaClientCommands {
         package_path: PathBuf,
         /// ID of the upgrade capability for the package being upgraded.
         #[arg(long, short = 'c')]
-        upgrade_capability: ObjectID,
+        upgrade_capability: ObjectId,
         /// Package build options
         #[command(flatten)]
         build_config: MoveBuildConfig,
@@ -566,7 +566,7 @@ pub enum IotaClientCommands {
         /// with this address. Only works for unpublished modules (whose
         /// addresses are currently 0x0).
         #[arg(long)]
-        address_override: Option<ObjectID>,
+        address_override: Option<ObjectId>,
     },
     /// Remove an existing address by its alias or hexadecimal string.
     /// Warning: removes the private key from the keystore with no way to
@@ -580,7 +580,7 @@ pub struct PaymentArgs {
     /// IDs of gas objects to be used for gas payment. If none are provided,
     /// coins are selected automatically to cover the gas budget.
     #[arg(long, num_args(1..))]
-    pub gas: Vec<ObjectID>,
+    pub gas: Vec<ObjectId>,
 }
 
 impl PaymentArgs {
@@ -828,7 +828,7 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
 
                 let objects =
-                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectID>| match coin_type {
+                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectId>| match coin_type {
                         Some(ref coin_type) => {
                             client
                                 .coin_read_api()
@@ -1541,7 +1541,7 @@ impl IotaClientCommands {
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
-                let objects = PagedFn::collect(async |cursor: Option<ObjectID>| {
+                let objects = PagedFn::collect(async |cursor: Option<ObjectId>| {
                     client
                         .read_api()
                         .get_owned_objects(
@@ -2073,7 +2073,7 @@ pub(crate) async fn upgrade_package(
     read_api: &ReadApi,
     build_config: MoveBuildConfig,
     package_path: &Path,
-    upgrade_capability: ObjectID,
+    upgrade_capability: ObjectId,
     with_unpublished_dependencies: bool,
     skip_dependency_verification: bool,
     env_alias: Option<String>,
@@ -2826,7 +2826,7 @@ pub struct AddressesOutput {
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldOutput {
     pub has_next_page: bool,
-    pub next_cursor: Option<ObjectID>,
+    pub next_cursor: Option<ObjectId>,
     pub data: Vec<DynamicFieldInfo>,
 }
 
@@ -2851,7 +2851,7 @@ pub struct NewAddressOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectOutput {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub digest: String,
     pub obj_type: String,
@@ -2887,7 +2887,7 @@ impl From<&IotaObjectData> for ObjectOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GasCoinOutput {
-    pub gas_coin_id: ObjectID,
+    pub gas_coin_id: ObjectId,
     pub nanos_balance: u64,
     pub iota_balance: String,
 }
@@ -2905,7 +2905,7 @@ impl From<&GasCoin> for GasCoinOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectsOutput {
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub digest: String,
     pub object_type: String,
@@ -3636,7 +3636,7 @@ fn to_package(o: IotaObjectResponse) -> anyhow::Result<MovePackage> {
 /// Fetch move packages
 async fn fetch_move_packages(
     read_api: &ReadApi,
-    immediate_dep_packages: &BTreeMap<Symbol, ObjectID>,
+    immediate_dep_packages: &BTreeMap<Symbol, ObjectId>,
 ) -> Result<Vec<MovePackage>, anyhow::Error> {
     let package_ids: Vec<_> = immediate_dep_packages.values().cloned().collect(); // a map from id to pkg name for finding package names for error reporting.
     let pkg_id_to_name: BTreeMap<_, _> = immediate_dep_packages
@@ -3668,8 +3668,8 @@ async fn fetch_move_packages(
 // package dependencies
 async fn trans_deps_original_ids(
     read_api: &ReadApi,
-    immediate_dep_packages: &BTreeMap<Symbol, ObjectID>,
-) -> Result<BTreeSet<ObjectID>, anyhow::Error> {
+    immediate_dep_packages: &BTreeMap<Symbol, ObjectId>,
+) -> Result<BTreeSet<ObjectId>, anyhow::Error> {
     let pkgs = fetch_move_packages(read_api, immediate_dep_packages).await?;
     let linkage_table = pkgs
         .iter()
@@ -3702,7 +3702,7 @@ pub(crate) async fn pkg_tree_shake(
         .package
         .deps_compiled_units
         .iter()
-        .map(|(pkg_name, module)| (*pkg_name, ObjectID::new(module.unit.address.into_bytes())))
+        .map(|(pkg_name, module)| (*pkg_name, ObjectId::new(module.unit.address.into_bytes())))
         .collect();
 
     // for every published package in the original list of published dependencies,
@@ -3723,7 +3723,7 @@ async fn select_coins_for_amount(
     amount: u64,
     sender: IotaAddress,
     context: &mut WalletContext,
-) -> anyhow::Result<Vec<ObjectID>> {
+) -> anyhow::Result<Vec<ObjectId>> {
     let mut coins = Vec::new();
 
     let mut gas_coins = context
@@ -3785,7 +3785,7 @@ pub(crate) async fn build_auth_args_for_signing(
 /// the VM.
 pub(crate) async fn resolve_auth_call_args(
     client: &IotaClient,
-    package: ObjectID,
+    package: ObjectId,
     module: &str,
     function: &str,
     type_args: &[TypeTag],
@@ -3904,7 +3904,7 @@ async fn create_move_authenticator_signature(
             call_args,
             type_args,
             CallArg::Shared(SharedObjectRef::new(
-                ObjectID::from(address),
+                ObjectId::from(address),
                 initial_shared_version,
                 false,
             )),

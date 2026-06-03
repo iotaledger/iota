@@ -13,8 +13,9 @@ use iota_json_rpc_types::{
     },
 };
 use iota_open_rpc_macros::open_rpc;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{SequenceNumber, TransactionDigest},
     iota_serde::BigInt,
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -69,7 +70,7 @@ pub trait ReadApi {
         &self,
         /// the ID of the queried object
         #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        object_id: ObjectId,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse>;
@@ -81,7 +82,7 @@ pub trait ReadApi {
         &self,
         /// the IDs of the queried objects
         #[schemars(with = "Vec<ObjectIDSchema>")]
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>>;
@@ -96,7 +97,7 @@ pub trait ReadApi {
         &self,
         /// the ID of the queried object
         #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectID,
+        object_id: ObjectId,
         /// the version of the queried object. If None, default to the latest known version
         #[schemars(with = "SequenceNumberU64Schema")]
         version: SequenceNumber,
@@ -120,7 +121,7 @@ pub trait ReadApi {
     async fn try_get_object_before_version(
         &self,
         /// the ID of the queried object
-        object_id: ObjectID,
+        object_id: ObjectId,
         /// the version of the queried object
         version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse>;

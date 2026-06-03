@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::{
@@ -28,7 +28,7 @@ use iota_types::{
         },
     },
     auth_context::AuthContextData,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{self, Field},
@@ -156,14 +156,14 @@ pub struct Storage {
     /// They might not be the latest object currently but they are the latest
     /// objects for the TX at the time it was run
     /// This store cannot be shared between runners
-    pub live_objects_store: Arc<Mutex<BTreeMap<ObjectID, Object>>>,
+    pub live_objects_store: Arc<Mutex<BTreeMap<ObjectId, Object>>>,
 
     /// Package cache and object version cache can be shared between runners
     /// Non system packages are immutable so we can cache these
-    pub package_cache: Arc<Mutex<BTreeMap<ObjectID, Object>>>,
+    pub package_cache: Arc<Mutex<BTreeMap<ObjectId, Object>>>,
     /// Object contents are frozen at their versions so we can cache these
     /// We must place system packages here as well
-    pub object_version_cache: Arc<Mutex<BTreeMap<(ObjectID, SequenceNumber), Object>>>,
+    pub object_version_cache: Arc<Mutex<BTreeMap<(ObjectId, SequenceNumber), Object>>>,
 }
 
 impl std::fmt::Display for Storage {
@@ -235,7 +235,7 @@ pub struct LocalExec {
     // at this protocol version.
     pub protocol_version_epoch_table: BTreeMap<u64, ProtocolVersionSummary>,
     // For a given protocol version, the mapping valid sequence numbers for each framework package
-    pub protocol_version_system_package_table: BTreeMap<u64, BTreeMap<ObjectID, SequenceNumber>>,
+    pub protocol_version_system_package_table: BTreeMap<u64, BTreeMap<ObjectId, SequenceNumber>>,
     // The current protocol version for this execution
     pub current_protocol_version: u64,
     // All state is contained here
@@ -257,7 +257,7 @@ pub struct LocalExec {
     // Whether or not to enable the gas profiler, the PathBuf contains either a user specified
     // filepath or the default current directory and name format for the profile output
     pub enable_profiler: Option<PathBuf>,
-    pub config_and_versions: Option<Vec<(ObjectID, SequenceNumber)>>,
+    pub config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
     // Retry policies due to RPC errors
     pub num_retries_for_timeout: u32,
     pub sleep_period_for_timeout: std::time::Duration,
@@ -268,7 +268,7 @@ impl LocalExec {
     /// Such as fetching from local DB from snapshot
     pub async fn multi_download(
         &self,
-        objs: &[(ObjectID, SequenceNumber)],
+        objs: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut num_retries_for_timeout = self.num_retries_for_timeout as i64;
         while num_retries_for_timeout >= 0 {
@@ -292,7 +292,7 @@ impl LocalExec {
     /// Such as fetching from local DB from snapshot
     pub async fn multi_download_latest(
         &self,
-        objs: &[ObjectID],
+        objs: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut num_retries_for_timeout = self.num_retries_for_timeout as i64;
         while num_retries_for_timeout >= 0 {
@@ -316,7 +316,7 @@ impl LocalExec {
     pub async fn fetch_loaded_child_refs(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         // Get the child objects loaded
         self.fetcher.get_loaded_child_objects(tx_digest).await
     }
@@ -341,7 +341,7 @@ impl LocalExec {
         executor_version: Option<i64>,
         protocol_version: Option<i64>,
         enable_profiler: Option<PathBuf>,
-        config_and_versions: Option<Vec<(ObjectID, SequenceNumber)>>,
+        config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         info!("Using RPC URL: {}", rpc_url);
         LocalExec::new_from_fn_url(&rpc_url)
@@ -454,7 +454,7 @@ impl LocalExec {
 
     pub async fn multi_download_and_store(
         &mut self,
-        objs: &[(ObjectID, SequenceNumber)],
+        objs: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let objs = self.multi_download(objs).await?;
 
@@ -485,7 +485,7 @@ impl LocalExec {
 
     pub async fn multi_download_relevant_packages_and_store(
         &mut self,
-        objs: Vec<ObjectID>,
+        objs: Vec<ObjectId>,
         protocol_version: u64,
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let syst_packages_objs = if self.protocol_version.is_some_and(|i| i < 0) {
@@ -532,7 +532,7 @@ impl LocalExec {
     #[expect(clippy::disallowed_methods)]
     pub fn download_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: SequenceNumber,
     ) -> Result<Object, ReplayEngineError> {
         if self
@@ -577,7 +577,7 @@ impl LocalExec {
     #[expect(clippy::disallowed_methods)]
     pub fn download_latest_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, ReplayEngineError> {
         let resp = block_on({
             // info!("Downloading latest object {object_id}");
@@ -613,7 +613,7 @@ impl LocalExec {
     #[expect(clippy::disallowed_methods)]
     pub fn download_object_by_upper_bound(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version_upper_bound: VersionNumber,
     ) -> Result<Option<Object>, ReplayEngineError> {
         let local_object = self
@@ -1288,7 +1288,7 @@ impl LocalExec {
         executor_version: Option<i64>,
         protocol_version: Option<i64>,
         enable_profiler: Option<PathBuf>,
-        config_and_versions: Option<Vec<(ObjectID, SequenceNumber)>>,
+        config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         self.executor_version = executor_version;
         self.protocol_version = protocol_version;
@@ -1302,14 +1302,14 @@ impl LocalExec {
                 .await
         }
     }
-    fn system_package_ids(_protocol_version: u64) -> Vec<ObjectID> {
+    fn system_package_ids(_protocol_version: u64) -> Vec<ObjectId> {
         BuiltInFramework::all_package_ids()
     }
 
     /// This is the only function which accesses the network during execution
     pub fn get_or_download_object(
         &self,
-        obj_id: &ObjectID,
+        obj_id: &ObjectId,
         package_expected: bool,
     ) -> Result<Option<Object>, ReplayEngineError> {
         if package_expected {
@@ -1371,7 +1371,7 @@ impl LocalExec {
     pub fn system_package_versions_for_protocol_version(
         &self,
         protocol_version: u64,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         match &self.fetcher {
             Fetchers::Remote(_) => Ok(self
                 .protocol_version_system_package_table
@@ -1538,7 +1538,7 @@ impl LocalExec {
 
     pub async fn system_package_versions(
         &self,
-    ) -> Result<BTreeMap<ObjectID, Vec<(SequenceNumber, TransactionDigest)>>, ReplayEngineError>
+    ) -> Result<BTreeMap<ObjectId, Vec<(SequenceNumber, TransactionDigest)>>, ReplayEngineError>
     {
         let system_package_ids = Self::system_package_ids(
             *self
@@ -1727,7 +1727,7 @@ impl LocalExec {
     fn add_config_objects_if_needed(
         &self,
         status: &IotaExecutionStatus,
-    ) -> Vec<(ObjectID, SequenceNumber)> {
+    ) -> Vec<(ObjectId, SequenceNumber)> {
         match parse_effect_error_for_denied_coins(status) {
             Some(coin_type) => {
                 let Some(mut config_id_and_version) = self.config_and_versions.clone() else {
@@ -1780,7 +1780,7 @@ impl LocalExec {
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         // Download the objects at the version right before the execution of this TX
-        let modified_at_versions: Vec<(ObjectID, SequenceNumber)> = effects.modified_at_versions();
+        let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
 
         let shared_object_refs: Vec<ObjectRef> = effects
             .shared_objects()
@@ -1875,7 +1875,7 @@ impl LocalExec {
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         // Download the objects at the version right before the execution of this TX
-        let modified_at_versions: Vec<(ObjectID, SequenceNumber)> = effects.modified_at_versions();
+        let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
 
         let shared_object_refs: Vec<ObjectRef> = effects
             .shared_objects()
@@ -2106,7 +2106,7 @@ impl LocalExec {
         let gas_refs: Vec<_> = tx_info
             .gas
             .iter()
-            .filter_map(|w| (w.object_id != ObjectID::ZERO).then_some((w.object_id, w.version)))
+            .filter_map(|w| (w.object_id != ObjectId::ZERO).then_some((w.object_id, w.version)))
             .collect();
         self.multi_download_and_store(&gas_refs).await?;
 
@@ -2170,7 +2170,7 @@ impl LocalExec {
 fn load_authenticator_function_ref(
     move_authenticator: &MoveAuthenticator,
     account_object_version: SequenceNumber,
-    get_object: impl Fn(&ObjectID) -> Option<Object>,
+    get_object: impl Fn(&ObjectId) -> Option<Object>,
 ) -> Result<AuthenticatorFunctionRefForExecution, ReplayEngineError> {
     let (account_object_id, _, _) = move_authenticator
         .object_to_authenticate_components()
@@ -2219,8 +2219,8 @@ impl BackingPackageStore for LocalExec {
     /// In this case we might need to download a dependency package which was
     /// not present in the modified at versions list because packages are
     /// immutable
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        fn inner(self_: &LocalExec, package_id: &ObjectID) -> IotaResult<Option<Object>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        fn inner(self_: &LocalExec, package_id: &ObjectId) -> IotaResult<Option<Object>> {
             // If package not present fetch it from the network
             self_
                 .get_or_download_object(package_id, true /* we expect a Move package */)
@@ -2244,14 +2244,14 @@ impl ChildObjectResolver for LocalExec {
     /// Hence all objects must be in store already
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
+        parent: &ObjectId,
+        child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         fn inner(
             self_: &LocalExec,
-            parent: &ObjectID,
-            child: &ObjectID,
+            parent: &ObjectId,
+            child: &ObjectId,
             child_version_upper_bound: SequenceNumber,
         ) -> IotaResult<Option<Object>> {
             let child_object =
@@ -2293,15 +2293,15 @@ impl ChildObjectResolver for LocalExec {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         fn inner(
             self_: &LocalExec,
-            owner: &ObjectID,
-            receiving_object_id: &ObjectID,
+            owner: &ObjectId,
+            receiving_object_id: &ObjectId,
             receive_object_at_version: SequenceNumber,
         ) -> IotaResult<Option<Object>> {
             let recv_object = match self_.try_get_object(receiving_object_id)? {
@@ -2352,7 +2352,7 @@ impl ResourceResolver for LocalExec {
         ) -> IotaResult<Option<Vec<u8>>> {
             // If package not present fetch it from the network or some remote location
             let Some(object) = self_.get_or_download_object(
-                &ObjectID::new(address.into_bytes()),
+                &ObjectId::new(address.into_bytes()),
                 false, // we expect a Move obj
             )?
             else {
@@ -2425,7 +2425,7 @@ impl ObjectStore for LocalExec {
     /// backfill store in init We dont download if not present
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         let res = self
             .storage
@@ -2448,7 +2448,7 @@ impl ObjectStore for LocalExec {
     /// backfill store in init We dont download if not present
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         let res = self
@@ -2481,7 +2481,7 @@ impl ObjectStore for LocalExec {
 impl ObjectStore for &mut LocalExec {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
@@ -2490,7 +2490,7 @@ impl ObjectStore for &mut LocalExec {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in

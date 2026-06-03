@@ -9,12 +9,12 @@ use std::{
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{TypeTag, crypto::IntentMessage};
+use iota_sdk_types::{ObjectId, TypeTag, crypto::IntentMessage};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
@@ -95,7 +95,7 @@ impl MoveAuthenticator {
     /// Returns the components of the object to authenticate.
     pub fn object_to_authenticate_components(
         &self,
-    ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
+    ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
         self.inner.object_to_authenticate_components()
     }
 
@@ -265,7 +265,7 @@ impl MoveAuthenticatorInner {
 
     pub fn object_to_authenticate_components(
         &self,
-    ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
+    ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
         match self {
             MoveAuthenticatorInner::V1(v1) => v1.object_to_authenticate_components(),
         }
@@ -342,7 +342,7 @@ impl MoveAuthenticatorV1 {
 
     pub fn object_to_authenticate_components(
         &self,
-    ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
+    ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
         Ok(match self.object_to_authenticate() {
             CallArg::Pure(_) => {
                 return Err(UserInputError::Unsupported(
@@ -488,14 +488,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::{ObjectID, ObjectRef, SequenceNumber},
+        base_types::{ObjectRef, SequenceNumber},
         digests::ObjectDigest,
         transaction::CallArg,
     };
 
     fn make_simple_authenticator() -> MoveAuthenticator {
         let object_to_authenticate = CallArg::ImmutableOrOwned(ObjectRef {
-            object_id: ObjectID::ZERO,
+            object_id: ObjectId::ZERO,
             version: SequenceNumber::default(),
             digest: ObjectDigest::MIN,
         });

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::IotaMoveStruct;
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::ObjectID, gas_coin::GasCoin, iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    gas_coin::GasCoin, iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::bounded_visitor::BoundedVisitor,
 };
 use move_core_types::{
@@ -23,9 +23,9 @@ fn test_to_json_value() {
         name: "test_event".into(),
         data: vec![100, 200, 300],
         coins: vec![
-            GasCoin::new(ObjectID::random(), 1000000),
-            GasCoin::new(ObjectID::random(), 2000000),
-            GasCoin::new(ObjectID::random(), 3000000),
+            GasCoin::new(ObjectId::random(), 1000000),
+            GasCoin::new(ObjectId::random(), 2000000),
+            GasCoin::new(ObjectId::random(), 3000000),
         ],
     };
     let event_bytes = bcs::to_bytes(&move_event).unwrap();
@@ -71,7 +71,7 @@ pub struct TestEvent {
 impl TestEvent {
     fn type_() -> StructTag {
         StructTag::new(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_static("IOTA"),
             Identifier::from_static("new_foobar"),
             vec![],

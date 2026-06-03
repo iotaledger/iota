@@ -10,7 +10,10 @@ use fastcrypto::{
     rsa::{Base64UrlUnpadded, Encoding as _},
     traits::ToFromBytes,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    ObjectId,
+    crypto::{Intent, IntentMessage},
+};
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
 use passkey_client::Client;
@@ -29,7 +32,7 @@ use url::Url;
 
 use super::to_signing_message;
 use crate::{
-    base_types::{IotaAddress, ObjectID, dbg_addr},
+    base_types::{IotaAddress, dbg_addr},
     crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
     error::IotaError,
     object::Object,
@@ -112,7 +115,7 @@ async fn create_credential_and_sign_test_tx(
     // Derives its iota address and make a test transaction with it as sender.
     let sender = IotaAddress::from(&pk);
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::ZERO;
+    let object_id = ObjectId::ZERO;
     let object = Object::immutable_with_id_for_testing(object_id);
     let gas_price = 1000;
     let tx_data = TransactionData::new_transfer_iota(

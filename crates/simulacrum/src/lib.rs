@@ -31,14 +31,14 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
+    base_types::{AuthorityName, IotaAddress, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -550,14 +550,14 @@ impl ValidatorKeypairProvider for CommitteeWithKeys {
 impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.with_store(|store| store.try_get_object(object_id))
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.with_store(|store| store.try_get_object_by_key(object_id, version))
@@ -842,8 +842,8 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn dynamic_field_iter(
         &self,
-        _parent: iota_types::base_types::ObjectID,
-        _cursor: Option<iota_types::base_types::ObjectID>,
+        _parent: iota_sdk_types::ObjectId,
+        _cursor: Option<iota_sdk_types::ObjectId>,
     ) -> iota_types::storage::error::Result<
         Box<
             dyn Iterator<
@@ -866,7 +866,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn package_versions_iter(
         &self,
-        _original_package_id: iota_types::base_types::ObjectID,
+        _original_package_id: iota_sdk_types::ObjectId,
         _cursor: Option<u64>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,

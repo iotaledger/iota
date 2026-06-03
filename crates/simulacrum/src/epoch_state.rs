@@ -10,8 +10,8 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectID,
     committee::{Committee, EpochId},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -207,7 +207,7 @@ impl EpochState {
         const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
         let mock_gas_id = if transaction.gas().is_empty() {
             let mock_gas_object = Object::new_move(
-                MoveObject::new_gas_coin(1.into(), ObjectID::MAX, SIMULATION_GAS_COIN_VALUE),
+                MoveObject::new_gas_coin(1.into(), ObjectId::MAX, SIMULATION_GAS_COIN_VALUE),
                 Owner::Address(transaction.gas_data().owner),
                 TransactionDigest::GENESIS_MARKER,
             );

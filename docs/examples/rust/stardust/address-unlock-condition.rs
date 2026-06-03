@@ -18,7 +18,6 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
@@ -28,7 +27,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Identifier, TypeTag, crypto::Intent};
+use iota_sdk_types::{Identifier, ObjectId, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
@@ -73,7 +72,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // This object id was fetched manually. It refers to an Alias Output object that
     // owns a NftOutput.
     let alias_output_object_id =
-        ObjectID::from_hex("0x3b35e67750b8e4ccb45b2fc4a6a26a6d97e74c37a532f17177e6324ab93eaca6")?;
+        ObjectId::from_hex("0x3b35e67750b8e4ccb45b2fc4a6a26a6d97e74c37a532f17177e6324ab93eaca6")?;
 
     let alias_output_object = iota_client
         .read_api()
@@ -136,7 +135,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let type_arguments = vec![GAS::type_tag()];
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         if let Argument::Result(extracted_alias_output_assets) = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             Identifier::from_static("alias_output"),
             Identifier::from_static("extract_assets"),
             type_arguments,
@@ -152,7 +151,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract the IOTA balance.
             let iota_coin = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,
@@ -165,7 +164,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],
@@ -180,7 +179,7 @@ async fn main() -> Result<(), anyhow::Error> {
             ];
 
             let nft_output = builder.programmable_move_call(
-                ObjectID::STARDUST,
+                ObjectId::STARDUST,
                 Identifier::from_static("address_unlock_condition"),
                 Identifier::from_static("unlock_alias_address_owned_nft"),
                 type_arguments,
@@ -195,7 +194,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![nft_output];
             // Finally call the nft_output::extract_assets function
             if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-                ObjectID::STARDUST,
+                ObjectId::STARDUST,
                 Identifier::from_static("nft_output"),
                 Identifier::from_static("extract_assets"),
                 type_arguments,
@@ -213,7 +212,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 // Extract the IOTA balance.
                 let iota_coin = builder.programmable_move_call(
-                    ObjectID::FRAMEWORK,
+                    ObjectId::FRAMEWORK,
                     Identifier::COIN_MODULE,
                     Identifier::from_static("from_balance"),
                     type_arguments,
@@ -226,7 +225,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 // Cleanup the bag because it is empty.
                 let arguments = vec![extracted_native_tokens_bag];
                 builder.programmable_move_call(
-                    ObjectID::FRAMEWORK,
+                    ObjectId::FRAMEWORK,
                     Identifier::BAG_MODULE,
                     Identifier::from_static("destroy_empty"),
                     vec![],

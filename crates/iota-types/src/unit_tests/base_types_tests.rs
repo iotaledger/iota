@@ -104,7 +104,7 @@ fn test_max_sequence_number() {
 
 #[test]
 fn test_gas_coin_ser_deser_roundtrip() {
-    let id = ObjectID::random();
+    let id = ObjectId::random();
     let coin = GasCoin::new(id, 10);
     let coin_bytes = coin.to_bcs_bytes();
 
@@ -134,19 +134,19 @@ fn test_object_id_conversions() {}
 
 #[test]
 fn test_object_id_display() {
-    let id = ObjectID::from_str(SAMPLE_ADDRESS).unwrap();
+    let id = ObjectId::from_str(SAMPLE_ADDRESS).unwrap();
     assert_eq!(format!("{id}"), SAMPLE_ADDRESS);
 }
 
 #[test]
 fn test_object_id_str_lossless() {
-    let id = ObjectID::from_str("0000000000000000000000000000000000c0f1f95c5b1c5f0eda533eff269000")
+    let id = ObjectId::from_str("0000000000000000000000000000000000c0f1f95c5b1c5f0eda533eff269000")
         .unwrap();
     let id_empty =
-        ObjectID::from_str("0000000000000000000000000000000000000000000000000000000000000000")
+        ObjectId::from_str("0000000000000000000000000000000000000000000000000000000000000000")
             .unwrap();
     let id_one =
-        ObjectID::from_str("0000000000000000000000000000000000000000000000000000000000000001")
+        ObjectId::from_str("0000000000000000000000000000000000000000000000000000000000000001")
             .unwrap();
 
     assert_eq!(id.to_raw_short_hex(), "c0f1f95c5b1c5f0eda533eff269000",);
@@ -159,16 +159,16 @@ fn test_object_id_from_hex_literal() {
     let hex_literal = "0x1";
     let hex = "0000000000000000000000000000000000000000000000000000000000000001";
 
-    let obj_id_from_literal = ObjectID::from_short_hex(hex_literal).unwrap();
-    let obj_id = ObjectID::from_str(hex).unwrap();
+    let obj_id_from_literal = ObjectId::from_short_hex(hex_literal).unwrap();
+    let obj_id = ObjectId::from_str(hex).unwrap();
 
     assert_eq!(obj_id_from_literal, obj_id);
     assert_eq!(hex_literal, obj_id.to_short_hex());
 
     // Missing '0x'
-    ObjectID::from_prefixed_short_hex(hex).unwrap_err();
+    ObjectId::from_prefixed_short_hex(hex).unwrap_err();
     // Too long
-    ObjectID::from_prefixed_short_hex(
+    ObjectId::from_prefixed_short_hex(
         "0x10000000000000000000000000000000000000000000000000000000000000001",
     )
     .unwrap_err();
@@ -180,21 +180,21 @@ fn test_object_id_from_hex_literal() {
 
 #[test]
 fn test_object_id_ref() {
-    let obj_id = ObjectID::new([1u8; ObjectID::LENGTH]);
+    let obj_id = ObjectId::new([1u8; ObjectId::LENGTH]);
     let _: &[u8] = obj_id.as_ref();
 }
 
 #[test]
 fn test_object_id_from_proto_invalid_length() {
     let bytes = vec![1; 123];
-    ObjectID::from_bytes(bytes).unwrap_err();
+    ObjectId::from_bytes(bytes).unwrap_err();
 }
 
 #[test]
 fn test_object_id_deserialize_from_json_value() {
-    let obj_id = ObjectID::random();
+    let obj_id = ObjectId::random();
     let json_value = serde_json::to_value(obj_id).expect("serde_json::to_value fail.");
-    let obj_id2: ObjectID =
+    let obj_id2: ObjectId =
         serde_json::from_value(json_value).expect("serde_json::from_value fail.");
     assert_eq!(obj_id, obj_id2)
 }
@@ -203,10 +203,10 @@ fn test_object_id_deserialize_from_json_value() {
 fn test_object_id_serde_json() {
     let json_hex = format!("\"{SAMPLE_ADDRESS}\"");
 
-    let obj_id = ObjectID::from_hex(SAMPLE_ADDRESS).unwrap();
+    let obj_id = ObjectId::from_hex(SAMPLE_ADDRESS).unwrap();
 
     let json = serde_json::to_string(&obj_id).unwrap();
-    let json_obj_id: ObjectID = serde_json::from_str(&json_hex).unwrap();
+    let json_obj_id: ObjectId = serde_json::from_str(&json_hex).unwrap();
 
     assert_eq!(json, json_hex);
     assert_eq!(obj_id, json_obj_id);
@@ -214,17 +214,17 @@ fn test_object_id_serde_json() {
 
 #[test]
 fn test_object_id_serde_not_human_readable() {
-    let obj_id = ObjectID::random();
+    let obj_id = ObjectId::random();
     let serialized = bcs::to_bytes(&obj_id).unwrap();
     assert_eq!(obj_id.as_bytes().to_vec(), serialized);
-    let deserialized: ObjectID = bcs::from_bytes(&serialized).unwrap();
+    let deserialized: ObjectId = bcs::from_bytes(&serialized).unwrap();
     assert_eq!(deserialized, obj_id);
 }
 
 #[test]
 fn test_object_id_serde_with_expected_value() {
     let object_id_vec = SAMPLE_ADDRESS_VEC.to_vec();
-    let object_id = ObjectID::from_bytes(&object_id_vec).unwrap();
+    let object_id = ObjectId::from_bytes(&object_id_vec).unwrap();
     let json_serialized = serde_json::to_string(&object_id).unwrap();
     let bcs_serialized = bcs::to_bytes(&object_id).unwrap();
 
@@ -238,12 +238,12 @@ fn test_object_id_zero_padding() {
     let hex = "0x2";
     let long_hex = "0x0000000000000000000000000000000000000000000000000000000000000002";
     let long_hex_alt = "0000000000000000000000000000000000000000000000000000000000000002";
-    let obj_id_1 = ObjectID::from_str(hex).unwrap();
-    let obj_id_2 = ObjectID::from_str(long_hex).unwrap();
-    let obj_id_3 = ObjectID::from_str(long_hex_alt).unwrap();
-    let obj_id_4: ObjectID = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
-    let obj_id_5: ObjectID = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
-    let obj_id_6: ObjectID = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
+    let obj_id_1 = ObjectId::from_str(hex).unwrap();
+    let obj_id_2 = ObjectId::from_str(long_hex).unwrap();
+    let obj_id_3 = ObjectId::from_str(long_hex_alt).unwrap();
+    let obj_id_4: ObjectId = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
+    let obj_id_5: ObjectId = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
+    let obj_id_6: ObjectId = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
     assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_1.as_bytes());
     assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_2.as_bytes());
     assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_3.as_bytes());
@@ -345,12 +345,12 @@ fn test_authority_signature_serde_human_readable() {
 
 #[test]
 fn test_object_id_from_empty_string() {
-    assert!(ObjectID::from_str("").is_err());
+    assert!(ObjectId::from_str("").is_err());
 }
 
 #[test]
 fn test_move_object_size_for_gas_metering() {
-    let object = Object::with_id_owner_for_testing(ObjectID::random(), IotaAddress::random());
+    let object = Object::with_id_owner_for_testing(ObjectId::random(), IotaAddress::random());
     let size = object.object_size_for_gas_metering();
     let serialized = bcs::to_bytes(&object).unwrap();
     // If the following assertion breaks, it's likely you have changed MoveObject's

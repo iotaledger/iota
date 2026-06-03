@@ -975,8 +975,7 @@ impl<'env> Docgen<'env> {
     /// also starts with `E` is fine to flag as the convention is consistent.
     fn is_error_constant(name: &str) -> bool {
         let mut chars = name.chars();
-        chars.next() == Some('E')
-            && matches!(chars.next(), Some(c) if c.is_ascii_uppercase())
+        chars.next() == Some('E') && matches!(chars.next(), Some(c) if c.is_ascii_uppercase())
     }
 
     /// Generates documentation for a struct. `methods` are functions whose

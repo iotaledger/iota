@@ -7,13 +7,10 @@ use std::{str::FromStr, sync::Arc};
 use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    digests::TransactionDigest,
-    event::EventID,
-    object::bounded_visitor::BoundedVisitor,
-    parse_iota_struct_tag,
+    base_types::IotaAddress, digests::TransactionDigest, event::EventID,
+    object::bounded_visitor::BoundedVisitor, parse_iota_struct_tag,
 };
 
 use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
@@ -76,7 +73,7 @@ impl StoredEvent {
         self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<IotaEvent, IndexerError> {
-        let package_id = ObjectID::from_bytes(self.package.clone()).map_err(|_e| {
+        let package_id = ObjectId::from_bytes(self.package.clone()).map_err(|_e| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "Failed to parse event package ID: {:?}",
                 self.package
@@ -151,7 +148,7 @@ mod tests {
     fn test_canonical_string_of_event_type() {
         let tx_digest = TransactionDigest::default();
         let event = Event {
-            package_id: ObjectID::random(),
+            package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
             type_: StructTag::new(

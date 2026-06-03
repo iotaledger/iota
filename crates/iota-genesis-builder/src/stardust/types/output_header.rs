@@ -5,8 +5,8 @@
 use std::mem::size_of;
 
 use anyhow::Result;
+use iota_sdk_types::ObjectId;
 use iota_stardust_types::block::{BlockId, MilestoneIndex, TransactionId, output::OutputId};
-use iota_types::base_types::ObjectID;
 use packable::Packable;
 
 use crate::stardust::types::output_index::OutputIndex;
@@ -34,8 +34,8 @@ impl OutputHeader {
         self.output_id
     }
 
-    pub fn new_object_id(&self) -> ObjectID {
-        ObjectID::new(self.output_id.hash())
+    pub fn new_object_id(&self) -> ObjectId {
+        ObjectId::new(self.output_id.hash())
     }
 
     pub fn block_id(&self) -> BlockId {

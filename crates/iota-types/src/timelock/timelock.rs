@@ -1,11 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::ObjectID,
     error::IotaError,
     gas_coin::GasCoin,
     id::UID,
@@ -41,7 +40,7 @@ impl<T> TimeLock<T> {
     }
 
     /// Get the TimeLock's `id`.
-    pub fn id(&self) -> &ObjectID {
+    pub fn id(&self) -> &ObjectId {
         self.id.object_id()
     }
 

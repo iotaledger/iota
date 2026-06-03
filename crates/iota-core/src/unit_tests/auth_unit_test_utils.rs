@@ -15,8 +15,8 @@ use super::{authority_test_utils::*, *};
 
 pub fn build_test_modules_with_dep_addr(
     path: &Path,
-    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectID)>,
-    dep_ids: impl IntoIterator<Item = (&'static str, ObjectID)>,
+    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
+    dep_ids: impl IntoIterator<Item = (&'static str, ObjectId)>,
 ) -> CompiledPackage {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
@@ -63,10 +63,10 @@ pub async fn publish_package_on_single_authority(
     sender: IotaAddress,
     sender_key: &dyn Signer<Signature>,
     gas_payment: ObjectRef,
-    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectID)>,
-    dep_ids: Vec<ObjectID>,
+    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
+    dep_ids: Vec<ObjectId>,
     state: &Arc<AuthorityState>,
-) -> IotaResult<(TransactionDigest, (ObjectID, ObjectRef))> {
+) -> IotaResult<(TransactionDigest, (ObjectId, ObjectRef))> {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
         build_config.config.additional_named_addresses.insert(
@@ -116,12 +116,12 @@ pub async fn upgrade_package_on_single_authority(
     sender: IotaAddress,
     sender_key: &dyn Signer<Signature>,
     gas_payment: ObjectRef,
-    package_id: ObjectID,
+    package_id: ObjectId,
     upgrade_cap: ObjectRef,
-    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectID)>,
-    dep_id_mapping: impl IntoIterator<Item = (&'static str, ObjectID)>,
+    dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
+    dep_id_mapping: impl IntoIterator<Item = (&'static str, ObjectId)>,
     state: &Arc<AuthorityState>,
-) -> IotaResult<(TransactionDigest, ObjectID)> {
+) -> IotaResult<(TransactionDigest, ObjectId)> {
     let package = build_test_modules_with_dep_addr(path, dep_original_addresses, dep_id_mapping);
 
     let with_unpublished_deps = false;

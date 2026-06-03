@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, Owner, UnchangedSharedObject,
-    Version, crypto::Intent,
+    Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, Owner,
+    UnchangedSharedObject, Version, crypto::Intent,
 };
 pub use iota_sdk_types::{
     effects::{
@@ -19,7 +19,7 @@ pub use test_effects_builder::TestEffectsBuilder;
 use tracing::instrument;
 
 use crate::{
-    base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ExecutionDigests, ObjectRef, SequenceNumber},
     committee::Committee,
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
@@ -75,13 +75,13 @@ pub enum ObjectRemoveKind {
 pub enum InputSharedObject {
     Mutate(ObjectRef),
     ReadOnly(ObjectRef),
-    ReadDeleted(ObjectID, Version),
-    MutateDeleted(ObjectID, Version),
-    Cancelled(ObjectID, Version),
+    ReadDeleted(ObjectId, Version),
+    MutateDeleted(ObjectId, Version),
+    Cancelled(ObjectId, Version),
 }
 
 impl InputSharedObject {
-    pub fn id_and_version(&self) -> (ObjectID, Version) {
+    pub fn id_and_version(&self) -> (ObjectId, Version) {
         let (object_id, version, ..) = self.object_ref().into_parts();
         (object_id, version)
     }
@@ -100,7 +100,7 @@ impl InputSharedObject {
     }
 }
 
-/// Effect on an individual object, keyed by its [`ObjectID`].
+/// Effect on an individual object, keyed by its [`ObjectId`].
 ///
 /// Describes the input and output version/digest of a single object that was
 /// read or modified during transaction execution, along with the
@@ -109,7 +109,7 @@ impl InputSharedObject {
 /// [`TransactionEffectsAPI::object_changes`].
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct ObjectChange {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub input_version: Option<Version>,
     pub input_digest: Option<Digest>,
     pub output_version: Option<Version>,
@@ -137,10 +137,10 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// Return the epoch in which this transaction was executed.
     fn epoch(&self) -> EpochId;
 
-    /// Return the `(ObjectID, Version)` pair, at their pre-execution version,
+    /// Return the `(ObjectId, Version)` pair, at their pre-execution version,
     /// of every object that existed in the store before this transaction
     /// and was modified by it (mutated, wrapped, or deleted).
-    fn modified_at_versions(&self) -> Vec<(ObjectID, Version)>;
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
 
     /// The version assigned to all output objects (apart from packages).
     fn lamport_version(&self) -> Version;
@@ -220,7 +220,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
 
     /// IDs of shared objects that were declared as mutable inputs by the
     /// transaction but had already been deleted at the time of execution.
-    fn deleted_mutably_accessed_shared_objects(&self) -> Vec<ObjectID> {
+    fn deleted_mutably_accessed_shared_objects(&self) -> Vec<ObjectId> {
         self.input_shared_objects()
             .into_iter()
             .filter_map(|kind| match kind {
@@ -235,7 +235,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
 
     /// Returns all root shared objects (i.e. not child object) that are
     /// read-only in the transaction.
-    fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)>;
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)>;
 }
 
 /// Test-only mutators and unchecked builders for [`TransactionEffects`] that
@@ -285,11 +285,11 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
         epoch: EpochId,
         gas_cost_summary: GasCostSummary,
         shared_objects: Vec<SharedInput>,
-        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
         transaction_digest: TransactionDigest,
         lamport_version: SequenceNumber,
-        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
-        gas_object: Option<ObjectID>,
+        changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
+        gas_object: Option<ObjectId>,
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
     ) -> Self;
@@ -317,10 +317,10 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
 
     /// Returns all objects that will become a tombstone after this transaction.
     /// This includes deleted, unwrapped_then_deleted and wrapped objects.
-    fn all_tombstones(&self) -> Vec<(ObjectID, SequenceNumber)>;
+    fn all_tombstones(&self) -> Vec<(ObjectId, SequenceNumber)>;
 
     /// Returns all objects that were created + wrapped in the same transaction.
-    fn created_then_wrapped_objects(&self) -> Vec<(ObjectID, SequenceNumber)>;
+    fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, SequenceNumber)>;
 
     /// Return an iterator of mutated objects, but excluding the gas object.
     fn mutated_excluding_gas(&self) -> Vec<(ObjectRef, Owner)>;
@@ -383,7 +383,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_effects_api!(self, epoch)
     }
 
-    fn modified_at_versions(&self) -> Vec<(ObjectID, Version)> {
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
         delegate_effects_api!(self, modified_at_versions)
     }
 
@@ -447,7 +447,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_effects_api!(self, gas_cost_summary)
     }
 
-    fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)> {
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)> {
         delegate_effects_api!(self, unchanged_shared_objects)
     }
 }
@@ -488,11 +488,11 @@ impl TransactionEffectsExt for TransactionEffects {
         epoch: EpochId,
         gas_cost_summary: GasCostSummary,
         shared_objects: Vec<SharedInput>,
-        loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+        loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
         transaction_digest: TransactionDigest,
         lamport_version: SequenceNumber,
-        changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
-        gas_object: Option<ObjectID>,
+        changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
+        gas_object: Option<ObjectId>,
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
     ) -> Self {
@@ -563,7 +563,7 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect()
     }
 
-    fn all_tombstones(&self) -> Vec<(ObjectID, SequenceNumber)> {
+    fn all_tombstones(&self) -> Vec<(ObjectId, SequenceNumber)> {
         self.deleted()
             .into_iter()
             .chain(self.unwrapped_then_deleted())
@@ -572,7 +572,7 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect()
     }
 
-    fn created_then_wrapped_objects(&self) -> Vec<(ObjectID, SequenceNumber)> {
+    fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, SequenceNumber)> {
         // Filter `ObjectChange` where:
         // - `input_digest` and `output_digest` are `None`, and
         // - `id_operation` is `Created`.

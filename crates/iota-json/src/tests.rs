@@ -7,9 +7,9 @@ use std::{path::Path, str::FromStr};
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{IotaAddress, TransactionDigest},
     dynamic_field::derive_dynamic_field_id,
     gas_coin::GasCoin,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
@@ -453,9 +453,9 @@ fn test_basic_args_linter_top_level() {
     //     _ctx: &mut TxContext,
     // )
 
-    let foo_id = ObjectID::random();
-    let bar_id = ObjectID::random();
-    let baz_id = ObjectID::random();
+    let foo_id = ObjectId::random();
+    let bar_id = ObjectId::random();
+    let baz_id = ObjectId::random();
     let recipient_addr = IotaAddress::random();
 
     let foo = json!(foo_id.to_canonical_string(/* with_prefix */ true));
@@ -591,7 +591,7 @@ fn test_from_str() {
     assert!(test.0.is_boolean());
 
     // test id without quotes
-    let object_id = ObjectID::random().to_hex();
+    let object_id = ObjectId::random().to_hex();
     let test = IotaJsonValue::from_str(&object_id).unwrap();
     assert!(test.0.is_string());
     assert_eq!(object_id, test.0.as_str().unwrap());
@@ -612,7 +612,7 @@ fn test_from_str() {
     assert_eq!("Some string", test.0.as_str().unwrap());
 
     let test = IotaJsonValue::from_object_id(
-        ObjectID::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
+        ObjectId::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
             .unwrap(),
     );
     assert!(test.0.is_string());
@@ -685,7 +685,7 @@ fn test_convert_struct() {
     let coin: GasCoin = bcs::from_bytes(&bcs).unwrap();
     assert_eq!(
         coin.0.id.id.bytes,
-        ObjectID::from_str("0xf1416fe18c7baa1673187375777a7606708481311cb3548509ec91a5871c6b9a")
+        ObjectId::from_str("0xf1416fe18c7baa1673187375777a7606708481311cb3548509ec91a5871c6b9a")
             .unwrap()
     );
     assert_eq!(coin.0.balance.value(), 1000000);
@@ -716,7 +716,7 @@ fn test_convert_string_vec() {
 #[test]
 fn test_string_vec_df_name_child_id_eq() {
     let parent_id =
-        ObjectID::from_str("0x13a3ab664bfbdff0ab03cd1ce8c6fb3f31a8803f2e6e0b14b610f8e94fcb8509")
+        ObjectId::from_str("0x13a3ab664bfbdff0ab03cd1ce8c6fb3f31a8803f2e6e0b14b610f8e94fcb8509")
             .unwrap();
     let name = json!({
         "labels": [

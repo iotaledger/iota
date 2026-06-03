@@ -225,8 +225,9 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::ObjectId;
     use iota_types::{
-        base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{ObjectDigest, ObjectRef, SequenceNumber},
         effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt},
     };
 
@@ -296,10 +297,10 @@ mod tests {
         TransactionDigest::new(bytes)
     }
 
-    fn o(i: u8) -> ObjectID {
-        let mut bytes: [u8; ObjectID::LENGTH] = Default::default();
+    fn o(i: u8) -> ObjectId {
+        let mut bytes: [u8; ObjectId::LENGTH] = Default::default();
         bytes[0] = i;
-        ObjectID::new(bytes)
+        ObjectId::new(bytes)
     }
 
     fn e(

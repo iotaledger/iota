@@ -15,11 +15,11 @@ use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     coin::TreasuryCap,
     coin_manager::CoinManager,
     effects::TransactionEffectsAPI,
@@ -95,7 +95,7 @@ impl CoinReadApiServer for CoinReadApi {
         owner: IotaAddress,
         coin_type: Option<String>,
         // exclusive cursor if `Some`, otherwise start from the beginning
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         async move {
@@ -104,8 +104,8 @@ impl CoinReadApiServer for CoinReadApi {
             let cursor = match cursor {
                 Some(c) => (coin_type_tag.to_string(), c),
                 // If cursor is not specified, we need to start from the beginning of the coin
-                // type, which is the minimal possible ObjectID.
-                None => (coin_type_tag.to_string(), ObjectID::ZERO),
+                // type, which is the minimal possible ObjectId.
+                None => (coin_type_tag.to_string(), ObjectId::ZERO),
             };
 
             self.internal
@@ -123,7 +123,7 @@ impl CoinReadApiServer for CoinReadApi {
         &self,
         owner: IotaAddress,
         // exclusive cursor if `Some`, otherwise start from the beginning
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         async move {
@@ -147,7 +147,7 @@ impl CoinReadApiServer for CoinReadApi {
                 }
                 None => {
                     // If cursor is None, start from the beginning
-                    Ok((String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO))
+                    Ok((String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO))
                 }
             }?;
 
@@ -338,17 +338,17 @@ impl CoinReadApiServer for CoinReadApi {
 }
 
 #[cached(
-    type = "SizedCache<String, ObjectID>",
+    type = "SizedCache<String, ObjectId>",
     create = "{ SizedCache::with_size(10000) }",
     convert = r#"{ format!("{}{}", package_id, object_struct_tag) }"#,
     result = true
 )]
 async fn find_package_object_id(
     state: Arc<dyn StateRead>,
-    package_id: ObjectID,
+    package_id: ObjectId,
     object_struct_tag: StructTag,
     kv_store: Arc<TransactionKeyValueStore>,
-) -> RpcInterimResult<ObjectID> {
+) -> RpcInterimResult<ObjectId> {
     spawn_monitored_task!(async move {
         let publish_txn_digest = state.find_publish_txn_digest(package_id)?;
 
@@ -449,7 +449,7 @@ where
 #[async_trait]
 pub trait CoinReadInternal {
     fn get_state(&self) -> Arc<dyn StateRead>;
-    async fn get_object(&self, object_id: &ObjectID) -> RpcInterimResult<Option<Object>>;
+    async fn get_object(&self, object_id: &ObjectId) -> RpcInterimResult<Option<Object>>;
     async fn get_balance(
         &self,
         owner: IotaAddress,
@@ -461,13 +461,13 @@ pub trait CoinReadInternal {
     ) -> RpcInterimResult<Arc<HashMap<TypeTag, TotalBalance>>>;
     async fn find_package_object(
         &self,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
         object_struct_tag: StructTag,
     ) -> RpcInterimResult<Object>;
     async fn get_coins_iterator(
         &self,
         owner: IotaAddress,
-        cursor: (String, ObjectID),
+        cursor: (String, ObjectId),
         limit: Option<usize>,
         one_coin_type_only: bool,
     ) -> RpcInterimResult<CoinPage>;
@@ -500,7 +500,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
         self.state.clone()
     }
 
-    async fn get_object(&self, object_id: &ObjectID) -> RpcInterimResult<Option<Object>> {
+    async fn get_object(&self, object_id: &ObjectId) -> RpcInterimResult<Option<Object>> {
         Ok(self.state.get_object(object_id).await?)
     }
 
@@ -521,7 +521,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn find_package_object(
         &self,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
         object_struct_tag: StructTag,
     ) -> RpcInterimResult<Object> {
         let state = self.get_state();
@@ -534,7 +534,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
     async fn get_coins_iterator(
         &self,
         owner: IotaAddress,
-        cursor: (String, ObjectID),
+        cursor: (String, ObjectId),
         limit: Option<usize>,
         one_coin_type_only: bool,
     ) -> RpcInterimResult<CoinPage> {
@@ -577,7 +577,7 @@ mod tests {
     };
     use iota_types::{
         balance::Supply,
-        base_types::{IotaAddress, ObjectID, SequenceNumber},
+        base_types::{IotaAddress, SequenceNumber},
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest},
         effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
@@ -615,7 +615,7 @@ mod tests {
                 digest: TransactionDigest,
             ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
-            async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> IotaResult<Option<Object>>;
+            async fn get_object(&self, object_id: ObjectId, version: SequenceNumber) -> IotaResult<Option<Object>>;
             async fn multi_get_objects(&self, object_keys: &[iota_types::storage::ObjectKey]) -> IotaResult<Vec<Option<Object>>>;
 
             async fn multi_get_transactions_perpetual_checkpoints(
@@ -664,11 +664,11 @@ mod tests {
         IotaAddress::STD
     }
 
-    fn get_test_package_id() -> ObjectID {
-        ObjectID::from_u16(0xf)
+    fn get_test_package_id() -> ObjectId {
+        ObjectId::from_u16(0xf)
     }
 
-    fn get_test_coin_type(package_id: ObjectID) -> String {
+    fn get_test_coin_type(package_id: ObjectId) -> String {
         format!("{package_id}::test_coin::TEST_COIN")
     }
 
@@ -693,9 +693,9 @@ mod tests {
         };
 
         let object_id = if let Some(literal) = id_hex_literal {
-            ObjectID::from_prefixed_short_hex(literal).unwrap()
+            ObjectId::from_prefixed_short_hex(literal).unwrap()
         } else {
-            ObjectID::from_prefixed_short_hex(default_hex).unwrap()
+            ObjectId::from_prefixed_short_hex(default_hex).unwrap()
         };
 
         Coin {
@@ -709,7 +709,7 @@ mod tests {
     }
 
     fn get_test_treasury_cap_peripherals(
-        package_id: ObjectID,
+        package_id: ObjectId,
     ) -> (String, StructTag, StructTag, TreasuryCap, Object) {
         let coin_name = get_test_coin_type(package_id);
         let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
@@ -743,7 +743,7 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((StructTag::new_gas().to_string(), ObjectID::ZERO)),
+                    predicate::eq((StructTag::new_gas().to_string(), ObjectId::ZERO)),
                     predicate::eq(51),
                     predicate::eq(true),
                 )
@@ -815,7 +815,7 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((coin_type_tag.to_string(), ObjectID::ZERO)),
+                    predicate::eq((coin_type_tag.to_string(), ObjectId::ZERO)),
                     predicate::eq(51),
                     predicate::eq(true),
                 )
@@ -993,7 +993,7 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO)),
+                    predicate::eq((String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO)),
                     predicate::eq(51),
                     predicate::eq(false),
                 )
@@ -1592,7 +1592,7 @@ mod tests {
                 system_state_version: Default::default(),
                 iota_treasury_cap: IotaTreasuryCap {
                     inner: TreasuryCap {
-                        id: UID::new(ObjectID::random()),
+                        id: UID::new(ObjectId::random()),
                         total_supply: Supply {
                             value: Default::default(),
                         },

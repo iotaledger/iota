@@ -8,9 +8,9 @@ use std::{
 };
 
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     committee::EpochId,
     error::VMMemoryLimitExceededSubStatusCode,
     execution::DynamicallyLoadedObjectMetadata,
@@ -30,7 +30,7 @@ use move_vm_types::{
 use crate::object_runtime::{fingerprint::ObjectFingerprint, get_all_uids};
 
 pub(super) struct ChildObject {
-    pub(super) owner: ObjectID,
+    pub(super) owner: ObjectId,
     pub(super) ty: Type,
     pub(super) move_type: StructTag,
     pub(super) value: GlobalValue,
@@ -38,8 +38,8 @@ pub(super) struct ChildObject {
 }
 
 pub(crate) struct ActiveChildObject<'a> {
-    pub(crate) id: &'a ObjectID,
-    pub(crate) owner: &'a ObjectID,
+    pub(crate) id: &'a ObjectId,
+    pub(crate) owner: &'a ObjectId,
     pub(crate) ty: &'a Type,
     pub(crate) move_type: &'a StructTag,
     pub(crate) copied_value: Option<Value>,
@@ -47,21 +47,21 @@ pub(crate) struct ActiveChildObject<'a> {
 
 #[derive(Debug)]
 struct ConfigSetting {
-    config: ObjectID,
+    config: ObjectId,
     ty: StructTag,
     value: Value,
 }
 
 #[derive(Debug)]
 pub(crate) struct ChildObjectEffectV0 {
-    pub(super) owner: ObjectID,
+    pub(super) owner: ObjectId,
     pub(super) ty: Type,
     pub(super) effect: Op<Value>,
 }
 
 #[derive(Debug)]
 pub(crate) struct ChildObjectEffectV1 {
-    pub(super) owner: ObjectID,
+    pub(super) owner: ObjectId,
     pub(super) ty: Type,
     pub(super) final_value: Option<Value>,
     // True if the value or the owner has changed
@@ -72,9 +72,9 @@ pub(crate) struct ChildObjectEffectV1 {
 pub(crate) enum ChildObjectEffects {
     // In this version, we accurately track mutations via WriteRef to the child object, or
     // references rooted in the child object.
-    V0(BTreeMap<ObjectID, ChildObjectEffectV0>),
+    V0(BTreeMap<ObjectId, ChildObjectEffectV0>),
     // In this version, we instead check always return the value, and report if it changed.
-    V1(BTreeMap<ObjectID, ChildObjectEffectV1>),
+    V1(BTreeMap<ObjectId, ChildObjectEffectV1>),
 }
 
 struct Inner<'a> {
@@ -83,13 +83,13 @@ struct Inner<'a> {
     // The version of the root object in ownership at the beginning of the transaction.
     // If it was a child object, it resolves to the root parent's sequence number.
     // Otherwise, it is just the sequence number at the beginning of the transaction.
-    root_version: BTreeMap<ObjectID, SequenceNumber>,
+    root_version: BTreeMap<ObjectId, SequenceNumber>,
     // A map from a wrapped object to the object it was contained in at the
     // beginning of the transaction.
-    wrapped_object_containers: BTreeMap<ObjectID, ObjectID>,
+    wrapped_object_containers: BTreeMap<ObjectId, ObjectId>,
     // cached objects from the resolver. An object might be in this map but not in the store
     // if it's existence was queried, but the value was not used.
-    cached_objects: BTreeMap<ObjectID, Option<Object>>,
+    cached_objects: BTreeMap<ObjectId, Option<Object>>,
     // whether or not this TX is gas metered
     is_metered: bool,
     // Protocol config used to enforce limits
@@ -109,8 +109,8 @@ pub(super) struct ChildObjectStore<'a> {
     inner: Inner<'a>,
     // Maps of populated GlobalValues, meaning the child object has been accessed in this
     // transaction
-    store: BTreeMap<ObjectID, ChildObject>,
-    config_setting_cache: BTreeMap<ObjectID, ConfigSetting>,
+    store: BTreeMap<ObjectId, ChildObject>,
+    config_setting_cache: BTreeMap<ObjectId, ConfigSetting>,
     // whether or not this TX is gas metered
     is_metered: bool,
 }
@@ -146,7 +146,7 @@ macro_rules! fetch_child_object_unbounded {
             // that C.parent != parent, we raise an invariant violation
             match &object.owner {
                 Owner::Object(id) => {
-                    if ObjectID::from(*id) != $parent {
+                    if ObjectId::from(*id) != $parent {
                         return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                             format!(
                                 "Bad owner for {}. Expected owner {} but found owner {}",
@@ -188,8 +188,8 @@ macro_rules! fetch_child_object_unbounded {
 impl Inner<'_> {
     fn receive_object_from_store(
         &self,
-        owner: ObjectID,
-        child: ObjectID,
+        owner: ObjectId,
+        child: ObjectId,
         version: SequenceNumber,
     ) -> PartialVMResult<LoadedWithMetadataResult<MoveObject>> {
         let child_opt = self
@@ -252,8 +252,8 @@ impl Inner<'_> {
 
     fn get_or_fetch_object_from_store(
         &mut self,
-        parent: ObjectID,
-        child: ObjectID,
+        parent: ObjectId,
+        child: ObjectId,
     ) -> PartialVMResult<Option<&MoveObject>> {
         let cached_objects_count = self.cached_objects.len() as u64;
         let parents_root_version = self.root_version.get(&parent).copied();
@@ -305,8 +305,8 @@ impl Inner<'_> {
 
     fn fetch_object_impl(
         &mut self,
-        parent: ObjectID,
-        child: ObjectID,
+        parent: ObjectId,
+        child: ObjectId,
         child_ty: &Type,
         child_ty_layout: &R::MoveTypeLayout,
         child_ty_fully_annotated_layout: &A::MoveTypeLayout,
@@ -418,8 +418,8 @@ fn deserialize_move_object(
 impl<'a> ChildObjectStore<'a> {
     pub(super) fn new(
         resolver: &'a dyn ChildObjectResolver,
-        root_version: BTreeMap<ObjectID, SequenceNumber>,
-        wrapped_object_containers: BTreeMap<ObjectID, ObjectID>,
+        root_version: BTreeMap<ObjectId, SequenceNumber>,
+        wrapped_object_containers: BTreeMap<ObjectId, ObjectId>,
         is_metered: bool,
         protocol_config: &'a ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
@@ -444,8 +444,8 @@ impl<'a> ChildObjectStore<'a> {
 
     pub(super) fn receive_object(
         &mut self,
-        parent: ObjectID,
-        child: ObjectID,
+        parent: ObjectId,
+        child: ObjectId,
         child_version: SequenceNumber,
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
@@ -489,8 +489,8 @@ impl<'a> ChildObjectStore<'a> {
 
     pub(super) fn object_exists(
         &mut self,
-        parent: ObjectID,
-        child: ObjectID,
+        parent: ObjectId,
+        child: ObjectId,
     ) -> PartialVMResult<bool> {
         if let Some(child_object) = self.store.get(&child) {
             return child_object.value.exists();
@@ -503,8 +503,8 @@ impl<'a> ChildObjectStore<'a> {
 
     pub(super) fn object_exists_and_has_type(
         &mut self,
-        parent: ObjectID,
-        child: ObjectID,
+        parent: ObjectId,
+        child: ObjectId,
         child_struct_tag: &StructTag,
     ) -> PartialVMResult<bool> {
         if let Some(child_object) = self.store.get(&child) {
@@ -520,8 +520,8 @@ impl<'a> ChildObjectStore<'a> {
 
     pub(super) fn get_or_fetch_object(
         &mut self,
-        parent: ObjectID,
-        child: ObjectID,
+        parent: ObjectId,
+        child: ObjectId,
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &A::MoveTypeLayout,
@@ -584,8 +584,8 @@ impl<'a> ChildObjectStore<'a> {
 
     pub(super) fn add_object(
         &mut self,
-        parent: ObjectID,
-        child: ObjectID,
+        parent: ObjectId,
+        child: ObjectId,
         child_ty: &Type,
         child_struct_tag: StructTag,
         child_value: Value,
@@ -651,8 +651,8 @@ impl<'a> ChildObjectStore<'a> {
 
     pub(super) fn config_setting_unsequenced_read(
         &mut self,
-        config_id: ObjectID,
-        name_df_id: ObjectID,
+        config_id: ObjectId,
+        name_df_id: ObjectId,
         _field_setting_ty: &Type,
         field_setting_layout: &R::MoveTypeLayout,
         field_setting_object_type: &StructTag,
@@ -726,8 +726,8 @@ impl<'a> ChildObjectStore<'a> {
     /// store.
     pub(super) fn config_setting_cache_update(
         &mut self,
-        config_id: ObjectID,
-        name_df_id: ObjectID,
+        config_id: ObjectId,
+        name_df_id: ObjectId,
         setting_value_object_type: StructTag,
         value: Option<Value>,
     ) {
@@ -747,11 +747,11 @@ impl<'a> ChildObjectStore<'a> {
         }
     }
 
-    pub(super) fn cached_objects(&self) -> &BTreeMap<ObjectID, Option<Object>> {
+    pub(super) fn cached_objects(&self) -> &BTreeMap<ObjectId, Option<Object>> {
         &self.inner.cached_objects
     }
 
-    pub(super) fn wrapped_object_containers(&self) -> &BTreeMap<ObjectID, ObjectID> {
+    pub(super) fn wrapped_object_containers(&self) -> &BTreeMap<ObjectId, ObjectId> {
         &self.inner.wrapped_object_containers
     }
 

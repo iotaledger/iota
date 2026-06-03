@@ -12,7 +12,6 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -20,7 +19,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Identifier, crypto::Intent};
+use iota_sdk_types::{Identifier, ObjectId, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -57,7 +56,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Get an NftOutput object id
     let nft_output_object_id =
-        ObjectID::from_hex("0x6445847625cec7d1265ebb9d0da8050a2e43d2856c2746d3579df499a1a64226")?;
+        ObjectId::from_hex("0x6445847625cec7d1265ebb9d0da8050a2e43d2856c2746d3579df499a1a64226")?;
 
     // Get an NftOutput object
     let nft_output_object = iota_client
@@ -81,7 +80,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(nft_output_object_ref))?];
         // Call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             Identifier::from_static("nft_output"),
             Identifier::from_static("extract_assets"),
             type_arguments,
@@ -111,7 +110,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![extracted_base_token];
             let type_arguments = vec![GAS::type_tag()];
             let iota_coin = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,
@@ -124,7 +123,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],

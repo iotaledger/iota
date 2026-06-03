@@ -23,10 +23,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
     TransactionFilterV2,
 };
-use iota_sdk_types::{Command, Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Command, Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -425,14 +425,14 @@ fn query_events_supported_events() {
         let supported_filters = vec![
             EventFilter::Sender(IotaAddress::ZERO),
             EventFilter::Transaction(real_tx_digest),
-            EventFilter::Package(ObjectID::ZERO),
+            EventFilter::Package(ObjectId::ZERO),
             EventFilter::MoveEventModule {
-                package: ObjectID::ZERO,
+                package: ObjectId::ZERO,
                 module: "x".parse().unwrap(),
             },
             EventFilter::MoveEventType("0xabcd::MyModule::Foo".parse().unwrap()),
             EventFilter::MoveModule {
-                package: ObjectID::ZERO,
+                package: ObjectId::ZERO,
                 module: "x".parse().unwrap(),
             },
         ];
@@ -805,7 +805,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         assert_eq!(objects.len(), 3);
 
         // make 2 move calls of same package & module, but different functions
-        let package_id = ObjectID::FRAMEWORK;
+        let package_id = ObjectId::FRAMEWORK;
         let signer = address;
 
         let tx_builder = iota_client.transaction_builder().clone();
@@ -1259,7 +1259,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("new"),
                 vec![],
@@ -1270,7 +1270,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             let field_value_argument = builder.pure(0u64).expect("valid pure");
 
             let _ = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("add"),
                 vec![TypeTag::U64, TypeTag::U64],
@@ -1380,7 +1380,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::OBJECT_BAG_MODULE,
                 Identifier::from_static("new"),
                 vec![],
@@ -1393,7 +1393,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
                 .unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::OBJECT_BAG_MODULE,
                 Identifier::from_static("add"),
                 vec![
@@ -1502,7 +1502,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
 
         let signer = address;
 
-        let package_id = ObjectID::STD;
+        let package_id = ObjectId::STD;
         let module = Identifier::from_static("address");
         let function = Identifier::from_static("length");
 

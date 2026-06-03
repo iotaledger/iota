@@ -15,9 +15,9 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     digests::{ChainIdentifier, TransactionDigest},
     object::Object,
     transaction::{
@@ -38,13 +38,13 @@ pub(crate) trait DataFetcher {
     /// Fetch the specified versions of objects
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectID, SequenceNumber)],
+        objects: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError>;
 
     /// Fetch the latest versions of objects
     async fn multi_get_latest(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError>;
 
     /// Fetch the TXs for this checkpoint
@@ -62,7 +62,7 @@ pub(crate) trait DataFetcher {
     async fn get_loaded_child_objects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError>;
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError>;
 
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<u64, ReplayEngineError>;
 
@@ -87,7 +87,7 @@ pub(crate) trait DataFetcher {
 
     async fn get_child_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version_upper_bound: VersionNumber,
     ) -> Result<Object, ReplayEngineError>;
 }
@@ -132,7 +132,7 @@ impl DataFetcher for Fetchers {
     #![allow(implied_bounds_entailment)]
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectID, SequenceNumber)],
+        objects: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.multi_get_versioned(objects).await,
@@ -142,7 +142,7 @@ impl DataFetcher for Fetchers {
 
     async fn multi_get_latest(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.multi_get_latest(objects).await,
@@ -173,7 +173,7 @@ impl DataFetcher for Fetchers {
     async fn get_loaded_child_objects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.get_loaded_child_objects(tx_digest).await,
             Fetchers::NodeStateDump(q) => q.get_loaded_child_objects(tx_digest).await,
@@ -231,7 +231,7 @@ impl DataFetcher for Fetchers {
     }
     async fn get_child_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version_upper_bound: VersionNumber,
     ) -> Result<Object, ReplayEngineError> {
         match self {
@@ -249,9 +249,9 @@ pub struct RemoteFetcher {
     /// This is used to download items not in store
     pub rpc_client: IotaClient,
     /// Cache versioned objects
-    pub versioned_object_cache: RwLock<LruCache<(ObjectID, VersionNumber), Object>>,
+    pub versioned_object_cache: RwLock<LruCache<(ObjectId, VersionNumber), Object>>,
     /// Cache non-versioned objects
-    pub latest_object_cache: RwLock<LruCache<ObjectID, Object>>,
+    pub latest_object_cache: RwLock<LruCache<ObjectId, Object>>,
     /// Cache epoch info
     pub epoch_info_cache: RwLock<LruCache<u64, (u64, u64)>>,
 }
@@ -305,8 +305,8 @@ impl RemoteFetcher {
 
     pub fn check_versioned_cache(
         &self,
-        objects: &[(ObjectID, VersionNumber)],
-    ) -> (Vec<Object>, Vec<(ObjectID, VersionNumber)>) {
+        objects: &[(ObjectId, VersionNumber)],
+    ) -> (Vec<Object>, Vec<(ObjectId, VersionNumber)>) {
         let mut to_fetch = Vec::new();
         let mut cached = Vec::new();
         for (object_id, version) in objects {
@@ -324,7 +324,7 @@ impl RemoteFetcher {
         (cached, to_fetch)
     }
 
-    pub fn check_latest_cache(&self, objects: &[ObjectID]) -> (Vec<Object>, Vec<ObjectID>) {
+    pub fn check_latest_cache(&self, objects: &[ObjectId]) -> (Vec<Object>, Vec<ObjectId>) {
         let mut to_fetch = Vec::new();
         let mut cached = Vec::new();
         for object_id in objects {
@@ -369,7 +369,7 @@ impl DataFetcher for RemoteFetcher {
     #![allow(implied_bounds_entailment)]
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectID, VersionNumber)],
+        objects: &[(ObjectId, VersionNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         // First check which we have in cache
         let (cached, to_fetch) = self.check_versioned_cache(objects);
@@ -415,7 +415,7 @@ impl DataFetcher for RemoteFetcher {
 
     async fn get_child_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version_upper_bound: VersionNumber,
     ) -> Result<Object, ReplayEngineError> {
         let response = self
@@ -429,7 +429,7 @@ impl DataFetcher for RemoteFetcher {
 
     async fn multi_get_latest(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         // First check which we have in cache
         let (cached, to_fetch) = self.check_latest_cache(objects);
@@ -491,7 +491,7 @@ impl DataFetcher for RemoteFetcher {
     async fn get_loaded_child_objects(
         &self,
         _: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         Ok(vec![])
     }
 
@@ -706,8 +706,8 @@ pub fn extract_epoch_and_version(ev: IotaEvent) -> Result<(u64, u64), ReplayEngi
 #[derive(Clone)]
 pub struct NodeStateDumpFetcher {
     pub node_state_dump: NodeStateDump,
-    pub object_ref_pool: BTreeMap<(ObjectID, SequenceNumber), Object>,
-    pub latest_object_version_pool: BTreeMap<ObjectID, Object>,
+    pub object_ref_pool: BTreeMap<(ObjectId, SequenceNumber), Object>,
+    pub latest_object_version_pool: BTreeMap<ObjectId, Object>,
 
     // Used when we need to fetch data from remote such as
     pub backup_remote_fetcher: Option<RemoteFetcher>,
@@ -716,7 +716,7 @@ pub struct NodeStateDumpFetcher {
 impl From<NodeStateDump> for NodeStateDumpFetcher {
     fn from(node_state_dump: NodeStateDump) -> Self {
         let mut object_ref_pool = BTreeMap::new();
-        let mut latest_object_version_pool: BTreeMap<ObjectID, Object> = BTreeMap::new();
+        let mut latest_object_version_pool: BTreeMap<ObjectId, Object> = BTreeMap::new();
 
         node_state_dump
             .all_objects()
@@ -760,7 +760,7 @@ impl NodeStateDumpFetcher {
 impl DataFetcher for NodeStateDumpFetcher {
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectID, SequenceNumber)],
+        objects: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut resp = vec![];
         match objects.iter().try_for_each(|(id, version)| {
@@ -785,7 +785,7 @@ impl DataFetcher for NodeStateDumpFetcher {
 
     async fn multi_get_latest(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut resp = vec![];
         match objects.iter().try_for_each(|id| {
@@ -822,7 +822,7 @@ impl DataFetcher for NodeStateDumpFetcher {
     async fn get_loaded_child_objects(
         &self,
         _tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         Ok(self
             .node_state_dump
             .loaded_child_objects
@@ -868,7 +868,7 @@ impl DataFetcher for NodeStateDumpFetcher {
 
     async fn get_child_object(
         &self,
-        _object_id: &ObjectID,
+        _object_id: &ObjectId,
         _version_upper_bound: VersionNumber,
     ) -> Result<Object, ReplayEngineError> {
         unimplemented!("get child object is not implemented for state dump");

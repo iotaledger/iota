@@ -21,8 +21,8 @@ use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk::apis::ReadApi;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectID,
     execution_config_utils::to_binary_config,
     move_package::{MovePackageExt, UpgradePolicy},
 };
@@ -697,7 +697,7 @@ upgrade_codes!(
 /// package.
 pub(crate) async fn check_compatibility(
     read_api: &ReadApi,
-    package_id: ObjectID,
+    package_id: ObjectId,
     new_package: CompiledPackage,
     package_path: PathBuf,
     upgrade_policy: u8,

@@ -46,7 +46,7 @@ impl JsonSchema for IotaAddress {
 }
 
 /// A schema type that defines the JSON representation of the
-/// [`ObjectID`](iota_types::base_types::ObjectID) type.
+/// [`ObjectId`](iota_sdk_types::ObjectId) type.
 pub struct ObjectID;
 
 impl JsonSchema for ObjectID {

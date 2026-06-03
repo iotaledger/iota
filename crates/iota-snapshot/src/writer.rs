@@ -24,13 +24,13 @@ use iota_core::{
     authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     global_state_hasher::GlobalStateHasher,
 };
+use iota_sdk_types::ObjectId;
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},
 };
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
-    global_state_hash::GlobalStateHash,
+    base_types::ObjectRef, global_state_hash::GlobalStateHash,
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use object_store::{DynObjectStore, path::Path};
@@ -237,12 +237,12 @@ impl LiveObjectSetWriterV1 {
     /// Writes an object reference to the reference file.
     fn write_object_ref(&mut self, object_ref: &ObjectRef) -> Result<()> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
-        buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.object_id.as_ref());
+        buf[0..ObjectId::LENGTH].copy_from_slice(object_ref.object_id.as_ref());
         BigEndian::write_u64(
-            &mut buf[ObjectID::LENGTH..OBJECT_REF_BYTES],
+            &mut buf[ObjectId::LENGTH..OBJECT_REF_BYTES],
             object_ref.version.as_u64(),
         );
-        buf[ObjectID::LENGTH + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES]
+        buf[ObjectId::LENGTH + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES]
             .copy_from_slice(object_ref.digest.as_ref());
         self.ref_wbuf.write_all(&buf)?;
         Ok(())
@@ -463,7 +463,7 @@ impl StateSnapshotWriterV1 {
         let mut wbuf = BufWriter::new(f);
         let manifest: Manifest = Manifest::V1(ManifestV1 {
             snapshot_version: 1,
-            address_length: ObjectID::LENGTH as u64,
+            address_length: ObjectId::LENGTH as u64,
             file_metadata,
             epoch,
         });

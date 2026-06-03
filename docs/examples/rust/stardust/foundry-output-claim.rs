@@ -14,7 +14,6 @@ use iota_sdk::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::ObjectID,
         coin_manager::CoinManagerTreasuryCap,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
@@ -24,7 +23,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Identifier, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
@@ -59,7 +58,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // This object id was fetched manually. It refers to an Alias Output object that
     // contains a CoinManagerTreasuryCap (i.e., a Foundry representation).
     let alias_output_object_id =
-        ObjectID::from_hex("0xa58e9b6b85863e2fa50710c4594f701b2f5e2c6ff5e3c2b10cf09e6b18d740da")?;
+        ObjectId::from_hex("0xa58e9b6b85863e2fa50710c4594f701b2f5e2c6ff5e3c2b10cf09e6b18d740da")?;
     let alias_output_object = iota_client
         .read_api()
         .get_object_with_options(
@@ -152,7 +151,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         // Finally call the alias_output::extract_assets function.
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             Identifier::from_static("alias_output"),
             Identifier::from_static("extract_assets"),
             type_arguments,
@@ -169,7 +168,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,
@@ -182,7 +181,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // In this example the native tokens bag is empty, so it can be destroyed.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],
@@ -196,7 +195,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 builder.obj(CallArg::Receiving(coin_manager_treasury_cap_object_ref))?,
             ];
             let coin_manager_treasury_cap = builder.programmable_move_call(
-                ObjectID::STARDUST,
+                ObjectId::STARDUST,
                 Identifier::from_static("address_unlock_condition"),
                 Identifier::from_static("unlock_alias_address_owned_coinmanager_treasury"),
                 type_arguments,

@@ -5,10 +5,11 @@
 //! during migration.
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::ObjectId;
 use iota_stardust_types::block::output::AliasOutput as StardustAlias;
 use iota_types::{
     balance::Balance,
-    base_types::{ObjectID, SequenceNumber, TxContext},
+    base_types::{SequenceNumber, TxContext},
     collection_types::Bag,
     id::UID,
     object::{Data, MoveObject, MoveObjectExt, Object, Owner},
@@ -23,7 +24,7 @@ use super::super::address::stardust_to_iota_address;
 /// Extension trait for creating `Alias` from Stardust types.
 pub trait AliasExt {
     /// Creates the Move-based Alias model from a Stardust-based Alias Output.
-    fn try_from_stardust(alias_id: ObjectID, alias: &StardustAlias)
+    fn try_from_stardust(alias_id: ObjectId, alias: &StardustAlias)
     -> Result<Alias, anyhow::Error>;
 
     /// Creates a genesis object from this alias.
@@ -38,7 +39,7 @@ pub trait AliasExt {
 
 impl AliasExt for Alias {
     fn try_from_stardust(
-        alias_id: ObjectID,
+        alias_id: ObjectId,
         alias: &StardustAlias,
     ) -> Result<Alias, anyhow::Error> {
         if alias_id.as_ref() == [0; 32] {
@@ -115,7 +116,7 @@ pub trait AliasOutputExt {
     /// Creates the Move-based Alias Output model from a Stardust-based Alias
     /// Output.
     fn try_from_stardust(
-        object_id: ObjectID,
+        object_id: ObjectId,
         alias: &StardustAlias,
         native_tokens: Bag,
     ) -> Result<AliasOutput, anyhow::Error>;
@@ -133,7 +134,7 @@ pub trait AliasOutputExt {
 
 impl AliasOutputExt for AliasOutput {
     fn try_from_stardust(
-        object_id: ObjectID,
+        object_id: ObjectId,
         alias: &StardustAlias,
         native_tokens: Bag,
     ) -> Result<AliasOutput, anyhow::Error> {

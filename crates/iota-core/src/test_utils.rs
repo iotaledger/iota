@@ -6,12 +6,12 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::{
-    Identifier,
+    Identifier, ObjectId,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
     base_types::{
-        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
+        AuthorityName, ExecutionDigests, IotaAddress, ObjectRef, TransactionDigest,
         random_object_ref,
     },
     committee::Committee,
@@ -225,7 +225,7 @@ pub fn make_transfer_object_move_transaction(
     keypair: &AccountKeyPair,
     dest: IotaAddress,
     object_ref: ObjectRef,
-    framework_obj_id: ObjectID,
+    framework_obj_id: ObjectId,
     gas_object_ref: ObjectRef,
     gas_budget_in_units: u64,
     gas_price: u64,

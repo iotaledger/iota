@@ -5,8 +5,9 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -52,9 +53,9 @@ pub trait SimulatorStore:
 
     fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint>;
 
-    fn get_object(&self, id: &ObjectID) -> Option<Object>;
+    fn get_object(&self, id: &ObjectId) -> Option<Object>;
 
-    fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object>;
+    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object>;
 
     fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState;
 
@@ -80,7 +81,7 @@ pub trait SimulatorStore:
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     );
 
     fn insert_transaction(&mut self, transaction: VerifiedTransaction);
@@ -91,7 +92,7 @@ pub trait SimulatorStore:
 
     fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
         deleted_objects: Vec<ObjectRef>,
     );
 

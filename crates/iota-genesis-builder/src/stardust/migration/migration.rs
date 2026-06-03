@@ -14,10 +14,11 @@ use std::{
 use anyhow::Result;
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::ObjectId;
 use iota_stardust_types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, TxContext},
+    base_types::{IotaAddress, TxContext},
     epoch_data::EpochData,
     object::Object,
     stardust::coin_type::CoinType,
@@ -44,11 +45,11 @@ use crate::stardust::{
 pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
-pub const PACKAGE_DEPS: [ObjectID; 4] = [
-    ObjectID::STD,
-    ObjectID::FRAMEWORK,
-    ObjectID::SYSTEM,
-    ObjectID::STARDUST,
+pub const PACKAGE_DEPS: [ObjectId; 4] = [
+    ObjectId::STD,
+    ObjectId::FRAMEWORK,
+    ObjectId::SYSTEM,
+    ObjectId::STARDUST,
 ];
 
 pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";
@@ -338,7 +339,7 @@ impl MigrationObjects {
     }
 
     /// Evict the objects with the specified ids
-    pub fn evict(&mut self, objects: impl IntoIterator<Item = ObjectID>) {
+    pub fn evict(&mut self, objects: impl IntoIterator<Item = ObjectId>) {
         let eviction_set = objects.into_iter().collect::<HashSet<_>>();
         let inner = std::mem::take(&mut self.inner);
         self.inner = inner
@@ -484,7 +485,7 @@ mod tests {
         let address = IotaAddress::random();
         let tx_context = TxContext::random_for_testing_only();
         let expected_timelocks = (0..4)
-            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|_| TimeLock::new(UID::new(ObjectId::random()), Balance::new(0), 0, None))
             .map(|timelock| {
                 to_genesis_object(
                     timelock,
@@ -497,7 +498,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let non_matching_timelocks = (0..8)
-            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|_| TimeLock::new(UID::new(ObjectId::random()), Balance::new(0), 0, None))
             .map(|timelock| {
                 to_genesis_object(
                     timelock,
@@ -541,7 +542,7 @@ mod tests {
         let address = IotaAddress::random();
         let tx_context = TxContext::random_for_testing_only();
         let non_matching_timelocks = (0..8)
-            .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
+            .map(|_| TimeLock::new(UID::new(ObjectId::random()), Balance::new(0), 0, None))
             .map(|timelock| {
                 to_genesis_object(
                     timelock,

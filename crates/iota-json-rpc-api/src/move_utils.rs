@@ -9,7 +9,7 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, iota_primitives::ObjectID as ObjectIDSchema,
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides utility functions to more easily work with Move packages, modules
@@ -22,7 +22,7 @@ pub trait MoveUtils {
     #[method(name = "getMoveFunctionArgTypes")]
     async fn get_move_function_arg_types(
         &self,
-        #[schemars(with = "ObjectIDSchema")] package: ObjectID,
+        #[schemars(with = "ObjectIDSchema")] package: ObjectId,
         module: String,
         function: String,
     ) -> RpcResult<Vec<MoveFunctionArgType>>;
@@ -31,14 +31,14 @@ pub trait MoveUtils {
     #[method(name = "getNormalizedMoveModulesByPackage")]
     async fn get_normalized_move_modules_by_package(
         &self,
-        #[schemars(with = "ObjectIDSchema")] package: ObjectID,
+        #[schemars(with = "ObjectIDSchema")] package: ObjectId,
     ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>>;
 
     /// Return a structured representation of Move module
     #[method(name = "getNormalizedMoveModule")]
     async fn get_normalized_move_module(
         &self,
-        #[schemars(with = "ObjectIDSchema")] package: ObjectID,
+        #[schemars(with = "ObjectIDSchema")] package: ObjectId,
         module_name: String,
     ) -> RpcResult<IotaMoveNormalizedModule>;
 
@@ -46,7 +46,7 @@ pub trait MoveUtils {
     #[method(name = "getNormalizedMoveStruct")]
     async fn get_normalized_move_struct(
         &self,
-        #[schemars(with = "ObjectIDSchema")] package: ObjectID,
+        #[schemars(with = "ObjectIDSchema")] package: ObjectId,
         module_name: String,
         struct_name: String,
     ) -> RpcResult<IotaMoveNormalizedStruct>;
@@ -55,7 +55,7 @@ pub trait MoveUtils {
     #[method(name = "getNormalizedMoveFunction")]
     async fn get_normalized_move_function(
         &self,
-        #[schemars(with = "ObjectIDSchema")] package: ObjectID,
+        #[schemars(with = "ObjectIDSchema")] package: ObjectId,
         module_name: String,
         function_name: String,
     ) -> RpcResult<IotaMoveNormalizedFunction>;

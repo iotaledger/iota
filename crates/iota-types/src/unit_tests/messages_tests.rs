@@ -851,7 +851,7 @@ fn test_sponsored_transaction_validity_check() {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
-                ObjectID::random(),
+                ObjectId::random(),
                 Identifier::from_static("random_module"),
                 Identifier::from_static("random_function"),
                 vec![],
@@ -1080,7 +1080,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert!(tx.contains_shared_object());
     assert_eq!(
         tx.shared_input_objects().into_iter().next().unwrap(),
-        SharedObjectRef::new(ObjectID::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
+        SharedObjectRef::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
     );
     assert!(tx.is_system_tx());
     assert_eq!(
@@ -1096,19 +1096,19 @@ fn test_consensus_commit_prologue_v1_transaction() {
 
 #[test]
 fn test_move_input_objects() {
-    let package = ObjectID::random();
-    let p1 = ObjectID::random();
-    let p2 = ObjectID::random();
-    let p3 = ObjectID::random();
-    let p4 = ObjectID::random();
-    let p5 = ObjectID::random();
+    let package = ObjectId::random();
+    let p1 = ObjectId::random();
+    let p2 = ObjectId::random();
+    let p3 = ObjectId::random();
+    let p4 = ObjectId::random();
+    let p5 = ObjectId::random();
     let o1 = random_object_ref();
     let o2 = random_object_ref();
     let o3 = random_object_ref();
     let shared = random_object_ref();
 
     let gas_object_ref = random_object_ref();
-    let mk_st = |package: ObjectID, type_args| {
+    let mk_st = |package: ObjectId, type_args| {
         TypeTag::Struct(Box::new(StructTag::new(
             package,
             Identifier::from_static("foo"),
@@ -1184,18 +1184,18 @@ fn test_move_input_objects() {
 
 #[test]
 fn test_unique_input_objects() {
-    let package = ObjectID::random();
-    let p1 = ObjectID::random();
-    let p2 = ObjectID::random();
-    let p3 = ObjectID::random();
-    let p4 = ObjectID::random();
-    let p5 = ObjectID::random();
+    let package = ObjectId::random();
+    let p1 = ObjectId::random();
+    let p2 = ObjectId::random();
+    let p3 = ObjectId::random();
+    let p4 = ObjectId::random();
+    let p5 = ObjectId::random();
     let o1 = random_object_ref();
     let o2 = random_object_ref();
     let o3 = random_object_ref();
     let shared = random_object_ref();
 
-    let mk_st = |package: ObjectID, type_args| {
+    let mk_st = |package: ObjectId, type_args| {
         TypeTag::Struct(Box::new(StructTag::new(
             package,
             Identifier::from_static("foo"),

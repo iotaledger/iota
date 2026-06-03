@@ -15,9 +15,10 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
+    base_types::{IotaAddress, ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
 };
@@ -368,7 +369,7 @@ async fn dependency_is_an_object() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = iota_common::tempdir();
     let a_pkg = {
-        let b_id = ObjectID::SYSTEM_STATE.into();
+        let b_id = ObjectId::SYSTEM_STATE.into();
         copy_published_package(&a_pkg_fixtures, "b", b_id).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
         compile_package(a_src)
@@ -776,8 +777,8 @@ async fn publish_package(context: &WalletContext, package: PathBuf) -> (ObjectRe
 
 async fn upgrade_package(
     context: &WalletContext,
-    package_id: ObjectID,
-    upgrade_cap: ObjectID,
+    package_id: ObjectId,
+    upgrade_cap: ObjectId,
     package: impl AsRef<Path>,
 ) -> ObjectRef {
     let package = compile_package(package);
@@ -874,10 +875,10 @@ async fn copy_upgraded_package(
 
 pub async fn upgrade_package_with_wallet(
     context: &WalletContext,
-    package_id: ObjectID,
-    upgrade_cap: ObjectID,
+    package_id: ObjectId,
+    upgrade_cap: ObjectId,
     all_module_bytes: Vec<Vec<u8>>,
-    dep_ids: Vec<ObjectID>,
+    dep_ids: Vec<ObjectId>,
 ) -> (ObjectRef, TransactionDigest) {
     let sender = context.get_addresses()[0];
     let client = context.get_client().await.unwrap();

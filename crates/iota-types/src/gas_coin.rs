@@ -7,12 +7,13 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+use iota_sdk_types::ObjectId;
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Supply,
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
     object::{Data, MoveObject, MoveObjectExt, Object},
@@ -58,7 +59,7 @@ mod checked {
     pub struct GasCoin(pub Coin);
 
     impl GasCoin {
-        pub fn new(id: ObjectID, value: u64) -> Self {
+        pub fn new(id: ObjectId, value: u64) -> Self {
             Self(Coin::new(id, value))
         }
 
@@ -72,7 +73,7 @@ mod checked {
             s.is_balance() && GAS::is_gas_type(&s.type_params()[0])
         }
 
-        pub fn id(&self) -> &ObjectID {
+        pub fn id(&self) -> &ObjectId {
             self.0.id()
         }
 
@@ -89,10 +90,10 @@ mod checked {
         }
 
         pub fn new_for_testing(value: u64) -> Self {
-            Self::new(ObjectID::random(), value)
+            Self::new(ObjectId::random(), value)
         }
 
-        pub fn new_for_testing_with_id(id: ObjectID, value: u64) -> Self {
+        pub fn new_for_testing_with_id(id: ObjectId, value: u64) -> Self {
             Self::new(id, value)
         }
     }
@@ -145,7 +146,7 @@ mod checked {
 
     impl IotaTreasuryCap {
         /// Returns the `TreasuryCap<IOTA>` object ID.
-        pub fn id(&self) -> &ObjectID {
+        pub fn id(&self) -> &ObjectId {
             self.inner.id.object_id()
         }
 

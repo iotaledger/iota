@@ -5,9 +5,10 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
+use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{OBJECT_START_VERSION, Owner},
@@ -35,7 +36,7 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     else {
         panic!()
     };
-    assert_eq!(location.package, ObjectID::FRAMEWORK);
+    assert_eq!(location.package, ObjectId::FRAMEWORK);
     assert_eq!(location.module.as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -51,7 +52,7 @@ async fn shared_object_owner_doesnt_change_on_write() {
     else {
         panic!()
     };
-    assert_eq!(location.package, ObjectID::FRAMEWORK);
+    assert_eq!(location.package, ObjectId::FRAMEWORK);
     assert_eq!(location.module.as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -67,7 +68,7 @@ async fn initial_shared_version_mismatch_start_version() {
     else {
         panic!()
     };
-    assert_eq!(location.package, ObjectID::FRAMEWORK);
+    assert_eq!(location.package, ObjectId::FRAMEWORK);
     assert_eq!(location.module.as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -82,7 +83,7 @@ async fn initial_shared_version_mismatch_current_version() {
     else {
         panic!()
     };
-    assert_eq!(location.package, ObjectID::FRAMEWORK);
+    assert_eq!(location.package, ObjectId::FRAMEWORK);
     assert_eq!(location.module.as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -90,7 +91,7 @@ async fn initial_shared_version_mismatch_current_version() {
 #[sim_test]
 async fn shared_object_not_found() {
     let env = TestEnvironment::new().await;
-    let nonexistent_id = ObjectID::random();
+    let nonexistent_id = ObjectId::random();
     let initial_shared_seq = SequenceNumber::from_u64(42);
     assert!(
         env.increment_shared_counter(nonexistent_id, initial_shared_seq)
@@ -105,7 +106,7 @@ fn is_shared_at(owner: &Owner, version: SequenceNumber) -> bool {
 
 struct TestEnvironment {
     test_cluster: TestCluster,
-    move_package: ObjectID,
+    move_package: ObjectId,
 }
 
 impl TestEnvironment {
@@ -202,7 +203,7 @@ impl TestEnvironment {
 
     async fn increment_shared_counter(
         &self,
-        counter: ObjectID,
+        counter: ObjectId,
         initial_shared_version: SequenceNumber,
     ) -> anyhow::Result<(ObjectRef, Owner)> {
         let (fx, _) = self

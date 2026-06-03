@@ -17,14 +17,14 @@ use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Command, Identifier};
+use iota_sdk_types::{Command, Identifier, ObjectId};
 use iota_stardust_types::block::output::{
     AliasOutput as StardustAliasOutput, BasicOutput as StardustBasicOutput, FoundryOutput,
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber, TxContext},
     coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
@@ -78,7 +78,7 @@ pub(super) struct Executor {
     store: InMemoryStorage,
     /// Caches the system packages and init objects. Useful for evicting
     /// them from the store before creating the snapshot.
-    system_packages_and_objects: BTreeSet<ObjectID>,
+    system_packages_and_objects: BTreeSet<ObjectId>,
     move_vm: Arc<MoveVM>,
     metrics: Arc<LimitsMetrics>,
     /// Map the stardust token id [`TokenId`] to the on-chain info of the
@@ -184,7 +184,7 @@ impl Executor {
     /// input while executing a transaction
     pub(crate) fn load_packages(
         &self,
-        object_ids: impl IntoIterator<Item = ObjectID> + 'static,
+        object_ids: impl IntoIterator<Item = ObjectId> + 'static,
     ) -> impl Iterator<Item = ObjectReadResult> + '_ {
         object_ids.into_iter().filter_map(|object_id| {
             Some(ObjectReadResult::new(
@@ -232,7 +232,7 @@ impl Executor {
     /// Process the foundry outputs as follows:
     ///
     /// * Publish the generated packages using a tailored unmetered executor.
-    /// * For each native token, map the [`TokenId`] to the [`ObjectID`] of the
+    /// * For each native token, map the [`TokenId`] to the [`ObjectId`] of the
     ///   coin that holds its total supply.
     /// * Update the inner store with the created objects.
     pub(super) fn create_foundries<'a>(
@@ -257,7 +257,7 @@ impl Executor {
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
             // Get on-chain info
-            let mut native_token_coin_id = None::<ObjectID>;
+            let mut native_token_coin_id = None::<ObjectId>;
             let mut foundry_package = None::<&MovePackage>;
             for object in written.values() {
                 if object.is_package() {
@@ -329,7 +329,7 @@ impl Executor {
 
         // Take the Alias ID set in the output or, if its zeroized, compute it from the
         // Output ID.
-        let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
+        let alias_id = ObjectId::new(*alias.alias_id().or_from_output_id(&header.output_id()));
         let move_alias = Alias::try_from_stardust(alias_id, alias)?;
 
         // TODO: We should ensure that no circular ownership exists.
@@ -379,7 +379,7 @@ impl Executor {
             let alias_arg = builder.obj(CallArg::ImmutableOrOwned(move_alias_object_ref))?;
 
             builder.programmable_move_call(
-                ObjectID::STARDUST,
+                ObjectId::STARDUST,
                 Identifier::from_static("alias_output"),
                 Identifier::from_static("attach_alias"),
                 vec![coin_type.to_type_tag()],
@@ -406,7 +406,7 @@ impl Executor {
     pub(crate) fn create_bag_with_pt(
         &mut self,
         native_tokens: &NativeTokens,
-    ) -> Result<(Bag, SequenceNumber, Vec<ObjectID>)> {
+    ) -> Result<(Bag, SequenceNumber, Vec<ObjectId>)> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
         let pt = {
@@ -504,7 +504,7 @@ impl Executor {
         &mut self,
         native_tokens: &NativeTokens,
         owner: IotaAddress,
-    ) -> Result<Vec<ObjectID>> {
+    ) -> Result<Vec<ObjectId>> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_coins = Vec::with_capacity(native_tokens.len());
@@ -675,7 +675,7 @@ impl Executor {
 
         // Take the Nft ID set in the output or, if its zeroized, compute it from the
         // Output ID.
-        let nft_id = ObjectID::new(*nft.nft_id().or_from_output_id(&header.output_id()));
+        let nft_id = ObjectId::new(*nft.nft_id().or_from_output_id(&header.output_id()));
         let move_nft = Nft::try_from_stardust(nft_id, nft)?;
 
         // TODO: We should ensure that no circular ownership exists.
@@ -724,7 +724,7 @@ impl Executor {
                 builder.obj(CallArg::ImmutableOrOwned(move_nft_output_object_ref))?;
             let nft_arg = builder.obj(CallArg::ImmutableOrOwned(move_nft_object_ref))?;
             builder.programmable_move_call(
-                ObjectID::STARDUST,
+                ObjectId::STARDUST,
                 Identifier::from_static("nft_output"),
                 Identifier::from_static("attach_nft"),
                 vec![coin_type.to_type_tag()],
@@ -777,14 +777,14 @@ mod pt {
         let foundry_coin_ref = builder.obj(CallArg::ImmutableOrOwned(foundry_coin_ref))?;
         let amount = builder.pure(amount)?;
         let coin = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE,
             Identifier::from_static("split"),
             vec![token_type_tag.clone()],
             vec![foundry_coin_ref, amount],
         );
         Ok(builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE,
             Identifier::from_static("into_balance"),
             vec![token_type_tag],
@@ -803,7 +803,7 @@ mod pt {
         let value_type = StructTag::new_balance(token_type.parse::<TypeTag>()?);
         let bag_key_arg = builder.pure(bag_key)?;
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BAG_MODULE,
             Identifier::from_static("add"),
             vec![key_type.into(), value_type.into()],
@@ -814,7 +814,7 @@ mod pt {
 
     pub fn bag_new(builder: &mut ProgrammableTransactionBuilder) -> Argument {
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BAG_MODULE,
             Identifier::from_static("new"),
             vec![],
@@ -826,22 +826,22 @@ mod pt {
 /// On-chain data about the objects created while
 /// publishing foundry packages
 pub(crate) struct FoundryLedgerData {
-    pub(crate) native_token_coin_id: ObjectID,
+    pub(crate) native_token_coin_id: ObjectId,
     pub(crate) coin_type_origin: TypeOrigin,
-    pub(crate) package_id: ObjectID,
+    pub(crate) package_id: ObjectId,
     pub(crate) token_scheme_u64: SimpleTokenSchemeU64,
     pub(crate) minted_value: u64,
 }
 
 impl FoundryLedgerData {
-    /// Store the minted coin `ObjectID` and derive data from the foundry
+    /// Store the minted coin `ObjectId` and derive data from the foundry
     /// package.
     ///
     /// # Panic
     ///
     /// Panics if the package does not contain any [`TypeOrigin`].
     fn new(
-        native_token_coin_id: ObjectID,
+        native_token_coin_id: ObjectId,
         foundry_package: &MovePackage,
         token_scheme_u64: SimpleTokenSchemeU64,
     ) -> Self {

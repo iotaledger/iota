@@ -6,7 +6,8 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 
 use crate::{
     client::{Client, Connection},
@@ -37,7 +38,7 @@ pub enum Command {
     /// Make a move in an existing game.
     Move {
         /// ID of the game to make a move on.
-        game: ObjectID,
+        game: ObjectId,
 
         /// The row to place the move in.
         #[arg(long, short, value_parser = clap::value_parser!(u8).range(0..3))]
@@ -54,7 +55,7 @@ pub enum Command {
     /// Print the state of an existing game.
     View {
         /// ID of the game to view.
-        game: ObjectID,
+        game: ObjectId,
 
         #[command(flatten)]
         conn: Connection,
@@ -63,7 +64,7 @@ pub enum Command {
     /// Delete a finished game.
     Delete {
         /// ID of the game to delete.
-        game: ObjectID,
+        game: ObjectId,
 
         #[command(flatten)]
         conn: Connection,

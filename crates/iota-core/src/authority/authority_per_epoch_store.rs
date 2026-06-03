@@ -30,10 +30,11 @@ use iota_metrics::monitored_scope;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
+use iota_sdk_types::ObjectId;
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{
-        AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
+        AuthorityName, CommitRound, ConciseableName, EpochId, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
@@ -394,7 +395,7 @@ pub(crate) enum SchedulingResult {
 
 pub enum CancelConsensusCertificateReason {
     CongestionOnObjects {
-        congested_objects: Vec<ObjectID>,
+        congested_objects: Vec<ObjectId>,
         suggested_gas_price: Option<u64>,
     },
     DkgFailed,
@@ -658,7 +659,7 @@ pub struct AuthorityPerEpochStore {
     /// transaction)
     mutex_table: MutexTable<TransactionDigest>,
     /// Mutex table for shared version assignment
-    version_assignment_mutex_table: MutexTable<ObjectID>,
+    version_assignment_mutex_table: MutexTable<ObjectId>,
 
     /// The moment when the current epoch started locally on this validator.
     /// Note that this value could be skewed if the node crashed and
@@ -727,7 +728,7 @@ pub struct AuthorityEpochTables {
     transaction_cert_signatures: DBMap<TransactionDigest, AuthorityStrongQuorumSignInfo>,
 
     /// Next available shared object versions for each shared object.
-    next_shared_object_versions: DBMap<ObjectID, SequenceNumber>,
+    next_shared_object_versions: DBMap<ObjectId, SequenceNumber>,
 
     /// Track which transactions have been processed in
     /// handle_consensus_transaction. We must be sure to advance
@@ -842,10 +843,10 @@ pub struct AuthorityEpochTables {
 
     //
     /// Accumulated per-object debts for congestion control.
-    congestion_control_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+    congestion_control_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
 
     /// Accumulated per-object debts for randomness congestion control.
-    congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+    congestion_control_randomness_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
 
     /// Per-validator received misbehavior reports state. Keyed by the
     /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
@@ -1606,7 +1607,7 @@ impl AuthorityPerEpochStore {
         objects: &[InputObjectKind],
     ) -> IotaResult<BTreeSet<InputKey>> {
         let assigned_shared_versions =
-            once_cell::unsync::OnceCell::<Option<HashMap<ObjectID, SequenceNumber>>>::new();
+            once_cell::unsync::OnceCell::<Option<HashMap<ObjectId, SequenceNumber>>>::new();
         objects
             .iter()
             .map(|kind| {
@@ -1756,7 +1757,7 @@ impl AuthorityPerEpochStore {
     }
 
     #[cfg(test)]
-    pub fn get_next_object_version(&self, obj: &ObjectID) -> Option<SequenceNumber> {
+    pub fn get_next_object_version(&self, obj: &ObjectId) -> Option<SequenceNumber> {
         self.tables()
             .expect("test should not cross epoch boundary")
             .next_shared_object_versions
@@ -1859,9 +1860,9 @@ impl AuthorityPerEpochStore {
     // this function completes successfully for each affected object id.
     pub(crate) fn get_or_init_next_object_versions(
         &self,
-        objects_to_init: &[(ObjectID, SequenceNumber)],
+        objects_to_init: &[(ObjectId, SequenceNumber)],
         cache_reader: &dyn ObjectCacheRead,
-    ) -> IotaResult<HashMap<ObjectID, SequenceNumber>> {
+    ) -> IotaResult<HashMap<ObjectId, SequenceNumber>> {
         // get_or_init_next_object_versions can be called
         // from consensus or checkpoint executor,
         // so we need to protect version assignment with a critical section
@@ -1875,7 +1876,7 @@ impl AuthorityPerEpochStore {
             .read()
             .get_next_shared_object_versions(&tables, objects_to_init)?;
 
-        let uninitialized_objects: Vec<(ObjectID, SequenceNumber)> = next_versions
+        let uninitialized_objects: Vec<(ObjectId, SequenceNumber)> = next_versions
             .iter()
             .zip(objects_to_init)
             .filter_map(|(next_version, id_and_version)| match next_version {
@@ -4764,7 +4765,7 @@ impl AuthorityPerEpochStore {
     pub(crate) fn load_stored_object_debts_for_testing(
         &self,
         for_randomness: bool,
-        object_ids: &[ObjectID],
+        object_ids: &[ObjectId],
     ) -> IotaResult<Vec<Option<CongestionPerObjectDebt>>> {
         self.consensus_quarantine
             .read()

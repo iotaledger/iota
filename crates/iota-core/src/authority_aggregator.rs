@@ -20,6 +20,7 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
+use iota_sdk_types::ObjectId;
 use iota_swarm_config::network_config::NetworkConfig;
 use iota_types::{
     base_types::*,
@@ -938,7 +939,7 @@ where
     /// benchmarking.
     pub async fn get_latest_object_version_for_testing(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IotaResult<Object> {
         #[derive(Debug, Default)]
         struct State {

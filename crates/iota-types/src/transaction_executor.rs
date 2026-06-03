@@ -4,8 +4,9 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
+use iota_sdk_types::ObjectId;
+
 use crate::{
-    base_types::ObjectID,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError},
@@ -50,10 +51,10 @@ pub trait TransactionExecutor: Send + Sync {
 pub struct SimulateTransactionResult {
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
-    pub input_objects: BTreeMap<ObjectID, Object>,
-    pub output_objects: BTreeMap<ObjectID, Object>,
+    pub input_objects: BTreeMap<ObjectId, Object>,
+    pub output_objects: BTreeMap<ObjectId, Object>,
     pub execution_result: Result<Vec<ExecutionResult>, ExecutionError>,
-    pub mock_gas_id: Option<ObjectID>,
+    pub mock_gas_id: Option<ObjectId>,
     pub suggested_gas_price: Option<u64>,
 }
 

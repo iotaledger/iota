@@ -12,9 +12,9 @@ use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
 use iota_sdk::apis::ReadApi;
-use iota_sdk_types::{Command, Identifier, TypeTag};
+use iota_sdk_types::{Command, Identifier, ObjectId, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TxContext, TxContextKind, is_primitive_type_tag},
+    base_types::{IotaAddress, TxContext, TxContextKind, is_primitive_type_tag},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     move_package::{MovePackage, MovePackageExt},
     object::Owner,
@@ -79,7 +79,7 @@ trait Resolver<'a>: Send {
         &mut self,
         builder: &mut PTBBuilder<'a>,
         loc: Span,
-        obj_id: ObjectID,
+        obj_id: ObjectId,
     ) -> PTBResult<Tx::Argument>;
 
     fn re_resolve(&self) -> bool {
@@ -121,7 +121,7 @@ impl<'a> Resolver<'a> for ToObject {
         &mut self,
         builder: &mut PTBBuilder<'a>,
         loc: Span,
-        obj_id: ObjectID,
+        obj_id: ObjectId,
     ) -> PTBResult<Tx::Argument> {
         // Get the object from the reader to get metadata about the object.
         let obj = builder.get_object(obj_id, loc).await?;
@@ -190,7 +190,7 @@ impl<'a> Resolver<'a> for ToPure {
         &mut self,
         builder: &mut PTBBuilder<'a>,
         loc: Span,
-        obj_id: ObjectID,
+        obj_id: ObjectId,
     ) -> PTBResult<Tx::Argument> {
         builder.ptb.pure(obj_id).map_err(|e| err!(loc, "{e}"))
     }
@@ -203,9 +203,9 @@ impl<'a> Resolver<'a> for ToPure {
 /// Stores compiled package data from a `--compile-upgrade` command, so that a
 /// subsequent `--execute-upgrade` can use it.
 struct StoredCompileUpgrade {
-    package_id: ObjectID,
+    package_id: ObjectId,
     compiled_modules: Vec<Vec<u8>>,
-    dependencies: Vec<ObjectID>,
+    dependencies: Vec<ObjectId>,
     /// Span of the originating `--compile-upgrade` command, used to report
     /// errors if no matching `--execute-upgrade` follows.
     span: Span,
@@ -449,7 +449,7 @@ impl<'a> PTBBuilder<'a> {
     /// Resolve an object ID to a Move package.
     async fn resolve_to_package(
         &mut self,
-        package_id: ObjectID,
+        package_id: ObjectId,
         loc: Span,
     ) -> PTBResult<MovePackage> {
         let object = self
@@ -732,7 +732,7 @@ impl<'a> PTBBuilder<'a> {
                 self.resolve(arg_loc.wrap(PTBArg::Identifier(i)), ctx).await
             }
             PTBArg::Address(addr) => {
-                let object_id = ObjectID::new(addr.into_bytes());
+                let object_id = ObjectId::new(addr.into_bytes());
                 ctx.resolve_object_id(self, arg_loc, object_id).await
             }
             PTBArg::VariableAccess(head, fields) => {
@@ -812,7 +812,7 @@ impl<'a> PTBBuilder<'a> {
 
     /// Fetch the `IotaObjectData` for an object ID -- this is used for object
     /// resolution.
-    async fn get_object(&self, object_id: ObjectID, obj_loc: Span) -> PTBResult<IotaObjectData> {
+    async fn get_object(&self, object_id: ObjectId, obj_loc: Span) -> PTBResult<IotaObjectData> {
         let res = self
             .reader
             .get_object_with_options(
@@ -962,7 +962,7 @@ impl<'a> PTBBuilder<'a> {
                     }
                 })?;
 
-                let package_id = ObjectID::new(resolved_address.into_bytes());
+                let package_id = ObjectId::new(resolved_address.into_bytes());
                 let package = self.resolve_to_package(package_id, address.span).await?;
                 let args = self
                     .resolve_move_call_args(
@@ -1078,7 +1078,7 @@ impl<'a> PTBBuilder<'a> {
                     .pure(package_digest.to_vec())
                     .map_err(|e| err!(cmd_span, "{e}"))?;
                 let upgrade_ticket = self.ptb.command(Command::new_move_call(
-                    ObjectID::FRAMEWORK,
+                    ObjectId::FRAMEWORK,
                     Identifier::PACKAGE_MODULE,
                     Identifier::from_static("authorize_upgrade"),
                     vec![],
@@ -1095,7 +1095,7 @@ impl<'a> PTBBuilder<'a> {
                     compiled_modules,
                 );
                 let res = self.ptb.command(Command::new_move_call(
-                    ObjectID::FRAMEWORK,
+                    ObjectId::FRAMEWORK,
                     Identifier::PACKAGE_MODULE,
                     Identifier::from_static("commit_upgrade"),
                     vec![],
@@ -1143,7 +1143,7 @@ impl<'a> PTBBuilder<'a> {
                     .as_ref()
                     .map_err(|e| err!(path_loc, "{e}"))?;
                 let compiled_modules = compiled_package.get_package_bytes(false);
-                let dependencies: Vec<ObjectID> = compiled_package
+                let dependencies: Vec<ObjectId> = compiled_package
                     .dependency_ids
                     .published
                     .into_values()
@@ -1253,7 +1253,7 @@ impl<'a> PTBBuilder<'a> {
             self.reader,
             build_config.clone(),
             &package_path,
-            ObjectID::new(upgrade_cap_id.into_bytes()),
+            ObjectId::new(upgrade_cap_id.into_bytes()),
             false, // with_unpublished_dependencies
             true,  // skip_dependency_verification
             None,

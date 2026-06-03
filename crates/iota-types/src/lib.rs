@@ -9,14 +9,14 @@
     rust_2021_compatibility
 )]
 
-use base_types::{IotaAddress, ObjectID, SequenceNumber};
+use base_types::{IotaAddress, SequenceNumber};
 #[cfg(not(target_arch = "wasm32"))]
 pub use iota_network_stack::multiaddr;
 #[cfg(target_arch = "wasm32")]
 #[path = "wasm_multiaddr.rs"]
 pub mod multiaddr;
 pub use iota_sdk_types as sdk_types;
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
@@ -111,7 +111,7 @@ macro_rules! built_in_ids {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         $(
             pub const $addr: AccountAddress = builtin_address($init);
-            pub const $id: ObjectID = ObjectID::new($addr.into_bytes());
+            pub const $id: ObjectId = ObjectId::new($addr.into_bytes());
         )*
     }
 }
@@ -251,7 +251,7 @@ impl MoveTypeTagTrait for u64 {
     }
 }
 
-impl MoveTypeTagTrait for ObjectID {
+impl MoveTypeTagTrait for ObjectId {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }
