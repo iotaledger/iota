@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::{
     address::Address,
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
@@ -16,7 +16,7 @@ use iota_types::{
     collection_types::Bag,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
-    object::{Object, Owner},
+    object::Object,
     stardust::output::{Alias, Nft},
 };
 use primitive_types::U256;

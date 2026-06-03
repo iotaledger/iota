@@ -14,7 +14,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Identifier, ObjectId, TypeTag,
+    Identifier, ObjectId, Owner, TypeTag,
     crypto::{Intent, IntentMessage},
 };
 use iota_types::{
@@ -22,7 +22,6 @@ use iota_types::{
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
-    object::Owner,
     signature::GenericSignature,
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ProgrammableTransaction, SharedObjectRef,

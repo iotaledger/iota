@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use iota_sdk_types::{
-    ChangeEpoch, Command, Identifier, ObjectId, StructTag, TypeTag,
+    ChangeEpoch, Command, Identifier, ObjectId, Owner, StructTag, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
@@ -39,7 +39,7 @@ use iota_types::{
     messages_grpc::ObjectInfoRequestKind,
     move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey},
-    object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, ObjectInner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{

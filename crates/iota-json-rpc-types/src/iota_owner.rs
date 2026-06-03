@@ -1,11 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
-    object::Owner,
-};
+use iota_sdk_types::{ObjectId, Owner};
+use iota_types::base_types::{IotaAddress, SequenceNumber};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};

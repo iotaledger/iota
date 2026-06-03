@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
     base_types::{
@@ -43,7 +43,7 @@ use iota_types::{
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     messages_checkpoint::CheckpointDigest,
-    object::{MoveObject, MoveObjectExt, Owner},
+    object::{MoveObject, MoveObjectExt},
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,

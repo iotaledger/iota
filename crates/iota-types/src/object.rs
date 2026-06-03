@@ -10,8 +10,8 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{MoveStruct as MoveObject, ObjectData as Data, Owner};
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+pub use iota_sdk_types::{MoveStruct as MoveObject, ObjectData as Data};
+use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};

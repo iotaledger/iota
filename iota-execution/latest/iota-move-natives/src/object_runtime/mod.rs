@@ -12,7 +12,7 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     committee::EpochId,
@@ -20,7 +20,7 @@ use iota_types::{
     execution::DynamicallyLoadedObjectMetadata,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     metrics::LimitsMetrics,
-    object::{MoveObject, Owner},
+    object::MoveObject,
     storage::ChildObjectResolver,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};

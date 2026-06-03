@@ -11,7 +11,7 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
@@ -20,7 +20,7 @@ use iota_types::{
     id::UID,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    object::{MoveObject, MoveObjectExt, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     storage::{BackingPackageStore, ChildObjectResolver},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};

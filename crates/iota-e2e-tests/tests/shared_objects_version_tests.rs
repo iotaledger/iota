@@ -5,13 +5,13 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    object::{OBJECT_START_VERSION, Owner},
+    object::OBJECT_START_VERSION,
     transaction::{CallArg, SharedObjectRef},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
