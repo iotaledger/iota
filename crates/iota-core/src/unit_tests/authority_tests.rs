@@ -6057,7 +6057,7 @@ async fn test_publish_missing_dependency() {
         .into_status()
         .unwrap_err();
 
-    assert_eq!(ExecutionError::PublishUpgradeMissingDependency, failure,);
+    assert_eq!(ExecutionError::PublishUpgradeMissingDependency, failure);
 }
 
 #[tokio::test]
@@ -6103,7 +6103,7 @@ async fn test_publish_missing_transitive_dependency() {
         .into_status()
         .unwrap_err();
 
-    assert_eq!(ExecutionError::PublishUpgradeMissingDependency, failure,);
+    assert_eq!(ExecutionError::PublishUpgradeMissingDependency, failure);
 }
 
 #[tokio::test]
