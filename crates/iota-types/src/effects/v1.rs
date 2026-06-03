@@ -4,12 +4,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::Digest;
+use iota_sdk_types::{Digest, ExecutionError};
 
 use super::{
     EffectsObjectChange, EpochId, ExecutionStatus, GasCostSummary, IDOperation, InputSharedObject,
-    ObjectChange, ObjectId, ObjectIn, ObjectOut, ObjectRef, Owner, TransactionEffectsV1,
-    UnchangedSharedKind, UnchangedSharedObject, Version,
+    MoveLocation, ObjectChange, ObjectId, ObjectIn, ObjectOut, ObjectRef, Owner,
+    TransactionEffectsV1, UnchangedSharedKind, UnchangedSharedObject, Version,
 };
 use crate::{
     IotaAddress,
@@ -43,6 +43,17 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                 }
             })
             .collect()
+    }
+
+    fn move_abort(&self) -> Option<(MoveLocation, u64)> {
+        let ExecutionStatus::Failure {
+            error: ExecutionError::MoveAbort { location, code },
+            ..
+        } = self.status()
+        else {
+            return None;
+        };
+        Some((location.clone(), *code))
     }
 
     fn lamport_version(&self) -> Version {

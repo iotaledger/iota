@@ -14,6 +14,7 @@ use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_types::{
     base_types::IotaAddress,
     error::{IotaError, UserInputError},
+    execution_status::MoveLocation,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use itertools::Itertools;
@@ -24,6 +25,7 @@ use move_binary_format::{
         Module as NormalizedModule, Struct as NormalizedStruct, Type as NormalizedType,
     },
 };
+use move_command_line_common::error_bitset::ErrorBitset;
 use move_core_types::annotated_value::{MoveStruct, MoveValue, MoveVariant};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -660,6 +662,57 @@ impl Display for IotaMoveStruct {
                     writeln!(writer, "  {}: {value}", name.bold().bright_black())?;
                 }
             }
+        }
+        write!(f, "{}", writer.trim_end_matches('\n'))
+    }
+}
+
+#[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct IotaMoveAbort {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub module_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<u64>,
+}
+
+impl IotaMoveAbort {
+    pub fn new(move_location: MoveLocation, code: u64) -> Self {
+        let module = format!(
+            "{}::{}",
+            move_location.package.to_canonical_string(true),
+            move_location.module
+        );
+        let (error_code, line) = match ErrorBitset::from_u64(code) {
+            Some(c) => (c.error_code().map(|c| c as u64), c.line_number()),
+            None => (Some(code), None),
+        };
+        Self {
+            module_id: Some(module),
+            function: move_location.function_name.map(|name| name.to_string()),
+            line,
+            error_code,
+        }
+    }
+}
+
+impl Display for IotaMoveAbort {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut writer = String::new();
+        if let Some(module_id) = &self.module_id {
+            writeln!(writer, "Module ID: {module_id}")?;
+        }
+        if let Some(function) = &self.function {
+            writeln!(writer, "Function: {function}")?;
+        }
+        if let Some(line) = &self.line {
+            writeln!(writer, "Line: {line}")?;
+        }
+        if let Some(error_code) = &self.error_code {
+            writeln!(writer, "Error code: {error_code}")?;
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }

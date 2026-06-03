@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, Owner,
+    Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, MoveLocation, ObjectId, Owner,
     UnchangedSharedObject, Version, crypto::Intent,
 };
 pub use iota_sdk_types::{
@@ -141,6 +141,10 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// of every object that existed in the store before this transaction
     /// and was modified by it (mutated, wrapped, or deleted).
     fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
+
+    /// Returns the Move abort location and code if the transaction failed with
+    /// a Move abort, or `None` otherwise.
+    fn move_abort(&self) -> Option<(MoveLocation, u64)>;
 
     /// The version assigned to all output objects (apart from packages).
     fn lamport_version(&self) -> Version;
@@ -385,6 +389,10 @@ impl TransactionEffectsAPI for TransactionEffects {
 
     fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
         delegate_effects_api!(self, modified_at_versions)
+    }
+
+    fn move_abort(&self) -> Option<(MoveLocation, u64)> {
+        delegate_effects_api!(self, move_abort)
     }
 
     fn lamport_version(&self) -> Version {

@@ -8,9 +8,10 @@ use std::{collections::HashSet, convert::TryInto, str::FromStr};
 use bcs;
 use fastcrypto::traits::KeyPair;
 use futures::{StreamExt, stream::FuturesUnordered};
+use insta::assert_snapshot;
 use iota_json_rpc_types::{
     IotaArgument, IotaExecutionResult, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
-    IotaTypeTag,
+    IotaTransactionBlockEffectsV1, IotaTypeTag,
 };
 use iota_macros::sim_test;
 use iota_protocol_config::{
@@ -1079,8 +1080,17 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
         execution_error_source,
         ..
     } = fullnode.dry_exec_transaction(data, digest).unwrap().0;
+
     assert_eq!(effects.deleted().len(), 0);
-    assert_eq!(execution_error_source, Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
+    assert!(execution_error_source.is_some());
+    assert_snapshot!(execution_error_source.unwrap());
+
+    match effects {
+        IotaTransactionBlockEffects::V1(IotaTransactionBlockEffectsV1 { abort_error, .. }) => {
+            assert!(abort_error.is_some());
+            assert_snapshot!(abort_error.unwrap());
+        }
+    }
 }
 
 // tests using a gas coin with version MAX - 1
@@ -4046,6 +4056,144 @@ async fn test_iter_live_object_set() {
     );
 }
 
+#[tokio::test]
+async fn test_clever_abort_error() {
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let gas_object_id = ObjectId::random();
+    let (validator, fullnode) = init_state_validator_with_fullnode().await;
+    let (validator, aborts) = publish_aborts(validator).await;
+    let (fullnode, _aborts) = publish_aborts(fullnode).await;
+    let gas_object = Object::with_id_owner_version_for_testing(
+        gas_object_id,
+        SequenceNumber::MAX_VALID_EXCL - 1,
+        Owner::Address(sender),
+    );
+    let gas_object_ref = gas_object.compute_object_reference();
+    validator.insert_genesis_object(gas_object.clone()).await;
+    fullnode.insert_genesis_object(gas_object).await;
+
+    let rgp = fullnode.reference_gas_price_for_testing().unwrap();
+
+    let dry_run_abort = |function: &'static str| {
+        let pt = ProgrammableTransaction {
+            inputs: vec![],
+            commands: vec![Command::new_move_call(
+                aborts.object_id,
+                Identifier::from_static("aborts"),
+                Identifier::from_static(function),
+                vec![],
+                vec![],
+            )],
+        };
+        let txn_data = TransactionData::new_programmable(
+            sender,
+            vec![gas_object_ref],
+            pt,
+            TEST_ONLY_GAS_UNIT_FOR_GENERIC * rgp,
+            rgp,
+        );
+        let transaction = to_sender_signed_transaction(txn_data.clone(), &sender_key);
+        let digest = *transaction.digest();
+        fullnode.dry_exec_transaction(txn_data, digest).unwrap().0
+    };
+
+    // only_abort
+    let DryRunTransactionBlockResponse {
+        effects,
+        execution_error_source,
+        ..
+    } = dry_run_abort("only_abort");
+
+    assert!(matches!(
+        effects.status(),
+        IotaExecutionStatus::Failure { .. }
+    ));
+    assert_snapshot!(
+        "clever_only_abort_execution_error_source",
+        execution_error_source.unwrap()
+    );
+    match effects {
+        IotaTransactionBlockEffects::V1(IotaTransactionBlockEffectsV1 { abort_error, .. }) => {
+            assert!(abort_error.is_some());
+            assert_snapshot!("clever_only_abort_abort_error", abort_error.unwrap());
+        }
+    }
+
+    // abort_with_code
+    let DryRunTransactionBlockResponse {
+        effects,
+        execution_error_source,
+        ..
+    } = dry_run_abort("abort_with_code");
+
+    assert!(matches!(
+        effects.status(),
+        IotaExecutionStatus::Failure { .. }
+    ));
+    assert!(execution_error_source.is_some());
+    assert_snapshot!(
+        "clever_abort_with_code_execution_error_source",
+        execution_error_source.unwrap(),
+    );
+
+    match effects {
+        IotaTransactionBlockEffects::V1(IotaTransactionBlockEffectsV1 { abort_error, .. }) => {
+            assert!(abort_error.is_some());
+            assert_snapshot!("clever_abort_with_code_abort_error", abort_error.unwrap())
+        }
+    }
+
+    // abort with const
+    let DryRunTransactionBlockResponse {
+        effects,
+        execution_error_source,
+        ..
+    } = dry_run_abort("abort_with_const");
+
+    assert!(matches!(
+        effects.status(),
+        IotaExecutionStatus::Failure { .. }
+    ));
+    assert!(execution_error_source.is_some());
+    assert_snapshot!(
+        "clever_abort_with_const_execution_error_source",
+        execution_error_source.unwrap()
+    );
+
+    match effects {
+        IotaTransactionBlockEffects::V1(IotaTransactionBlockEffectsV1 { abort_error, .. }) => {
+            assert!(abort_error.is_some());
+            assert_snapshot!("clever_abort_with_const_abort_error", abort_error.unwrap());
+        }
+    }
+
+    // abort with const and code
+    let DryRunTransactionBlockResponse {
+        effects,
+        execution_error_source,
+        ..
+    } = dry_run_abort("abort_with_const_and_code");
+
+    assert!(matches!(
+        effects.status(),
+        IotaExecutionStatus::Failure { .. }
+    ));
+    assert!(execution_error_source.is_some());
+    assert_snapshot!(
+        "clever_abort_with_const_and_code_execution_error_source",
+        execution_error_source.unwrap(),
+    );
+    match effects {
+        IotaTransactionBlockEffects::V1(IotaTransactionBlockEffectsV1 { abort_error, .. }) => {
+            assert!(abort_error.is_some());
+            assert_snapshot!(
+                "clever_abort_with_const_and_code_abort_error",
+                abort_error.unwrap(),
+            )
+        }
+    }
+}
+
 // helpers
 
 #[cfg(test)]
@@ -4109,6 +4257,29 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
     // add object_basics package object to genesis, since lots of test use it
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/object_basics");
+    let modules: Vec<_> = BuildConfig::new_for_testing()
+        .build(&path)
+        .unwrap()
+        .get_modules()
+        .cloned()
+        .collect();
+    let digest = TransactionDigest::GENESIS_MARKER;
+    let pkg = Object::new_package_for_testing(
+        &modules,
+        digest,
+        BuiltInFramework::genesis_move_packages(),
+    )
+    .unwrap();
+    let pkg_ref = pkg.compute_object_reference();
+    state.insert_genesis_object(pkg).await;
+    (state, pkg_ref)
+}
+
+pub async fn publish_aborts(state: Arc<AuthorityState>) -> (Arc<AuthorityState>, ObjectRef) {
+    use iota_move_build::BuildConfig;
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("src/unit_tests/data/aborts");
     let modules: Vec<_> = BuildConfig::new_for_testing()
         .build(&path)
         .unwrap()

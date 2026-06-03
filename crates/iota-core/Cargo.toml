@@ -96,6 +96,7 @@ clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
+insta.workspace = true
 more-asserts.workspace = true
 num-bigint = "0.4.4"
 pretty_assertions.workspace = true

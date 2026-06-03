@@ -56,7 +56,7 @@ use tabled::{
 };
 
 use crate::{
-    Filter, IotaEvent, IotaEventID, IotaMoveValue, ObjectRefSchema, Page,
+    Filter, IotaEvent, IotaEventID, IotaMoveAbort, IotaMoveValue, ObjectRefSchema, Page,
     balance_changes::BalanceChange,
     iota_gas_cost_summary::IotaGasCostSummary,
     iota_owner::OwnerSchema,
@@ -871,7 +871,12 @@ pub struct IotaTransactionBlockEffectsV1 {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<Base58Schema>")]
     pub dependencies: Vec<TransactionDigest>,
+    /// The abort error populated if the transaction failed with an abort code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abort_error: Option<IotaMoveAbort>,
 }
+
+// TODO move additional error info here
 
 impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
     fn status(&self) -> &IotaExecutionStatus {
@@ -993,6 +998,7 @@ impl IotaTransactionBlockEffects {
             wrapped: vec![],
             events_digest: None,
             dependencies: vec![],
+            abort_error: None,
         })
     }
 
@@ -1063,6 +1069,9 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             },
             events_digest: native.events_digest().copied(),
             dependencies: native.dependencies().to_vec(),
+            abort_error: native
+                .move_abort()
+                .map(|(abort, code)| IotaMoveAbort::new(abort, code)),
         }
     }
 }

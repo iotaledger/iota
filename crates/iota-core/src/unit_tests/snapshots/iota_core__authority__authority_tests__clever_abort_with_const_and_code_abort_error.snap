@@ -1,0 +1,8 @@
+---
+source: crates/iota-core/src/unit_tests/authority_tests.rs
+expression: abort_error.unwrap()
+---
+Module ID: 0x0000000000000000000000000000000000000000000000000000000000000000::aborts
+Function: abort_with_const_and_code
+Line: 23
+Error code: 5
