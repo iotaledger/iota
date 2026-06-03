@@ -24,8 +24,9 @@ ITERS="${ITERS:-1}"
 export ITERS
 
 # Semaphore cap applied to all policies in run_inner.sh.
-# Current calibration: 400 (TPS sem-bound at ~1100 tx/s on WS).
-SEM_CAP="${SEM_CAP:-400}"
+# Sized so SEM is not the bottleneck for max=2000 policies (SEM/max=0.5 ratio).
+# Earlier 400 was a hidden bottleneck for max=20K — masked graduated's value.
+SEM_CAP="${SEM_CAP:-1000}"
 export SEM_CAP
 
 # Saturation pct for GRADUATED policies (the 100%-shed threshold).
@@ -36,6 +37,17 @@ export SEM_CAP
 SAT_PCT="${SAT_PCT:-95}"
 export SAT_PCT
 
+# AIMD closed-loop congestion control on the spammer. Models a responsive
+# sender — required for RED-style graduated shedding benefits to materialize
+# (desync, early backoff). Disable only to test non-responsive load.
+AIMD="${AIMD:-true}"
+export AIMD
+
+# AIMD starting cwnd. Default 8 in Rust; we use 4 so workers ramp up to
+# the feedback equilibrium without overshooting in the warm-up phase.
+AIMD_INITIAL="${AIMD_INITIAL:-4}"
+export AIMD_INITIAL
+
 # Per-worker spammer in-flight cap (Rust default 200 too high).
 # 40 × 16 workers × 25 procs = 16K total spammer in-flight — calibrated
 # to push validator queue to ~13-16K mean at max=20K, hits cap frequently.
@@ -45,9 +57,9 @@ export OPEN_LOOP_MAX_INFLIGHT_PER_WORKER
 # Examples:
 #   ITERS=20 ./run.sh
 #   ITERS=20 SEM_CAP=500 SAT_PCT=90 ./run.sh   (different sem / sat)
-#   ITERS=20 OPEN_LOOP=true ./run.sh           (open-loop instead of closed)
+#   ITERS=20 OPEN_LOOP=true AIMD=false ./run.sh    (open-loop, non-responsive)
 
-echo "config: ITERS=$ITERS  SEM_CAP=$SEM_CAP  SAT_PCT=$SAT_PCT  OPEN_LOOP_CAP=$OPEN_LOOP_MAX_INFLIGHT_PER_WORKER"
+echo "config: ITERS=$ITERS  SEM_CAP=$SEM_CAP  SAT_PCT=$SAT_PCT  AIMD=$AIMD AIMD_INITIAL=$AIMD_INITIAL  OPEN_LOOP_CAP=$OPEN_LOOP_MAX_INFLIGHT_PER_WORKER"
 
 nohup ./run_inner.sh >> run.log 2>&1 &
 

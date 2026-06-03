@@ -82,8 +82,15 @@ initial_bringup
 # run.sh: SEM_CAP=500, SAT_PCT=95). Binary policies (pct=100) always
 # use sat=100 — sat<100 only makes sense in the graduated zone.
 POLICIES=(
+  "MAX_PENDING=2000 START_PCT=50  SAT_PCT=50  SEM_SHEDDING=false" # cap=1.0K
+  "MAX_PENDING=2000 START_PCT=60  SAT_PCT=60  SEM_SHEDDING=false" # cap=1.2K
+  "MAX_PENDING=2000 START_PCT=70  SAT_PCT=70  SEM_SHEDDING=false" # cap=1.4K
+  "MAX_PENDING=2000 START_PCT=85  SAT_PCT=85  SEM_SHEDDING=false" # cap=1.7K
+  "MAX_PENDING=2000 START_PCT=100 SAT_PCT=100 SEM_SHEDDING=false" # cap=2.0K
+  "MAX_PENDING=2000 START_PCT=50  SAT_PCT=95  SEM_SHEDDING=false" # graduated proposed
+  "MAX_PENDING=2000 START_PCT=25  SAT_PCT=95  SEM_SHEDDING=false" # graduated aggressive
   # 3 hard binary policies at different hard limit (max pending)
-  "MAX_PENDING=20000 START_PCT=100      SAT_PCT=100      SEM_SHEDDING=false"
+  # "MAX_PENDING=20000 START_PCT=100      SAT_PCT=100      SEM_SHEDDING=false"
   # "MAX_PENDING=20000 START_PCT=$SAT_PCT SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
   # "MAX_PENDING=20000 START_PCT=50       SAT_PCT=50       SEM_SHEDDING=false"
   # 1 graduated policy with 100% saturation
