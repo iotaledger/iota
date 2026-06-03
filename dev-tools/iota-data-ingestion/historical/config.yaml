@@ -74,3 +74,14 @@ tasks:
       # checkpoint production rate.
       #
       commit-duration-seconds: 250
+      # Set the seed to initialize EPOCH_BOUNDARIES in existing instances.
+      #
+      # The seed has an effect only if the remote EPOCH_BOUNDARIES is not present.
+      #
+      # The last epoch in the seed MUST be greater than or equal to the last completed epoch on the network.
+      # Otherwise, when the current epoch changes the ingestion will fail to ensure that EPOCH_BOUNDARIES is contiguous
+      # with respect to epochs.
+      epoch-boundaries:
+        0: 1
+        1: 100
+        2: 20000
