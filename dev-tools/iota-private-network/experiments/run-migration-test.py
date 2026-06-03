@@ -735,6 +735,13 @@ def start_load_generator(cfg: Config) -> None:
     phase_start = time.time()
     log(_phase_banner(f"Starting load generator ({cfg.load_qps} qps)", "PHASE 6b"))
 
+    # Load is optional: the migration must proceed even if the stress image is
+    # unavailable (mirrors the benchmark/fuzz runners). Pull-if-missing, skip on
+    # failure rather than aborting the whole upgrade run.
+    if not ec.ensure_image(cfg.load_tools_image):
+        log("  Skipping load generator; the migration continues without load.")
+        return
+
     genesis_blob = cfg.network_dir / "configs" / "genesis" / "genesis.blob"
     faucet_keystore = cfg.network_dir / "configs" / "faucet" / "iota.keystore"
     load_keystore_dir = cfg.log_dir / "load-generator-keystore"
@@ -800,8 +807,13 @@ def start_load_generator(cfg: Config) -> None:
             str(cfg.load_transfer_objects),
         ],
         capture=True,
+        check=False,
         quiet=True,
     )
+    if result.returncode != 0:
+        log("  WARNING: load generator failed to start; the migration continues "
+            "without load.")
+        return
     container_id = result.stdout.strip()[:12] or "unknown"
 
     # Health check: verify the container is still running after a short startup period
