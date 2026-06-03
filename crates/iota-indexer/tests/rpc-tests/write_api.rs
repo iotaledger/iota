@@ -7,7 +7,7 @@ use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl};
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_indexer::{
-    config::PruningOptions, errors::IndexerError, read_only_blocking, schema::objects,
+    config::RetentionConfig, errors::IndexerError, read_only_blocking, schema::objects,
     store::indexer_store::IndexerStore, types::IndexerResult,
 };
 use iota_json::{call_arg, call_args, type_args};
@@ -1000,11 +1000,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
         Some("test_optimistic_tables_pruning"),
         None,
-        Some(PruningOptions {
-            epochs_to_keep: Some(1),
-            pruning_config_path: None,
-            optimistic_pruner_batch_size: None,
-        }),
+        Some(RetentionConfig::new_with_default_retention_only_for_testing(1)),
     )
     .await;
     indexer_wait_for_checkpoint(store, 1).await;

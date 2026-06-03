@@ -80,15 +80,11 @@ impl IndexerTypeConfig {
 
     pub fn writer_mode(
         snapshot_config: Option<SnapshotLagConfig>,
-        pruning_options: Option<PruningOptions>,
+        retention_config: Option<RetentionConfig>,
     ) -> Self {
         Self::Writer {
             snapshot_config: snapshot_config.unwrap_or_default(),
-            retention_config: pruning_options.as_ref().and_then(|pruning_options| {
-                pruning_options
-                    .epochs_to_keep
-                    .map(RetentionConfig::new_with_default_retention_only_for_testing)
-            }),
+            retention_config,
         }
     }
 }

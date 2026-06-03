@@ -306,10 +306,6 @@ pub enum Command {
 
 #[derive(Args, Default, Debug, Clone)]
 pub struct PruningOptions {
-    /// DEPRECATED: will be removed in v1.28.0. Use `--pruning-config-path`
-    /// pointing at a TOML retention config instead.
-    #[arg(long, env = "EPOCHS_TO_KEEP")]
-    pub epochs_to_keep: Option<u64>,
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
@@ -336,25 +332,7 @@ impl PruningOptions {
     /// Loads default retention policy and overrides from file.
     pub fn load_from_file(&self) -> IndexerResult<Option<RetentionConfig>> {
         let Some(config_path) = self.pruning_config_path.as_ref() else {
-            let Some(epochs_to_keep) = self.epochs_to_keep else {
-                return Ok(None);
-            };
-            warn!(
-                "using the deprecated --epochs-to-keep argument for pruning configuration. \
-                 This argument will be removed in v1.28.0. \
-                 Please use --pruning-config-path to specify a TOML configuration file instead."
-            );
-            return Ok(Some(RetentionConfig::new(
-                epochs_to_keep,
-                Default::default(),
-            )));
-        };
-
-        if self.epochs_to_keep.is_some() {
-            warn!(
-                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided. \
-                 Note that --epochs-to-keep is deprecated and will be removed in v1.28.0."
-            );
+            return Ok(None);
         };
 
         let contents = std::fs::read_to_string(config_path)
@@ -556,7 +534,6 @@ mod test {
         temp_file.write_all(toml_content.as_bytes()).unwrap();
         let temp_path: PathBuf = temp_file.path().to_path_buf();
         let pruning_options = PruningOptions {
-            epochs_to_keep: None,
             pruning_config_path: Some(temp_path),
             optimistic_pruner_batch_size: None,
         };
@@ -607,7 +584,6 @@ mod test {
         temp_file.write_all(toml_content.as_bytes()).unwrap();
         let temp_path: PathBuf = temp_file.path().to_path_buf();
         let pruning_options = PruningOptions {
-            epochs_to_keep: None,
             pruning_config_path: Some(temp_path),
             optimistic_pruner_batch_size: None,
         };
