@@ -314,7 +314,7 @@ The experiment suite can optionally include a transaction spammer to generate lo
 Two modes are supported:
 
 1. **`stress`** (default)\
-   Uses the `iota-tools` stress binary inside a Docker container (`iotaledger/iota-tools`) to send transactions against `fullnode-1`.
+   Uses the stress binary inside a Docker container (`iotaledger/stress`) to send transactions against `fullnode-1`.
 
 2. **`iota-spammer`** (external repo, optional)\
    Uses a custom spammer script from a private repository.

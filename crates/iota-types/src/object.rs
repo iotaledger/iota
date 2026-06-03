@@ -46,12 +46,12 @@ pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 /// Index marking the end of the object's ID + the beginning of its version
 pub const ID_END_INDEX: usize = ObjectID::LENGTH;
 
-mod move_object_ext_private {
+mod move_object_ext {
     pub trait Sealed {}
-    impl Sealed for iota_sdk_types::MoveStruct {}
+    impl Sealed for super::MoveObject {}
 }
 
-pub trait MoveObjectExt: Sized + move_object_ext_private::Sealed {
+pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
     fn new_from_execution(
         tag: StructTag,
         version: SequenceNumber,
@@ -909,7 +909,7 @@ impl Display for ObjectRead {
                 write!(f, "ObjectRead::Deleted ({oref:?})")
             }
             Self::NotExists(id) => {
-                write!(f, "ObjectRead::NotExists ({id:?})")
+                write!(f, "ObjectRead::NotExists ({id})")
             }
             Self::Exists(oref, _, _) => {
                 write!(f, "ObjectRead::Exists ({oref:?})")
@@ -971,7 +971,7 @@ impl Display for PastObjectRead {
                 write!(f, "PastObjectRead::ObjectDeleted ({oref:?})")
             }
             Self::ObjectNotExists(id) => {
-                write!(f, "PastObjectRead::ObjectNotExists ({id:?})")
+                write!(f, "PastObjectRead::ObjectNotExists ({id})")
             }
             Self::VersionFound(oref, _, _) => {
                 write!(f, "PastObjectRead::VersionFound ({oref:?})")
@@ -979,7 +979,7 @@ impl Display for PastObjectRead {
             Self::VersionNotFound(object_id, version) => {
                 write!(
                     f,
-                    "PastObjectRead::VersionNotFound ({object_id:?}, asked sequence number {version:?})"
+                    "PastObjectRead::VersionNotFound ({object_id}, asked sequence number {version:?})"
                 )
             }
             Self::VersionTooHigh {
@@ -989,7 +989,7 @@ impl Display for PastObjectRead {
             } => {
                 write!(
                     f,
-                    "PastObjectRead::VersionTooHigh ({object_id:?}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
+                    "PastObjectRead::VersionTooHigh ({object_id}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
                 )
             }
         }

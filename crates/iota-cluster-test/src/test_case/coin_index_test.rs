@@ -105,7 +105,9 @@ impl TestCaseImpl for CoinIndexTest {
         let validator_addr = match ctx.get_latest_iota_system_state().await {
             IotaSystemStateSummary::V1(v1) => v1.active_validators,
             IotaSystemStateSummary::V2(v2) => v2.active_validators,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         }
         .first()
         .unwrap()

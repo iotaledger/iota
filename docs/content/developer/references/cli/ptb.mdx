@@ -42,7 +42,9 @@ Options:
      --split-coins <COIN> <[AMOUNT]>                                      Split the coin into N coins as per the given array of amounts.
      --transfer-objects <[OBJECTS]> <TO>                                  Transfer objects to the specified address.
      --publish <MOVE_PACKAGE_PATH>                                        Publish the Move package. It takes as input the folder where the package exists.
-     --upgrade <MOVE_PACKAGE_PATH>                                        Upgrade the Move package. It takes as input the folder where the package exists.
+     --upgrade <MOVE_PACKAGE_PATH> <UPGRADE_CAP>                          Upgrade the Move package. It takes as input the folder where the package exists.
+     --compile-upgrade <MOVE_PACKAGE_PATH> <UPGRADE_CAP>                  Compile a Move package for upgrade without executing any transaction commands.
+     --execute-upgrade <UPGRADE_TICKET>                                   Execute the system upgrade using previously compiled package data.
      --preview                                                            Preview the list of PTB transactions instead of executing them.
      --tx-digest                                                          Instead of executing the transaction, print its digest.
      --sender <SENDER>                                                    Set the sender to this address instead of the active address.
@@ -208,11 +210,13 @@ iota client ptb \
 ### Upgrade
 
 
-:::tip 
+:::tip
 
 Before [upgrading a package](../../iota-101/move-overview/package-upgrades/introduction.mdx), you need to add `published-at = "<PACKAGE_ID>"` (with the 0x... package ID) to its [`Move.toml`](../../getting-started/create-a-package.mdx#movetoml) in the `[package]` section.
 
 :::
+
+The simplest way to upgrade a package is with the `--upgrade` command, which performs all three upgrade steps (authorize, execute, commit) in a single command:
 
 ```bash
 iota client ptb \
@@ -220,6 +224,52 @@ iota client ptb \
 --upgrade "." upgrade_cap \
 --gas-budget 100000000 \
 --dry-run
+```
+
+#### Step-by-step upgrade
+
+For more control over the upgrade process, you can use `--compile-upgrade` and `--execute-upgrade` to perform each step individually. This is especially useful when you want to change the upgrade policy or use custom authorize/commit functions.
+
+The upgrade process has three steps:
+1. **Authorize** - Call `iota::package::authorize_upgrade` (or a custom function) to get an `UpgradeTicket`.
+2. **Execute** - Execute the system upgrade with the ticket to get an `UpgradeReceipt`.
+3. **Commit** - Call `iota::package::commit_upgrade` (or a custom function) to finalize.
+
+`--compile-upgrade` compiles the package and returns the package digest as an assignable `vector<u8>` value. It also stores the compiled bytecode internally for use by `--execute-upgrade`. `--execute-upgrade` takes an upgrade ticket and executes the system upgrade command, returning the receipt.
+
+**Standard step-by-step upgrade with the framework functions:**
+
+```bash
+iota client ptb \
+--compile-upgrade "." @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 \
+--assign package_digest \
+--move-call iota::package::authorize_upgrade @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 0u8 package_digest \
+--assign ticket \
+--execute-upgrade ticket \
+--assign receipt \
+--move-call iota::package::commit_upgrade @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 receipt \
+--gas-budget 100000000
+```
+
+The `0u8` above is the upgrade policy. You can change it to control what kinds of upgrades are allowed:
+- `0` - compatible (default)
+- `128` - additive
+- `192` - dependency only
+
+**Custom upgrade with your own authorize/commit functions:**
+
+If you have custom Move functions that wrap the standard `authorize_upgrade` and `commit_upgrade` (for example, to add ACL checks), you can call them with `--move-call` instead:
+
+```bash
+iota client ptb \
+--compile-upgrade "." @0xUPGRADE_CAP_ID \
+--assign package_digest \
+--move-call YOUR_PKG::admin::authorize @0xSHARED_OBJ package_digest \
+--assign ticket \
+--execute-upgrade ticket \
+--assign receipt \
+--move-call YOUR_PKG::admin::commit @0xSHARED_OBJ receipt \
+--gas-budget 100000000
 ```
 
 ### Split, destroy, and merge coins

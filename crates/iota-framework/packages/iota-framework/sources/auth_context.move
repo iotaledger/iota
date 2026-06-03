@@ -12,14 +12,14 @@ use iota::ptb_command::Command;
 
 #[test_only]
 #[error(code = 0)]
-const EBadAuthDigestLength: vector<u8> =
-    b"Expected an auth digest of length 32, but found a different length.";
+const EBadDigestLength: vector<u8> =
+    b"Expected a digest of length 32, but found a different length.";
 
 // === Constants ===
 
 #[test_only]
-/// Number of bytes in an auth digest.
-const AUTH_DIGEST_LENGTH: u64 = 32;
+/// Number of bytes in a digest.
+const DIGEST_LENGTH: u64 = 32;
 
 // === Structs ===
 
@@ -35,8 +35,24 @@ public struct AuthContext has drop {
 
 // === Public functions ===
 
+/// Returns the MoveAuthenticator digest.
 public fun digest(_ctx: &AuthContext): &vector<u8> {
     native_digest()
+}
+
+/// Returns the sender's auth digest. For `MoveAuthenticator` signatures equals
+/// its digest; for all other signature types it is the Blake2b256 of the
+/// serialized (flag-prefixed) signature bytes.
+public fun sender_auth_digest(_ctx: &AuthContext): &vector<u8> {
+    native_sender_auth_digest()
+}
+
+/// Returns the sponsor's auth digest for sponsored transactions, `none`
+/// otherwise. For `MoveAuthenticator` signatures equals its digest; for all
+/// other signature types it is the Blake2b256 of the serialized
+/// (flag-prefixed) signature bytes.
+public fun sponsor_auth_digest(_ctx: &AuthContext): &Option<vector<u8>> {
+    native_sponsor_auth_digest()
 }
 
 public fun tx_inputs(_ctx: &AuthContext): &vector<CallArg> {
@@ -71,6 +87,10 @@ public fun signing_digest(ctx: &AuthContext): vector<u8> {
 
 native fun native_digest(): &vector<u8>;
 
+native fun native_sender_auth_digest(): &vector<u8>;
+
+native fun native_sponsor_auth_digest(): &Option<vector<u8>>;
+
 native fun native_tx_data_bytes(): &vector<u8>;
 
 native fun native_tx_inputs<I>(): &vector<I>;
@@ -80,15 +100,28 @@ native fun native_tx_commands<C>(): &vector<C>;
 // === Test-only functions ===
 
 #[test_only]
-public fun new_with_tx_inputs(
+public fun new_for_testing(
     auth_digest: vector<u8>,
     tx_inputs: vector<CallArg>,
     tx_commands: vector<Command>,
     tx_data_bytes: vector<u8>,
+    sender_auth_digest: vector<u8>,
+    sponsor_auth_digest: Option<vector<u8>>,
 ): AuthContext {
-    assert!(auth_digest.length() == AUTH_DIGEST_LENGTH, EBadAuthDigestLength);
+    assert!(auth_digest.length() == DIGEST_LENGTH, EBadDigestLength);
+    assert!(sender_auth_digest.length() == DIGEST_LENGTH, EBadDigestLength);
+    if (sponsor_auth_digest.is_some()) {
+        assert!(sponsor_auth_digest.borrow().length() == DIGEST_LENGTH, EBadDigestLength);
+    };
 
-    native_replace(auth_digest, tx_inputs, tx_commands, tx_data_bytes);
+    native_replace(
+        auth_digest,
+        tx_inputs,
+        tx_commands,
+        tx_data_bytes,
+        sender_auth_digest,
+        sponsor_auth_digest,
+    );
 
     // The fields of the returned `AuthContext` are not actually used,
     // since the native functions are used to manage the state.
@@ -105,4 +138,6 @@ native fun native_replace<I, C>(
     tx_inputs: vector<I>,
     tx_commands: vector<C>,
     tx_data_bytes: vector<u8>,
+    sender_auth_digest: vector<u8>,
+    sponsor_auth_digest: Option<vector<u8>>,
 );

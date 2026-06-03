@@ -1091,13 +1091,11 @@ mod tests {
         // this happens at commit 4 or later depending on how blocks are ordered.
         assert!(
             first_missing_index > 1,
-            "Expected first missing at index > 1, got {}",
-            first_missing_index
+            "Expected first missing at index > 1, got {first_missing_index}"
         );
         assert!(
             first_missing_index <= num_rounds as CommitIndex,
-            "Expected first missing within num_rounds, got {}",
-            first_missing_index
+            "Expected first missing within num_rounds, got {first_missing_index}"
         );
 
         // Re-create commit observer starting from index 0 to simulate full recovery.
@@ -1155,16 +1153,14 @@ mod tests {
         for missing_ref in &expected_missing_refs {
             assert!(
                 missing.contains_key(missing_ref),
-                "Missing ref {:?} not tracked",
-                missing_ref
+                "Missing ref {missing_ref:?} not tracked"
             );
             // Each missing transaction should have acknowledgers recorded since
             // all commits are within the recovery window (gc_depth * 2).
             let acknowledgers = missing.get(missing_ref).unwrap();
             assert!(
                 !acknowledgers.is_empty(),
-                "No acknowledgers tracked for {:?}",
-                missing_ref
+                "No acknowledgers tracked for {missing_ref:?}"
             );
         }
 

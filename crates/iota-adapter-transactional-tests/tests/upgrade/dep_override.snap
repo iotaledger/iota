@@ -148,14 +148,14 @@ Contents: Test_DepDepV1::DepDepM1::Obj {
 task 18, lines 115-121:
 //# upgrade --package Test_V3 --upgrade-capability 6,1 --dependencies Test_DepDepV1 --sender A
 Error: Transaction Effects Status: Publish/Upgrade Error, Missing dependency. A dependency of a published or upgraded package has not been assigned an on-chain address.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PublishUpgradeMissingDependency, source: None, command: Some(1) } }
+Execution Error: PublishUpgradeMissingDependency: Publish/Upgrade Error, Missing dependency. A dependency of a published or upgraded package has not been assigned an on-chain address.; at command index: 1
 
 task 19, lines 123-129:
 //# upgrade --package Test_V3 --upgrade-capability 6,1 --dependencies Test_DepV2 --sender A
 Error: Transaction Effects Status: Publish/Upgrade Error, Missing dependency. A dependency of a published or upgraded package has not been assigned an on-chain address.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PublishUpgradeMissingDependency, source: None, command: Some(1) } }
+Execution Error: PublishUpgradeMissingDependency: Publish/Upgrade Error, Missing dependency. A dependency of a published or upgraded package has not been assigned an on-chain address.; at command index: 1
 
 task 20, lines 131-135:
 //# upgrade --package Test_V3 --upgrade-capability 6,1 --dependencies Test_DepV2 Test_DepDepV1 --sender A
 Error: Transaction Effects Status: Publish/Upgrade Error, Dependency downgrade. Indirect (transitive) dependency of published or upgraded package has been assigned an on-chain version that is less than the version required by one of the package's transitive dependencies.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PublishUpgradeDependencyDowngrade, source: None, command: Some(1) } }
+Execution Error: PublishUpgradeDependencyDowngrade: Publish/Upgrade Error, Dependency downgrade. Indirect (transitive) dependency of published or upgraded package has been assigned an on-chain version that is less than the version required by one of the package's transitive dependencies.; at command index: 1

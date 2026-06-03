@@ -63,7 +63,9 @@ async fn execute_add_validator_transactions(
         match system_state {
             IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
             IotaSystemStateSummary::V2(inner) => inner.validator_candidates_size,
-            _ => unimplemented!(),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         }
     });
     let address = (&new_validator.account_key_pair.public()).into();
@@ -92,7 +94,9 @@ async fn execute_add_validator_transactions(
         let validator_candidates_size = match system_state {
             IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
             IotaSystemStateSummary::V2(inner) => inner.validator_candidates_size,
-            _ => unimplemented!(),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
         assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
@@ -310,7 +314,9 @@ async fn test_staking() -> Result<(), anyhow::Error> {
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     };
 
     let coin = objects.data[0].object()?.object_id;
@@ -394,7 +400,9 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     };
 
     // Delegate some IOTA
@@ -578,7 +586,9 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     };
 
     let transaction_bytes: TransactionBlockBytes = http_client
@@ -733,7 +743,9 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     };
 
     let transaction_bytes: TransactionBlockBytes = http_client

@@ -14,7 +14,7 @@ use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{SequenceNumber, VerifiedExecutionData},
     digests::TransactionEventsDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
@@ -22,7 +22,6 @@ use iota_types::{
     iota_system_state::{
         get_iota_system_state, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
-    message_envelope::Message,
     storage::{
         BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, get_module,
     },
@@ -1700,7 +1699,7 @@ impl AuthorityStore {
         let mut object_keys_to_prune = vec![];
         for effects in &transaction_effects {
             for (object_id, seq_number) in effects.modified_at_versions() {
-                info!("Pruning object {:?} version {:?}", object_id, seq_number);
+                info!("Pruning object {} version {:?}", object_id, seq_number);
                 object_keys_to_prune.push(ObjectKey(object_id, seq_number));
             }
         }

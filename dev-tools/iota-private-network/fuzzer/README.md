@@ -212,7 +212,7 @@ calls `disruptions.reset_network`, which:
 If `--spammer-tps` is greater than zero, the scenario will also:
 
 - stop any existing `stress-benchmark` container
-- start a background `stress` spammer via the `iotaledger/iota-tools`
+- start a background `stress` spammer via the `iotaledger/stress`
   image with `--target-qps` set to the given TPS
 - ensure the spammer container is stopped again during scenario cleanup
 

@@ -67,7 +67,9 @@ fn test_staking() {
         let validator = match iota_system_state {
             IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         // Delegate some IOTA
@@ -148,7 +150,9 @@ fn test_unstaking() {
         let validator = match iota_system_state {
             IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         // Delegate some IOTA
@@ -285,7 +289,9 @@ fn test_timelocked_staking() {
             let validator = match iota_system_state {
                 IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
                 IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-                _ => panic!("unsupported IotaSystemStateSummary"),
+                _ => unimplemented!(
+                    "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                ),
             };
 
             let validator = builder.pure(validator).unwrap();
@@ -401,7 +407,9 @@ fn test_timelocked_unstaking() {
             let validator = match iota_system_state {
                 IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
                 IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-                _ => panic!("unsupported IotaSystemStateSummary"),
+                _ => unimplemented!(
+                    "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+                ),
             };
 
             let validator = builder.pure(validator).unwrap();

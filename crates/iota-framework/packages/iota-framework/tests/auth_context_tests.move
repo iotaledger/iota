@@ -4,7 +4,15 @@
 #[test_only]
 module iota::auth_context_tests;
 
-use iota::auth_context::{new_with_tx_inputs, digest, tx_data_bytes, intent_tx_data_bytes, signing_digest};
+use iota::auth_context::{
+    new_for_testing,
+    digest,
+    sender_auth_digest,
+    sponsor_auth_digest,
+    tx_data_bytes,
+    intent_tx_data_bytes,
+    signing_digest
+};
 use iota::ptb::new_programmable_transaction_for_testing;
 use iota::ptb_call_arg::{
     new_call_arg_pure_for_testing,
@@ -38,6 +46,8 @@ use std::type_name;
 
 const DIGEST: vector<u8> = b"00000000000000000000000000000001";
 const OBJECT_DIGEST: vector<u8> = b"00000000000000000000000000000002";
+const SENDER_DIGEST: vector<u8> = b"00000000000000000000000000000003";
+const SPONSOR_DIGEST: vector<u8> = b"00000000000000000000000000000004";
 
 // ---------------------------------------------------------------------------
 // CallArg variants
@@ -48,7 +58,7 @@ fun test_call_arg_pure_data() {
     let pure_arg = new_call_arg_pure_for_testing(b"hello");
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[pure_arg], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[pure_arg], vector[cmd]);
 
     let inputs = ctx.tx_inputs();
     assert!(inputs.length() == 1);
@@ -67,7 +77,7 @@ fun test_call_arg_object_data() {
     let call_arg = new_call_arg_object_for_testing(obj_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[call_arg], vector[cmd]);
 
     let inputs = ctx.tx_inputs();
     assert!(inputs.length() == 1);
@@ -89,7 +99,7 @@ fun test_object_arg_imm_or_owned() {
     let call_arg = new_call_arg_object_for_testing(obj_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[call_arg], vector[cmd]);
 
     let inputs = ctx.tx_inputs();
     let extracted_obj = inputs[0].as_object_data().destroy_some();
@@ -111,7 +121,7 @@ fun test_object_arg_shared() {
     let call_arg = new_call_arg_object_for_testing(shared_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[call_arg], vector[cmd]);
 
     let inputs = ctx.tx_inputs();
     let extracted_obj = inputs[0].as_object_data().destroy_some();
@@ -133,7 +143,7 @@ fun test_object_arg_shared_immutable() {
     let call_arg = new_call_arg_object_for_testing(shared_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[call_arg], vector[cmd]);
 
     let inputs = ctx.tx_inputs();
     let extracted_obj = inputs[0].as_object_data().destroy_some();
@@ -152,7 +162,7 @@ fun test_object_arg_receiving() {
     let call_arg = new_call_arg_object_for_testing(recv_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[call_arg], vector[cmd]);
 
     let inputs = ctx.tx_inputs();
     let extracted_obj = inputs[0].as_object_data().destroy_some();
@@ -179,7 +189,7 @@ fun test_argument_gas_coin() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     let call = commands[0].as_move_call().destroy_some();
@@ -200,7 +210,7 @@ fun test_argument_input() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     let call = commands[0].as_move_call().destroy_some();
@@ -221,7 +231,7 @@ fun test_argument_result() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     let call = commands[0].as_move_call().destroy_some();
@@ -242,7 +252,7 @@ fun test_argument_nested_result() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     let call = commands[0].as_move_call().destroy_some();
@@ -271,7 +281,7 @@ fun test_command_move_call() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     assert!(commands.length() == 1);
@@ -290,7 +300,7 @@ fun test_command_transfer_objects() {
     let data = new_transfer_objects_for_testing(objects, recipient);
     let cmd = new_transfer_objects_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_transfer_objects());
@@ -307,7 +317,7 @@ fun test_command_split_coins() {
     let data = new_split_coins_for_testing(coin, amounts);
     let cmd = new_split_coins_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_split_coins());
@@ -323,7 +333,7 @@ fun test_command_merge_coins() {
     let data = new_merge_coins_for_testing(target, sources);
     let cmd = new_merge_coins_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_merge_coins());
@@ -339,7 +349,7 @@ fun test_command_publish() {
     let data = new_publish_for_testing(modules, vector[dep_id]);
     let cmd = new_publish_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_publish());
@@ -355,7 +365,7 @@ fun test_command_make_move_vec() {
     let data = new_make_move_vec_for_testing(option::some(tn), elements);
     let cmd = new_make_move_vec_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_make_move_vec());
@@ -370,7 +380,7 @@ fun test_command_make_move_vec_no_type() {
     let data = new_make_move_vec_for_testing(option::none(), elements);
     let cmd = new_make_move_vec_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_make_move_vec());
@@ -387,7 +397,7 @@ fun test_command_upgrade() {
     let data = new_upgrade_for_testing(modules, vector[dep_id], package_id, ticket);
     let cmd = new_upgrade_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_upgrade());
@@ -487,7 +497,7 @@ fun test_programmable_transaction() {
     assert!(ptb.commands().length() == 7);
 
     // Also verify round-trip through auth context
-    let ctx = new_with_tx_inputs(DIGEST, inputs, commands, vector[]);
+    let ctx = make_auth_ctx(inputs, commands);
     let digest = DIGEST;
 
     assert!(ctx.digest() == &digest);
@@ -546,7 +556,7 @@ fun test_all_call_arg_and_object_arg_variants() {
     let all_inputs = vector[pure, imm, shared, recv];
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, all_inputs, vector[cmd], vector[]);
+    let ctx = make_auth_ctx(all_inputs, vector[cmd]);
 
     let rt = ctx.tx_inputs();
     assert!(rt.length() == 4);
@@ -576,7 +586,7 @@ fun test_all_argument_variants_in_move_call() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     let call = ctx.tx_commands()[0].as_move_call().destroy_some();
     let args = call.arguments();
@@ -597,7 +607,7 @@ fun test_all_argument_variants_in_move_call() {
 
 #[test]
 fun test_empty_inputs_and_commands() {
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[]);
     let digest = DIGEST;
 
     assert!(ctx.digest() == &digest);
@@ -612,20 +622,35 @@ fun test_empty_inputs_and_commands() {
 #[test]
 fun test_several_auth_context_instances_in_test_scenario() {
     let digest1 = DIGEST;
+    let sender1 = SENDER_DIGEST;
+    let sponsor1 = SPONSOR_DIGEST;
     let pure_arg1 = new_call_arg_pure_for_testing(b"hello");
     let cmd1 = make_noop_move_call_command();
 
-    let ctx1 = new_with_tx_inputs(digest1, vector[pure_arg1], vector[cmd1], vector[]);
+    let ctx1 = new_for_testing(
+        digest1,
+        vector[pure_arg1],
+        vector[cmd1],
+        vector[],
+        sender1,
+        option::some(sponsor1),
+    );
 
     let ctx1_digest_ref = ctx1.digest();
+    let ctx1_sender_ref = ctx1.sender_auth_digest();
+    let ctx1_sponsor_ref = ctx1.sponsor_auth_digest();
     let ctx1_tx_inputs_ref = ctx1.tx_inputs();
     let ctx1_tx_commands_ref = ctx1.tx_commands();
 
     assert!(ctx1_digest_ref == digest1);
+    assert!(ctx1_sender_ref == sender1);
+    assert!(ctx1_sponsor_ref.is_some());
+    assert!(ctx1_sponsor_ref.borrow() == &sponsor1);
     assert!(ctx1_tx_inputs_ref == vector[pure_arg1]);
     assert!(ctx1_tx_commands_ref == vector[cmd1]);
 
     let digest2 = b"11111111111111111111111111111111";
+    let sender2 = b"11111111111111111111111111111134";
     let pure_arg2 = new_call_arg_pure_for_testing(b"world");
     let cmd2 = new_transfer_objects_command_for_testing(
         new_transfer_objects_for_testing(
@@ -634,19 +659,33 @@ fun test_several_auth_context_instances_in_test_scenario() {
         ),
     );
 
-    let ctx2 = new_with_tx_inputs(digest2, vector[pure_arg2], vector[cmd2], vector[]);
+    // ctx2 has no sponsor
+    let ctx2 = new_for_testing(
+        digest2,
+        vector[pure_arg2],
+        vector[cmd2],
+        vector[],
+        sender2,
+        option::none(),
+    );
 
     // The data returned by the `ctx1` instance should be updated
     assert!(ctx1.digest() == digest2);
+    assert!(ctx1.sender_auth_digest() == sender2);
+    assert!(ctx1.sponsor_auth_digest().is_none());
     assert!(ctx1.tx_inputs() == vector[pure_arg2]);
     assert!(ctx1.tx_commands() == vector[cmd2]);
 
     assert!(ctx2.digest() == digest2);
+    assert!(ctx2.sender_auth_digest() == sender2);
+    assert!(ctx2.sponsor_auth_digest().is_none());
     assert!(ctx2.tx_inputs() == vector[pure_arg2]);
     assert!(ctx2.tx_commands() == vector[cmd2]);
 
     // Old links are still valid and point to the old data
     assert!(ctx1_digest_ref == digest1);
+    assert!(ctx1_sender_ref == sender1);
+    assert!(ctx1_sponsor_ref.borrow() == &sponsor1);
     assert!(ctx1_tx_inputs_ref == vector[pure_arg1]);
     assert!(ctx1_tx_commands_ref == vector[cmd1]);
 }
@@ -660,7 +699,14 @@ fun test_tx_data_bytes_round_trip() {
     let tx_bytes = b"fake_serialized_transaction_data";
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes);
+    let ctx = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[cmd],
+        tx_bytes,
+        SENDER_DIGEST,
+        option::none(),
+    );
 
     assert!(ctx.tx_data_bytes() == &tx_bytes);
 }
@@ -669,7 +715,7 @@ fun test_tx_data_bytes_round_trip() {
 fun test_tx_data_bytes_empty() {
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
 
     assert!(ctx.tx_data_bytes() == &vector[]);
 }
@@ -679,7 +725,14 @@ fun test_intent_tx_data_bytes() {
     let tx_bytes = b"tx_payload";
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes);
+    let ctx = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[cmd],
+        tx_bytes,
+        SENDER_DIGEST,
+        option::none(),
+    );
 
     let intent_bytes = ctx.intent_tx_data_bytes();
     // Intent for IOTA transaction: scope=0, version=0, app_id=0
@@ -701,7 +754,14 @@ fun test_signing_digest() {
     let tx_bytes = b"tx_payload";
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes);
+    let ctx = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[cmd],
+        tx_bytes,
+        SENDER_DIGEST,
+        option::none(),
+    );
 
     let signed = ctx.signing_digest();
     // signing_digest = blake2b256(intent_tx_data_bytes)
@@ -716,13 +776,27 @@ fun test_tx_data_bytes_survives_replace() {
     let tx_bytes1 = b"first_tx_data";
     let cmd = make_noop_move_call_command();
 
-    let ctx1 = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes1);
+    let ctx1 = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[cmd],
+        tx_bytes1,
+        SENDER_DIGEST,
+        option::none(),
+    );
     assert!(ctx1.tx_data_bytes() == &tx_bytes1);
 
     // Replace with different tx_data_bytes
     let tx_bytes2 = b"second_tx_data_longer";
     let digest2 = b"11111111111111111111111111111111";
-    let ctx2 = new_with_tx_inputs(digest2, vector[], vector[cmd], tx_bytes2);
+    let ctx2 = new_for_testing(
+        digest2,
+        vector[],
+        vector[cmd],
+        tx_bytes2,
+        SENDER_DIGEST,
+        option::none(),
+    );
 
     // After replace, both contexts see the new data (shared native state)
     assert!(ctx1.tx_data_bytes() == &tx_bytes2);
@@ -730,18 +804,89 @@ fun test_tx_data_bytes_survives_replace() {
 }
 
 // ---------------------------------------------------------------------------
-// Error case: bad digest length
+// sender_auth_digest and sponsor_auth_digest
 // ---------------------------------------------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iota::auth_context::EBadAuthDigestLength)]
-fun test_bad_digest_length() {
-    let _ctx = new_with_tx_inputs(b"too_short", vector[], vector[], vector[]);
+fun test_sender_auth_digest() {
+    let cmd = make_noop_move_call_command();
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
+    let sender = SENDER_DIGEST;
+    assert!(ctx.sender_auth_digest() == &sender);
+}
+
+#[test]
+fun test_sponsor_auth_digest_none() {
+    let cmd = make_noop_move_call_command();
+    let ctx = make_auth_ctx(vector[], vector[cmd]);
+    assert!(ctx.sponsor_auth_digest().is_none());
+}
+
+#[test]
+fun test_sponsor_auth_digest_some() {
+    let cmd = make_noop_move_call_command();
+    let sponsor_digest = SPONSOR_DIGEST;
+    let ctx = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[cmd],
+        vector[],
+        SENDER_DIGEST,
+        option::some(sponsor_digest),
+    );
+    let sponsor = ctx.sponsor_auth_digest();
+    assert!(sponsor.is_some());
+    assert!(sponsor.borrow() == &sponsor_digest);
+}
+
+// ---------------------------------------------------------------------------
+// Error cases: bad digest lengths
+// ---------------------------------------------------------------------------
+
+#[test]
+#[expected_failure(abort_code = iota::auth_context::EBadDigestLength)]
+fun test_bad_auth_digest_length() {
+    let _ctx = new_for_testing(
+        b"too_short",
+        vector[],
+        vector[],
+        vector[],
+        SENDER_DIGEST,
+        option::none(),
+    );
+}
+
+#[test]
+#[expected_failure(abort_code = iota::auth_context::EBadDigestLength)]
+fun test_bad_sender_digest_length() {
+    let _ctx = new_for_testing(DIGEST, vector[], vector[], vector[], b"too_short", option::none());
+}
+
+#[test]
+#[expected_failure(abort_code = iota::auth_context::EBadDigestLength)]
+fun test_bad_sponsor_digest_length() {
+    let _ctx = new_for_testing(
+        DIGEST,
+        vector[],
+        vector[],
+        vector[],
+        SENDER_DIGEST,
+        option::some(b"too_short"),
+    );
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Creates an `AuthContext` with default test values: `DIGEST`, `SENDER_DIGEST`,
+/// no sponsor, and empty `tx_data_bytes`.
+fun make_auth_ctx(
+    tx_inputs: vector<iota::ptb_call_arg::CallArg>,
+    tx_commands: vector<iota::ptb_command::Command>,
+): iota::auth_context::AuthContext {
+    new_for_testing(DIGEST, tx_inputs, tx_commands, vector[], SENDER_DIGEST, option::none())
+}
 
 fun make_noop_move_call_command(): iota::ptb_command::Command {
     let move_call = new_programmable_move_call_for_testing(

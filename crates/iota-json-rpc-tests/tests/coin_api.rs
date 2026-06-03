@@ -351,7 +351,9 @@ async fn staking_multiple_coins() -> Result<(), anyhow::Error> {
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     };
 
     // Delegate some IOTA

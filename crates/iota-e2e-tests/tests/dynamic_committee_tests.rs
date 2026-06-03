@@ -218,7 +218,9 @@ impl StressTestRunner {
         let pre_epoch = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.epoch,
             IotaSystemStateSummary::V2(v2) => v2.epoch,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         self.test_cluster.force_new_epoch().await;
@@ -226,7 +228,9 @@ impl StressTestRunner {
         let post_epoch = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.epoch,
             IotaSystemStateSummary::V2(v2) => v2.epoch,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         info!("Changing epoch from {} to {}", pre_epoch, post_epoch);

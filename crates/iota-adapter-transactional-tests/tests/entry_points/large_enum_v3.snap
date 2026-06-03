@@ -22,4 +22,4 @@ task 3, lines 41-42:
 //# programmable --sender A
 //> test::m::x3()
 Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VmVerificationOrDeserializationError, source: Some(VMError { major_status: TOO_MANY_TYPE_NODES, sub_status: None, message: None, exec_state: None, location: Undefined, indices: [], offsets: [] }), command: Some(0) } }
+Execution Error: VmVerificationOrDeserializationError: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.; caused by: VMError with status TOO_MANY_TYPE_NODES at location UNDEFINED; at command index: 0

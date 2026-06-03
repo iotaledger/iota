@@ -11,7 +11,9 @@ use iota_sdk::IotaClientBuilder;
 use iota_types::{
     base_types::{ObjectID, TransactionDigest},
     committee::Committee,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,

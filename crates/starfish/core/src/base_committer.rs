@@ -88,7 +88,7 @@ impl BaseCommitter {
         let leader_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_block_headers_at_slot(leader);
+            .get_block_headers_at_slot_above_last_commit(leader);
         let mut leaders_with_enough_support: Vec<_> = leader_blocks
             .into_iter()
             .filter(|l| self.enough_leader_support(certifying_round, l))
@@ -194,7 +194,7 @@ impl BaseCommitter {
         let voting_round = leader_block.round() + 1;
         self.dag_state
             .read()
-            .get_uncommitted_block_headers_at_round(voting_round)
+            .get_block_headers_at_round_above_last_commit(voting_round)
             .into_iter()
             .filter(|voting_block| self.is_vote(voting_block, leader_block))
             .map(|voting_block| voting_block.reference())
@@ -233,7 +233,7 @@ impl BaseCommitter {
         let leader_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_block_headers_at_slot(leader_slot);
+            .get_block_headers_at_slot_above_last_commit(leader_slot);
 
         // TODO: Re-evaluate this check once we have a better way to handle/track
         // byzantine authorities.
@@ -252,7 +252,7 @@ impl BaseCommitter {
         let potential_certificates = self
             .dag_state
             .read()
-            .ancestors_at_round(anchor, certifying_round);
+            .reachable_headers_at_round_above_last_commit(anchor, certifying_round);
 
         // Use those potential certificates to determine which (if any) of the target
         // leader blocks can be committed.
@@ -286,7 +286,7 @@ impl BaseCommitter {
         let voting_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_block_headers_at_round(voting_round);
+            .get_block_headers_at_round_above_last_commit(voting_round);
 
         let mut blame_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         for voting_block in &voting_blocks {
@@ -323,7 +323,7 @@ impl BaseCommitter {
         let decision_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_block_headers_at_round(certifying_round);
+            .get_block_headers_at_round_above_last_commit(certifying_round);
 
         // Quickly reject if there isn't enough stake to support the leader from
         // the potential certificates.

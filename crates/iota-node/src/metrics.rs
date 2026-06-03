@@ -48,6 +48,10 @@ impl IotaNodeMetrics {
 pub struct GrpcMetrics {
     inflight_requests: IntGaugeVec,
     num_requests: IntCounterVec,
+    /// Counts gRPC requests that failed at the transport/middleware level
+    /// (e.g. service panic, connection drop, timeout). gRPC application
+    /// errors are NOT counted here — they are already in `num_requests`.
+    num_errors: IntCounterVec,
     request_latency: HistogramVec,
     /// Known gRPC method paths. Paths not in this set are labelled as `"SPAM"`
     /// to prevent unbounded metric cardinality from arbitrary HTTP traffic.
@@ -68,6 +72,13 @@ impl GrpcMetrics {
                 "authority_grpc_requests",
                 "Total authority gRPC requests per method and status code",
                 &["method", "status"],
+                registry,
+            )
+            .unwrap(),
+            num_errors: register_int_counter_vec_with_registry!(
+                "authority_grpc_errors",
+                "Total authority gRPC transport/middleware failures by status code (service panics, connection drops, timeouts)",
+                &["status"],
                 registry,
             )
             .unwrap(),
@@ -104,6 +115,12 @@ impl MetricsCallbackProvider for GrpcMetrics {
         self.request_latency
             .with_label_values(&[method])
             .observe(latency.as_secs_f64());
+    }
+
+    fn on_error(&self, _latency: Duration, grpc_status_code: Code) {
+        self.num_errors
+            .with_label_values(&[grpc_code_to_str(grpc_status_code)])
+            .inc();
     }
 
     fn on_start(&self, path: &str) {

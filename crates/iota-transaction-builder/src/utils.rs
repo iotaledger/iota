@@ -119,11 +119,11 @@ impl TransactionBuilder {
             return Ok(CallArg::Receiving(obj_ref));
         }
         Ok(match owner {
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
-                object_id: id,
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+                id,
                 initial_shared_version,
-                mutable: is_mutable_ref,
-            }),
+                is_mutable_ref,
+            )),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 CallArg::ImmutableOrOwned(obj_ref)
             }

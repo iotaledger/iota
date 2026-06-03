@@ -17,6 +17,7 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
+        objects::StoredBackwardHistoryObject,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
@@ -34,6 +35,7 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
     pub(crate) object_changes: CheckpointObjectChanges,
     pub(crate) object_history_changes: TransactionObjectChangesToCommit,
+    pub(crate) backward_history_changes: Vec<StoredBackwardHistoryObject>,
     pub(crate) object_versions: Vec<StoredObjectVersion>,
     pub(crate) packages: Vec<IndexedPackage>,
     pub(crate) epoch: Option<EpochToCommit>,
@@ -106,6 +108,7 @@ impl PrimaryWriter {
         let mut display_updates_batch = BTreeMap::new();
         let mut object_changes_batch = Vec::with_capacity(batch_len);
         let mut object_history_changes_batch = Vec::with_capacity(batch_len);
+        let mut backward_history_batch = Vec::new();
         let mut object_versions_batch = Vec::with_capacity(batch_len);
         let mut packages_batch = Vec::with_capacity(batch_len);
 
@@ -119,6 +122,7 @@ impl PrimaryWriter {
                 display_updates,
                 object_changes,
                 object_history_changes,
+                backward_history_changes,
                 object_versions,
                 packages,
                 ..
@@ -131,6 +135,7 @@ impl PrimaryWriter {
             display_updates_batch.extend(display_updates.into_iter());
             object_changes_batch.push(object_changes);
             object_history_changes_batch.push(object_history_changes);
+            backward_history_batch.extend(backward_history_changes);
             object_versions_batch.push(object_versions);
             packages_batch.push(packages);
         }
@@ -172,16 +177,30 @@ impl PrimaryWriter {
                     .persist_object_history(object_history_changes_batch.clone()),
                 self.state
                     .persist_object_versions(object_versions_batch.clone()),
-                Box::pin(async {
-                    // We need to persist global order before writing objects, so that optimistic
-                    // indexing is blocked from overwriting objects table with old tx data
-                    // reference: https://github.com/iotaledger/iota/issues/10250
-                    self.state
-                        .persist_tx_global_order(tx_global_order_batch.clone())
-                        .await?;
-                    self.state
-                        .persist_checkpoint_objects(object_changes_batch)
-                        .await
+                Box::pin({
+                    let object_changes_batch = object_changes_batch.clone();
+                    async move {
+                        // We need to persist global order before writing objects, so that
+                        // optimistic indexing is blocked from overwriting
+                        // objects table with old tx data reference: https://github.com/iotaledger/iota/issues/10250
+                        self.state
+                            .persist_tx_global_order(tx_global_order_batch.clone())
+                            .await?;
+                        self.state.persist_objects(object_changes_batch).await
+                    }
+                }),
+                // Backward history must be persisted before checkpointed_objects
+                // to prevent read races during consistent view queries.
+                Box::pin({
+                    let object_changes_batch = object_changes_batch.clone();
+                    async move {
+                        self.state
+                            .persist_object_backward_history(backward_history_batch)
+                            .await?;
+                        self.state
+                            .persist_checkpointed_objects(object_changes_batch)
+                            .await
+                    }
                 }),
             ];
             if let Some(epoch_data) = epoch.clone() {

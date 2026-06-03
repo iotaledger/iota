@@ -862,6 +862,9 @@ impl LocalExec {
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
 
+            let (sender_auth_digest, sponsor_auth_digest) =
+                tx_info.sender_signed_data.compute_auth_digests()?;
+
             executor.authenticate_then_execute_transaction_to_effects(
                 &self,
                 protocol_config,
@@ -879,6 +882,8 @@ impl LocalExec {
                 *tx_digest,
                 bcs::to_bytes(tx_info.sender_signed_data.transaction_data())
                     .expect("TransactionData serialization cannot fail"),
+                sender_auth_digest,
+                sponsor_auth_digest,
                 &mut None,
             )
         };
@@ -1157,6 +1162,8 @@ impl LocalExec {
                 .collect::<Vec<_>>();
 
             let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
+            let (sender_auth_digest, sponsor_auth_digest) =
+                sender_signed_data.compute_auth_digests()?;
             executor.authenticate_then_execute_transaction_to_effects(
                 &store,
                 &protocol_config,
@@ -1174,6 +1181,8 @@ impl LocalExec {
                 *executable.digest(),
                 bcs::to_bytes(sender_signed_data.transaction_data())
                     .expect("TransactionData serialization cannot fail"),
+                sender_auth_digest,
+                sponsor_auth_digest,
                 &mut None,
             )
         };

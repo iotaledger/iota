@@ -9,7 +9,9 @@ use std::{
 
 use common::MockGrpcStateReader;
 use iota_config::node::GrpcApiConfig;
-use iota_grpc_client::{CheckpointStreamItem, Client};
+use iota_grpc_client::{
+    CheckpointStreamItem, Client, ReadMask, read_mask_fields::CheckpointResponseField,
+};
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -140,7 +142,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     let (server_handle, _) = common::start_test_server(mock, config_customizer).await;
 
     let server_addr = server_handle.address();
-    let mut client = Client::connect(&format!("http://{server_addr}"))
+    let mut client = Client::new(&format!("http://{server_addr}"))
         .await
         .expect("Failed to connect to gRPC server");
 
@@ -606,7 +608,7 @@ async fn test_filter_checkpoints_validation() {
         .stream_checkpoints_filtered(
             Some(0),
             Some(5),
-            Some("checkpoint"),
+            Some(ReadMask::from(CheckpointResponseField::CHECKPOINT)),
             Some(tx_filter),
             None,
             None,
@@ -644,7 +646,10 @@ async fn test_filter_checkpoints_streaming() {
         .stream_checkpoints_filtered(
             None,
             None,
-            Some("checkpoint,transactions"),
+            Some(ReadMask::from(&[
+                CheckpointResponseField::CHECKPOINT,
+                CheckpointResponseField::TRANSACTIONS,
+            ])),
             Some(make_tx_filter()),
             None,
             None,
@@ -691,7 +696,10 @@ async fn test_filter_checkpoints_streaming() {
         .stream_checkpoints_filtered(
             None,
             None,
-            Some("checkpoint,transactions"),
+            Some(ReadMask::from(&[
+                CheckpointResponseField::CHECKPOINT,
+                CheckpointResponseField::TRANSACTIONS,
+            ])),
             Some(make_tx_filter()),
             None,
             None,

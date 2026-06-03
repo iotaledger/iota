@@ -18,7 +18,6 @@ use iota_types::{
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
-    message_envelope::Message,
     transaction::{
         CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         Transaction, TransactionData, TransactionDataAPI,

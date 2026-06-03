@@ -17,7 +17,7 @@ use iota_test_transaction_builder::{
 };
 use iota_types::{
     base_types::ObjectRef,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,

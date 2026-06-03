@@ -1851,8 +1851,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--load-tools-image",
-        default="iotaledger/iota-tools",
-        help="Docker image containing /usr/local/bin/stress (default: iotaledger/iota-tools)",
+        default="iotaledger/stress",
+        help="Docker image containing /usr/local/bin/stress (default: iotaledger/stress)",
     )
     return parser.parse_args()
 

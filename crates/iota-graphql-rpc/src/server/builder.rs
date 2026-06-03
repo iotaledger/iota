@@ -463,6 +463,7 @@ impl ServerBuilder {
             reader.clone(),
             config.service.limits.clone(),
             metrics.clone(),
+            config.connection.max_available_range,
         );
         let loader = DataLoader::new(db.clone());
         let pg_conn_pool = PgManager::new(reader.clone());
@@ -483,7 +484,7 @@ impl ServerBuilder {
 
         let graphql_streams = GraphQLStream::new(reader.clone(), &registry).await?;
 
-        let fullnode_grpc_client = GrpcClient::connect(fullnode_url)
+        let fullnode_grpc_client = GrpcClient::new(fullnode_url)
             .await
             .map_err(|e| Error::ServerInit(e.to_string()))?;
 
@@ -826,6 +827,7 @@ pub mod tests {
             reader.clone(),
             service_config.limits.clone(),
             metrics.clone(),
+            connection_config.max_available_range,
         );
         let loader = DataLoader::new(db.clone());
         let pg_conn_pool = PgManager::new(reader);
@@ -924,7 +926,7 @@ pub mod tests {
         // Use reader without watermark cache, test doesn't check pruning behaviour
         let indexer_reader =
             iota_indexer::read::IndexerReader::new_without_watermark_cache(store.blocking_cp());
-        let fullnode_gpc_client = GrpcClient::connect(fn_grpc_url).await.unwrap();
+        let fullnode_gpc_client = GrpcClient::new(fn_grpc_url).await.unwrap();
 
         let optimistic_tx_executor =
             iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(
@@ -2019,6 +2021,62 @@ pub mod tests {
             "Transaction payload too large. Requests are limited to 10 bytes or fewer on \
              transaction payloads (all inputs to executeTransactionBlock or \
              dryRunTransactionBlock) and the rest of the request (the query part) must be 500 \
+             bytes or fewer."
+        );
+    }
+
+    pub async fn test_payload_object_input_dry_run_exceeded_impl() {
+        // Object input arguments (e.g. `txMeta`) and their nested lists of
+        // objects (e.g. `gasObjects`) must contribute to the transaction
+        // payload budget. Passing them via a variable does not exempt them
+        // from the limit.
+        assert_eq!(
+            execute_for_error(
+                Limits {
+                    max_tx_payload_size: 500,
+                    max_query_payload_size: 10_000,
+                    ..Default::default()
+                },
+                Request::new(
+                    r#"
+                    query DryRunQuery(
+                        $txBytes: String!,
+                        $skipChecks: Boolean!,
+                        $txMeta: TransactionMetadata
+                    ) {
+                        dryRunTransactionBlock(
+                            txBytes: $txBytes,
+                            skipChecks: $skipChecks,
+                            txMeta: $txMeta
+                        ) {
+                            error
+                            transaction {
+                                digest
+                            }
+                        }
+                    }
+                    "#,
+                )
+                .variables(Variables::from_json(json!({
+                    "txBytes": "AAIAINdb/wdoZKClk3YWgTp2SRpvVYkX9XUMu0Im6dGMv5g1AAjoAwAAAAAAAAICAAEBAQABAQIAAAEAAA==",
+                    "skipChecks": false,
+                    "txMeta": {
+                        "gasBudget": null,
+                        "gasPrice": 1000,
+                        "gasSponsor": "0x2c4a2ee4a1cb67c2ae7a6215784a26bb9c5051ea3f9aa5f60ccc58613a94f70b",
+                        "sender":     "0x2c4a2ee4a1cb67c2ae7a6215784a26bb9c5051ea3f9aa5f60ccc58613a94f70b",
+                        "gasObjects": [
+                            { "address": "0x0f49b390361c7b85f50ea436dd2f78d07794450162fa543d9b37d4fd5d3c9884", "digest": "3Hij17jtvK4o7VxarnBJkX31LYLtV7KDecLBhmBJuapU", "version": 3 },
+                            { "address": "0x115d51e2df3dae3fcb4a8d71ea9e357cec509e2f8e2f604eea53bb7abcd68c2b", "digest": "9t4C9FXKFdpgpZa8L968KtgkCPHwRA2QFHz6gVrymVJu", "version": 3 },
+                            { "address": "0x18c9d0de646c02aaea280eb4aafabbc6855cf6efb7c423714428318c42fb35be", "digest": "FguxMqj4pLitqCQLhGrEja65HT5r7749h8CPd3JzSnnk", "version": 3 }
+                        ]
+                    }
+                })))
+            )
+            .await,
+            "Transaction payload too large. Requests are limited to 500 bytes or fewer on \
+             transaction payloads (all inputs to executeTransactionBlock or \
+             dryRunTransactionBlock) and the rest of the request (the query part) must be 10000 \
              bytes or fewer."
         );
     }

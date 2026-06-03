@@ -31,7 +31,6 @@ serde_yaml.workspace = true
 shellexpand.workspace = true
 similar = "2.4.0"
 tabled.workspace = true
-tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "time"] }
 tokio-util.workspace = true

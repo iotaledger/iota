@@ -16,7 +16,7 @@ use axum::{
 use iota_faucet::{
     BatchFaucetResponse, CoinInfo, FaucetError, FaucetReceipt, FaucetRequest, FaucetResponse,
 };
-use iota_types::effects::TransactionEffectsAPI;
+use iota_types::effects::{TransactionEffectsAPI, TransactionEffectsExt};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -76,7 +76,7 @@ async fn request_gas_internal(
         }
         Err(err) => {
             warn!("Failed to request gas: {:?}", err);
-            Err(format!("Failed to request gas: {}", err))
+            Err(format!("Failed to request gas: {err}"))
         }
     }
 }

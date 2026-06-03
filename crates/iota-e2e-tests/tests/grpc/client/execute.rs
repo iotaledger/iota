@@ -1,11 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::Error;
+use iota_grpc_client::{Error, ReadMask, read_mask_fields::TransactionField};
 use iota_macros::sim_test;
 use iota_sdk_types::UserSignature;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
-use iota_types::base_types::IotaAddress;
+use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
 
 use super::super::utils::{create_signed_transaction, is_success, setup_grpc_test};
 
@@ -32,7 +32,7 @@ async fn execute_transaction_transfer() {
     );
 
     // Verify gas was charged
-    let gas_summary = effects.gas_summary();
+    let gas_summary = effects.gas_cost_summary();
     assert!(
         gas_summary.computation_cost > 0 || gas_summary.storage_cost > 0,
         "Some gas should have been charged"
@@ -97,7 +97,11 @@ async fn execute_transaction_minimal_mask() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(signed_tx, Some("effects"), None)
+        .execute_transaction(
+            signed_tx,
+            Some(ReadMask::from(TransactionField::EFFECTS)),
+            None,
+        )
         .await
         .expect("Failed to execute transaction");
 

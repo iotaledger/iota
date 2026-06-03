@@ -623,6 +623,13 @@ impl<'a> TxArgValue<'a> {
                 // Pay for the string, plus the quotes around it.
                 ValueCostReport::new(s.len() + 2)
             }
+            GraphQL(V::Number(n)) | Resolved(CV::Number(n)) => {
+                ValueCostReport::new(n.as_str().len())
+            }
+            GraphQL(V::Enum(e)) | Resolved(CV::Enum(e)) => {
+                // Pay for the string, plus the quotes around it.
+                ValueCostReport::new(e.as_str().len() + 2)
+            }
             GraphQL(V::List(vs)) => {
                 // Pay for the opening and closing brackets and every comma up-front so that
                 // deeply nested lists are not free.
@@ -640,6 +647,25 @@ impl<'a> TxArgValue<'a> {
                 }
                 cost
             }
+            GraphQL(V::Object(obj)) => {
+                // Pay for braces, commas between entries, and the `"name":` overhead per
+                // entry (quotes + colon, matching the JSON variable encoding).
+                let mut cost = ValueCostReport::new(obj.len().saturating_sub(1) + 2);
+                for (name, value) in obj {
+                    cost.gross += name.as_str().len() + 3;
+                    cost.merge_report(Self(ParsedValue::GraphQL(value)).cost_report(variables));
+                }
+                cost
+            }
+            Resolved(CV::Object(obj)) => {
+                // Follows the `GraphQL` object evaluation.
+                let mut cost = ValueCostReport::new(obj.len().saturating_sub(1) + 2);
+                for (name, value) in obj {
+                    cost.gross += name.as_str().len() + 3;
+                    cost.merge_report(Self(ParsedValue::Resolved(value)).cost_report(variables));
+                }
+                cost
+            }
             GraphQL(V::Variable(name)) => {
                 if let Some(value) = variables.get(name) {
                     let mut cost = Self(ParsedValue::Resolved(value)).cost_report(variables);
@@ -648,8 +674,10 @@ impl<'a> TxArgValue<'a> {
                 }
                 Default::default()
             }
-            _ => {
-                // Transaction payloads cannot be any of these types.
+            GraphQL(V::Null | V::Binary(_) | V::Boolean(_))
+            | Resolved(CV::Null | CV::Binary(_) | CV::Boolean(_)) => {
+                // `Null`, `Binary`, or `Boolean` are not expected as argument types
+                // for inputs contributing to the transaction payload size.
                 //
                 // From a limits perspective, it is safe to ignore these
                 // values here, because they will still

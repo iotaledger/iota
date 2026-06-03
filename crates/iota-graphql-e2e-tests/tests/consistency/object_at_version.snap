@@ -1,5 +1,6 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 33 tasks
 
@@ -260,7 +261,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 7
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 12
@@ -304,28 +305,113 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 7
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 12
       }
-    }
-  },
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
+    },
+    "objects": {
+      "nodes": [
         {
-          "line": 11,
-          "column": 3
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "balance": {
+                  "value": "299999987378400"
+                },
+                "id": "0x74184610eb1be53832d93b5c035b6b2fc3ed188eb9cebfb6a66d3f60ab5e4cd6"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "id": "0x79ceab573232d5b8261870aa29a11b4590f2f49e2c4cc45cec93d6c3257c3f0d",
+                "value": "0"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": null
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "decimals": 9,
+                "description": "The main (gas)token of the IOTA Network.",
+                "icon_url": {
+                  "url": "https://iota.org/logo.png"
+                },
+                "id": "0x96b43c2e24f626fb7da2c874536bdde1e8b425778c5f034e6916f903b57ecaa4",
+                "name": "IOTA",
+                "symbol": "IOTA"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "id": "0xcde1a7fec57f05ad9a5d5e883ca4b22be850e07be891293ce3b1e80220b8b634",
+                "name": "1",
+                "value": {
+                  "epoch": "0",
+                  "random_bytes": [],
+                  "randomness_round": "0",
+                  "version": "1"
+                }
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "balance": {
+                  "value": "299999996326800"
+                },
+                "id": "0xd35480b63fd276a2c1be5b7b6f24afe84ecd184ae8efde46979160968f760eeb"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "balance": {
+                  "value": "30000000000000000"
+                },
+                "id": "0xdd5dc3c252319ddf4e439bcfbd9d98626e86f7d9904124816c1b4aea98f97e3f"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": null
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "id": "0xf6aab099cfda25dc837a09d3d3fe2acd6c4e5b593b51b06c7a77baaa72333314",
+                "pool_id": "0xf38de1eca1031530f50ca93c048e9d0f4f42aa372b70753e634e2014822b58cb",
+                "principal": {
+                  "value": "1500000000000000"
+                },
+                "stake_activation_epoch": "0"
+              }
+            }
+          }
         }
-      ],
-      "path": [
-        "objects"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
+      ]
     }
-  ]
+  }
 }

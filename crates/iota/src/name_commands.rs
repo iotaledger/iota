@@ -14,7 +14,7 @@ use clap::Parser;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockResponse,
+    IotaObjectResponseError, IotaObjectResponseQuery, IotaTransactionBlockResponse,
 };
 use iota_names::{
     IotaNamesNft, NameRegistration, SubnameRegistration,
@@ -29,7 +29,6 @@ use iota_types::{
     collection_types::{Entry, VecMap},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::Field,
-    error::IotaObjectResponseError,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
 };
 use move_core_types::{

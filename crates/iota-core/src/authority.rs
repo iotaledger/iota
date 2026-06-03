@@ -72,7 +72,7 @@ use iota_types::{
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
-        TransactionEvents, VerifiedSignedTransactionEffects,
+        TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{Event, EventID, SystemEpochInfoEvent},
@@ -900,13 +900,13 @@ impl AuthorityState {
             self.get_backing_package_store().as_ref(),
         )?;
 
-        // Load all transaction-related input objects.
-        // Authenticator input objects and the account objects are loaded in the same
-        // call if there are `MoveAuthenticator` signatures present in the transaction.
+        // Load all transaction-related input objects including ones for every
+        // `MoveAuthenticator`. Loading all objects eagerly means that any invalid
+        // reference — missing object, wrong version, inaccessible object — causes a
+        // pre-consensus rejection.
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
             self.read_objects_for_signing(&transaction, epoch)?;
 
-        // Get the `MoveAuthenticator`s, if any.
         let move_authenticators = transaction.move_authenticators();
 
         // Check the inputs for signing.
@@ -942,6 +942,23 @@ impl AuthorityState {
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
         )?;
+
+        // Filter the authenticators and their checked inputs down to those that must
+        // be executed pre-consensus. This is done *after* the deny-list check so
+        // that all MoveAuthenticator input objects are covered by that check regardless
+        // of deferral.
+        let pre_consensus_move_authenticators =
+            pre_consensus_move_authenticators(&transaction, protocol_config);
+        let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
+            move_authenticators
+                .into_iter()
+                .zip(per_authenticator_checked_inputs)
+                .filter(|(a, _)| pre_consensus_move_authenticators.contains(a))
+                .unzip();
+        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
 
         // If there are `MoveAuthenticator` signatures, execute them and check if they
         // all succeed.
@@ -981,6 +998,9 @@ impl AuthorityState {
             let tx_data_bytes =
                 bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
 
+            let (sender_auth_digest, sponsor_auth_digest) =
+                transaction.data().compute_auth_digests()?;
+
             let (kind, signer, gas_data) = tx_data.execution_parts();
 
             // Execute the Move authenticators.
@@ -1001,6 +1021,8 @@ impl AuthorityState {
                 signer,
                 transaction.digest().to_owned(),
                 tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
                 &mut None,
             );
 
@@ -1225,7 +1247,7 @@ impl AuthorityState {
                 assert_eq!(
                     effects.digest(),
                     expected_effects_digest_inner,
-                    "Unexpected effects digest for transaction {tx_digest:?}"
+                    "Unexpected effects digest for transaction {tx_digest}"
                 );
             }
             tx_guard.release();
@@ -1726,6 +1748,9 @@ impl AuthorityState {
             let tx_data_bytes =
                 bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
 
+            let (sender_auth_digest, sponsor_auth_digest) =
+                certificate.data().compute_auth_digests()?;
+
             // Check the `MoveAuthenticator` input objects.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
             // `max_auth_gas` is used here as a Move authenticator gas budget until it is
@@ -1793,6 +1818,8 @@ impl AuthorityState {
                     signer,
                     tx_digest,
                     tx_data_bytes,
+                    sender_auth_digest,
+                    sponsor_auth_digest,
                     &mut None,
                 )
         };
@@ -2507,6 +2534,8 @@ impl AuthorityState {
         effects: &mut TransactionEffects,
     ) {
         use std::cell::RefCell;
+
+        use iota_types::effects::TransactionEffectsAPIForTesting;
         thread_local! {
             static FAIL_STATE: RefCell<(u64, HashSet<AuthorityName>)> = RefCell::new((0, HashSet::new()));
         }
@@ -2558,7 +2587,7 @@ impl AuthorityState {
             // When we process the index, the latest object hasn't been written yet so
             // the old object must be present.
             match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {:?} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
+                |e| panic!("tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
             ) {
                 Owner::Address(addr) => deleted_owners.push((addr, object_ref.object_id)),
                 Owner::Object(object_id) => {
@@ -2578,7 +2607,7 @@ impl AuthorityState {
             if let WriteKind::Mutate = kind {
                 let Some(old_version) = modified_at_version.get(id) else {
                     panic!(
-                        "tx_digest={tx_digest:?}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
+                        "tx_digest={tx_digest}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
                     );
                 };
                 // When we process the index, the latest object hasn't been written yet so
@@ -2588,7 +2617,7 @@ impl AuthorityState {
                     .try_get_object_by_key(id, *old_version)?
                 else {
                     panic!(
-                        "tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {id:?} at version {old_version:?}"
+                        "tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {id} at version {old_version:?}"
                     );
                 };
                 if old_object.owner != owner {
@@ -2607,12 +2636,12 @@ impl AuthorityState {
                     // TODO: We can remove the object fetching after we added ObjectType to
                     // TransactionEffects
                     let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
+                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
                     );
                     assert_eq!(
                         new_object.version(),
                         oref.version,
-                        "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
+                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
@@ -2638,12 +2667,12 @@ impl AuthorityState {
                 }
                 Owner::Object(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
+                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
                     );
                     assert_eq!(
                         new_object.version(),
                         oref.version,
-                        "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
+                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
@@ -4506,10 +4535,10 @@ impl AuthorityState {
                 // a proof of inclusion in a checkpoint. In the case above, the
                 // Quorum Driver would return a proof of inclusion in the final
                 // checkpoint, and this code would no longer be necessary.
-                if effects.executed_epoch() != epoch_store.epoch() {
+                if effects.epoch() != epoch_store.epoch() {
                     debug!(
                         tx_digest=?transaction_digest,
-                        effects_epoch=?effects.executed_epoch(),
+                        effects_epoch=?effects.epoch(),
                         epoch=?epoch_store.epoch(),
                         "Re-signing the effects with the current epoch"
                     );
@@ -5872,7 +5901,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .collect())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, digests), fields(digests = digests.iter().map(|d| d.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_events_by_tx_digests(
         &self,
         digests: &[TransactionDigest],
@@ -6166,5 +6195,35 @@ impl NodeStateDump {
     pub fn read_from_file(path: &PathBuf) -> Result<Self, anyhow::Error> {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
+    }
+}
+
+/// Returns the [`MoveAuthenticator`]s to execute during the pre-consensus
+/// phase.
+///
+/// When `pre_consensus_sponsor_only_move_authentication` is enabled:
+/// - For sponsored transactions: only the sponsor's [`MoveAuthenticator`] is
+///   returned (empty if the sponsor does not use one).
+/// - For non-sponsored transactions: all [`MoveAuthenticator`]s are returned
+///   (currently only the sender's).
+///
+/// When the flag is not set, all [`MoveAuthenticator`]s are returned for
+/// compatibility.
+fn pre_consensus_move_authenticators<'a>(
+    tx: &'a VerifiedTransaction,
+    protocol_config: &ProtocolConfig,
+) -> Vec<&'a MoveAuthenticator> {
+    if protocol_config.pre_consensus_sponsor_only_move_authentication() {
+        if tx.transaction_data().is_sponsored_tx() {
+            if let Some(sponsor_move_authenticator) = tx.sponsor_move_authenticator() {
+                vec![sponsor_move_authenticator]
+            } else {
+                vec![]
+            }
+        } else {
+            tx.move_authenticators()
+        }
+    } else {
+        tx.move_authenticators()
     }
 }

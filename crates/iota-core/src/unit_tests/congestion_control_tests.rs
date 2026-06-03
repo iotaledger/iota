@@ -224,11 +224,11 @@ async fn commit_and_execute_transaction(
     for shared_object in shared_objects {
         args.push(
             txn_builder
-                .obj(CallArg::Shared(SharedObjectRef {
-                    object_id: shared_object.0,
-                    initial_shared_version: shared_object.1,
-                    mutable: true,
-                }))
+                .obj(CallArg::Shared(SharedObjectRef::new(
+                    shared_object.0,
+                    shared_object.1,
+                    true,
+                )))
                 .unwrap(),
         )
     }

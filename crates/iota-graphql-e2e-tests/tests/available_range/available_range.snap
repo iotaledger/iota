@@ -1,9 +1,10 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 17 tasks
 
-task 1, lines 9-31:
+task 1, lines 13-35:
 //# run-graphql
 Response: {
   "data": {
@@ -28,11 +29,11 @@ Response: {
   }
 }
 
-task 3, line 35:
+task 3, line 39:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 37-47:
+task 4, lines 41-51:
 //# run-graphql
 Response: {
   "data": {
@@ -47,11 +48,11 @@ Response: {
   }
 }
 
-task 6, line 51:
+task 6, line 55:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 7, lines 53-63:
+task 7, lines 57-67:
 //# run-graphql
 Response: {
   "data": {
@@ -66,17 +67,17 @@ Response: {
   }
 }
 
-task 9, line 67:
+task 9, line 71:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 10, lines 69-79:
+task 10, lines 73-83:
 //# run-graphql
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 1
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 3
@@ -85,17 +86,17 @@ Response: {
   }
 }
 
-task 12, line 83:
+task 12, line 87:
 //# create-checkpoint
 Checkpoint created: 4
 
-task 13, lines 85-95:
+task 13, lines 89-99:
 //# run-graphql
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 2
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 4
@@ -104,17 +105,17 @@ Response: {
   }
 }
 
-task 15, line 99:
+task 15, line 103:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 16, lines 101-121:
+task 16, lines 105-125:
 //# run-graphql
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 3
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 5

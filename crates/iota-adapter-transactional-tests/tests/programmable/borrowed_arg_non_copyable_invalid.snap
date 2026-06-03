@@ -17,53 +17,53 @@ task 2, lines 27-29:
 //> 0: test::m1::r();
 //> test::m1::take_and_imm(Result(0), Result(0))
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1
 
 task 3, lines 31-33:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::imm_and_take(Result(0), Result(0))
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1
 
 task 4, lines 35-37:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::take_and_mut(Result(0), Result(0))
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1
 
 task 5, lines 39-41:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::mut_and_take(Result(0), Result(0))
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1
 
 task 6, lines 43-45:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::imm_and_mut(Result(0), Result(0))
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1
 
 task 7, lines 47-49:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::mut_and_imm(Result(0), Result(0))
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1
 
 task 8, lines 51-53:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::imm_mut_imm(Result(0), Result(0), Result(0))
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1
 
 task 9, lines 55-57:
 //# programmable
 //> 0: test::m1::r();
 //> test::m1::imm_take_mut(Result(0), Result(0), Result(0))
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: CommandArgumentError: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.; at command index: 1

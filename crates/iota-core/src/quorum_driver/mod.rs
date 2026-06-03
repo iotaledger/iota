@@ -604,7 +604,7 @@ where
                     newly_formed,
                 }) => {
                     debug!(?tx_digest, "Transaction processing succeeded");
-                    (certificate, newly_formed)
+                    (*certificate, newly_formed)
                 }
                 Ok(ProcessTransactionResult::Executed(effects_cert, events)) => {
                     debug!(
@@ -612,7 +612,7 @@ where
                         "Transaction processing succeeded with effects directly"
                     );
                     let response = QuorumDriverResponse {
-                        effects_cert,
+                        effects_cert: *effects_cert,
                         events: Some(events),
                         input_objects: None,
                         output_objects: None,
