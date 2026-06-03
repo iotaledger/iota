@@ -142,7 +142,14 @@ kill_spammer_processes() {
     pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
     pkill -9 -f 'cargo run --release --.* stress' 2>/dev/null || true
     pkill -9 -f 'spamming_fuzz_test.sh' 2>/dev/null || true
-    pkill -9 -f 'network-benchmark.sh' 2>/dev/null || true
+    # The injector runs under sudo, so an unprivileged pkill cannot reach it.
+    # The escaped dot keeps the pattern from matching this command's own sudo
+    # wrapper, which pkill -f would otherwise SIGKILL mid-cleanup.
+    if command -v sudo >/dev/null 2>&1; then
+        sudo pkill -9 -f 'network-benchmark\.sh' 2>/dev/null || true
+    else
+        pkill -9 -f 'network-benchmark\.sh' 2>/dev/null || true
+    fi
 
     # also remove per-user and global lock files
     rm -f /tmp/spammer-*.lock 2>/dev/null || true
@@ -250,6 +257,16 @@ if [ "$SPAMMER_ENABLE" = true ]; then
 fi
 log "==========================="
 
+# --- Cache sudo credentials upfront (mirrors run-migration-test.py) ---
+# Prompt once where it is immediately visible, then keep the timestamp fresh
+# in the background: the latency injector, pre-clean, and the exit teardown
+# all need root, and a long -t run would otherwise outlive the sudo cache.
+if command -v sudo >/dev/null 2>&1; then
+  log "Caching sudo credentials (you may be prompted for your password)..."
+  sudo -v
+  ( while true; do sleep 240; sudo -vn 2>/dev/null || true; done ) &
+fi
+
 # --- Pre-clean to ensure a fresh start (explicit, not via trap) ---
 log "Pre-clean: invoking cleanup to ensure a fresh state before starting experiments..."
 if [ -f "$CLEANUP_SCRIPT" ]; then
@@ -285,8 +302,8 @@ else
   log "Skipping image builds"
 fi
 
-# --- 2) Bootstrap network ---
-(cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS" -e "$EPOCH_DURATION_MS")
+# --- 2) Bootstrap network (needs root: writes the root-owned data dir) ---
+(cd .. && sudo ./bootstrap.sh -n "$NUM_VALIDATORS" -e "$EPOCH_DURATION_MS")
 
 # --- 3) Bring up docker network ---
 (cd .. && ./run.sh -n "$NUM_VALIDATORS")
@@ -320,7 +337,9 @@ LATENCY_MATRIX="$LOG_DIR/latency-matrix.tsv"
     -D "$LATENCY_MATRIX"
 log "Latency matrix dumped: $LATENCY_MATRIX ($(grep -cv '^#' "$LATENCY_MATRIX") edges)"
 
-./network-benchmark.sh \
+# The injector needs root for nsenter/tc/iptables; the upfront `sudo -v`
+# plus keepalive means this never prompts mid-run.
+sudo ./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
     -s "$SEED" \
     -b "$PERCENT_BLOCK" \
