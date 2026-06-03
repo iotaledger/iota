@@ -17,14 +17,15 @@ Every write operation on an Audit Trail requires the caller to present a valid *
 
 ### Roles
 
-A **role** is a named set of permissions stored on the trail. Roles define *what* a capability holder can do. For example:
+A **role** is a named set of permissions stored on the trail. Roles define *what* a capability holder can do.
+For example (see [below](#permissions) for a list of exiting permissions):
 
-| Role name       | Typical permissions                                 |
-|:----------------|:----------------------------------------------------|
-| `Admin`         | AddRoles, UpdateRoles, DeleteRoles, AddCapabilities, RevokeCapabilities, AddRecordTags, DeleteRecordTags |
-| `RecordAdmin`   | AddRecord, DeleteRecord, CorrectRecord               |
-| `LockingAdmin`  | UpdateLockingConfig and sub-variants                 |
-| `Auditor`       | *(read-only — no write permissions needed)*          |
+| Role name      | Typical permissions                         |
+|:---------------|:--------------------------------------------|
+| `Admin`        | Manage roles, capabilities, and record tags |
+| `RecordAdmin`  | Add, delete, and correct records            |
+| `LockingAdmin` | Configure locking                           |
+| `Auditor`      | *(read-only — no write permissions needed)* |
 
 Roles are identified by a unique string name within the trail. Multiple capabilities can be issued for the same role, allowing several users or services to share that access level.
 
@@ -46,7 +47,7 @@ Possessing a capability does **not** automatically grant access. The audit trail
 
 ### Permissions
 
-Audit Trails defines 19 distinct permissions, grouped by domain:
+Audit Trails defines the following permissions, grouped by domain:
 
 | Domain | Permissions |
 |:-------|:------------|
@@ -60,15 +61,15 @@ Audit Trails defines 19 distinct permissions, grouped by domain:
 
 For convenience, the library provides pre-built permission sets:
 
-| Constructor                   | Permissions included                                                   |
-|:------------------------------|:-----------------------------------------------------------------------|
-| `admin_permissions()`         | AddRoles, UpdateRoles, DeleteRoles, AddCapabilities, RevokeCapabilities, AddRecordTags, DeleteRecordTags |
-| `record_admin_permissions()`  | AddRecord, DeleteRecord, CorrectRecord                                 |
-| `role_admin_permissions()`    | AddRoles, UpdateRoles, DeleteRoles                                     |
-| `locking_admin_permissions()` | All locking-related permissions                                        |
-| `cap_admin_permissions()`     | AddCapabilities, RevokeCapabilities                                    |
-| `tag_admin_permissions()`     | AddRecordTags, DeleteRecordTags                                        |
-| `metadata_admin_permissions()`| UpdateMetadata, DeleteMetadata                                         |
+| Constructor                    | Permissions included                                                                                              |
+|:-------------------------------|:------------------------------------------------------------------------------------------------------------------|
+| `admin_permissions()`          | AddRoles, UpdateRoles, DeleteRoles, AddCapabilities, RevokeCapabilities, AddRecordTags, DeleteRecordTags, Migrate |
+| `record_admin_permissions()`   | AddRecord, DeleteRecord, CorrectRecord                                                                            |
+| `role_admin_permissions()`     | AddRoles, UpdateRoles, DeleteRoles                                                                                |
+| `locking_admin_permissions()`  | All locking-related permissions                                                                                   |
+| `cap_admin_permissions()`      | AddCapabilities, RevokeCapabilities                                                                               |
+| `tag_admin_permissions()`      | AddRecordTags, DeleteRecordTags                                                                                   |
+| `metadata_admin_permissions()` | UpdateMetadata, DeleteMetadata                                                                                    |
 
 These are convenience shortcuts — you can always construct a custom permission set with any combination of permissions.
 
@@ -258,7 +259,7 @@ Over time, the denylist can accumulate entries for capabilities that have alread
 
 Because the audit trail uses a denylist (not an allowlist), it does **not** maintain an on-chain registry of all issued capabilities. This design shifts the bookkeeping responsibility to the integrator:
 
-1. **Maintain an off-chain registry** of every issued capability, storing at least the capability ID, role, `issued_to` address, and validity timestamps.
+1. **Maintain an off-chain registry** of every issued capability, storing at least the capability ID, role, `issued_to` address, and validity timestamps. The `CapabilityIssued`, `CapabilityRevoked`, and `CapabilityDestroyed` [events](./events.mdx) carry exactly this information and are the recommended way to keep the registry in sync.
 2. **When revoking**, supply the correct capability ID and its `valid_until` value. The revoke function does not verify that the supplied ID refers to a real, previously-issued capability — accurate off-chain records are essential.
 3. **Track revocations and destructions** to avoid attempting to revoke the same capability twice.
 

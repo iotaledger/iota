@@ -220,11 +220,6 @@ Once destroyed, the trail's storage deposit is refunded to the owner. The Admin 
 
 ## Events
 
-Audit Trails emits on-chain events for key operations, enabling off-chain systems to monitor and react to trail activity:
+Audit Trails emit on-chain events for the operations that change a trail's state — creating and deleting trails, adding and removing records, and managing roles and capabilities. This enables off-chain systems to monitor and react to trail activity, such as building dashboards, feeding indexers, or keeping an off-chain capability registry in sync.
 
-| Event | Emitted When |
-|-------|-------------|
-| `AuditTrailCreated` | A new trail is created. Contains trail ID, creator address, and timestamp. |
-| `AuditTrailDeleted` | A trail is destroyed. Contains trail ID and timestamp. |
-| `RecordAdded` | A record is appended. Contains trail ID, sequence number, added-by address, and timestamp. |
-| `RecordDeleted` | A record is removed. Contains trail ID, sequence number, deleted-by address, and timestamp. |
+See [Audit Trails Events](./events.mdx) for the complete list, each event's payload, and the operation that triggers it.

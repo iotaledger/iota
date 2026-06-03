@@ -24,7 +24,7 @@ To include IOTA Audit Trails in your project, add it as a dependency in your `Ca
 
 ```toml
 [dependencies]
-audit_trail = { git = "https://github.com/iotaledger/notarization", tag = "v0.1"}
+audit_trails = { git = "https://github.com/iotaledger/notarization", tag = "v0.1"}
 ```
 
 ## Examples
@@ -51,10 +51,10 @@ cargo run --example 01_create_audit_trail
 
 ## API Reference
 
-You can find the API reference for the Rust library [here](https://iotaledger.github.io/notarization/audit_trail/index.html).
+You can find the API reference for the Rust library [here](https://iotaledger.github.io/notarization/audit_trails/index.html).
 
 If you would like to build the documentation locally, you can do so with the following command:
 
 ```
-RUSTDOCFLAGS='--cfg docsrs' cargo +nightly doc -p audit_trail --all-features --no-deps --open
+RUSTDOCFLAGS='--cfg docsrs' cargo +nightly doc -p audit_trails --all-features --no-deps --open
 ```

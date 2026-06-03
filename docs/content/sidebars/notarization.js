@@ -116,6 +116,7 @@ const notarization = [
                 items: [
                     'developer/iota-notarization/audit-trails/explanations/about-audit-trails',
                     'developer/iota-notarization/audit-trails/explanations/role-based-access-control',
+                    'developer/iota-notarization/audit-trails/explanations/events',
                     'developer/iota-notarization/audit-trails/explanations/locking-configuration',
                     'developer/iota-notarization/audit-trails/explanations/privacy-and-off-chain-documents',
                 ],

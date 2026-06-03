@@ -204,7 +204,7 @@ API reference for Wasm is auto-generated and placed in `references/wasm/`.
 The Rust API reference is an external link to
 
 - Single Notarization: `https://iotaledger.github.io/notarization/notarization/index.html`
-- Audit Trails: `https://iotaledger.github.io/notarization/audit_trail/index.html`
+- Audit Trails: `https://iotaledger.github.io/notarization/audit_trails/index.html`
 
 Do not manually author reference pages — they are generated from the source repository.
 
