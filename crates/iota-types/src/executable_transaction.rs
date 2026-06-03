@@ -100,11 +100,6 @@ impl VerifiedExecutableAttestedTransaction {
         Self { tx, attestation }
     }
 
-    /// Returns the attached attestation, if any.
-    pub fn attestation(&self) -> Option<&Attestation> {
-        self.attestation.as_ref()
-    }
-
     /// Returns the attestor's estimated computation cost, or `None` if the
     /// transaction was not attested.
     pub fn attested_computation_cost(&self) -> Option<u64> {

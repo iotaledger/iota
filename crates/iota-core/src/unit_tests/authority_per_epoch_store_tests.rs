@@ -5,15 +5,10 @@
 use std::{collections::HashMap, time::Duration};
 
 use iota_protocol_config::PerObjectCongestionControlMode;
-use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     attestation::{Attestation, AttestationData},
-    base_types::{ObjectID, TransactionDigest, random_object_ref},
-    crypto::{AccountKeyPair, get_key_pair},
-    executable_transaction::{
-        VerifiedExecutableAttestedTransaction, VerifiedExecutableTransaction,
-    },
-    transaction::VerifiedTransaction,
+    base_types::{ObjectID, TransactionDigest},
+    executable_transaction::VerifiedExecutableAttestedTransaction,
 };
 use starfish_config::AuthorityIndex;
 use tokio::time::timeout;
@@ -81,35 +76,6 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
     assert_eq!(result[2].unwrap(), checkpoint_sequence_2);
 }
 
-const GAS_PRICE: u64 = 1_000;
-
-/// Builds a minimal `VerifiedExecutableAttestedTransaction` with the given gas
-/// budget and optional attestation. The transaction body is irrelevant — only
-/// the gas budget and the attached attestation matter for
-/// `get_estimated_execution_duration`.
-fn build_attested_tx(
-    gas_budget: u64,
-    attestation: Option<Attestation>,
-) -> VerifiedExecutableAttestedTransaction {
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-    let gas_object = random_object_ref();
-    let tx = VerifiedExecutableTransaction::new_system(
-        VerifiedTransaction::new_unchecked(
-            TestTransactionBuilder::new(sender, gas_object, GAS_PRICE)
-                .with_gas_budget(gas_budget)
-                .move_call(
-                    ObjectID::random(),
-                    "unimportant_module",
-                    "unimportant_function",
-                    vec![],
-                )
-                .build_and_sign(&keypair),
-        ),
-        0,
-    );
-    VerifiedExecutableAttestedTransaction::new(tx, attestation)
-}
-
 /// Under `TotalComputationCost`, the estimated execution duration is the
 /// attested computation cost when present, and `gas_budget / gas_price`
 /// otherwise.
@@ -129,15 +95,9 @@ fn test_get_estimated_execution_duration_total_computation_cost_mode() {
     let attested_cost = 9_876;
 
     // Attested transaction returns its attested computation cost.
-    let attested_tx = build_attested_tx(
-        gas_budget,
-        Some(Attestation::Validator {
-            payload: AttestationData::V1 {
-                estimated_computation_cost: attested_cost,
-                object_versions: vec![],
-            },
-            attestor_index: AuthorityIndex::new_for_test(0),
-        }),
+    let attested_tx = attest(
+        build_transaction(&[], gas_budget, TEST_ONLY_GAS_PRICE),
+        attested_cost,
     );
     assert_eq!(
         params.get_estimated_execution_duration(&attested_tx),
@@ -145,10 +105,10 @@ fn test_get_estimated_execution_duration_total_computation_cost_mode() {
     );
 
     // Unattested transaction falls back to gas_budget converted to gas units.
-    let unattested_tx = build_attested_tx(gas_budget, None);
+    let unattested_tx = build_transaction(&[], gas_budget, TEST_ONLY_GAS_PRICE);
     assert_eq!(
         params.get_estimated_execution_duration(&unattested_tx),
-        gas_budget / GAS_PRICE,
+        gas_budget / TEST_ONLY_GAS_PRICE,
     );
 }
 
