@@ -10038,7 +10038,7 @@
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
