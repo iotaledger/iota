@@ -73,7 +73,18 @@ def setup_logging(log_file: Path) -> None:
     """
     global _log_fh
     log_file.parent.mkdir(parents=True, exist_ok=True)
+    # Truncate once for a fresh run, then reopen with O_APPEND so this process
+    # and any sudo'd child writing to the same path both land at end-of-file
+    # instead of overwriting each other.
+    log_file.write_text("")
     _log_fh = log_file.open("a")
+
+
+def close_logging() -> None:
+    global _log_fh
+    if _log_fh is not None:
+        _log_fh.close()
+        _log_fh = None
 
 
 def _phase_banner(title: str, phase: str = "") -> str:
@@ -271,6 +282,19 @@ def prometheus_query(expr: str) -> dict[str, object] | None:
         ) as resp:
             return json.loads(resp.read())
     except Exception:
+        return None
+
+
+def prometheus_scalar(expr: str) -> str | None:
+    data = prometheus_query(expr)
+    if not data:
+        return None
+    try:
+        result = data["data"]["result"]
+        if not result:
+            return None
+        return str(result[0]["value"][1])
+    except (KeyError, IndexError, TypeError):
         return None
 
 

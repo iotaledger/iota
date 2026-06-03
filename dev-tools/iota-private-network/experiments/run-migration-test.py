@@ -15,23 +15,36 @@ from __future__ import annotations
 
 import argparse
 import atexit
-import json
 import os
 import random
 import re
-import selectors
 import shutil
 import signal
 import subprocess
 import sys
 import threading
 import time
-import urllib.parse
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+import experiment_common as ec
+from experiment_common import (
+    _C,
+    _phase_banner,
+    _phase_complete,
+    _progress_bar,
+    countdown as _countdown,
+    find_repo_root as _find_repo_root,
+    log,
+    log_status,
+    prometheus_query as _prometheus_query,
+    prometheus_scalar as _prometheus_scalar,
+    prometheus_vector as _prometheus_vector,
+    run,
+    run_timed,
+)
 
 
 
@@ -260,19 +273,6 @@ class Config:
         return self.block_measurement_seconds > 0
 
 
-def _find_repo_root(start: Path) -> Path:
-    try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=start,
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        return Path(out.strip())
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return start.parent.parent.parent
-
-
 def _restart_validator_count(n: int) -> int:
     """Return a restart set size strictly below one third of validators."""
     return max(0, (n + 2) // 3 - 1)
@@ -293,292 +293,13 @@ def _pick_restart_validators(n: int, epoch: int) -> list[int]:
 # ========================= Globals / State =========================
 
 _cfg: Config | None = None
-_log_fh = None  # file handle for log file
 _cleaning = False
 _latency_proc: subprocess.Popen[str] | None = None
 _load_logs_proc: subprocess.Popen[str] | None = None
 _load_log_archived = False
-_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
-# ========================= Colors / Formatting =========================
-
-
-class _C:
-    """ANSI color codes, disabled when not writing to a terminal."""
-
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
-
-    @classmethod
-    def disable(cls) -> None:
-        for attr in ("RESET", "BOLD", "DIM", "RED", "GREEN", "YELLOW",
-                      "BLUE", "MAGENTA", "CYAN", "WHITE"):
-            setattr(cls, attr, "")
-
-
-if not sys.stdout.isatty():
-    _C.disable()
-
-
-def _phase_banner(title: str, phase: str = "") -> str:
-    """Return a decorated phase header."""
-    c = _C
-    label = f"{phase}: " if phase else ""
-    return f"\n{c.BOLD}{c.CYAN}▶ {label}{title}{c.RESET}"
-
-
-def _phase_complete(phase: str, duration: float | None = None) -> str:
-    c = _C
-    dur = f" ({int(duration)}s)" if duration is not None else ""
-    return f"{c.GREEN}✔ {phase} complete{dur}{c.RESET}"
-
-
-def _progress_bar(current: int, total: int, width: int = 30) -> str:
-    frac = min(current / total, 1.0) if total else 0
-    filled = int(width * frac)
-    bar = "█" * filled + "░" * (width - filled)
-    pct = int(frac * 100)
-    return f"[{bar}] {pct:3d}%"
-
-
-def _countdown(seconds: int) -> None:
-    """Sleep for *seconds* with a live progress bar."""
-    start = time.time()
-    while time.time() < start + seconds:
-        elapsed = int(time.time() - start)
-        bar = _progress_bar(elapsed, seconds)
-        log_status(f"  {bar} {elapsed}s / {seconds}s")
-        time.sleep(1)
-    print()  # finish status line
-
-
-# ========================= Helpers =========================
-
-
-def log(msg: str) -> None:
-    ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
-    plain_msg = _ANSI_RE.sub("", msg).replace("\r", "")
-    colored = f"{_C.DIM}{ts}{_C.RESET} {msg}"
-    print(f"\r\033[K{colored}", flush=True)
-    if _log_fh is not None:
-        timestamp = datetime.now(timezone.utc).isoformat()
-        for line in plain_msg.split("\n"):
-            _log_fh.write(f"{timestamp} {line}\n")
-        _log_fh.flush()
-
-
-def log_status(msg: str) -> None:
-    """Overwrite the current terminal line with a status message (no newline).
-
-    The message is still written to the log file normally.
-    """
-    ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
-    plain_msg = _ANSI_RE.sub("", msg).replace("\r", "")
-    colored = f"{_C.DIM}{ts}{_C.RESET} {msg}"
-    print(f"\r\033[K{colored}", end="", flush=True)
-    if _log_fh is not None:
-        timestamp = datetime.now(timezone.utc).isoformat()
-        for line in plain_msg.split("\n"):
-            _log_fh.write(f"{timestamp} {line}\n")
-        _log_fh.flush()
-
-
-def run_timed(
-    cmd: list[str],
-    label: str,
-    *,
-    cwd: Path | None = None,
-    env: dict[str, str] | None = None,
-    check: bool = True,
-) -> subprocess.CompletedProcess[str]:
-    """Run a command quietly, showing *label* with a live elapsed timer.
-
-    On success the timer line is overwritten by the next output.
-    On failure the full buffered output is dumped.
-    """
-    start = time.time()
-
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        bufsize=1,
-    )
-    output_lines: list[str] = []
-
-    # Log the command to the file
-    if _log_fh is not None:
-        timestamp = datetime.now(timezone.utc).isoformat()
-        _log_fh.write(f"{timestamp}   $ {' '.join(cmd)}\n")
-        _log_fh.flush()
-
-    assert proc.stdout is not None
-    sel = selectors.DefaultSelector()
-    sel.register(proc.stdout, selectors.EVENT_READ)
-
-    while proc.poll() is None:
-        elapsed = int(time.time() - start)
-        log_status(f"  {label}... {_C.DIM}{elapsed}s{_C.RESET}")
-        ready = sel.select(timeout=1.0)
-        if ready:
-            raw_line = proc.stdout.readline()
-            if raw_line:
-                clean = _ANSI_RE.sub("", raw_line).replace("\r", "\n")
-                for line in clean.splitlines():
-                    output_lines.append(line)
-                    if _log_fh is not None:
-                        _log_fh.write(f"{datetime.now(timezone.utc).isoformat()}     {line}\n")
-
-    # Drain remaining output
-    for raw_line in proc.stdout:
-        clean = _ANSI_RE.sub("", raw_line).replace("\r", "\n")
-        for line in clean.splitlines():
-            output_lines.append(line)
-            if _log_fh is not None:
-                _log_fh.write(f"{datetime.now(timezone.utc).isoformat()}     {line}\n")
-    if _log_fh is not None:
-        _log_fh.flush()
-
-    sel.close()
-    returncode = proc.wait()
-    elapsed = int(time.time() - start)
-    result = subprocess.CompletedProcess(cmd, returncode, stdout="\n".join(output_lines), stderr="")
-
-    if check and returncode != 0:
-        print()  # finish status line
-        log(f"  {_C.RED}✘ {label} failed ({elapsed}s){_C.RESET}")
-        for line in output_lines:
-            if line:
-                log(f"    {line}")
-        raise subprocess.CalledProcessError(returncode, cmd, output=result.stdout)
-
-    # Show completion on status line (will be overwritten by next log/log_status)
-    log_status(f"  {label} {_C.DIM}{elapsed}s{_C.RESET}")
-    return result
-
-
-def run(
-    cmd: list[str],
-    *,
-    cwd: Path | None = None,
-    check: bool = True,
-    capture: bool = False,
-    env: dict[str, str] | None = None,
-    verbose: bool = False,
-    quiet: bool = False,
-) -> subprocess.CompletedProcess[str]:
-    """Run a subprocess with logging.
-
-    By default output is buffered silently. On failure the full output is
-    printed so the error context is visible. Pass ``verbose=True`` to stream
-    every line as it arrives (useful for long-running commands where progress
-    feedback matters). Pass ``quiet=True`` to also suppress the ``$ command``
-    echo (the command is still written to the log file).
-    """
-    if quiet:
-        # Write to log file only, not to terminal
-        if _log_fh is not None:
-            timestamp = datetime.now(timezone.utc).isoformat()
-            plain = " ".join(cmd)
-            _log_fh.write(f"{timestamp}   $ {plain}\n")
-            _log_fh.flush()
-    else:
-        log(f"  $ {' '.join(cmd)}")
-    if capture:
-        return subprocess.run(
-            cmd,
-            cwd=cwd,
-            check=check,
-            text=True,
-            capture_output=True,
-            env=env,
-        )
-
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        bufsize=1,
-        env=env,
-    )
-    output_lines: list[str] = []
-
-    assert proc.stdout is not None
-    for raw_line in proc.stdout:
-        clean = _ANSI_RE.sub("", raw_line).replace("\r", "\n")
-        for line in clean.splitlines():
-            output_lines.append(line)
-            if verbose and line:
-                log(f"    {line}")
-
-    returncode = proc.wait()
-    result = subprocess.CompletedProcess(
-        cmd,
-        returncode,
-        stdout="\n".join(output_lines),
-        stderr="",
-    )
-    if check and returncode != 0:
-        # Dump buffered output so the failure is diagnosable
-        if not verbose:
-            for line in output_lines:
-                if line:
-                    log(f"    {line}")
-        raise subprocess.CalledProcessError(returncode, cmd, output=result.stdout)
-    return result
-
-
-def _prometheus_query(expr: str) -> dict[str, object] | None:
-    try:
-        query = urllib.parse.urlencode({"query": expr})
-        with urllib.request.urlopen(
-            f"http://localhost:9090/api/v1/query?{query}", timeout=5
-        ) as resp:
-            return json.loads(resp.read())
-    except Exception:
-        return None
-
-
-def _prometheus_scalar(expr: str) -> str | None:
-    data = _prometheus_query(expr)
-    if not data:
-        return None
-    try:
-        result = data["data"]["result"]
-        if not result:
-            return None
-        return str(result[0]["value"][1])
-    except (KeyError, IndexError, TypeError):
-        return None
-
-
-def _prometheus_vector(expr: str) -> list[tuple[dict[str, str], float]]:
-    data = _prometheus_query(expr)
-    if not data:
-        return []
-    rows: list[tuple[dict[str, str], float]] = []
-    try:
-        for result in data["data"]["result"]:
-            value = float(result["value"][1])
-            if value == value:  # NaN guard
-                rows.append((dict(result["metric"]), value))
-    except (KeyError, TypeError, ValueError):
-        return []
-    return rows
+# ========================= Prometheus / Epoch =========================
 
 
 def get_current_epoch() -> int | None:
@@ -1168,7 +889,7 @@ def stop_load_generator(cfg: Config) -> None:
 
 
 def cleanup() -> None:
-    global _cleaning, _log_fh
+    global _cleaning
     if _cleaning:
         return
     _cleaning = True
@@ -1231,9 +952,7 @@ def cleanup() -> None:
     # Restore terminal to a sane state after subprocess output
     os.system("stty sane 2>/dev/null")
     print("\r\033[K", end="", flush=True)
-    if _log_fh is not None:
-        _log_fh.close()
-        _log_fh = None
+    ec.close_logging()
 
 
 def _signal_handler(signum: int, _frame: object) -> None:
@@ -2340,7 +2059,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    global _cfg, _log_fh
+    global _cfg
 
     args = parse_args()
 
@@ -2382,14 +2101,8 @@ def main() -> None:
         log("Error: run from experiments/")
         sys.exit(1)
 
-    # Setup logging. Truncate, then re-open with O_APPEND so writes coming from
-    # both Python and from sudo'd subprocesses (whose stdout/stderr is redirected
-    # into the same file via "a") always land at end-of-file. Without O_APPEND,
-    # Python's tracked offset lags behind the subprocess's appended bytes and
-    # silently overwrites them.
-    cfg.log_dir.mkdir(parents=True, exist_ok=True)
-    cfg.log_file.write_text("")
-    _log_fh = cfg.log_file.open("a")
+    # Setup logging (truncate, then O_APPEND — see experiment_common).
+    ec.setup_logging(cfg.log_file)
 
     # Register cleanup
     atexit.register(cleanup)
