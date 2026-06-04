@@ -34,15 +34,16 @@ use crate::iota_primitives::{
 pub enum OwnerSchema {
     /// Object is exclusively owned by a single address, and is mutable.
     #[schemars(with = "IotaAddressSchema")]
-    AddressOwner(IotaAddress),
+    AddressOwner(#[serde_as(as = "IotaAddressSchema")] IotaAddress),
     /// Object is exclusively owned by a single object, and is mutable.
     /// The object ID is converted to IotaAddress as IotaAddress is
     /// universal.
     #[schemars(with = "IotaAddressSchema")]
-    ObjectOwner(IotaAddress),
+    ObjectOwner(#[serde_as(as = "IotaAddressSchema")] IotaAddress),
     /// Object is shared, can be used by any address, and is mutable.
     Shared {
         /// The version at which the object became shared
+        #[serde_as(as = "SequenceNumberU64Schema")]
         #[schemars(with = "SequenceNumberU64Schema")]
         initial_shared_version: SequenceNumber,
     },
