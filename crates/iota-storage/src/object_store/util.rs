@@ -98,8 +98,8 @@ pub async fn get<S: ObjectStoreGetExt>(store: &S, src: &Path) -> Result<Bytes> {
     Ok(bytes)
 }
 
-pub async fn exists<S: ObjectStoreGetExt>(store: &S, src: &Path) -> bool {
-    store.get_bytes(src).await.is_ok()
+pub async fn exists<S: ObjectStore + ?Sized>(store: &S, src: &Path) -> bool {
+    store.head(src).await.is_ok()
 }
 
 /// Writes bytes in the store with specified path.
