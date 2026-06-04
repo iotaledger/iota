@@ -15,16 +15,11 @@ It is built around a four-part surface:
   plus optional gas-profile and instruction-trace debug artifacts.
 
 Typical uses: simulating a transaction before signing, estimating gas,
-debugging a Move call, or verifying a `MoveAuthenticator` — in a CLI, a test, or
-a browser.
+debugging a Move call, or verifying a `MoveAuthenticator` — in a CLI or a test.
 
-## Targets and features
+## Features
 
-Builds for native and `wasm32-unknown-unknown`. All features are off by default:
+All features are off by default:
 
 - `grpc` — pre-fetch objects from a node over gRPC.
 - `graphql` — pre-fetch objects from a node over GraphQL.
-- `wasm-bindgen` — a JavaScript-facing surface for the browser.
-
-The networked stores and their dependencies are native-only, so the wasm bundle
-stays minimal.

@@ -19,11 +19,9 @@
 //! - `grpc` — a [`GrpcStore`](grpc::GrpcStore) that pre-fetches objects from a
 //!   node via gRPC into an [`InMemoryStore`].
 //! - `graphql` — a [`GraphqlStore`](graphql::GraphqlStore) over GraphQL.
-//! - `wasm-bindgen` — a JS-facing surface for the browser.
 //!
-//! The networked stores and their heavy dependencies are target-gated to
-//! `cfg(not(target_arch = "wasm32"))` and feature-gated off by default, so the
-//! wasm bundle never sees tonic / reqwest / the gRPC client.
+//! The networked stores and their heavy dependencies are feature-gated off by
+//! default.
 
 mod debug;
 mod decode;
@@ -31,14 +29,11 @@ mod error;
 mod executor;
 mod store;
 
-#[cfg(all(feature = "grpc", not(target_arch = "wasm32")))]
+#[cfg(feature = "grpc")]
 pub mod grpc;
 
-#[cfg(all(feature = "graphql", not(target_arch = "wasm32")))]
+#[cfg(feature = "graphql")]
 pub mod graphql;
-
-#[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
-mod wasm;
 
 // --- SDK surface ---------------------------------------------------------
 
