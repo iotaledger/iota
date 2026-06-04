@@ -31,12 +31,6 @@ pub fn setting_type(value_tag: TypeTag) -> StructTag {
     StructTag::new_config_setting(value_tag)
 }
 
-impl MoveTypeTagTrait for Config {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(StructTag::new_config()))
-    }
-}
-
 impl<V: MoveTypeTagTrait> MoveTypeTagTrait for Setting<V> {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(setting_type(V::get_type_tag())))

@@ -35,12 +35,12 @@ impl Receiving {
         bcs::to_bytes(self).expect("Value representation is owned and should always serialize")
     }
 
-    pub fn struct_tag() -> StructTag {
-        StructTag::new_transfer_receiving()
+    pub fn struct_tag(value_type: TypeTag) -> StructTag {
+        StructTag::new_transfer_receiving(value_type)
     }
 
-    pub fn type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::struct_tag()))
+    pub fn type_tag(value_type: TypeTag) -> TypeTag {
+        TypeTag::Struct(Box::new(Self::struct_tag(value_type)))
     }
 
     pub fn is_receiving(view: &CompiledModule, s: &SignatureToken) -> bool {

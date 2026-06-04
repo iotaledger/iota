@@ -5,10 +5,7 @@
 use std::fmt::{Display, Formatter, Result};
 
 use iota_sdk_types::{ObjectId, Owner, StructTag};
-use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectRef, SequenceNumber},
-    iota_serde::IotaStructTag,
-};
+use iota_types::base_types::{IotaAddress, ObjectDigest, ObjectRef, SequenceNumber};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -16,7 +13,7 @@ use serde_with::serde_as;
 use crate::{
     iota_owner::OwnerSchema,
     iota_primitives::{
-        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema, StructTag as StructTagSchema,
     },
 };
@@ -30,11 +27,13 @@ pub enum ObjectChange {
     /// Module published
     #[serde(rename_all = "camelCase")]
     Published {
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         package_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
+        #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
         modules: Vec<String>,
@@ -42,6 +41,7 @@ pub enum ObjectChange {
     /// Transfer objects to new address / wrap in another object
     #[serde(rename_all = "camelCase")]
     Transferred {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         sender: IotaAddress,
         #[schemars(with = "OwnerSchema")]
@@ -50,17 +50,20 @@ pub enum ObjectChange {
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
+        #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
     /// Object mutated.
     #[serde(rename_all = "camelCase")]
     Mutated {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         sender: IotaAddress,
         #[schemars(with = "OwnerSchema")]
@@ -69,7 +72,8 @@ pub enum ObjectChange {
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
@@ -77,18 +81,21 @@ pub enum ObjectChange {
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         previous_version: SequenceNumber,
+        #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
     /// Delete object
     #[serde(rename_all = "camelCase")]
     Deleted {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         sender: IotaAddress,
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
@@ -97,12 +104,14 @@ pub enum ObjectChange {
     /// Wrapped object
     #[serde(rename_all = "camelCase")]
     Wrapped {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         sender: IotaAddress,
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
@@ -111,25 +120,7 @@ pub enum ObjectChange {
     /// Unwrapped object
     #[serde(rename_all = "camelCase")]
     Unwrapped {
-        #[schemars(with = "IotaAddressSchema")]
-        sender: IotaAddress,
-        #[schemars(with = "OwnerSchema")]
-        #[serde_as(as = "OwnerSchema")]
-        owner: Owner,
-        #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
-        object_type: StructTag,
-        #[schemars(with = "ObjectIDSchema")]
-        object_id: ObjectId,
-        #[schemars(with = "SequenceNumberStringSchema")]
-        #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
-        #[schemars(with = "Base58Schema")]
-        digest: ObjectDigest,
-    },
-    /// New object creation
-    #[serde(rename_all = "camelCase")]
-    Created {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         sender: IotaAddress,
         #[schemars(with = "OwnerSchema")]
@@ -138,11 +129,35 @@ pub enum ObjectChange {
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
+        #[serde_as(as = "Base58Schema")]
+        #[schemars(with = "Base58Schema")]
+        digest: ObjectDigest,
+    },
+    /// New object creation
+    #[serde(rename_all = "camelCase")]
+    Created {
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        sender: IotaAddress,
+        #[schemars(with = "OwnerSchema")]
+        #[serde_as(as = "OwnerSchema")]
+        owner: Owner,
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
+        object_type: StructTag,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
+        #[schemars(with = "SequenceNumberStringSchema")]
+        #[serde_as(as = "SequenceNumberStringSchema")]
+        version: SequenceNumber,
+        #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },

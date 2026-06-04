@@ -32,7 +32,7 @@ use serde_with::serde_as;
 use tracing::warn;
 
 use crate::iota_primitives::{
-    IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema, StructTag as StructTagSchema,
+    IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
 };
 
 pub type IotaMoveTypeParameterIndex = u16;
@@ -142,7 +142,8 @@ pub struct IotaMoveModuleId {
 #[serde(rename_all = "camelCase")]
 pub struct MoveFunctionName {
     /// The package ID to which the function belongs.
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub package: ObjectId,
     /// The module name to which the function belongs.
     pub module: String,
@@ -419,11 +420,16 @@ pub enum IotaMoveValue {
     // u64 and u128 are converted to String to avoid overflow
     Number(u32),
     Bool(bool),
-    Address(#[schemars(with = "IotaAddressSchema")] IotaAddress),
+    Address(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     Vector(Vec<IotaMoveValue>),
     String(String),
     UID {
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         id: ObjectId,
     },
     Struct(IotaMoveStruct),
