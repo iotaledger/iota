@@ -511,6 +511,8 @@ def generate_compose_file(
     image_env_prefix: str | None = None,
     include_fullnode: bool = False,
     fullnode_image: str | None = None,
+    include_faucet: bool = False,
+    faucet_image: str = "iota-tools",
     header: str = "Auto-generated; do not edit manually.",
 ) -> None:
     """Write a docker compose file with one service block per validator.
@@ -519,7 +521,10 @@ def generate_compose_file(
     ``${{<prefix><i>_IMAGE:-<base_image>}}`` so individual nodes can be
     overridden via env (used by the rolling-upgrade migration); otherwise all
     validators run *base_image*. A fullnode is appended when *include_fullnode*
-    (the load generator's RPC target)."""
+    (the load generator's RPC target); *include_faucet* additionally appends a
+    faucet and publishes the fullnode RPC (127.0.0.1:9000) and faucet
+    (127.0.0.1:5003) to the host — host-side load tools (iota-spammer) need
+    both."""
     lines = [f"# {header}", f"# {num_validators} validators.", "", "services:"]
 
     for i in range(1, num_validators + 1):
@@ -596,6 +601,10 @@ def generate_compose_file(
         lines.append("    networks:")
         lines.append(f"      {network_name}:")
         lines.append(f"        ipv4_address: {ip_prefix}.250")
+        if include_faucet:
+            # Host-side load tools talk to the fullnode RPC via localhost.
+            lines.append("    ports:")
+            lines.append('      - "127.0.0.1:9000:9000/tcp"')
         lines.append("    volumes:")
         lines.append(
             "      - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro"
@@ -604,6 +613,36 @@ def generate_compose_file(
             "      - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro"
         )
         lines.append("      - ./data/fullnode-1:/opt/iota/db:rw")
+        lines.append("")
+
+    if include_faucet:
+        lines.append("  faucet-1:")
+        lines.append(f"    image: {faucet_image}")
+        lines.append("    container_name: faucet-1")
+        lines.append("    hostname: faucet-1")
+        lines.append("    restart: on-failure")
+        lines.append("    environment:")
+        lines.append("      - RUST_BACKTRACE=1")
+        lines.append("      - RUST_LOG=info")
+        lines.append("    command:")
+        lines.append("      - /usr/local/bin/iota-faucet")
+        lines.append("      - --port=5003")
+        lines.append("      - --host-ip=0.0.0.0")
+        lines.append("      - --write-ahead-log=/wal/faucet.wal")
+        lines.append("      - --num-coins=10")
+        lines.append("      - --amount=200000000000")
+        lines.append("      - --max-request-per-second=50")
+        lines.append("      - --ttl-expiration=150")
+        lines.append("    ports:")
+        lines.append('      - "127.0.0.1:5003:5003/tcp"')
+        lines.append("    networks:")
+        lines.append(f"      {network_name}:")
+        lines.append(f"        ipv4_address: {ip_prefix}.251")
+        lines.append("    volumes:")
+        lines.append("      - ./configs/faucet:/root/.iota/iota_config")
+        lines.append("      - ./data/faucet-1:/wal")
+        lines.append("    depends_on:")
+        lines.append("      - fullnode-1")
         lines.append("")
 
     lines.append("networks:")
@@ -633,7 +672,10 @@ def compose_up_validators(
     cmd = ["docker", "compose", "--ansi", "never"]
     if env_file:
         cmd += ["--env-file", env_file]
-    cmd += ["-f", compose_file, "up", "-d"]
+    # --remove-orphans: an interrupted prior run (e.g. kill -9 mid-cleanup)
+    # can leave same-project validators from a larger -n running; they hold
+    # a stale genesis and would pollute the new network.
+    cmd += ["-f", compose_file, "up", "-d", "--remove-orphans"]
     run(cmd, cwd=network_dir, quiet=True)
 
     for sec in range(boot_wait, 0, -1):

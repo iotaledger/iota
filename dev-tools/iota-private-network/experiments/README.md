@@ -69,7 +69,7 @@ Supports the following flags:
 - `-S <true|false>`: enable the transaction spammer (default: `false`)
 - `-T <TPS>`: transactions per second used by the spammer (default: `10`)
 - `-Z <SIZE>`: per-transaction size for the `iota-spammer` spammer, e.g. `10KiB` (default: `10KiB`)
-- `-C <spammer_type>`: type of spammer to use (default: `stress`; another option: `iota-spammer`)
+- `-C <spammer_type>`: type of spammer to use (default: `stress`; another option: `iota-spammer`, which runs on the host and needs a `~/iota-spammer` clone with a Rust toolchain — the runner then also starts a faucet and publishes the fullnode RPC (`127.0.0.1:9000`) and faucet (`127.0.0.1:5003`))
 - `-c <testnet|mainnet>`: protocol-config chain override (default: empty → `testnet`)
 - `--block-measurement-seconds <S>`: pre-disruption measurement window reporting per-validator block rates, block-creation reasons, and block/transaction commit latencies (p50/p95) (default: `90`; `0` disables)
 
@@ -103,9 +103,12 @@ The `stress` binary is the **`iota-benchmark`** load tool, distributed as the
 repo). It submits `--target-qps` transfer transactions through `fullnode-1`.
 
 The runner **auto-pulls the image if it is missing**. `iotaledger/stress` is a
-private registry image, so run `docker login` first (or build/tag it locally,
-or pass a different `--spammer-image`); if it still can't be obtained the run
-continues without load and logs a warning rather than aborting.
+private registry image: when the pull fails on an interactive terminal the
+runner offers to run `docker login` and retries; if the image still can't be
+obtained, the run **fails** (load was explicitly requested) — build/tag the
+image locally or pass a different `--spammer-image` as alternatives. After
+startup the runner re-checks that the container survived its first seconds and
+fails with the container logs if not.
 
 ```bash
 # stress at 500 TPS
@@ -171,7 +174,7 @@ Supported flags:
 - `-S <true|false>`: enable the transaction spammer (default: `false`).
 - `-T <TPS>`: transactions per second used by the spammer (default: `10`).
 - `-Z <SIZE>`: per-transaction size for the `iota-spammer` spammer, e.g. `10KiB` (default: `10KiB`).
-- `-C <spammer_type>`: spammer type (default: `stress`; alternative: `iota-spammer`).
+- `-C <spammer_type>`: spammer type (default: `stress`; alternative: `iota-spammer`, which runs on the host and needs a `~/iota-spammer` clone with a Rust toolchain — the runner then also starts a faucet and publishes the fullnode RPC (`127.0.0.1:9000`) and faucet (`127.0.0.1:5003`)).
 - `-c <testnet|mainnet>`: protocol-config chain override (default: empty → `testnet`).
 - `--block-measurement-seconds <S>`: post-fuzz measurement window reporting per-validator block rates, block-creation reasons, and block/transaction commit latencies (p50/p95) (default: `90`; `0` disables).
 
