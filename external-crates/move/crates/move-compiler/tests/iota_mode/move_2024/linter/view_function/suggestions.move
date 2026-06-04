@@ -37,6 +37,10 @@ module a::m {
         id: iota::object::ID,
     }
 
+    public struct DynamicField has copy, drop, store {
+        value: u64,
+    }
+
     public entry fun entry_view(a: u64): u64 {
         a
     }
@@ -164,6 +168,10 @@ module a::m {
         (input, 0)
     }
 
+    public fun returns_dynamic_field_reference(object: &Object, name: u64): &DynamicField {
+        iota::dynamic_field::borrow<u64, DynamicField>(&object.id, name)
+    }
+
     public native fun native_view(v: u64): u64;
 
     public native fun native_view_no_param(): bool;
@@ -198,4 +206,12 @@ module iota::object {
     public struct UID has store {
         id: ID,
     }
+}
+
+module iota::dynamic_field {
+    #[view]
+    public native fun borrow<Name: copy + drop + store, Value: store>(
+        object: &iota::object::UID,
+        name: Name,
+    ): &Value;
 }
