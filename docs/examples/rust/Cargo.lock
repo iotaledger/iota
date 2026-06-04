@@ -3540,7 +3540,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=52cf443c85cf2776b61ef381d9362efe7611ae35#52cf443c85cf2776b61ef381d9362efe7611ae35"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=cee79902f2f9c52dbfdc8ce663afcce3a0c11971#cee79902f2f9c52dbfdc8ce663afcce3a0c11971"
 dependencies = [
  "ed25519-dalek",
  "iota-sdk-types",
@@ -3555,7 +3555,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=52cf443c85cf2776b61ef381d9362efe7611ae35#52cf443c85cf2776b61ef381d9362efe7611ae35"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=cee79902f2f9c52dbfdc8ce663afcce3a0c11971#cee79902f2f9c52dbfdc8ce663afcce3a0c11971"
 dependencies = [
  "base64ct",
  "bcs",
