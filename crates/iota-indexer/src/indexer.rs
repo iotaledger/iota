@@ -14,7 +14,7 @@ use tracing::{info, warn};
 use crate::{
     build_json_rpc_server,
     config::{
-        HistoricFallbackOptions, IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig,
+        HistoricFallbackOptions, IngestionConfig, JsonRpcConfig, RetentionConfig,
     },
     db::ConnectionPool,
     errors::IndexerError,
@@ -44,7 +44,6 @@ impl Indexer {
         config: &IngestionConfig,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
-        snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
@@ -89,7 +88,6 @@ impl Indexer {
         let snapshot_pipeline_builder = SnapshotPipelineBuilder::new(
             store.clone(),
             metrics.clone(),
-            snapshot_config,
             config.checkpoint_download_queue_size,
             cancel.clone(),
         )

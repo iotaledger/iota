@@ -17,7 +17,6 @@ use tracing::info;
 
 use crate::{
     CancellationToken, PgIndexerStore,
-    config::SnapshotLagConfig,
     ingestion::{
         common::{
             orchestration::{ShimIndexerProgressStore, new_executor},
@@ -46,11 +45,10 @@ impl SnapshotPipelineBuilder {
     pub async fn new(
         state: PgIndexerStore,
         metrics: IndexerMetrics,
-        lag_config: SnapshotLagConfig,
         checkpoint_download_queue_size: usize,
         cancel: CancellationToken,
     ) -> IndexerResult<SnapshotPipelineBuilder> {
-        let writer = ObjectSnapshotWriter::new(state.clone(), metrics.clone(), lag_config);
+        let writer = ObjectSnapshotWriter::new(state.clone(), metrics.clone());
         let watermark = writer.get_watermark_hi().await?.unwrap_or_default();
         Ok(SnapshotPipelineBuilder {
             writer,

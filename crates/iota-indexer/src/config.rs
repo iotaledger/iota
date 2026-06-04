@@ -276,8 +276,6 @@ pub enum Command {
         #[command(flatten)]
         ingestion_config: IngestionConfig,
         #[command(flatten)]
-        snapshot_config: SnapshotLagConfig,
-        #[command(flatten)]
         pruning_options: PruningOptions,
         #[arg(long)]
         reset_db: bool,
@@ -430,35 +428,7 @@ impl RetentionConfig {
     }
 }
 
-#[derive(Args, Debug, Clone)]
-pub struct SnapshotLagConfig {
-    #[arg(
-        long = "objects-snapshot-min-checkpoint-lag",
-        default_value_t = Self::DEFAULT_MIN_LAG,
-        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG",
-    )]
-    pub snapshot_min_lag: usize,
 
-    #[arg(
-        long = "objects-snapshot-sleep-duration",
-        default_value_t = Self::DEFAULT_SLEEP_DURATION_SEC,
-    )]
-    pub sleep_duration: u64,
-}
-
-impl SnapshotLagConfig {
-    pub const DEFAULT_MIN_LAG: usize = 300;
-    pub const DEFAULT_SLEEP_DURATION_SEC: u64 = 5;
-}
-
-impl Default for SnapshotLagConfig {
-    fn default() -> Self {
-        SnapshotLagConfig {
-            snapshot_min_lag: Self::DEFAULT_MIN_LAG,
-            sleep_duration: Self::DEFAULT_SLEEP_DURATION_SEC,
-        }
-    }
-}
 
 #[cfg(test)]
 mod test {

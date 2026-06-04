@@ -14,7 +14,7 @@ use url::Url;
 use crate::{
     IndexerMetrics,
     config::{
-        IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig, SnapshotLagConfig,
+        IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig,
     },
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
@@ -65,7 +65,6 @@ pub enum IndexerTypeConfig {
         reader_mode_rpc_url: String,
     },
     Writer {
-        snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
     },
     AnalyticalWorker,
@@ -79,11 +78,9 @@ impl IndexerTypeConfig {
     }
 
     pub fn writer_mode(
-        snapshot_config: Option<SnapshotLagConfig>,
         pruning_options: Option<PruningOptions>,
     ) -> Self {
         Self::Writer {
-            snapshot_config: snapshot_config.unwrap_or_default(),
             retention_config: pruning_options.as_ref().and_then(|pruning_options| {
                 pruning_options
                     .epochs_to_keep
@@ -174,7 +171,6 @@ pub async fn start_test_indexer_impl(
             })
         }
         IndexerTypeConfig::Writer {
-            snapshot_config,
             retention_config,
         } => {
             let fullnode_rpc_url = rpc_url.parse::<Url>().unwrap();
@@ -189,7 +185,6 @@ pub async fn start_test_indexer_impl(
                     &ingestion_config,
                     store_clone,
                     indexer_metrics,
-                    snapshot_config,
                     retention_config,
                     cancel,
                 )
