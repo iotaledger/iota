@@ -31,13 +31,14 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
-    global_state_hasher::WrappedObject,
+    global_state_hasher::GlobalStateHasher,
 };
 use iota_sdk_types::ObjectId;
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
 use iota_types::{
+    digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -66,7 +67,26 @@ use tokio::time::Instant;
 /// references for hash. There is one single ref file per hash bucket. Object
 /// references are written in an append-only manner as well. Finally, the
 /// MANIFEST file contains per file metadata of every file in the snapshot
-/// directory. State Snapshot Directory Layout
+/// directory.
+///
+/// Snapshot-format V2 additions over V1:
+/// - OBJECT file magic is `0x00B7EC76` (V1 was `0x00B7EC75`); a V2 reader fails
+///   fast on a V1 magic and vice versa. Encoded records are BCS-serialized
+///   `SnapshotLiveObject` carrying the per-object
+///   `previous_transaction_checkpoint` inline. The writer rejects rows whose
+///   checkpoint is `None` (lifted from pre-V2 store rows) at the publish
+///   boundary, so any record present in a published `.obj` file carries a
+///   concrete checkpoint sequence number.
+/// - REFERENCE file format is unchanged from V1.
+/// - A per-snapshot `EPOCH_INFO` file is emitted alongside the bucket files,
+///   carrying one [`EpochInfoV1Entry`] per epoch in `[0, snapshot_epoch]` from
+///   `IndexStoreTables::epoch_info`. Writer-node operator contract:
+///   `enable_grpc_api = true`; the writer refuses to publish unless
+///   `Watermark::EpochIndexed >= snapshot_epoch`.
+/// - `MANIFEST` is now [`ManifestV2`], adding a `chain_id` field so a restore
+///   can reject a foreign-chain snapshot.
+///
+/// State Snapshot Directory Layout
 ///  - snapshot/
 ///     - epoch_0/
 ///        - 1_1.obj
@@ -79,6 +99,7 @@ use tokio::time::Instant;
 ///        - REFERENCE-2
 ///        - ...
 ///        - REFERENCE-1000
+///        - EPOCH_INFO
 ///        - MANIFEST
 ///     - epoch_1/
 ///       - 1_1.obj
@@ -86,7 +107,7 @@ use tokio::time::Instant;
 ///
 /// Object File Disk Format
 /// ┌──────────────────────────────┐
-/// │  magic(0x00B7EC75) <4 byte>  │
+/// │  magic(0x00B7EC76) <4 byte>  │
 /// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
 /// │ │         Object 1         │ │
@@ -103,7 +124,7 @@ use tokio::time::Instant;
 ///
 /// REFERENCE File Disk Format
 /// ┌──────────────────────────────┐
-/// │  magic(0x5EFE5E11) <4 byte>  │
+/// │  magic(0xDEADBEEF) <4 byte>  │
 /// ├──────────────────────────────┤
 /// │ ┌──────────────────────────┐ │
 /// │ │         ObjectRef 1      │ │
@@ -118,6 +139,15 @@ use tokio::time::Instant;
 /// │         data (<(address_len + 8 + 32) bytes>)    │
 /// └───────────────┴───────────────────┴──────────────┘
 ///
+/// EPOCH_INFO File Disk Format
+/// ┌──────────────────────────────┐
+/// │  magic(0x9000C001) <4 byte>  │
+/// ├──────────────────────────────┤
+/// │   bcs(EpochInfo)             │
+/// └──────────────────────────────┘
+/// See [`EpochInfo`] for the schema. `FileMetadata::sha3_digest` in the
+/// MANIFEST can be used to verify file integrity.
+///
 /// MANIFEST File Disk Format
 /// ┌──────────────────────────────┐
 /// │  magic(0x00C0FFEE) <4 byte>  │
@@ -126,8 +156,9 @@ use tokio::time::Instant;
 /// ├──────────────────────────────┤
 /// │      sha3 <32 bytes>         │
 /// └──────────────────────────────┘
-const OBJECT_FILE_MAGIC: u32 = 0x00B7EC75;
+const OBJECT_FILE_MAGIC: u32 = 0x00B7EC76;
 const REFERENCE_FILE_MAGIC: u32 = 0xDEADBEEF;
+const EPOCH_INFO_FILE_MAGIC: u32 = 0x9000C001;
 const MANIFEST_FILE_MAGIC: u32 = 0x00C0FFEE;
 const MAGIC_BYTES: usize = 4;
 const SNAPSHOT_VERSION_BYTES: usize = 1;
@@ -153,7 +184,9 @@ const FILE_METADATA_BYTES: usize =
 #[repr(u8)]
 pub enum FileType {
     Object = 0,
-    Reference,
+    Reference = 1,
+    /// per-epoch metadata file
+    EpochInfo = 2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -175,6 +208,9 @@ impl FileMetadata {
             FileType::Reference => {
                 dir_path.child(&*format!("{}_{}.ref", self.bucket_num, self.part_num))
             }
+            // EPOCH_INFO is a singleton per snapshot, so bucket/part numbers
+            // do not contribute to the filename.
+            FileType::EpochInfo => dir_path.child("EPOCH_INFO"),
         }
     }
     pub fn local_file_path(&self, root_path: &std::path::Path, dir_path: &Path) -> Result<PathBuf> {
@@ -190,30 +226,96 @@ pub struct ManifestV1 {
     pub epoch: u64,
 }
 
+/// `ManifestV1` plus `chain_id`, letting a restore reject a foreign-chain
+/// snapshot.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ManifestV2 {
+    pub snapshot_version: u8,
+    pub address_length: u64,
+    pub file_metadata: Vec<FileMetadata>,
+    pub epoch: u64,
+    pub chain_id: ChainIdentifier,
+}
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Manifest {
     V1(ManifestV1),
+    V2(ManifestV2),
 }
 
 impl Manifest {
     pub fn snapshot_version(&self) -> u8 {
         match self {
             Self::V1(manifest) => manifest.snapshot_version,
+            Self::V2(manifest) => manifest.snapshot_version,
         }
     }
     pub fn address_length(&self) -> u64 {
         match self {
             Self::V1(manifest) => manifest.address_length,
+            Self::V2(manifest) => manifest.address_length,
         }
     }
     pub fn file_metadata(&self) -> &Vec<FileMetadata> {
         match self {
             Self::V1(manifest) => &manifest.file_metadata,
+            Self::V2(manifest) => &manifest.file_metadata,
         }
     }
     pub fn epoch(&self) -> u64 {
         match self {
             Self::V1(manifest) => manifest.epoch,
+            Self::V2(manifest) => manifest.epoch,
+        }
+    }
+    /// Producing chain's identifier; `None` for V1.
+    pub fn chain_id(&self) -> Option<ChainIdentifier> {
+        match self {
+            Self::V1(_) => None,
+            Self::V2(manifest) => Some(manifest.chain_id),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EpochInfoV1Entry {
+    /// Epoch this entry describes.
+    pub epoch: iota_types::committee::EpochId,
+
+    /// First checkpoint of this epoch (`0` for genesis; otherwise the prior
+    /// epoch's `last_checkpoint_summary.sequence_number + 1`).
+    pub start_checkpoint: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+
+    /// BCS-encoded `IotaSystemState` of object `0x5` right after the
+    /// AdvanceEpoch tx of the previous epoch (or the genesis tx for epoch 0).
+    pub start_system_state: Vec<u8>,
+
+    /// Certified summary of this epoch's last checkpoint — carries
+    /// `end_of_epoch_data`, gas summary, timestamp, quorum signatures.
+    pub last_checkpoint_summary: iota_types::messages_checkpoint::CertifiedCheckpointSummary,
+
+    /// Events from the AdvanceEpoch tx — carries `SystemEpochInfoEvent`
+    /// (storage/computation accounting, mint/burn, stake rewards).
+    pub end_of_epoch_tx_events: iota_types::effects::TransactionEvents,
+}
+
+/// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned for
+/// future schema evolution. `entries[i]` is the entry for epoch `i`;
+/// length is `snapshot_epoch + 1`.
+#[derive(Debug, Serialize, Deserialize)]
+pub enum EpochInfo {
+    V1(EpochInfoV1),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EpochInfoV1 {
+    pub entries: Vec<EpochInfoV1Entry>,
+}
+
+impl EpochInfo {
+    pub fn entries(&self) -> &[EpochInfoV1Entry] {
+        match self {
+            Self::V1(info) => &info.entries,
         }
     }
 }
@@ -329,17 +431,7 @@ pub async fn accumulate_live_object_iter(
     // Accumulate live objects
     let mut acc = GlobalStateHash::default();
     for live_object in iter {
-        match live_object {
-            LiveObject::Normal(object) => {
-                acc.insert(object.object_ref().digest);
-            }
-            LiveObject::Wrapped(key) => {
-                acc.insert(
-                    bcs::to_bytes(&WrappedObject::new(key.0, key.1))
-                        .expect("Failed to serialize WrappedObject"),
-                );
-            }
-        }
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
         accum_counter.fetch_add(1, Ordering::Relaxed);
     }
     accum_progress_bar.finish_with_message("DB live object accumulation completed");

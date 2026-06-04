@@ -56,7 +56,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{EpochInfo, ObjectStore, ReadStore, TransactionInfo},
+    storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
     transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
@@ -751,7 +751,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
     fn get_epoch_info(
         &self,
         epoch: iota_types::committee::EpochId,
-    ) -> iota_types::storage::error::Result<Option<EpochInfo>> {
+    ) -> iota_types::storage::error::Result<Option<EpochInfoV2>> {
         Ok(self.with_store(|store| {
             let start_checkpoint_seq = if epoch != 0 {
                 store
@@ -780,7 +780,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
                     (None, None)
                 };
 
-            Some(EpochInfo {
+            Some(EpochInfoV2 {
                 epoch,
                 protocol_version: system_state.protocol_version(),
                 start_timestamp_ms: start_checkpoint.data().timestamp_ms,
@@ -789,8 +789,17 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
                 end_checkpoint,
                 reference_gas_price: system_state.reference_gas_price(),
                 system_state,
+                // not populated by simulacrum
+                last_checkpoint_summary: None,
+                end_of_epoch_tx_events: None,
             })
         }))
+    }
+
+    fn highest_indexed_epoch(
+        &self,
+    ) -> iota_types::storage::error::Result<Option<iota_types::committee::EpochId>> {
+        Ok(None)
     }
 
     fn get_transaction_info(

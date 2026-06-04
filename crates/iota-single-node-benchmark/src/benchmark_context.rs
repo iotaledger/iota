@@ -120,7 +120,7 @@ impl BenchmarkContext {
         let cache_commit = self.validator().get_validator().get_cache_commit().clone();
         for effects in results {
             let batch =
-                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
 
             cache_commit.commit_transaction_outputs(
                 effects.epoch(),
@@ -191,7 +191,7 @@ impl BenchmarkContext {
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
             let batch =
-                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
             cache_commit.commit_transaction_outputs(
                 effects.epoch(),
                 batch,
