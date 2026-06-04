@@ -620,7 +620,10 @@ impl TryInto<Object> for IotaObjectData {
                     .collect(),
                 protocol_config.max_move_package_size(),
                 p.type_origin_table.into_iter().collect(),
-                p.linkage_table.into_iter().collect(),
+                p.linkage_table
+                    .into_iter()
+                    .map(|(k, v)| (k, v.into()))
+                    .collect(),
             )?),
             _ => Err(anyhow!(
                 "BCS data is required to convert IotaObjectData to Object"
@@ -1079,7 +1082,7 @@ impl From<IotaTypeOrigin> for TypeOrigin {
 /// Directly modifying any field is undefined behavior. The fields are only
 /// public for read-only access.
 #[serde_as]
-#[derive(JsonSchema)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[schemars(rename = "UpgradeInfo")]
 pub struct IotaUpgradeInfo {
     /// `Storage ID`/`Package ID` of the referred package.
@@ -1125,7 +1128,7 @@ pub struct IotaRawMovePackage {
     pub type_origin_table: Vec<TypeOrigin>,
     #[serde_as(as = "BTreeMap<ObjectIdSchema, _>")]
     #[schemars(with = "BTreeMap<ObjectIdSchema, IotaUpgradeInfo>")]
-    pub linkage_table: BTreeMap<ObjectId, UpgradeInfo>,
+    pub linkage_table: BTreeMap<ObjectId, IotaUpgradeInfo>,
 }
 
 impl From<MovePackage> for IotaRawMovePackage {
@@ -1134,12 +1137,16 @@ impl From<MovePackage> for IotaRawMovePackage {
             id: p.id(),
             version: p.version(),
             module_map: p
-                .serialized_module_map()
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.clone()))
+                .modules
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
                 .collect(),
-            type_origin_table: p.type_origin_table().clone(),
-            linkage_table: p.linkage_table().clone(),
+            type_origin_table: p.type_origin_table,
+            linkage_table: p
+                .linkage_table
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
         }
     }
 }
@@ -1158,7 +1165,11 @@ impl IotaRawMovePackage {
                 .collect(),
             max_move_package_size,
             self.type_origin_table.clone(),
-            self.linkage_table.clone(),
+            self.linkage_table
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
         )?)
     }
 }

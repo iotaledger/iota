@@ -478,7 +478,11 @@ impl<'a> PTBBuilder<'a> {
             // trying to enforce the package size limit.
             u64::MAX,
             package.type_origin_table,
-            package.linkage_table,
+            package
+                .linkage_table
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
         )
         .map_err(|e| err!(loc, "{e}"))
     }

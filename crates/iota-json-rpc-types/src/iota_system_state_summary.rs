@@ -245,7 +245,7 @@ pub struct IotaSystemStateSummaryV1 {
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[schemars(with = "Vec<(IotaAddressSchema, String)>")]
-    #[serde_as(as = "Vec<(_, DisplayFromStr)>")]
+    #[serde_as(as = "Vec<(IotaAddressSchema, DisplayFromStr)>")]
     pub at_risk_validators: Vec<(IotaAddress, u64)>,
     /// A map storing the records of validator reporting each other.
     #[serde_as(as = "Vec<(IotaAddressSchema, Vec<IotaAddressSchema>)>")]
@@ -543,7 +543,7 @@ pub struct IotaSystemStateSummaryV2 {
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[schemars(with = "Vec<(IotaAddressSchema, String)>")]
-    #[serde_as(as = "Vec<(_, DisplayFromStr)>")]
+    #[serde_as(as = "Vec<(IotaAddressSchema, DisplayFromStr)>")]
     pub at_risk_validators: Vec<(IotaAddress, u64)>,
     /// A map storing the records of validator reporting each other.
     #[serde_as(as = "Vec<(IotaAddressSchema, Vec<IotaAddressSchema>)>")]
