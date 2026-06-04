@@ -6,6 +6,8 @@
 #[cfg(msim)]
 use iota_macros::sim_test;
 #[cfg(msim)]
+use iota_types::iota_system_state::IotaSystemStateTrait;
+#[cfg(msim)]
 use iota_types::{IOTA_CLAIM_REGISTRY_OBJECT_ID, object::Owner};
 #[cfg(msim)]
 use test_cluster::TestClusterBuilder;
