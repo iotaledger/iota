@@ -835,13 +835,18 @@ def _line_style_for(policy_str):
     fields = dict(part.split("=", 1) for part in policy_str.split() if "=" in part)
     pct = int(fields.get("pct", 100))
     sat = int(fields.get("sat", 100))
-    # Binary family: pct == sat (hard cap at max × pct%).
+    # Binary family (pct == sat): red gradient — darker for higher cap.
+    # Distinct colors so 50/50, 60/60, 70/70, 85/85, 100/100 don't all collapse
+    # into one "brown" bucket in the Pareto plot.
+    binary_colors = {
+        100: "#7b0e0e",   # very dark red — full cap
+         85: "#c0392b",   # dark red
+         70: "#e74c3c",   # medium red
+         60: "#ec7063",   # light red
+         50: "#f5b7b1",   # pale red — just-lower-the-cap
+    }
     if pct == sat:
-        if pct == 100:
-            return ("#c0392b", "-",  2.5)   # dark red — full-cap baseline
-        if pct >= 90:
-            return ("#e67e22", "--", 2.0)   # medium red/orange — cap ~19K
-        return ("#8b4513", ":",  2.5)       # brown — just-lower-the-cap
+        return (binary_colors.get(pct, "#8b4513"), "-", 2.5)
     # Graduated family: pct < sat.
     if sat == 100:
         return ("#8e44ad", "-.", 2.0)       # purple — sat isolation
@@ -875,10 +880,17 @@ def _marker_for(policy_str):
     fields = dict(part.split("=", 1) for part in policy_str.split() if "=" in part)
     pct = int(fields.get("pct", 100))
     sat = int(fields.get("sat", 100))
+    # Binary family — one distinct marker shape per pct so the 5 frontier
+    # points don't all show up as identical diamonds in the Pareto plot.
+    binary_markers = {
+        100: ("o", 1.00),     # circle
+         85: ("s", 0.80),     # square
+         70: ("h", 0.95),     # hexagon
+         60: ("p", 0.95),     # pentagon
+         50: ("D", 0.85),     # diamond
+    }
     if pct == sat:
-        if pct == 100: return ("o", 1.00)
-        if pct >= 90:  return ("s", 0.80)
-        return ("D", 0.85)
+        return binary_markers.get(pct, ("D", 0.85))
     if sat == 100:    return ("^", 1.10)
     if pct == 75:     return ("v", 1.10)
     if pct == 50:     return ("P", 1.30)
@@ -1135,6 +1147,116 @@ def plot_tps_timeseries(out_path, policies, tick_labels, data_df, raw_recs):
     print(f"Wrote {out_path}")
 
 
+def _drop_prob_polarity(data_df):
+    """Returns a (direction_arrow, regime_note) tuple describing which way
+    drop_prob is "better" given the experiment's sender model:
+
+      open_loop=true  → senders are non-responsive (spammers) → MORE drops
+                        = better defense → "↑ higher = better"
+      open_loop=false → senders are responsive (AIMD, TCP-like) → FEWER
+                        drops = better goodput → "↓ lower = better"
+
+    If the JSONL has mixed open_loop values, returns a neutral label so
+    the reader picks the right interpretation themselves.
+    """
+    col = "spammer.open_loop"
+    if col not in data_df.columns:
+        return ("", "")
+    vals = set(data_df[col].dropna().unique())
+    # Two arrows per polarity: vertical (for titles, which read normally)
+    # and horizontal (for y-labels — y-label is rotated 90° CCW so ← in
+    # source renders as ↓ on screen, pointing toward lower y values).
+    if vals == {True}:
+        return ("↑", "(→ higher = better, non-responsive senders / spam defense)",
+                "non-responsive senders / spam defense")
+    if vals == {False}:
+        return ("↓", "(← lower = better, responsive senders)",
+                "responsive senders")
+    return ("", "", "mixed sender models in dataset")
+
+
+def plot_pareto(out_path, policies, tick_labels, data_df,
+                x_col, x_label, y_col, y_label, title):
+    """Pareto-frontier scatter — explicitly designed to show graduated
+    dominance over the binary (tail-drop) frontier.
+
+    Binary policies (pct == sat) are connected with a line — that's the
+    achievable tail-drop frontier as you sweep cap. Graduated points are
+    plotted as standalone markers. If graduated lies below-and-left of
+    the binary line, it dominates.
+
+    Each policy gets one point at its (median(x), median(y)) across iters,
+    plus IQR bars on both axes so the reader can judge whether the
+    dominance survives noise."""
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    def parse(p):
+        f = dict(part.split("=", 1) for part in p.split() if "=" in part)
+        return int(f.get("pct", 100)), int(f.get("sat", 100))
+
+    def stats(p, col):
+        s = data_df.loc[data_df.policy == p, col].dropna()
+        if len(s) == 0:
+            return None
+        return (s.median(), s.quantile(0.25), s.quantile(0.75))
+
+    binary_points = []     # [(pct, x_med, y_med, x_p25, x_p75, y_p25, y_p75, label)]
+    grad_points = []
+    for i, p in enumerate(policies):
+        pct, sat = parse(p)
+        xs = stats(p, x_col)
+        ys = stats(p, y_col)
+        if xs is None or ys is None:
+            continue
+        rec = (pct, xs[0], ys[0], xs[1], xs[2], ys[1], ys[2], tick_labels[i], p)
+        (binary_points if pct == sat else grad_points).append(rec)
+
+    # Sort binary frontier by cap (descending) so the legend reads from
+    # max cap (100/100) down to min cap (50/50) — natural top-down order.
+    # The connecting line is unaffected since matplotlib draws the same
+    # polyline regardless of point traversal direction.
+    binary_points.sort(key=lambda r: -r[0])
+
+    # Draw the binary frontier line first (under the markers).
+    if len(binary_points) >= 2:
+        xs = [b[1] for b in binary_points]
+        ys = [b[2] for b in binary_points]
+        ax.plot(xs, ys, color="#7b0e0e", linewidth=1.2, alpha=0.6,
+                linestyle="--", label="tail-drop frontier", zorder=2)
+
+    # Plot binary markers with IQR error bars.
+    for pct, x, y, x_lo, x_hi, y_lo, y_hi, label, p in binary_points:
+        color, _, _ = _line_style_for(p)
+        marker, mult = _marker_for(p)
+        ax.errorbar(x, y, xerr=[[x - x_lo], [x_hi - x]],
+                    yerr=[[y - y_lo], [y_hi - y]],
+                    fmt=marker, color=color, markersize=(72 * mult) ** 0.5,
+                    markeredgecolor="white", markeredgewidth=0.8,
+                    capsize=3, alpha=0.9, label=label, zorder=3)
+
+    # Plot graduated markers with IQR error bars.
+    for pct, x, y, x_lo, x_hi, y_lo, y_hi, label, p in grad_points:
+        color, _, _ = _line_style_for(p)
+        marker, mult = _marker_for(p)
+        ax.errorbar(x, y, xerr=[[x - x_lo], [x_hi - x]],
+                    yerr=[[y - y_lo], [y_hi - y]],
+                    fmt=marker, color=color, markersize=(72 * mult) ** 0.5,
+                    markeredgecolor="white", markeredgewidth=0.8,
+                    capsize=3, alpha=0.9, label=label, zorder=4)
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    ax.minorticks_on()
+    ax.grid(which="major", alpha=0.5)
+    ax.grid(which="minor", alpha=0.5, linestyle=":", linewidth=0.8)
+    ax.legend(fontsize=8, loc="best")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=130)
+    plt.close()
+    print(f"Wrote {out_path}")
+
+
 def plot_group(group):
     """Generate the full plot set for one experiment group."""
     out_dir = HERE / f"{group['dir']}{SUFFIX}"
@@ -1283,8 +1405,10 @@ def plot_group(group):
     if ("drop-prob" not in skip
             and "validator_drop_prob" in df.columns
             and df["validator_drop_prob"].notna().any()):
+        vert_arrow, _, regime = _drop_prob_polarity(df)
+        polarity = f"[{vert_arrow} better, {regime}]" if vert_arrow else ""
         boxplot("validator_drop_prob",
-                "Validator drop probability — rejected / (rejected + finalized) — [higher = better]",
+                f"Validator drop probability — rejected / (rejected + finalized) {polarity}",
                 "Drop probability",
                 out_dir / "drop-prob.png", policies,
                 tick_labels=short_labels)
@@ -1311,6 +1435,34 @@ def plot_group(group):
     if "tps-timeseries" not in skip:
         plot_tps_timeseries(out_dir / "tps-timeseries.png", policies,
                             short_labels, df, _raw_recs)
+
+    # Pareto frontier: drop_prob vs inflight_mean. Binary policies form
+    # the tail-drop achievable curve as cap sweeps; graduated should lie
+    # below-and-left of it (lower loss at same queue, lower queue at
+    # same loss). This is the publishable RED-vs-tail-drop dominance plot.
+    if "pareto-inflight" not in skip and "validator_drop_prob" in df.columns:
+        _, horiz_arrow, _ = _drop_prob_polarity(df)
+        polarity = f"  {horiz_arrow}" if horiz_arrow else ""
+        plot_pareto(out_dir / "pareto-inflight.png", policies,
+                    short_labels, df,
+                    x_col="results.inflight_mean",
+                    x_label="Mean in-flight queue depth  (← shorter = better)",
+                    y_col="validator_drop_prob",
+                    y_label=f"Drop probability{polarity}",
+                    title="Pareto: drop rate vs queue depth")
+
+    # Pareto frontier: drop_prob vs cons_p99. Same idea but using
+    # consensus tail latency as the latency proxy.
+    if "pareto-latency" not in skip and "validator_drop_prob" in df.columns:
+        _, horiz_arrow, _ = _drop_prob_polarity(df)
+        polarity = f"  {horiz_arrow}" if horiz_arrow else ""
+        plot_pareto(out_dir / "pareto-latency.png", policies,
+                    short_labels, df,
+                    x_col="results.consensus_lat_p99",
+                    x_label="Consensus latency p99 (s)  (← lower = better)",
+                    y_col="validator_drop_prob",
+                    y_label=f"Drop probability{polarity}",
+                    title="Pareto: drop rate vs tail latency")
 
     # Intra-iter TPS coefficient of variation. RED predicts graduated has
     # lower TPS CV than binary at comparable mean throughput.
