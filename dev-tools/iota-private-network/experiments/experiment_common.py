@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import math
 import os
 import re
 import selectors
@@ -367,11 +368,52 @@ def prometheus_vector(expr: str) -> list[tuple[dict[str, str], float]]:
     return rows
 
 
-def measure_block_production(num_validators: int, window: int) -> None:
+def _commit_latency_queries(range_s: int) -> dict[str, str]:
+    """PromQL for block/transaction commit latency over a *range_s* window.
+
+    Each query carries `or` fallbacks across the two block-latency metric
+    naming conventions, and the transaction queries additionally fall back to
+    block latency when the transaction histogram is unavailable."""
+    r = f"{range_s}s"
+    return {
+        "blk_p50": (
+            "quantile(0.5,"
+            f" rate(consensus_block_commit_latency_sum[{r}])"
+            f" / rate(consensus_block_commit_latency_count[{r}])"
+            f" or rate(consensus_block_header_commit_latency_sum[{r}])"
+            f" / rate(consensus_block_header_commit_latency_count[{r}]))"
+        ),
+        "blk_p95": (
+            "histogram_quantile(0.95,"
+            f" sum(rate(consensus_block_commit_latency_bucket[{r}])) by (le)"
+            f" or sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
+        ),
+        "txn_p50": (
+            "quantile(0.5,"
+            f" rate(consensus_transaction_commit_latency_sum[{r}])"
+            f" / rate(consensus_transaction_commit_latency_count[{r}])"
+            f" or rate(consensus_block_commit_latency_sum[{r}])"
+            f" / rate(consensus_block_commit_latency_count[{r}])"
+            f" or rate(consensus_block_header_commit_latency_sum[{r}])"
+            f" / rate(consensus_block_header_commit_latency_count[{r}]))"
+        ),
+        "txn_p95": (
+            "histogram_quantile(0.95,"
+            f" sum(rate(consensus_transaction_commit_latency_bucket[{r}])) by (le)"
+            f" or sum(rate(consensus_block_commit_latency_bucket[{r}])) by (le)"
+            f" or sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
+        ),
+    }
+
+
+def measure_block_production(
+    num_validators: int, window: int, phase: str = "BLOCKS",
+) -> None:
     """Wait *window* seconds, then report per-validator own-block rate
-    (min/max/spread) and the averaged block-creation-reason mix."""
+    (min/max/spread), the averaged block-creation-reason mix, and block /
+    transaction commit latencies (p50/p95) over the same window."""
     phase_start = time.time()
-    log(_phase_banner(f"Measuring block production over {window}s", "BLOCKS"))
+    log(_phase_banner(f"Measuring block production over {window}s", phase))
     countdown(window)
 
     rate_rows = prometheus_vector(
@@ -406,6 +448,29 @@ def measure_block_production(num_validators: int, window: int) -> None:
             log(f"    {reason:<24} {v:5.2f} /s")
     else:
         log("    WARNING: no block-creation-reason metrics available")
+
+    # Commit latencies over the same window. The query range is floored at
+    # 60s: on shorter windows histogram_quantile inputs are statistical noise
+    # (at the cost of including a little pre-window data).
+    queries = _commit_latency_queries(max(60, window))
+    lat: dict[str, float | None] = {}
+    for name, q in queries.items():
+        raw = prometheus_scalar(q)
+        try:
+            val = float(raw) if raw is not None else None
+        except ValueError:
+            val = None
+        lat[name] = None if val is None or math.isnan(val) else val
+
+    def _ms(v: float | None) -> str:
+        return f"{v * 1000.0:6.0f} ms" if v is not None else "    n/a"
+
+    log("  Commit latency (across validators):")
+    if any(v is not None for v in lat.values()):
+        log(f"    block p50/p95: {_ms(lat['blk_p50'])} / {_ms(lat['blk_p95'])}")
+        log(f"    txn   p50/p95: {_ms(lat['txn_p50'])} / {_ms(lat['txn_p95'])}")
+    else:
+        log("    WARNING: no commit-latency metrics available")
     log(_phase_complete("Block measurement", time.time() - phase_start))
 
 

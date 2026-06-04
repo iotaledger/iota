@@ -71,6 +71,7 @@ Supports the following flags:
 - `-Z <SIZE>`: per-transaction size for the `iota-spammer` spammer, e.g. `10KiB` (default: `10KiB`)
 - `-C <spammer_type>`: type of spammer to use (default: `stress`; another option: `iota-spammer`)
 - `-c <testnet|mainnet>`: protocol-config chain override (default: empty → `testnet`)
+- `--block-measurement-seconds <S>`: pre-disruption measurement window reporting per-validator block rates, block-creation reasons, and block/transaction commit latencies (p50/p95) (default: `90`; `0` disables)
 
 Run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
 
@@ -172,6 +173,7 @@ Supported flags:
 - `-Z <SIZE>`: per-transaction size for the `iota-spammer` spammer, e.g. `10KiB` (default: `10KiB`).
 - `-C <spammer_type>`: spammer type (default: `stress`; alternative: `iota-spammer`).
 - `-c <testnet|mainnet>`: protocol-config chain override (default: empty → `testnet`).
+- `--block-measurement-seconds <S>`: post-fuzz measurement window reporting per-validator block rates, block-creation reasons, and block/transaction commit latencies (p50/p95) (default: `90`; `0` disables).
 
 - `-h`\
   Show help and exit.
@@ -355,7 +357,7 @@ Supported flags:
   Use the full geodistributed latency values (default: `true`; `false` divides all delays by 4 and drops the heavy-tail slot bursts).
 
 - `--block-measurement-seconds <S>`\
-  Pre-upgrade block-production measurement window after latency is applied (default: `120`, `0` disables; simple mode only — the advanced schedule does not budget for it). The legacy name `--block-validation-seconds` is accepted as an alias.
+  Pre-upgrade block-production measurement window after latency is applied, reporting per-validator block rates, block-creation reasons, and block/transaction commit latencies (p50/p95) (default: `120`, `0` disables; simple mode only — the advanced schedule does not budget for it). The legacy name `--block-validation-seconds` is accepted as an alias.
 
 - `--load-qps <QPS>`\
   Start a stress load generator at target QPS (default: `0` = disabled).

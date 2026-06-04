@@ -58,6 +58,7 @@ class Config:
     heal_num_rounds: int = 0
     epoch_duration_ms: int = 1_200_000
     network_metric: bool = False
+    block_measurement_seconds: int = 90
     spammer_enable: bool = False
     spammer_tps: int = 10
     spammer_size: str = "10KiB"
@@ -356,6 +357,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--spammer-image", default="iotaledger/stress",
                    help="Docker image for the stress spammer (auto-pulled if missing)")
     p.add_argument("-c", "--chain-override", default="", choices=("", "testnet", "mainnet"))
+    p.add_argument("--block-measurement-seconds", type=int, default=90, metavar="S",
+                   help="block-production measurement window after fuzz is applied "
+                        "(0 disables)")
     return p.parse_args()
 
 
@@ -372,8 +376,19 @@ def main() -> None:
         spammer_enable=args.spammer_enable, spammer_tps=args.spammer_tps,
         spammer_size=args.spammer_size, spammer_type=args.spammer_type,
         spammer_image=args.spammer_image, chain_override=args.chain_override,
+        block_measurement_seconds=args.block_measurement_seconds,
     )
     _cfg = cfg
+
+    # Take the lock before setup_logging (which truncates the shared log file
+    # of the active run) and before the try/finally (whose cleanup() would
+    # tear down the active run's containers).
+    try:
+        ec.acquire_single_run_lock("run-fuzz.py")
+    except RuntimeError as err:
+        print(f"ERROR: {err}")
+        sys.exit(1)
+
     ec.setup_logging(cfg.log_file)
 
     def _on_signal(signum: int, _frame: object) -> None:
@@ -392,14 +407,6 @@ def main() -> None:
     log(f"  Heal every/num    : {cfg.heal_every_round} / {cfg.heal_num_rounds}")
     log(f"  Run duration      : {cfg.run_duration}s")
     log(f"  Spammer           : {cfg.spammer_enable} ({cfg.spammer_type}, tps={cfg.spammer_tps})")
-
-    # Take the lock before the try/finally: if another run is active, its
-    # containers must not be torn down by this process's cleanup().
-    try:
-        ec.acquire_single_run_lock("run-fuzz.py")
-    except RuntimeError as err:
-        log(f"ERROR: {err}")
-        sys.exit(1)
 
     try:
         ec.cache_sudo()
@@ -429,6 +436,10 @@ def main() -> None:
         ec.start_grafana(cfg.grafana_dir)
         log(ec._phase_banner(f"Applying fuzz ({cfg.topology})", "FUZZ"))
         _fuzz_proc = apply_fuzz(cfg)
+        if cfg.block_measurement_seconds > 0:
+            ec.measure_block_production(
+                cfg.num_validators, cfg.block_measurement_seconds,
+            )
         start_spammer(cfg)
         run_loop(cfg)
     finally:

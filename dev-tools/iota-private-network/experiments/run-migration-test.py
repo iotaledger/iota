@@ -41,7 +41,6 @@ from experiment_common import (
     log_status,
     prometheus_query as _prometheus_query,
     prometheus_scalar as _prometheus_scalar,
-    prometheus_vector as _prometheus_vector,
     run,
     run_timed,
 )
@@ -1425,65 +1424,11 @@ def measure_block_production(cfg: Config) -> None:
         log("  Block-production measurement disabled")
         return
 
-    phase_start = time.time()
-    window = cfg.block_measurement_seconds
-    log(_phase_banner(f"Measuring block production over {window}s", "PHASE 6B"))
-    _countdown(window)
-
-    rate_rows = _prometheus_vector(
-        "sum by(host) ("
-        f"rate(consensus_accepted_block_headers{{source=\"own\"}}[{window}s])"
-        ")"
+    # Shared implementation: per-validator own-block rates, block-creation
+    # reasons, and block/transaction commit latencies over the window.
+    ec.measure_block_production(
+        cfg.num_validators, cfg.block_measurement_seconds, phase="PHASE 6B",
     )
-    rates = {
-        metric.get("host", "<unknown>"): value
-        for metric, value in rate_rows
-    }
-    expected_hosts = {f"validator-{i}" for i in range(1, cfg.num_validators + 1)}
-    missing_hosts = sorted(expected_hosts - rates.keys())
-    if missing_hosts:
-        log(
-            "  WARNING: missing block-rate metrics for validators: "
-            + ", ".join(missing_hosts)
-        )
-
-    measured_rates = {
-        host: rates[host]
-        for host in sorted(expected_hosts)
-        if host in rates
-    }
-
-    reason_rows = _prometheus_vector(
-        "avg by(reason) ("
-        f"rate(consensus_proposed_blocks[{window}s])"
-        ")"
-    )
-    reasons = {
-        metric.get("reason", "<unknown>"): value
-        for metric, value in reason_rows
-    }
-    if measured_rates:
-        values = list(measured_rates.values())
-        min_rate = min(values)
-        max_rate = max(values)
-        spread = max_rate - min_rate
-        log(
-            f"  Block rate min/max/spread: "
-            f"{min_rate:.2f} / {max_rate:.2f} / {spread:.2f} blk/s"
-        )
-        for host, value in sorted(measured_rates.items(), key=lambda item: item[1]):
-            log(f"    {host:<12} {value:5.2f} blk/s")
-    else:
-        log("  WARNING: no block-rate metrics available")
-
-    log("  Block creation reasons (avg by validator):")
-    if reasons:
-        for reason, value in sorted(reasons.items(), key=lambda item: item[1], reverse=True):
-            log(f"    {reason:<24} {value:5.2f} /s")
-    else:
-        log("    WARNING: no block-creation-reason metrics available")
-
-    log(_phase_complete("Phase 6B", time.time() - phase_start))
 
 
 # ========================= Phase 7: Wait Mid-Epoch =========================

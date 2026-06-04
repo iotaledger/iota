@@ -330,6 +330,16 @@ def main() -> None:
         spammer_image=args.spammer_image,
     )
     _cfg = cfg
+
+    # Take the lock before setup_logging (which truncates the shared log file
+    # of the active run) and before the try/finally (whose cleanup() would
+    # tear down the active run's containers).
+    try:
+        ec.acquire_single_run_lock("run-benchmark.py")
+    except RuntimeError as err:
+        print(f"ERROR: {err}")
+        sys.exit(1)
+
     ec.setup_logging(cfg.log_file)
 
     def _on_signal(signum: int, _frame: object) -> None:
@@ -348,14 +358,6 @@ def main() -> None:
     log(f"  Run duration      : {cfg.run_duration}s")
     log(f"  Spammer           : {cfg.spammer_enable} ({cfg.spammer_type}, "
         f"tps={cfg.spammer_tps})")
-
-    # Take the lock before the try/finally: if another run is active, its
-    # containers must not be torn down by this process's cleanup().
-    try:
-        ec.acquire_single_run_lock("run-benchmark.py")
-    except RuntimeError as err:
-        log(f"ERROR: {err}")
-        sys.exit(1)
 
     try:
         ec.cache_sudo()
