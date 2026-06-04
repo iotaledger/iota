@@ -4,7 +4,7 @@
 
 use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bytes::Bytes;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
@@ -12,6 +12,7 @@ use iota_core::{
     checkpoints::CheckpointStore,
     db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
 };
+use iota_node_storage::GrpcIndexes;
 use iota_storage::{
     FileCompression,
     object_store::util::{
@@ -19,7 +20,9 @@ use iota_storage::{
         find_missing_epochs_dirs, path_to_filesystem, put, run_manifest_update_loop,
     },
 };
-use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
+use iota_types::{
+    digests::ChainIdentifier, messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest,
+};
 use object_store::DynObjectStore;
 use prometheus::{
     IntCounter, IntGauge, Registry, register_int_counter_with_registry,
@@ -64,6 +67,8 @@ pub struct StateSnapshotUploader {
     /// Checkpoint store; needed to fetch epoch state commitments for
     /// verification
     checkpoint_store: Arc<CheckpointStore>,
+    /// gRPC indexes store; source of per-epoch `EpochInfoV2` rows
+    grpc_indexes: Arc<dyn GrpcIndexes>,
     /// Directory path on local disk where state snapshots are staged for upload
     staging_path: PathBuf,
     /// Store on local disk where state snapshots are staged for upload
@@ -84,6 +89,7 @@ impl StateSnapshotUploader {
         interval_s: u64,
         registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
+        grpc_indexes: Arc<dyn GrpcIndexes>,
     ) -> Result<Arc<Self>> {
         let db_checkpoint_store_config = ObjectStoreConfig {
             object_store: Some(ObjectStoreType::File),
@@ -99,6 +105,7 @@ impl StateSnapshotUploader {
             db_checkpoint_path: db_checkpoint_path.to_path_buf(),
             db_checkpoint_store: db_checkpoint_store_config.make()?,
             checkpoint_store,
+            grpc_indexes,
             staging_path: staging_path.to_path_buf(),
             staging_store: staging_store_config.make()?,
             snapshot_store: snapshot_store_config.make()?,
@@ -121,6 +128,14 @@ impl StateSnapshotUploader {
     /// Uploads state snapshots to remote store if they are missing.
     async fn upload_state_snapshot_to_object_store(&self, missing_epochs: Vec<u64>) -> Result<()> {
         let last_missing_epoch = missing_epochs.last().cloned().unwrap_or(0);
+        // Chain identifier = genesis checkpoint digest; tags each manifest.
+        let chain_id = ChainIdentifier::from(
+            *self
+                .checkpoint_store
+                .get_checkpoint_by_sequence_number(0)?
+                .context("genesis checkpoint missing from checkpoint store")?
+                .digest(),
+        );
         // Finds all local checkpoints db by epoch
         let local_checkpoints_by_epoch =
             find_all_dirs_with_epoch_prefix(&self.db_checkpoint_store, None).await?;
@@ -135,6 +150,8 @@ impl StateSnapshotUploader {
                     &self.staging_path,
                     &self.staging_store,
                     &self.snapshot_store,
+                    self.grpc_indexes.clone(),
+                    chain_id,
                     FileCompression::Zstd,
                     NonZeroUsize::new(20).unwrap(),
                 )

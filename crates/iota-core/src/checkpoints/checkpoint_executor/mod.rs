@@ -343,10 +343,11 @@ impl CheckpointExecutor {
 
         let seq = ckpt_state.data.checkpoint.sequence_number;
 
-        let batch = self
-            .state
-            .get_cache_commit()
-            .build_db_batch(self.epoch_store.epoch(), &ckpt_state.data.tx_digests);
+        let batch = self.state.get_cache_commit().build_db_batch(
+            self.epoch_store.epoch(),
+            seq,
+            &ckpt_state.data.tx_digests,
+        );
 
         finish_stage!(pipeline_handle, BuildDbBatch);
 
