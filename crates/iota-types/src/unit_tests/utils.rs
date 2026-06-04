@@ -5,8 +5,12 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
+use iota_sdk_crypto::{
+    Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+};
 use iota_sdk_types::{
-    ObjectId,
+    ObjectId, SimpleSignature,
     crypto::{Intent, IntentMessage},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -19,7 +23,7 @@ use crate::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, Signature, Signer,
         get_key_pair, get_key_pair_from_rng,
     },
-    multisig::{MultiSig, MultiSigPublicKey},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -120,9 +124,11 @@ pub fn make_sponsored_transaction_data(
 
 /// Make a user signed transaction with the given sender and its keypair. This
 /// is not verified or signed by authority.
-pub fn make_transaction(sender: IotaAddress, kp: &IotaKeyPair) -> Transaction {
+pub fn make_transaction(sender: IotaAddress, kp: &SimpleKeypair) -> Transaction {
     let data = make_transaction_data(sender);
-    Transaction::from_data_and_signer(data, vec![kp])
+    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
+    let kp = IotaKeyPair::from_bytes(&kp.to_bytes()).unwrap();
+    Transaction::from_data_and_signer(data, vec![&kp])
 }
 
 // This is used to sign transaction with signer using default Intent.
@@ -161,30 +167,44 @@ pub fn keys() -> Vec<IotaKeyPair> {
     let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
     let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
     let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
+
     vec![kp1, kp2, kp3]
 }
 
-pub fn make_upgraded_multisig_tx() -> Transaction {
+pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
     let keys = keys();
-    let pk1 = &keys[0].public();
-    let pk2 = &keys[1].public();
-    let pk3 = &keys[2].public();
+    let kp1 = Ed25519PrivateKey::from_bytes(keys[0].to_bytes_no_flag()).unwrap();
+    let kp2 = Secp256k1PrivateKey::from_bytes(keys[1].to_bytes_no_flag()).unwrap();
+    let kp3 = Secp256r1PrivateKey::from_bytes(keys[2].to_bytes_no_flag()).unwrap();
+
+    (kp1, kp2, kp3)
+}
+
+pub fn make_upgraded_multisig_tx() -> Transaction {
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk1 = kp1.public_key();
+    let pk2 = kp2.public_key();
+    let pk3 = kp3.public_key();
 
     let multisig_pk = MultiSigPublicKey::new(
-        vec![pk1.clone(), pk2.clone(), pk3.clone()],
-        vec![1, 1, 1],
+        vec![
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+            MultisigMember::new(pk3, 1),
+        ],
         2,
     )
     .unwrap();
     let addr = IotaAddress::from(&multisig_pk);
-    let tx = make_transaction(addr, &keys[0]);
+    let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
-    let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());
-    let sig1 = Signature::new_secure(&msg, &keys[0]).into();
-    let sig2 = Signature::new_secure(&msg, &keys[1]).into();
+    let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
+        .signing_digest();
+    let sig1: SimpleSignature = kp1.sign(&*msg);
+    let sig2: SimpleSignature = kp2.sign(&*msg);
 
     // Any 2 of 3 signatures verifies ok.
-    let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
+    let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
     Transaction::new(SenderSignedData::new(
         tx.transaction_data().clone(),
         vec![GenericSignature::MultiSig(multi_sig1)],
