@@ -271,9 +271,13 @@ def main() -> None:
             percent_restart=cfg.percent_restart, restart_duration=cfg.restart_duration,
             restart_timeout=cfg.restart_timeout, restart_mode=cfg.restart_mode,
         )
+        # Start load as soon as the network is up (validators running, latency
+        # applied) so the block-production measurement runs under load — matching
+        # the migration runner. Previously the spammer started only after the
+        # measurement window, leaving it idle.
+        ec.start_spammer(cfg)
         if cfg.block_measurement_enabled():
             ec.measure_block_production(cfg.num_validators, cfg.block_measurement_seconds)
-        ec.start_spammer(cfg)
         ec.run_loop(cfg, "exp")
     finally:
         cleanup(cfg)

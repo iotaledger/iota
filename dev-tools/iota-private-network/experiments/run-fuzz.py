@@ -316,11 +316,15 @@ def main() -> None:
         ec.start_grafana(cfg.grafana_dir)
         log(ec._phase_banner(f"Applying fuzz ({cfg.topology})", "FUZZ"))
         _fuzz_proc = apply_fuzz(cfg)
+        # Start load as soon as the network is up (validators running, fuzz
+        # applied) so the block-production measurement runs under load — matching
+        # the migration runner. Previously the spammer started only after the
+        # measurement window, leaving it idle.
+        ec.start_spammer(cfg)
         if cfg.block_measurement_seconds > 0:
             ec.measure_block_production(
                 cfg.num_validators, cfg.block_measurement_seconds,
             )
-        ec.start_spammer(cfg)
         ec.run_loop(cfg, "fuzz")
     finally:
         cleanup(cfg)
