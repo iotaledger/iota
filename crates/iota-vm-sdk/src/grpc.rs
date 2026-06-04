@@ -47,6 +47,12 @@ impl GrpcStore {
         Ok(Self::new(client))
     }
 
+    /// Read-only access to the wrapped in-memory store, e.g. to snapshot the
+    /// objects fetched so far.
+    pub fn store(&self) -> &InMemoryStore {
+        &self.inner
+    }
+
     /// Fetch the chain parameters a [`LocalVm`](crate::LocalVm) needs.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let epoch = self
@@ -106,6 +112,54 @@ impl GrpcStore {
             return Ok(());
         }
         self.fetch_and_insert(&refs).await
+    }
+
+    /// Recursively fetch the dynamic-field children of every object already in
+    /// the store and insert them too. Move calls that read tables/bags need
+    /// these children present to execute offline — e.g. staking walks the
+    /// validator set stored as a dynamic field inside `IotaSystemState`, and
+    /// `request_add_stake` aborts in `dynamic_field::remove_child_object`
+    /// without them. Call after [`prefetch`](Self::prefetch); children are
+    /// fetched at their latest version, matching how shared objects are loaded.
+    pub async fn prefetch_dynamic_fields(&mut self) -> Result<(), VmSdkError> {
+        let mut visited: std::collections::HashSet<ObjectId> = std::collections::HashSet::new();
+        let mut queue: Vec<ObjectId> = self.inner.iter().map(|(id, _)| *id).collect();
+        while let Some(parent) = queue.pop() {
+            if !visited.insert(parent) {
+                continue;
+            }
+            let fields = self
+                .client
+                .list_dynamic_fields(parent, None, None, None)
+                .collect(None)
+                .await
+                .map_err(|e| ValidationError::new("list dynamic fields", e))?
+                .into_inner();
+            let mut refs: Vec<(ObjectId, Option<Version>)> = Vec::new();
+            for field in fields {
+                // The field wrapper object is always needed; for dynamic
+                // *object* fields the value lives in a separate child object.
+                if let Some(id) = field.field_id {
+                    let id = id
+                        .object_id()
+                        .map_err(|e| ValidationError::new("decode dynamic field id", e))?;
+                    refs.push((id, None));
+                }
+                if let Some(id) = field.child_id {
+                    let id = id
+                        .object_id()
+                        .map_err(|e| ValidationError::new("decode dynamic child id", e))?;
+                    refs.push((id, None));
+                }
+            }
+            if refs.is_empty() {
+                continue;
+            }
+            self.fetch_and_insert(&refs).await?;
+            // Recurse into the newly fetched children to find their descendants.
+            queue.extend(refs.into_iter().map(|(id, _)| id));
+        }
+        Ok(())
     }
 
     async fn fetch_and_insert(

@@ -11,7 +11,7 @@
 
 use std::collections::HashSet;
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
@@ -27,7 +27,7 @@ use iota_types::{
     gas_coin::NANOS_PER_IOTA,
     layout_resolver::LayoutResolver,
     move_authenticator::MoveAuthenticator,
-    object::{MoveObject, MoveObjectExt, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
@@ -75,7 +75,7 @@ pub(super) fn prepare_transaction(
             store
                 .as_object_store()
                 .get_object(&gas_ref.object_id)
-                .map(|obj| obj.compute_object_reference())
+                .map(|obj| obj.object_ref())
                 .unwrap_or(*gas_ref)
         })
         .collect();
@@ -97,7 +97,7 @@ pub(super) fn prepare_transaction(
             Owner::Address(transaction.gas_data().owner),
             TransactionDigest::ZERO,
         );
-        let mock_gas_object_ref = mock_gas_object.compute_object_reference();
+        let mock_gas_object_ref = mock_gas_object.object_ref();
         transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
         input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
         Some(mock_gas_object.id())
@@ -337,7 +337,7 @@ fn resolve_authenticator_function_ref(
 
     Ok(AuthenticatorFunctionRefForExecution::new_v1(
         field.value,
-        field_obj.compute_object_reference(),
+        field_obj.object_ref(),
         field_obj.owner,
         field_obj.storage_rebate,
         field_obj.previous_transaction,
@@ -363,7 +363,7 @@ fn build_input_objects(
         let updated_kind = match kind {
             InputObjectKind::MovePackage(_) => *kind,
             InputObjectKind::ImmOrOwnedMoveObject(_) => {
-                InputObjectKind::ImmOrOwnedMoveObject(obj.compute_object_reference())
+                InputObjectKind::ImmOrOwnedMoveObject(obj.object_ref())
             }
             InputObjectKind::SharedMoveObject {
                 initial_shared_version,
@@ -395,7 +395,7 @@ fn build_receiving_objects(
                 id: objref.object_id,
                 version: Some(objref.version),
             })?;
-        let updated_ref = obj.compute_object_reference();
+        let updated_ref = obj.object_ref();
         receiving_objects.push(ReceivingObjectReadResult::new(updated_ref, obj.into()));
     }
     Ok(receiving_objects.into())

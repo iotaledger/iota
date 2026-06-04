@@ -15,12 +15,12 @@
 //! coin and creates a new coin — using only the built-in framework, no Move
 //! compiler.
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
     base_types::SequenceNumber,
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
-    object::{MoveObject, MoveObjectExt, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
@@ -65,7 +65,7 @@ fn transfer_tx(
     b.transfer_iota(recipient, Some(amount));
     TransactionData::new_programmable(
         sender,
-        vec![gas.compute_object_reference()],
+        vec![gas.object_ref()],
         b.finish(),
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
         GAS_PRICE,

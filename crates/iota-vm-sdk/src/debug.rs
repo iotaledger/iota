@@ -44,8 +44,7 @@ pub enum ProfileSink {
     /// the Move VM profiler).
     Path(PathBuf),
     /// Write the profile to a temporary location and read its bytes back into
-    /// [`ProfileOutput::Json`] after execution. (Native only — on wasm32 the
-    /// filesystem is unavailable and this behaves as a no-op.)
+    /// [`ProfileOutput::Json`] after execution.
     Capture,
 }
 

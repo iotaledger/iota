@@ -20,6 +20,8 @@ use iota_types::{
     transaction::{SenderSignedData, TransactionData},
     transaction_executor::SimulateTransactionResult,
 };
+use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
+use move_core_types::language_storage::ModuleId;
 use move_trace_format::format::MoveTraceBuilder;
 
 use super::{
@@ -34,9 +36,22 @@ use super::{
 };
 use crate::{
     debug::{DebugArtifacts, DebugConfig},
-    error::VmSdkError,
+    error::{ExecutionError, VmSdkError},
     store::{Store, StoreBackend},
 };
+
+/// Adapts the SDK [`Store`] to the [`GetModule`] interface that
+/// [`TypeLayoutBuilder`] needs to resolve struct layouts from packages.
+struct StoreModuleResolver<'a>(StoreBackend<'a>);
+
+impl GetModule for StoreModuleResolver<'_> {
+    type Error = iota_types::error::IotaError;
+    type Item = move_binary_format::CompiledModule;
+
+    fn get_module_by_id(&self, id: &ModuleId) -> Result<Option<Self::Item>, Self::Error> {
+        iota_types::storage::get_module_by_id(&self.0, id)
+    }
+}
 
 /// The local Move VM executor. Owns a [`Store`] and the execution engine for a
 /// single [`ChainContext`].
@@ -184,6 +199,26 @@ impl LocalVm {
             .iter()
             .map(|ev| decode_one_event(ev, resolver.as_mut()))
             .collect()
+    }
+
+    /// Decode a single BCS-encoded value of the given
+    /// [`TypeTag`](iota_sdk_types::TypeTag) into an annotated
+    /// [`MoveValue`](move_core_types::annotated_value::MoveValue), resolving
+    /// any struct layouts from the packages in the store. Used to turn
+    /// dev-inspect return values and mutable reference outputs (raw
+    /// `(bytes, type)` pairs) into readable values.
+    pub fn decode_value(
+        &self,
+        bytes: &[u8],
+        type_tag: &iota_sdk_types::TypeTag,
+    ) -> Result<move_core_types::annotated_value::MoveValue, VmSdkError> {
+        let core_tag = iota_types::iota_sdk_types_conversions::type_tag_sdk_to_core(type_tag);
+        let resolver = StoreModuleResolver(StoreBackend::new(self.store.as_ref()));
+        let layout = TypeLayoutBuilder::build_with_types(&core_tag, &resolver)
+            .map_err(|e| ExecutionError::new(format!("build layout for {type_tag}: {e}")))?;
+        move_core_types::annotated_value::MoveValue::simple_deserialize(bytes, &layout).map_err(
+            |e| ExecutionError::new(format!("decode value of type {type_tag}: {e}")).into(),
+        )
     }
 
     /// Assemble an [`ExecutionResult`] from a raw simulation, committing the
