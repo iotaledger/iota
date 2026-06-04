@@ -7,9 +7,7 @@ use std::sync::Arc;
 use fastcrypto::hash::MultisetHash;
 use iota_common::fatal;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::SequenceNumber,
     committee::EpochId,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -20,7 +18,6 @@ use iota_types::{
     storage::ObjectStore,
 };
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
-use serde::Serialize;
 use tracing::debug;
 
 use crate::authority::{
@@ -99,26 +96,6 @@ impl GlobalStateHashStore for InMemoryStorage {
 
     fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
         unreachable!("not used for testing")
-    }
-}
-
-/// Serializable representation of the ObjectRef of an
-/// object that has been wrapped
-/// TODO: This can be replaced with ObjectKey.
-#[derive(Serialize, Debug)]
-pub struct WrappedObject {
-    id: ObjectId,
-    wrapped_at: SequenceNumber,
-    digest: ObjectDigest,
-}
-
-impl WrappedObject {
-    pub fn new(id: ObjectId, wrapped_at: SequenceNumber) -> Self {
-        Self {
-            id,
-            wrapped_at,
-            digest: ObjectDigest::OBJECT_WRAPPED,
-        }
     }
 }
 
@@ -215,17 +192,7 @@ impl GlobalStateHasher {
     }
 
     pub fn accumulate_live_object(acc: &mut GlobalStateHash, live_object: &LiveObject) {
-        match live_object {
-            LiveObject::Normal(object) => {
-                acc.insert(object.object_ref().digest);
-            }
-            LiveObject::Wrapped(key) => {
-                acc.insert(
-                    bcs::to_bytes(&WrappedObject::new(key.0, key.1))
-                        .expect("Failed to serialize WrappedObject"),
-                );
-            }
-        }
+        acc.insert(live_object.object.object_ref().digest);
     }
 
     pub fn digest_live_object_set(&self) -> ECMHLiveObjectSetDigest {
