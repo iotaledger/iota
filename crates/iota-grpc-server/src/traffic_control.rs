@@ -4,15 +4,8 @@
 //! Tower [`Layer`] that wires the shared [`TrafficController`] into the
 //! gRPC server.
 //!
-//! The fullnode-facing gRPC API exposes the same class of traffic that the
-//! JSON-RPC API protects, including transaction execution endpoints. We share
-//! one controller across both surfaces so the same blocklist and tally apply
-//! to a given client IP regardless of which API it hits.
-//!
-//! The layer extracts the client IP via [`get_client_ip`] (shared with the
-//! validator), calls [`TrafficController::check`][check] before dispatching,
-//! then calls [`tally`][tally] with a weight derived from the response's
-//! gRPC status code.
+//! The layer extracts the client IP via and calls the traffic controller
+//! with a weight derived from the response's gRPC status code.
 //!
 //! [check]: iota_core::traffic_controller::TrafficController::check
 //! [tally]: iota_core::traffic_controller::TrafficController::tally

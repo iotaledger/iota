@@ -1020,12 +1020,8 @@ pub fn parse_ip(ip: &str) -> Option<IpAddr> {
 }
 
 /// Outcome of resolving the client IP for an incoming request.
-///
-/// The non-`Ok` variants are diagnostic — callers map them to logs/metrics
-/// that match their surface (validator service vs. fullnode gRPC server).
 #[derive(Debug)]
 pub enum ClientIpStatus {
-    /// Successfully resolved the client IP.
     Ok(IpAddr),
     /// `SocketAddr` source but the IO type did not expose a remote address
     /// (e.g. Unix sockets, custom transports). In tests this is usually a
@@ -1040,18 +1036,16 @@ pub enum ClientIpStatus {
     XForwardedForZeroHops,
     /// `XForwardedFor` configured with `expected` hops but the header
     /// only had `actual` entries.
-    XForwardedForConfigMismatch { expected: usize, actual: usize },
+    XForwardedForConfigMismatch {
+        expected: usize,
+        actual: usize,
+    },
     /// `XForwardedFor` header was present and well-formed but the chosen hop
     /// position did not parse as an IP address.
     XForwardedForUnparsable,
 }
 
 /// Resolve the client IP for an incoming request.
-///
-/// Shared between the validator service and the fullnode gRPC server so the
-/// two surfaces agree on which IP gets fed into the traffic controller.
-/// Returns a [`ClientIpStatus`] so callers can attach their own metric
-/// counters and log messages.
 pub fn get_client_ip(
     headers: &http::HeaderMap,
     remote_addr: Option<SocketAddr>,

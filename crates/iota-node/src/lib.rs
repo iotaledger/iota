@@ -2295,10 +2295,6 @@ async fn build_grpc_server(
 
     // Create gRPC server metrics
     let grpc_server_metrics = iota_grpc_server::GrpcServerMetrics::new(prometheus_registry);
-
-    // Share the traffic controller and client-id source with the JSON-RPC
-    // server so a single blocklist and policy applies to both surfaces.
-    let traffic_controller = state.traffic_controller.clone();
     let client_id_source = config
         .policy_config
         .as_ref()
@@ -2311,7 +2307,7 @@ async fn build_grpc_server(
         shutdown_token,
         chain_id,
         Some(grpc_server_metrics),
-        traffic_controller,
+        state.traffic_controller.clone(),
         client_id_source,
     )
     .await?;

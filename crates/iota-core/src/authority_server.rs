@@ -1036,6 +1036,7 @@ impl ValidatorService {
                 // TODO: once we have confirmed that no legitimate traffic
                 // is hitting this case, we should reject such requests that
                 // hit this case.
+                // issue: https://github.com/iotaledger/iota/issues/11756
                 if cfg!(msim) {
                     // Ignore the error from simtests.
                 } else if cfg!(test) {
@@ -1057,6 +1058,7 @@ impl ValidatorService {
                 // TODO: once we have confirmed that no legitimate traffic
                 // is hitting this case, we should reject such requests that
                 // hit this case.
+                // issue: https://github.com/iotaledger/iota/issues/11756
                 self.metrics.forwarded_header_invalid.inc();
                 error!("Invalid UTF-8 in x-forwarded-for header");
                 None
