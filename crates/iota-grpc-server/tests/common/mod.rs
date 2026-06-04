@@ -378,7 +378,11 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
     fn get_epoch_info(
         &self,
         _epoch: iota_types::committee::EpochId,
-    ) -> StorageResult<Option<iota_types::storage::EpochInfo>> {
+    ) -> StorageResult<Option<iota_types::storage::EpochInfoV2>> {
+        Ok(None)
+    }
+
+    fn highest_indexed_epoch(&self) -> StorageResult<Option<iota_types::committee::EpochId>> {
         Ok(None)
     }
 

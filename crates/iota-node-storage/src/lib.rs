@@ -19,7 +19,7 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
-        CoinInfo, DynamicFieldIteratorItem, EpochInfo, ObjectStore, OwnedObjectCursor,
+        CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, ObjectStore, OwnedObjectCursor,
         OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
         error::Result,
     },
@@ -75,7 +75,11 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 /// epoch info, transaction-to-checkpoint mapping, owned objects, dynamic
 /// fields, coin info, and package versions.
 pub trait GrpcIndexes: Send + Sync {
-    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>>;
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfoV2>>;
+
+    /// Highest epoch whose `epochs_v2` epochs have been fully populated
+    /// (indexed and closed epochs).
+    fn highest_indexed_epoch(&self) -> Result<Option<EpochId>>;
 
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 

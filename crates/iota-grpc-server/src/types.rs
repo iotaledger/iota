@@ -666,7 +666,7 @@ impl GrpcReader {
     pub fn get_epoch_info(
         &self,
         epoch: u64,
-    ) -> anyhow::Result<Option<iota_types::storage::EpochInfo>> {
+    ) -> anyhow::Result<Option<iota_types::storage::EpochInfoV2>> {
         self.require_indexes()?
             .get_epoch_info(epoch)
             .map_err(Into::into)
