@@ -55,6 +55,9 @@ pub enum IngestionError {
     #[error("reading historical data failed: `{0}`")]
     HistoryRead(String),
 
+    #[error("invalid epoch boundary update: `{0}`")]
+    EpochBoundary(String),
+
     #[error("max downloaded checkpoints limit reached")]
     MaxCheckpointsCapacityReached,
 
