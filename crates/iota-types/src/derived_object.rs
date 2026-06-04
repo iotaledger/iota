@@ -2,12 +2,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 
-use crate::{
-    base_types::{IotaAddress, ObjectID},
-    dynamic_field,
-};
+use crate::{base_types::IotaAddress, dynamic_field};
 
 pub const DERIVED_OBJECT_MODULE_NAME: Identifier = Identifier::from_static("derived_object");
 pub const DERIVED_OBJECT_STRUCT_NAME: Identifier = Identifier::from_static("DerivedObjectKey");
@@ -20,7 +17,7 @@ pub fn derive_object_id<T>(
     parent: T,
     key_type_tag: &TypeTag,
     key_bytes: &[u8],
-) -> Result<ObjectID, bcs::Error>
+) -> Result<ObjectId, bcs::Error>
 where
     T: Into<IotaAddress>,
 {
@@ -64,7 +61,7 @@ mod tests {
         let key_type_tag = TypeTag::Vector(Box::new(TypeTag::U8));
 
         let id = derive_object_id(
-            ObjectID::from_str("0x2").unwrap(),
+            ObjectId::from_str("0x2").unwrap(),
             &key_type_tag,
             &key_bytes,
         )
@@ -72,7 +69,7 @@ mod tests {
 
         assert_eq!(
             id,
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0xa2b411aa9588c398d8e3bc97dddbdd430b5ded7f81545d05e33916c3ca0f30c3"
             )
             .unwrap()
@@ -85,7 +82,7 @@ mod tests {
         let key_value = bcs::to_bytes(&key).unwrap();
 
         let id = derive_object_id(
-            ObjectID::from_str("0x2").unwrap(),
+            ObjectId::from_str("0x2").unwrap(),
             &TypeTag::Struct(Box::new(StructTag::new(
                 IotaAddress::FRAMEWORK,
                 Identifier::from_static("derived_object_tests"),
@@ -98,7 +95,7 @@ mod tests {
 
         assert_eq!(
             id,
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x20c58d8790a5d2214c159c23f18a5fdc347211e511186353e785ad543abcea6b"
             )
             .unwrap()
@@ -111,7 +108,7 @@ mod tests {
         let key_value = bcs::to_bytes(&key).unwrap();
 
         let id = derive_object_id(
-            ObjectID::from_str("0x2").unwrap(),
+            ObjectId::from_str("0x2").unwrap(),
             &TypeTag::Struct(Box::new(StructTag::new(
                 IotaAddress::FRAMEWORK,
                 Identifier::from_static("derived_object_tests"),
@@ -124,7 +121,7 @@ mod tests {
 
         assert_eq!(
             id,
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0xb497b8dcf1e297ae5fa69c040e4a08ef8240d5373bbc9d6b686ffbd7dfe04cbe"
             )
             .unwrap()

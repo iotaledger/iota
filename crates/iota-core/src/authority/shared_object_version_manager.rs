@@ -4,8 +4,9 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{SequenceNumber, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
@@ -31,7 +32,7 @@ pub type AssignedTxAndVersions = Vec<(TransactionKey, Vec<VersionAssignment>)>;
 #[must_use]
 #[derive(Default)]
 pub struct ConsensusSharedObjVerAssignment {
-    pub shared_input_next_versions: HashMap<ObjectID, SequenceNumber>,
+    pub shared_input_next_versions: HashMap<ObjectId, SequenceNumber>,
     pub assigned_versions: AssignedTxAndVersions,
 }
 
@@ -111,7 +112,7 @@ impl SharedObjVerManager {
 
     pub fn assign_versions_for_certificate(
         cert: &VerifiedExecutableTransaction,
-        shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
+        shared_input_next_versions: &mut HashMap<ObjectId, SequenceNumber>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
         enable_gas_price_feedback: bool,
     ) -> Vec<VersionAssignment> {
@@ -177,7 +178,7 @@ impl SharedObjVerManager {
                         }
                     }
                     Some(CancelConsensusCertificateReason::DkgFailed) => {
-                        if id == &ObjectID::RANDOMNESS_STATE {
+                        if id == &ObjectId::RANDOMNESS_STATE {
                             SequenceNumber::RANDOMNESS_UNAVAILABLE
                         } else {
                             SequenceNumber::CANCELLED_READ
@@ -254,7 +255,7 @@ fn get_or_init_versions<'a>(
     transactions: impl Iterator<Item = &'a SenderSignedData>,
     epoch_store: &AuthorityPerEpochStore,
     cache_reader: &dyn ObjectCacheRead,
-) -> IotaResult<HashMap<ObjectID, SequenceNumber>> {
+) -> IotaResult<HashMap<ObjectId, SequenceNumber>> {
     let mut shared_input_objects: Vec<_> = transactions
         .flat_map(|tx| {
             tx.shared_input_objects()
@@ -275,7 +276,7 @@ mod tests {
 
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{IotaAddress, ObjectRef, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,
         effects::TestEffectsBuilder,
@@ -382,7 +383,7 @@ mod tests {
             ),
             generate_shared_objs_tx_with_gas_version(
                 &[(
-                    ObjectID::RANDOMNESS_STATE,
+                    ObjectId::RANDOMNESS_STATE,
                     randomness_obj_version,
                     // This can only be false since it's not allowed to use randomness object with
                     // mutable=true.
@@ -391,7 +392,7 @@ mod tests {
                 3,
             ),
             generate_shared_objs_tx_with_gas_version(
-                &[(ObjectID::RANDOMNESS_STATE, randomness_obj_version, false)],
+                &[(ObjectId::RANDOMNESS_STATE, randomness_obj_version, false)],
                 5,
             ),
         ];
@@ -408,7 +409,7 @@ mod tests {
         // Check that the randomness object's next version is initialized.
         assert_eq!(
             epoch_store
-                .get_next_object_version(&ObjectID::RANDOMNESS_STATE)
+                .get_next_object_version(&ObjectId::RANDOMNESS_STATE)
                 .unwrap(),
             randomness_obj_version
         );
@@ -416,7 +417,7 @@ mod tests {
         assert_eq!(
             shared_input_next_versions,
             // Randomness object's version is only incremented by 1 regardless of lamport version.
-            HashMap::from([(ObjectID::RANDOMNESS_STATE, next_randomness_obj_version)])
+            HashMap::from([(ObjectId::RANDOMNESS_STATE, next_randomness_obj_version)])
         );
         assert_eq!(
             assigned_versions,
@@ -424,7 +425,7 @@ mod tests {
                 (
                     certs[0].key(),
                     vec![VersionAssignment::new(
-                        ObjectID::RANDOMNESS_STATE,
+                        ObjectId::RANDOMNESS_STATE,
                         randomness_obj_version
                     )]
                 ),
@@ -433,7 +434,7 @@ mod tests {
                     // It is critical that the randomness object version is updated before the
                     // assignment.
                     vec![VersionAssignment::new(
-                        ObjectID::RANDOMNESS_STATE,
+                        ObjectId::RANDOMNESS_STATE,
                         next_randomness_obj_version
                     )]
                 ),
@@ -442,7 +443,7 @@ mod tests {
                     // It is critical that the randomness object version is updated before the
                     // assignment.
                     vec![VersionAssignment::new(
-                        ObjectID::RANDOMNESS_STATE,
+                        ObjectId::RANDOMNESS_STATE,
                         next_randomness_obj_version
                     )]
                 ),
@@ -515,7 +516,7 @@ mod tests {
             ),
             generate_shared_objs_tx_with_gas_version(
                 &[
-                    (ObjectID::RANDOMNESS_STATE, randomness_obj_version, false),
+                    (ObjectId::RANDOMNESS_STATE, randomness_obj_version, false),
                     (id2, init_shared_version_2, true),
                 ],
                 11,
@@ -567,7 +568,7 @@ mod tests {
             HashMap::from([
                 (id1, SequenceNumber::from_u64(5)), // determined by tx3
                 (id2, SequenceNumber::from_u64(4)), // determined by tx1
-                (ObjectID::RANDOMNESS_STATE, SequenceNumber::from_u64(1)), // not mutable
+                (ObjectId::RANDOMNESS_STATE, SequenceNumber::from_u64(1)), // not mutable
             ])
         );
 
@@ -616,7 +617,7 @@ mod tests {
                     certs[4].key(),
                     vec![
                         VersionAssignment::new(
-                            ObjectID::RANDOMNESS_STATE,
+                            ObjectId::RANDOMNESS_STATE,
                             SequenceNumber::RANDOMNESS_UNAVAILABLE
                         ),
                         VersionAssignment::new(id2, SequenceNumber::CANCELLED_READ)
@@ -700,7 +701,7 @@ mod tests {
     /// The version of the gas object is used to manipulate the lamport version
     /// of this transaction.
     fn generate_shared_objs_tx_with_gas_version(
-        shared_objects: &[(ObjectID, SequenceNumber, bool)],
+        shared_objects: &[(ObjectId, SequenceNumber, bool)],
         gas_object_version: u64,
     ) -> VerifiedExecutableTransaction {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -717,7 +718,7 @@ mod tests {
         let tx_data = TestTransactionBuilder::new(
             IotaAddress::ZERO,
             ObjectRef::new(
-                ObjectID::random(),
+                ObjectId::random(),
                 SequenceNumber::from_u64(gas_object_version),
                 ObjectDigest::random(),
             ),

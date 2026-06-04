@@ -10,9 +10,10 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
+use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
@@ -96,7 +97,7 @@ impl BenchmarkContext {
     /// address.
     pub(crate) async fn preparing_dynamic_fields(
         &mut self,
-        move_package: ObjectID,
+        move_package: ObjectId,
         num_dynamic_fields: u64,
     ) -> HashMap<IotaAddress, ObjectRef> {
         let mut root_objects = HashMap::new();
@@ -144,9 +145,9 @@ impl BenchmarkContext {
 
     pub(crate) async fn prepare_shared_objects(
         &mut self,
-        move_package: ObjectID,
+        move_package: ObjectId,
         num_shared_objects: usize,
-    ) -> Vec<(ObjectID, SequenceNumber)> {
+    ) -> Vec<(ObjectId, SequenceNumber)> {
         let mut shared_objects = Vec::new();
 
         if num_shared_objects == 0 {
@@ -484,7 +485,7 @@ impl BenchmarkContext {
         }
     }
 
-    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectID, ObjectRef>) {
+    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectRef>) {
         info!("Refreshing gas objects");
         for account in self.user_accounts.values_mut() {
             let refreshed_gas_objects: Vec<_> = account

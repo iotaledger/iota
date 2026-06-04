@@ -4,10 +4,10 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, dbg_addr},
+    base_types::{IotaAddress, ObjectRef, dbg_addr},
     crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
@@ -81,7 +81,7 @@ async fn test_regulated_coin_v1_types() {
 
     // Step 2: Deny an address and check the denylist types.
     let deny_list_object_init_version = env
-        .get_latest_object_ref(&ObjectID::DENY_LIST)
+        .get_latest_object_ref(&ObjectId::DENY_LIST)
         .await
         .version;
     let regulated_coin_type = TypeTag::Struct(Box::new(StructTag::new(
@@ -97,12 +97,12 @@ async fn test_regulated_coin_v1_types() {
         env.authority.reference_gas_price_for_testing().unwrap(),
     )
     .move_call(
-        ObjectID::FRAMEWORK,
+        ObjectId::FRAMEWORK,
         "coin",
         "deny_list_v1_add",
         vec![
             CallArg::Shared(SharedObjectRef::new(
-                ObjectID::DENY_LIST,
+                ObjectId::DENY_LIST,
                 deny_list_object_init_version,
                 true,
             )),
@@ -171,12 +171,12 @@ async fn test_regulated_coin_v1_types() {
         env.authority.reference_gas_price_for_testing().unwrap(),
     )
     .move_call(
-        ObjectID::FRAMEWORK,
+        ObjectId::FRAMEWORK,
         "coin",
         "deny_list_v1_enable_global_pause",
         vec![
             CallArg::Shared(SharedObjectRef::new(
-                ObjectID::DENY_LIST,
+                ObjectId::DENY_LIST,
                 deny_list_object_init_version,
                 true,
             )),
@@ -213,12 +213,12 @@ struct TestEnv {
     authority: Arc<AuthorityState>,
     sender: IotaAddress,
     keypair: AccountKeyPair,
-    gas_object_id: ObjectID,
+    gas_object_id: ObjectId,
     publish_effects: TransactionEffects,
 }
 
 impl TestEnv {
-    async fn get_latest_object_ref(&self, id: &ObjectID) -> ObjectRef {
+    async fn get_latest_object_ref(&self, id: &ObjectId) -> ObjectRef {
         self.authority
             .get_object(id)
             .await

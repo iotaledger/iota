@@ -25,10 +25,13 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::Chain;
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_sdk_types::{
+    ObjectId,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     digests::TransactionDigest,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_serde::BigInt,
@@ -508,7 +511,7 @@ impl IotaRpcModule for TransactionExecutionApi {
 impl PackageStore for TransactionExecutionApi {
     async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
+        match backing_store.get_package_object(&ObjectId::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

@@ -26,10 +26,10 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_macros::sim_test;
 use iota_sdk::IotaClient;
-use iota_sdk_types::{Identifier, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -201,7 +201,7 @@ async fn address_unlock_condition(
     // This object id was fetched manually. It refers to an Alias Output object that
     // owns a NftOutput.
     let alias_output_object_id =
-        ObjectID::from_hex("0xe6bf3ef78d57eb36d7959b64a272c3581cdaeb93a1f1bf1068651901e3b1e91a")?;
+        ObjectId::from_hex("0xe6bf3ef78d57eb36d7959b64a272c3581cdaeb93a1f1bf1068651901e3b1e91a")?;
 
     let alias_output_object = iota_client
         .read_api()
@@ -264,7 +264,7 @@ async fn address_unlock_condition(
         let type_arguments = vec![GAS::type_tag()];
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         if let Argument::Result(extracted_alias_output_assets) = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             Identifier::from_static("alias_output"),
             Identifier::from_static("extract_assets"),
             type_arguments,
@@ -280,7 +280,7 @@ async fn address_unlock_condition(
 
             // Extract the IOTA balance.
             let iota_coin = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,
@@ -293,7 +293,7 @@ async fn address_unlock_condition(
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],
@@ -308,7 +308,7 @@ async fn address_unlock_condition(
             ];
 
             let nft_output = builder.programmable_move_call(
-                ObjectID::STARDUST,
+                ObjectId::STARDUST,
                 Identifier::from_static("address_unlock_condition"),
                 Identifier::from_static("unlock_alias_address_owned_nft"),
                 type_arguments,
@@ -323,7 +323,7 @@ async fn address_unlock_condition(
             let arguments = vec![nft_output];
             // Finally call the nft_output::extract_assets function
             if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-                ObjectID::STARDUST,
+                ObjectId::STARDUST,
                 Identifier::from_static("nft_output"),
                 Identifier::from_static("extract_assets"),
                 type_arguments,
@@ -341,7 +341,7 @@ async fn address_unlock_condition(
 
                 // Extract the IOTA balance.
                 let iota_coin = builder.programmable_move_call(
-                    ObjectID::FRAMEWORK,
+                    ObjectId::FRAMEWORK,
                     Identifier::COIN_MODULE,
                     Identifier::from_static("from_balance"),
                     type_arguments,
@@ -354,7 +354,7 @@ async fn address_unlock_condition(
                 // Cleanup the bag because it is empty.
                 let arguments = vec![extracted_native_tokens_bag];
                 builder.programmable_move_call(
-                    ObjectID::FRAMEWORK,
+                    ObjectId::FRAMEWORK,
                     Identifier::BAG_MODULE,
                     Identifier::from_static("destroy_empty"),
                     vec![],

@@ -14,8 +14,9 @@ use bincode::Options;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
@@ -182,7 +183,7 @@ impl AuthorityStorePruner {
             .num_pruned_tombstones
             .inc_by(object_tombstones_to_prune.len() as u64);
 
-        let mut updates: HashMap<ObjectID, (VersionNumber, VersionNumber)> = HashMap::new();
+        let mut updates: HashMap<ObjectId, (VersionNumber, VersionNumber)> = HashMap::new();
         for ObjectKey(object_id, seq_number) in live_object_keys_to_prune {
             updates
                 .entry(object_id)
@@ -852,8 +853,8 @@ impl AuthorityStorePruner {
     /// invoking a range compaction on the database.
     pub fn compact(perpetual_db: &Arc<AuthorityPerpetualTables>) -> Result<(), TypedStoreError> {
         perpetual_db.objects.compact_range(
-            &ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL),
-            &ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL),
+            &ObjectKey(ObjectId::ZERO, SequenceNumber::MIN_VALID_INCL),
+            &ObjectKey(ObjectId::MAX, SequenceNumber::MAX_VALID_EXCL),
         )
     }
 }
@@ -930,8 +931,9 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
+    use iota_sdk_types::ObjectId;
     use iota_types::{
-        base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{ObjectDigest, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt},
         object::Object,
@@ -995,7 +997,7 @@ mod tests {
         let (mut to_keep, mut to_delete, mut tombstones) = (vec![], vec![], vec![]);
         let mut batch = db.objects.batch();
 
-        let mut id = ObjectID::ZERO;
+        let mut id = ObjectId::ZERO;
         for _ in 0..total_unique_object_ids {
             for (counter, seq) in (0..num_versions_per_object).rev().enumerate() {
                 let object_key = ObjectKey(id, SequenceNumber::from_u64(seq));
@@ -1114,7 +1116,7 @@ mod tests {
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
         let total_unique_object_ids = 10_000;
         let num_versions_per_object = 10;
-        let mut id = ObjectID::ZERO;
+        let mut id = ObjectId::ZERO;
         let mut to_delete = vec![];
         for _ in 0..total_unique_object_ids {
             for i in (0..num_versions_per_object).rev() {
@@ -1145,8 +1147,8 @@ mod tests {
         }
 
         let db_path = tmp_dir.path().join("perpetual");
-        let start = ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL);
-        let end = ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL);
+        let start = ObjectKey(ObjectId::ZERO, SequenceNumber::MIN_VALID_INCL);
+        let end = ObjectKey(ObjectId::MAX, SequenceNumber::MAX_VALID_EXCL);
 
         perpetual_db.objects.compact_range(&start, &end)?;
         let before_compaction_size = get_sst_size(&db_path);

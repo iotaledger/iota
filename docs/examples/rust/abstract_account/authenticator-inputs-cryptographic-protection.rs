@@ -22,13 +22,12 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{Argument, Transaction},
     },
 };
-use iota_sdk_types::{Identifier, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::PublicKey,
@@ -238,7 +237,7 @@ pub async fn create_account(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
     publisher: IotaAddress,
-    package_id: &ObjectID,
+    package_id: &ObjectId,
     package_metadata_ref: ObjectRef,
     pub_key: &PublicKey,
 ) -> Result<ObjectRef> {
@@ -252,7 +251,7 @@ pub async fn create_account(
             builder.pure(AA_AUTHENTICATE_FN_NAME)?,
         ];
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_static(IOTA_AUTHENTICATOR_FN_MODULE_NAME),
             Identifier::from_static(IOTA_CREATE_AUTH_FUNCTION_REF_V1_FN_NAME),
             vec![aa_type_tag(package_id)],
@@ -308,7 +307,7 @@ pub async fn create_blacklist(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
     publisher: IotaAddress,
-    package_id: &ObjectID,
+    package_id: &ObjectId,
 ) -> Result<ObjectRef> {
     // Create a PTB that creates a blacklist shared object instance
     let pt = {
@@ -477,7 +476,7 @@ pub fn swap_raw_value_in_transaction(
 }
 
 /// Utility function to get the TypeTag of the abstract account struct.
-fn aa_type_tag(package_id: &ObjectID) -> TypeTag {
+fn aa_type_tag(package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(format!("{package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
         .unwrap()
 }

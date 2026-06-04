@@ -5,8 +5,9 @@
 
 use std::sync::Arc;
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     object::Object,
 };
@@ -39,7 +40,7 @@ pub struct AccountCurrent {
     pub current_balances: Vec<u64>,
     pub current_coins: Vec<Object>,
     // Non-coin objects
-    pub current_objects: Vec<ObjectID>,
+    pub current_objects: Vec<ObjectId>,
 }
 
 impl Account {
@@ -58,7 +59,7 @@ impl AccountData {
     pub fn new_with_account_and_balance(account: Arc<Account>, initial_balance: u64) -> Self {
         let coins = (0..NUM_GAS_OBJECTS)
             .map(|_| {
-                let gas_object_id = ObjectID::random();
+                let gas_object_id = ObjectId::random();
                 Object::with_id_owner_gas_for_testing(
                     gas_object_id,
                     account.address,
@@ -91,7 +92,7 @@ impl AccountCurrent {
     // a gas object for each transaction.
     pub fn new_gas_object(&mut self, exec: &mut Executor) -> Object {
         // We just create a new gas object for this transaction
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_gas_for_testing(
             gas_object_id,
             self.initial_data.account.address,

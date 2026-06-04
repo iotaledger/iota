@@ -4,8 +4,9 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     object::Owner,
 };
@@ -37,7 +38,7 @@ impl TestCaseImpl for NativeTransferTest {
         let signer = ctx.get_wallet_address();
         let (recipient_addr, _): (_, AccountKeyPair) = get_key_pair();
         // Test transfer object
-        let obj_to_transfer: ObjectID = *iota_objs.swap_remove(0).id();
+        let obj_to_transfer: ObjectId = *iota_objs.swap_remove(0).id();
         let params = rpc_params![
             signer,
             obj_to_transfer,
@@ -78,7 +79,7 @@ impl NativeTransferTest {
         response: &mut IotaTransactionBlockResponse,
         signer: IotaAddress,
         recipient: IotaAddress,
-        obj_to_transfer_id: ObjectID,
+        obj_to_transfer_id: ObjectId,
     ) {
         let balance_changes = &mut response.balance_changes.as_mut().unwrap();
         // for transfer we only expect 2 balance changes, one for sender and one for

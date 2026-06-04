@@ -6,12 +6,13 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::ObjectId;
 use iota_stardust_types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
+    base_types::{IotaAddress, SequenceNumber, TxContext},
     collection_types::{Bag, Entry, VecMap},
     id::UID,
     object::{Data, MoveObject, MoveObjectExt, Object, Owner},
@@ -154,7 +155,7 @@ impl Irc27MetadataExt for Irc27Metadata {
 /// Extension trait for creating `Nft` from Stardust types.
 pub trait NftExt {
     /// Creates the Move-based Nft model from a Stardust-based Nft Output.
-    fn try_from_stardust(nft_id: ObjectID, nft: &StardustNft) -> Result<Nft, anyhow::Error>;
+    fn try_from_stardust(nft_id: ObjectId, nft: &StardustNft) -> Result<Nft, anyhow::Error>;
     /// Converts the immutable metadata of the NFT into an [`Irc27Metadata`].
     fn convert_immutable_metadata(nft: &StardustNft) -> anyhow::Result<Irc27Metadata>;
     /// Creates a genesis object from this NFT.
@@ -168,7 +169,7 @@ pub trait NftExt {
 }
 
 impl NftExt for Nft {
-    fn try_from_stardust(nft_id: ObjectID, nft: &StardustNft) -> Result<Nft, anyhow::Error> {
+    fn try_from_stardust(nft_id: ObjectId, nft: &StardustNft) -> Result<Nft, anyhow::Error> {
         if nft_id.as_ref() == [0; 32] {
             anyhow::bail!("nft_id must be non-zeroed");
         }
@@ -282,7 +283,7 @@ pub trait NftOutputExt {
     /// Creates the Move-based Nft Output model from a Stardust-based Nft
     /// Output.
     fn try_from_stardust(
-        object_id: ObjectID,
+        object_id: ObjectId,
         nft: &StardustNft,
         native_tokens: Bag,
     ) -> Result<NftOutput, anyhow::Error>;
@@ -300,7 +301,7 @@ pub trait NftOutputExt {
 
 impl NftOutputExt for NftOutput {
     fn try_from_stardust(
-        object_id: ObjectID,
+        object_id: ObjectId,
         nft: &StardustNft,
         native_tokens: Bag,
     ) -> Result<NftOutput, anyhow::Error> {

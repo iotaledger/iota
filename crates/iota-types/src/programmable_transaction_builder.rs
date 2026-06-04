@@ -7,17 +7,17 @@
 
 use anyhow::Context;
 use indexmap::IndexMap;
-use iota_sdk_types::{Command, Identifier, TypeTag};
+use iota_sdk_types::{Command, Identifier, ObjectId, TypeTag};
 use serde::Serialize;
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     transaction::{Argument, CallArg, ProgrammableTransaction, SharedObjectRef},
 };
 
 #[derive(PartialEq, Eq, Hash)]
 enum BuilderArg {
-    Object(ObjectID),
+    Object(ObjectId),
     Pure(Vec<u8>),
     ForcedNonUniquePure(usize),
 }
@@ -137,7 +137,7 @@ impl ProgrammableTransactionBuilder {
     /// Will fail to generate if given an empty ObjVec
     pub fn move_call(
         &mut self,
-        package: ObjectID,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -159,7 +159,7 @@ impl ProgrammableTransactionBuilder {
 
     pub fn programmable_move_call(
         &mut self,
-        package: ObjectID,
+        package: ObjectId,
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
@@ -177,15 +177,15 @@ impl ProgrammableTransactionBuilder {
     pub fn publish_upgradeable(
         &mut self,
         modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
     ) -> Argument {
         self.command(Command::new_publish(modules, dep_ids))
     }
 
-    pub fn publish_immutable(&mut self, modules: Vec<Vec<u8>>, dep_ids: Vec<ObjectID>) {
+    pub fn publish_immutable(&mut self, modules: Vec<Vec<u8>>, dep_ids: Vec<ObjectId>) {
         let cap = self.publish_upgradeable(modules, dep_ids);
         self.commands.push(Command::new_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::PACKAGE_MODULE,
             Identifier::from_static("make_immutable"),
             vec![],
@@ -195,9 +195,9 @@ impl ProgrammableTransactionBuilder {
 
     pub fn upgrade(
         &mut self,
-        current_package_object_id: ObjectID,
+        current_package_object_id: ObjectId,
         upgrade_ticket: Argument,
-        transitive_deps: Vec<ObjectID>,
+        transitive_deps: Vec<ObjectId>,
         modules: Vec<Vec<u8>>,
     ) -> Argument {
         self.command(Command::new_upgrade(

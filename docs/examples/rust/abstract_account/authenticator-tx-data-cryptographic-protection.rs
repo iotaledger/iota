@@ -15,9 +15,9 @@ use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
 };
-use iota_sdk_types::{Identifier, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -128,7 +128,7 @@ pub async fn create_account(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
     publisher: IotaAddress,
-    package_id: &ObjectID,
+    package_id: &ObjectId,
     package_metadata_ref: ObjectRef,
     unlock_time: u64,
 ) -> Result<ObjectRef> {
@@ -142,7 +142,7 @@ pub async fn create_account(
             builder.pure(AA_AUTHENTICATE_FN_NAME)?,
         ];
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_static(IOTA_AUTHENTICATOR_FN_MODULE_NAME),
             Identifier::from_static(IOTA_CREATE_AUTH_FUNCTION_REF_V1_FN_NAME),
             vec![aa_type_tag(package_id)],
@@ -246,7 +246,7 @@ pub fn swap_recipient_in_transaction(
 }
 
 /// Utility function to get the TypeTag of the abstract account struct.
-fn aa_type_tag(package_id: &ObjectID) -> TypeTag {
+fn aa_type_tag(package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(format!("{package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
         .unwrap()
 }

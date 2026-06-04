@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::StructTag;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::{ObjectId, StructTag};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::vm_status::StatusCode;
 use move_vm_types::values::Value;
@@ -22,7 +21,7 @@ enum ObjectFingerprint_ {
     Empty,
     // The object was loaded as a child object from storage.
     Preexisting {
-        owner: ObjectID,
+        owner: ObjectId,
         ty: StructTag,
         value: Value,
     },
@@ -50,7 +49,7 @@ impl ObjectFingerprint {
     /// protocol config.
     pub fn preexisting(
         protocol_config: &ProtocolConfig,
-        preexisting_owner: &ObjectID,
+        preexisting_owner: &ObjectId,
         preexisting_type: &StructTag,
         preexisting_value: &Value,
     ) -> PartialVMResult<Self> {
@@ -71,7 +70,7 @@ impl ObjectFingerprint {
     /// but the owner and type are thesame.
     pub fn object_has_changed(
         &self,
-        final_owner: &ObjectID,
+        final_owner: &ObjectId,
         final_type: &StructTag,
         final_value: &Option<Value>,
     ) -> PartialVMResult<bool> {

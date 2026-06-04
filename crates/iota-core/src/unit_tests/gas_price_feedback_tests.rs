@@ -7,8 +7,9 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
     executable_transaction::VerifiedExecutableTransaction,
@@ -47,13 +48,13 @@ const DEFAULT_GAS_UNITS_FOR_TESTS: u64 = 10_000;
 
 /// Container holding gas object ID, gas price, and gas budget.
 struct GasDataForTests {
-    gas_object_id: ObjectID,
+    gas_object_id: ObjectId,
     gas_price: u64,
     gas_budget: u64,
 }
 
 impl GasDataForTests {
-    fn new(gas_object_id: ObjectID, gas_price: u64, gas_budget: u64) -> Self {
+    fn new(gas_object_id: ObjectId, gas_price: u64, gas_budget: u64) -> Self {
         Self {
             gas_object_id,
             gas_price,
@@ -67,7 +68,7 @@ struct GasPriceFeedbackTester {
     protocol_config: ProtocolConfig,
     sender: IotaAddress,
     sender_key: AccountKeyPair,
-    gas_object_ids: Vec<ObjectID>,
+    gas_object_ids: Vec<ObjectId>,
     package: ObjectRef,
     shared_counter_1: ObjectRef,
     shared_counter_2: ObjectRef,
@@ -121,7 +122,7 @@ impl GasPriceFeedbackTester {
             .await;
 
         let gas_object_ids = (0..num_gas_objects)
-            .map(|_| ObjectID::random())
+            .map(|_| ObjectId::random())
             .collect::<Vec<_>>();
         let gas_objects = gas_object_ids
             .iter()
@@ -174,8 +175,8 @@ impl GasPriceFeedbackTester {
     /// Build and execute a transaction that creates a shared counter.
     async fn create_shared_counter(
         authority_state: &AuthorityState,
-        package_id: &ObjectID,
-        gas_object_id: &ObjectID,
+        package_id: &ObjectId,
+        gas_object_id: &ObjectId,
         sender: &IotaAddress,
         sender_key: &AccountKeyPair,
     ) -> ObjectRef {

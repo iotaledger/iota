@@ -105,8 +105,8 @@ async fn publish_move_random_package(
     authority_state: &Arc<AuthorityState>,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    gas_object_id: &ObjectID,
-) -> ObjectID {
+    gas_object_id: &ObjectId,
+) -> ObjectId {
     const PUBLISH_BUDGET: u64 = 10_000_000;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
@@ -159,7 +159,7 @@ where
         authority_state.insert_genesis_object(obj).await;
     }
 
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_coin = Object::with_id_owner_gas_for_testing(gas_object_id, sender, gas_amount);
     authority_state.insert_genesis_object(gas_coin).await;
     // touch gas coins so that `storage_rebate` is set (not 0 as in genesis)
@@ -245,7 +245,7 @@ fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Obj
     let mut objects = vec![];
     let coin_balance = gas_amount / coin_num;
     for _ in 1..coin_num {
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
         objects.push(Object::with_id_owner_gas_for_testing(
             gas_object_id,
             owner,
@@ -254,7 +254,7 @@ fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Obj
     }
     // in case integer division dropped something, make a coin with whatever is left
     let amount_left = gas_amount - (coin_balance * (coin_num - 1));
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     objects.push(Object::with_id_owner_gas_for_testing(
         gas_object_id,
         owner,
@@ -269,8 +269,8 @@ async fn touch_gas_coins(
     sender: IotaAddress,
     sender_key: &AccountKeyPair,
     recipient: IotaAddress,
-    coin_ids: &[ObjectID],
-    gas_object_id: ObjectID,
+    coin_ids: &[ObjectId],
+    gas_object_id: ObjectId,
 ) {
     let mut builder = ProgrammableTransactionBuilder::new();
     for coin_id in coin_ids {
@@ -556,7 +556,7 @@ async fn test_transfer_iota_insufficient_gas() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let authority_state = TestAuthorityBuilder::new().build().await;
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(gas_object_id, sender, *MAX_GAS_BUDGET);
     let gas_object_ref = gas_object.compute_object_reference();
     authority_state.insert_genesis_object(gas_object).await;
@@ -612,7 +612,7 @@ async fn test_invalid_gas_owners() {
     let shared_object = init_object(Object::shared_for_testing()).await;
     let immutable_object = init_object(Object::immutable_for_testing()).await;
     let id_owned_object = init_object(Object::with_object_owner_for_testing(
-        ObjectID::random(),
+        ObjectId::random(),
         gas_object3.object_id,
     ))
     .await;
@@ -764,7 +764,7 @@ async fn test_native_transfer_insufficient_gas_execution() {
 #[tokio::test]
 async fn test_publish_gas() -> anyhow::Result<()> {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
@@ -837,7 +837,7 @@ async fn test_publish_gas() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_call_gas() -> IotaResult {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1002,7 +1002,7 @@ async fn test_tx_gas_coins_input_coins() {
 
 struct TransferResult {
     pub authority_state: Arc<AuthorityState>,
-    pub gas_object_id: ObjectID,
+    pub gas_object_id: ObjectId,
     pub response: IotaResult<TransactionStatus>,
     pub rgp: u64,
 }
@@ -1024,7 +1024,7 @@ async fn execute_transfer_with_price(
     min_budget_pre_rgp: bool,
 ) -> TransferResult {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let object_id: ObjectID = ObjectID::random();
+    let object_id: ObjectId = ObjectId::random();
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap() * rgp_multiple;
@@ -1034,7 +1034,7 @@ async fn execute_transfer_with_price(
         gas_budget
     };
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(gas_object_id, sender, gas_balance);
     let gas_object_ref = gas_object.compute_object_reference();
     authority_state.insert_genesis_object(gas_object).await;

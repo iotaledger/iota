@@ -23,6 +23,7 @@ iota-move-build.workspace = true
 iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true

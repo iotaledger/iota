@@ -4,35 +4,37 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
+use iota_sdk_types::ObjectId;
+
 use super::{ObjectKey, error::Result};
 use crate::{
-    base_types::{ObjectID, ObjectRef, VersionNumber},
+    base_types::{ObjectRef, VersionNumber},
     object::Object,
     storage::WriteKind,
 };
 
 pub trait ObjectStore {
-    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>>;
+    fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>>;
 
     /// Non-fallible version of `try_get_object`.
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+    fn get_object(&self, object_id: &ObjectId) -> Option<Object> {
         self.try_get_object(object_id)
             .expect("storage access failed")
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>>;
 
     /// Non-fallible version of `try_get_object_by_key`.
-    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+    fn get_object_by_key(&self, object_id: &ObjectId, version: VersionNumber) -> Option<Object> {
         self.try_get_object_by_key(object_id, version)
             .expect("storage access failed")
     }
 
-    fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
+    fn try_multi_get_objects(&self, object_ids: &[ObjectId]) -> Result<Vec<Option<Object>>> {
         object_ids
             .iter()
             .map(|digest| self.try_get_object(digest))
@@ -40,7 +42,7 @@ pub trait ObjectStore {
     }
 
     /// Non-fallible version of `try_multi_get_objects`.
-    fn multi_get_objects(&self, object_ids: &[ObjectID]) -> Vec<Option<Object>> {
+    fn multi_get_objects(&self, object_ids: &[ObjectId]) -> Vec<Option<Object>> {
         self.try_multi_get_objects(object_ids)
             .expect("storage access failed")
     }
@@ -63,19 +65,19 @@ pub trait ObjectStore {
 }
 
 impl<T: ObjectStore + ?Sized> ObjectStore for &T {
-    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>> {
         (*self).try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
         (*self).try_get_object_by_key(object_id, version)
     }
 
-    fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
+    fn try_multi_get_objects(&self, object_ids: &[ObjectId]) -> Result<Vec<Option<Object>>> {
         (*self).try_multi_get_objects(object_ids)
     }
 
@@ -88,19 +90,19 @@ impl<T: ObjectStore + ?Sized> ObjectStore for &T {
 }
 
 impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {
-    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>> {
         (**self).try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
         (**self).try_get_object_by_key(object_id, version)
     }
 
-    fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
+    fn try_multi_get_objects(&self, object_ids: &[ObjectId]) -> Result<Vec<Option<Object>>> {
         (**self).try_multi_get_objects(object_ids)
     }
 
@@ -113,19 +115,19 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Box<T> {
 }
 
 impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
-    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>> {
         (**self).try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
         (**self).try_get_object_by_key(object_id, version)
     }
 
-    fn try_multi_get_objects(&self, object_ids: &[ObjectID]) -> Result<Vec<Option<Object>>> {
+    fn try_multi_get_objects(&self, object_ids: &[ObjectId]) -> Result<Vec<Option<Object>>> {
         (**self).try_multi_get_objects(object_ids)
     }
 
@@ -138,13 +140,13 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
 }
 
 impl ObjectStore for &[Object] {
-    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+    fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>> {
         Ok(self.iter().find(|o| o.id() == *object_id).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
         Ok(self
@@ -154,14 +156,14 @@ impl ObjectStore for &[Object] {
     }
 }
 
-impl ObjectStore for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
-    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+impl ObjectStore for BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)> {
+    fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>> {
         Ok(self.get(object_id).map(|(_, obj, _)| obj).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
         Ok(self
@@ -177,14 +179,14 @@ impl ObjectStore for BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)> {
     }
 }
 
-impl ObjectStore for BTreeMap<ObjectID, Object> {
-    fn try_get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+impl ObjectStore for BTreeMap<ObjectId, Object> {
+    fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>> {
         Ok(self.get(object_id).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>> {
         Ok(self.get(object_id).and_then(|o| {

@@ -5,6 +5,7 @@
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_types::ObjectId;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -20,7 +21,7 @@ use crate::iota_system_state::epoch_start_iota_system_state::{
 };
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
@@ -423,7 +424,7 @@ impl ValidatorV1 {
 /// Rust version of the Move iota_system::staking_pool::StakingPoolV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakingPoolV1 {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub activation_epoch: Option<u64>,
     pub deactivation_epoch: Option<u64>,
     pub iota_balance: u64,
@@ -701,6 +702,6 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
 /// iota_system::validator_cap::UnverifiedValidatorOperationCap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct UnverifiedValidatorOperationCap {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub authorizer_validator_address: IotaAddress,
 }

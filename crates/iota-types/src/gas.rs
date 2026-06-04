@@ -13,7 +13,7 @@ pub mod checked {
     pub use iota_sdk_types::gas::GasCostSummary;
 
     use crate::{
-        ObjectID,
+        ObjectId,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         object::{MoveObjectExt, Object},
@@ -39,7 +39,7 @@ pub mod checked {
         fn charge_publish_package(&mut self, size: usize) -> Result<(), ExecutionError>;
         fn track_storage_mutation(
             &mut self,
-            object_id: ObjectID,
+            object_id: ObjectId,
             new_size: usize,
             storage_rebate: u64,
         ) -> u64;

@@ -8,8 +8,9 @@ use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult},
@@ -590,7 +591,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     #[instrument(level = "trace", skip_all)]
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         let key = Key::ObjectKey(ObjectKey(object_id, version));

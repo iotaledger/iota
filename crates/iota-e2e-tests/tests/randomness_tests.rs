@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -19,7 +19,7 @@ async fn test_check_randomness_state_object_exists() {
         h.with(|node| {
             node.state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(ObjectID::RANDOMNESS_STATE)
+                .get_latest_object_ref_or_tombstone(ObjectId::RANDOMNESS_STATE)
                 .expect("randomness state object should exist");
         });
     }

@@ -31,6 +31,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
+    misbehavior_store::MisbehaviorStore,
     network::tonic_network::{TonicClient, TonicManager},
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
@@ -124,7 +125,12 @@ impl ConsensusAuthority {
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
         let store = Arc::new(RocksDBStore::new(store_path));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let dag_state = Arc::new(RwLock::new(DagState::new_with_misbehavior_store(
+            context.clone(),
+            store.clone(),
+            misbehavior_store.clone(),
+        )));
 
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -238,6 +244,7 @@ impl ConsensusAuthority {
             dag_state.clone(),
             sync_last_known_own_block,
             fast_sync_active.clone(),
+            misbehavior_store.clone(),
         );
 
         // Both commit syncers run, but only one actively fetches based on the gap.
@@ -252,6 +259,7 @@ impl ConsensusAuthority {
             block_verifier.clone(),
             dag_state.clone(),
             header_synchronizer.clone(),
+            misbehavior_store.clone(),
             fast_sync_active.clone(),
         )
         .start();
@@ -270,6 +278,7 @@ impl ConsensusAuthority {
                 block_verifier.clone(),
                 dag_state.clone(),
                 header_synchronizer.clone(),
+                misbehavior_store.clone(),
                 flag.clone(),
             )
             .start()
@@ -285,6 +294,7 @@ impl ConsensusAuthority {
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store.clone(),
+            misbehavior_store.clone(),
             shard_reconstructor.transaction_message_sender(),
             cordial_knowledge.clone(),
         ));

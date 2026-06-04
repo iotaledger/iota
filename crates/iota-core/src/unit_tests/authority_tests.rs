@@ -72,8 +72,8 @@ use crate::{
 
 pub enum TestCallArg {
     Pure(Vec<u8>),
-    Object(ObjectID),
-    ObjVec(Vec<ObjectID>),
+    Object(ObjectId),
+    ObjVec(Vec<ObjectId>),
 }
 
 impl TestCallArg {
@@ -97,7 +97,7 @@ impl TestCallArg {
         }
     }
 
-    async fn call_arg_from_id(object_id: ObjectID, state: &AuthorityState) -> CallArg {
+    async fn call_arg_from_id(object_id: ObjectId, state: &AuthorityState) -> CallArg {
         let object = state.get_object(&object_id).await.unwrap();
         match &object.owner {
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
@@ -121,13 +121,13 @@ async fn construct_shared_object_transaction_with_sequence_number(
     Arc<AuthorityState>,
     Arc<AuthorityState>,
     VerifiedTransaction,
-    ObjectID,
-    ObjectID,
+    ObjectId,
+    ObjectId,
 ) {
     let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
     // Initialize an authority with a (owned) gas object and a shared object.
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (shared_object_id, shared_object) = {
         let (authority, package) =
             init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -251,7 +251,7 @@ async fn test_dry_run_transaction_block() {
 async fn test_dry_run_no_gas_big_transfer() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
@@ -281,7 +281,7 @@ async fn test_dry_run_no_gas_big_transfer() {
 #[tokio::test]
 async fn test_dev_inspect_object_by_bytes() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
@@ -419,7 +419,7 @@ async fn test_dev_inspect_object_by_bytes() {
 #[tokio::test]
 async fn test_dev_inspect_unowned_object() {
     let (alice, alice_key): (_, AccountKeyPair) = get_key_pair();
-    let alice_gas_id = ObjectID::random();
+    let alice_gas_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(alice, alice_gas_id)]).await;
     let (bob, _bob_key): (_, AccountKeyPair) = get_key_pair();
@@ -487,7 +487,7 @@ async fn test_dev_inspect_unowned_object() {
 async fn test_dev_inspect_dynamic_field() {
     let (test_object1_bytes, test_object2_bytes) = {
         let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
         let (validator, fullnode, object_basics) =
             init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)])
                 .await;
@@ -526,7 +526,7 @@ async fn test_dev_inspect_dynamic_field() {
     };
 
     let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (_validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
@@ -595,7 +595,7 @@ async fn test_dev_inspect_dynamic_field() {
 #[tokio::test]
 async fn test_dev_inspect_return_values() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
@@ -883,7 +883,7 @@ fn check_coin_value(actual_value: &[u8], actual_type: &IotaTypeTag, expected_val
 #[tokio::test]
 async fn test_dev_inspect_uses_unbound_object() {
     let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (_validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
@@ -926,7 +926,7 @@ async fn test_dev_inspect_uses_unbound_object() {
 #[tokio::test]
 async fn test_dev_inspect_on_validator() {
     let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (validator, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -964,7 +964,7 @@ async fn test_dry_run_on_validator() {
 #[tokio::test]
 async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
     let (validator, object_basics) = publish_object_basics(validator).await;
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
@@ -1087,7 +1087,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
 #[tokio::test]
 async fn test_dry_run_dev_inspect_max_gas_version() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
     let (validator, object_basics) = publish_object_basics(validator).await;
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
@@ -1137,8 +1137,8 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
 async fn test_handle_transfer_transaction_bad_signature() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1219,8 +1219,8 @@ async fn test_handle_transfer_transaction_bad_signature() {
 #[tokio::test]
 async fn test_handle_transfer_transaction_with_max_sequence_number() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let object_id: ObjectID = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id: ObjectId = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids_and_versions(vec![
         (sender, object_id, SequenceNumber::MAX_VALID_EXCL),
@@ -1273,8 +1273,8 @@ async fn test_handle_shared_object_with_max_sequence_number() {
 async fn test_handle_transfer_transaction_unknown_sender() {
     let sender = dbg_addr(1);
     let (unknown_address, unknown_key) = get_key_pair();
-    let object_id: ObjectID = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id: ObjectId = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let recipient = dbg_addr(2);
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
@@ -1330,8 +1330,8 @@ async fn test_handle_transfer_transaction_unknown_sender() {
 async fn test_handle_transfer_transaction_ok() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
 
@@ -1421,8 +1421,8 @@ async fn test_handle_sponsored_transaction() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (sponsor, sponsor_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sponsor, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1550,7 +1550,7 @@ async fn test_handle_sponsored_transaction() {
 async fn test_transfer_package() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
@@ -1582,12 +1582,12 @@ async fn test_transfer_package() {
 async fn test_immutable_gas() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let mut_object_id = ObjectID::random();
+    let mut_object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, mut_object_id)]).await;
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let imm_object_id = ObjectID::random();
+    let imm_object_id = ObjectId::random();
     let imm_object = Object::immutable_with_id_for_testing(imm_object_id);
     authority_state
         .insert_genesis_object(imm_object.clone())
@@ -1618,10 +1618,10 @@ async fn test_immutable_gas() {
 async fn test_objected_owned_gas() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let parent_object_id = ObjectID::random();
+    let parent_object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, parent_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let child_object_id = ObjectID::random();
+    let child_object_id = ObjectId::random();
     let child_object = Object::with_object_owner_for_testing(child_object_id, parent_object_id);
     authority_state
         .insert_genesis_object(child_object.clone())
@@ -1667,7 +1667,7 @@ fn make_dependent_module(m: &CompiledModule) -> CompiledModule {
 #[tokio::test]
 async fn test_publish_dependent_module_ok() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_payment_object_id = ObjectID::random();
+    let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
     let gas_payment_object_ref = gas_payment_object.compute_object_reference();
     // create a genesis state that contains the gas object and genesis modules
@@ -1703,7 +1703,7 @@ async fn test_publish_dependent_module_ok() {
         sender,
         gas_payment_object_ref,
         vec![dependent_module_bytes],
-        vec![ObjectID::new(genesis_module.address().into_bytes())],
+        vec![ObjectId::new(genesis_module.address().into_bytes())],
         gas_budget,
         gas_price,
     );
@@ -1739,7 +1739,7 @@ async fn test_publish_module_no_dependencies_ok() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let authority = init_state_with_objects(vec![]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let gas_payment_object_id = ObjectID::random();
+    let gas_payment_object_id = ObjectId::random();
     let epoch_store = authority.epoch_store_for_testing();
     let protocol_config = epoch_store.protocol_config();
     // Use the max budget to avoid running out of gas.
@@ -1788,7 +1788,7 @@ async fn test_publish_module_no_dependencies_ok() {
 #[tokio::test]
 async fn test_publish_non_existing_dependent_module() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_payment_object_id = ObjectID::random();
+    let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
     let gas_payment_object_ref = gas_payment_object.compute_object_reference();
     // create a genesis state that contains the gas object and genesis modules
@@ -1808,7 +1808,7 @@ async fn test_publish_non_existing_dependent_module() {
     let mut dependent_module = make_dependent_module(&genesis_module);
     // Add another dependent module that points to a random address, hence does not
     // exist on-chain.
-    let not_on_chain = ObjectID::random();
+    let not_on_chain = ObjectId::random();
     dependent_module
         .address_identifiers
         .push(AccountAddress::new(not_on_chain.into_bytes()));
@@ -1832,7 +1832,7 @@ async fn test_publish_non_existing_dependent_module() {
         gas_payment_object_ref,
         vec![dependent_module_bytes],
         vec![
-            ObjectID::new(genesis_module.address().into_bytes()),
+            ObjectId::new(genesis_module.address().into_bytes()),
             not_on_chain,
         ],
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
@@ -1864,7 +1864,7 @@ async fn test_publish_non_existing_dependent_module() {
 #[tokio::test]
 async fn test_package_size_limit() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_payment_object_id = ObjectID::random();
+    let gas_payment_object_id = ObjectId::random();
     let gas_payment_object =
         Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, u64::MAX);
     let gas_payment_object_ref = gas_payment_object.compute_object_reference();
@@ -1920,7 +1920,7 @@ async fn test_package_size_limit() {
 #[tokio::test]
 async fn test_handle_move_transaction() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_payment_object_id = ObjectID::random();
+    let gas_payment_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_payment_object_id)]).await;
 
@@ -1953,8 +1953,8 @@ async fn test_conflicting_transactions() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient1 = dbg_addr(2);
     let recipient2 = dbg_addr(3);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
 
@@ -2059,8 +2059,8 @@ async fn test_conflicting_transactions() {
 async fn test_handle_transfer_transaction_double_spend() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
 
@@ -2097,7 +2097,7 @@ async fn test_handle_transfer_transaction_double_spend() {
 async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let object = authority_state.get_object(&object_id).await.unwrap();
@@ -2126,13 +2126,13 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
 #[tokio::test]
 async fn test_missing_package() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, _object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
-    let non_existent_package = ObjectID::MAX;
+    let non_existent_package = ObjectId::MAX;
     let gas_object_ref = gas_object.compute_object_reference();
     let data = TransactionData::new_move_call(
         sender,
@@ -2162,9 +2162,9 @@ async fn test_type_argument_dependencies() {
     let (s1, s1_key): (_, AccountKeyPair) = get_key_pair();
     let (s2, s2_key): (_, AccountKeyPair) = get_key_pair();
     let (s3, s3_key): (_, AccountKeyPair) = get_key_pair();
-    let gas1 = ObjectID::random();
-    let gas2 = ObjectID::random();
-    let gas3 = ObjectID::random();
+    let gas1 = ObjectId::random();
+    let gas2 = ObjectId::random();
+    let gas3 = ObjectId::random();
     let (authority_state, object_ref) =
         init_state_with_ids_and_object_basics(vec![(s1, gas1), (s2, gas2), (s3, gas3)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
@@ -2235,7 +2235,7 @@ async fn test_type_argument_dependencies() {
         Identifier::from_static("object_basics"),
         Identifier::from_static("generic_test"),
         vec![TypeTag::Struct(Box::new(StructTag::new(
-            ObjectID::MAX,
+            ObjectId::MAX,
             Identifier::from_static("object_basics"),
             Identifier::from_static("Object"),
             vec![],
@@ -2261,8 +2261,8 @@ async fn test_type_argument_dependencies() {
 #[tokio::test]
 async fn test_handle_confirmation_transaction_receiver_equal_sender() {
     let (address, key) = get_key_pair();
-    let object_id: ObjectID = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id: ObjectId = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(address, object_id), (address, gas_object_id)]).await;
     let object = authority_state.get_object(&object_id).await.unwrap();
@@ -2290,8 +2290,8 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
 async fn test_handle_confirmation_transaction_ok() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let object = authority_state.get_object(&object_id).await.unwrap();
@@ -2351,8 +2351,8 @@ async fn test_handle_confirmation_transaction_ok() {
 async fn test_handle_confirmation_transaction_idempotent() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
-    let gas_object_id = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let object = authority_state.get_object(&object_id).await.unwrap();
@@ -2403,7 +2403,7 @@ async fn test_handle_confirmation_transaction_idempotent() {
 #[tokio::test]
 async fn test_move_call_mutable_object_not_mutated() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -2494,9 +2494,9 @@ async fn test_move_call_insufficient_gas() {
     // failed to execute, all objects are mutated properly.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (recipient, recipient_key): (_, AccountKeyPair) = get_key_pair();
-    let object_id = ObjectID::random();
-    let gas_object_id1 = ObjectID::random();
-    let gas_object_id2 = ObjectID::random();
+    let object_id = ObjectId::random();
+    let gas_object_id1 = ObjectId::random();
+    let gas_object_id2 = ObjectId::random();
     let authority_state = init_state_with_ids(vec![
         (sender, object_id),
         (sender, gas_object_id1),
@@ -2580,7 +2580,7 @@ async fn test_move_call_insufficient_gas() {
 #[tokio::test]
 async fn test_move_call_delete() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -2660,7 +2660,7 @@ async fn test_get_latest_parent_entry_genesis() {
     // There should not be any object with ID zero
     assert!(
         authority_state
-            .get_object_or_tombstone(ObjectID::ZERO)
+            .get_object_or_tombstone(ObjectId::ZERO)
             .await
             .is_none()
     );
@@ -2669,7 +2669,7 @@ async fn test_get_latest_parent_entry_genesis() {
 #[tokio::test]
 async fn test_get_latest_parent_entry() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -2756,7 +2756,7 @@ async fn test_get_latest_parent_entry() {
     let last_index = x.len() - 1;
     // Prevent overflow
     x[last_index] = u8::MAX - x[last_index];
-    let unknown_object_id = ObjectID::from_bytes(x).unwrap();
+    let unknown_object_id = ObjectId::from_bytes(x).unwrap();
     assert!(
         authority_state
             .get_object_or_tombstone(unknown_object_id)
@@ -2795,7 +2795,7 @@ async fn test_account_state_ok() {
 async fn test_account_state_unknown_account() {
     let sender = dbg_addr(1);
     let unknown_address = dbg_object_id(99);
-    let authority_state = init_state_with_object_id(sender, ObjectID::random()).await;
+    let authority_state = init_state_with_object_id(sender, ObjectId::random()).await;
     assert!(authority_state.get_object(&unknown_address).await.is_none());
 }
 
@@ -2831,7 +2831,7 @@ async fn test_authority_persist() {
 
     // Create an object
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let obj = Object::with_id_owner_for_testing(object_id, recipient);
 
     // Store an object
@@ -2911,7 +2911,7 @@ async fn test_invalid_mutable_clock_parameter() {
     // User transactions that take the singleton Clock object at `0x6` by mutable
     // reference will fail to sign, to prevent transactions bottlenecking on it.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
@@ -2946,7 +2946,7 @@ async fn test_invalid_mutable_clock_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpected {
-            object_id: ObjectID::CLOCK
+            object_id: ObjectId::CLOCK
         }
     );
 }
@@ -2957,7 +2957,7 @@ async fn test_invalid_randomness_parameter() {
     // mutable reference will fail to sign, to prevent transactions
     // bottlenecking on it.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
@@ -2966,7 +2966,7 @@ async fn test_invalid_randomness_parameter() {
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
             .unwrap();
     let random_mut = CallArg::Shared(SharedObjectRef::new(
-        ObjectID::RANDOMNESS_STATE,
+        ObjectId::RANDOMNESS_STATE,
         init_random_version,
         true,
     ));
@@ -3000,7 +3000,7 @@ async fn test_invalid_randomness_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpected {
-            object_id: ObjectID::RANDOMNESS_STATE
+            object_id: ObjectId::RANDOMNESS_STATE
         }
     );
 }
@@ -3013,10 +3013,10 @@ async fn test_invalid_object_ownership() {
     let (invalid_owner, _): (_, AccountKeyPair) = get_key_pair();
 
     let recipient = dbg_addr(2);
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
 
-    let invalid_ownership_object_id = ObjectID::random();
+    let invalid_ownership_object_id = ObjectId::random();
     let invalid_ownership_object =
         Object::with_id_owner_for_testing(invalid_ownership_object_id, invalid_owner);
 
@@ -3059,7 +3059,7 @@ async fn test_invalid_object_ownership() {
 async fn test_valid_immutable_clock_parameter() {
     // User transactions can take an immutable reference of the singleton Clock.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
@@ -3096,7 +3096,7 @@ async fn test_genesis_iota_system_state_object() {
     // deserialize it).
     let authority_state = TestAuthorityBuilder::new().build().await;
     let wrapper = authority_state
-        .get_object(&ObjectID::SYSTEM_STATE)
+        .get_object(&ObjectId::SYSTEM_STATE)
         .await
         .unwrap();
     assert_eq!(wrapper.version(), SequenceNumber::from(1));
@@ -3123,7 +3123,7 @@ async fn test_genesis_iota_system_state_object() {
 async fn test_transfer_iota_no_amount() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let init_balance = iota_types::gas::get_gas_balance(&gas_object).unwrap();
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
@@ -3175,7 +3175,7 @@ async fn test_transfer_iota_no_amount() {
 async fn test_transfer_iota_with_amount() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let init_balance = iota_types::gas::get_gas_balance(&gas_object).unwrap();
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
@@ -3224,7 +3224,7 @@ async fn test_store_revert_transfer_iota() {
     // This test checks the correctness of revert_state_update in IotaDataStore.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (recipient, _sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let gas_object_ref = gas_object.compute_object_reference();
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
@@ -3279,7 +3279,7 @@ fn build_and_commit(
 #[tokio::test]
 async fn test_store_revert_wrap_move_call() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -3357,7 +3357,7 @@ async fn test_store_revert_wrap_move_call() {
 #[tokio::test]
 async fn test_store_revert_unwrap_move_call() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -3477,7 +3477,7 @@ async fn create_and_retrieve_df_info(
     function: &Identifier,
 ) -> (IotaAddress, Vec<DynamicFieldInfo>) {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -3638,7 +3638,7 @@ async fn test_dynamic_object_field_address_name_parsing() {
 #[tokio::test]
 async fn test_store_revert_add_ofield() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -3747,7 +3747,7 @@ async fn test_store_revert_add_ofield() {
 #[tokio::test]
 async fn test_store_revert_remove_ofield() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
 
@@ -3870,8 +3870,8 @@ async fn test_store_revert_remove_ofield() {
 async fn test_iter_live_object_set() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (receiver, _): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
-    let obj_id = ObjectID::random();
+    let gas = ObjectId::random();
+    let obj_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas), (sender, obj_id)]).await;
     let starting_live_set: HashSet<_> = authority
         .iter_live_object_set_for_testing()
@@ -4051,8 +4051,8 @@ async fn test_iter_live_object_set() {
 #[cfg(test)]
 fn check_live_set(
     authority: &AuthorityState,
-    ignore: &HashSet<ObjectID>,
-    expected_live_set: &[(ObjectID, SequenceNumber)],
+    ignore: &HashSet<ObjectId>,
+    expected_live_set: &[(ObjectId, SequenceNumber)],
 ) {
     let mut expected: Vec<_> = expected_live_set.into();
     expected.sort();
@@ -4073,7 +4073,7 @@ fn check_live_set(
 }
 
 #[cfg(test)]
-pub fn find_by_id(fx: &[(ObjectRef, Owner)], id: ObjectID) -> Option<ObjectRef> {
+pub fn find_by_id(fx: &[(ObjectRef, Owner)], id: ObjectId) -> Option<ObjectRef> {
     fx.iter()
         .find_map(|(o, _)| (o.object_id == id).then_some(*o))
 }
@@ -4091,7 +4091,7 @@ pub async fn init_state_with_objects_and_object_basics<I: IntoIterator<Item = Ob
 
 #[cfg(test)]
 pub async fn init_state_with_ids_and_object_basics<
-    I: IntoIterator<Item = (IotaAddress, ObjectID)>,
+    I: IntoIterator<Item = (IotaAddress, ObjectId)>,
 >(
     objects: I,
 ) -> (Arc<AuthorityState>, ObjectRef) {
@@ -4129,7 +4129,7 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
 
 #[cfg(test)]
 pub async fn init_state_with_ids_and_object_basics_with_fullnode<
-    I: IntoIterator<Item = (IotaAddress, ObjectID)>,
+    I: IntoIterator<Item = (IotaAddress, ObjectId)>,
 >(
     objects: I,
 ) -> (Arc<AuthorityState>, Arc<AuthorityState>, ObjectRef) {
@@ -4166,10 +4166,10 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
 
 pub async fn call_move(
     authority: &AuthorityState,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    package: &ObjectID,
+    package: &ObjectId,
     module: &'_ str,
     function: &'_ str,
     type_args: Vec<TypeTag>,
@@ -4194,10 +4194,10 @@ pub async fn call_move(
 pub async fn call_move_(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    package: &ObjectID,
+    package: &ObjectId,
     module: &'_ str,
     function: &'_ str,
     type_args: Vec<TypeTag>,
@@ -4237,7 +4237,7 @@ pub async fn call_move_(
 
 pub async fn execute_programmable_transaction(
     authority: &AuthorityState,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
@@ -4259,7 +4259,7 @@ pub async fn execute_programmable_transaction(
 
 pub async fn execute_programmable_transaction_with_shared(
     authority: &AuthorityState,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
@@ -4281,7 +4281,7 @@ pub async fn execute_programmable_transaction_with_shared(
 
 pub async fn build_programmable_transaction(
     authority: &AuthorityState,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
@@ -4299,7 +4299,7 @@ pub async fn build_programmable_transaction(
 async fn execute_programmable_transaction_(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
@@ -4323,11 +4323,11 @@ async fn execute_programmable_transaction_(
 async fn call_move_with_gas_coins(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    gas_object_ids: &[ObjectID],
+    gas_object_ids: &[ObjectId],
     gas_budget: u64,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-    package: &ObjectID,
+    package: &ObjectId,
     module: &'_ str,
     function: &'_ str,
     type_args: Vec<TypeTag>,
@@ -4370,9 +4370,9 @@ async fn call_move_with_gas_coins(
 }
 
 pub async fn create_move_object(
-    package_id: &ObjectID,
+    package_id: &ObjectId,
     authority: &AuthorityState,
-    gas_object_id: &ObjectID,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
 ) -> IotaResult<TransactionEffects> {
@@ -4394,9 +4394,9 @@ pub async fn create_move_object(
 }
 
 async fn create_move_object_with_gas_coins(
-    package_id: &ObjectID,
+    package_id: &ObjectId,
     authority: &AuthorityState,
-    gas_object_ids: &[ObjectID],
+    gas_object_ids: &[ObjectId],
     gas_budget: u64,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
@@ -4422,10 +4422,10 @@ async fn create_move_object_with_gas_coins(
 }
 
 pub async fn wrap_object(
-    package_id: &ObjectID,
+    package_id: &ObjectId,
     authority: &AuthorityState,
-    object_id: &ObjectID,
-    gas_object_id: &ObjectID,
+    object_id: &ObjectId,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
 ) -> IotaResult<TransactionEffects> {
@@ -4444,11 +4444,11 @@ pub async fn wrap_object(
 }
 
 pub async fn add_ofield(
-    package_id: &ObjectID,
+    package_id: &ObjectId,
     authority: &AuthorityState,
-    outer_object_id: &ObjectID,
-    inner_object_id: &ObjectID,
-    gas_object_id: &ObjectID,
+    outer_object_id: &ObjectId,
+    inner_object_id: &ObjectId,
+    gas_object_id: &ObjectId,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
 ) -> IotaResult<TransactionEffects> {
@@ -4472,7 +4472,7 @@ pub async fn add_ofield(
 pub async fn call_dev_inspect(
     authority: &AuthorityState,
     sender: &IotaAddress,
-    package: &ObjectID,
+    package: &ObjectId,
     module: &str,
     function: &str,
     type_arguments: Vec<TypeTag>,
@@ -4509,7 +4509,7 @@ async fn make_test_transaction(
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     owned_objects: &[Object],
-    shared_objects: &[(ObjectID, SequenceNumber, bool)],
+    shared_objects: &[(ObjectId, SequenceNumber, bool)],
     gas_object_ref: &ObjectRef,
     authorities: &[&AuthorityState],
     arg_value: u64,
@@ -4527,7 +4527,7 @@ async fn make_test_transaction(
         .unwrap();
     let data = TransactionData::new_move_call(
         *sender,
-        ObjectID::FRAMEWORK,
+        ObjectId::FRAMEWORK,
         Identifier::from_static(module),
         Identifier::from_static(function),
         // type_args
@@ -4583,15 +4583,15 @@ async fn make_test_transaction(
 }
 
 async fn prepare_authority_and_shared_object_cert()
--> (Arc<AuthorityState>, VerifiedCertificate, ObjectID) {
+-> (Arc<AuthorityState>, VerifiedCertificate, ObjectId) {
     let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
     // Initialize an authority with a (owned) gas object and a shared object.
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let gas_object_ref = gas_object.compute_object_reference();
 
-    let shared_object_id = ObjectID::random();
+    let shared_object_id = ObjectId::random();
     let shared_object = {
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
         let owner = Owner::Shared(obj.version());
@@ -4676,7 +4676,7 @@ async fn test_consensus_commit_prologue_generation() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
 
     let gas_objects = create_gas_objects(2, sender);
-    let shared_object_id = ObjectID::random();
+    let shared_object_id = ObjectId::random();
     let shared_object = {
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
         let owner = Owner::Shared(obj.version());
@@ -4749,7 +4749,7 @@ async fn test_consensus_commit_prologue_generation() {
             .expect("versions should be set")
             .iter()
             .filter_map(|VersionAssignment { object_id, version }| {
-                if object_id == &ObjectID::CLOCK {
+                if object_id == &ObjectId::CLOCK {
                     Some(*version)
                 } else {
                     None
@@ -4769,11 +4769,11 @@ async fn test_consensus_message_processed() {
 
     let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let mut gas_object_ref = gas_object.compute_object_reference();
 
-    let shared_object_id = ObjectID::random();
+    let shared_object_id = ObjectId::random();
     let shared_object = {
         use iota_types::object::MoveObject;
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
@@ -5527,7 +5527,7 @@ async fn test_gas_smashing() {
         let mut objects = vec![];
         let coin_balance = gas_amount / coin_num;
         for _ in 1..coin_num {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             objects.push(Object::with_id_owner_gas_for_testing(
                 gas_object_id,
                 owner,
@@ -5536,7 +5536,7 @@ async fn test_gas_smashing() {
         }
         // in case integer division dropped something, make a coin with whatever is left
         let amount_left = gas_amount - (coin_balance * (coin_num - 1));
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
         objects.push(Object::with_id_owner_gas_for_testing(
             gas_object_id,
             owner,
@@ -5613,7 +5613,7 @@ async fn test_for_inc_201_dev_inspect() {
     use iota_move_build::BuildConfig;
 
     let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
@@ -5658,7 +5658,7 @@ async fn test_for_inc_201_dry_run() {
     use iota_move_build::BuildConfig;
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
@@ -5710,14 +5710,14 @@ async fn test_for_inc_201_dry_run() {
 #[tokio::test]
 async fn test_function_not_found() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
+    let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            ObjectID::STD,
+            ObjectId::STD,
             Identifier::OPTION_MODULE,
             Identifier::from_static("bad_function"),
             vec![],
@@ -5764,8 +5764,8 @@ async fn test_function_not_found() {
 #[tokio::test]
 async fn test_arity_mismatch() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas = ObjectID::random();
-    let obj_id = ObjectID::random();
+    let gas = ObjectId::random();
+    let obj_id = ObjectId::random();
     let (_, authority, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas), (sender, obj_id)])
             .await;
@@ -5773,7 +5773,7 @@ async fn test_arity_mismatch() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            ObjectID::STD,
+            ObjectId::STD,
             Identifier::OPTION_MODULE,
             Identifier::from_static("is_none"),
             vec![TypeTag::U64],
@@ -5825,7 +5825,7 @@ async fn test_publish_transitive_dependencies_ok() {
     use iota_move_build::BuildConfig;
 
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id = ObjectID::random();
+    let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
     let rgp = state.reference_gas_price_for_testing().unwrap();
 
@@ -6023,7 +6023,7 @@ async fn test_publish_missing_dependency() {
     use iota_move_build::BuildConfig;
 
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id = ObjectID::random();
+    let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
@@ -6040,7 +6040,7 @@ async fn test_publish_missing_dependency() {
         .get_package_bytes(/* with_unpublished_deps */ false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.publish_immutable(modules, vec![ObjectID::FRAMEWORK]);
+    builder.publish_immutable(modules, vec![ObjectId::FRAMEWORK]);
     let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
@@ -6072,7 +6072,7 @@ async fn test_publish_missing_transitive_dependency() {
     use iota_move_build::BuildConfig;
 
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id = ObjectID::random();
+    let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
@@ -6089,7 +6089,7 @@ async fn test_publish_missing_transitive_dependency() {
         .get_package_bytes(/* with_unpublished_deps */ false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.publish_immutable(modules, vec![ObjectID::STD]);
+    builder.publish_immutable(modules, vec![ObjectId::STD]);
     let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
@@ -6121,7 +6121,7 @@ async fn test_publish_not_a_package_dependency() {
     use iota_move_build::BuildConfig;
 
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id = ObjectID::random();
+    let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
@@ -6140,7 +6140,7 @@ async fn test_publish_not_a_package_dependency() {
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut deps = BuiltInFramework::all_package_ids();
     // One of these things is not like the others
-    deps.push(ObjectID::SYSTEM_STATE);
+    deps.push(ObjectId::SYSTEM_STATE);
     builder.publish_immutable(modules, deps);
     let kind = TransactionKind::new_programmable(builder.finish());
 
@@ -6161,7 +6161,7 @@ async fn test_publish_not_a_package_dependency() {
     assert_eq!(
         IotaError::UserInput {
             error: UserInputError::MoveObjectAsPackage {
-                object_id: ObjectID::SYSTEM_STATE
+                object_id: ObjectId::SYSTEM_STATE
             }
         },
         failure,
@@ -6171,7 +6171,7 @@ async fn test_publish_not_a_package_dependency() {
 pub fn create_gas_objects(num: u32, owner: IotaAddress) -> Vec<Object> {
     let mut objects = vec![];
     for _ in 0..num {
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
         objects.push(Object::with_id_owner_for_testing(gas_object_id, owner));
     }
     objects
@@ -6180,7 +6180,7 @@ pub fn create_gas_objects(num: u32, owner: IotaAddress) -> Vec<Object> {
 fn create_shared_objects(num: u32) -> Vec<Object> {
     let mut objects = vec![];
     for _ in 0..num {
-        let shared_object_id = ObjectID::random();
+        let shared_object_id = ObjectId::random();
         let shared_object = {
             let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
             let owner = Owner::Shared(obj.version());
@@ -6437,12 +6437,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let gas_objects_cancelled_txn = create_gas_objects(1, sender);
     let owned_objects_cancelled_txn = vec![
         Object::with_id_owner_version_for_testing(
-            ObjectID::random(),
+            ObjectId::random(),
             1.into(),
             Owner::Address(sender),
         ),
         Object::with_id_owner_version_for_testing(
-            ObjectID::random(),
+            ObjectId::random(),
             2.into(),
             Owner::Address(sender),
         ),

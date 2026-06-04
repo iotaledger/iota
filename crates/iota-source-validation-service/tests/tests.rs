@@ -21,9 +21,10 @@ use iota_sdk::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsV1,
         OwnedObjectRef,
     },
-    types::{base_types::ObjectID, object::Owner, transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    types::{object::Owner, transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
     wallet_context::WalletContext,
 };
+use iota_sdk_types::ObjectId;
 use iota_source_validation_service::{
     AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse,
     IOTA_SOURCE_VALIDATION_VERSION_HEADER, METRICS_HOST_PORT, Network, NetworkLookup, Package,
@@ -180,7 +181,7 @@ Network localnet: Multiple source verification errors found:
 async fn run_publish(
     package_path: PathBuf,
     context: &mut WalletContext,
-    gas_obj_id: ObjectID,
+    gas_obj_id: ObjectId,
     rgp: u64,
 ) -> anyhow::Result<IotaTransactionBlockEffectsV1> {
     let build_config = BuildConfig::new_for_testing().config;
@@ -214,7 +215,7 @@ async fn run_upgrade(
     upgrade_pkg_path: PathBuf,
     cap: &OwnedObjectRef,
     context: &mut WalletContext,
-    gas_obj_id: ObjectID,
+    gas_obj_id: ObjectId,
     rgp: u64,
 ) -> anyhow::Result<()> {
     let build_config = BuildConfig::new_for_testing().config;
@@ -251,7 +252,7 @@ async fn run_upgrade(
 fn copy_with_published_at_manifest(
     source_path: &PathBuf,
     dest_path: &PathBuf,
-    package_id: ObjectID,
+    package_id: ObjectId,
 ) -> PathBuf {
     fs_extra::dir::copy(
         source_path,

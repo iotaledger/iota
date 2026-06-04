@@ -32,11 +32,11 @@ use iota_keys::{
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::{
-    Identifier, TypeTag,
+    Identifier, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
@@ -124,7 +124,7 @@ pub enum IotaValidatorCommand {
         /// validator itself. Validator's OperationCap ID can be found
         /// by using the `display-metadata` subcommand.
         #[arg(name = "operation-cap-id", long)]
-        operation_cap_id: Option<ObjectID>,
+        operation_cap_id: Option<ObjectId>,
         /// The IOTA Address of the validator is being reported or un-reported
         #[arg(name = "reportee-address")]
         reportee_address: IotaAddress,
@@ -449,7 +449,7 @@ impl IotaValidatorCommand {
 
 async fn get_cap_object_ref(
     context: &mut WalletContext,
-    operation_cap_id: Option<ObjectID>,
+    operation_cap_id: Option<ObjectId>,
 ) -> Result<(ValidatorStatus, IotaValidatorSummary, ObjectRef)> {
     let iota_client = context.get_client().await?;
     if let Some(operation_cap_id) = operation_cap_id {
@@ -504,7 +504,7 @@ async fn get_cap_object_ref(
 async fn report_validator(
     context: &mut WalletContext,
     reportee_address: IotaAddress,
-    operation_cap_id: Option<ObjectID>,
+    operation_cap_id: Option<ObjectId>,
     undo_report: bool,
     gas_budget: u64,
 ) -> Result<IotaTransactionBlockResponse> {
@@ -531,7 +531,7 @@ async fn report_validator(
 
 async fn get_validator_summary_from_cap_id(
     client: &IotaClient,
-    operation_cap_id: ObjectID,
+    operation_cap_id: ObjectId,
 ) -> anyhow::Result<(ValidatorStatus, IotaValidatorSummary)> {
     let resp = client
         .read_api()
@@ -585,7 +585,7 @@ async fn construct_unsigned_0x5_txn(
     let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
     TransactionData::new_move_call(
         sender,
-        ObjectID::SYSTEM,
+        ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
         Identifier::from_static(function),
         vec![],
@@ -810,7 +810,7 @@ pub async fn get_validator_summary(
 
 async fn get_validator_summary_from_validator_wrapper(
     client: &IotaClient,
-    validator_object_id: ObjectID,
+    validator_object_id: ObjectId,
     protocol_version: Option<u64>,
 ) -> anyhow::Result<IotaValidatorSummary> {
     let validator = client
@@ -881,7 +881,7 @@ async fn display_metadata(
 async fn get_pending_candidate_summary(
     validator_address: IotaAddress,
     iota_client: &IotaClient,
-    pending_active_validators_id: ObjectID,
+    pending_active_validators_id: ObjectId,
 ) -> anyhow::Result<Option<ValidatorV1>> {
     let pending_validators = iota_client
         .read_api()

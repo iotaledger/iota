@@ -18,13 +18,11 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk::{PagedFn, wallet_context::WalletContext};
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
-    balance::Supply,
-    base_types::{IotaAddress, ObjectID},
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    parse_iota_struct_tag,
+    balance::Supply, base_types::IotaAddress,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary, parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::http_client::HttpClient;
@@ -117,7 +115,7 @@ async fn create_and_mint_coins(
     let transaction_bytes: TransactionBlockBytes = http_client
         .move_call(
             address,
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE.to_string(),
             "mint_and_transfer".into(),
             type_args![coin_name.clone()].unwrap(),
@@ -452,7 +450,7 @@ async fn get_all_coins() {
         .fullnode_handle
         .iota_node
         .with(|node| {
-            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO);
+            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO);
             node.state()
                 .get_owned_coins(address, coin_cursor, 100, false)
         })
@@ -501,7 +499,7 @@ async fn get_all_coins_with_multiple_coin_types() {
         .fullnode_handle
         .iota_node
         .with(|node| {
-            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO);
+            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO);
             node.state()
                 .get_owned_coins(address, coin_cursor, 100, false)
         })
@@ -535,12 +533,12 @@ async fn get_all_coins_with_limit() {
         .data
         .iter()
         .map(|c| &c.coin_object_id)
-        .collect::<Vec<&ObjectID>>();
+        .collect::<Vec<&ObjectId>>();
     let second_page_ids: Vec<_> = next_page
         .data
         .iter()
         .map(|c| &c.coin_object_id)
-        .collect::<Vec<&ObjectID>>();
+        .collect::<Vec<&ObjectId>>();
 
     assert!(
         first_page_ids
@@ -622,7 +620,7 @@ async fn get_all_coins_invalid_cursor() {
     let address = cluster.get_address_0();
 
     let invalid_cursor_result = http_client
-        .get_all_coins(address, Some(ObjectID::ZERO), None)
+        .get_all_coins(address, Some(ObjectId::ZERO), None)
         .await;
 
     assert!(

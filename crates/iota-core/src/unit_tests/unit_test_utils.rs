@@ -11,8 +11,9 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_move_build::test_utils::compile_basics_package;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{IotaAddress, TransactionDigest},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair,
@@ -32,7 +33,7 @@ async fn init_genesis(
 ) -> (
     Genesis,
     Vec<(AuthorityPublicKeyBytes, AuthorityKeyPair)>,
-    ObjectID,
+    ObjectId,
 ) {
     // add object_basics package object to genesis
     let modules: Vec<_> = compile_basics_package().get_modules().cloned().collect();
@@ -92,7 +93,7 @@ pub async fn init_local_authorities(
     AuthorityAggregator<LocalAuthorityClient>,
     Vec<Arc<AuthorityState>>,
     Genesis,
-    ObjectID,
+    ObjectId,
 ) {
     let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects).await;
     let authorities = join_all(key_pairs.iter().map(|(_, key_pair)| {
@@ -114,7 +115,7 @@ pub async fn init_local_authorities_with_overload_thresholds(
     AuthorityAggregator<LocalAuthorityClient>,
     Vec<Arc<AuthorityState>>,
     Genesis,
-    ObjectID,
+    ObjectId,
 ) {
     let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects).await;
     let authorities = join_all(key_pairs.iter().map(|(_, key_pair)| {

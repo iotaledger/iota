@@ -10,6 +10,8 @@ use std::{
     time::Duration,
 };
 
+use iota_sdk_types::ObjectId;
+
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
@@ -38,7 +40,7 @@ use iota_json_rpc_types::{
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -255,7 +257,7 @@ pub async fn force_new_epoch_and_wait(pg_store: &PgIndexerStore, cluster: &TestC
 
 async fn wait_for_object(
     client: &HttpClient,
-    object_id: ObjectID,
+    object_id: ObjectId,
     sequence_number: SequenceNumber,
 ) -> anyhow::Result<()> {
     tokio::time::timeout(Duration::from_secs(30), async {
@@ -283,7 +285,7 @@ async fn wait_for_object(
 /// Wait for the indexer to catch up to the given object sequence number
 pub async fn indexer_wait_for_object(
     client: &HttpClient,
-    object_id: ObjectID,
+    object_id: ObjectId,
     sequence_number: SequenceNumber,
 ) {
     wait_for_object(client, object_id, sequence_number)
@@ -293,7 +295,7 @@ pub async fn indexer_wait_for_object(
 
 pub async fn node_wait_for_object(
     cluster: &TestCluster,
-    object_id: ObjectID,
+    object_id: ObjectId,
     sequence_number: SequenceNumber,
 ) {
     wait_for_object(cluster.rpc_client(), object_id, sequence_number)

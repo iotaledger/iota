@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
@@ -20,6 +20,7 @@ use crate::{
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
+    misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -143,6 +144,12 @@ pub(crate) trait Store: Send + Sync {
         Ok(block_headers)
     }
 
+    /// Reads and returns all metrics stored. Used for restoring the scoring
+    /// metrics in case of DagState initialization from storage
+    fn scan_misbehavior_counts(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, MisbehaviorCounts>>;
+
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
 
@@ -192,27 +199,10 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) fast_commit_sync_flag: Option<bool>,
+    pub(crate) misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
 }
 
 impl WriteBatch {
-    pub(crate) fn new(
-        transactions: Vec<VerifiedTransactions>,
-        block_headers: Vec<VerifiedBlockHeader>,
-        commits: Vec<TrustedCommit>,
-        commit_info: Vec<(CommitRef, CommitInfo)>,
-        voting_block_headers: Vec<VerifiedBlockHeader>,
-        fast_commit_sync_flag: Option<bool>,
-    ) -> Self {
-        WriteBatch {
-            transactions,
-            block_headers,
-            commits,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-        }
-    }
-
     // Test setters.
 
     #[cfg(test)]
@@ -245,6 +235,15 @@ impl WriteBatch {
         voting_block_headers: Vec<VerifiedBlockHeader>,
     ) -> Self {
         self.voting_block_headers = voting_block_headers;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn misbehavior_counts(
+        mut self,
+        misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
+    ) -> Self {
+        self.misbehavior_counts = misbehavior_counts;
         self
     }
 }

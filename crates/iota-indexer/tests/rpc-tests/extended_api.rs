@@ -11,10 +11,9 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     TransactionBlockBytes,
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    gas_coin::GAS,
-    quorum_driver_types::ExecuteTransactionRequestType,
+    base_types::IotaAddress, gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType,
     storage::ReadStore,
 };
 use simulacrum::Simulacrum;
@@ -435,7 +434,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
     let coin = &objects[1].object()?;
 
     // now do the call
-    let package_id = ObjectID::FRAMEWORK;
+    let package_id = ObjectId::FRAMEWORK;
     let module = "pay".to_string();
     let function = "split".to_string();
 

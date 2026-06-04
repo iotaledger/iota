@@ -4,8 +4,8 @@
 
 use std::{num::NonZeroUsize, sync::Arc};
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectID,
     error::{IotaError, IotaResult, UserInputError},
     storage::{ObjectStore, PackageObject},
 };
@@ -13,7 +13,7 @@ use lru::LruCache;
 use parking_lot::RwLock;
 
 pub struct PackageObjectCache {
-    cache: RwLock<LruCache<ObjectID, PackageObject>>,
+    cache: RwLock<LruCache<ObjectId, PackageObject>>,
 }
 
 const CACHE_CAP: usize = 1024 * 1024;
@@ -27,7 +27,7 @@ impl PackageObjectCache {
 
     pub fn get_package_object(
         &self,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
         store: &impl ObjectStore,
     ) -> IotaResult<Option<PackageObject>> {
         // TODO: Here the use of `peek` doesn't update the internal use record,
@@ -65,7 +65,7 @@ impl PackageObjectCache {
 
     pub fn force_reload_system_packages(
         &self,
-        system_package_ids: impl IntoIterator<Item = ObjectID>,
+        system_package_ids: impl IntoIterator<Item = ObjectId>,
         store: &impl ObjectStore,
     ) {
         for package_id in system_package_ids {

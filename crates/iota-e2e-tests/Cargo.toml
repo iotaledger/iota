@@ -59,6 +59,7 @@ iota-network.workspace = true
 iota-node.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["secp256r1"] }
 iota-sdk-types.workspace = true
 iota-simulator.workspace = true
 iota-storage.workspace = true

@@ -329,6 +329,7 @@ impl DagBuilder {
                 last_timestamp_ms,
                 commit.reference(),
                 vec![],
+                vec![],
             );
 
             self.committed_sub_dags.push((sub_dag, commit));

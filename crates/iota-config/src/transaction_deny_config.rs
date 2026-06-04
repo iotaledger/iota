@@ -4,7 +4,8 @@
 
 use std::collections::HashSet;
 
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +18,7 @@ pub struct TransactionDenyConfig {
     /// child-objects). Similarly this does not apply to wrapped objects as
     /// they are not directly accessible.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    object_deny_list: Vec<ObjectID>,
+    object_deny_list: Vec<ObjectId>,
 
     /// A list of package object IDs that are not allowed to be called into in
     /// transactions, either directly or indirectly through transitive
@@ -31,7 +32,7 @@ pub struct TransactionDenyConfig {
     /// whether to block entire upgrade family, whether to allow upgrade and
     /// etc.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    package_deny_list: Vec<ObjectID>,
+    package_deny_list: Vec<ObjectId>,
 
     /// A list of iota addresses that are not allowed to be used as the sender
     /// or sponsor.
@@ -58,10 +59,10 @@ pub struct TransactionDenyConfig {
 
     /// In-memory maps for faster lookup of various lists.
     #[serde(skip)]
-    object_deny_set: OnceCell<HashSet<ObjectID>>,
+    object_deny_set: OnceCell<HashSet<ObjectId>>,
 
     #[serde(skip)]
-    package_deny_set: OnceCell<HashSet<ObjectID>>,
+    package_deny_set: OnceCell<HashSet<ObjectId>>,
 
     #[serde(skip)]
     address_deny_set: OnceCell<HashSet<IotaAddress>>,
@@ -79,12 +80,12 @@ pub struct TransactionDenyConfig {
 }
 
 impl TransactionDenyConfig {
-    pub fn get_object_deny_set(&self) -> &HashSet<ObjectID> {
+    pub fn get_object_deny_set(&self) -> &HashSet<ObjectId> {
         self.object_deny_set
             .get_or_init(|| self.object_deny_list.iter().cloned().collect())
     }
 
-    pub fn get_package_deny_set(&self) -> &HashSet<ObjectID> {
+    pub fn get_package_deny_set(&self) -> &HashSet<ObjectId> {
         self.package_deny_set
             .get_or_init(|| self.package_deny_list.iter().cloned().collect())
     }
@@ -158,7 +159,7 @@ impl TransactionDenyConfigBuilder {
         self
     }
 
-    pub fn add_denied_object(mut self, id: ObjectID) -> Self {
+    pub fn add_denied_object(mut self, id: ObjectId) -> Self {
         self.config.object_deny_list.push(id);
         self
     }
@@ -168,7 +169,7 @@ impl TransactionDenyConfigBuilder {
         self
     }
 
-    pub fn add_denied_package(mut self, id: ObjectID) -> Self {
+    pub fn add_denied_package(mut self, id: ObjectId) -> Self {
         self.config.package_deny_list.push(id);
         self
     }

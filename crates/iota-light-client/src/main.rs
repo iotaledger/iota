@@ -20,8 +20,9 @@ use iota_light_client::{
 };
 use iota_package_resolver::Resolver;
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::ObjectRef,
     committee::Committee,
     digests::{CheckpointDigest, TransactionDigest},
     effects::TransactionEffectsExt,
@@ -56,7 +57,7 @@ pub enum LightClientCommand {
     CheckObject {
         /// Object ID
         #[arg(value_name = "HEX")]
-        object_id: ObjectID,
+        object_id: ObjectId,
     },
     /// Check a transaction for inclusion
     CheckTransaction {
@@ -76,7 +77,7 @@ pub enum LightClientCommand {
         event_ids: Vec<EventID>,
         /// Objects that should be included in the proof
         #[arg(name = "objects", long, num_args(0..))]
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         /// Whether to include the next committee in the proof
         #[arg(long, default_value_t = false)]
         include_committee: bool,
@@ -162,7 +163,7 @@ pub async fn main() -> Result<()> {
                     digest: hash,
                 } = object.compute_object_reference();
                 println!(
-                    "ObjectID: {object_id}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
+                    "ObjectId: {object_id}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
                     object.owner,
                     serde_json::to_string(&result).expect("JSON deserialization error")
                 );
@@ -234,7 +235,7 @@ pub async fn main() -> Result<()> {
 
             // add event and object targets
             let mut event_ids_map: HashSet<EventID> = event_ids.iter().cloned().collect();
-            let mut object_ids_map: HashSet<ObjectID> = object_ids.iter().cloned().collect();
+            let mut object_ids_map: HashSet<ObjectId> = object_ids.iter().cloned().collect();
             let mut committee: Option<Committee> = None;
             let mut events = Vec::new();
             let mut objects = Vec::new();

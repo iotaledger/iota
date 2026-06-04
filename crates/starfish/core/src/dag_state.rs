@@ -35,6 +35,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeMessage,
     leader_scoring::{ReputationScores, ScoringSubdag},
+    misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
@@ -225,6 +226,9 @@ pub(crate) struct DagState {
     /// the previous window.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
+    /// Misbehavior scoring metrics (in-memory + persisted buckets).
+    misbehavior_store: Arc<MisbehaviorStore>,
+
     /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
 
@@ -236,8 +240,23 @@ pub(crate) struct DagState {
 }
 
 impl DagState {
-    /// Initializes DagState from storage.
+    /// Initializes DagState from storage with a freshly constructed
+    /// `MisbehaviorStore`. Production code uses `new_with_misbehavior_store`
+    /// to share the store with other components; this constructor exists
+    /// for tests that don't need the shared instance.
+    #[cfg(test)]
     pub(crate) fn new(context: Arc<Context>, store: Arc<dyn Store>) -> Self {
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        Self::new_with_misbehavior_store(context, store, misbehavior_store)
+    }
+
+    /// Initializes DagState from storage with an externally-provided
+    /// MisbehaviorStore, allowing it to be shared with other components.
+    pub(crate) fn new_with_misbehavior_store(
+        context: Arc<Context>,
+        store: Arc<dyn Store>,
+        misbehavior_store: Arc<MisbehaviorStore>,
+    ) -> Self {
         let cached_rounds = context.parameters.dag_state_cached_rounds as Round;
         let num_authorities = context.committee.size();
 
@@ -330,6 +349,7 @@ impl DagState {
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
+            misbehavior_store,
             store: store.clone(),
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
@@ -341,6 +361,20 @@ impl DagState {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
             state.load_cached_data_for_authority(authority_index, round, DataSource::Recover);
         }
+
+        // Restore persisted counts from storage and compute in-memory counts
+        // from the block refs already loaded into the cache.
+        let recovered_misbehavior_counts = store
+            .scan_misbehavior_counts()
+            .expect("reading misbehavior counts from storage should not fail");
+        state.misbehavior_store.initialize_misbehavior_counts(
+            recovered_misbehavior_counts,
+            &state.recent_headers_refs_by_authority,
+            &state.evicted_rounds,
+            state.threshold_clock_round(),
+            &state.context,
+        );
+
         state
     }
 
@@ -415,6 +449,7 @@ impl DagState {
         self.tx_ref_to_block_digest_by_authority = vec![BTreeMap::new(); num_authorities];
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
+        self.misbehavior_store.reset();
 
         // 2. Reinitialize threshold_clock with current round
         let current_round = self.threshold_clock.get_round();
@@ -429,6 +464,19 @@ impl DagState {
                 DataSource::FastCommitSyncer,
             );
         }
+
+        // 4. Re-initialize misbehavior counts from storage
+        let recovered_misbehavior_counts = self
+            .store
+            .scan_misbehavior_counts()
+            .expect("reading misbehavior counts from storage should not fail");
+        self.misbehavior_store.initialize_misbehavior_counts(
+            recovered_misbehavior_counts,
+            &self.recent_headers_refs_by_authority,
+            &self.evicted_rounds,
+            self.threshold_clock_round(),
+            &self.context,
+        );
 
         // Rebuild scoring_subdag from stored commits so leader schedule state
         // matches peers after fast sync reinitialization.
@@ -2230,7 +2278,6 @@ impl DagState {
             .with_label_values(&["DagState::flush"])
             .start_timer();
 
-        // Take ownership of buffered data efficiently using mem::take
         let transactions = std::mem::take(&mut self.transactions_to_write);
         let block_headers = std::mem::take(&mut self.block_headers_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
@@ -2238,16 +2285,19 @@ impl DagState {
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
         let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
+        let misbehavior_counts = self.misbehavior_counts_to_write();
+
         let has_data_to_write = !transactions.is_empty()
             || !block_headers.is_empty()
             || !commits.is_empty()
             || !commit_info.is_empty()
             || !voting_block_headers.is_empty()
-            || fast_commit_sync_flag.is_some();
+            || fast_commit_sync_flag.is_some()
+            || !misbehavior_counts.is_empty();
 
         if has_data_to_write {
             debug!(
-                "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) to storage.",
+                "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) and {} score updates ({}) to storage.",
                 block_headers.len(),
                 block_headers
                     .iter()
@@ -2267,20 +2317,26 @@ impl DagState {
                     .join(","),
                 fast_commit_sync_flag
                     .map(|f| f.to_string())
-                    .unwrap_or_else(|| "unchanged".to_string())
+                    .unwrap_or_else(|| "unchanged".to_string()),
+                misbehavior_counts.len(),
+                misbehavior_counts
+                    .keys()
+                    .map(|idx| idx.to_string())
+                    .join(","),
             );
 
             // Write all buffered data to storage
             self.store
                 .write(
-                    WriteBatch::new(
+                    WriteBatch {
                         transactions,
                         block_headers,
                         commits,
                         commit_info,
                         voting_block_headers,
                         fast_commit_sync_flag,
-                    ),
+                        misbehavior_counts,
+                    },
                     self.context.clone(),
                 )
                 .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
@@ -2415,6 +2471,31 @@ impl DagState {
         commit_round.saturating_sub(cached_rounds)
     }
 
+    /// Computes misbehavior counts for all authorities and returns those that
+    /// need to be persisted (where the eviction boundary advanced).
+    fn misbehavior_counts_to_write(&self) -> BTreeMap<AuthorityIndex, MisbehaviorCounts> {
+        let mut metrics_to_write = BTreeMap::new();
+        let threshold_clock_round = self.threshold_clock_round();
+        for (authority_index, _) in self.context.committee.authorities() {
+            let last_eviction_round = self.evicted_rounds[authority_index];
+            let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
+            if let Some(metrics) = self
+                .misbehavior_store
+                .update_misbehavior_counts_on_eviction(
+                    authority_index,
+                    &self.recent_headers_refs_by_authority[authority_index],
+                    current_eviction_round,
+                    last_eviction_round,
+                    threshold_clock_round,
+                    &self.context,
+                )
+            {
+                metrics_to_write.insert(authority_index, metrics);
+            }
+        }
+        metrics_to_write
+    }
+
     /// Detects and returns the blocks of the round that forms the last quorum.
     /// The method will return the quorum even if that's genesis.
     #[cfg(test)]
@@ -2465,6 +2546,10 @@ impl DagState {
     #[cfg(test)]
     pub(crate) fn set_pending_acknowledgments(&mut self, acknowledgments: Vec<BlockRef>) {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
+    }
+
+    pub(crate) fn misbehavior_store(&self) -> &MisbehaviorStore {
+        &self.misbehavior_store
     }
 }
 #[cfg(test)]

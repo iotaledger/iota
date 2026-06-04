@@ -7,8 +7,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, SequenceNumber, TransactionDigest},
     crypto::RandomnessRound,
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
@@ -23,6 +24,7 @@ use typed_store::{Map, rocks::DBBatch};
 use super::*;
 use crate::{
     authority::{
+        authority_per_epoch_store::report_aggregator::DBReceivedReportsStatePerAuthority,
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::AssignedTxAndVersions,
     },
@@ -47,13 +49,13 @@ pub(crate) struct ConsensusCommitOutput {
     consensus_commit_stats: Option<ExecutionIndicesWithStats>,
 
     // transaction scheduling state
-    next_shared_object_versions: Option<HashMap<ObjectID, SequenceNumber>>,
+    next_shared_object_versions: Option<HashMap<ObjectId, SequenceNumber>>,
 
     // congestion control state
     // debts for shared objects with no randomness
-    congestion_control_object_debts: Vec<(ObjectID, u64)>,
+    congestion_control_object_debts: Vec<(ObjectId, u64)>,
     // debts for shared objects with randomness
-    congestion_control_randomness_object_debts: Vec<(ObjectID, u64)>,
+    congestion_control_randomness_object_debts: Vec<(ObjectId, u64)>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -70,6 +72,13 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
     dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
+
+    // misbehavior report state — per-authority post-merge snapshot captured
+    // at `process_report` time. The on-disk row for commit N is exactly the
+    // state produced by commit N's processing of that authority's reports;
+    // last-writer-wins handles multiple reports from the same authority
+    // within one commit.
+    report_state_snapshots: BTreeMap<u8, DBReceivedReportsStatePerAuthority>,
 }
 
 impl ConsensusCommitOutput {
@@ -133,9 +142,27 @@ impl ConsensusCommitOutput {
         self.consensus_messages_processed.insert(key);
     }
 
+    pub(crate) fn record_report_state_snapshot(
+        &mut self,
+        authority_index: crate::consensus_types::AuthorityIndex,
+        snapshot: DBReceivedReportsStatePerAuthority,
+    ) {
+        // Truncate to `u8` at the storage boundary; committees are bounded at
+        // 256 by Starfish.
+        self.report_state_snapshots
+            .insert(authority_index as u8, snapshot);
+    }
+
+    /// Returns `true` if at least one `process_report` ran during this commit.
+    /// Used by the consensus handler to skip `Scoreboard::update_scores` on
+    /// commits that can't change the score vector.
+    pub(crate) fn has_report_state_changes(&self) -> bool {
+        !self.report_state_snapshots.is_empty()
+    }
+
     pub fn set_next_shared_object_versions(
         &mut self,
-        next_versions: HashMap<ObjectID, SequenceNumber>,
+        next_versions: HashMap<ObjectId, SequenceNumber>,
     ) {
         assert!(self.next_shared_object_versions.is_none());
         self.next_shared_object_versions = Some(next_versions);
@@ -180,13 +207,13 @@ impl ConsensusCommitOutput {
         self.dkg_output = Some(output);
     }
 
-    pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectID, u64)>) {
+    pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectId, u64)>) {
         self.congestion_control_object_debts = object_debts;
     }
 
     pub fn set_congestion_control_randomness_object_debts(
         &mut self,
-        object_debts: Vec<(ObjectID, u64)>,
+        object_debts: Vec<(ObjectId, u64)>,
     ) {
         self.congestion_control_randomness_object_debts = object_debts;
     }
@@ -298,6 +325,13 @@ impl ConsensusCommitOutput {
                     )
                 }),
         )?;
+
+        if !self.report_state_snapshots.is_empty() {
+            batch.insert_batch(
+                &tables.received_reports_state,
+                self.report_state_snapshots.iter(),
+            )?;
+        }
 
         Ok(())
     }
@@ -481,15 +515,15 @@ pub(crate) struct ConsensusOutputQuarantine {
     builder_digest_to_checkpoint: HashMap<TransactionDigest, CheckpointSequenceNumber>,
 
     // Any un-committed next versions are stored here.
-    shared_object_next_versions: RefCountedHashMap<ObjectID, SequenceNumber>,
+    shared_object_next_versions: RefCountedHashMap<ObjectId, SequenceNumber>,
 
     // The most recent congestion control debts for objects. Uses a ref-count to track
     // which objects still exist in some element of output_queue.
     // These debts will be moved to the epoch store when the corresponding consensus commit
     // is included in a checkpoint.
-    congestion_control_object_debts: RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
+    congestion_control_object_debts: RefCountedHashMap<ObjectId, CongestionPerObjectDebt>,
     congestion_control_randomness_object_debts:
-        RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
+        RefCountedHashMap<ObjectId, CongestionPerObjectDebt>,
 
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
@@ -790,7 +824,7 @@ impl ConsensusOutputQuarantine {
     pub(super) fn get_next_shared_object_versions(
         &self,
         tables: &AuthorityEpochTables,
-        objects_to_init: &[(ObjectID, SequenceNumber)],
+        objects_to_init: &[(ObjectId, SequenceNumber)],
     ) -> IotaResult<Vec<Option<SequenceNumber>>> {
         Ok(do_fallback_lookup(
             objects_to_init,
@@ -860,7 +894,7 @@ impl ConsensusOutputQuarantine {
         current_round: CommitRound,
         for_randomness: bool,
         transactions: &[VerifiedSequencedConsensusTransaction],
-    ) -> IotaResult<impl IntoIterator<Item = (ObjectID, u64)>> {
+    ) -> IotaResult<impl IntoIterator<Item = (ObjectId, u64)>> {
         let protocol_config = epoch_store.protocol_config();
         let tables = epoch_store.tables()?;
         let default_per_commit_limit = protocol_config
@@ -944,7 +978,7 @@ impl ConsensusOutputQuarantine {
     pub(super) fn load_stored_object_debts_for_testing(
         &self,
         for_randomness: bool,
-        object_ids: &[ObjectID],
+        object_ids: &[ObjectId],
     ) -> IotaResult<Vec<Option<CongestionPerObjectDebt>>> {
         let hash_table = if for_randomness {
             &self.congestion_control_randomness_object_debts

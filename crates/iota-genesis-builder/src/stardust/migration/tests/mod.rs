@@ -5,7 +5,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
@@ -16,7 +16,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TxContext},
+    base_types::{IotaAddress, TxContext},
     digests::TransactionDigest,
     epoch_data::EpochData,
     in_memory_storage::InMemoryStorage,
@@ -137,7 +137,7 @@ fn object_migration_with_object_owner(
         let owner_arg = builder.obj(CallArg::ImmutableOrOwned(owner_output_object_ref))?;
 
         let extracted_assets = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             output_owner_module_name.clone(),
             Identifier::from_static("extract_assets"),
             vec![coin_type.to_type_tag()],
@@ -153,7 +153,7 @@ fn object_migration_with_object_owner(
 
         let receiving_owned_arg = builder.obj(CallArg::Receiving(owned_output_object_ref))?;
         let received_owned_output = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             Identifier::from_static("address_unlock_condition"),
             unlock_condition_function.clone(),
             vec![coin_type.to_type_tag()],
@@ -161,7 +161,7 @@ fn object_migration_with_object_owner(
         );
 
         let coin_arg = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE,
             Identifier::from_static("from_balance"),
             vec![StructTag::new_gas().into()],
@@ -171,7 +171,7 @@ fn object_migration_with_object_owner(
         // Destroying the bag only works if it's empty, hence asserting that it is in
         // fact empty.
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BAG_MODULE,
             Identifier::from_static("destroy_empty"),
             vec![],
@@ -184,7 +184,7 @@ fn object_migration_with_object_owner(
         // We have to use extracted object as we cannot transfer it (since it lacks the
         // `store` ability), so we extract its assets.
         let extracted_assets = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             output_owned_module_name.clone(),
             Identifier::from_static("extract_assets"),
             vec![coin_type.to_type_tag()],
@@ -198,7 +198,7 @@ fn object_migration_with_object_owner(
         let inner_owned_arg = Argument::NestedResult(result_idx, 2);
 
         let coin_arg = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE,
             Identifier::from_static("from_balance"),
             vec![TypeTag::from_str(&format!(
@@ -211,7 +211,7 @@ fn object_migration_with_object_owner(
         // Destroying the bag only works if it's empty, hence asserting that it is in
         // fact empty.
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BAG_MODULE,
             Identifier::from_static("destroy_empty"),
             vec![],
@@ -286,7 +286,7 @@ fn extract_native_tokens_from_bag(
         let inner_object_arg = builder.obj(CallArg::ImmutableOrOwned(output_object_ref))?;
 
         let extracted_assets = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             module_name.clone(),
             Identifier::from_static("extract_assets"),
             vec![coin_type.to_type_tag()],
@@ -306,7 +306,7 @@ fn extract_native_tokens_from_bag(
         }
 
         let gas_coin_arg = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE,
             Identifier::from_static("from_balance"),
             vec![coin_type.to_type_tag()],
@@ -318,7 +318,7 @@ fn extract_native_tokens_from_bag(
         for (_, bag_key, token_type_tag) in &native_tokens {
             let bag_key_arg = builder.pure(bag_key.clone())?;
             let token_balance_arg = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("remove"),
                 vec![
@@ -331,7 +331,7 @@ fn extract_native_tokens_from_bag(
             );
 
             let minted_coin_arg = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 vec![token_type_tag.clone()],
@@ -344,7 +344,7 @@ fn extract_native_tokens_from_bag(
         // Destroying the bag only works if it's empty, hence asserting that it is in
         // fact empty.
         builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::BAG_MODULE,
             Identifier::from_static("destroy_empty"),
             vec![],
@@ -466,7 +466,7 @@ fn unlock_object(
             .unwrap();
 
         let extracted_assets = builder.programmable_move_call(
-            ObjectID::STARDUST,
+            ObjectId::STARDUST,
             module_name.clone(),
             Identifier::from_static("extract_assets"),
             vec![coin_type.to_type_tag()],
@@ -480,7 +480,7 @@ fn unlock_object(
         let bag_arg = Argument::NestedResult(result_idx, 1);
 
         let coin_arg = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE,
             Identifier::from_static("from_balance"),
             vec![coin_type.to_type_tag()],

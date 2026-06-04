@@ -5,10 +5,8 @@
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
 use anyhow::{Context, Result, bail};
-use iota_sdk_types::{Command, Identifier, MoveCall};
-use iota_types::{
-    base_types::ObjectID, iota_sdk_types_conversions::type_tag_core_to_sdk, transaction::Argument,
-};
+use iota_sdk_types::{Command, Identifier, MoveCall, ObjectId};
+use iota_types::{iota_sdk_types_conversions::type_tag_core_to_sdk, transaction::Argument};
 use move_core_types::{
     account_address::AccountAddress,
     parsing::{
@@ -357,10 +355,10 @@ impl ParsedCommand {
                 let dependencies = dependencies
                     .into_iter()
                     .map(|d| match address_mapping(&d) {
-                        Some(a) => Ok(ObjectID::new(a.into_bytes())),
+                        Some(a) => Ok(ObjectId::new(a.into_bytes())),
                         None => bail!("Unbound dependency '{d}"),
                     })
-                    .collect::<Result<Vec<ObjectID>>>()?;
+                    .collect::<Result<Vec<ObjectId>>>()?;
                 Command::new_publish(package_contents, dependencies)
             }
             ParsedCommand::Upgrade(staged_package, dependencies, upgraded_package, ticket) => {
@@ -370,14 +368,14 @@ impl ParsedCommand {
                 let dependencies = dependencies
                     .into_iter()
                     .map(|d| match address_mapping(&d) {
-                        Some(a) => Ok(ObjectID::new(a.into_bytes())),
+                        Some(a) => Ok(ObjectId::new(a.into_bytes())),
                         None => bail!("Unbound dependency '{d}"),
                     })
-                    .collect::<Result<Vec<ObjectID>>>()?;
+                    .collect::<Result<Vec<ObjectId>>>()?;
                 let Some(upgraded_package) = address_mapping(&upgraded_package) else {
                     bail!("Unbound upgraded package '{upgraded_package}'");
                 };
-                let upgraded_package = ObjectID::new(upgraded_package.into_bytes());
+                let upgraded_package = ObjectId::new(upgraded_package.into_bytes());
                 Command::new_upgrade(package_contents, dependencies, upgraded_package, ticket)
             }
         })
@@ -408,7 +406,7 @@ impl ParsedMoveCall {
             .collect::<Result<_>>()?;
 
         Ok(MoveCall {
-            package: ObjectID::new(package.into_bytes()),
+            package: ObjectId::new(package.into_bytes()),
             module,
             function,
             type_arguments,

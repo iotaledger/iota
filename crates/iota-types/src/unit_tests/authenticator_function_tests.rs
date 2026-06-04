@@ -3,11 +3,13 @@
 
 use std::cell::Cell;
 
+use iota_sdk_types::ObjectId;
+
 use crate::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
     },
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
 };
 
 #[test]
@@ -68,7 +70,7 @@ fn sponsor_auth_fun_ref_not_queried_when_sender_is_gas_owner() {
 
 fn authenticator_function_ref_v1(function: &str) -> AuthenticatorFunctionRef {
     AuthenticatorFunctionRef::V1(AuthenticatorFunctionRefV1 {
-        package: ObjectID::from([1u8; 32]),
+        package: ObjectId::from([1u8; 32]),
         module: "mod".to_string(),
         function: function.to_string(),
     })

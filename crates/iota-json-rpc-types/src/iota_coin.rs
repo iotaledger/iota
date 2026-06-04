@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectDigest, ObjectRef, SequenceNumber, TransactionDigest},
     coin::CoinMetadata,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -22,7 +23,7 @@ use crate::{
     },
 };
 
-pub type CoinPage = Page<Coin, ObjectID>;
+pub type CoinPage = Page<Coin, ObjectId>;
 
 #[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
@@ -95,7 +96,7 @@ impl Balance {
 pub struct Coin {
     pub coin_type: String,
     #[schemars(with = "ObjectIDSchema")]
-    pub coin_object_id: ObjectID,
+    pub coin_object_id: ObjectId,
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
@@ -130,7 +131,7 @@ pub struct IotaCoinMetadata {
     pub icon_url: Option<String>,
     /// Object id for the CoinMetadata object
     #[schemars(with = "Option<ObjectIDSchema>")]
-    pub id: Option<ObjectID>,
+    pub id: Option<ObjectId>,
 }
 
 impl TryFrom<Object> for IotaCoinMetadata {

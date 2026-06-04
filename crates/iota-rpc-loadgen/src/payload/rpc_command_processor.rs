@@ -20,9 +20,12 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    ObjectId,
+    crypto::{Intent, IntentMessage},
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -50,7 +53,7 @@ pub(crate) const MAX_NUM_NEW_OBJECTS_IN_SINGLE_TRANSACTION: usize = 120;
 pub struct RpcCommandProcessor {
     clients: Arc<RwLock<Vec<IotaClient>>>,
     // for equivocation prevention in `WaitForEffectsCert` mode
-    object_ref_cache: Arc<DashMap<ObjectID, ObjectRef>>,
+    object_ref_cache: Arc<DashMap<ObjectId, ObjectRef>>,
     transaction_digests: Arc<DashSet<TransactionDigest>>,
     addresses: Arc<DashSet<IotaAddress>>,
     data_dir: String,
@@ -134,7 +137,7 @@ impl RpcCommandProcessor {
     pub(crate) async fn get_object_ref(
         &self,
         client: &IotaClient,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> ObjectRef {
         let object_ref_cache = self.object_ref_cache.clone();
         let current = object_ref_cache.get_mut(object_id);
@@ -208,7 +211,7 @@ impl RpcCommandProcessor {
             .unwrap();
         }
 
-        let mut object_ids: Vec<ObjectID> = Vec::new();
+        let mut object_ids: Vec<ObjectId> = Vec::new();
         let cloned_object_cache = self.object_ref_cache.clone();
 
         for item in cloned_object_cache.iter() {
@@ -220,7 +223,7 @@ impl RpcCommandProcessor {
             debug!("dumping object_ids to file {:?}", object_ids.len());
             write_data_to_file(
                 &object_ids,
-                &format!("{}/{}", &self.data_dir, CacheType::ObjectID),
+                &format!("{}/{}", &self.data_dir, CacheType::ObjectId),
             )
             .unwrap();
         }
@@ -378,7 +381,7 @@ fn write_data_to_file<T: Serialize>(data: &T, file_path: &str) -> Result<(), any
 pub enum CacheType {
     IotaAddress,
     TransactionDigest,
-    ObjectID,
+    ObjectId,
 }
 
 impl fmt::Display for CacheType {
@@ -386,7 +389,8 @@ impl fmt::Display for CacheType {
         match self {
             CacheType::IotaAddress => write!(f, "IotaAddress"),
             CacheType::TransactionDigest => write!(f, "TransactionDigest"),
-            CacheType::ObjectID => write!(f, "ObjectID"),
+            // This is kept `ObjectID` (as opposed to `ObjectId`) to not invalidate existing caches
+            CacheType::ObjectId => write!(f, "ObjectID"),
         }
     }
 }
@@ -399,9 +403,9 @@ pub fn load_addresses_from_file(filepath: String) -> Vec<IotaAddress> {
     addresses
 }
 
-pub fn load_objects_from_file(filepath: String) -> Vec<ObjectID> {
-    let path = format!("{}/{}", filepath, CacheType::ObjectID);
-    let objects: Vec<ObjectID> = read_data_from_file(&path).expect("failed to read objects");
+pub fn load_objects_from_file(filepath: String) -> Vec<ObjectId> {
+    let path = format!("{}/{}", filepath, CacheType::ObjectId);
+    let objects: Vec<ObjectId> = read_data_from_file(&path).expect("failed to read objects");
     objects
 }
 
@@ -552,7 +556,7 @@ async fn prepare_new_signer_and_coins(
     signer_info: &SignerInfo,
     num_coins: usize,
     num_transactions_per_coin: u64,
-) -> (Vec<ObjectID>, String) {
+) -> (Vec<ObjectId>, String) {
     // TODO(chris): consider reference gas price
     let amount_per_coin = num_transactions_per_coin * DEFAULT_GAS_BUDGET;
     let pay_amount = amount_per_coin * num_coins as u64;
@@ -615,7 +619,7 @@ async fn prepare_new_signer_and_coins(
     let gas_coin_id = get_coin_with_balance(&coins, gas_fee_for_split);
     let primary_coin = get_coin_with_balance(&coins, split_amounts[0].0);
     assert!(!coins.is_empty());
-    let mut results: Vec<ObjectID> = vec![];
+    let mut results: Vec<ObjectId> = vec![];
     assert!(!split_amounts.is_empty());
     if split_amounts.len() == 1 && split_amounts[0].1 == 0 {
         results.push(get_coin_with_balance(&coins, split_amounts[0].0));
@@ -691,18 +695,18 @@ fn calculate_split_amounts(
     split_amounts
 }
 
-async fn get_coin_with_max_balance(client: &IotaClient, address: IotaAddress) -> (ObjectID, u64) {
+async fn get_coin_with_max_balance(client: &IotaClient, address: IotaAddress) -> (ObjectId, u64) {
     let coins = get_iota_coin_ids(client, address).await;
     assert!(!coins.is_empty());
     coins.into_iter().max_by(|a, b| a.1.cmp(&b.1)).unwrap()
 }
 
-fn get_coin_with_balance(coins: &[(ObjectID, u64)], target: u64) -> ObjectID {
+fn get_coin_with_balance(coins: &[(ObjectId, u64)], target: u64) -> ObjectId {
     coins.iter().find(|(_, b)| b == &target).unwrap().0
 }
 
 // TODO: move this to the Rust SDK
-async fn get_iota_coin_ids(client: &IotaClient, address: IotaAddress) -> Vec<(ObjectID, u64)> {
+async fn get_iota_coin_ids(client: &IotaClient, address: IotaAddress) -> Vec<(ObjectId, u64)> {
     match client
         .coin_read_api()
         .get_coins(address, None, None, None)
@@ -723,7 +727,7 @@ async fn get_iota_coin_ids(client: &IotaClient, address: IotaAddress) -> Vec<(Ob
 async fn pay_iota(
     client: &IotaClient,
     keypair: &IotaKeyPair,
-    input_coins: Vec<ObjectID>,
+    input_coins: Vec<ObjectId>,
     gas_budget: u64,
     recipients: Vec<IotaAddress>,
     amounts: Vec<u64>,
@@ -746,10 +750,10 @@ async fn pay_iota(
 async fn split_coins(
     client: &IotaClient,
     keypair: &IotaKeyPair,
-    coin_to_split: ObjectID,
-    gas_payment: ObjectID,
+    coin_to_split: ObjectId,
+    gas_payment: ObjectId,
     num_coins: u64,
-) -> Vec<ObjectID> {
+) -> Vec<ObjectId> {
     let sender = IotaAddress::from(&keypair.public());
     let split_coin_tx = client
         .transaction_builder()

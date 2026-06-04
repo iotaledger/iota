@@ -13,10 +13,10 @@ use iota_grpc_types::{
         error_reason::ErrorReason,
         ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
         object::Object,
-        types::ObjectId,
+        types::ObjectId as ProtoObjectId,
     },
 };
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 use prost::Message;
 use prost_types::FieldMask;
 
@@ -28,10 +28,10 @@ use crate::{
     validation::validate_read_mask,
 };
 
-type ValidationResult = Result<(Vec<(ObjectID, Option<u64>)>, FieldMaskTree), RpcError>;
+type ValidationResult = Result<(Vec<(ObjectId, Option<u64>)>, FieldMaskTree), RpcError>;
 
 pub(crate) fn validate_get_object_requests(
-    requests: Vec<(Option<ObjectId>, Option<u64>)>,
+    requests: Vec<(Option<ProtoObjectId>, Option<u64>)>,
     read_mask: Option<FieldMask>,
 ) -> ValidationResult {
     let read_mask = validate_read_mask::<Object>(read_mask, GET_OBJECTS_READ_MASK)?;
@@ -39,7 +39,7 @@ pub(crate) fn validate_get_object_requests(
         .into_iter()
         .enumerate()
         .map(|(idx, (object_id, version))| {
-            let object_id: ObjectID = object_id
+            let object_id: ObjectId = object_id
                 .as_ref()
                 .ok_or_else(|| {
                     FieldViolation::new("object_id")
@@ -126,7 +126,7 @@ pub(crate) fn get_objects(
 #[tracing::instrument(skip(reader))]
 fn get_object_impl(
     reader: &GrpcReader,
-    object_id: ObjectID,
+    object_id: ObjectId,
     version: Option<u64>,
     read_mask: &FieldMaskTree,
 ) -> Result<Object, RpcError> {

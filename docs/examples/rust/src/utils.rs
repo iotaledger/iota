@@ -20,14 +20,14 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions, ObjectChange,
     },
     types::{
-        base_types::{IotaAddress, ObjectID, ObjectRef},
+        base_types::{IotaAddress, ObjectRef},
         crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Transaction, TransactionData},
     },
 };
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{ObjectId, crypto::Intent};
 use iota_types::{
     move_package,
     transaction::{ProgrammableTransaction, TransactionDataAPI},
@@ -123,7 +123,7 @@ pub async fn publish_custom_nft_package(
     iota_client: &IotaClient,
     keystore: &mut FileBasedKeystore,
     publisher: IotaAddress,
-) -> Result<ObjectID> {
+) -> Result<ObjectId> {
     let transaction_response =
         publish_package(iota_client, keystore, publisher, CUSTOM_NFT_PACKAGE_PATH).await?;
 
@@ -146,7 +146,7 @@ pub async fn publish_aa_package<Keystore: AccountKeystore>(
     keystore: &mut Keystore,
     publisher: IotaAddress,
     package: &str,
-) -> Result<(ObjectID, ObjectRef)> {
+) -> Result<(ObjectId, ObjectRef)> {
     let transaction_response = publish_package(iota_client, keystore, publisher, package).await?;
 
     let package_ref = transaction_response
@@ -303,7 +303,7 @@ async fn wait_for_faucet_completion(
     loop {
         let object = client
             .read_api()
-            .get_object_with_options(ObjectID::from_str(&coin_id)?, object_id.clone())
+            .get_object_with_options(ObjectId::from_str(&coin_id)?, object_id.clone())
             .await?;
 
         if let Some(owner) = object.owner() {

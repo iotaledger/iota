@@ -19,12 +19,12 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
-        TransactionDigest, TxSequenceNumber,
+        IotaAddress, ObjectDigest, ObjectInfo, ObjectRef, SequenceNumber, TransactionDigest,
+        TxSequenceNumber,
     },
     digests::TransactionEventsDigest,
     dynamic_field::{self, DynamicFieldInfo},
@@ -57,9 +57,9 @@ use typed_store::{
 
 type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
 
-type OwnerIndexKey = (IotaAddress, ObjectID);
-type CoinIndexKey = (IotaAddress, String, ObjectID);
-type DynamicFieldKey = (ObjectID, ObjectID);
+type OwnerIndexKey = (IotaAddress, ObjectId);
+type CoinIndexKey = (IotaAddress, String, ObjectId);
+type DynamicFieldKey = (ObjectId, ObjectId);
 type EventId = (TxSequenceNumber, usize);
 type EventIndex = (TransactionEventsDigest, TransactionDigest, u64);
 type AllBalance = HashMap<TypeTag, TotalBalance>;
@@ -170,16 +170,16 @@ pub struct IndexStoreTables {
     transactions_to_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that used that object id as input.
-    transactions_by_input_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
+    transactions_by_input_object_id: DBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that modified/created that object
     /// id.
-    transactions_by_mutated_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
+    transactions_by_mutated_object_id: DBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
 
     /// Index from package id, module and function identifier to transactions
     /// that used that moce function call as input.
     transactions_by_move_function:
-        DBMap<(ObjectID, String, String, TxSequenceNumber), TransactionDigest>,
+        DBMap<(ObjectId, String, String, TxSequenceNumber), TransactionDigest>,
 
     /// Ordering of all indexed transactions.
     transaction_order: DBMap<TxSequenceNumber, TransactionDigest>,
@@ -362,7 +362,7 @@ impl IndexStore {
                     compaction_metrics.clone(),
                     db_options.clone(),
                     pruner_watermark.clone(),
-                    |(_, _, _, id): (ObjectID, String, String, TxSequenceNumber)| id,
+                    |(_, _, _, id): (ObjectId, String, String, TxSequenceNumber)| id,
                 ),
             ),
             (
@@ -626,9 +626,9 @@ impl IndexStore {
     pub fn index_tx(
         &self,
         sender: IotaAddress,
-        active_inputs: impl Iterator<Item = ObjectID>,
+        active_inputs: impl Iterator<Item = ObjectId>,
         mutated_objects: impl Iterator<Item = (ObjectRef, Owner)> + Clone,
-        move_functions: impl Iterator<Item = (ObjectID, String, String)> + Clone,
+        move_functions: impl Iterator<Item = (ObjectId, String, String)> + Clone,
         events: &TransactionEvents,
         object_index_changes: ObjectIndexChanges,
         digest: &TransactionDigest,
@@ -904,7 +904,7 @@ impl IndexStore {
 
     pub fn get_transactions_by_input_object(
         &self,
-        input_object: ObjectID,
+        input_object: ObjectId,
         cursor: Option<TxSequenceNumber>,
         limit: Option<usize>,
         reverse: bool,
@@ -920,7 +920,7 @@ impl IndexStore {
 
     pub fn get_transactions_by_mutated_object(
         &self,
-        mutated_object: ObjectID,
+        mutated_object: ObjectId,
         cursor: Option<TxSequenceNumber>,
         limit: Option<usize>,
         reverse: bool,
@@ -952,7 +952,7 @@ impl IndexStore {
 
     pub fn get_transactions_by_move_function(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module: Option<String>,
         function: Option<String>,
         cursor: Option<TxSequenceNumber>,
@@ -1274,14 +1274,14 @@ impl IndexStore {
 
     pub fn get_dynamic_fields_iterator(
         &self,
-        object: ObjectID,
-        cursor: Option<ObjectID>,
-    ) -> IotaResult<impl Iterator<Item = Result<(ObjectID, DynamicFieldInfo), TypedStoreError>> + '_>
+        object: ObjectId,
+        cursor: Option<ObjectId>,
+    ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
     {
         debug!(?object, "get_dynamic_fields");
         // The object id 0 is the smallest possible
-        let iter_lower_bound = (object, cursor.unwrap_or(ObjectID::ZERO));
-        let iter_upper_bound = (object, ObjectID::MAX);
+        let iter_lower_bound = (object, cursor.unwrap_or(ObjectId::ZERO));
+        let iter_upper_bound = (object, ObjectId::MAX);
         Ok(self
             .tables
             .dynamic_field_index
@@ -1294,10 +1294,10 @@ impl IndexStore {
 
     pub fn get_dynamic_field_object_id(
         &self,
-        object: ObjectID,
+        object: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> IotaResult<Option<ObjectID>> {
+    ) -> IotaResult<Option<ObjectId>> {
         debug!(?object, "get_dynamic_field_object_id");
         let dynamic_field_id =
             dynamic_field::derive_dynamic_field_id(object, &name_type, name_bcs_bytes).map_err(
@@ -1347,13 +1347,13 @@ impl IndexStore {
     pub fn get_owner_objects(
         &self,
         owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<Vec<ObjectInfo>> {
         let cursor = match cursor {
             Some(cursor) => cursor,
-            None => ObjectID::ZERO,
+            None => ObjectId::ZERO,
         };
         Ok(self
             .get_owner_objects_iterator(owner, cursor, filter)?
@@ -1365,13 +1365,13 @@ impl IndexStore {
         coin_index: &DBMap<CoinIndexKey, CoinInfo>,
         owner: IotaAddress,
         coin_type_tag: Option<String>,
-    ) -> IotaResult<impl Iterator<Item = (String, ObjectID, CoinInfo)> + '_> {
+    ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
         let all_coins = coin_type_tag.is_none();
         let starting_coin_type =
             coin_type_tag.unwrap_or_else(|| String::from_utf8([0u8].to_vec()).unwrap());
         Ok(coin_index
             .safe_iter_with_bounds(
-                Some((owner, starting_coin_type.clone(), ObjectID::ZERO)),
+                Some((owner, starting_coin_type.clone(), ObjectId::ZERO)),
                 None,
             )
             .map(|result| result.expect("iterator db error"))
@@ -1390,10 +1390,10 @@ impl IndexStore {
     pub fn get_owned_coins_iterator_with_cursor(
         &self,
         owner: IotaAddress,
-        cursor: (String, ObjectID),
+        cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
-    ) -> IotaResult<impl Iterator<Item = (String, ObjectID, CoinInfo)> + '_> {
+    ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
         let (starting_coin_type, starting_object_id) = cursor;
         Ok(self
             .tables
@@ -1426,7 +1426,7 @@ impl IndexStore {
     pub fn get_owner_objects_iterator(
         &self,
         owner: IotaAddress,
-        starting_object_id: ObjectID,
+        starting_object_id: ObjectId,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
         Ok(self
@@ -1435,7 +1435,7 @@ impl IndexStore {
             // The object id 0 is the smallest possible
             .safe_iter_with_bounds(Some((owner, starting_object_id)), None)
             .map(|result| result.expect("iterator db error"))
-            .skip(usize::from(starting_object_id != ObjectID::ZERO))
+            .skip(usize::from(starting_object_id != ObjectId::ZERO))
             .take_while(move |((address_owner, _), _)| address_owner == &owner)
             .filter(move |(_, o)| {
                 if let Some(filter) = filter.as_ref() {
@@ -1704,6 +1704,7 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
+    use iota_sdk_types::ObjectId;
     use iota_types::{
         base_types::{IotaAddress, ObjectInfo, ObjectType},
         digests::TransactionDigest,
@@ -1842,7 +1843,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_move_function() {
-        use iota_types::base_types::ObjectID;
         use typed_store::Map;
 
         let tmp_dir = iota_common::tempdir();
@@ -1854,7 +1854,7 @@ mod tests {
         let db = &index_store.tables.transactions_by_move_function;
         db.insert(
             &(
-                ObjectID::new([1; 32]),
+                ObjectId::new([1; 32]),
                 "mod".to_string(),
                 "f".to_string(),
                 0,
@@ -1864,7 +1864,7 @@ mod tests {
         .unwrap();
         db.insert(
             &(
-                ObjectID::new([1; 32]),
+                ObjectId::new([1; 32]),
                 "mod".to_string(),
                 "Z".repeat(128),
                 0,
@@ -1874,7 +1874,7 @@ mod tests {
         .unwrap();
         db.insert(
             &(
-                ObjectID::new([1; 32]),
+                ObjectId::new([1; 32]),
                 "mod".to_string(),
                 "f".repeat(128),
                 0,
@@ -1884,7 +1884,7 @@ mod tests {
         .unwrap();
         db.insert(
             &(
-                ObjectID::new([1; 32]),
+                ObjectId::new([1; 32]),
                 "mod".to_string(),
                 "z".repeat(128),
                 0,
@@ -1895,7 +1895,7 @@ mod tests {
 
         let mut v = index_store
             .get_transactions_by_move_function(
-                ObjectID::new([1; 32]),
+                ObjectId::new([1; 32]),
                 Some("mod".to_string()),
                 None,
                 None,
@@ -1905,7 +1905,7 @@ mod tests {
             .unwrap();
         let v_rev = index_store
             .get_transactions_by_move_function(
-                ObjectID::new([1; 32]),
+                ObjectId::new([1; 32]),
                 Some("mod".to_string()),
                 None,
                 None,

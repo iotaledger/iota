@@ -21,13 +21,13 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -162,7 +162,7 @@ fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
-            .collect::<Vec<ObjectID>>();
+            .collect::<Vec<ObjectId>>();
 
         let indexer_objects = client
             .multi_get_objects(object_ids, Some(options))
@@ -651,7 +651,7 @@ fn get_object_not_found() {
 
         let indexer_obj = client
             .get_object(
-                ObjectID::from_str(
+                ObjectId::from_str(
                     "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
                 )
                 .unwrap(),
@@ -764,11 +764,11 @@ fn multi_get_objects_not_found() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let object_ids = vec![
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
             )
             .unwrap(),
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
             )
             .unwrap(),
@@ -824,14 +824,14 @@ fn multi_get_objects_found_and_not_found() {
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
-            .collect::<Vec<ObjectID>>();
+            .collect::<Vec<ObjectId>>();
 
         object_ids.extend_from_slice(&[
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
             )
             .unwrap(),
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
             )
             .unwrap(),
@@ -1485,7 +1485,7 @@ fn try_get_past_object_object_not_exists() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let object_id = ObjectID::random();
+        let object_id = ObjectId::random();
         let version = SequenceNumber::default();
 
         let result = client
@@ -1715,9 +1715,9 @@ fn try_multi_get_past_objects() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
-        let object_3 = ObjectID::random();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
+        let object_3 = ObjectId::random();
         let version_1 = SequenceNumber::default();
         let version_2 = SequenceNumber::default();
         let version_3 = SequenceNumber::default();

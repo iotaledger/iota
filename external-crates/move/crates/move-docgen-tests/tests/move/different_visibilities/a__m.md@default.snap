@@ -8,7 +8,7 @@ info:
   no_collapsed_sections: false
   include_dep_diagrams: false
   include_call_diagrams: false
-input_file: crates/move-docgen-tests/tests/move/different_visibilities/Move.toml
+  include_module_toc: true
 ---
 <a name="a_TestViz"></a>
 
@@ -16,18 +16,24 @@ input_file: crates/move-docgen-tests/tests/move/different_visibilities/Move.toml
 
 
 
--  [Function `this_is_a_public_fun`](#a_TestViz_this_is_a_public_fun)
--  [Function `this_is_a_public_script_fun`](#a_TestViz_this_is_a_public_script_fun)
--  [Function `this_is_a_private_fun`](#a_TestViz_this_is_a_private_fun)
+-  [Module Functions](#@Module_Functions_0)
+    -  [<span class="move-vis move-vis-public">pub</span> `this_is_a_public_fun`](#a_TestViz_this_is_a_public_fun)
+    -  [<span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-entry">entry</span> `this_is_a_public_script_fun`](#a_TestViz_this_is_a_public_script_fun)
+    -  [<span class="move-vis move-vis-private">prv</span> `this_is_a_private_fun`](#a_TestViz_this_is_a_private_fun)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Module_Functions_0"></a>
+
+## Module Functions
+
+
 <a name="a_TestViz_this_is_a_public_fun"></a>
 
-## Function `this_is_a_public_fun`
+### <span class="move-vis move-vis-public">pub</span> `this_is_a_public_fun`
 
 This is a public function
 
@@ -50,7 +56,7 @@ This is a public function
 
 <a name="a_TestViz_this_is_a_public_script_fun"></a>
 
-## Function `this_is_a_public_script_fun`
+### <span class="move-vis move-vis-public">pub</span> <span class="move-vis move-vis-entry">entry</span> `this_is_a_public_script_fun`
 
 This is a public entry function
 
@@ -73,7 +79,7 @@ This is a public entry function
 
 <a name="a_TestViz_this_is_a_private_fun"></a>
 
-## Function `this_is_a_private_fun`
+### <span class="move-vis move-vis-private">prv</span> `this_is_a_private_fun`
 
 This is a private function
 

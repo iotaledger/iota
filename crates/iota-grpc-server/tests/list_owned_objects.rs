@@ -22,9 +22,9 @@ use iota_grpc_types::{
         types::Address as ProtoAddress,
     },
 };
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IotaAddress, MoveObjectType},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GasCoin,
@@ -39,7 +39,7 @@ use tonic::transport::Channel;
 // ---------------------------------------------------------------------------
 
 /// Create a gas-coin `Object` owned by `owner` with the given `object_id`.
-fn make_gas_coin(owner: IotaAddress, object_id: ObjectID, balance: u64) -> Object {
+fn make_gas_coin(owner: IotaAddress, object_id: ObjectId, balance: u64) -> Object {
     let contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     let move_obj = MoveObject::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
@@ -58,7 +58,7 @@ fn make_gas_coin(owner: IotaAddress, object_id: ObjectID, balance: u64) -> Objec
 /// Create a large gas-coin `Object` with `padding` extra bytes in BCS.
 fn make_large_gas_coin(
     owner: IotaAddress,
-    object_id: ObjectID,
+    object_id: ObjectId,
     balance: u64,
     padding: usize,
 ) -> Object {
@@ -83,7 +83,7 @@ fn make_large_gas_coin(
 /// inverted_balance, object_id)`.
 fn make_owned_entry(
     owner: IotaAddress,
-    object_id: ObjectID,
+    object_id: ObjectId,
     type_: MoveObjectType,
     type_id_hash: u64,
     params_hash: u64,
@@ -154,12 +154,12 @@ async fn paginate_all(
 }
 
 /// Set up a mock with `count` gas-coin objects for a single owner.
-fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec<ObjectID>) {
+fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec<ObjectId>) {
     let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let type_id_hash = 42u64; // arbitrary stable hash for Coin
     let params_hash = 99u64; // arbitrary stable hash for <IOTA>
 
-    let mut ids: Vec<ObjectID> = (0..count).map(|_| ObjectID::random()).collect();
+    let mut ids: Vec<ObjectId> = (0..count).map(|_| ObjectId::random()).collect();
     // Sort IDs so the owner-index key ordering is deterministic (same type
     // hash → sorted by inverted_balance then object_id).
     ids.sort();
@@ -410,7 +410,7 @@ async fn message_size_triggers_pagination() {
     let mut ids = Vec::new();
 
     for i in 0..3u64 {
-        let id = ObjectID::random();
+        let id = ObjectId::random();
         ids.push(id);
         let obj = make_large_gas_coin(owner, id, 1000 - i, padding);
         objects.insert(id, obj);
@@ -495,7 +495,7 @@ async fn type_filter_with_pagination() {
 
     // 3 coin objects.
     for i in 0..3u64 {
-        let id = ObjectID::random();
+        let id = ObjectId::random();
         let obj = make_gas_coin(owner, id, 500 + i);
         objects.insert(id, obj);
         owned_objects.push(make_owned_entry(
@@ -511,7 +511,7 @@ async fn type_filter_with_pagination() {
     // 2 "other" objects (still gas coins under the hood, but the mock
     // treats them as a different type via the hash values).
     for i in 0..2u64 {
-        let id = ObjectID::random();
+        let id = ObjectId::random();
         let obj = make_gas_coin(owner, id, 100 + i);
         objects.insert(id, obj);
         owned_objects.push(make_owned_entry(
