@@ -814,18 +814,61 @@ def ensure_image(image: str) -> bool:
     return False
 
 
-# Clone of github.com/iotaledger/network-benchmark; its docker/stress/build.sh
-# builds the `stress` load generator and tags it iotaledger/stress.
-STRESS_BUILD_SCRIPT = (
-    Path.home() / "network-benchmark" / "docker" / "stress" / "build.sh"
-)
+# Source of the `stress` load generator; docker/stress/build.sh in it builds
+# and tags the image as iotaledger/stress.
+NETWORK_BENCHMARK_REPO = "git@github.com:iotaledger/network-benchmark.git"
+NETWORK_BENCHMARK_DIR = Path.home() / "network-benchmark"
+STRESS_BUILD_SCRIPT = NETWORK_BENCHMARK_DIR / "docker" / "stress" / "build.sh"
+
+
+def _prompt_yes_no(question: str, timeout: int = 30) -> bool:
+    """Ask a y/N question that can never hang the run: wait for an answer on
+    stdin for at most *timeout* seconds, defaulting to No. This covers ptys
+    with no keyboard behind them, where a plain input() blocks forever."""
+    log(f"  {question} [y/N] (auto-No in {timeout}s)")
+    try:
+        sel = selectors.DefaultSelector()
+        sel.register(sys.stdin, selectors.EVENT_READ)
+        ready = sel.select(timeout)
+        sel.close()
+    except (OSError, ValueError):
+        return False
+    if not ready:
+        log("  No answer — continuing with No.")
+        return False
+    return sys.stdin.readline().strip().lower() in ("y", "yes")
+
+
+def _update_or_clone_benchmark_repo() -> None:
+    """Best-effort: keep ~/network-benchmark buildable. An existing clone is
+    ff-only updated (never fatal — offline or credential-less environments
+    build the existing checkout); a missing clone is fetched only after an
+    explicit, timeout-guarded user confirmation."""
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    if NETWORK_BENCHMARK_DIR.is_dir():
+        res = run(
+            ["git", "-C", str(NETWORK_BENCHMARK_DIR), "pull", "--ff-only"],
+            check=False, quiet=True, env=env,
+        )
+        if res.returncode != 0:
+            log("  Could not update ~/network-benchmark — building the existing checkout.")
+        return
+    if not _prompt_yes_no(
+        f"Clone {NETWORK_BENCHMARK_REPO} to ~/network-benchmark for the build?"
+    ):
+        return
+    run_timed(
+        ["git", "clone", NETWORK_BENCHMARK_REPO, str(NETWORK_BENCHMARK_DIR)],
+        "Cloning network-benchmark", check=False,
+    )
 
 
 def ensure_stress_image(image: str) -> None:
     """Make the stress load image available BEFORE the network comes up:
     local copy, else registry pull, else build it from the ~/network-benchmark
-    clone. Raises when the image cannot be obtained — load was explicitly
-    requested, so starting without it would be misleading.
+    clone (cloned on user confirmation when absent). Raises when the image
+    cannot be obtained — load was explicitly requested, so starting without it
+    would be misleading.
 
     Resolving this up front keeps a (potentially ~30 min, first-time) build
     out of the run itself, where validators would sit idle under latency."""
@@ -836,15 +879,17 @@ def ensure_stress_image(image: str) -> None:
         return
     # build.sh tags exactly iotaledger/stress, so only that name can be
     # satisfied by building.
-    if image.split(":")[0] == "iotaledger/stress" and STRESS_BUILD_SCRIPT.is_file():
-        log("  Pull failed; building it from ~/network-benchmark instead")
-        log("  (cached after the first build, which can take ~30 min)...")
-        run_timed(
-            ["bash", str(STRESS_BUILD_SCRIPT)], f"Building {image}",
-            cwd=STRESS_BUILD_SCRIPT.parents[2],
-        )
-        if _image_present(image):
-            return
+    if image.split(":")[0] == "iotaledger/stress":
+        _update_or_clone_benchmark_repo()
+        if STRESS_BUILD_SCRIPT.is_file():
+            log("  Pull failed; building it from ~/network-benchmark instead")
+            log("  (cached after the first build, which can take ~30 min)...")
+            run_timed(
+                ["bash", str(STRESS_BUILD_SCRIPT)], f"Building {image}",
+                cwd=NETWORK_BENCHMARK_DIR,
+            )
+            if _image_present(image):
+                return
     raise RuntimeError(
         f"spammer image {image} is unavailable — `docker login` to the "
         "registry, clone github.com/iotaledger/network-benchmark to "
