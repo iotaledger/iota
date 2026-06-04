@@ -2086,6 +2086,10 @@ def main() -> None:
 
     # Run all phases
     local_branch, local_commit = phase1_docker_images(cfg)
+    if cfg.load_qps > 0:
+        # Resolve the load image up front (pull, else build from the
+        # network-benchmark clone) instead of surprising phase 6b mid-run.
+        ec.ensure_stress_image(cfg.load_tools_image)
     phase2_generate_compose(cfg)
     phase3_bootstrap_genesis(cfg)
     old_max_proto, old_consensus, epoch_0_start = phase4_start_validators(cfg)

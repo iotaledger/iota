@@ -788,6 +788,13 @@ def apply_latency(
     return proc
 
 
+def _image_present(image: str) -> bool:
+    return subprocess.run(
+        ["docker", "image", "inspect", image],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ).returncode == 0
+
+
 def ensure_image(image: str) -> bool:
     """Return True if *image* is available locally, pulling it if missing.
 
@@ -796,11 +803,7 @@ def ensure_image(image: str) -> bool:
     treat that as fatal. Deliberately non-interactive: a mid-run prompt can
     hang forever when stdin has a pty but no keyboard behind it, so
     authentication happens out of band."""
-    present = subprocess.run(
-        ["docker", "image", "inspect", image],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    ).returncode == 0
-    if present:
+    if _image_present(image):
         return True
     log(f"  Image {image} not present locally; pulling...")
     if run(["docker", "pull", image], check=False, quiet=True).returncode == 0:
@@ -809,6 +812,44 @@ def ensure_image(image: str) -> bool:
     log("  Fix (any one): `docker login` and re-run, build it from the")
     log("  network-benchmark repo, or pass --spammer-image.")
     return False
+
+
+# Clone of github.com/iotaledger/network-benchmark; its docker/stress/build.sh
+# builds the `stress` load generator and tags it iotaledger/stress.
+STRESS_BUILD_SCRIPT = (
+    Path.home() / "network-benchmark" / "docker" / "stress" / "build.sh"
+)
+
+
+def ensure_stress_image(image: str) -> None:
+    """Make the stress load image available BEFORE the network comes up:
+    local copy, else registry pull, else build it from the ~/network-benchmark
+    clone. Raises when the image cannot be obtained — load was explicitly
+    requested, so starting without it would be misleading.
+
+    Resolving this up front keeps a (potentially ~30 min, first-time) build
+    out of the run itself, where validators would sit idle under latency."""
+    if _image_present(image):
+        return
+    log(f"  Image {image} not present locally; pulling...")
+    if run(["docker", "pull", image], check=False, quiet=True).returncode == 0:
+        return
+    # build.sh tags exactly iotaledger/stress, so only that name can be
+    # satisfied by building.
+    if image.split(":")[0] == "iotaledger/stress" and STRESS_BUILD_SCRIPT.is_file():
+        log("  Pull failed; building it from ~/network-benchmark instead")
+        log("  (cached after the first build, which can take ~30 min)...")
+        run_timed(
+            ["bash", str(STRESS_BUILD_SCRIPT)], f"Building {image}",
+            cwd=STRESS_BUILD_SCRIPT.parents[2],
+        )
+        if _image_present(image):
+            return
+    raise RuntimeError(
+        f"spammer image {image} is unavailable — `docker login` to the "
+        "registry, clone github.com/iotaledger/network-benchmark to "
+        "~/network-benchmark, or pass --spammer-image"
+    )
 
 
 # Faucet account from the bootstrap genesis templates; owns the gas the

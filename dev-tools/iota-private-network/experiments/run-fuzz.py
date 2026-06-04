@@ -279,6 +279,10 @@ def main() -> None:
     try:
         ec.cache_sudo()
         ec.build_images(cfg.script_dir, cfg.build)
+        if cfg.spammer_enable and cfg.spammer_type == "stress":
+            # Resolve the load image up front (pull, else build from the
+            # network-benchmark clone) instead of surprising the run mid-way.
+            ec.ensure_stress_image(cfg.spammer_image)
         if not cfg.build:
             ec.require_local_image(
                 cfg.image,
