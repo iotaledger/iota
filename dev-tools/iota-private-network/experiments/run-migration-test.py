@@ -373,8 +373,8 @@ class CheckpointMonitor:
         " or rate(consensus_block_header_commit_latency_sum[1m])"
         " / rate(consensus_block_header_commit_latency_count[1m]))"
     )
-    _BLK_P90 = (
-        "histogram_quantile(0.9,"
+    _BLK_P95 = (
+        "histogram_quantile(0.95,"
         " sum(rate(consensus_block_commit_latency_bucket[1m])) by (le)"
         " or sum(rate(consensus_block_header_commit_latency_bucket[1m])) by (le))"
     )
@@ -388,8 +388,8 @@ class CheckpointMonitor:
         " or rate(consensus_block_header_commit_latency_sum[1m])"
         " / rate(consensus_block_header_commit_latency_count[1m]))"
     )
-    _TXN_P90 = (
-        "histogram_quantile(0.9,"
+    _TXN_P95 = (
+        "histogram_quantile(0.95,"
         " sum(rate(consensus_transaction_commit_latency_bucket[1m])) by (le)"
         " or sum(rate(consensus_block_commit_latency_bucket[1m])) by (le)"
         " or sum(rate(consensus_block_header_commit_latency_bucket[1m])) by (le))"
@@ -398,7 +398,7 @@ class CheckpointMonitor:
     def __init__(self, interval: int = 10):
         self.interval = interval
         self._samples: list[tuple[float, int, int]] = []  # (ts, checkpoint, epoch)
-        # (ts, epoch, blk_p50, blk_p90, txn_p50, txn_p90)
+        # (ts, epoch, blk_p50, blk_p95, txn_p50, txn_p95)
         self._latencies: list[tuple[float, int, float, float, float, float]] = []
         self._stalls: list[tuple[float, float, int]] = []
         self._epoch_regressions: list[tuple[float, int, int, int]] = []
@@ -471,12 +471,12 @@ class CheckpointMonitor:
                 elif stall_start is None and last_cp >= 0:
                     stall_start = now
             bp50 = self._query_latency_ms(self._BLK_P50)
-            bp90 = self._query_latency_ms(self._BLK_P90)
+            bp95 = self._query_latency_ms(self._BLK_P95)
             tp50 = self._query_latency_ms(self._TXN_P50)
-            tp90 = self._query_latency_ms(self._TXN_P90)
+            tp95 = self._query_latency_ms(self._TXN_P95)
             if bp50 >= 0:
                 self._latencies.append((
-                    now, epoch, bp50, bp90, tp50, tp90,
+                    now, epoch, bp50, bp95, tp50, tp95,
                 ))
             self._stop.wait(self.interval)
         if stall_start is not None:
@@ -622,11 +622,11 @@ class CheckpointMonitor:
         ]
         if self._latencies:
             bp50 = self._median([v for _, _, v, _, _, _ in self._latencies])
-            bp90 = self._median([v for _, _, _, v, _, _ in self._latencies])
+            bp95 = self._median([v for _, _, _, v, _, _ in self._latencies])
             tp50 = self._median([v for _, _, _, _, v, _ in self._latencies if v >= 0])
-            tp90 = self._median([v for _, _, _, _, _, v in self._latencies if v >= 0])
-            lines.append(f"  Block  lat   : p50={bp50:.0f}ms  p90={bp90:.0f}ms")
-            lines.append(f"  Tx lat       : p50={tp50:.0f}ms  p90={tp90:.0f}ms")
+            tp95 = self._median([v for _, _, _, _, _, v in self._latencies if v >= 0])
+            lines.append(f"  Block  lat   : p50={bp50:.0f}ms  p95={bp95:.0f}ms")
+            lines.append(f"  Tx lat       : p50={tp50:.0f}ms  p95={tp95:.0f}ms")
         lines.append(f"  Samples      : {len(self._samples)}")
         epoch_changes = self._observed_epoch_changes()
         lines.append(f"  Stalls       : {len(self._stalls) if self._stalls else 'none'}")
@@ -650,17 +650,17 @@ class CheckpointMonitor:
 
         # --- Per-epoch table ---
         lat_by_epoch: dict[int, list[tuple[float, float, float, float]]] = {}
-        for _, ep, bp50, bp90, tp50, tp90 in self._latencies:
+        for _, ep, bp50, bp95, tp50, tp95 in self._latencies:
             if ep < 0:
                 continue
-            lat_by_epoch.setdefault(ep, []).append((bp50, bp90, tp50, tp90))
+            lat_by_epoch.setdefault(ep, []).append((bp50, bp95, tp50, tp95))
 
         epoch_segments = self._epoch_segments()
         if len(epoch_segments) > 1:
             hdr = (
                 f"  {'Epoch':>5}  {'Duration':>8}  {'CP rate':>8}"
-                f"  {'Blk p50':>8}  {'Blk p90':>8}"
-                f"  {'Tx p50':>8}  {'Tx p90':>8}"
+                f"  {'Blk p50':>8}  {'Blk p95':>8}"
+                f"  {'Tx p50':>8}  {'Tx p95':>8}"
             )
             sep = (
                 f"  {'-----':>5}  {'--------':>8}  {'-------':>8}"
@@ -678,15 +678,15 @@ class CheckpointMonitor:
                 lats = lat_by_epoch.get(ep, [])
                 if lats:
                     ebp50 = f"{self._median([v for v, _, _, _ in lats]):.0f}ms"
-                    ebp90 = f"{self._median([v for _, v, _, _ in lats]):.0f}ms"
+                    ebp95 = f"{self._median([v for _, v, _, _ in lats]):.0f}ms"
                     etp50 = f"{self._median([v for _, _, v, _ in lats if v >= 0]):.0f}ms"
-                    etp90 = f"{self._median([v for _, _, _, v in lats if v >= 0]):.0f}ms"
+                    etp95 = f"{self._median([v for _, _, _, v in lats if v >= 0]):.0f}ms"
                 else:
-                    ebp50 = ebp90 = etp50 = etp90 = "-"
+                    ebp50 = ebp95 = etp50 = etp95 = "-"
                 lines.append(
                     f"  {ep:>5}  {dur_s:>8}  {rate_s:>8}"
-                    f"  {ebp50:>8}  {ebp90:>8}"
-                    f"  {etp50:>8}  {etp90:>8}"
+                    f"  {ebp50:>8}  {ebp95:>8}"
+                    f"  {etp50:>8}  {etp95:>8}"
                 )
 
         return "\n".join(lines)
