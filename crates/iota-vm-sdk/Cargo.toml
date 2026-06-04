@@ -1,0 +1,78 @@
+[package]
+name = "iota-vm-sdk"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Local IOTA Move VM SDK: decode, store, execute and introspect transactions without a node. Native and wasm32 targets; networked stores and a wasm-bindgen JS surface are off-by-default features."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[features]
+default = []
+grpc = ["dep:tonic", "dep:iota-grpc-client", "dep:iota-grpc-types"]
+graphql = ["dep:reqwest", "dep:iota-graphql-rpc-client"]
+wasm-bindgen = [
+  "dep:console_error_panic_hook",
+  "dep:js-sys",
+  "dep:serde-wasm-bindgen",
+  "dep:wasm-bindgen",
+  "dep:web-sys",
+]
+
+[dependencies]
+# external dependencies
+base64.workspace = true
+bcs.workspace = true
+fastcrypto.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+# internal dependencies
+iota-config.workspace = true
+iota-execution = { workspace = true, features = ["tracing"] }
+iota-framework.workspace = true
+iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
+iota-transaction-checks.workspace = true
+iota-types.workspace = true
+move-core-types.workspace = true
+move-trace-format.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# external dependencies
+prometheus.workspace = true
+reqwest = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"] }
+tonic = { workspace = true, optional = true }
+tracing.workspace = true
+
+# internal dependencies
+iota-graphql-rpc-client = { workspace = true, optional = true }
+iota-grpc-client = { workspace = true, optional = true }
+iota-grpc-types = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = { version = "0.1", optional = true }
+getrandom.workspace = true
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+js-sys = { version = "0.3", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["console"] }
+
+[dev-dependencies]
+anyhow.workspace = true
+
+[[example]]
+name = "offline_dev_inspect"
+path = "examples/offline_dev_inspect.rs"
+
+[lints]
+workspace = true
