@@ -12,13 +12,13 @@ use anyhow::Result;
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt, stream};
 use iota_kvstore::{
-    BigTableClient, Cell,
+    BigTableClient, Cell, KeyValueStoreReader,
     client::{
         CHECKPOINT_CONTENTS_COLUMN_QUALIFIER, CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
         CHECKPOINTS_BY_DIGEST_TABLE, CHECKPOINTS_TABLE, DEFAULT_COLUMN_QUALIFIER,
         EFFECTS_COLUMN_QUALIFIER, EVENTS_COLUMN_QUALIFIER, OBJECTS_TABLE,
         TRANSACTION_COLUMN_QUALIFIER, TRANSACTION_TO_CHECKPOINT, TRANSACTIONS_TABLE,
-        raw_object_key,
+        TransactionSequenceNumber, TransactionsOrder, raw_object_key,
     },
     proto::bigtable::v2::{
         RowFilter,
@@ -27,7 +27,10 @@ use iota_kvstore::{
     },
 };
 use iota_storage::http_key_value_store::{ItemType, Key};
-use iota_types::{effects::TransactionEvents, storage::ObjectKey};
+use iota_types::{
+    base_types::IotaAddress, digests::TransactionDigest, effects::TransactionEvents,
+    storage::ObjectKey,
+};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
@@ -135,6 +138,9 @@ impl KvStoreClient {
 
         // Use the first key to determine the type - all keys should be of the same type
         match keys.first().expect("emptiness was checked earlier") {
+            Key::TransactionDigestsByAddress(_address) => {
+                return Err(ApiError::BadRequest("unsupported key".into()));
+            }
             Key::Transaction(_) => {
                 let digests = extract_keys(&keys, |k| match k {
                     Key::Transaction(digest) => Some(*digest),
@@ -411,6 +417,37 @@ impl KvStoreClient {
             .map(|range| self.object_before_version(range))
             .buffered(max_buffered_concurrent_futures)
             .try_collect::<Vec<Option<Bytes>>>()
+            .await
+    }
+
+    /// Fetches a list `(sequence number, digest)` pairs for transactions
+    /// affecting the given address, ordered by `oldest_first` and capped
+    /// at `limit`.
+    ///
+    /// # Pagination
+    /// `cursor` is **exclusive**.
+    ///
+    /// - oldest_first = `false`: returns entries with `tx_seq < cursor`.
+    /// - oldest_first = `true`: returns entries with `tx_seq > cursor`.
+    ///
+    /// When `None`, the scan starts from the beginning of the requested
+    /// `oldest_first` order.
+    pub async fn transactions_by_address(
+        &self,
+        address: IotaAddress,
+        cursor: Option<TransactionSequenceNumber>,
+        limit: usize,
+        oldest_first: bool,
+    ) -> Result<Vec<(TransactionSequenceNumber, TransactionDigest)>, anyhow::Error> {
+        let mut client = self.bigtable_client.clone();
+
+        let order = match oldest_first {
+            true => TransactionsOrder::OldestFirst,
+            false => TransactionsOrder::NewestFirst,
+        };
+
+        client
+            .get_transaction_digests_by_address(address, cursor, limit, order)
             .await
     }
 }
