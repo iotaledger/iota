@@ -217,7 +217,7 @@ fun test_claim_address_mismatch() {
 #[expected_failure(abort_code = claim_registry::EAlreadyClaimed)]
 fun test_claim_double_claim() {
     let mut scenario = setup();
-    let sender = claim_registry::derive_address_for_testing(&ED25519_PK);
+    let sender = ED25519_ADDR;
 
     scenario.next_tx(sender);
     {
