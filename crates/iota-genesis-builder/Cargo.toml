@@ -78,7 +78,7 @@ test-outputs = ["dep:iota-sdk-crypto"]
 
 [target.'cfg(not(msim))'.dependencies]
 # iota-sdk-crypto is only used when compiling test-outputs feature
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "812d8c3688876d70ffd3208667e8d13c835c8f75", optional = true, features = ["ed25519", "mnemonic"] }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "35a27488b887e28e844a1e46d7edb78605871155", optional = true, features = ["ed25519", "mnemonic"] }
 
 [[example]]
 name = "snapshot_add_test_outputs"

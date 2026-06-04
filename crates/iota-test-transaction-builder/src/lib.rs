@@ -13,9 +13,10 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
+use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_types::{
     Identifier, ObjectId, TypeTag,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
@@ -390,23 +391,14 @@ impl TestTransactionBuilder {
     pub fn build_and_sign_multisig(
         self,
         multisig_pk: MultiSigPublicKey,
-        signers: &[&dyn Signer<Signature>],
+        signers: &[&dyn SdkSigner<SimpleSignature>],
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
-        let intent_msg = IntentMessage::new(Intent::iota_transaction(), data.clone());
-
-        let mut signatures = Vec::with_capacity(signers.len());
-        for signer in signers {
-            signatures.push(
-                GenericSignature::from(Signature::new_secure(&intent_msg, *signer))
-                    .to_compressed()
-                    .unwrap(),
-            );
-        }
-
+        let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
+        let signatures = signers.iter().map(|s| s.sign(&*digest).into()).collect();
         let multisig =
-            GenericSignature::MultiSig(MultiSig::insecure_new(signatures, bitmap, multisig_pk));
+            GenericSignature::MultiSig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
 
         Transaction::from_generic_sig_data(data, vec![multisig])
     }

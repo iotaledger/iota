@@ -13,16 +13,15 @@ use fastcrypto::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_types::{
     ObjectId,
-    crypto::{Intent, IntentScope},
+    crypto::{Intent, IntentScope, PublicKey, UserSignature},
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectRef, SequenceNumber},
     crypto::{
         AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
-        IotaSignatureInner, PublicKey, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
+        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
         SignatureScheme, get_key_pair, get_key_pair_from_rng,
     },
-    signature::GenericSignature,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -691,16 +690,22 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
     // Public keys (Base64)
-    let pk1 = PublicKey::decode_base64("AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l").unwrap();
-    let pk2 = PublicKey::decode_base64("AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI").unwrap();
-    let pk3 = PublicKey::decode_base64("APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4").unwrap();
+    let pk1 = PublicKey::from_base64("AIKM0+W7wvP6pitTgJQVB7Yfn2oMO3aZd3votkb6x87l").unwrap();
+    let pk2 = PublicKey::from_base64("AIA4z3cY/7bzUz/Kj1mPe5I9k82gpL3J/WppWjnB53SI").unwrap();
+    let pk3 = PublicKey::from_base64("APBL9QuKI1MjSNn5Jt0w0zOUWdCQxbn84UlKmJtGbuU4").unwrap();
     let pks = vec![pk1, pk2, pk3];
     let weights = vec![1, 1, 1];
     let threshold = 2;
 
     // Signatures (Base64)
-    let sig1 = GenericSignature::decode_base64("AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==").unwrap();
-    let sig2 = GenericSignature::decode_base64("AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==").unwrap();
+    let sig1 = UserSignature::from_base64(
+        "AP58oYBpNZRsR8ReDL05R/37o8l5t89e+RdBDId7yA0+Oxt/F/jlfCw8bnFR596zhVi9CN19bb0aWpn8U0cENQqCjNPlu8Lz+qYrU4CUFQe2H59qDDt2mXd76LZG+sfO5Q==",
+    )
+    .unwrap();
+    let sig2 = UserSignature::from_base64(
+        "AIG+CPPEfpfJC/1AMSXrfPGmJ4hK7n2nGRp7ZTrYW3mPgM6zGJ+vepGk+CL0F9ihnzdA++CM2DUUCYOv4rHrQAqAOM93GP+281M/yo9Zj3uSPZPNoKS9yf1qaVo5wed0iA==",
+    )
+    .unwrap();
     let sigs = vec![sig1, sig2];
 
     let output = KeyToolCommand::MultiSigCombinePartialSig {
@@ -723,16 +728,16 @@ async fn test_multi_sig_combine_partial_sig() -> Result<(), anyhow::Error> {
     // Check parsed structure
     let parsed_json = serde_json::to_value(&data.multisig_parsed).unwrap();
     let expected_json = serde_json::json!({
-        "sigs": [
-            {"Ed25519": "/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1Cg=="},
-            {"Ed25519": "gb4I88R+l8kL/UAxJet88aYniErufacZGntlOthbeY+AzrMYn696kaT4IvQX2KGfN0D74IzYNRQJg6/isetACg=="}
+        "signatures": [
+            {"scheme": "ed25519", "signature": "/nyhgGk1lGxHxF4MvTlH/fujyXm3z175F0EMh3vIDT47G38X+OV8LDxucVHn3rOFWL0I3X1tvRpamfxTRwQ1Cg=="},
+            {"scheme": "ed25519", "signature": "gb4I88R+l8kL/UAxJet88aYniErufacZGntlOthbeY+AzrMYn696kaT4IvQX2KGfN0D74IzYNRQJg6/isetACg=="}
         ],
         "bitmap": 3,
-        "multisig_pk": {
-            "pk_map": [
-                [{"Ed25519": "gozT5bvC8/qmK1OAlBUHth+fagw7dpl3e+i2RvrHzuU="}, 1],
-                [{"Ed25519": "gDjPdxj/tvNTP8qPWY97kj2TzaCkvcn9amlaOcHndIg="}, 1],
-                [{"Ed25519": "8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5Tg="}, 1]
+        "committee": {
+            "members": [
+                {"public_key": {"scheme": "ed25519", "public_key": "gozT5bvC8/qmK1OAlBUHth+fagw7dpl3e+i2RvrHzuU="}, "weight": 1},
+                {"public_key": {"scheme": "ed25519", "public_key": "gDjPdxj/tvNTP8qPWY97kj2TzaCkvcn9amlaOcHndIg="}, "weight": 1},
+                {"public_key": {"scheme": "ed25519", "public_key": "8Ev1C4ojUyNI2fkm3TDTM5RZ0JDFufzhSUqYm0Zu5Tg="}, "weight": 1}
             ],
             "threshold": 2
         }

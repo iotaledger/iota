@@ -108,6 +108,7 @@ tower.workspace = true
 # internal dependencies
 iota-move.workspace = true
 iota-move-build.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1"] }
 iota-test-transaction-builder.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dev-dependencies]

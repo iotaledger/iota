@@ -17,7 +17,10 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Identifier, ObjectId, StructTag, crypto::Intent};
+use iota_sdk_types::{
+    Identifier, ObjectId, StructTag,
+    crypto::{Intent, UserSignature},
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::PublicKey,
@@ -719,7 +722,12 @@ impl Client {
             .context("Signing transaction")?
             .into();
 
-        let multi_sig: GenericSignature = MultiSig::combine(vec![sponsor_sig.clone()], admin_key)
+        let member_sig: UserSignature = sponsor_sig
+            .clone()
+            .try_into()
+            .context("Converting sponsor signature for multisig")?;
+
+        let multi_sig: GenericSignature = MultiSig::new(vec![member_sig], admin_key)
             .context("Signing as admin")?
             .into();
 

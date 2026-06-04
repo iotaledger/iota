@@ -237,26 +237,6 @@ CommandArgumentError:
       SharedObjectOperationNotAllowed: UNIT
     12:
       InvalidArgumentArity: UNIT
-CompressedSignature:
-  ENUM:
-    0:
-      Ed25519:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 64
-    1:
-      Secp256k1:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 64
-    2:
-      Secp256r1:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 64
 ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
@@ -642,22 +622,6 @@ MoveStruct:
         TYPENAME: MoveObjectType
     - version: U64
     - contents: BYTES
-MultiSig:
-  STRUCT:
-    - sigs:
-        SEQ:
-          TYPENAME: CompressedSignature
-    - bitmap: U16
-    - multisig_pk:
-        TYPENAME: MultiSigPublicKey
-MultiSigPublicKey:
-  STRUCT:
-    - pk_map:
-        SEQ:
-          TUPLE:
-            - TYPENAME: PublicKey
-            - U8
-    - threshold: U16
 Object:
   STRUCT:
     - data:
@@ -789,26 +753,6 @@ ProgrammableTransaction:
           TYPENAME: Command
 ProtocolVersion:
   NEWTYPESTRUCT: U64
-PublicKey:
-  ENUM:
-    0:
-      Ed25519:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 32
-    1:
-      Secp256k1:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 33
-    2:
-      Secp256r1:
-        NEWTYPE:
-          TUPLEARRAY:
-            CONTENT: U8
-            SIZE: 33
 Publish:
   STRUCT:
     - modules:
