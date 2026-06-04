@@ -223,6 +223,76 @@ impl IotaSystemState {
     pub fn version(&self) -> u64 {
         self.system_state_version()
     }
+
+    /// Build a minimal `IotaSystemState::V1` whose only meaningful fields are
+    /// `epoch` and `protocol_version`. Everything else is zeroed/defaulted.
+    /// Intended for test fixtures that need a structurally valid system
+    /// state to exercise BCS round-trip paths.
+    pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
+        use iota_sdk_types::ObjectId;
+
+        use crate::{
+            balance::{Balance, Supply},
+            coin::TreasuryCap,
+            collection_types::{Bag, Table, TableVec, VecMap},
+            gas_coin::IotaTreasuryCap,
+            id::UID,
+            iota_system_state::iota_system_state_inner_v1::{
+                IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
+            },
+            system_admin_cap::IotaSystemAdminCap,
+        };
+        IotaSystemState::V1(IotaSystemStateV1 {
+            epoch,
+            protocol_version,
+            system_state_version: 1,
+            iota_treasury_cap: IotaTreasuryCap {
+                inner: TreasuryCap {
+                    id: UID::new(ObjectId::ZERO),
+                    total_supply: Supply { value: 0 },
+                },
+            },
+            validators: ValidatorSetV1 {
+                total_stake: 0,
+                active_validators: Vec::new(),
+                pending_active_validators: TableVec::default(),
+                pending_removals: Vec::new(),
+                staking_pool_mappings: Table::default(),
+                inactive_validators: Table::default(),
+                validator_candidates: Table::default(),
+                at_risk_validators: VecMap {
+                    contents: Vec::new(),
+                },
+                extra_fields: Bag::default(),
+            },
+            storage_fund: StorageFundV1 {
+                total_object_storage_rebates: Balance::new(0),
+                non_refundable_balance: Balance::new(0),
+            },
+            parameters: SystemParametersV1 {
+                epoch_duration_ms: 0,
+                min_validator_count: 0,
+                max_validator_count: 0,
+                min_validator_joining_stake: 0,
+                validator_low_stake_threshold: 0,
+                validator_very_low_stake_threshold: 0,
+                validator_low_stake_grace_period: 0,
+                extra_fields: Bag::default(),
+            },
+            iota_system_admin_cap: IotaSystemAdminCap::default(),
+            reference_gas_price: 0,
+            validator_report_records: VecMap {
+                contents: Vec::new(),
+            },
+            safe_mode: false,
+            safe_mode_storage_charges: Balance::new(0),
+            safe_mode_computation_rewards: Balance::new(0),
+            safe_mode_storage_rebates: 0,
+            safe_mode_non_refundable_storage_fee: 0,
+            epoch_start_timestamp_ms: 0,
+            extra_fields: Bag::default(),
+        })
+    }
 }
 
 pub fn get_iota_system_state_wrapper(

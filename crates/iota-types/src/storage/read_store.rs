@@ -15,8 +15,10 @@ use crate::{
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        FullCheckpointContents, VerifiedCheckpoint,
     },
     object::Object,
     storage::{get_transaction_input_objects, get_transaction_output_objects},
@@ -846,8 +848,33 @@ pub struct EpochInfo {
     pub start_checkpoint: u64,
     pub end_checkpoint: Option<u64>,
     pub reference_gas_price: u64,
-    /// System State as of the start of the epoch
+    /// `IotaSystemState` of object `0x5` right after the AdvanceEpoch tx of
+    /// the previous epoch (or the genesis tx for epoch 0).
     pub system_state: crate::iota_system_state::IotaSystemState,
+}
+
+/// Epoch information structure for indexing.
+///
+/// Contains metadata about an epoch including timing, checkpoints, protocol
+/// version, and a snapshot of the system state at the start of the epoch.
+///
+/// Version 2 adds last_checkpoint_summary, and end_of_epoch_tx_events fields.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EpochInfoV2 {
+    pub epoch: u64,
+    pub protocol_version: u64,
+    pub start_timestamp_ms: u64,
+    pub end_timestamp_ms: Option<u64>,
+    pub start_checkpoint: CheckpointSequenceNumber,
+    pub end_checkpoint: Option<CheckpointSequenceNumber>,
+    pub reference_gas_price: u64,
+    /// `IotaSystemState` of object `0x5` right after the AdvanceEpoch tx of
+    /// the previous epoch (or the genesis tx for epoch 0).
+    pub system_state: IotaSystemState,
+    /// Certified summary of this epoch's last checkpoint.
+    pub last_checkpoint_summary: Option<CertifiedCheckpointSummary>,
+    /// Events from the AdvanceEpoch tx that closed this epoch.
+    pub end_of_epoch_tx_events: Option<TransactionEvents>,
 }
 
 #[derive(Clone)]

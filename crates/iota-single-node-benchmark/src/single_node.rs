@@ -10,7 +10,7 @@ use std::{
 use iota_core::{
     authority::{
         AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::LiveObject, test_authority_builder::TestAuthorityBuilder,
+        test_authority_builder::TestAuthorityBuilder,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     checkpoints::checkpoint_executor::CheckpointExecutor,
@@ -291,10 +291,7 @@ impl SingleValidator {
             .get_validator()
             .get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
-            .map(|o| match o {
-                LiveObject::Normal(object) => (object.id(), object),
-                LiveObject::Wrapped(_) => unreachable!(),
-            })
+            .map(|o| (o.object.id(), o.object))
             .collect();
         InMemoryObjectStore::new(objects)
     }

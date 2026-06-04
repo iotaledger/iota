@@ -28,7 +28,7 @@ use super::*;
 use crate::authority::{
     authority_store_pruner::ObjectsCompactionFilter,
     authority_store_types::{
-        StoreObject, StoreObjectValue, StoreObjectWrapper, get_store_object, try_construct_object,
+        StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
 };
@@ -261,7 +261,7 @@ impl AuthorityPerpetualTables {
     fn construct_object(
         &self,
         object_key: &ObjectKey,
-        store_object: StoreObjectValue,
+        store_object: StoreObjectValueV2,
     ) -> Result<Object, IotaError> {
         try_construct_object(object_key, store_object)
     }
@@ -490,9 +490,39 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn insert_object_test_only(&self, object: Object) -> IotaResult {
+    pub fn insert_store_object_v1_test_only(&self, object: Object) -> IotaResult {
+        use crate::authority::authority_store_types::{StoreObjectV1, StoreObjectValue};
+
         let object_reference = object.object_ref();
-        let wrapper = get_store_object(object);
+        let v2_value = match get_store_object(object, None).into_inner() {
+            StoreObject::Value(v) => *v,
+            other => unreachable!("get_store_object must produce a Value variant, got {other:?}"),
+        };
+        let v1_value = StoreObjectValue {
+            data: v2_value.data,
+            owner: v2_value.owner,
+            previous_transaction: v2_value.previous_transaction,
+            storage_rebate: v2_value.storage_rebate,
+        };
+        let wrapper = StoreObjectWrapper::V1(StoreObjectV1::Value(Box::new(v1_value)));
+
+        let mut wb = self.objects.batch();
+        wb.insert_batch(
+            &self.objects,
+            std::iter::once((ObjectKey::from(object_reference), wrapper)),
+        )?;
+        wb.write()?;
+        Ok(())
+    }
+
+    pub fn insert_store_object_v2_test_only(
+        &self,
+        object: Object,
+        previous_transaction_checkpoint: Option<CheckpointSequenceNumber>,
+    ) -> IotaResult {
+        let object_reference = object.object_ref();
+        let wrapper = get_store_object(object, previous_transaction_checkpoint);
+
         let mut wb = self.objects.batch();
         wb.insert_batch(
             &self.objects,
@@ -539,46 +569,60 @@ impl ObjectStore for AuthorityPerpetualTables {
     }
 }
 
-pub struct LiveSetIter<'a> {
-    iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
-    tables: &'a AuthorityPerpetualTables,
-    prev: Option<(ObjectKey, StoreObjectWrapper)>,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-pub enum LiveObject {
-    Normal(Object),
-    Wrapped(ObjectKey),
+/// In-process iterator item for a live object together with the checkpoint
+/// sequence number that contained the transaction whose effects produced this
+/// object version. Yielded by [`LiveSetIter`].
+///
+/// `previous_transaction_checkpoint` is `Option`: production write paths
+/// always produce `Some(seq)`, but `LiveSetIter` will yield `None` for rows
+/// lifted from a pre-V2 on-disk format (the checkpoint was never recorded and
+/// is unrecoverable).
+#[derive(Eq, PartialEq, Debug, Clone, Hash)]
+pub struct LiveObject {
+    pub object: Object,
+    pub previous_transaction_checkpoint: Option<CheckpointSequenceNumber>,
 }
 
 impl LiveObject {
     pub fn object_id(&self) -> ObjectId {
-        match self {
-            LiveObject::Normal(obj) => obj.id(),
-            LiveObject::Wrapped(key) => key.0,
-        }
+        self.object.id()
     }
 
     pub fn version(&self) -> SequenceNumber {
-        match self {
-            LiveObject::Normal(obj) => obj.version(),
-            LiveObject::Wrapped(key) => key.1,
-        }
+        self.object.version()
     }
 
     pub fn object_reference(&self) -> ObjectRef {
-        match self {
-            LiveObject::Normal(obj) => obj.object_ref(),
-            LiveObject::Wrapped(key) => ObjectRef::new(key.0, key.1, ObjectDigest::OBJECT_WRAPPED),
-        }
+        self.object.object_ref()
     }
+}
 
-    pub fn to_normal(self) -> Option<Object> {
-        match self {
-            LiveObject::Normal(object) => Some(object),
-            LiveObject::Wrapped(_) => None,
+/// On-disk record format for a live object as emitted into snapshot V2 `.obj`
+/// files (`iota-snapshot::writer::write_object`) and decoded by
+/// `iota-snapshot::reader::LiveObjectIter`.
+#[derive(Deserialize, Serialize)]
+pub struct SnapshotLiveObject {
+    pub object: Object,
+    pub previous_transaction_checkpoint: CheckpointSequenceNumber,
+}
+
+impl From<SnapshotLiveObject> for LiveObject {
+    fn from(snap: SnapshotLiveObject) -> Self {
+        let SnapshotLiveObject {
+            object,
+            previous_transaction_checkpoint,
+        } = snap;
+        LiveObject {
+            object,
+            previous_transaction_checkpoint: Some(previous_transaction_checkpoint),
         }
     }
+}
+
+pub struct LiveSetIter<'a> {
+    iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
+    tables: &'a AuthorityPerpetualTables,
+    prev: Option<(ObjectKey, StoreObjectWrapper)>,
 }
 
 impl LiveSetIter<'_> {
@@ -588,12 +632,16 @@ impl LiveSetIter<'_> {
         store_object: StoreObjectWrapper,
     ) -> Option<LiveObject> {
         match store_object.migrate().into_inner() {
-            StoreObject::Value(object) => {
+            StoreObject::Value(value) => {
+                let previous_transaction_checkpoint = value.previous_transaction_checkpoint;
                 let object = self
                     .tables
-                    .construct_object(&object_key, *object)
+                    .construct_object(&object_key, *value)
                     .expect("Constructing object from store cannot fail");
-                Some(LiveObject::Normal(object))
+                Some(LiveObject {
+                    object,
+                    previous_transaction_checkpoint,
+                })
             }
             StoreObject::Wrapped | StoreObject::Deleted => None,
         }
@@ -685,4 +733,98 @@ fn events_table_config(db_options: DBOptions) -> DBOptions {
     db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_EVENTS_BLOCK_CACHE_SIZE).unwrap_or(1024))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::authority::authority_store_types::StoreObjectV2;
+
+    /// `LiveSetIter` must filter `StoreObject::Wrapped` and
+    /// `StoreObject::Deleted` rows at the source so downstream consumers
+    /// (snapshot writer, state-hash accumulator, restore path) only ever
+    /// observe live objects.
+    #[tokio::test]
+    async fn live_set_iter_filters_wrapped_and_deleted_store_rows() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        // A live `Normal` row alongside `Wrapped` and `Deleted` tombstones for
+        // distinct object IDs.
+        let live_id = ObjectId::random();
+        let wrapped_id = ObjectId::random();
+        let deleted_id = ObjectId::random();
+
+        let live_object = Object::immutable_with_id_for_testing(live_id);
+        perpetual_db
+            .insert_store_object_v2_test_only(live_object, None)
+            .unwrap();
+
+        let mut wb = perpetual_db.objects.batch();
+        let wrapped_key = ObjectKey(wrapped_id, SequenceNumber::from_u64(1));
+        wb.insert_batch(
+            &perpetual_db.objects,
+            std::iter::once::<(ObjectKey, StoreObjectWrapper)>((
+                wrapped_key,
+                StoreObjectV2::Wrapped.into(),
+            )),
+        )
+        .unwrap();
+        let deleted_key = ObjectKey(deleted_id, SequenceNumber::from_u64(1));
+        wb.insert_batch(
+            &perpetual_db.objects,
+            std::iter::once::<(ObjectKey, StoreObjectWrapper)>((
+                deleted_key,
+                StoreObjectV2::Deleted.into(),
+            )),
+        )
+        .unwrap();
+        wb.write().unwrap();
+
+        let yielded: Vec<_> = perpetual_db.iter_live_object_set().collect();
+        assert_eq!(yielded.len(), 1, "wrapped/deleted rows must be filtered");
+        assert_eq!(yielded[0].object.id(), live_id);
+    }
+
+    /// `LiveSetIter` must surface the exact `previous_transaction_checkpoint`
+    /// stored on `StoreObjectValueV2` - it is the load-bearing input to each
+    /// `LiveObject` record the snapshot V2 writer emits into `.obj` files
+    /// (and, on restore, to the `previous_transaction_checkpoint` field
+    /// stamped onto `StoreObjectV2` via `bulk_insert_live_objects`). A bug
+    /// that, e.g., always stamped `0` here would silently corrupt every
+    /// snapshot's per-object record; this is the focused canary for that
+    /// contract.
+    #[tokio::test]
+    async fn live_set_iter_propagates_previous_transaction_checkpoint() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        // Insert a live object with a distinct, recognizable checkpoint.
+        let object = Object::immutable_with_id_for_testing(ObjectId::random());
+        let object_ref = object.object_ref();
+        let object_key = ObjectKey::from(object_ref);
+        let distinct_checkpoint: u64 = 0xCAFE_F00D_BEEF_1234;
+
+        let store_object_value =
+            match get_store_object(object, Some(distinct_checkpoint)).into_inner() {
+                StoreObject::Value(value) => value,
+                other => panic!("expected StoreObject::Value, got {other:?}"),
+            };
+        let wrapper: StoreObjectWrapper = StoreObjectV2::Value(store_object_value).into();
+        let mut wb = perpetual_db.objects.batch();
+        wb.insert_batch(
+            &perpetual_db.objects,
+            std::iter::once((object_key, wrapper)),
+        )
+        .unwrap();
+        wb.write().unwrap();
+
+        let yielded: Vec<_> = perpetual_db.iter_live_object_set().collect();
+        assert_eq!(yielded.len(), 1);
+        assert_eq!(
+            yielded[0].previous_transaction_checkpoint,
+            Some(distinct_checkpoint),
+            "LiveSetIter must surface the on-row checkpoint, not a default"
+        );
+    }
 }
