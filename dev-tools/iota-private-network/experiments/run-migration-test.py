@@ -109,9 +109,7 @@ class Config:
     load_transfer_objects: int = 100
     load_rpc_address: str = "http://fullnode-1:9000"
     load_tools_image: str = "iotaledger/stress"
-    load_primary_gas_owner_id: str = (
-        "0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0"
-    )
+    load_primary_gas_owner_id: str = ec.DEFAULT_PRIMARY_GAS_OWNER_ID
 
     # --- Derived paths (set in __post_init__) ---
     script_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent)
@@ -745,18 +743,6 @@ def start_load_generator(cfg: Config) -> None:
             "registry or pass --load-tools-image"
         )
 
-    genesis_blob = cfg.network_dir / "configs" / "genesis" / "genesis.blob"
-    faucet_keystore = cfg.network_dir / "configs" / "faucet" / "iota.keystore"
-    load_keystore_dir = cfg.log_dir / "load-generator-keystore"
-    load_keystore = load_keystore_dir / "iota.keystore"
-    if not genesis_blob.exists():
-        raise FileNotFoundError(f"genesis blob not found: {genesis_blob}")
-    if not faucet_keystore.exists():
-        raise FileNotFoundError(f"faucet keystore not found: {faucet_keystore}")
-    shutil.rmtree(load_keystore_dir, ignore_errors=True)
-    load_keystore_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(faucet_keystore, load_keystore)
-
     for sec in range(30):
         result = run(
             ["docker", "ps", "--format", "{{.Names}}"],
@@ -772,68 +758,19 @@ def start_load_generator(cfg: Config) -> None:
         raise RuntimeError("fullnode-1 is not running; cannot start load generator")
     print()
 
-    run(["docker", "rm", "-f", "stress-benchmark"], check=False, quiet=True)
-    result = run(
-        [
-            "docker",
-            "run",
-            "-d",
-            "--rm",
-            "--name",
-            "stress-benchmark",
-            "--network",
-            _migration_network_name(cfg),
-            "-v",
-            f"{genesis_blob.resolve()}:/opt/iota/config/genesis.blob:ro",
-            "-v",
-            f"{load_keystore_dir.resolve()}:/opt/iota/config:rw",
-            cfg.load_tools_image,
-            "/usr/local/bin/stress",
-            "--local",
-            "false",
-            "--use-fullnode-for-execution",
-            "true",
-            "--fullnode-rpc-addresses",
-            cfg.load_rpc_address,
-            "--genesis-blob-path",
-            "/opt/iota/config/genesis.blob",
-            "--keystore-path",
-            "/opt/iota/config/iota.keystore",
-            "--primary-gas-owner-id",
-            cfg.load_primary_gas_owner_id,
-            "bench",
-            "--target-qps",
-            str(cfg.load_qps),
-            "--in-flight-ratio",
-            str(cfg.load_in_flight_ratio),
-            "--transfer-object",
-            str(cfg.load_transfer_objects),
-        ],
-        capture=True,
-        check=False,
-        quiet=True,
+    # Shared implementation: writable keystore copy, docker run, and a 5s
+    # startup liveness check (raises with the container logs on failure).
+    ec.start_stress_container(
+        image=cfg.load_tools_image,
+        network_name=_migration_network_name(cfg),
+        network_dir=cfg.network_dir,
+        log_dir=cfg.log_dir,
+        rpc_address=cfg.load_rpc_address,
+        gas_owner_id=cfg.load_primary_gas_owner_id,
+        target_qps=cfg.load_qps,
+        in_flight_ratio=cfg.load_in_flight_ratio,
+        transfer_objects=cfg.load_transfer_objects,
     )
-    if result.returncode != 0:
-        log("  WARNING: load generator failed to start; the migration continues "
-            "without load.")
-        return
-    container_id = result.stdout.strip()[:12] or "unknown"
-
-    # Health check: verify the container is still running after a short startup period
-    time.sleep(5)
-    health = run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", "stress-benchmark"],
-        capture=True, check=False, quiet=True,
-    )
-    if health.returncode != 0 or health.stdout.strip() != "true":
-        fail_logs = run(
-            ["docker", "logs", "--tail", "20", "stress-benchmark"],
-            capture=True, check=False, quiet=True,
-        )
-        raise RuntimeError(
-            f"Load generator exited immediately after start.\n"
-            f"  Last logs:\n{fail_logs.stdout.strip()}"
-        )
 
     # Verify the stress tool actually connected to the fullnode RPC.
     # "Found new state" is emitted after successful system state retrieval.
@@ -869,7 +806,6 @@ def start_load_generator(cfg: Config) -> None:
     )
     load_log_fh.close()
 
-    log(f"  Load generator container: {container_id}")
     log(f"  RPC target: {cfg.load_rpc_address}")
     log(f"  Logs: {load_log}")
     log(_phase_complete("Phase 6b", time.time() - phase_start))

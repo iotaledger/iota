@@ -21,18 +21,14 @@ Run from: iota/dev-tools/iota-private-network/experiments/
 from __future__ import annotations
 
 import argparse
-import os
-import shutil
 import signal
 import subprocess
 import sys
-import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 
 import experiment_common as ec
-from experiment_common import _C, log, log_status, run, run_timed
+from experiment_common import log, run
 
 
 @dataclass
@@ -68,9 +64,7 @@ class Config:
     load_in_flight_ratio: int = 5
     load_transfer_objects: int = 100
     load_rpc_address: str = "http://fullnode-1:9000"
-    load_primary_gas_owner_id: str = (
-        "0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0"
-    )
+    load_primary_gas_owner_id: str = ec.DEFAULT_PRIMARY_GAS_OWNER_ID
 
     script_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent)
     network_dir: Path = field(init=False)
@@ -114,27 +108,6 @@ _latency_proc: subprocess.Popen[str] | None = None
 # ========================= Teardown =========================
 
 
-def _network_stats(cfg: Config) -> None:
-    log(_C.BOLD + "Final network stats per validator:" + _C.RESET)
-    for i in range(1, cfg.num_validators + 1):
-        v = f"validator-{i}"
-        try:
-            stats = {}
-            for key in ("tx_bytes", "rx_bytes", "tx_packets", "rx_packets"):
-                r = run(
-                    ["docker", "exec", v, "cat", f"/sys/class/net/eth0/statistics/{key}"],
-                    capture=True, check=False, quiet=True,
-                )
-                stats[key] = int(r.stdout.strip() or 0)
-            log(
-                f"  {v}: TX {stats['tx_packets']:,} pkts / "
-                f"{stats['tx_bytes'] / 1048576:.2f} MB, "
-                f"RX {stats['rx_packets']:,} pkts / {stats['rx_bytes'] / 1048576:.2f} MB"
-            )
-        except Exception:
-            log(f"  {v}: stats unavailable")
-
-
 def cleanup(cfg: Config) -> None:
     global _cleaning
     if _cleaning:
@@ -143,7 +116,7 @@ def cleanup(cfg: Config) -> None:
     log(_phase("Cleaning up"))
     if cfg.network_metric:
         try:
-            _network_stats(cfg)
+            ec.network_stats(cfg.num_validators)
         except Exception:
             pass
     # Stop spammer container if present.
@@ -162,120 +135,6 @@ def _phase(title: str, phase: str = "") -> str:
 
 
 # ========================= Phases =========================
-
-
-def build_images(cfg: Config) -> None:
-    if not cfg.build:
-        log("Skipping image builds")
-        return
-    log(_phase("Building docker images", "BUILD"))
-    docker_dir = cfg.script_dir.parent.parent.parent / "docker"
-    for name in ("iota-node", "iota-tools", "iota-indexer"):
-        run_timed(
-            ["./build.sh", "-t", name], f"Building {name}", cwd=docker_dir / name,
-        )
-    print()
-
-
-def start_spammer(cfg: Config) -> None:
-    if not cfg.spammer_enable:
-        return
-    duration = max(10, cfg.run_duration - 60)
-    log(_phase(f"Starting {cfg.spammer_type} spammer (tps={cfg.spammer_tps})", "LOAD"))
-
-    if cfg.spammer_type == "stress":
-        # The `stress` load tool is the iota-benchmark binary, shipped as the
-        # iotaledger/stress image. ensure_image pulls it, offering an
-        # interactive `docker login` on auth failures; load was explicitly
-        # requested, so a still-missing image fails the run.
-        if not ec.ensure_image(cfg.spammer_image):
-            raise RuntimeError(
-                f"spammer requested (-S true) but image {cfg.spammer_image} is "
-                "unavailable — `docker login` to the registry or pass "
-                "--spammer-image"
-            )
-        genesis_blob = cfg.network_dir / "configs" / "genesis" / "genesis.blob"
-        faucet_keystore = cfg.network_dir / "configs" / "faucet" / "iota.keystore"
-        # stress migrates old-format keystores in place (a rename, which fails
-        # with EBUSY on a read-only single-file bind mount and kills the
-        # container instantly) — hand it a writable copy in its own directory,
-        # mirroring run-migration-test.py.
-        keystore_dir = cfg.log_dir / "load-generator-keystore"
-        shutil.rmtree(keystore_dir, ignore_errors=True)
-        keystore_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(faucet_keystore, keystore_dir / "iota.keystore")
-        run(["docker", "rm", "-f", "stress-benchmark"], check=False, quiet=True)
-        # No --rm: if stress crashes at startup its logs must survive for the
-        # liveness check below (cleanup force-removes the container anyway).
-        res = run(
-            [
-                "docker", "run", "-d", "--name", "stress-benchmark",
-                "--network", cfg.network_name,
-                "-v", f"{genesis_blob.resolve()}:/opt/iota/config/genesis.blob:ro",
-                "-v", f"{keystore_dir.resolve()}:/opt/iota/config:rw",
-                cfg.spammer_image, "/usr/local/bin/stress",
-                "--local", "false",
-                "--use-fullnode-for-execution", "true",
-                "--fullnode-rpc-addresses", cfg.load_rpc_address,
-                "--genesis-blob-path", "/opt/iota/config/genesis.blob",
-                "--keystore-path", "/opt/iota/config/iota.keystore",
-                "--primary-gas-owner-id", cfg.load_primary_gas_owner_id,
-                "bench",
-                "--target-qps", str(cfg.spammer_tps),
-                "--in-flight-ratio", str(cfg.load_in_flight_ratio),
-                "--transfer-object", str(cfg.load_transfer_objects),
-            ],
-            check=False, quiet=True,
-        )
-        if res.returncode != 0:
-            raise RuntimeError("stress spammer failed to start")
-        # `docker run -d` succeeding only means the container was created — a
-        # startup crash (bad keystore, unreachable fullnode) shows up within
-        # seconds, so re-check liveness instead of silently running unloaded.
-        time.sleep(5)
-        alive = run(
-            ["docker", "ps", "-q", "--filter", "name=^stress-benchmark$"],
-            capture=True, quiet=True,
-        ).stdout.strip()
-        if not alive:
-            run(["docker", "logs", "stress-benchmark"], check=False)
-            raise RuntimeError(
-                "stress spammer exited right after start (logs above)"
-            )
-        log(f"  stress-benchmark started (~{duration}s); logs: docker logs stress-benchmark")
-    else:  # iota-spammer
-        home = Path.home()
-        sudo_user = os.environ.get("SUDO_USER")
-        script = home / "iota-spammer" / "scripts" / "spamming_fuzz_test.sh"
-        if not script.is_file():
-            log(f"  Skipping spammer: iota-spammer script not at {script} "
-                "(clone github.com/iotaledger/iota-spammer); run continues without load.")
-            return
-        spam_log = (cfg.log_dir / "spammer.log").open("w")
-        cmd = ["bash", str(script), "-T", str(cfg.spammer_tps),
-               "-s", cfg.spammer_size, "-d", f"{duration}s"]
-        if sudo_user:
-            cmd = ["sudo", "-u", sudo_user, "-H", *cmd]
-        subprocess.Popen(cmd, stdout=spam_log, stderr=subprocess.STDOUT)
-        log(f"  iota-spammer started (~{duration}s); logs: {cfg.log_dir / 'spammer.log'}")
-
-
-def run_loop(cfg: Config) -> None:
-    log(_phase(f"Running for {cfg.run_duration}s (logs every {cfg.log_interval}s)", "RUN"))
-    end = time.time() + cfg.run_duration
-    last_save = 0.0
-    while time.time() < end:
-        if time.time() - last_save >= cfg.log_interval:
-            ec.save_validator_logs(cfg.log_dir, cfg.num_validators, prefix="exp")
-            last_save = time.time()
-        remaining = int(end - time.time())
-        log_status(f"  {ec._progress_bar(cfg.run_duration - remaining, cfg.run_duration)} "
-                   f"{cfg.run_duration - remaining}s / {cfg.run_duration}s")
-        time.sleep(min(5, max(1, remaining)))
-    print()
-    # Final timestamped snapshot.
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    ec.save_validator_logs(cfg.log_dir, cfg.num_validators, prefix=f"experiment-{ts}")
 
 
 # ========================= Main =========================
@@ -361,7 +220,7 @@ def main() -> None:
 
     try:
         ec.cache_sudo()
-        build_images(cfg)
+        ec.build_images(cfg.script_dir, cfg.build)
         if not cfg.build:
             ec.require_local_image(
                 cfg.image,
@@ -402,8 +261,8 @@ def main() -> None:
         )
         if cfg.block_measurement_enabled():
             ec.measure_block_production(cfg.num_validators, cfg.block_measurement_seconds)
-        start_spammer(cfg)
-        run_loop(cfg)
+        ec.start_spammer(cfg)
+        ec.run_loop(cfg, "exp")
     finally:
         cleanup(cfg)
 

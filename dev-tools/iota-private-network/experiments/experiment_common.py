@@ -753,6 +753,181 @@ def ensure_image(image: str) -> bool:
     return False
 
 
+# Faucet account from the bootstrap genesis templates; owns the gas the
+# `stress` load generator spends.
+DEFAULT_PRIMARY_GAS_OWNER_ID = (
+    "0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0"
+)
+
+
+def build_images(script_dir: Path, build: bool) -> None:
+    """Rebuild the local iota-node / iota-tools / iota-indexer images."""
+    if not build:
+        log("Skipping image builds")
+        return
+    log(_phase_banner("Building docker images", "BUILD"))
+    docker_dir = script_dir.parent.parent.parent / "docker"
+    for name in ("iota-node", "iota-tools", "iota-indexer"):
+        run_timed(["./build.sh", "-t", name], f"Building {name}", cwd=docker_dir / name)
+    print()
+
+
+def start_stress_container(
+    *,
+    image: str,
+    network_name: str,
+    network_dir: Path,
+    log_dir: Path,
+    rpc_address: str,
+    gas_owner_id: str,
+    target_qps: int,
+    in_flight_ratio: int,
+    transfer_objects: int,
+) -> None:
+    """Start the `stress` load container (`stress-benchmark`) against
+    *network_name* and verify it survives startup; raises RuntimeError when
+    it cannot run."""
+    genesis_blob = network_dir / "configs" / "genesis" / "genesis.blob"
+    faucet_keystore = network_dir / "configs" / "faucet" / "iota.keystore"
+    # stress migrates old-format keystores in place (a rename, which fails
+    # with EBUSY on a read-only single-file bind mount and kills the container
+    # instantly) — hand it a writable copy in its own directory.
+    keystore_dir = log_dir / "load-generator-keystore"
+    shutil.rmtree(keystore_dir, ignore_errors=True)
+    keystore_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(faucet_keystore, keystore_dir / "iota.keystore")
+    run(["docker", "rm", "-f", "stress-benchmark"], check=False, quiet=True)
+    # No --rm: if stress crashes at startup its logs must survive for the
+    # liveness check below (cleanup force-removes the container anyway).
+    res = run(
+        [
+            "docker", "run", "-d", "--name", "stress-benchmark",
+            "--network", network_name,
+            "-v", f"{genesis_blob.resolve()}:/opt/iota/config/genesis.blob:ro",
+            "-v", f"{keystore_dir.resolve()}:/opt/iota/config:rw",
+            image, "/usr/local/bin/stress",
+            "--local", "false",
+            "--use-fullnode-for-execution", "true",
+            "--fullnode-rpc-addresses", rpc_address,
+            "--genesis-blob-path", "/opt/iota/config/genesis.blob",
+            "--keystore-path", "/opt/iota/config/iota.keystore",
+            "--primary-gas-owner-id", gas_owner_id,
+            "bench",
+            "--target-qps", str(target_qps),
+            "--in-flight-ratio", str(in_flight_ratio),
+            "--transfer-object", str(transfer_objects),
+        ],
+        check=False, quiet=True,
+    )
+    if res.returncode != 0:
+        raise RuntimeError("stress load container failed to start")
+    # `docker run -d` succeeding only means the container was created — a
+    # startup crash (bad keystore, unreachable fullnode) shows up within
+    # seconds, so re-check liveness instead of silently running unloaded.
+    time.sleep(5)
+    alive = run(
+        ["docker", "ps", "-q", "--filter", "name=^stress-benchmark$"],
+        capture=True, quiet=True,
+    ).stdout.strip()
+    if not alive:
+        run(["docker", "logs", "stress-benchmark"], check=False)
+        raise RuntimeError("stress load container exited right after start (logs above)")
+
+
+def start_spammer(cfg) -> None:
+    """Start the configured transaction spammer for the benchmark/fuzz
+    runners (duck-typed over their Config fields)."""
+    if not cfg.spammer_enable:
+        return
+    duration = max(10, cfg.run_duration - 60)
+    log(_phase_banner(
+        f"Starting {cfg.spammer_type} spammer (tps={cfg.spammer_tps})", "LOAD",
+    ))
+
+    if cfg.spammer_type == "stress":
+        # The `stress` load tool is the iota-benchmark binary, shipped as the
+        # iotaledger/stress image. ensure_image pulls it, offering an
+        # interactive `docker login` on auth failures; load was explicitly
+        # requested, so a still-missing image fails the run.
+        if not ensure_image(cfg.spammer_image):
+            raise RuntimeError(
+                f"spammer requested (-S true) but image {cfg.spammer_image} is "
+                "unavailable — `docker login` to the registry or pass "
+                "--spammer-image"
+            )
+        start_stress_container(
+            image=cfg.spammer_image,
+            network_name=cfg.network_name,
+            network_dir=cfg.network_dir,
+            log_dir=cfg.log_dir,
+            rpc_address=cfg.load_rpc_address,
+            gas_owner_id=cfg.load_primary_gas_owner_id,
+            target_qps=cfg.spammer_tps,
+            in_flight_ratio=cfg.load_in_flight_ratio,
+            transfer_objects=cfg.load_transfer_objects,
+        )
+        log(f"  stress-benchmark started (~{duration}s); logs: docker logs stress-benchmark")
+    else:  # iota-spammer
+        home = Path.home()
+        sudo_user = os.environ.get("SUDO_USER")
+        script = home / "iota-spammer" / "scripts" / "spamming_fuzz_test.sh"
+        if not script.is_file():
+            log(f"  Skipping spammer: iota-spammer script not at {script} "
+                "(clone github.com/iotaledger/iota-spammer); run continues without load.")
+            return
+        spam_log = (cfg.log_dir / "spammer.log").open("w")
+        cmd = ["bash", str(script), "-T", str(cfg.spammer_tps),
+               "-s", cfg.spammer_size, "-d", f"{duration}s"]
+        if sudo_user:
+            cmd = ["sudo", "-u", sudo_user, "-H", *cmd]
+        subprocess.Popen(cmd, stdout=spam_log, stderr=subprocess.STDOUT)
+        log(f"  iota-spammer started (~{duration}s); logs: {cfg.log_dir / 'spammer.log'}")
+
+
+def run_loop(cfg, prefix: str) -> None:
+    """Sleep for cfg.run_duration with a progress bar, saving validator logs
+    every cfg.log_interval seconds and once more at the end."""
+    log(_phase_banner(
+        f"Running for {cfg.run_duration}s (logs every {cfg.log_interval}s)", "RUN",
+    ))
+    end = time.time() + cfg.run_duration
+    last_save = 0.0
+    while time.time() < end:
+        if time.time() - last_save >= cfg.log_interval:
+            save_validator_logs(cfg.log_dir, cfg.num_validators, prefix=prefix)
+            last_save = time.time()
+        remaining = int(end - time.time())
+        done = cfg.run_duration - remaining
+        log_status(f"  {_progress_bar(done, cfg.run_duration)} {done}s / {cfg.run_duration}s")
+        time.sleep(min(5, max(1, remaining)))
+    print()
+    # Final timestamped snapshot.
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    save_validator_logs(cfg.log_dir, cfg.num_validators, prefix=f"{prefix}-{ts}")
+
+
+def network_stats(num_validators: int) -> None:
+    """Log per-validator TX/RX packet and byte counters."""
+    log(_C.BOLD + "Final network stats per validator:" + _C.RESET)
+    for i in range(1, num_validators + 1):
+        v = f"validator-{i}"
+        try:
+            stats = {}
+            for key in ("tx_bytes", "rx_bytes", "tx_packets", "rx_packets"):
+                r = run(
+                    ["docker", "exec", v, "cat", f"/sys/class/net/eth0/statistics/{key}"],
+                    capture=True, check=False, quiet=True,
+                )
+                stats[key] = int(r.stdout.strip() or 0)
+            log(
+                f"  {v}: TX {stats['tx_packets']:,} pkts / "
+                f"{stats['tx_bytes'] / 1048576:.2f} MB, "
+                f"RX {stats['rx_packets']:,} pkts / {stats['rx_bytes'] / 1048576:.2f} MB"
+            )
+        except Exception:
+            log(f"  {v}: stats unavailable")
+
+
 def save_validator_logs(log_dir: Path, num: int, prefix: str = "exp") -> None:
     for i in range(1, num + 1):
         dest = log_dir / f"{prefix}-validator-{i}-latest.log"
