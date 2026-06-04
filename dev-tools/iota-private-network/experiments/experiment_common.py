@@ -274,7 +274,29 @@ def acquire_single_run_lock(runner: str) -> None:
     # Fixed /tmp path on purpose: TMPDIR can differ between shells, and the
     # lock must be shared by every process on the host.
     lock_path = Path("/tmp/iota-experiments.lock")
-    fh = lock_path.open("a+")
+    try:
+        # "r+" (no O_CREAT) first: fs.protected_regular forbids O_CREAT opens
+        # of another user's pre-existing file in sticky /tmp, even for root.
+        fh = lock_path.open("r+")
+    except FileNotFoundError:
+        try:
+            fh = lock_path.open("x+")
+        except FileExistsError:  # raced another starting run
+            fh = lock_path.open("r+")
+    except PermissionError as err:
+        raise RuntimeError(
+            f"cannot open {lock_path} (created by another user with an older "
+            f"version of this script?): {err} — remove it (sudo rm "
+            f"{lock_path}) and retry"
+        ) from err
+    # flock() itself is cross-user (it locks the inode), but the file must be
+    # openable by every user for that to matter; otherwise a stale lock file
+    # from another user blocks runs at open() instead of with the clean
+    # holder message below.
+    try:
+        os.chmod(lock_path, 0o666)
+    except OSError:
+        pass  # not the owner — the current mode already let us open it
     try:
         fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
