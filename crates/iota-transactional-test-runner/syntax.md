@@ -300,7 +300,7 @@ acc1: object(0,0), acc2: object(0,1)
 --custom-validator-account: creates a custom validator account. This is only allowed in simulator mode.
 --reference-gas-price <REFERENCE_GAS_PRICE>: Defines a reference gas price for transactions. Only valid in simulator mode.
 --default-gas-price <DEFAULT_GAS_PRICE>: sSets the default gas price for transactions. If not specified, the default is `1_000`.
---objects-snapshot-min-checkpoint-lag <OBJECT_SNAPSHOT_MIN_CHECKPOINT_LAG>: defines the minimum checkpoint lag for object snapshots. This affects when state snapshots are taken during execution
+
 --flavor <FLAVOR>: Specifies the Move compiler flavor (e.g., Iota).
 The --flavor option in the init command specifies the Move language flavor that will be used in the environment. This option determines the syntax and semantics applied to Move programs and packages in the test adapter(Core or Iota).
 --addresses <NAMED_ADDRESSES>: Maps custom named addresses to specific numerical addresses for the Move environment.

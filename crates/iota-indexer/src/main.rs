@@ -56,7 +56,6 @@ async fn main() -> Result<(), IndexerError> {
     match opts.command {
         Command::Indexer {
             ingestion_config,
-            snapshot_config,
             pruning_options,
             reset_db,
         } => {
@@ -87,7 +86,6 @@ async fn main() -> Result<(), IndexerError> {
                 &ingestion_config,
                 store,
                 indexer_metrics,
-                snapshot_config,
                 retention_config,
                 cancel.clone(),
             )

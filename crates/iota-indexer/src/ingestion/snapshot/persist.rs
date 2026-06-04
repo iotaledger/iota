@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use crate::{
-    config::SnapshotLagConfig,
     ingestion::{
         common::persist::{CommitterWatermark, ObjectsSnapshotHandlerTables, Writer},
         primary::persist::TransactionObjectChangesToCommit,
@@ -19,7 +18,6 @@ use crate::{
 #[derive(Clone)]
 pub(crate) struct ObjectSnapshotWriter {
     pub store: PgIndexerStore,
-    pub(crate) snapshot_config: SnapshotLagConfig,
     pub(crate) metrics: IndexerMetrics,
 }
 
@@ -27,12 +25,10 @@ impl ObjectSnapshotWriter {
     pub fn new(
         store: PgIndexerStore,
         metrics: IndexerMetrics,
-        snapshot_config: SnapshotLagConfig,
     ) -> ObjectSnapshotWriter {
         Self {
             store,
             metrics,
-            snapshot_config,
         }
     }
 }
@@ -71,8 +67,6 @@ impl Writer<TransactionObjectChangesToCommit> for ObjectSnapshotWriter {
 
     async fn get_max_committable_checkpoint(&self) -> IndexerResult<u64> {
         let latest_checkpoint = self.store.get_latest_checkpoint_sequence_number().await?;
-        Ok(latest_checkpoint
-            .map(|seq| seq.saturating_sub(self.snapshot_config.snapshot_min_lag as u64))
-            .unwrap_or_default()) // hold snapshot handler until at least one checkpoint is in DB
+        Ok(latest_checkpoint.unwrap_or_default())
     }
 }
