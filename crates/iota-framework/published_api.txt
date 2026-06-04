@@ -2266,6 +2266,9 @@ multisig
 passkey
 	public fun
 	0x2::signature_scheme
+from_flag
+	public fun
+	0x2::signature_scheme
 flag
 	public fun
 	0x2::signature_scheme
@@ -2287,10 +2290,7 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
-multisig_hash_input
-	fun
-	0x2::public_key
-scheme_from_flag
+multisig_to_hash_input
 	fun
 	0x2::public_key
 validate_public_key

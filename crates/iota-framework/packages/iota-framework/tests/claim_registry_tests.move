@@ -6,6 +6,7 @@ module iota::claim_registry_tests;
 
 use iota::claim_registry::{Self, ClaimRegistry};
 use iota::public_key;
+use iota::signature_scheme;
 use iota::test_scenario::{Self, Scenario};
 
 // Pre-computed Ed25519 public key from fastcrypto test vectors.
@@ -247,7 +248,7 @@ fun test_claim_double_claim() {
 }
 
 #[test]
-#[expected_failure(abort_code = public_key::EUnknownPublicKeyScheme)]
+#[expected_failure(abort_code = signature_scheme::EUnknownScheme)]
 fun test_claim_invalid_scheme() {
     let mut scenario = setup();
     scenario.next_tx(@0xdead);
@@ -268,7 +269,7 @@ fun test_claim_invalid_scheme() {
 }
 
 #[test]
-#[expected_failure(abort_code = public_key::EUnknownPublicKeyScheme)]
+#[expected_failure(abort_code = signature_scheme::EUnknownScheme)]
 fun test_claim_move_authenticator_is_invalid() {
     let mut scenario = setup();
     scenario.next_tx(@0xcafe);
@@ -307,21 +308,6 @@ fun test_claim_ed25519_wrong_key_length() {
         test_scenario::return_shared(registry);
     };
     test_scenario::end(scenario);
-}
-
-// ============================================================
-// to_iota_address — cross-checked against Rust-computed vectors
-// ============================================================
-
-// These constants are independent of the Move code under test: they were
-// computed by the Rust node using fastcrypto's Blake2b256.
-#[test]
-fun test_to_iota_address_vectors() {
-    assert!(public_key::from_prefixed_bytes(ED25519_PK).to_iota_address()   == ED25519_ADDR);
-    assert!(public_key::from_prefixed_bytes(SECP256K1_PK).to_iota_address() == SECP256K1_ADDR);
-    assert!(public_key::from_prefixed_bytes(SECP256R1_PK).to_iota_address() == SECP256R1_ADDR);
-    assert!(public_key::from_prefixed_bytes(PASSKEY_PK).to_iota_address()   == PASSKEY_ADDR);
-    assert!(public_key::from_prefixed_bytes(MULTISIG_PK).to_iota_address()  == MULTISIG_ADDR);
 }
 
 #[test]

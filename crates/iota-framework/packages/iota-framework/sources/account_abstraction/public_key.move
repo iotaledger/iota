@@ -94,8 +94,7 @@ public struct PublicKey has copy, drop, store {
 public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
     assert!(!prefixed_bytes.is_empty(), EPublicKeyBytesEmpty);
     let flag = prefixed_bytes.remove(0);
-    let scheme = scheme_from_flag(flag);
-    create(scheme, prefixed_bytes)
+    create(signature_scheme::from_flag(flag), prefixed_bytes)
 }
 
 /// Constructs a `PublicKey` from an explicit `scheme` and raw key `raw_bytes`.
@@ -143,7 +142,7 @@ public fun to_iota_address(self: &PublicKey): address {
     let data = if (scheme == signature_scheme::ed25519()) {
         raw
     } else if (scheme == signature_scheme::multisig()) {
-        multisig_hash_input(&raw)
+        multisig_to_hash_input(raw)
     } else {
         let mut v = vector[scheme.flag()];
         v.append(raw);
@@ -158,47 +157,41 @@ public fun to_iota_address(self: &PublicKey): address {
 
 // === Private Functions ===
 
-/// Builds the hash preimage for a MultiSig address, matching the Rust node:
-///   [0x03] || threshold_le16 || (scheme_flag || pk_bytes || weight_u8)*
-///
-/// BCS stores signers before threshold; the hash puts threshold first.
-fun multisig_hash_input(raw_bytes: &vector<u8>): vector<u8> {
-    let mut bcs = bcs::new(*raw_bytes);
+/// Creates the bytes used to derive an address from a multisig PublicKey. A MultiSig address
+/// is defined as the 32-byte Blake2b hash of serializing the flag, the
+/// threshold, concatenation of all n flag, public keys and
+/// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
+/// || ... || flag_n || pk_n || weight_n`.
+fun multisig_to_hash_input(mut raw_bytes: vector<u8>): vector<u8> {
+    let threshold_high = raw_bytes.pop_back();
+    let threshold_low = raw_bytes.pop_back();
+    let mut bcs = bcs::new(raw_bytes);
     let num_signers = bcs.peel_vec_length();
-
-    let mut signer_bytes: vector<u8> = vector[];
-    let mut i = 0;
-    while (i < num_signers) {
+    // multisig_flag_u8 || threshold_le16 || (pk_flag_u8 || pk_bytes || weight_u8)*
+    let mut data = vector[signature_scheme::multisig().flag(), threshold_low, threshold_high];
+    num_signers.do!(|_| {
         let tag = bcs.peel_enum_tag();
-        let key_len = if (tag == MULTISIG_KEY_TAG_ED25519) ED25519_PUBLIC_KEY_LENGTH
-                      else SECP256_PUBLIC_KEY_LENGTH;
-        let scheme_flag = if (tag == MULTISIG_KEY_TAG_ED25519) 0x00u8
-            else if (tag == MULTISIG_KEY_TAG_SECP256K1) 0x01u8
-            else if (tag == MULTISIG_KEY_TAG_SECP256R1) 0x02u8
-            else 0x06u8; // PASSKEY
-        signer_bytes.push_back(scheme_flag);
-        let mut j = 0;
-        while (j < key_len) {
-            signer_bytes.push_back(bcs.peel_u8());
-            j = j + 1;
-        };
-        signer_bytes.push_back(bcs.peel_u8()); // weight
-        i = i + 1;
-    };
-
-    let threshold = bcs.peel_u16();
-    let mut data = vector[0x03u8, threshold as u8, (threshold >> 8) as u8];
-    data.append(signer_bytes);
+        let (key_len, scheme_flag) = if (tag == MULTISIG_KEY_TAG_ED25519) (
+            ED25519_PUBLIC_KEY_LENGTH,
+            signature_scheme::ed25519().flag(),
+        ) else if (tag == MULTISIG_KEY_TAG_SECP256K1) (
+            SECP256_PUBLIC_KEY_LENGTH,
+            signature_scheme::secp256k1().flag(),
+        ) else if (tag == MULTISIG_KEY_TAG_SECP256R1) (
+            SECP256_PUBLIC_KEY_LENGTH,
+            signature_scheme::secp256r1().flag(),
+        ) else if (tag == MULTISIG_KEY_TAG_PASSKEY) (
+            SECP256_PUBLIC_KEY_LENGTH,
+            signature_scheme::passkey().flag(),
+        ) else abort EUnknownPublicKeyScheme;
+        // pk_flag_u8 || pk_bytes || weight_u8
+        data.push_back(scheme_flag);
+        key_len.do!(|_| {
+            data.push_back(bcs.peel_u8());
+        });
+        data.push_back(bcs.peel_u8());
+    });
     data
-}
-
-fun scheme_from_flag(flag: u8): SignatureScheme {
-    if (flag == 0x00) signature_scheme::ed25519()
-    else if (flag == 0x01) signature_scheme::secp256k1()
-    else if (flag == 0x02) signature_scheme::secp256r1()
-    else if (flag == 0x03) signature_scheme::multisig()
-    else if (flag == 0x06) signature_scheme::passkey()
-    else abort EUnknownPublicKeyScheme
 }
 
 fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
@@ -263,3 +256,8 @@ fun validate_multisig_public_key(raw_bytes: &vector<u8>) {
 }
 
 // === Test Functions ===
+
+#[test_only]
+public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
+    from_prefixed_bytes(*prefixed_bytes).to_iota_address()
+}

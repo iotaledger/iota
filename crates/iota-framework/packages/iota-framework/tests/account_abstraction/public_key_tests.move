@@ -331,7 +331,7 @@ fun from_prefixed_bytes_empty_aborts() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::public_key::EUnknownPublicKeyScheme)]
+#[expected_failure(abort_code = iota::signature_scheme::EUnknownScheme)]
 fun from_prefixed_bytes_unknown_flag_aborts() {
     // 0xff is not a recognized scheme flag
     public_key::from_prefixed_bytes(x"ffcc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88");

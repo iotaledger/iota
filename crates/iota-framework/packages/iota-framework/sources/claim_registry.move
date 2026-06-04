@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// On-chain registry for claiming addresses.
+/// This registry is used to allow anyone owning a public-key/private-key keypair to claim the address derived from that, 
+/// such that it can be used as UID of a new object on-chain.
 ///
 /// `claim` takes an already-validated `PublicKey`, marks the sender's address
 /// as claimed, and returns a deterministic `UID` for the new account object.
@@ -27,7 +29,7 @@ const EAlreadyClaimed: vector<u8> =
 
 #[error(code = 4)]
 const ENotSystemAddress: vector<u8> =
-    b"ClaimRegistry can only be created by the system address (@0x0).";
+     b"ClaimRegistry can only be created in a system transaction.";
 
 // === Structs ===
 
@@ -49,11 +51,10 @@ fun create(ctx: &TxContext) {
 
 // === Claim ===
 
-/// Mark `ctx.sender()` as claimed and return a deterministic `UID` for the new
-/// account object.
-///
-/// The returned `UID` is a hot potato — it has no `drop` ability and must be
-/// consumed (typically as the `id` field of a new `key` struct) in the same PTB.
+/// Marks `ctx.sender()` as claimed and returns a deterministic `UID` bound to
+/// that address. The caller must immediately use the `UID` as the `id` field
+/// of a new on-chain object — `UID` has no `drop` ability, so leaving it
+/// unconsumed is a compile error.
 ///
 /// Aborts with `EAddressMismatch` if `public_key` does not derive to the sender,
 /// or `EAlreadyClaimed` if the address was already claimed.
@@ -82,10 +83,5 @@ public fun is_claimed(registry: &ClaimRegistry, addr: address): bool {
 #[test_only]
 public fun create_for_testing(ctx: &mut TxContext) {
     create(ctx);
-}
-
-#[test_only]
-public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
-    iota::public_key::from_prefixed_bytes(*prefixed_bytes).to_iota_address()
 }
 
