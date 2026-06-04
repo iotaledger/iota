@@ -18,7 +18,7 @@
 //   - both_lamport_approximations (v6 + v11 for same object): returns only the
 //     latest corrected version (v8)
 
-//# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator --objects-snapshot-min-checkpoint-lag 1
+//# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator
 
 //# publish
 module P0::m {

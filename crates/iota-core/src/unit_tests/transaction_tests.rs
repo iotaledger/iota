@@ -10,12 +10,14 @@ use std::{
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Identifier, crypto::Intent};
+use iota_sdk_types::{
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Identifier,
+    crypto::{Intent, IntentScope},
+};
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
     crypto::{AccountKeyPair, Signature, get_key_pair},
     error::{IotaError, UserInputError},
-    messages_consensus::ConsensusDeterminedVersionAssignments,
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::{GenesisTransaction, TransactionDataAPI, TransactionKind},
     utils::to_sender_signed_transaction,
@@ -47,8 +49,7 @@ macro_rules! assert_matches {
 
 use fastcrypto::traits::AggregateAuthenticator;
 use iota_types::{
-    digests::ConsensusCommitDigest, messages_consensus::ConsensusCommitPrologueV1,
-    messages_grpc::HandleCertificateRequestV1,
+    digests::ConsensusCommitDigest, messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 

@@ -11,10 +11,12 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command, Identifier, MoveCall,
-    ObjectId, Owner, TransferObjects, TypeTag,
+    CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+    ConsensusDeterminedVersionAssignments, Identifier, MoveCall, ObjectId, Owner, TransferObjects,
+    TypeTag, VersionAssignment,
 };
 use iota_types::{
+    self,
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
@@ -27,9 +29,6 @@ use iota_types::{
     iota_serde::BigInt,
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
-    messages_consensus::{
-        CancelledTransaction, ConsensusDeterminedVersionAssignments, VersionAssignment,
-    },
     object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,

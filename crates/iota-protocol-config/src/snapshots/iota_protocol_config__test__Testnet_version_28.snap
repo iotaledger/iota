@@ -37,12 +37,14 @@ feature_flags:
   metadata_in_module_bytes: true
   publish_package_metadata: true
   enable_move_authentication: true
+  enable_move_authentication_for_sponsor: true
   pass_validator_scores_to_advance_epoch: true
   calculate_validator_scores: true
   consensus_fast_commit_sync: true
   consensus_block_restrictions: true
   move_native_tx_context: true
   additional_borrow_checks: true
+  pre_consensus_sponsor_only_move_authentication: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -77,7 +79,7 @@ max_move_object_size: 256000
 max_move_package_size: 102400
 max_publish_or_upgrade_per_ptb: 5
 max_tx_gas: 50000000000
-max_auth_gas: 250000
+max_auth_gas: 20000
 max_gas_price: 100000
 max_gas_computation_bucket: 5000000
 gas_rounding_step: 1000

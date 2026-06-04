@@ -549,39 +549,6 @@ impl PrimaryWorker {
         data.try_into()
     }
 
-    pub(crate) async fn index_objects(
-        data: &CheckpointData,
-        metrics: &IndexerMetrics,
-    ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
-        let _timer = metrics.indexing_objects_latency.start_timer();
-        let checkpoint_seq = data.checkpoint_summary.sequence_number;
-
-        let eventually_removed_object_refs_post_version =
-            data.eventually_removed_object_refs_post_version();
-        let indexed_eventually_removed_objects = eventually_removed_object_refs_post_version
-            .into_iter()
-            .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.object_id,
-                object_version: obj_ref.version.as_u64(),
-                checkpoint_sequence_number: checkpoint_seq,
-            })
-            .collect();
-
-        let latest_live_output_objects = data.latest_live_output_objects();
-        let changed_objects = latest_live_output_objects
-            .into_iter()
-            .map(|o| {
-                let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(Some(checkpoint_seq), o.clone(), df_kind)
-            })
-            .collect::<Vec<_>>();
-        Ok(TransactionObjectChangesToCommit {
-            changed_objects,
-            deleted_objects: indexed_eventually_removed_objects,
-        })
-    }
-
-    // similar to index_objects, but objects_history keeps all versions of objects
     async fn index_objects_history(
         data: &CheckpointData,
     ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
