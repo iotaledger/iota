@@ -1216,26 +1216,10 @@ def phase5_start_monitoring(cfg: Config) -> None:
         "    external: true\n"
     )
 
-    run_timed(
-        [
-            "docker",
-            "compose",
-            "--ansi",
-            "never",
-            "-f",
-            "docker-compose.yaml",
-            "-f",
-            cfg.grafana_override_file,
-            "up",
-            "-d",
-        ],
-        "Starting/reusing monitoring containers",
-        cwd=cfg.grafana_dir,
-    )
-
-    print()  # finish status line
-    log(f"  Grafana: {_C.CYAN}http://localhost:3000/dashboards{_C.RESET}")
-    log(f"  Prometheus: {_C.CYAN}http://localhost:9090/targets{_C.RESET}")
+    # start_grafana force-recreates: a monitoring container left over from a
+    # prior run still references that run's (now deleted) network ID and
+    # otherwise fails `up` with "network ... not found".
+    ec.start_grafana(cfg.grafana_dir, cfg.grafana_override_file)
     log(_phase_complete("Phase 5", time.time() - phase_start))
 
 
