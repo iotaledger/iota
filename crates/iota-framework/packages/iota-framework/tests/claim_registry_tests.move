@@ -192,38 +192,6 @@ fun test_claim_passkey_happy_path() {
 }
 
 // ============================================================
-// claim — custom account module uses the returned UID
-// ============================================================
-
-#[test]
-fun test_custom_account_creation() {
-    let mut scenario = setup();
-    let sender = ED25519_ADDR;
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        iota::test_account::create(
-            &mut registry,
-            public_key::from_prefixed_bytes(ED25519_PK),
-            ctx,
-        );
-        assert!(claim_registry::is_claimed(&registry, sender));
-        test_scenario::return_shared(registry);
-    };
-
-    // Verify the Account object was transferred to the sender.
-    scenario.next_tx(sender);
-    {
-        let account = scenario.take_from_sender<iota::test_account::Account>();
-        test_scenario::return_to_sender(&scenario, account);
-    };
-
-    test_scenario::end(scenario);
-}
-
-// ============================================================
 // Error paths
 // ============================================================
 

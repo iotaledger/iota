@@ -10,8 +10,6 @@
 ///
 /// `claim` is `public(package)` — only modules within the iota-framework package
 /// may call it directly.  External callers use the built-in account modules.
-/// For transactional-test coverage, `test_claim_account` is provided as a
-/// `public` wrapper that creates a `DummyAccount` object.
 module iota::claim_registry;
 
 use iota::dynamic_field as df;
@@ -35,12 +33,6 @@ const ENotSystemAddress: vector<u8> =
 
 /// Singleton shared object tracking claimed addresses via dynamic fields.
 public struct ClaimRegistry has key {
-    id: UID,
-}
-
-/// Minimal account object used by `test_claim_account` to exercise the full
-/// claim flow from an external PTB without publishing a separate module.
-public struct DummyAccount has key {
     id: UID,
 }
 
@@ -97,14 +89,3 @@ public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
     iota::public_key::from_prefixed_bytes(*prefixed_bytes).to_iota_address()
 }
 
-/// Creates a `DummyAccount` owned by the sender.
-///
-/// Provided so that transactional tests can exercise the full `claim` flow
-/// directly from a PTB without publishing an external module.
-public fun test_claim_account(
-    registry: &mut ClaimRegistry,
-    public_key: PublicKey,
-    ctx: &mut TxContext,
-) {
-    transfer::share_object(DummyAccount { id: claim(registry, public_key, ctx) });
-}

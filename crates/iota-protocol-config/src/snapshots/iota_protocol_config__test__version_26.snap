@@ -51,6 +51,7 @@ feature_flags:
   consensus_fast_commit_sync: true
   move_native_tx_context: true
   additional_borrow_checks: true
+  enable_claim_registry: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

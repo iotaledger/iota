@@ -91,13 +91,11 @@ public struct PublicKey has copy, drop, store {
 ///
 /// Aborts if `prefixed_bytes` is empty, if the flag byte is not a recognized scheme, if the
 /// remaining byte length does not match the scheme, or if a MultiSig payload fails structural validation.
-public fun from_prefixed_bytes(prefixed_bytes: vector<u8>): PublicKey {
+public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
     assert!(!prefixed_bytes.is_empty(), EPublicKeyBytesEmpty);
-    let mut bcs = bcs::new(prefixed_bytes);
-    let flag = bcs.peel_u8();
-    let raw_bytes = bcs.into_remainder_bytes();
+    let flag = prefixed_bytes.remove(0);
     let scheme = scheme_from_flag(flag);
-    create(scheme, raw_bytes)
+    create(scheme, prefixed_bytes)
 }
 
 /// Constructs a `PublicKey` from an explicit `scheme` and raw key `raw_bytes`.
