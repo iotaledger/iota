@@ -103,6 +103,13 @@ if [ $((GAS_OWNERS_OFFSET + N)) -gt "${#GAS_OWNERS[@]}" ]; then
   exit 1
 fi
 
+# Phase timing — emit [T+Ns] markers at major boundaries so the per-iter
+# overhead breakdown lands in sweep.log. Sibling of sweep.sh's mark().
+# Filtered out of monitor.sh by default; grep "T+" sweep.log to inspect.
+SM_T0=$(date +%s)
+mark() { echo "  [T+$(($(date +%s) - SM_T0))s] [sm] $*"; }
+mark "stress-multi start"
+
 # Build stress.rs once before forking subprocesses. Each subprocess uses
 # `cargo run --release` which will auto-rebuild if needed, but doing it serially
 # here avoids 8 parallel cargo invocations racing on the build directory.
@@ -111,6 +118,7 @@ cargo build --release -p iota-benchmark --bin stress || {
   echo "Error: build failed" >&2
   exit 1
 }
+mark "cargo build done"
 
 # Master timestamp + parent dir under runs/ so each invocation is preserved.
 MASTER_TS=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
@@ -250,6 +258,7 @@ for ((i=0; i<N; i++)); do
   fi
 done
 
+mark "$N subprocesses launched"
 # Wait for all subprocesses to finish their setup (write their ready file).
 # Bail after BARRIER_TIMEOUT seconds in case a subprocess crashes during setup.
 BARRIER_TIMEOUT="${BARRIER_TIMEOUT:-1800}"  # 30 min default
@@ -325,6 +334,7 @@ if [ "${WAIT_FOR_USER:-0}" = "1" ]; then
   read -r _
 fi
 
+mark "all procs ready (gas pool gen done)"
 echo "=> Releasing start barrier."
 # Write wall-clock epoch (ns) so workers in barrier mode can align ticks across
 # processes (and across machines, if clocks are NTP-synced). Plain `touch` is
@@ -338,6 +348,7 @@ SPAM_START_EPOCH=$(date +%s)
 SPAM_DURATION_SECS=$(echo "$DURATION" | sed 's/s$//')
 SPAM_END_EPOCH=$((SPAM_START_EPOCH + SPAM_DURATION_SECS))
 echo "=> Spam phase running (DURATION=$DURATION, BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS)..."
+mark "spam start"
 
 echo "=> Waiting for all $N processes to finish (pids: ${pids[*]})"
 exit_codes=()
@@ -346,6 +357,7 @@ for pid in "${pids[@]}"; do
   exit_codes+=($?)
 done
 SPAM_END_EPOCH=$(date +%s)
+mark "spam end (procs finished)"
 
 # Helper to find the inner timestamped dir for a given process index.
 inner_dir() {
@@ -785,5 +797,6 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
   echo "honest_cl_tps:          $HONEST_CL_TPS"
   echo "honest_cl_accept_pct:   $HONEST_CL_ACCEPT_PCT"
 } > "$PARENT_DIR/summary.txt"
+mark "metrics scrape + summary done"
 echo
 echo "=> Top-level summary: $PARENT_DIR/summary.txt"

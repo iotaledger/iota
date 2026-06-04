@@ -151,15 +151,16 @@ if "results.inflight_stddev" in df.columns and "results.inflight_mean" in df.col
 else:
     df["inflight_cv"] = np.nan
 
-# ---------- RED-fairness ratio (Floyd & Jacobson 1993 Claim 2) ----------
+
+# ---------- admit-ratio (honest vs spammer admission fairness) ----------
 # honest_admit_fraction / spammer_admit_fraction. 1.0 = uniform drop
-# probability across sources (RED-ideal). >>1 = phase-effect bias under
-# tail-drop (binary). Closer to 1 under graduated.
+# probability across sources. >>1 = phase-effect bias under tail-drop
+# (binary). Closer to 1 under graduated.
 #
 # spammer_admit_count is derived: total_commits − honest_cl_commits.
 # Open-loop honest's `bench_success` is unreliable (stress.rs caps
 # latency_ms at ~41 entries per proc), so we use honest_cl exclusively.
-def _compute_red_ratio(r):
+def _compute_admit_ratio(r):
     iw = r.get("iter_window") or {}
     spam_dur = (iw.get("spam_end_epoch") or 0) - (iw.get("spam_start_epoch") or 0)
     if spam_dur <= 0:
@@ -178,6 +179,7 @@ def _compute_red_ratio(r):
     if spam_admit == 0:
         return np.nan
     return hcl_admit / spam_admit
+
 
 # Recompute per-window aggregates from the raw timeseries, restricted to
 # [spam_start_epoch, spam_end_epoch]. The harness-side PromQL scalars
@@ -223,8 +225,7 @@ def _compute_ts_window_stats(r):
     # prefix so steady-state statistics aren't dragged by warm-up.
     def values_in_steady(key):
         series = ts.get(key) or []
-        return [v for t, v in series
-                if spam_start + WARMUP_SECONDS <= t <= spam_end]
+        return [v for t, v in series if spam_start + WARMUP_SECONDS <= t <= spam_end]
 
     inflight = values_in_window("inflight")
     if len(inflight) >= 2 and spam_end > spam_start:
@@ -269,9 +270,8 @@ def _compute_ts_window_stats(r):
         out["tps_stddev_ts"] = float(arr.std())
         out["tps_p25_ts"] = float(np.percentile(arr, 25))
         out["tps_p75_ts"] = float(np.percentile(arr, 75))
-        # CV = stddev / mean. RED's "smoother throughput" claim is a
-        # direct prediction about this metric: graduated should have
-        # lower CV than binary at comparable mean.
+        # CV = stddev / mean. Captures whether graduated's throughput
+        # is smoother than binary's at comparable mean.
         if arr.mean() > 0:
             out["tps_cv_ts"] = float(arr.std() / arr.mean())
 
@@ -280,10 +280,11 @@ def _compute_ts_window_stats(r):
 
 # Re-load raw records (df is already json-normalized; we need the nested
 # dicts back for the helpers). Simpler: read the JSONL again here.
-import json as _json_for_red
+import json as _json_for_recs
+
 try:
     with open(PATH) as _f:
-        _raw_recs = [_json_for_red.loads(_l) for _l in _f if _l.strip()]
+        _raw_recs = [_json_for_recs.loads(_l) for _l in _f if _l.strip()]
     _ratios = []
     _ts_stats = []
     for _r in _raw_recs:
@@ -291,35 +292,54 @@ try:
             _ratios.append(np.nan)
             _ts_stats.append({})
         else:
-            _ratios.append(_compute_red_ratio(_r))
+            _ratios.append(_compute_admit_ratio(_r))
             _ts_stats.append(_compute_ts_window_stats(_r))
     _ts_columns = [
-        "inflight_mean_ts", "inflight_stddev_ts", "inflight_peak_ts",
+        "inflight_mean_ts",
+        "inflight_stddev_ts",
+        "inflight_peak_ts",
         "inflight_firstdiff_std_ts",
-        "inflight_p50_ts", "inflight_p75_ts", "inflight_p99_ts",
-        "consensus_lat_p99_ts", "permit_wait_p99_ts", "permit_hold_p99_ts",
-        "tps_median_ts", "tps_mean_ts", "tps_stddev_ts",
-        "tps_p25_ts", "tps_p75_ts", "tps_cv_ts",
+        "inflight_p50_ts",
+        "inflight_p75_ts",
+        "inflight_p99_ts",
+        "consensus_lat_p99_ts",
+        "permit_wait_p99_ts",
+        "permit_hold_p99_ts",
+        "tps_median_ts",
+        "tps_mean_ts",
+        "tps_stddev_ts",
+        "tps_p25_ts",
+        "tps_p75_ts",
+        "tps_cv_ts",
     ]
     if len(_ratios) == len(df):
-        df["red_ratio"] = _ratios
+        df["admit_ratio"] = _ratios
         _ts_df = pd.DataFrame(_ts_stats, index=df.index)
         for _col in _ts_columns:
             df[_col] = _ts_df.get(_col, pd.Series([np.nan] * len(df)))
     else:
-        df["red_ratio"] = np.nan
+        df["admit_ratio"] = np.nan
         for _col in _ts_columns:
             df[_col] = np.nan
 except Exception:
-    df["red_ratio"] = np.nan
+    df["admit_ratio"] = np.nan
     for _col in [
-        "inflight_mean_ts", "inflight_stddev_ts", "inflight_peak_ts",
+        "inflight_mean_ts",
+        "inflight_stddev_ts",
+        "inflight_peak_ts",
         "inflight_firstdiff_std_ts",
-        "consensus_lat_p99_ts", "permit_wait_p99_ts", "permit_hold_p99_ts",
-        "tps_median_ts", "tps_mean_ts", "tps_stddev_ts",
-        "tps_p25_ts", "tps_p75_ts", "tps_cv_ts",
+        "consensus_lat_p99_ts",
+        "permit_wait_p99_ts",
+        "permit_hold_p99_ts",
+        "tps_median_ts",
+        "tps_mean_ts",
+        "tps_stddev_ts",
+        "tps_p25_ts",
+        "tps_p75_ts",
+        "tps_cv_ts",
     ]:
         df[_col] = np.nan
+
 
 # Overlay ts-derived values onto the scalar columns. combine_first prefers
 # the ts column where it's non-NaN, falls back to the PromQL scalar otherwise.
@@ -329,21 +349,22 @@ def _overlay_ts(scalar_col, ts_col):
     if scalar_col in df.columns and ts_col in df.columns:
         df[scalar_col] = df[ts_col].combine_first(df[scalar_col])
 
-_overlay_ts("results.inflight_mean",   "inflight_mean_ts")
+
+_overlay_ts("results.inflight_mean", "inflight_mean_ts")
 _overlay_ts("results.inflight_stddev", "inflight_stddev_ts")
-_overlay_ts("results.peak_inflight",   "inflight_peak_ts")
+_overlay_ts("results.peak_inflight", "inflight_peak_ts")
 # Latency p99 overlay: median-of-per-second-p99 replaces window-p99.
 # They're not the same physical quantity (see helper docstring), but the
 # ts version is a more honest "typical bad-second" tail metric and matches
 # the iter-by-iter operating point better.
 _overlay_ts("results.consensus_lat_p99", "consensus_lat_p99_ts")
-_overlay_ts("results.permit_wait_p99",   "permit_wait_p99_ts")
-_overlay_ts("results.permit_hold_p99",   "permit_hold_p99_ts")
+_overlay_ts("results.permit_wait_p99", "permit_wait_p99_ts")
+_overlay_ts("results.permit_hold_p99", "permit_hold_p99_ts")
 # Replace the scalar useful_tps (whole-window average that includes
 # AIMD ramp-up) with steady-state median per-validator TPS. All
 # downstream tps boxplots, scatter, and summaries silently pick up
 # the corrected value via this overlay.
-_overlay_ts("results.useful_tps",        "tps_median_ts")
+_overlay_ts("results.useful_tps", "tps_median_ts")
 
 # Keep the original "inflight_firstdiff_std" name for plot_group's existing
 # reference (was created by the helper previously; now sourced from ts).
@@ -357,7 +378,7 @@ if "results.inflight_stddev" in df.columns and "results.inflight_mean" in df.col
     _mean = df["results.inflight_mean"].replace(0, np.nan)
     df["inflight_cv"] = df["results.inflight_stddev"] / _mean
 
-# Validator-side drop probability — the authoritative RED-Claim-2 surface.
+# Validator-side drop probability — the authoritative drop-fraction surface.
 # Computed from validator-side counters (preventive + saturated + reactive)
 # divided by total admission decisions (drops + commits). Spammer-side
 # drop_prob is structurally unreachable in our open-loop + TD setup: TD
@@ -379,8 +400,9 @@ _drops_cols = [
 ]
 if all(c in df.columns for c in _drops_cols) and "results.useful_tps" in df.columns:
     _drops = sum(df[c].fillna(0) for c in _drops_cols)
-    _spam_dur = (df.get("iter_window.spam_end_epoch", 0)
-                 - df.get("iter_window.spam_start_epoch", 0))
+    _spam_dur = df.get("iter_window.spam_end_epoch", 0) - df.get(
+        "iter_window.spam_start_epoch", 0
+    )
     _commits = df["results.useful_tps"].fillna(0) * _spam_dur
     _decisions = _drops + _commits
     _fallback = (_drops / _decisions).where(_decisions > 0, np.nan)
@@ -409,9 +431,8 @@ metrics = {
     "tps_med": ("results.useful_tps", "median"),
     "tps_p25": ("results.useful_tps", lambda s: q(s, 0.25)),
     "tps_p75": ("results.useful_tps", lambda s: q(s, 0.75)),
-    # Intra-iter TPS coefficient of variation. RED's "smoother throughput
-    # variance" claim is a direct prediction here: graduated should show
-    # lower tps_cv_med than binary at comparable mean.
+    # Intra-iter TPS coefficient of variation. Captures whether graduated
+    # has lower tps_cv_med than binary at comparable mean throughput.
     "tps_cv_med": ("tps_cv_ts", "median"),
     "tps_stddev_med": ("tps_stddev_ts", "median"),
     "sat75_med": ("results.saturation_75pct", "median"),
@@ -423,7 +444,7 @@ metrics = {
     "inflight_p75_med": ("inflight_p75_ts", "median"),
     "inflight_p99_med": ("inflight_p99_ts", "median"),
     "firstdiff_std_med": ("inflight_firstdiff_std", "median"),
-    "red_ratio_med": ("red_ratio", "median"),
+    "admit_ratio_med": ("admit_ratio", "median"),
     "drop_prob_med": ("validator_drop_prob", "median"),
 }
 
@@ -444,7 +465,9 @@ if "policy" in raw_df.columns and len(raw_df) > 0:
         silent_collapse_iters=(
             "silent_collapse",
             lambda s: int(s.fillna(False).sum()) if s.notna().any() else 0,
-        ) if "silent_collapse" in raw_df.columns else ("failed", lambda s: 0),
+        )
+        if "silent_collapse" in raw_df.columns
+        else ("failed", lambda s: 0),
     )
     fork_stats["fork_pct"] = (
         100.0 * fork_stats["silent_collapse_iters"] / fork_stats["total_iters"]
@@ -479,9 +502,16 @@ BOX_LEGEND_HANDLES = [
     Patch(facecolor="#c5d9f1", edgecolor="black", label="Q1-Q3 (IQR)"),
     Line2D([0], [0], color="C1", lw=2, label="Median"),
     Line2D([0], [0], color="black", lw=1, label="~1.5 × IQR"),
-    Line2D([0], [0], marker="o", color="w",
-           markerfacecolor="none", markeredgecolor="black",
-           markersize=6, label="Outliers"),
+    Line2D(
+        [0],
+        [0],
+        marker="o",
+        color="w",
+        markerfacecolor="none",
+        markeredgecolor="black",
+        markersize=6,
+        label="Outliers",
+    ),
 ]
 
 
@@ -501,39 +531,55 @@ def add_box_legend(ax, extra_handles=None):
 # max_pending value (1000, 10000, 19000, 20000, ...). The proposed default
 # is graduated pct=50 with the machine-tuned sat (90 EPYC, 95 WS); the
 # binary baseline is pct=100 sat=100 regardless of cap.
-TICK_LABEL_HIGHLIGHTS = [
-    (["pct=50 sat=90"],   "#9bd49b"),  # green: proposed default (EPYC-tuned)
-    (["pct=50 sat=95"],   "#9bd49b"),  # green: proposed default (WS-tuned)
-    (["pct=100 sat=100"], "#e6a3a3"),  # red:   binary baseline (any cap)
-]
+# Tick label background colors by policy family:
+#   binary (pct == sat)    → red
+#   graduated (pct < sat)  → green
+# Anything else (no pct/sat parseable) → no highlight.
+BINARY_TICK_COLOR    = "#e6a3a3"  # light red
+GRADUATED_TICK_COLOR = "#9bd49b"  # light green
 
 # Plot names to skip across ALL groups. Add a name here to temporarily disable
 # a figure without touching individual group specs. Re-enable by removing it.
 #   cv / cv-saturated — CV (stddev/mean) cancels graduated's mean reduction;
 #                       see comment in plot_group near `inflight-mean`.
-#   red-ratio         — admit-fairness needs a more robust spammer/honest
+#   admit-ratio       — admit-fairness needs a more robust spammer/honest
 #                       accounting split before it's worth plotting.
 #   tps-mean          — redundant with the tps boxplot when n ≥ ~10/policy.
-GLOBAL_SKIP_PLOTS = {"cv-saturated", "red-ratio", "tps-cv", "tps-timeseries"}
+GLOBAL_SKIP_PLOTS = set()
 
 
 def _highlight_color(policy):
-    for substrs, color in TICK_LABEL_HIGHLIGHTS:
-        if all(s in policy for s in substrs):
-            return color
+    """Return tick label color by family. Binary (pct == sat) gets red,
+    graduated (pct < sat) gets green, unparseable gets no color."""
+    fields = dict(part.split("=", 1) for part in policy.split() if "=" in part)
+    try:
+        pct = int(fields.get("pct", -1))
+        sat = int(fields.get("sat", -1))
+    except (ValueError, TypeError):
+        return None
+    if pct < 0 or sat < 0:
+        return None
+    if pct == sat:
+        return BINARY_TICK_COLOR
+    if pct < sat:
+        return GRADUATED_TICK_COLOR
     return None
 
 
 def highlight_tick_labels(ax, policies):
-    """Paint x-tick label backgrounds based on TICK_LABEL_HIGHLIGHTS rules
-    matched against the full policy strings (positional with tick labels).
-    Call after labels have been set + rotated."""
+    """Paint x-tick label backgrounds: binary (pct == sat) red,
+    graduated (pct < sat) green. Call after labels are set + rotated."""
     for tick_label, policy in zip(ax.get_xticklabels(), policies):
         color = _highlight_color(policy)
         if color:
-            tick_label.set_bbox(dict(facecolor=color, alpha=0.5,
-                                     edgecolor="none",
-                                     boxstyle="round,pad=0.25"))
+            tick_label.set_bbox(
+                dict(
+                    facecolor=color,
+                    alpha=0.5,
+                    edgecolor="none",
+                    boxstyle="round,pad=0.25",
+                )
+            )
 
 
 def shortened_labels(policies):
@@ -546,9 +592,12 @@ def shortened_labels(policies):
     skipped for that policy."""
     parsed = [dict(part.split("=") for part in p.split()) for p in policies]
     all_fields = ("max", "sem", "pct", "sat", "sem_shed")
-    varying = [k for k in all_fields
-               if len({d.get(k) for d in parsed if k in d}) > 1
-               or any((k in d) != (k in parsed[0]) for d in parsed)]
+    varying = [
+        k
+        for k in all_fields
+        if len({d.get(k) for d in parsed if k in d}) > 1
+        or any((k in d) != (k in parsed[0]) for d in parsed)
+    ]
     if not varying:
         return policies  # nothing varies (n=1 policy), keep full label
     return [" ".join(f"{k}={d[k]}" for k in varying if k in d) for d in parsed]
@@ -591,6 +640,7 @@ def _policy_role(f):
 def discover_groups(df):
     """Inspect `df` and emit one group spec per recognised comparison shape."""
     from collections import defaultdict
+
     parsed = {p: _parse_policy(p) for p in df["policy"].unique()}
     groups = []
 
@@ -609,23 +659,27 @@ def discover_groups(df):
     if scored and len(scored[0][1]) >= 2:
         (max_, sem_, shed_), policies = scored[0]
         # binary first (pct=100), then graduated by pct desc, sat desc within pct
-        policies = sorted(policies, key=lambda p: (
-            -int(parsed[p].get("pct", 100)),
-            -int(parsed[p].get("sat", 100)),
-        ))
+        policies = sorted(
+            policies,
+            key=lambda p: (
+                -int(parsed[p].get("pct", 100)),
+                -int(parsed[p].get("sat", 100)),
+            ),
+        )
         rows = "\n".join(
-            f"| {parsed[p].get('pct','-'):>3} | {parsed[p].get('sat','100'):>3} | {_policy_role(parsed[p])} |"
+            f"| {parsed[p].get('pct', '-'):>3} | {parsed[p].get('sat', '100'):>3} | {_policy_role(parsed[p])} |"
             for p in policies
         )
-        groups.append({
-            "dir": "grad-no-sem-shed",
-            "policies": policies,
-            "ratio_col": "results.ratio_peak_over_max_pending",
-            "ratio_label": "peak_inflight/max_pending",
-            "overshoot_col": "overshoot_above_max",
-            "overshoot_label": "peak_inflight−max_pending",
-            "skip_plots": ["stddev"],
-            "description": f"""\
+        groups.append(
+            {
+                "dir": "grad-no-sem-shed",
+                "policies": policies,
+                "ratio_col": "results.ratio_peak_over_max_pending",
+                "ratio_label": "peak_inflight/max_pending",
+                "overshoot_col": "overshoot_above_max",
+                "overshoot_label": "peak_inflight−max_pending",
+                "skip_plots": ["stddev"],
+                "description": f"""\
 # grad-no-sem-shed
 
 **Question:** Does graduated load shedding reduce peak overshoot at
@@ -641,7 +695,8 @@ def discover_groups(df):
 **Safety metric:** `peak_inflight / max_pending`. Values < 1.0 indicate
 the saturation_limit kept peak structurally below the declared cap.
 """,
-        })
+            }
+        )
 
     # --- Group 2: just-lower-the-cap (varying cap, fixed sem) ---
     # Binary policies (pct=100, sat=100) at different `max`, at the most-common
@@ -659,22 +714,23 @@ the saturation_limit kept peak structurally below the declared cap.
             binaries = sorted(binaries, key=lambda p: int(parsed[p].get("max", 0)))
             max_largest = int(parsed[binaries[-1]].get("max", 0))
             grads = [
-                p for p, f in parsed.items()
+                p
+                for p, f in parsed.items()
                 if int(f.get("max", 0)) == max_largest
                 and f.get("sem") == best_sem
                 and f.get("sem_shed") == best_shed
                 and not _is_binary(f)
             ]
-            # Prefer the "proposed default" policy (green-highlighted in
-            # TICK_LABEL_HIGHLIGHTS, currently pct=50 sat=90/95) over the most
-            # aggressive variant — this group is meant to compare the cap-
-            # lowering alternative against the *recommended* graduated policy,
-            # not the most extreme one.
-            grads.sort(key=lambda p: (
-                0 if _highlight_color(p) == "#9bd49b" else 1,
-                int(parsed[p].get("sat", 100)),
-                int(parsed[p].get("pct", 100)),
-            ))
+            # Prefer graduated policies (green tick highlight) when sorting
+            # — this group compares the cap-lowering alternative against
+            # the graduated arm, not the most extreme variant.
+            grads.sort(
+                key=lambda p: (
+                    0 if _highlight_color(p) == GRADUATED_TICK_COLOR else 1,
+                    int(parsed[p].get("sat", 100)),
+                    int(parsed[p].get("pct", 100)),
+                )
+            )
             if grads:
                 policies = binaries + [grads[0]]
                 rows = "\n".join(
@@ -683,15 +739,16 @@ the saturation_limit kept peak structurally below the declared cap.
                     f"{parsed[p].get('max')} |"
                     for p in policies
                 )
-                groups.append({
-                    "dir": "just-lower-the-cap",
-                    "policies": policies,
-                    "ratio_col": "results.ratio_peak_over_max_pending",
-                    "ratio_label": "peak_inflight/max_pending",
-                    "overshoot_col": "overshoot_above_max",
-                    "overshoot_label": "peak_inflight−max_pending",
-                    "skip_plots": ["stddev"],
-                    "description": f"""\
+                groups.append(
+                    {
+                        "dir": "just-lower-the-cap",
+                        "policies": policies,
+                        "ratio_col": "results.ratio_peak_over_max_pending",
+                        "ratio_label": "peak_inflight/max_pending",
+                        "overshoot_col": "overshoot_above_max",
+                        "overshoot_label": "peak_inflight−max_pending",
+                        "skip_plots": ["stddev"],
+                        "description": f"""\
 # just-lower-the-cap
 
 **Question:** A natural counter-proposal to graduated shedding is "just
@@ -706,7 +763,8 @@ against graduated.
 
 **Safety metric:** `peak_inflight / max_pending` — normalises across caps.
 """,
-                })
+                    }
+                )
 
     return groups
 
@@ -715,7 +773,18 @@ GROUPS = discover_groups(df)
 
 
 # ---------- plotting helpers ----------
-def boxplot(col, title, ylabel, out_path, policies, log=False, data_df=None, tick_labels=None, hline=None, highlight=True):
+def boxplot(
+    col,
+    title,
+    ylabel,
+    out_path,
+    policies,
+    log=False,
+    data_df=None,
+    tick_labels=None,
+    hline=None,
+    highlight=True,
+):
     """Box plot of `col` grouped by `policies`. Writes to `out_path`.
     `tick_labels` overrides the x-axis labels (defaults to `policies`).
     `hline` draws a horizontal reference line at that y value (e.g. 0 for
@@ -728,17 +797,32 @@ def boxplot(col, title, ylabel, out_path, policies, log=False, data_df=None, tic
         return
     labels = tick_labels if tick_labels is not None else policies
     fig, ax = plt.subplots(figsize=(max(8, 1.4 * len(policies)), 5.5))
-    bp = ax.boxplot(data, tick_labels=labels, showfliers=True, patch_artist=True,
-                    medianprops={"color": "C1", "linewidth": 2})
+    bp = ax.boxplot(
+        data,
+        tick_labels=labels,
+        showfliers=True,
+        patch_artist=True,
+        medianprops={"color": "C1", "linewidth": 2},
+    )
     for box in bp["boxes"]:
         box.set_facecolor("#c5d9f1")
         box.set_alpha(0.8)
     extra_handles = None
     if hline is not None:
-        ax.axhline(hline, color="black", linewidth=1.2, linestyle="--", alpha=0.7, zorder=0)
-        extra_handles = [Line2D([0], [0], color="black", linewidth=1.2,
-                                linestyle="--", alpha=0.7,
-                                label=f"y={hline}")]
+        ax.axhline(
+            hline, color="black", linewidth=1.2, linestyle="--", alpha=0.7, zorder=0
+        )
+        extra_handles = [
+            Line2D(
+                [0],
+                [0],
+                color="black",
+                linewidth=1.2,
+                linestyle="--",
+                alpha=0.7,
+                label=f"y={hline}",
+            )
+        ]
     ax.set_title(title)
     ax.set_ylabel(ylabel)
     if log:
@@ -771,8 +855,8 @@ def plot_drop_classification(out_path, policies, tick_labels, data_df):
     # graduated mostly green/orange with tiny red.
     cols = [
         ("reject_grad_preventive", "preventive [soft ≤ q < sat]", "#9bd49b"),
-        ("reject_grad_saturated",  "saturated [sat ≤ q < max]",   "#ff7f0e"),
-        ("reject_grad_reactive",   "reactive [q ≥ max]",          "#d62728"),
+        ("reject_grad_saturated", "saturated [sat ≤ q < max]", "#ff7f0e"),
+        ("reject_grad_reactive", "reactive [q ≥ max]", "#d62728"),
     ]
     fig, ax = plt.subplots(figsize=(max(8, 1.4 * len(policies)), 5.5))
     x = np.arange(len(policies))
@@ -781,17 +865,26 @@ def plot_drop_classification(out_path, policies, tick_labels, data_df):
         full_col = f"results.{col}"
         if full_col not in data_df.columns:
             continue
-        means = np.array([
-            data_df.loc[data_df.policy == p, full_col].fillna(0).mean()
-            for p in policies
-        ])
-        ax.bar(x, means, bottom=bottoms, label=label,
-               color=color, edgecolor="black", alpha=0.85)
+        means = np.array(
+            [
+                data_df.loc[data_df.policy == p, full_col].fillna(0).mean()
+                for p in policies
+            ]
+        )
+        ax.bar(
+            x,
+            means,
+            bottom=bottoms,
+            label=label,
+            color=color,
+            edgecolor="black",
+            alpha=0.85,
+        )
         bottoms += means
     ax.set_xticks(x)
     ax.set_xticklabels(tick_labels, fontsize=8, rotation=45, ha="right")
     ax.set_ylabel("Mean drops per iter (log scale)")
-    ax.set_title("Drop classification — RED's early-vs-forced split")
+    ax.set_title("Drop classification — early-vs-forced split")
     # Log scale on stacked bars is mathematically lossy (segment heights
     # aren't additive on log axis), but it reveals zero-vs-tiny vs huge
     # categories at a glance — important here because reactive drops are
@@ -815,87 +908,115 @@ def plot_drop_classification(out_path, policies, tick_labels, data_df):
 
 
 def _line_style_for(policy_str):
-    """Map a policy to (color, linestyle, linewidth). max_pending is fixed
-    at 20K across all current policies; only (pct, sat) varies and
-    determines whether a policy is binary (pct == sat → hard cap at
-    max × pct%) or graduated (pct < sat → soft zone between them).
+    """Map a policy to (color, linestyle, linewidth) with unique signatures
+    per (pct, sat) combo so timeseries lines are visually distinguishable.
 
-      Binary family (pct == sat) — red shades, lighter for lower cap:
-        100/100  dark red,    solid,    thick     (full-cap baseline)
-        95/95    medium red,  dashed              (cap=19K)
-        50/50    light brown, dotted,   thick     (just-lower-the-cap 10K)
+      Binary family (pct == sat) — red shades, scaled by cap:
+        100/100  very dark red    solid   thick
+         95/95   dark red         dashed
+         85/85   medium-dark red  dashed
+         75/75   medium red       dash-dot
+         70/70   medium red       dash-dot
+         60/60   light red        dotted
+         50/50   pale red/brown   dotted  thick
 
-      Graduated family (pct < sat) — distinct colors per (pct, sat):
-        50/100   purple,      dash-dot            (sat isolation, no cushion)
-        75/95    orange,      dashed              (small soft zone)
-        50/95    green,       solid,    thick     (proposed default)
-        25/95    teal,        dash-dot, thick     (aggressive)
-        fallback blue,        solid
+      Graduated family (pct < sat) — distinct color + style per (pct, sat):
+        50/100   green        solid    thick    (sat at max, no saturated band)
+        25/100   teal         dash-dot thick    (aggressive, sat at max)
+        50/95    olive-green  dashed            (sat=95 cushion)
+        25/95    sea-green    dash-dot          (aggressive, sat=95)
+        75/95    orange       dashed            (small soft zone)
+        50/90    dark-green   solid             (EPYC-tuned)
+        25/90    teal-blue    dash-dot          (EPYC aggressive)
+        fallback blue         solid
     """
     fields = dict(part.split("=", 1) for part in policy_str.split() if "=" in part)
-    pct = int(fields.get("pct", 100))
-    sat = int(fields.get("sat", 100))
-    # Binary family (pct == sat): red gradient — darker for higher cap.
-    # Distinct colors so 50/50, 60/60, 70/70, 85/85, 100/100 don't all collapse
-    # into one "brown" bucket in the Pareto plot.
-    binary_colors = {
-        100: "#7b0e0e",   # very dark red — full cap
-         85: "#c0392b",   # dark red
-         70: "#e74c3c",   # medium red
-         60: "#ec7063",   # light red
-         50: "#f5b7b1",   # pale red — just-lower-the-cap
+    try:
+        pct = int(fields.get("pct", 100))
+        sat = int(fields.get("sat", 100))
+    except (ValueError, TypeError):
+        return ("#2980b9", "-", 2.0)
+
+    # Binary family (pct == sat): red shades + varied linestyles for uniqueness.
+    binary_styles = {
+        100: ("#7b0e0e", "-",   2.5),  # very dark red, solid thick
+         95: ("#a02323", "--",  2.0),  # dark red, dashed
+         85: ("#c0392b", "--",  2.0),  # medium-dark red, dashed
+         75: ("#d04e3c", "-.",  2.0),  # medium red, dash-dot
+         70: ("#e74c3c", "-.",  2.0),  # medium red, dash-dot
+         60: ("#ec7063", ":",   2.5),  # light red, dotted thick
+         50: ("#f5b7b1", ":",   2.5),  # pale red/brown, dotted thick
     }
     if pct == sat:
-        return (binary_colors.get(pct, "#8b4513"), "-", 2.5)
-    # Graduated family: pct < sat.
-    if sat == 100:
-        return ("#8e44ad", "-.", 2.0)       # purple — sat isolation
-    if pct == 75:
-        return ("#d35400", "--", 2.0)       # orange — small soft zone
-    if pct == 50:
-        return ("#27ae60", "-",  2.5)       # green — proposed default
-    if pct == 25:
-        return ("#16a085", "-.", 2.5)       # teal — aggressive
-    return ("#2980b9", "-", 2.0)
+        return binary_styles.get(pct, ("#8b4513", "-", 2.0))
+
+    # Graduated family: distinct (color, linestyle) per (pct, sat) combo.
+    graduated_styles = {
+        (50, 100): ("#27ae60", "-",   2.5),  # green solid thick
+        (25, 100): ("#16a085", "-.",  2.5),  # teal dash-dot thick
+        (50,  95): ("#6a8e23", "--",  2.0),  # olive-green dashed
+        (25,  95): ("#1abc9c", "-.",  2.0),  # sea-green dash-dot
+        (75,  95): ("#d35400", "--",  2.0),  # orange dashed
+        (50,  90): ("#0e6b3a", "-",   2.5),  # dark green solid
+        (25,  90): ("#2980b9", "-.",  2.0),  # teal-blue dash-dot
+    }
+    return graduated_styles.get((pct, sat), ("#2980b9", "-", 2.0))
 
 
 def _marker_for(policy_str):
-    """Map a policy to (marker, size_multiplier). Multiplier compensates for
-    the fact that matplotlib's `s=` is area but visual weight differs by
-    shape — dense shapes (square, diamond, circle) look bigger than thin
-    shapes (plus, star, X) at the same area. Multipliers are tuned so all
-    markers look roughly equal in apparent size.
+    """Map a policy to (marker, size_multiplier). Multiplier compensates
+    for matplotlib's `s=` being area — dense shapes (square, diamond,
+    circle) look bigger than thin shapes (plus, star, X) at equal area.
+    Distinct marker per (pct, sat) combo so Pareto scatters and tradeoff
+    plots have visually unique points.
 
       Binary (pct == sat):
-        100/100  circle  (o)   ×1.00  — full-cap baseline
-        95/95    square  (s)   ×0.80
-        50/50    diamond (D)   ×0.85  — just-lower-the-cap
+        100/100  circle      (o)  ×1.00
+         95/95   square      (s)  ×0.80
+         85/85   square      (s)  ×0.80
+         75/75   hexagon     (h)  ×0.95
+         70/70   hexagon-rot (H)  ×0.95
+         60/60   pentagon    (p)  ×0.95
+         50/50   diamond     (D)  ×0.85
       Graduated (pct < sat):
-        50/100   triangle-up   (^)  ×1.10  — sat isolation
-        75/95    triangle-down (v)  ×1.10
-        50/95    plus-filled   (P)  ×1.30  — proposed default
-        25/95    star          (*)  ×1.50  — aggressive
+        50/100   plus-filled    (P)  ×1.30
+        25/100   star           (*)  ×2.20
+        50/95    triangle-up    (^)  ×1.10
+        25/95    triangle-down  (v)  ×1.10
+        75/95    pentagon-thin  (p)  ×1.10
+        50/90    triangle-left  (<)  ×1.10
+        25/90    triangle-right (>)  ×1.10
         fallback X (x)               ×1.20
     """
     fields = dict(part.split("=", 1) for part in policy_str.split() if "=" in part)
-    pct = int(fields.get("pct", 100))
-    sat = int(fields.get("sat", 100))
-    # Binary family — one distinct marker shape per pct so the 5 frontier
-    # points don't all show up as identical diamonds in the Pareto plot.
+    try:
+        pct = int(fields.get("pct", 100))
+        sat = int(fields.get("sat", 100))
+    except (ValueError, TypeError):
+        return ("X", 1.20)
+
     binary_markers = {
-        100: ("o", 1.00),     # circle
-         85: ("s", 0.80),     # square
-         70: ("h", 0.95),     # hexagon
-         60: ("p", 0.95),     # pentagon
-         50: ("D", 0.85),     # diamond
+        100: ("o", 1.00),
+         95: ("s", 0.80),
+         85: ("s", 0.80),
+         75: ("h", 0.95),
+         70: ("H", 0.95),
+         60: ("p", 0.95),
+         50: ("D", 0.85),
     }
     if pct == sat:
         return binary_markers.get(pct, ("D", 0.85))
-    if sat == 100:    return ("^", 1.10)
-    if pct == 75:     return ("v", 1.10)
-    if pct == 50:     return ("P", 1.30)
-    if pct == 25:     return ("*", 2.20)
-    return ("X", 1.20)
+
+    graduated_markers = {
+        (50, 100): ("P", 1.30),  # plus
+        (25, 100): ("*", 2.20),  # star
+        (50,  95): ("^", 1.10),  # triangle-up
+        (25,  95): ("v", 1.10),  # triangle-down
+        (75,  95): ("p", 1.10),  # pentagon
+        (50,  90): ("<", 1.10),  # triangle-left
+        (25,  90): (">", 1.10),  # triangle-right
+    }
+    return graduated_markers.get((pct, sat), ("X", 1.20))
 
 
 def _rec_policy(r):
@@ -912,8 +1033,10 @@ def _rec_policy(r):
     if sat is not None:
         parts.append(f"sat={int(sat)}")
     ss = v.get("semaphore_shedding_enabled")
-    if ss is True:   parts.append("sem_shed=true")
-    elif ss is False: parts.append("sem_shed=false")
+    if ss is True:
+        parts.append("sem_shed=true")
+    elif ss is False:
+        parts.append("sem_shed=false")
     return " ".join(parts)
 
 
@@ -949,8 +1072,8 @@ def _select_iter(candidates, mode):
 
     key_map = {
         "median_peak": "peak_inflight",
-        "median_tps":  "useful_tps",
-        "median_cv":   None,  # tps_cv lives on the df, not raw rec; handled below
+        "median_tps": "useful_tps",
+        "median_cv": None,  # tps_cv lives on the df, not raw rec; handled below
     }
     if mode in key_map and key_map[mode]:
         vals = [(r, metric(r, key_map[mode])) for r in candidates]
@@ -967,13 +1090,13 @@ def _select_iter(candidates, mode):
             iw = r.get("iter_window") or {}
             ss = iw.get("spam_start_epoch") or 0
             se = iw.get("spam_end_epoch") or 0
-            vals = [v for t, v in ts
-                    if ss + WARMUP_SECONDS <= t <= se]
+            vals = [v for t, v in ts if ss + WARMUP_SECONDS <= t <= se]
             if len(vals) < 2:
                 return None
             arr = np.asarray(vals, dtype=float)
             mu = arr.mean()
             return float(arr.std() / mu) if mu > 0 else None
+
         scored = [(r, tps_cv(r)) for r in candidates]
         scored = [(r, v) for r, v in scored if v is not None]
         if not scored:
@@ -987,8 +1110,8 @@ def _select_iter(candidates, mode):
 
 
 def plot_inflight_timeseries(out_path, policies, tick_labels, data_df, raw_recs):
-    """Inflight depth over the spam window (the iconic RED sawtooth-vs-smooth
-    figure). Driven by `SAWTOOTH_MODE`:
+    """Inflight depth over the spam window (sawtooth-vs-smooth figure).
+    Driven by `SAWTOOTH_MODE`:
       - "mean": one line per policy = mean across all healthy iters at each
                 0.1s offset relative to spam_start. Averages noise; reveals
                 signal phase-locked to spam_start.
@@ -1001,10 +1124,10 @@ def plot_inflight_timeseries(out_path, policies, tick_labels, data_df, raw_recs)
     rec_policy = _rec_policy  # local alias preserves call sites below
 
     from collections import defaultdict
+
     plotted_any = False
     for i, p in enumerate(policies):
-        candidates = [r for r in raw_recs
-                     if not r.get("failed") and rec_policy(r) == p]
+        candidates = [r for r in raw_recs if not r.get("failed") and rec_policy(r) == p]
         if not candidates:
             continue
 
@@ -1037,16 +1160,24 @@ def plot_inflight_timeseries(out_path, policies, tick_labels, data_df, raw_recs)
             iw = rec.get("iter_window") or {}
             spam_start = iw.get("spam_start_epoch") or 0
             spam_end = iw.get("spam_end_epoch") or 0
-            in_window = [(t - spam_start, v) for t, v in ts
-                         if spam_start <= t <= spam_end]
+            in_window = [
+                (t - spam_start, v) for t, v in ts if spam_start <= t <= spam_end
+            ]
             if not in_window:
                 continue
             xs = [t for t, _ in in_window]
             ys = [v for _, v in in_window]
             label = f"{tick_labels[i]}"
 
-        ax.plot(xs, ys, label=label,
-                linewidth=linewidth, linestyle=linestyle, alpha=0.9, color=color)
+        ax.plot(
+            xs,
+            ys,
+            label=label,
+            linewidth=linewidth,
+            linestyle=linestyle,
+            alpha=0.9,
+            color=color,
+        )
         plotted_any = True
 
     if not plotted_any:
@@ -1057,18 +1188,34 @@ def plot_inflight_timeseries(out_path, policies, tick_labels, data_df, raw_recs)
     # this is one line; for multi-max groups (e.g. just-lower-the-cap mixes
     # max=500/900/1000) we draw one per distinct cap so readers can see
     # each policy peaking against its own ceiling at a glance.
-    maxes = sorted({int(r["validator"]["max_pending_transactions"])
-                    for r in raw_recs
-                    if rec_policy(r) in policies and not r.get("failed")})
+    maxes = sorted(
+        {
+            int(r["validator"]["max_pending_transactions"])
+            for r in raw_recs
+            if rec_policy(r) in policies and not r.get("failed")
+        }
+    )
     for m in maxes:
-        ax.axhline(m, color="black", linestyle="--", linewidth=1,
-                   alpha=0.6, label=f"max_pending={m}")
+        ax.axhline(
+            m,
+            color="black",
+            linestyle="--",
+            linewidth=1,
+            alpha=0.6,
+            label=f"max_pending={m}",
+        )
     ax.set_xlabel("Seconds since spam start")
     ax.set_ylabel("In-flight transactions")
-    title_qual = "mean across iters" if SAWTOOTH_MODE == "mean" else f"single iter per policy: {SAWTOOTH_MODE}"
-    ax.set_title(f"In-flight depth over the spam window ({title_qual}) — RED's iconic sawtooth vs smooth")
+    title_qual = (
+        "mean across iters"
+        if SAWTOOTH_MODE == "mean"
+        else f"single iter per policy: {SAWTOOTH_MODE}"
+    )
+    ax.set_title(
+        f"In-flight depth over the spam window ({title_qual}) — sawtooth vs smooth"
+    )
     if maxes:
-        ax.set_ylim(0.25 * max(maxes), max(maxes) * 1.05)
+        ax.set_ylim(0, max(maxes) * 1.05)
     ax.minorticks_on()
     ax.grid(which="major", alpha=0.5)
     ax.grid(which="minor", alpha=0.5, linestyle=":", linewidth=0.8)
@@ -1084,8 +1231,8 @@ def plot_inflight_timeseries(out_path, policies, tick_labels, data_df, raw_recs)
 
 def plot_tps_timeseries(out_path, policies, tick_labels, data_df, raw_recs):
     """TPS over the spam window — mean across iters at each 1s offset.
-    Tests RED's "smoother throughput variance" claim directly: graduated
-    should produce smoother lines than binary at comparable mean. The
+    Tests throughput variance directly: graduated may or may not produce
+    smoother lines than binary at comparable mean — depends on regime. The
     warm-up prefix (AIMD/consensus ramp-up) is left in the figure so the
     reader can see how each policy converges to steady state, but the
     scalar-overlay path uses only the post-warmup samples."""
@@ -1093,11 +1240,11 @@ def plot_tps_timeseries(out_path, policies, tick_labels, data_df, raw_recs):
     rec_policy = _rec_policy
 
     from collections import defaultdict
+
     plotted_any = False
     means = []
     for i, p in enumerate(policies):
-        candidates = [r for r in raw_recs
-                     if not r.get("failed") and rec_policy(r) == p]
+        candidates = [r for r in raw_recs if not r.get("failed") and rec_policy(r) == p]
         if not candidates:
             continue
         by_offset = defaultdict(list)
@@ -1118,8 +1265,15 @@ def plot_tps_timeseries(out_path, policies, tick_labels, data_df, raw_recs):
         ys = [sum(by_offset[x]) / len(by_offset[x]) for x in xs]
         means.append(max(ys))
         color, linestyle, linewidth = _line_style_for(p)
-        ax.plot(xs, ys, label=f"{tick_labels[i]} (n={len(candidates)})",
-                linewidth=linewidth, linestyle=linestyle, alpha=0.9, color=color)
+        ax.plot(
+            xs,
+            ys,
+            label=f"{tick_labels[i]} (n={len(candidates)})",
+            linewidth=linewidth,
+            linestyle=linestyle,
+            alpha=0.9,
+            color=color,
+        )
         plotted_any = True
 
     if not plotted_any:
@@ -1128,15 +1282,20 @@ def plot_tps_timeseries(out_path, policies, tick_labels, data_df, raw_recs):
 
     # Shade the warm-up region so the reader knows the steady-state stats
     # skip this prefix. AIMD/consensus ramp typically completes by ~10s.
-    ax.axvspan(0, WARMUP_SECONDS, color="gray", alpha=0.12,
-               label=f"warm-up (excluded from steady-state stats)")
+    ax.axvspan(
+        0,
+        WARMUP_SECONDS,
+        color="gray",
+        alpha=0.12,
+        label=f"warm-up (excluded from steady-state stats)",
+    )
     ax.set_xlabel("Seconds since spam start")
     ax.set_ylabel("Per-validator TPS")
-    ax.set_title("TPS over the spam window (mean across iters) — RED's smoother-throughput claim")
+    ax.set_title("TPS over the spam window (mean across iters)")
     # Zoom y-axis to the steady-state band. Warm-up samples (0..1500)
     # would otherwise dominate the visual range and hide policy-to-policy
     # differences in the 1500-1600 band where the real comparison lives.
-    ax.set_ylim(bottom=1300)
+    ax.set_ylim(bottom=0)
     ax.minorticks_on()
     ax.grid(which="major", alpha=0.5)
     ax.grid(which="minor", alpha=0.5, linestyle=":", linewidth=0.8)
@@ -1167,16 +1326,19 @@ def _drop_prob_polarity(data_df):
     # and horizontal (for y-labels — y-label is rotated 90° CCW so ← in
     # source renders as ↓ on screen, pointing toward lower y values).
     if vals == {True}:
-        return ("↑", "(→ higher = better, non-responsive senders / spam defense)",
-                "non-responsive senders / spam defense")
+        return (
+            "↑",
+            "(→ higher = better, adversarial spam)",
+            "adversarial spam",
+        )
     if vals == {False}:
-        return ("↓", "(← lower = better, responsive senders)",
-                "responsive senders")
+        return ("↓", "(← lower = better, responsive senders)", "responsive senders")
     return ("", "", "mixed sender models in dataset")
 
 
-def plot_pareto(out_path, policies, tick_labels, data_df,
-                x_col, x_label, y_col, y_label, title):
+def plot_pareto(
+    out_path, policies, tick_labels, data_df, x_col, x_label, y_col, y_label, title
+):
     """Pareto-frontier scatter — explicitly designed to show graduated
     dominance over the binary (tail-drop) frontier.
 
@@ -1200,7 +1362,7 @@ def plot_pareto(out_path, policies, tick_labels, data_df,
             return None
         return (s.median(), s.quantile(0.25), s.quantile(0.75))
 
-    binary_points = []     # [(pct, x_med, y_med, x_p25, x_p75, y_p25, y_p75, label)]
+    binary_points = []  # [(pct, x_med, y_med, x_p25, x_p75, y_p25, y_p75, label)]
     grad_points = []
     for i, p in enumerate(policies):
         pct, sat = parse(p)
@@ -1221,28 +1383,56 @@ def plot_pareto(out_path, policies, tick_labels, data_df,
     if len(binary_points) >= 2:
         xs = [b[1] for b in binary_points]
         ys = [b[2] for b in binary_points]
-        ax.plot(xs, ys, color="#7b0e0e", linewidth=1.2, alpha=0.6,
-                linestyle="--", label="tail-drop frontier", zorder=2)
+        ax.plot(
+            xs,
+            ys,
+            color="#7b0e0e",
+            linewidth=1.2,
+            alpha=0.6,
+            linestyle="--",
+            label="tail-drop frontier",
+            zorder=2,
+        )
 
     # Plot binary markers with IQR error bars.
     for pct, x, y, x_lo, x_hi, y_lo, y_hi, label, p in binary_points:
         color, _, _ = _line_style_for(p)
         marker, mult = _marker_for(p)
-        ax.errorbar(x, y, xerr=[[x - x_lo], [x_hi - x]],
-                    yerr=[[y - y_lo], [y_hi - y]],
-                    fmt=marker, color=color, markersize=(72 * mult) ** 0.5,
-                    markeredgecolor="white", markeredgewidth=0.8,
-                    capsize=3, alpha=0.9, label=label, zorder=3)
+        ax.errorbar(
+            x,
+            y,
+            xerr=[[x - x_lo], [x_hi - x]],
+            yerr=[[y - y_lo], [y_hi - y]],
+            fmt=marker,
+            color=color,
+            markersize=(72 * mult) ** 0.5,
+            markeredgecolor="white",
+            markeredgewidth=0.8,
+            capsize=3,
+            alpha=0.9,
+            label=label,
+            zorder=3,
+        )
 
     # Plot graduated markers with IQR error bars.
     for pct, x, y, x_lo, x_hi, y_lo, y_hi, label, p in grad_points:
         color, _, _ = _line_style_for(p)
         marker, mult = _marker_for(p)
-        ax.errorbar(x, y, xerr=[[x - x_lo], [x_hi - x]],
-                    yerr=[[y - y_lo], [y_hi - y]],
-                    fmt=marker, color=color, markersize=(72 * mult) ** 0.5,
-                    markeredgecolor="white", markeredgewidth=0.8,
-                    capsize=3, alpha=0.9, label=label, zorder=4)
+        ax.errorbar(
+            x,
+            y,
+            xerr=[[x - x_lo], [x_hi - x]],
+            yerr=[[y - y_lo], [y_hi - y]],
+            fmt=marker,
+            color=color,
+            markersize=(72 * mult) ** 0.5,
+            markeredgecolor="white",
+            markeredgewidth=0.8,
+            capsize=3,
+            alpha=0.9,
+            label=label,
+            zorder=4,
+        )
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -1290,17 +1480,32 @@ def plot_group(group):
     }[ratio_col]
     denom_values = df[df.policy.isin(policies)][ratio_denom_field].dropna().unique()
     if len(denom_values) > 1:
-        boxplot(ratio_col,
-                f"Peak over/under-shoot ratio — {ratio_label} — [lower = safer]",
-                ratio_label, out_dir / "ratio.png", policies,
-                tick_labels=short_labels, hline=1)
-    boxplot(overshoot_col,
-            f"Absolute over/under-shoot — {overshoot_label} — [lower = safer]",
-            "Transactions", out_dir / "overshoot.png", policies,
-            tick_labels=short_labels, hline=0)
-    boxplot("results.useful_tps",
-            "Useful TPS — [higher = better]",
-            "TPS", out_dir / "tps.png", policies, tick_labels=short_labels)
+        boxplot(
+            ratio_col,
+            f"Peak over/under-shoot ratio — {ratio_label} — [lower = safer]",
+            ratio_label,
+            out_dir / "ratio.png",
+            policies,
+            tick_labels=short_labels,
+            hline=1,
+        )
+    boxplot(
+        overshoot_col,
+        f"Absolute over/under-shoot — {overshoot_label} — [lower = safer]",
+        "Transactions",
+        out_dir / "overshoot.png",
+        policies,
+        tick_labels=short_labels,
+        hline=0,
+    )
+    boxplot(
+        "results.useful_tps",
+        "Useful TPS — [higher = better]",
+        "TPS",
+        out_dir / "tps.png",
+        policies,
+        tick_labels=short_labels,
+    )
 
     # Stage B (permit_wait) and e2e (consensus_lat) latency boxplots at
     # both p50 and p99. Stage B is where graduated's queue-depth reduction
@@ -1310,28 +1515,57 @@ def plot_group(group):
     # work). See methodology appendix for the full A/B/C decomposition.
     if "latency" not in skip:
         for col, title_metric, fname in [
-            ("results.permit_wait_p50",   "Semaphore permit wait time — p50",   "wait-p50.png"),
-            ("results.permit_wait_p99",   "Semaphore permit wait time — p99",   "wait-p99.png"),
-            ("results.consensus_lat_p50", "Admission-to-consensus latency — p50", "e2e-p50.png"),
-            ("results.consensus_lat_p99", "Admission-to-consensus latency — p99", "e2e-p99.png"),
+            (
+                "results.permit_wait_p50",
+                "Semaphore permit wait time — p50",
+                "wait-p50.png",
+            ),
+            (
+                "results.permit_wait_p99",
+                "Semaphore permit wait time — p99",
+                "wait-p99.png",
+            ),
+            (
+                "results.consensus_lat_p50",
+                "Admission-to-consensus latency — p50",
+                "e2e-p50.png",
+            ),
+            (
+                "results.consensus_lat_p99",
+                "Admission-to-consensus latency — p99",
+                "e2e-p99.png",
+            ),
         ]:
-            boxplot(col,
-                    f"{title_metric} — [lower = better]",
-                    "seconds", out_dir / fname, policies, tick_labels=short_labels)
+            boxplot(
+                col,
+                f"{title_metric} — [lower = better]",
+                "seconds",
+                out_dir / fname,
+                policies,
+                tick_labels=short_labels,
+            )
 
     # Mean useful TPS, one bar per policy. The boxplot above shows the full
     # distribution; this gives a single-number headline that's robust to the
     # bimodal-saturation effect that confuses the median.
     if "tps-mean" not in skip:
-        means = [df.loc[df.policy == p, "results.useful_tps"].dropna().mean()
-                 for p in policies]
+        means = [
+            df.loc[df.policy == p, "results.useful_tps"].dropna().mean()
+            for p in policies
+        ]
         fig, ax = plt.subplots(figsize=(max(7, 1.4 * len(policies)), 5))
-        bars = ax.bar(short_labels, means, color="#c5d9f1", edgecolor="black", alpha=0.8)
+        bars = ax.bar(
+            short_labels, means, color="#c5d9f1", edgecolor="black", alpha=0.8
+        )
         for bar, value in zip(bars, means):
-            ax.annotate(f"{value:.0f}",
-                        xy=(bar.get_x() + bar.get_width() / 2, value),
-                        xytext=(0, 3), textcoords="offset points",
-                        ha="center", fontsize=9)
+            ax.annotate(
+                f"{value:.0f}",
+                xy=(bar.get_x() + bar.get_width() / 2, value),
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha="center",
+                fontsize=9,
+            )
         ax.set_title("Mean useful TPS per policy — [higher = better]")
         ax.set_ylabel("Mean useful TPS")
         ax.minorticks_on()
@@ -1349,130 +1583,205 @@ def plot_group(group):
     # plot to keep the output focused.
     sem_values = (
         df[df.policy.isin(policies)]["validator.max_pending_local_submissions"]
-        .dropna().unique()
+        .dropna()
+        .unique()
     )
     if len(sem_values) > 1:
-        boxplot("results.permit_hold_p99",
-                "Semaphore permit hold time — p99 — [lower = better]",
-                "seconds", out_dir / "hold-p99.png", policies, tick_labels=short_labels)
+        boxplot(
+            "results.permit_hold_p99",
+            "Semaphore permit hold time — p99 — [lower = better]",
+            "seconds",
+            out_dir / "hold-p99.png",
+            policies,
+            tick_labels=short_labels,
+        )
 
     if "cv" not in skip:
-        boxplot("inflight_cv",
-                "In-flight stability — CV = std_dev / mean — [lower = smoother]",
-                "Coefficient of Variation", out_dir / "cv.png", policies, tick_labels=short_labels)
+        boxplot(
+            "inflight_cv",
+            "In-flight stability — CV = std_dev / mean — [lower = smoother]",
+            "Coefficient of Variation",
+            out_dir / "cv.png",
+            policies,
+            tick_labels=short_labels,
+        )
     if "stddev" not in skip:
-        boxplot("results.inflight_stddev",
-                "In-flight std_dev — raw oscillation amplitude (not normalized)",
-                "stddev (txs)", out_dir / "stddev.png", policies, tick_labels=short_labels)
+        boxplot(
+            "results.inflight_stddev",
+            "In-flight std_dev — raw oscillation amplitude (not normalized)",
+            "stddev (txs)",
+            out_dir / "stddev.png",
+            policies,
+            tick_labels=short_labels,
+        )
 
-    # ---------- RED-canonical additions ----------
+    # ---------- queue-depth / fairness panels ----------
 
-    # RED Claim "smaller queue at same throughput": mean in-flight per
-    # policy. Pairs visually with tps.png (same throughput) and overshoot
-    # (same effective ceiling). Lower = smaller average queue depth.
+    # Mean in-flight per policy. Pairs visually with tps.png (same
+    # throughput) and overshoot (same effective ceiling). Lower = smaller
+    # average queue depth → lower per-tx latency.
     if "inflight-mean" not in skip and "results.inflight_mean" in df.columns:
-        boxplot("results.inflight_mean",
-                "Mean in-flight depth — RED's lower queue at same TPS — [lower = better]",
-                "Transactions", out_dir / "inflight-mean.png", policies, tick_labels=short_labels)
+        boxplot(
+            "results.inflight_mean",
+            "Mean in-flight depth — [lower = better]",
+            "Transactions",
+            out_dir / "inflight-mean.png",
+            policies,
+            tick_labels=short_labels,
+        )
 
-    # RED's saw-tooth-amplitude claim: std(Δ inflight) over the spam
-    # window. Independent of mean level (unlike CV). Hidden by default
-    # via GLOBAL_SKIP_PLOTS — the data shows graduated is NOT smoother
-    # in saw-tooth amplitude, so a standalone plot would misframe the
-    # story. The firstdiff_std_med column in summary.md still carries
-    # the numbers for inspection.
+    # Saw-tooth amplitude: std(Δ inflight) over the spam window.
+    # Independent of mean level (unlike CV). Hidden by default via
+    # GLOBAL_SKIP_PLOTS. firstdiff_std_med column in summary.md still
+    # carries the numbers for inspection.
     if "inflight-firstdiff" not in skip and "inflight_firstdiff_std" in df.columns:
-        boxplot("inflight_firstdiff_std",
-                "In-flight saw-tooth amplitude — std(Δ inflight) — [lower = smoother]",
-                "stddev of Δ inflight (txs)",
-                out_dir / "inflight-firstdiff.png", policies, tick_labels=short_labels)
+        boxplot(
+            "inflight_firstdiff_std",
+            "In-flight saw-tooth amplitude — std(Δ inflight) — [lower = smoother]",
+            "stddev of Δ inflight (txs)",
+            out_dir / "inflight-firstdiff.png",
+            policies,
+            tick_labels=short_labels,
+        )
 
-    # RED Claim 2 (uniform drop probability): honest_cl_admit_frac /
-    # spammer_admit_frac. 1.0 = uniform across sources. >>1 = phase-effect
-    # bias (binary's tail-drop pathology).
-    if "red-ratio" not in skip and "red_ratio" in df.columns:
-        boxplot("red_ratio",
-                "Admit fairness — honest / spammer — [1.0 = uniform]",
-                "Ratio", out_dir / "red-ratio.png", policies,
-                tick_labels=short_labels, hline=1.0)
+    # Admit fairness: honest_cl_admit_frac / spammer_admit_frac.
+    # 1.0 = uniform admission across sources. >>1 = bias toward honest
+    # (good); <1 = bias toward spammers (bad).
+    if "admit-ratio" not in skip and "admit_ratio" in df.columns:
+        boxplot(
+            "admit_ratio",
+            "Admit fairness — honest / spammer — [higher = better]",
+            "Ratio",
+            out_dir / "admit-ratio.png",
+            policies,
+            tick_labels=short_labels,
+            hline=1.0,
+        )
 
-    # Validator-side drop probability — the authoritative Claim-2 surface.
+    # Validator-side drop probability — the authoritative drop-fraction surface.
     # drop_prob = (preventive + saturated + reactive) / (drops + commits).
     # At heavy overload approaches 1.0; differences between policies are
     # small (both binary and graduated saturate the validator). The story
     # is in HOW the validator drops (drop-classification.png shows the band
     # split), not in the total drop fraction.
-    if ("drop-prob" not in skip
-            and "validator_drop_prob" in df.columns
-            and df["validator_drop_prob"].notna().any()):
+    if (
+        "drop-prob" not in skip
+        and "validator_drop_prob" in df.columns
+        and df["validator_drop_prob"].notna().any()
+    ):
         vert_arrow, _, regime = _drop_prob_polarity(df)
         polarity = f"[{vert_arrow} better, {regime}]" if vert_arrow else ""
-        boxplot("validator_drop_prob",
-                f"Validator drop probability — rejected / (rejected + finalized) {polarity}",
-                "Drop probability",
-                out_dir / "drop-prob.png", policies,
-                tick_labels=short_labels)
+        boxplot(
+            "validator_drop_prob",
+            f"Drop probability — rejected / (rejected + finalized) {polarity}",
+            "Drop probability",
+            out_dir / "drop-prob.png",
+            policies,
+            tick_labels=short_labels,
+        )
 
-    # Drop classification (RED's Option B / "early vs forced" drops).
+    # Drop classification — early vs forced rejections.
     # Stacked bar per policy: reactive (hard cap), saturated (100%-shed
     # band), preventive (probabilistic soft zone). Binary: all reactive.
     # Graduated: mostly saturated + preventive, near-zero reactive.
     if "drop-classification" not in skip:
-        plot_drop_classification(out_dir / "drop-classification.png", policies,
-                                 short_labels, df)
+        plot_drop_classification(
+            out_dir / "drop-classification.png", policies, short_labels, df
+        )
 
-    # Inflight time-series (the iconic RED sawtooth-vs-smooth figure).
+    # Inflight time-series (sawtooth-vs-smooth figure).
     # One representative iter per policy, inflight(t) at 100ms granularity,
     # scoped to the spam window via spam_start/spam_end epochs.
     if "inflight-timeseries" not in skip:
-        plot_inflight_timeseries(out_dir / "inflight-timeseries.png", policies,
-                                 short_labels, df, _raw_recs)
+        plot_inflight_timeseries(
+            out_dir / "inflight-timeseries.png", policies, short_labels, df, _raw_recs
+        )
 
     # TPS time-series (per-validator throughput over time, mean across iters).
-    # Counterpart to inflight-timeseries — directly tests RED's "smoother
-    # throughput variance" claim by showing whether graduated produces flatter
-    # TPS curves than binary.
+    # Counterpart to inflight-timeseries — shows whether graduated produces
+    # flatter TPS curves than binary at comparable mean throughput.
     if "tps-timeseries" not in skip:
-        plot_tps_timeseries(out_dir / "tps-timeseries.png", policies,
-                            short_labels, df, _raw_recs)
+        plot_tps_timeseries(
+            out_dir / "tps-timeseries.png", policies, short_labels, df, _raw_recs
+        )
 
     # Pareto frontier: drop_prob vs inflight_mean. Binary policies form
-    # the tail-drop achievable curve as cap sweeps; graduated should lie
+    # the tail-drop achievable curve as cap sweeps; graduated may lie
     # below-and-left of it (lower loss at same queue, lower queue at
-    # same loss). This is the publishable RED-vs-tail-drop dominance plot.
+    # same loss) — the headline graduated-vs-binary dominance plot.
     if "pareto-inflight" not in skip and "validator_drop_prob" in df.columns:
         _, horiz_arrow, _ = _drop_prob_polarity(df)
         polarity = f"  {horiz_arrow}" if horiz_arrow else ""
-        plot_pareto(out_dir / "pareto-inflight.png", policies,
-                    short_labels, df,
-                    x_col="results.inflight_mean",
-                    x_label="Mean in-flight queue depth  (← shorter = better)",
-                    y_col="validator_drop_prob",
-                    y_label=f"Drop probability{polarity}",
-                    title="Pareto: drop rate vs queue depth")
+        plot_pareto(
+            out_dir / "pareto-inflight.png",
+            policies,
+            short_labels,
+            df,
+            x_col="results.inflight_mean",
+            x_label="Mean in-flight queue depth  (← shorter = better)",
+            y_col="validator_drop_prob",
+            y_label=f"Drop probability{polarity}",
+            title="Pareto: drop rate vs queue depth",
+        )
 
-    # Pareto frontier: drop_prob vs cons_p99. Same idea but using
-    # consensus tail latency as the latency proxy.
-    if "pareto-latency" not in skip and "validator_drop_prob" in df.columns:
-        _, horiz_arrow, _ = _drop_prob_polarity(df)
-        polarity = f"  {horiz_arrow}" if horiz_arrow else ""
-        plot_pareto(out_dir / "pareto-latency.png", policies,
-                    short_labels, df,
-                    x_col="results.consensus_lat_p99",
-                    x_label="Consensus latency p99 (s)  (← lower = better)",
-                    y_col="validator_drop_prob",
-                    y_label=f"Drop probability{polarity}",
-                    title="Pareto: drop rate vs tail latency")
+    # Pareto frontiers vs latency. Four latency variants × two y-axes:
+    #   E2E p50/p99 (consensus_lat) — user-visible latency (includes
+    #     consensus protocol time, partly policy-independent)
+    #   Stage B p50/p99 (permit_wait) — purely queueing wait, the most
+    #     direct measure of the policy's effect
+    #
+    # Each variant plotted against:
+    #   drop_prob (per-policy "loss rate")
+    #   useful_tps (per-policy "good throughput")
+    _, horiz_arrow, _ = _drop_prob_polarity(df)
+    drop_polarity = f"  {horiz_arrow}" if horiz_arrow else ""
 
-    # Intra-iter TPS coefficient of variation. RED predicts graduated has
-    # lower TPS CV than binary at comparable mean throughput.
+    LATENCY_VARIANTS = [
+        # (col,                          label_short,            stage)
+        ("results.consensus_lat_p50",    "E2E p50",              "e2e-p50"),
+        ("results.consensus_lat_p99",    "E2E p99",              "e2e-p99"),
+        ("results.permit_wait_p50",      "Stage B (permit_wait) p50",  "stageB-p50"),
+        ("results.permit_wait_p99",      "Stage B (permit_wait) p99",  "stageB-p99"),
+    ]
+    for lat_col, lat_label, suffix in LATENCY_VARIANTS:
+        if lat_col not in df.columns:
+            continue
+        # Drop probability vs latency
+        if f"pareto-drop-{suffix}" not in skip and "validator_drop_prob" in df.columns:
+            plot_pareto(
+                out_dir / f"pareto-drop-{suffix}.png",
+                policies, short_labels, df,
+                x_col=lat_col,
+                x_label=f"{lat_label} (s)  (← lower = better)",
+                y_col="validator_drop_prob",
+                y_label=f"Drop probability{drop_polarity}",
+                title=f"Pareto: drop rate vs {lat_label}",
+            )
+        # TPS vs latency
+        if f"pareto-tps-{suffix}" not in skip and "results.useful_tps" in df.columns:
+            plot_pareto(
+                out_dir / f"pareto-tps-{suffix}.png",
+                policies, short_labels, df,
+                x_col=lat_col,
+                x_label=f"{lat_label} (s)  (← lower = better)",
+                y_col="results.useful_tps",
+                y_label="Useful TPS  (→ higher = better)",
+                title=f"Pareto: TPS vs {lat_label}",
+            )
+
+    # Intra-iter TPS coefficient of variation. Measures whether graduated
+    # has lower TPS CV than binary at comparable mean throughput.
     if "tps-cv" not in skip and "tps_cv_ts" in df.columns:
         if df["tps_cv_ts"].notna().any():
-            boxplot("tps_cv_ts",
-                    "Intra-iter TPS coefficient of variation — CV = std_dev / mean — [lower = smoother throughput]",
-                    "TPS CV",
-                    out_dir / "tps-cv.png", policies,
-                    data_df=df, tick_labels=short_labels)
+            boxplot(
+                "tps_cv_ts",
+                "Intra-iter TPS coefficient of variation — CV = std_dev / mean — [lower = smoother throughput]",
+                "TPS CV",
+                out_dir / "tps-cv.png",
+                policies,
+                data_df=df,
+                tick_labels=short_labels,
+            )
 
     # Saturated-only CV: filter the data to iters where the system was actually
     # loaded for ≥30% of the run. Skipped automatically if no iters qualify
@@ -1480,11 +1789,15 @@ def plot_group(group):
     if "cv-saturated" not in skip and "results.saturation_75pct" in df.columns:
         sat_df = df[df["results.saturation_75pct"].fillna(0) > 0.3].copy()
         if any((sat_df["policy"] == p).any() for p in policies):
-            boxplot("inflight_cv",
-                    "In-flight stability under sustained load — CV = std_dev / mean — [lower = smoother]",
-                    "Coefficient of Variation",
-                    out_dir / "cv-saturated.png", policies,
-                    data_df=sat_df, tick_labels=short_labels)
+            boxplot(
+                "inflight_cv",
+                "In-flight stability under sustained load — CV = std_dev / mean — [lower = smoother]",
+                "Coefficient of Variation",
+                out_dir / "cv-saturated.png",
+                policies,
+                data_df=sat_df,
+                tick_labels=short_labels,
+            )
 
     # Tradeoff scatter — uses the group's ratio metric on x-axis. Each
     # policy gets a distinct marker + the family color from _line_style_for
@@ -1494,9 +1807,16 @@ def plot_group(group):
         sub = df[df.policy == p]
         color, _, _ = _line_style_for(p)
         marker, mult = _marker_for(p)
-        ax.scatter(sub[ratio_col], sub["results.useful_tps"],
-                   label=label_for[p], alpha=0.7, s=36 * mult, edgecolor="white",
-                   color=color, marker=marker)
+        ax.scatter(
+            sub[ratio_col],
+            sub["results.useful_tps"],
+            label=label_for[p],
+            alpha=0.7,
+            s=36 * mult,
+            edgecolor="white",
+            color=color,
+            marker=marker,
+        )
     ax.set_xlabel(f"{ratio_label}  (← safer)")
     ax.set_ylabel("Useful TPS  (better →)")
     ax.set_title("Safety / throughput trade-off")
@@ -1510,14 +1830,18 @@ def plot_group(group):
     for text, policy in zip(leg.get_texts(), policies):
         color = _highlight_color(policy)
         if color:
-            text.set_bbox(dict(facecolor=color, alpha=0.5,
-                               edgecolor="none",
-                               boxstyle="round,pad=0.25"))
+            text.set_bbox(
+                dict(
+                    facecolor=color,
+                    alpha=0.5,
+                    edgecolor="none",
+                    boxstyle="round,pad=0.25",
+                )
+            )
     plt.tight_layout()
     plt.savefig(out_dir / "tradeoff.png", dpi=130)
     plt.close()
     print(f"Wrote {out_dir / 'tradeoff.png'}")
-
 
 
 # Generate per-group plots.

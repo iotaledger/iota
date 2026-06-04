@@ -190,6 +190,11 @@ PY
     }
 
     iter_start=0
+    # Track monitor start so each line gets an absolute `[+Ns]` prefix
+    # showing wall-clock elapsed since the watcher launched. Applied
+    # below in the while loop AFTER pattern matching (so matchers see
+    # the unprefixed line and stay compatible).
+    monitor_start=$(date +%s)
     # -F: follow by name (survives log rotation / fresh creation)
     # 2>/dev/null: don't complain if a log file doesn't exist yet
     tail -F sweep.log run.log 2>/dev/null \
@@ -205,6 +210,9 @@ PY
           case "$line" in
             "=== run.sh round="*) echo ;;
           esac
+          # Prepend monitor-elapsed `[+Ns]` so phase durations are visible.
+          mon_elapsed=$(( $(date +%s) - monitor_start ))
+          printf "[+%4ds] " "$mon_elapsed"
           colorize_line "$line"
           # After each iter completes, print the compact summary + blank
           # line so the next iter's output starts visually separated.

@@ -105,8 +105,8 @@ HONEST_WORKERS="${HONEST_WORKERS:-4}"
 HONEST_OPEN_LOOP="${HONEST_OPEN_LOOP:-true}"
 
 # Spammer pool config (canonical settings from burst-sweep.sh).
-QPS_TOTAL="${QPS_TOTAL:-40000}"
-DURATION="${DURATION:-60s}"
+QPS_TOTAL="${QPS_TOTAL:-2000}"
+DURATION="${DURATION:-30s}"
 WORKERS="${WORKERS:-16}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-20}"
 BURST_SIZE="${BURST_SIZE:-1800}"
@@ -116,7 +116,7 @@ BURST_SIZE="${BURST_SIZE:-1800}"
 # nominal QPS under heavy validator contention. Use for cap-safety and
 # goodput experiments where sustained validator-gate pressure matters
 # more than per-tx correctness. Honest pool is always closed-loop.
-OPEN_LOOP="${OPEN_LOOP:-false}"
+OPEN_LOOP="${OPEN_LOOP:-true}"
 BARRIER_PERIOD_MS="${BARRIER_PERIOD_MS:-500}"
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 NUM_VALIDATORS_TO_TARGET="${NUM_VALIDATORS_TO_TARGET:-1}"
@@ -431,6 +431,13 @@ for i in $(seq 1 $ITERS); do
   echo "$hdr"
   echo "=================================================="
 
+  # Phase timing — emit elapsed-since-iter-start at each boundary so the
+  # per-iter overhead breakdown shows up in sweep.log. Cheap (one syscall
+  # per mark) and turns "iter took 150s, where?" into a per-phase number.
+  ITER_T0=$(date +%s)
+  mark() { echo "  [T+$(($(date +%s) - ITER_T0))s] $*"; }
+  mark "iter start"
+
   # Kill any leftover stress.rs processes from a previous iter that may
   # still be holding metric ports (8081 + i). The metric server panics
   # with "Address already in use" if a stale binary hasn't released its
@@ -439,6 +446,7 @@ for i in $(seq 1 $ITERS); do
   # `wait` may return before the grandchild fully cleans up.
   pkill -9 -f "target/release/stress " 2>/dev/null || true
   sleep 1
+  mark "stress pkill done"
 
   if [ "$FAST_MODE" = "true" ]; then
     # Fast iter: validators + grafana stay up from previous iter (or from
@@ -469,6 +477,7 @@ for i in $(seq 1 $ITERS); do
   # so bouncing the grafana stack per iter costs nothing and gives
   # each iter a fresh Prometheus DB.
   (cd "$REPO/dev-tools/grafana-local" && docker compose down 2>&1 | tail -1) || true
+  mark "grafana down"
   # `docker compose down` returns before the OS fully releases host
   # ports bound by the removed containers (e.g. tempo's 3200, grafana's
   # 3000, prom's 9090). The next `compose up` then races and panics
@@ -477,6 +486,7 @@ for i in $(seq 1 $ITERS); do
   sleep 2
   cd "$PRIVNET"
   docker compose down -v 2>&1 | tail -1 || true
+  mark "validators down -v"
   # `docker compose down -v` purges named volumes only — the validator
   # RocksDB lives in bind-mounted ./data/validator-* dirs and survives.
   # If a prior iter forked (panic at checkpoints/mod.rs:545 or :1299),
@@ -484,10 +494,14 @@ for i in $(seq 1 $ITERS); do
   # `compose up`, looking like a "new" failure but with identical digests.
   # Wipe the data dirs before bootstrap regenerates genesis.
   sudo rm -rf data/validator-* data/fullnode-* data/faucet-* data/primary data/replica 2>/dev/null || true
+  mark "data wiped"
   sudo ./bootstrap.sh -b -n 4 2>&1 | tail -3
+  mark "bootstrap done"
   ./run.sh -n 4 faucet 2>&1 | tail -1
+  mark "validators up"
   rm -f "$REPO"/runs/.stress-gas-pool/owner-*.json
   (cd "$REPO/dev-tools/grafana-local" && docker compose up -d 2>&1 | tail -1)
+  mark "grafana up"
   # Wait for Prometheus to be ready before the spam window starts.
   for attempt in $(seq 1 30); do
     if curl -sf --max-time 2 'http://localhost:9090/api/v1/query?query=up' >/dev/null 2>&1; then
@@ -495,6 +509,7 @@ for i in $(seq 1 $ITERS); do
     fi
     sleep 1
   done
+  mark "prometheus ready"
   # Wait for ALL 4 validators to expose the consensus inflight metric —
   # signal that they've finished startup and are ready to accept txs.
   # Replaces the legacy "sleep 20" which over-waited unnecessarily.
@@ -511,6 +526,7 @@ for i in $(seq 1 $ITERS); do
   done
   # Tiny grace period for consensus quorum formation after metric appears.
   sleep 2
+  mark "validators ready (quorum + 2s grace)"
 
   cd "$REPO"
   fi  # end !FAST_MODE per-iter reset
@@ -518,9 +534,18 @@ for i in $(seq 1 $ITERS); do
   # Capture iter start timestamp BEFORE stress-multi.sh launches so the
   # Prometheus time-series query window covers the spam window cleanly.
   ITER_START_EPOCH=$(date +%s)
+  mark "stress-multi launching"
 
   # Launch stress-multi.sh with both spammer and honest pool (set
   # HONEST_PROC_COUNT=0 to disable honest pool).
+  # Stream marks `[T+Ns] [sm]` through unconditionally; otherwise truncate
+  # stress-multi's verbose output to the last 100 lines to keep sweep.log
+  # readable. awk buffers a sliding window of non-mark lines and prints
+  # them at EOF, while printing mark lines immediately as they arrive.
+  #
+  # CRITICAL: env-var prefix below must be on one continuous line (chain
+  # of backslashes with NO comments interrupting), otherwise bash treats
+  # the env vars as orphaned and runs ./stress-multi.sh with empty env.
   NUM_PROCS="$NUM_PROCS" \
   HONEST_PROC_COUNT="$HONEST_PROC_COUNT" \
   HONEST_CL_PROC_COUNT="$HONEST_CL_PROC_COUNT" \
@@ -540,9 +565,16 @@ for i in $(seq 1 $ITERS); do
   OPEN_LOOP_MAX_INFLIGHT_PER_WORKER="${OPEN_LOOP_MAX_INFLIGHT_PER_WORKER:-}" \
   BARRIER_PERIOD_MS="$BARRIER_PERIOD_MS" \
   GAS_CHUNK_SIZE="$GAS_CHUNK_SIZE" \
-  ./stress-multi.sh 2>&1 | tail -50 | tee "$REPO/runs/sweep-iter.log"
+  ./stress-multi.sh 2>&1 \
+    | awk '
+        /\[T\+/ { print; fflush(); next }
+        { buf[NR % 100] = $0 }
+        END { for (i = 0; i < 100; i++) { j = (NR + 1 + i) % 100; if (buf[j]) print buf[j] } }
+      ' \
+    | tee "$REPO/runs/sweep-iter.log"
 
   ITER_END_EPOCH=$(date +%s)
+  mark "stress-multi done"
 
   # Parse per-iter summary + emit one JSONL record.
   latest=$(ls -td "$REPO"/runs/multi-*/ | head -1)

@@ -82,27 +82,14 @@ initial_bringup
 # run.sh: SEM_CAP=500, SAT_PCT=95). Binary policies (pct=100) always
 # use sat=100 — sat<100 only makes sense in the graduated zone.
 POLICIES=(
-  "MAX_PENDING=2000 START_PCT=50  SAT_PCT=50  SEM_SHEDDING=false" # cap=1.0K
-  "MAX_PENDING=2000 START_PCT=60  SAT_PCT=60  SEM_SHEDDING=false" # cap=1.2K
-  "MAX_PENDING=2000 START_PCT=70  SAT_PCT=70  SEM_SHEDDING=false" # cap=1.4K
-  "MAX_PENDING=2000 START_PCT=85  SAT_PCT=85  SEM_SHEDDING=false" # cap=1.7K
-  "MAX_PENDING=2000 START_PCT=100 SAT_PCT=100 SEM_SHEDDING=false" # cap=2.0K
-  "MAX_PENDING=2000 START_PCT=50  SAT_PCT=95  SEM_SHEDDING=false" # graduated proposed
-  "MAX_PENDING=2000 START_PCT=25  SAT_PCT=95  SEM_SHEDDING=false" # graduated aggressive
-  # 3 hard binary policies at different hard limit (max pending)
-  # "MAX_PENDING=20000 START_PCT=100      SAT_PCT=100      SEM_SHEDDING=false"
-  # "MAX_PENDING=20000 START_PCT=$SAT_PCT SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
-  # "MAX_PENDING=20000 START_PCT=50       SAT_PCT=50       SEM_SHEDDING=false"
-  # 1 graduated policy with 100% saturation
-  # "MAX_PENDING=20000 START_PCT=50       SAT_PCT=100      SEM_SHEDDING=false"
-  # 3 graduated policies with 95% saturation and different soft limit
-  # "MAX_PENDING=20000 START_PCT=75       SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
-  # "MAX_PENDING=20000 START_PCT=50       SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
-  # "MAX_PENDING=20000 START_PCT=25       SAT_PCT=$SAT_PCT SEM_SHEDDING=false"
-  # 1 hard binary policy for production config
-  # "MAX_PENDING=20000 START_PCT=100 SAT_PCT=100      SEM_SHEDDING=true"
-  # 1 graduated policy (proposed) for production config
-  # "MAX_PENDING=20000 START_PCT=50  SAT_PCT=$SAT_PCT SEM_SHEDDING=true"
+  # binary
+  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=100 SAT_PCT=100"
+  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=90  SAT_PCT=90"
+  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=75  SAT_PCT=75"
+  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=50  SAT_PCT=50"
+  # graduated
+  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=50  SAT_PCT=100"
+  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=25  SAT_PCT=100"
 )
 
 P_TOTAL=${#POLICIES[@]}
