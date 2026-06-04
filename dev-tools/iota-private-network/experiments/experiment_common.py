@@ -116,7 +116,10 @@ def log(msg: str) -> None:
     ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
     plain_msg = _ANSI_RE.sub("", msg).replace("\r", "")
     colored = f"{_C.DIM}{ts}{_C.RESET} {msg}"
-    print(f"\r\033[K{colored}", flush=True)
+    # Each visual line needs its own carriage return + clear: a pty that does
+    # not translate LF to CR+LF keeps the column across embedded newlines,
+    # which used to indent banner lines under the timestamp.
+    print(f"\r\033[K{colored}".replace("\n", "\n\r\033[K"), flush=True)
     if _log_fh is not None:
         timestamp = datetime.now(timezone.utc).isoformat()
         for line in plain_msg.split("\n"):
