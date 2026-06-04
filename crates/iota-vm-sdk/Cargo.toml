@@ -68,11 +68,30 @@ wasm-bindgen = { version = "0.2", optional = true }
 web-sys = { version = "0.3", optional = true, features = ["console"] }
 
 [dev-dependencies]
+# external dependencies
 anyhow.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# internal dependencies
+iota-json-rpc-types.workspace = true
+iota-test-transaction-builder.workspace = true
+test-cluster.workspace = true
 
 [[example]]
 name = "offline_dev_inspect"
 path = "examples/offline_dev_inspect.rs"
+
+[[test]]
+name = "e2e_comparison"
+path = "tests/e2e_comparison.rs"
+required-features = ["grpc"]
+
+[package.metadata.cargo-udeps.ignore]
+development = [
+  "iota-json-rpc-types",
+  "iota-test-transaction-builder",
+  "test-cluster",
+]
 
 [lints]
 workspace = true
