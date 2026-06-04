@@ -788,10 +788,11 @@ def apply_latency(
 def ensure_image(image: str) -> bool:
     """Return True if *image* is available locally, pulling it if missing.
 
-    If the pull fails (typically a private registry needing credentials) and
-    stdin is a terminal, offer one interactive `docker login` and retry the
-    pull. Returns False when the image is still unavailable — callers that
-    *require* the image should treat that as fatal."""
+    On pull failure (typically a private registry needing credentials) logs an
+    actionable hint and returns False — callers that *require* the image should
+    treat that as fatal. Deliberately non-interactive: a mid-run prompt can
+    hang forever when stdin has a pty but no keyboard behind it, so
+    authentication happens out of band."""
     present = subprocess.run(
         ["docker", "image", "inspect", image],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -802,18 +803,8 @@ def ensure_image(image: str) -> bool:
     if run(["docker", "pull", image], check=False, quiet=True).returncode == 0:
         return True
     log(f"  Could not pull {image} — the registry likely needs credentials.")
-    if sys.stdin.isatty():
-        try:
-            answer = input("  Run `docker login` now and retry the pull? [y/N] ")
-        except EOFError:
-            answer = ""
-        if answer.strip().lower() in ("y", "yes"):
-            subprocess.run(["docker", "login"], check=False)
-            if run(["docker", "pull", image], check=False, quiet=True).returncode == 0:
-                return True
-            log(f"  Pull of {image} still failing after login.")
-    else:
-        log("  (non-interactive session — cannot prompt for `docker login`)")
+    log("  Fix (any one): `docker login` and re-run, build it from the")
+    log("  network-benchmark repo, or pass --spammer-image.")
     return False
 
 
