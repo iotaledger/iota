@@ -735,12 +735,16 @@ def start_load_generator(cfg: Config) -> None:
     phase_start = time.time()
     log(_phase_banner(f"Starting load generator ({cfg.load_qps} qps)", "PHASE 6b"))
 
-    # Load is optional: the migration must proceed even if the stress image is
-    # unavailable (mirrors the benchmark/fuzz runners). Pull-if-missing, skip on
-    # failure rather than aborting the whole upgrade run.
+    # Load was explicitly requested (--load-qps > 0): ensure_image pulls the
+    # stress image, offering an interactive `docker login` on auth failures;
+    # if it is still unavailable, fail the run instead of silently measuring
+    # an unloaded network.
     if not ec.ensure_image(cfg.load_tools_image):
-        log("  Skipping load generator; the migration continues without load.")
-        return
+        raise RuntimeError(
+            f"--load-qps {cfg.load_qps} requested but image "
+            f"{cfg.load_tools_image} is unavailable — `docker login` to the "
+            "registry or pass --load-tools-image"
+        )
 
     genesis_blob = cfg.network_dir / "configs" / "genesis" / "genesis.blob"
     faucet_keystore = cfg.network_dir / "configs" / "faucet" / "iota.keystore"
@@ -2074,6 +2078,15 @@ def main() -> None:
     global _cfg
 
     args = parse_args()
+
+    # Single-run guard: a concurrent benchmark/fuzz/migration run shares
+    # container names and tc/iptables state — its cleanup would tear this
+    # run's network down mid-flight.
+    try:
+        ec.acquire_single_run_lock("run-migration-test.py")
+    except RuntimeError as err:
+        print(f"ERROR: {err}")
+        sys.exit(1)
 
     # Cache sudo credentials first so the password prompt is immediately visible
     print("Caching sudo credentials (you may be prompted for your password)...")

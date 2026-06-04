@@ -21,7 +21,9 @@ services; this path has no such limit beyond the /24 subnet).
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
 import re
 import selectors
 import shutil
@@ -254,6 +256,53 @@ def find_repo_root(start: Path) -> Path:
         return Path(out.strip())
     except (subprocess.CalledProcessError, FileNotFoundError):
         return start.parent.parent.parent
+
+
+_run_lock_fh = None  # held for the process lifetime by acquire_single_run_lock()
+
+
+def acquire_single_run_lock(runner: str) -> None:
+    """Take the cross-runner single-run lock (released when the process dies).
+
+    The benchmark/fuzz/migration runners share container names, the docker
+    networks, and the tc/iptables state on the validators — two concurrent
+    runs silently corrupt each other (one run's cleanup tears down the other
+    run's network mid-flight while it keeps "succeeding" with no validators).
+    Fail fast instead of letting that happen."""
+    global _run_lock_fh
+    # Fixed /tmp path on purpose: TMPDIR can differ between shells, and the
+    # lock must be shared by every process on the host.
+    lock_path = Path("/tmp/iota-experiments.lock")
+    fh = lock_path.open("a+")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.seek(0)
+        holder = fh.read().strip() or "holder unknown"
+        fh.close()
+        raise RuntimeError(
+            f"another experiment run is already active ({holder}; lock: "
+            f"{lock_path}) — wait for it to finish or kill it first"
+        )
+    fh.seek(0)
+    fh.truncate()
+    fh.write(f"{runner} pid {os.getpid()} since {datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S} UTC\n")
+    fh.flush()
+    _run_lock_fh = fh  # keep the fd open: the flock dies with the process
+
+
+def require_local_image(image: str, hint: str) -> None:
+    """Fail fast with a clear message when a locally-built image is absent.
+
+    Used for images that must NOT be pulled (bare local tags like
+    ``iota-node`` would otherwise hit Docker Hub and die with an opaque
+    `pull access denied` mid-compose)."""
+    present = subprocess.run(
+        ["docker", "image", "inspect", image],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ).returncode == 0
+    if not present:
+        raise RuntimeError(f"local docker image '{image}' not found — {hint}")
 
 
 def cache_sudo() -> None:
@@ -610,8 +659,10 @@ def apply_latency(
 def ensure_image(image: str) -> bool:
     """Return True if *image* is available locally, pulling it if missing.
 
-    Pull failures are non-fatal (the spammer is optional): logs a clear hint
-    and returns False so the caller can skip load without aborting the run."""
+    If the pull fails (typically a private registry needing credentials) and
+    stdin is a terminal, offer one interactive `docker login` and retry the
+    pull. Returns False when the image is still unavailable — callers that
+    *require* the image should treat that as fatal."""
     present = subprocess.run(
         ["docker", "image", "inspect", image],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -621,8 +672,19 @@ def ensure_image(image: str) -> bool:
     log(f"  Image {image} not present locally; pulling...")
     if run(["docker", "pull", image], check=False, quiet=True).returncode == 0:
         return True
-    log(f"  WARNING: could not pull {image} (private registry — try `docker login` — "
-        "or build it from the iotaledger/network-benchmark repo).")
+    log(f"  Could not pull {image} — the registry likely needs credentials.")
+    if sys.stdin.isatty():
+        try:
+            answer = input("  Run `docker login` now and retry the pull? [y/N] ")
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() in ("y", "yes"):
+            subprocess.run(["docker", "login"], check=False)
+            if run(["docker", "pull", image], check=False, quiet=True).returncode == 0:
+                return True
+            log(f"  Pull of {image} still failing after login.")
+    else:
+        log("  (non-interactive session — cannot prompt for `docker login`)")
     return False
 
 

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -232,19 +233,34 @@ def start_spammer(cfg: Config) -> None:
     log(ec._phase_banner(f"Starting {cfg.spammer_type} spammer (tps={cfg.spammer_tps})", "LOAD"))
     if cfg.spammer_type == "stress":
         # The `stress` load tool is the iota-benchmark binary, shipped as the
-        # iotaledger/stress image; pull it if missing, skip load if unavailable.
+        # iotaledger/stress image. ensure_image pulls it, offering an
+        # interactive `docker login` on auth failures; load was explicitly
+        # requested, so a still-missing image fails the run.
         if not ec.ensure_image(cfg.spammer_image):
-            log("  Skipping spammer; the network run continues without load.")
-            return
+            raise RuntimeError(
+                f"spammer requested (-S true) but image {cfg.spammer_image} is "
+                "unavailable — `docker login` to the registry or pass "
+                "--spammer-image"
+            )
         genesis_blob = cfg.network_dir / "configs" / "genesis" / "genesis.blob"
         faucet_keystore = cfg.network_dir / "configs" / "faucet" / "iota.keystore"
+        # stress migrates old-format keystores in place (a rename, which fails
+        # with EBUSY on a read-only single-file bind mount and kills the
+        # container instantly) — hand it a writable copy in its own directory,
+        # mirroring run-migration-test.py.
+        keystore_dir = cfg.log_dir / "load-generator-keystore"
+        shutil.rmtree(keystore_dir, ignore_errors=True)
+        keystore_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(faucet_keystore, keystore_dir / "iota.keystore")
         run(["docker", "rm", "-f", "stress-benchmark"], check=False, quiet=True)
+        # No --rm: if stress crashes at startup its logs must survive for the
+        # liveness check below (cleanup force-removes the container anyway).
         res = run(
             [
-                "docker", "run", "-d", "--rm", "--name", "stress-benchmark",
+                "docker", "run", "-d", "--name", "stress-benchmark",
                 "--network", cfg.network_name,
                 "-v", f"{genesis_blob.resolve()}:/opt/iota/config/genesis.blob:ro",
-                "-v", f"{faucet_keystore.resolve()}:/opt/iota/config/iota.keystore:ro",
+                "-v", f"{keystore_dir.resolve()}:/opt/iota/config:rw",
                 cfg.spammer_image, "/usr/local/bin/stress",
                 "--local", "false",
                 "--use-fullnode-for-execution", "true",
@@ -260,8 +276,20 @@ def start_spammer(cfg: Config) -> None:
             check=False, quiet=True,
         )
         if res.returncode != 0:
-            log("  WARNING: stress spammer failed to start; continuing without load.")
-            return
+            raise RuntimeError("stress spammer failed to start")
+        # `docker run -d` succeeding only means the container was created — a
+        # startup crash (bad keystore, unreachable fullnode) shows up within
+        # seconds, so re-check liveness instead of silently running unloaded.
+        time.sleep(5)
+        alive = run(
+            ["docker", "ps", "-q", "--filter", "name=^stress-benchmark$"],
+            capture=True, quiet=True,
+        ).stdout.strip()
+        if not alive:
+            run(["docker", "logs", "stress-benchmark"], check=False)
+            raise RuntimeError(
+                "stress spammer exited right after start (logs above)"
+            )
         log(f"  stress-benchmark started (~{duration}s); logs: docker logs stress-benchmark")
     else:  # iota-spammer
         home = Path.home()
@@ -365,9 +393,23 @@ def main() -> None:
     log(f"  Run duration      : {cfg.run_duration}s")
     log(f"  Spammer           : {cfg.spammer_enable} ({cfg.spammer_type}, tps={cfg.spammer_tps})")
 
+    # Take the lock before the try/finally: if another run is active, its
+    # containers must not be torn down by this process's cleanup().
+    try:
+        ec.acquire_single_run_lock("run-fuzz.py")
+    except RuntimeError as err:
+        log(f"ERROR: {err}")
+        sys.exit(1)
+
     try:
         ec.cache_sudo()
         build_images(cfg)
+        if not cfg.build:
+            ec.require_local_image(
+                cfg.image,
+                "run with -b true to build it, or tag an existing build "
+                f"(e.g. `docker tag iotaledger/iota-node:latest {cfg.image}`)",
+            )
         log(ec._phase_banner(f"Generating compose file for {cfg.num_validators} validators", "COMPOSE"))
         ec.generate_compose_file(
             cfg.network_dir / cfg.compose_file,
