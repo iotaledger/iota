@@ -573,8 +573,13 @@ impl IotaNode {
 
         info!("start snapshot upload");
         // Start uploading state snapshot to remote store
-        let state_snapshot_handle =
-            Self::start_state_snapshot(&config, &prometheus_registry, checkpoint_store.clone())?;
+        let state_snapshot_handle = Self::start_state_snapshot(
+            &config,
+            &prometheus_registry,
+            checkpoint_store.clone(),
+            grpc_indexes_store.clone(),
+            is_full_node,
+        )?;
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
@@ -913,12 +918,36 @@ impl IotaNode {
 
     /// Creates an StateSnapshotUploader and start it if the StateSnapshotConfig
     /// is set.
+    ///
+    /// Snapshot V2 requires `enable_grpc_api = true` on the writer node so
+    /// that `index_epoch` populates the per-epoch metadata the snapshot
+    /// embeds in `EPOCH_INFO`.
     fn start_state_snapshot(
         config: &NodeConfig,
         prometheus_registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
+        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
+        is_full_node: bool,
     ) -> Result<Option<tokio::sync::broadcast::Sender<()>>> {
         if let Some(remote_store_config) = &config.state_snapshot_write_config.object_store_config {
+            let grpc_indexes = grpc_indexes_store.ok_or_else(|| {
+                if !is_full_node {
+                    anyhow::anyhow!(
+                        "Snapshot V2 upload is configured, but this node is a validator. \
+                         Snapshot publication is only supported on fullnodes (it reads \
+                         per-epoch metadata from grpc_indexes, which validators don't run). \
+                         Remove the `state_snapshot_write_config.object_store_config` \
+                         setting, or move the upload to a fullnode."
+                    )
+                } else {
+                    anyhow::anyhow!(
+                        "Snapshot V2 upload is configured, but `enable_grpc_api = false`. \
+                         The snapshot writer reads per-epoch metadata from grpc_indexes; \
+                         enable `enable_grpc_api` on this node, or remove the \
+                         `state_snapshot_write_config.object_store_config` setting."
+                    )
+                }
+            })?;
             let snapshot_uploader = StateSnapshotUploader::new(
                 &config.db_checkpoint_path(),
                 &config.snapshot_path(),
@@ -926,6 +955,7 @@ impl IotaNode {
                 60,
                 prometheus_registry,
                 checkpoint_store,
+                grpc_indexes,
             )?;
             Ok(Some(snapshot_uploader.start()))
         } else {

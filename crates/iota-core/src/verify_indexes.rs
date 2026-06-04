@@ -11,7 +11,6 @@ use tracing::info;
 use typed_store::traits::Map;
 
 use crate::{
-    authority::authority_store_tables::LiveObject,
     global_state_hasher::GlobalStateHashStore,
     jsonrpc_index::{CoinInfo, IndexStore},
 };
@@ -26,24 +25,22 @@ pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>
     let mut coin_index = BTreeMap::new();
 
     tracing::info!("Reading live objects set");
-    for object in store.iter_live_object_set() {
-        let LiveObject::Normal(object) = object else {
-            continue;
-        };
+    for live_object in store.iter_live_object_set() {
+        let object = &live_object.object;
         let Owner::Address(owner) = object.owner else {
             continue;
         };
 
         // Owner Index Calculation
         let owner_index_key = (owner, object.id());
-        let object_info = ObjectInfo::new(&object.object_ref(), &object);
+        let object_info = ObjectInfo::new(&object.object_ref(), object);
 
         owner_index.insert(owner_index_key, object_info);
 
         // Coin Index Calculation
         if let Some(type_tag) = object.coin_type_opt() {
             let info =
-                CoinInfo::from_object(&object).expect("already checked that this is a coin type");
+                CoinInfo::from_object(object).expect("already checked that this is a coin type");
             let key = (owner, type_tag.to_string(), object.id());
 
             coin_index.insert(key, info);
