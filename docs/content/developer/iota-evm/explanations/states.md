@@ -96,7 +96,7 @@ The state transition in the chain occurs atomically in an L1 transaction that mu
 At any moment in time, the data state of the chain is a result of applying the historical sequence of blocks, starting
 from the empty data state.
 
-![State transitions](https://docs.iota.org/img/iota-evm/chain0.png)
+![State transitions](/img/iota-evm/chain0.png)
 
 On the L1 ledger, the state's history is represented as a sequence (chain) of versions of the anchor object, each holding the chain's
 assets in a particular state and the anchoring hash of the data state.
@@ -108,4 +108,4 @@ state hash).
 The ISC virtual machine (VM) computes the blocks and state outputs that anchor the state, which ensures that the state
 transitions are calculated deterministically and consistently.
 
-![Chain](https://docs.iota.org/img/iota-evm/chain1.png)
+![Chain](/img/iota-evm/chain1.png)

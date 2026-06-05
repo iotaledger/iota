@@ -18,7 +18,7 @@ The security of cryptocurrency demands greater attention as digital assets gain 
 
 Decentralized digital assets require a different approach to security than traditional finance. Thankfully, innovative technologies like multisig wallets provide an extra layer of protection, allowing you to trade cryptocurrencies on chains like [IOTA EVM](https://explorer.evm.iota.org/).
 
-![IOTA Sandbox](https://docs.iota.org/img/iota-evm/safe.png)
+![IOTA Sandbox](/img/iota-evm/safe.png)
 
 ## Why Are Multisig Wallets More Secure?
 

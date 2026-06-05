@@ -8,7 +8,7 @@ tags:
 
 # Core Contracts
 
-![Wasp Node Core Contracts Overview](https://docs.iota.org/img/banner/banner_wasp_core_contracts_overview.png)
+![Wasp Node Core Contracts Overview](/img/banner/banner_wasp_core_contracts_overview.png)
 
 There are currently 7 core smart contracts that are always deployed on each
 chain. These are responsible for the vital functions of the chain and

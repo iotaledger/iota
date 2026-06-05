@@ -147,24 +147,24 @@ You can refer this repository for full React UI code : [lend-borrow-ui](https://
 
 - Connect your Metamask wallet: Click the "Connect Wallet" button on the app to open the below metamask popup:
 
-  ![connect metamask](https://docs.iota.org/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-connect-metamask.png "Connect to MetaMask")
+  ![connect metamask](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-connect-metamask.png "Connect to MetaMask")
 
 - View your account balance: See your current token balance.
-  ![account balance](https://docs.iota.org/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-account-bal.png "You can view your account SMR balance here")
+  ![account balance](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-account-bal.png "You can view your account SMR balance here")
 - View the Dashboard component:
-  ![dashboard](https://docs.iota.org/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-dashboard.png "Dashboard UI")
+  ![dashboard](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-dashboard.png "Dashboard UI")
   - In the Dashboard component you can view `total supplied` funds and `total borrowed` funds and the list of all the supported tokens with their details.
 
 - `TransactionsCard` could be used by clicking any of the token mentioned on the list to `supply`, `borrow`, `repay` or `withdraw` funds.
-  ![transactions card](https://docs.iota.org/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-transaction-card.png "Dashboard UI")
+  ![transactions card](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-transaction-card.png "Dashboard UI")
   - Example of Supplying tokens below :
     - Enter the amount you want to supply and click transact.
     - First you will need to approve the underlying token to the contract.
 
-      ![approve underlying token](https://docs.iota.org/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-approve.png "Approve underlying token")
+      ![approve underlying token](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-approve.png "Approve underlying token")
     - And a new metamask popup will be shown to mint the eqvivalent amount of ITokens.
 
-      ![supply IToken](https://docs.iota.org/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-mint.png "Supply IToken")
+      ![supply IToken](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-mint.png "Supply IToken")
 
 Similarly you can `borrow`, `repay` or `withdraw` funds.
 

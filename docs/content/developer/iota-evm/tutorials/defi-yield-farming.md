@@ -31,7 +31,7 @@ At its core, yield farming allows cryptocurrency holders to lock up their assets
 
 ## Yield Farming Architecture Overview
 
-![DeFi Yield Farming](https://docs.iota.org/img/iota-evm/tutorials/defi_yield_farming/Architecture.png)
+![DeFi Yield Farming](/img/iota-evm/tutorials/defi_yield_farming/Architecture.png)
 
 ## Prerequisites
 

@@ -17,7 +17,7 @@ DeFi Lend Borrow is a decentralized finance (DeFi) application that enables user
 
 ## DeFi Lend Borrow Contracts Architecture Overview
 
-![architecture diagram](https://docs.iota.org/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-architecture-diagram.png)
+![architecture diagram](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-architecture-diagram.png)
 
 ## Set Up
 
