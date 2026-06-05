@@ -6,7 +6,7 @@
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
 pub use iota_sdk_types::move_core::TypeParseError;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{CommandArgumentError, ObjectId, Owner};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -18,7 +18,6 @@ use crate::{
     base_types::*,
     committee::{Committee, EpochId, StakeUnit},
     digests::CheckpointContentsDigest,
-    execution_status::CommandArgumentError,
     messages_checkpoint::CheckpointSequenceNumber,
 };
 
@@ -41,7 +40,7 @@ macro_rules! fp_ensure {
     };
 }
 
-use crate::execution_status::ExecutionFailureStatus;
+use iota_sdk_types::ExecutionError as ExecutionFailureStatus;
 
 #[macro_export]
 macro_rules! exit_main {

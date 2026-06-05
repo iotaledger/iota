@@ -11,9 +11,10 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Argument, ChangeEpoch, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Identifier, ObjectId, Owner, SimpleSignature, StructTag,
-    TypeTag,
+    Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, Identifier,
+    MoveLocation, ObjectId, Owner, PackageUpgradeError, SimpleSignature, StructTag,
+    TypeArgumentError, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
@@ -33,10 +34,6 @@ use iota_types::{
         TransactionEvents, UnchangedSharedKind,
     },
     event::Event,
-    execution_status::{
-        CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, MoveLocation,
-        PackageUpgradeError, TypeArgumentError,
-    },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
@@ -294,7 +291,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &Data::Package(sample_move_pkg))
         .unwrap();
 
-    // Trace SDK types with custom serde (ExecutionStatus, ExecutionFailureStatus,
+    // Trace SDK types with custom serde (ExecutionStatus, ExecutionError,
     // CommandArgumentError, PackageUpgradeError). These delegate to internal
     // Binary* helper types that serde_reflection cannot auto-discover through
     // trace_type alone.
@@ -319,7 +316,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(
             &mut samples,
             &ExecutionStatus::Failure {
-                error: ExecutionFailureStatus::InsufficientGas,
+                error: ExecutionError::InsufficientGas,
                 command: Some(0),
             },
         )
@@ -328,9 +325,7 @@ fn get_registry() -> Result<Registry> {
     // Discover all remaining enum variants via deserialization. trace_type
     // loops internally until all variants of the (internal Binary*) enum are
     // found, using the samples we seeded above for custom-serde fields.
-    tracer
-        .trace_type::<ExecutionFailureStatus>(&samples)
-        .unwrap();
+    tracer.trace_type::<ExecutionError>(&samples).unwrap();
     tracer.trace_type::<CommandArgumentError>(&samples).unwrap();
     tracer.trace_type::<PackageUpgradeError>(&samples).unwrap();
 

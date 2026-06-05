@@ -11,7 +11,7 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ExecutionStatus, ObjectId, Owner};
 use iota_types::{
     auth_context::AuthContext,
     base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
@@ -26,7 +26,6 @@ use iota_types::{
         DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
     },
     execution_config_utils::to_binary_config,
-    execution_status::ExecutionStatus,
     fp_bail,
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,

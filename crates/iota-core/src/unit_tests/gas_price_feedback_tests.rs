@@ -8,14 +8,14 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    CancelledTransaction, ConsensusDeterminedVersionAssignments, ObjectId, VersionAssignment,
+    CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus,
+    ObjectId, VersionAssignment,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
     executable_transaction::VerifiedExecutableTransaction,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
@@ -719,7 +719,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     // The first transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[1].status() {
         assert!(command.is_none());
-        if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
             congested_objects,
             suggested_gas_price,
         } = error
@@ -734,9 +734,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             );
             assert_eq!(*suggested_gas_price, REFERENCE_GAS_PRICE_FOR_TESTS);
         } else {
-            panic!(
-                "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
-            );
+            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
         }
     } else {
         panic!("The transaction must be cancelled.")
@@ -770,7 +768,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     // The third transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[3].status() {
         assert!(command.is_none());
-        if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
             congested_objects,
             suggested_gas_price,
         } = error
@@ -785,9 +783,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price_2);
         } else {
-            panic!(
-                "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
-            );
+            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
         }
     } else {
         panic!("The transaction must be cancelled.")
@@ -935,9 +931,8 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     // The second transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
         assert!(command.is_none());
-        if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-            congested_objects,
-        } = error
+        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestion { congested_objects } =
+            error
         {
             // Check is returned congested_objects are correct.
             assert_eq!(
@@ -948,7 +943,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
                 ]
             );
         } else {
-            panic!("ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestion.");
+            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestion.");
         }
     } else {
         panic!("The second transaction must be cancelled.")
@@ -1083,7 +1078,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     // The second transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
         assert!(command.is_none());
-        if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
             congested_objects,
             suggested_gas_price,
         } = error
@@ -1098,9 +1093,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
-            panic!(
-                "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
-            );
+            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
         }
     } else {
         panic!("The second transaction must be cancelled.")
@@ -1335,7 +1328,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     // The second scheduled transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
         assert!(command.is_none());
-        if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
             congested_objects,
             suggested_gas_price,
         } = error
@@ -1350,9 +1343,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
-            panic!(
-                "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
-            );
+            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
         }
     } else {
         panic!("The second transaction must be cancelled.")
@@ -1615,7 +1606,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     for effects in effects_vec.iter().skip(7).take(2) {
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
-            if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects,
                 suggested_gas_price,
             } = error
@@ -1627,9 +1618,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     expected_suggested_gas_price_for_object_2
                 );
             } else {
-                panic!(
-                    "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
-                );
+                panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
             }
         } else {
             panic!("Transaction should have been be cancelled.")
@@ -1653,7 +1642,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     for effects in effects_vec.iter().skip(9).take(5) {
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
-            if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects,
                 suggested_gas_price,
             } = error
@@ -1671,9 +1660,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     expected_suggested_gas_price_for_both_objects
                 );
             } else {
-                panic!(
-                    "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
-                );
+                panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
             }
         } else {
             panic!("Transaction should have been be cancelled.")
@@ -1944,7 +1931,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     for effects in effects_vec.iter().skip(7).take(2) {
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
-            if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects,
                 suggested_gas_price,
             } = error
@@ -1953,9 +1940,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 assert_eq!(*congested_objects, vec![tester.shared_counter_2.object_id]);
                 assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
             } else {
-                panic!(
-                    "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
-                );
+                panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
             }
         } else {
             panic!("Transaction should have been be cancelled.")
@@ -1989,7 +1974,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
 
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
-            if let ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects,
                 suggested_gas_price,
             } = error
@@ -2004,9 +1989,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 );
                 assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
             } else {
-                panic!(
-                    "ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestionV2."
-                );
+                panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
             }
         } else {
             panic!("Transaction should have been be cancelled.")

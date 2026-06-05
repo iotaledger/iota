@@ -4,14 +4,13 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_sdk_types::{Identifier, ObjectId, Owner};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
@@ -1004,7 +1003,7 @@ async fn verify_tto_not_locked(
     assert!(matches!(
         invalid_effects.status(),
         ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::MoveAbort { .. },
+            error: ExecutionError::MoveAbort { .. },
             ..
         }
     ));
@@ -1608,7 +1607,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
         // Type mismatch is an abort code of 2 from `receive_impl`
         let is_type_mismatch_error = matches!(
             effects.status().clone().unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort{location: x, code: 2} if x.function_name == Some(Identifier::from_static("receive_impl"))
+            ExecutionError::MoveAbort{location: x, code: 2} if x.function_name == Some(Identifier::from_static("receive_impl"))
         );
         assert!(is_type_mismatch_error);
         assert!(effects.created().is_empty());

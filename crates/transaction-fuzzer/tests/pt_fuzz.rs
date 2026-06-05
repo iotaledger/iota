@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
     base_types::ObjectRef,
     effects::TransactionEffectsAPI,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     transaction::{CallArg, ProgrammableTransaction},
 };
 use proptest::{prelude::*, strategy::ValueTree};
@@ -97,7 +96,7 @@ pub fn run_pt_success(
         matches!(
             status,
             ExecutionStatus::Failure {
-                error: ExecutionFailureStatus::UnusedValueWithoutDrop { .. },
+                error: ExecutionError::UnusedValueWithoutDrop { .. },
                 command: _,
             }
         ),

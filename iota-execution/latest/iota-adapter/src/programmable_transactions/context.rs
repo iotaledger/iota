@@ -19,7 +19,8 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+        Argument, CommandArgumentError, Identifier, ObjectId, Owner, StructTag, TypeTag,
+        move_package::MovePackage,
     };
     use iota_types::{
         balance::Balance,
@@ -28,7 +29,6 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
         execution::{ExecutionResults, ExecutionResultsV1},
-        execution_status::CommandArgumentError,
         iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
         move_package::{MovePackageExt, derive_package_metadata_id},
@@ -978,7 +978,7 @@ mod checked {
 
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
-            use iota_types::execution_status::TypeArgumentError;
+            use iota_sdk_types::TypeArgumentError;
             use move_core_types::vm_status::StatusCode;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {

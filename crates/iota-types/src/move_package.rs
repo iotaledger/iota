@@ -42,7 +42,7 @@ use std::{
 use derive_more::Display;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, StructTag, TypeTag, Version,
+    Identifier, ObjectId, PackageUpgradeError, StructTag, TypeTag, Version,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use move_binary_format::{
@@ -58,7 +58,6 @@ use crate::{
     collection_types::{Entry, VecMap},
     derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    execution_status::PackageUpgradeError,
     id::{ID, UID},
     iota_serde::TypeName,
 };

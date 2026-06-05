@@ -17,7 +17,8 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Command, Identifier, ObjectId, StructTag, TypeTag, move_package::MovePackage,
+        Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError, StructTag,
+        TypeTag, move_package::MovePackage,
     };
     use iota_types::{
         auth_context,
@@ -28,7 +29,6 @@ mod checked {
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
-        execution_status::{CommandArgumentError, PackageUpgradeError},
         id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
