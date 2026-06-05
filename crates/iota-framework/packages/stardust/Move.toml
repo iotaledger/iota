@@ -3,6 +3,7 @@ name = "Stardust"
 version = "0.0.1"
 published-at = "0x107a"
 edition = "2024"
+authors = ["IOTA Foundation <info@iota.org>"]
 
 [dependencies]
 MoveStdlib = { local = "../move-stdlib" }

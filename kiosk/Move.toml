@@ -2,6 +2,7 @@
 name = "Kiosk"
 version = "0.0.2"
 edition = "2024"
+authors = ["IOTA Foundation <info@iota.org>"]
 
 [dependencies]
 Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/mainnet" }
