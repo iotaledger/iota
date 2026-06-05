@@ -43,6 +43,7 @@ use crate::{
     errors::IngestionResult as Result,
     history::{
         CHECKPOINT_FILE_SUFFIX, MAGIC_BYTES, MANIFEST_FILE_MAGIC, MANIFEST_FILENAME,
+        EPOCH_BOUNDARIES_FILE_MAGIC, EPOCH_BOUNDARIES_FILENAME,
         reader::HistoricalReader,
     },
 };
@@ -230,6 +231,56 @@ pub async fn write_manifest<S: ObjectStorePutExt>(
     let bytes = finalize_manifest(manifest)?;
     put(&remote_store, &Manifest::file_path(), bytes).await?;
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
+pub struct EpochBoundaries {
+    pub last_checkpoint_seq_nums: Vec<u64>,
+}
+
+pub fn read_epoch_boundaries_from_bytes(vec: Vec<u8>) -> Result<EpochBoundaries> {
+    let file_size = vec.len();
+    let mut reader = Cursor::new(vec);
+
+    reader.rewind()?;
+    let magic = reader.read_u32::<BigEndian>()?;
+    if magic != EPOCH_BOUNDARIES_FILE_MAGIC {
+        return Err(IngestionError::HistoryRead(format!(
+            "unexpected magic byte in epoch boundaries: {magic}",
+        )));
+    }
+
+    reader.seek(SeekFrom::End(-(SHA3_BYTES as i64)))?;
+    let mut sha3_digest = [0u8; SHA3_BYTES];
+    reader.read_exact(&mut sha3_digest)?;
+
+    reader.rewind()?;
+    let mut content_buf = vec![0u8; file_size - SHA3_BYTES];
+    reader.read_exact(&mut content_buf)?;
+    let mut hasher = Sha3_256::default();
+    hasher.update(&content_buf);
+    let computed_digest = hasher.finalize().digest;
+    if computed_digest != sha3_digest {
+        return Err(IngestionError::HistoryRead(format!(
+            "epoch boundaries corrupted, computed checksum: {computed_digest:?}, stored checksum: {sha3_digest:?}"
+        )));
+    }
+    reader.rewind()?;
+    reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
+    Ok(Blob::read(&mut reader)?.decode()?)
+}
+
+pub fn finalize_epoch_boundaries(epoch_boundaries: EpochBoundaries) -> Result<Bytes> {
+    let mut buf = BufWriter::new(vec![]);
+    buf.write_u32::<BigEndian>(EPOCH_BOUNDARIES_FILE_MAGIC)?;
+    let blob = Blob::encode(&epoch_boundaries, BlobEncoding::Bcs)?;
+    blob.write(&mut buf)?;
+    buf.flush()?;
+    let mut hasher = Sha3_256::default();
+    hasher.update(buf.get_ref());
+    let computed_digest = hasher.finalize().digest;
+    buf.write_all(&computed_digest)?;
+    Ok(Bytes::from(buf.into_inner().map_err(|e| e.into_error())?))
 }
 
 pub async fn verify_historical_checkpoints_with_checksums(

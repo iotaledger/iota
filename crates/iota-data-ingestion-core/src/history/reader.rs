@@ -26,7 +26,7 @@ use crate::{
     errors::IngestionResult as Result,
     history::{
         CHECKPOINT_FILE_MAGIC,
-        manifest::{FileMetadata, Manifest, read_manifest},
+        manifest::{FileMetadata, Manifest, read_manifest, EpochBoundaries, read_epoch_boundaries_from_bytes},
     },
 };
 
@@ -220,6 +220,13 @@ impl HistoricalReader {
             .ok_or_else(|| {
                 IngestionError::HistoryRead("no checkpoint data in the remote store".into())
             })
+    }
+
+    /// Return epoch boundaries in archive.
+    pub async fn get_epoch_boundaries(&self) -> Result<EpochBoundaries> {
+        let path = Path::from(crate::history::EPOCH_BOUNDARIES_FILENAME);
+        let bytes = get(&self.remote_object_store, &path).await?.to_vec();
+        read_epoch_boundaries_from_bytes(bytes)
     }
 
     pub fn remote_store_identifier(&self) -> String {
