@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     move_package::UpgradePolicy,
@@ -72,8 +71,6 @@ pub struct IotaInitArgs {
     pub default_gas_price: Option<u64>,
     #[clap(long = "move-auth")]
     pub move_auth: Option<bool>,
-    #[command(flatten)]
-    pub snapshot_config: SnapshotLagConfig,
     #[arg(long)]
     pub flavor: Option<Flavor>,
     /// The number of epochs to keep in the database. Epochs outside of this

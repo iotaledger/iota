@@ -42,7 +42,14 @@ Together, these enable use cases like:
 - DAO governance and treasury access control
 - Function-call keys that restrict which Move functions an account can call
 - Spending limits and time locks
+- Gas sponsorship under custom on-chain policy (an abstract account paying for someone else's transaction)
 - Any custom cryptographic scheme not natively supported by IOTA
+
+:::tip Sponsorship with abstract accounts
+
+An abstract account can also act as a **gas sponsor**: it pays for another account's transaction while its own authenticator function enforces whatever sponsorship policy you choose (whitelists and gas allowances, per-tx signed approvals, …). See the [sponsor authenticator design principle](./design-principles.mdx) for the patterns, the [whitelist sponsorship how-to](../../how-tos/account-abstraction/authenticator/create-whitelist-sponsorship-account.mdx) for a worked example, and the [sender-identity-binding security guide](../../how-tos/account-abstraction/security/sender-identity-binding.mdx) for the threat model.
+
+:::
 
 ## The Authentication Lifecycle
 

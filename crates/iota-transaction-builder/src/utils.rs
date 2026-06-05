@@ -433,7 +433,11 @@ impl TransactionBuilder {
                 .collect(),
             ProtocolConfig::get_for_min_version().max_move_package_size(),
             package.type_origin_table,
-            package.linkage_table,
+            package
+                .linkage_table
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
         )?)
     }
 }

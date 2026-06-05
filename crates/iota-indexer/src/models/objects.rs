@@ -18,9 +18,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     errors::IndexerError,
-    schema::{
-        checkpointed_objects, objects, objects_backward_history, objects_history, objects_snapshot,
-    },
+    schema::{checkpointed_objects, objects, objects_backward_history, objects_history},
     types::{IndexedDeletedObject, IndexedObject, ObjectStatus, owner_to_owner_info},
 };
 
@@ -64,27 +62,7 @@ pub struct StoredObject {
     pub finalized_in_cp: Option<i64>,
 }
 
-#[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
-#[diesel(table_name = objects_snapshot, primary_key(object_id))]
-pub struct StoredObjectSnapshot {
-    pub object_id: Vec<u8>,
-    pub object_version: i64,
-    pub object_status: i16,
-    pub object_digest: Option<Vec<u8>>,
-    pub checkpoint_sequence_number: i64,
-    pub owner_type: Option<i16>,
-    pub owner_id: Option<Vec<u8>>,
-    pub object_type: Option<String>,
-    pub object_type_package: Option<Vec<u8>>,
-    pub object_type_module: Option<String>,
-    pub object_type_name: Option<String>,
-    pub serialized_object: Option<Vec<u8>>,
-    pub coin_type: Option<String>,
-    pub coin_balance: Option<i64>,
-    pub df_kind: Option<i16>,
-}
-
-impl TryFrom<IndexedObject> for StoredObjectSnapshot {
+impl TryFrom<IndexedObject> for StoredCheckpointedObject {
     type Error = IndexerError;
 
     fn try_from(o: IndexedObject) -> Result<Self, Self::Error> {
@@ -95,7 +73,7 @@ impl TryFrom<IndexedObject> for StoredObjectSnapshot {
         } = o;
         let checkpoint_sequence_number = checkpoint_sequence_number.ok_or_else(|| {
             IndexerError::InvalidArgument(
-                "checkpoint_sequence_number is required for StoredObjectSnapshot".to_string(),
+                "checkpoint_sequence_number is required for StoredCheckpointedObject".to_string(),
             )
         })? as i64;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
@@ -133,7 +111,7 @@ impl TryFrom<IndexedObject> for StoredObjectSnapshot {
     }
 }
 
-impl From<IndexedDeletedObject> for StoredObjectSnapshot {
+impl From<IndexedDeletedObject> for StoredCheckpointedObject {
     fn from(o: IndexedDeletedObject) -> Self {
         Self {
             object_id: o.object_id.as_bytes().to_vec(),
@@ -350,10 +328,9 @@ pub(crate) struct StoredDeletedHistoryObject {
 
 /// Snapshot of the `objects` table written exclusively by checkpoint ingestion.
 ///
-/// Mirrors `objects_snapshot` schema (includes `object_status` and
-/// `checkpoint_sequence_number`). Used as the base table for backward-diff
-/// consistent views, avoiding race conditions with optimistic indexing.
-/// Stores both active and wrapped/deleted objects.
+/// Includes `object_status` and `checkpoint_sequence_number`. Used as the base
+/// table for backward-diff consistent views, avoiding race conditions with
+/// optimistic indexing. Stores both active and wrapped/deleted objects.
 #[derive(Queryable, Selectable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
 #[diesel(table_name = checkpointed_objects, primary_key(object_id))]
 pub struct StoredCheckpointedObject {
@@ -372,28 +349,6 @@ pub struct StoredCheckpointedObject {
     pub coin_type: Option<String>,
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
-}
-
-impl From<&StoredObjectSnapshot> for StoredCheckpointedObject {
-    fn from(o: &StoredObjectSnapshot) -> Self {
-        Self {
-            object_id: o.object_id.clone(),
-            object_version: o.object_version,
-            object_status: o.object_status,
-            object_digest: o.object_digest.clone(),
-            checkpoint_sequence_number: o.checkpoint_sequence_number,
-            owner_type: o.owner_type,
-            owner_id: o.owner_id.clone(),
-            object_type: o.object_type.clone(),
-            object_type_package: o.object_type_package.clone(),
-            object_type_module: o.object_type_module.clone(),
-            object_type_name: o.object_type_name.clone(),
-            serialized_object: o.serialized_object.clone(),
-            coin_type: o.coin_type.clone(),
-            coin_balance: o.coin_balance,
-            df_kind: o.df_kind,
-        }
-    }
 }
 
 impl From<IndexedObject> for StoredObject {

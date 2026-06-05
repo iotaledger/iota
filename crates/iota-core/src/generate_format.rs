@@ -3,12 +3,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
+use std::{collections::BTreeMap, fs::File, io::Write};
 
 use clap::*;
+use iota_sdk_crypto::{
+    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
+};
 use iota_sdk_types::{
-    ChangeEpoch, Command, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier,
-    MoveLocation, ObjectId, PackageUpgradeError, StructTag, TypeArgumentError, TypeTag,
+    ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, Identifier,
+    MoveLocation, ObjectId, PackageUpgradeError, SimpleSignature, StructTag, TypeArgumentError,
+    TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
@@ -18,8 +24,8 @@ use iota_types::{
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
-        KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
+        Ed25519IotaSignature, KeypairTraits, Signature, Signer, ToFromBytes, get_key_pair,
     },
     digests::ConsensusCommitDigest,
     effects::{
@@ -32,10 +38,9 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
-    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
     messages_grpc::ObjectInfoRequestKind,
     move_package::{MovePackage, TypeOrigin},
-    multisig::{MultiSig, MultiSigPublicKey},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
     signature::GenericSignature,
     storage::DeleteKind,
@@ -169,31 +174,39 @@ fn get_registry() -> Result<Registry> {
     let sig: Signature = Signer::sign(&s_kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let kp1: IotaKeyPair =
-        IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
-    let kp2: IotaKeyPair =
-        IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
-    let kp3: IotaKeyPair =
-        IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
+    let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
+    let kp2 = Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32]));
+    let kp3 = Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32]));
+
     let multisig_pk = MultiSigPublicKey::new(
-        vec![kp1.public(), kp2.public(), kp3.public()],
-        vec![1, 1, 1],
+        vec![
+            MultisigMember::new(kp1.public_key(), 1),
+            MultisigMember::new(kp2.public_key(), 1),
+            MultisigMember::new(kp3.public_key(), 1),
+        ],
         2,
     )
     .unwrap();
 
-    let msg = IntentMessage::new(
+    let digest = IntentMessage::new(
         Intent::iota_transaction(),
         PersonalMessage("Message".as_bytes().to_vec().into()),
-    );
+    )
+    .signing_digest();
 
-    let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
-    let sig2: GenericSignature = Signature::new_secure(&msg, &kp2).into();
-    let sig3: GenericSignature = Signature::new_secure(&msg, &kp3).into();
-    let sig4: GenericSignature = GenericSignature::from_str("BiVYDmenOnqS+thmz5m5SrZnWaKXZLVxgh+rri6LHXs25B0AAAAAnQF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCAiY2hhbGxlbmdlIjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTE3MyIsImNyb3NzT3JpZ2luIjpmYWxzZSwgInVua25vd24iOiAidW5rbm93biJ9YgJMwqcOmZI7F/N+K5SMe4DRYCb4/cDWW68SFneSHoD2GxKKhksbpZ5rZpdrjSYABTCsFQQBpLORzTvbj4edWKd/AsEBeovrGvHR9Ku7critg6k7qvfFlPUngujXfEzXd8Eg").unwrap();
+    let sig1: SimpleSignature = kp1.sign(&*digest);
+    let sig2: SimpleSignature = kp2.sign(&*digest);
+    let sig3: SimpleSignature = kp3.sign(&*digest);
 
-    let multi_sig =
-        MultiSig::combine(vec![sig1.clone(), sig2.clone(), sig3.clone()], multisig_pk).unwrap();
+    let multi_sig = MultiSig::new(
+        vec![
+            sig1.clone().into(),
+            sig2.clone().into(),
+            sig3.clone().into(),
+        ],
+        multisig_pk,
+    )
+    .unwrap();
     tracer.trace_value(&mut samples, &multi_sig).unwrap();
 
     let generic_sig_multi = GenericSignature::MultiSig(multi_sig);
@@ -201,11 +214,19 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &generic_sig_multi)
         .unwrap();
 
+    // Seed a `GenericSignature::Signature` sample so that when the tracer
+    // later deserializes `CheckpointContents.user_signatures`
+    // (`Vec<Vec<GenericSignature>>`) it has flag-0/1/2 bytes available.
+    // Otherwise fastcrypto's `from_bytes` rejects synthesized bytes with
+    // "Invalid signature was given to the function".
+    tracer
+        .trace_value(&mut samples, &GenericSignature::Signature(sig.clone()))
+        .unwrap();
+
     tracer.trace_value(&mut samples, &sig1).unwrap();
     tracer.trace_value(&mut samples, &sig2).unwrap();
     tracer.trace_value(&mut samples, &sig3).unwrap();
-    tracer.trace_value(&mut samples, &sig4).unwrap();
-    // ObjectId and IotaAddress are the same length
+    // ObjectID and IotaAddress are the same length
     let oid: ObjectId = addr.into();
     tracer.trace_value(&mut samples, &oid).unwrap();
 
@@ -535,7 +556,12 @@ fn get_registry() -> Result<Registry> {
             0,
             0,
         ),
-        vec![sig1.clone()],
+        // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
+        vec![GenericSignature::Signature(
+            Signature::Ed25519IotaSignature(
+                Ed25519IotaSignature::from_bytes(&sig1.to_bytes()).unwrap(),
+            ),
+        )],
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
 

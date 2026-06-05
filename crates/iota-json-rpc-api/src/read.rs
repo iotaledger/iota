@@ -8,7 +8,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, Page,
     ProtocolConfigResponse,
     iota_primitives::{
-        Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+        Base58 as Base58Schema, ObjectId as ObjectIdSchema,
         SequenceNumberU64 as SequenceNumberU64Schema,
     },
 };
@@ -69,7 +69,7 @@ pub trait ReadApi {
     async fn get_object(
         &self,
         /// the ID of the queried object
-        #[schemars(with = "ObjectIDSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
@@ -81,7 +81,7 @@ pub trait ReadApi {
     async fn multi_get_objects(
         &self,
         /// the IDs of the queried objects
-        #[schemars(with = "Vec<ObjectIDSchema>")]
+        #[schemars(with = "Vec<ObjectIdSchema>")]
         object_ids: Vec<ObjectId>,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
@@ -96,7 +96,7 @@ pub trait ReadApi {
     async fn try_get_past_object(
         &self,
         /// the ID of the queried object
-        #[schemars(with = "ObjectIDSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         /// the version of the queried object. If None, default to the latest known version
         #[schemars(with = "SequenceNumberU64Schema")]

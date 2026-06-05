@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTransactionKind,
-    ObjectChange,
+    BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionKind, ObjectChange,
 };
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, SequenceNumber},
     crypto::AggregateAuthoritySignature,
@@ -14,7 +14,7 @@ use iota_types::{
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
-    iota_serde::IotaStructTag,
+    iota_serde::{IotaStructTag, IotaTypeTag},
     messages_checkpoint::{
         CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
     },
@@ -25,7 +25,7 @@ use iota_types::{
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde_with::{DisplayFromStr, serde_as};
 
 use crate::errors::IndexerError;
 
@@ -400,7 +400,7 @@ pub struct IndexedTransaction {
     pub checkpoint_sequence_number: u64,
     pub timestamp_ms: u64,
     pub object_changes: Vec<IndexedObjectChange>,
-    pub balance_change: Vec<iota_json_rpc_types::BalanceChange>,
+    pub balance_change: Vec<IndexedBalanceChange>,
     pub events: Vec<iota_types::event::Event>,
     pub transaction_kind: IotaTransactionKind,
     pub successful_tx_num: u64,
@@ -745,6 +745,37 @@ impl From<IndexedObjectChange> for ObjectChange {
                 version,
                 digest,
             },
+        }
+    }
+}
+
+/// Storage representation of a balance change.
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexedBalanceChange {
+    pub owner: Owner,
+    #[serde_as(as = "IotaTypeTag")]
+    pub coin_type: TypeTag,
+    #[serde_as(as = "DisplayFromStr")]
+    pub amount: i128,
+}
+
+impl From<BalanceChange> for IndexedBalanceChange {
+    fn from(bc: BalanceChange) -> Self {
+        Self {
+            owner: bc.owner,
+            coin_type: bc.coin_type,
+            amount: bc.amount,
+        }
+    }
+}
+
+impl From<IndexedBalanceChange> for BalanceChange {
+    fn from(bc: IndexedBalanceChange) -> Self {
+        Self {
+            owner: bc.owner,
+            coin_type: bc.coin_type,
+            amount: bc.amount,
         }
     }
 }

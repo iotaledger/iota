@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_json_rpc_types::BalanceChange as StoredBalanceChange;
+use iota_indexer::types::IndexedBalanceChange;
 
 use crate::{
     error::Error,
@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub(crate) struct BalanceChange {
-    stored: StoredBalanceChange,
+    stored: IndexedBalanceChange,
     /// The checkpoint sequence number this was viewed at.
     checkpoint_viewed_at: u64,
 }

@@ -19,7 +19,7 @@ use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
-    config::{IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
+    config::{IotaNamesOptions, JsonRpcConfig, PruningOptions},
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -161,7 +161,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         true,
         None,
         cluster.grpc_url(),
-        IndexerTypeConfig::writer_mode(None, pruning_options),
+        IndexerTypeConfig::writer_mode(pruning_options),
         None,
     )
     .await;
@@ -515,13 +515,7 @@ pub async fn start_simulacrum_grpc_with_write_indexer(
         true,
         db_init_hook,
         format!("http://{address}"),
-        IndexerTypeConfig::writer_mode(
-            Some(SnapshotLagConfig {
-                snapshot_min_lag: 5,
-                sleep_duration: 0,
-            }),
-            None,
-        ),
+        IndexerTypeConfig::writer_mode(None),
         Some(data_ingestion_path),
     )
     .await;
@@ -558,29 +552,6 @@ pub async fn start_simulacrum_grpc_with_read_write_indexer(
         .unwrap();
 
     (server_handle, pg_store, pg_handle, rpc_client)
-}
-
-/// Wait for the indexer to catch up to the given checkpoint sequence number for
-/// objects snapshot.
-pub async fn wait_for_objects_snapshot(
-    pg_store: &PgIndexerStore,
-    checkpoint_sequence_number: u64,
-) -> Result<(), IndexerError> {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        while {
-            let cp_opt = pg_store
-                .get_latest_object_snapshot_watermark()
-                .await
-                .unwrap()
-                .map(|watermark| watermark.max_committed_cp);
-            cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
-        } {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-    })
-    .await
-    .expect("timeout waiting for indexer to catchup to checkpoint for objects snapshot");
-    Ok(())
 }
 
 pub async fn publish_test_move_package(

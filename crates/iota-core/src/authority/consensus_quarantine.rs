@@ -7,13 +7,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, VersionAssignment};
 use iota_types::{
     base_types::{AuthorityName, SequenceNumber, TransactionDigest},
     crypto::RandomnessRound,
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
-    messages_consensus::{TimestampMs, VersionAssignment, VersionedDkgConfirmation},
+    messages_consensus::VersionedDkgConfirmation,
     signature::GenericSignature,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
@@ -93,7 +93,7 @@ impl ConsensusCommitOutput {
         self.deleted_deferred_txns.iter().cloned()
     }
 
-    fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
+    fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
         self.next_randomness_round.as_ref().map(|(_, ts)| *ts)
     }
 
@@ -880,7 +880,7 @@ impl ConsensusOutputQuarantine {
             .any(|output| output.pending_checkpoint_exists(index))
     }
 
-    pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
+    pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
         self.output_queue
             .iter()
             .rev()
