@@ -104,7 +104,7 @@ const IOTA_BRIDGE_CREATE: FunctionIdent = (
     ident_str!("bridge"),
     ident_str!("create"),
 );
-const CLAIM_REGISTRY: FunctionIdent = (
+const CLAIM_REGISTRY_CLAIM: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
     CLAIM_REGISTRY_MODULE_NAME,
     ident_str!("claim"),
@@ -113,7 +113,7 @@ const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[
     OBJECT_NEW,
     OBJECT_NEW_UID_FROM_HASH,
     TS_NEW_OBJECT,
-    CLAIM_REGISTRY,
+    CLAIM_REGISTRY_CLAIM,
 ];
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_SYSTEM_CREATE,
