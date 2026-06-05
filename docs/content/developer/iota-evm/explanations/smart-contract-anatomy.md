@@ -17,7 +17,7 @@ It can support different _VM types_ (i.e., interpreters) simultaneously on the s
 For example, it is possible to have [EVM/Solidity](../getting-started/languages-and-vms.mdx#what-is-evmsolidity) smart
 contracts coexisting on the same chain.
 
-![Smart Contract Structure](https://docs.iota.org/img/iota-evm/tutorials/SC-structure.png)
+![Smart Contract Structure](/img/iota-evm/tutorials/SC-structure.png)
 
 ## Identifying a Smart Contract
 
