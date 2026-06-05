@@ -671,13 +671,19 @@ for i in $(seq 1 $ITERS); do
     # fatal! at crates/iota-core/src/checkpoints/mod.rs:545).
     # Threshold scales to max_pending/4 so detection works at any cap
     # (max=5K → 1250, max=10K → 2500, max=20K → 5000 = legacy default).
-    queue_p75_int_early=$(awk -v v="${queue_depth_p75:-0}" 'BEGIN{printf "%d", v}')
-    sc_peak_threshold=$(( ${val_max_pending:-20000} / 4 ))
-    [ "$sc_peak_threshold" -lt 100 ] && sc_peak_threshold=100
-    if [ "${queue_p75_int_early:-0}" -lt 100 ] && [ "${peak:-0}" -gt "$sc_peak_threshold" ]; then
-      failed=1
-      silent_collapse=1
-      echo "    [silent-collapse detected: queue p75=${queue_depth_p75} but peak=${peak} > ${sc_peak_threshold} (max/4) — marking iter as failed (spike-and-drain, likely checkpoint fork)]"
+    # Set SILENT_COLLAPSE_DISABLE=true to skip the detector entirely.
+    # Useful for long-barrier burst regimes (e.g. BURST_SIZE=50 BAR=5000ms)
+    # where queue naturally drains to 0 between bursts, mimicking the fork
+    # signature without an actual fork.
+    if [ "${SILENT_COLLAPSE_DISABLE:-false}" != "true" ]; then
+      queue_p75_int_early=$(awk -v v="${queue_depth_p75:-0}" 'BEGIN{printf "%d", v}')
+      sc_peak_threshold=$(( ${val_max_pending:-20000} / 4 ))
+      [ "$sc_peak_threshold" -lt 100 ] && sc_peak_threshold=100
+      if [ "${queue_p75_int_early:-0}" -lt 100 ] && [ "${peak:-0}" -gt "$sc_peak_threshold" ]; then
+        failed=1
+        silent_collapse=1
+        echo "    [silent-collapse detected: queue p75=${queue_depth_p75} but peak=${peak} > ${sc_peak_threshold} (max/4) — marking iter as failed (spike-and-drain, likely checkpoint fork)]"
+      fi
     fi
   else
     iso=$(basename "$latest" 2>/dev/null | sed 's/multi-//' || echo "?")
