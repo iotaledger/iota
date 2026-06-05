@@ -19,7 +19,7 @@ use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
-    config::{IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
+    config::{IotaNamesOptions, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -143,7 +143,7 @@ impl SimulacrumTestSetup {
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: impl Into<Option<&str>>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
-    pruning_options: Option<PruningOptions>,
+    retention_config: Option<RetentionConfig>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
     let database_name = database_name.into();
     let mut builder = TestClusterBuilder::new().with_fullnode_enable_grpc_api(true);
@@ -161,7 +161,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         true,
         None,
         cluster.grpc_url(),
-        IndexerTypeConfig::writer_mode(None, pruning_options),
+        IndexerTypeConfig::writer_mode(None, retention_config),
         None,
     )
     .await;
