@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_macros::sim_test;
 use iota_sdk_ext::grpc_types::{
     headers,
     v1::ledger_service::{
@@ -8,7 +9,6 @@ use iota_sdk_ext::grpc_types::{
         GetTransactionsRequest, StreamCheckpointsRequest,
     },
 };
-use iota_macros::sim_test;
 
 use crate::{
     utils::setup_grpc_test_with_builder,

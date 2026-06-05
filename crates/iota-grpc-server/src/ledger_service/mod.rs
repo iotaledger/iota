@@ -11,8 +11,8 @@ mod get_transactions;
 use std::sync::Arc;
 
 use iota_config::node::GrpcApiConfig;
-use iota_sdk_ext::grpc_types::v1::ledger_service::{self as grpc_ledger_service};
 use iota_protocol_config::Chain;
+use iota_sdk_ext::grpc_types::v1::ledger_service::{self as grpc_ledger_service};
 use iota_types::digests::ChainIdentifier;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};

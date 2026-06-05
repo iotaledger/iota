@@ -5,13 +5,15 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
-use iota_sdk_ext::crypto::{
-    Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_ext::types::{
-    ObjectId, SimpleSignature,
-    crypto::{Intent, IntentMessage},
+use iota_sdk_ext::{
+    crypto::{
+        Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    },
+    types::{
+        ObjectId, SimpleSignature,
+        crypto::{Intent, IntentMessage},
+    },
 };
 use rand::{SeedableRng, rngs::StdRng};
 

@@ -28,6 +28,7 @@ eyre.workspace = true
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 itertools.workspace = true
 lru.workspace = true
 mockall.workspace = true
@@ -73,7 +74,6 @@ iota-network.workspace = true
 iota-network-stack.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-simulator.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
@@ -96,6 +96,7 @@ clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
+iota-sdk-ext = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1"] }
 more-asserts.workspace = true
 num-bigint = "0.4.4"
 pretty_assertions.workspace = true
@@ -108,7 +109,6 @@ tower.workspace = true
 # internal dependencies
 iota-move.workspace = true
 iota-move-build.workspace = true
-iota-sdk-ext = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1"] }
 iota-test-transaction-builder.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dev-dependencies]

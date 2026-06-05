@@ -15,6 +15,7 @@ fastcrypto.workspace = true
 fastcrypto-vdf.workspace = true
 fastcrypto-zkp.workspace = true
 indexmap.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 rand = { workspace = true, features = ["small_rng"] }
 serde.workspace = true
 smallvec = "1.10.0"
@@ -22,7 +23,6 @@ tracing.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true

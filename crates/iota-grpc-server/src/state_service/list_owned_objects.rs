@@ -3,16 +3,18 @@
 
 use std::sync::Arc;
 
-use iota_sdk_ext::grpc_types::{
-    google::rpc::bad_request::FieldViolation,
-    read_masks::LIST_OWNED_OBJECTS_READ_MASK,
-    v1::{
-        error_reason::ErrorReason,
-        object::Object,
-        state_service::{ListOwnedObjectsRequest, ListOwnedObjectsResponse},
+use iota_sdk_ext::{
+    grpc_types::{
+        google::rpc::bad_request::FieldViolation,
+        read_masks::LIST_OWNED_OBJECTS_READ_MASK,
+        v1::{
+            error_reason::ErrorReason,
+            object::Object,
+            state_service::{ListOwnedObjectsRequest, ListOwnedObjectsResponse},
+        },
     },
+    types::StructTag,
 };
-use iota_sdk_ext::types::StructTag;
 use iota_types::base_types::IotaAddress;
 use prost::Message;
 use serde::{Deserialize, Serialize};

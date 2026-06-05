@@ -13,8 +13,8 @@ use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
-use iota_sdk_ext::grpc_client::Client;
 use iota_kvstore::{BigTableClient, KvWorker};
+use iota_sdk_ext::grpc_client::Client;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;

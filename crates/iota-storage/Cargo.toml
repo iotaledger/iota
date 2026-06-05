@@ -26,6 +26,7 @@ futures.workspace = true
 hyper.workspace = true
 indicatif.workspace = true
 integer-encoding.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 itertools.workspace = true
 lru.workspace = true
 moka.workspace = true
@@ -49,7 +50,6 @@ zstd = "0.13"
 iota-config.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true

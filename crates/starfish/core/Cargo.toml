@@ -22,6 +22,7 @@ enum_dispatch.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
+iota-sdk-ext = { workspace = true, features = ["serde"] }
 itertools.workspace = true
 lru.workspace = true
 nom = "7.1.3"
@@ -52,7 +53,6 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["serde"] }
 iota-tls.workspace = true
 starfish-config.workspace = true
 typed-store.workspace = true

@@ -1,13 +1,15 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::grpc_client::{
-    ReadMask,
-    read_mask_fields::{SimulateExecutedTransactionField, SimulateField},
-};
-use iota_sdk_ext::grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
 use iota_macros::sim_test;
-use iota_sdk_ext::types::{Command, Transaction};
+use iota_sdk_ext::{
+    grpc_client::{
+        ReadMask,
+        read_mask_fields::{SimulateExecutedTransactionField, SimulateField},
+    },
+    grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult,
+    types::{Command, Transaction},
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,

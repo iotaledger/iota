@@ -30,6 +30,7 @@ colored.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 json_to_table.workspace = true
 miette = { version = "7", features = ["fancy"] }
 prometheus.workspace = true
@@ -64,7 +65,6 @@ iota-names = { workspace = true, optional = true }
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-source-validation.workspace = true
 iota-types.workspace = true
 move-analyzer.workspace = true

@@ -8,17 +8,20 @@ mod common;
 use std::{collections::HashMap, sync::Arc};
 
 use common::MockGrpcStateReader;
-use iota_sdk_ext::grpc_types::{
-    field::FieldMaskUtil,
-    v1::{
-        ledger_service::{
-            GetObjectsRequest, GetTransactionsRequest, ObjectRequest, ObjectRequests,
-            TransactionRequest, TransactionRequests, ledger_service_client::LedgerServiceClient,
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        v1::{
+            ledger_service::{
+                GetObjectsRequest, GetTransactionsRequest, ObjectRequest, ObjectRequests,
+                TransactionRequest, TransactionRequests,
+                ledger_service_client::LedgerServiceClient,
+            },
+            types::ObjectReference,
         },
-        types::ObjectReference,
     },
+    types::{ObjectId, StructTag},
 };
-use iota_sdk_ext::types::{ObjectId, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,

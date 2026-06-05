@@ -7,10 +7,6 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
-use iota_sdk_ext::grpc_client::{
-    Client as GrpcClient, ReadMask,
-    read_mask_fields::{EpochField, SimulateExecutedTransactionField, SimulateField},
-};
 use iota_json::IotaJsonValue;
 use iota_json_rpc::{
     IotaRpcModule, ObjectProvider, get_balance_changes_from_effect, get_object_changes,
@@ -25,7 +21,13 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_protocol_config::Chain;
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::{
+    grpc_client::{
+        Client as GrpcClient, ReadMask,
+        read_mask_fields::{EpochField, SimulateExecutedTransactionField, SimulateField},
+    },
+    types::ObjectId,
+};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},

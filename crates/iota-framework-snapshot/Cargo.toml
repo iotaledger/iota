@@ -11,6 +11,7 @@ description = "Tool to create a bytecode snapshot of the current iota-framework"
 # external dependencies
 anyhow.workspace = true
 bcs.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
@@ -19,7 +20,6 @@ tempfile.workspace = true
 bin-version.workspace = true
 iota-framework.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 
 [dev-dependencies]

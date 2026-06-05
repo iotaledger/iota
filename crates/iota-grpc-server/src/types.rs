@@ -6,17 +6,19 @@ use std::{pin::Pin, sync::Arc};
 use anyhow::Result;
 use futures::StreamExt;
 use grpc_ledger_service::checkpoint_data::Progress;
-use iota_sdk_ext::grpc_types::{
-    field::FieldMaskTree,
-    proto::timestamp_ms_to_proto,
-    v1::{
-        checkpoint as grpc_checkpoint, event as grpc_event,
-        ledger_service::{self as grpc_ledger_service},
-        transaction as grpc_transaction,
-    },
-};
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskTree,
+        proto::timestamp_ms_to_proto,
+        v1::{
+            checkpoint as grpc_checkpoint, event as grpc_event,
+            ledger_service::{self as grpc_ledger_service},
+            transaction as grpc_transaction,
+        },
+    },
+    types::{ObjectId, StructTag, TypeTag},
+};
 use iota_types::{
     base_types::VersionNumber,
     digests::TransactionDigest,
@@ -1335,17 +1337,21 @@ impl Merge<CheckpointTransactionWithContext>
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
-            self.transaction = Some(iota_sdk_ext::grpc_types::v1::transaction::Transaction::merge_from(
-                source.transaction.transaction.clone(),
-                &submask,
-            )?);
+            self.transaction = Some(
+                iota_sdk_ext::grpc_types::v1::transaction::Transaction::merge_from(
+                    source.transaction.transaction.clone(),
+                    &submask,
+                )?,
+            );
         }
 
         if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            self.signatures = Some(iota_sdk_ext::grpc_types::v1::signatures::UserSignatures::merge_from(
-                source.transaction.transaction.clone(),
-                &submask,
-            )?);
+            self.signatures = Some(
+                iota_sdk_ext::grpc_types::v1::signatures::UserSignatures::merge_from(
+                    source.transaction.transaction.clone(),
+                    &submask,
+                )?,
+            );
         }
 
         if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {

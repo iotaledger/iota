@@ -29,6 +29,7 @@ hex.workspace = true
 http.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 once_cell.workspace = true
 prometheus.workspace = true
 reqwest.workspace = true
@@ -63,7 +64,6 @@ iota-network-stack.workspace = true
 iota-node-storage.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 iota-swarm-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true

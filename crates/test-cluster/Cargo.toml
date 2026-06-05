@@ -13,6 +13,7 @@ workspace = true
 # external dependencies
 anyhow.workspace = true
 futures.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 jsonrpsee.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
@@ -30,7 +31,6 @@ iota-keys.workspace = true
 iota-node.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true

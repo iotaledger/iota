@@ -4,16 +4,19 @@
 
 use std::sync::Arc;
 
-use iota_sdk_ext::grpc_types::{
-    field::FieldMaskTree,
-    proto::timestamp_ms_to_proto,
-    v1::{
-        bcs::{self as grpc_bcs, BcsData},
-        command::{CommandOutput, CommandOutputs, CommandResult, CommandResults},
-        event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskTree,
+        proto::timestamp_ms_to_proto,
+        v1::{
+            bcs::{self as grpc_bcs, BcsData},
+            command::{CommandOutput, CommandOutputs, CommandResult, CommandResults},
+            event as grpc_event, object as grpc_obj, signatures as grpc_sig,
+            transaction as grpc_tx,
+        },
     },
+    types::TypeTag,
 };
-use iota_sdk_ext::types::TypeTag;
 
 use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 

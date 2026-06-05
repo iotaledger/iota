@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_macros::sim_test;
 use iota_sdk_ext::grpc_types::{
     field::FieldMaskUtil,
     read_masks::GET_SERVICE_INFO_READ_MASK,
@@ -9,7 +10,6 @@ use iota_sdk_ext::grpc_types::{
         GetServiceInfoRequest, GetServiceInfoResponse, ledger_service_client::LedgerServiceClient,
     },
 };
-use iota_macros::sim_test;
 use prost_types::FieldMask;
 
 use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};

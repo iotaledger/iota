@@ -3,19 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::StreamExt;
-use iota_sdk_ext::grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::GET_OBJECTS_READ_MASK,
-    v1::{
-        ledger_service::{
-            GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
-            ledger_service_client::LedgerServiceClient, object_result,
-        },
-        types::ObjectReference,
-    },
-};
 use iota_macros::sim_test;
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::GET_OBJECTS_READ_MASK,
+        v1::{
+            ledger_service::{
+                GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
+                ledger_service_client::LedgerServiceClient, object_result,
+            },
+            types::ObjectReference,
+        },
+    },
+    types::ObjectId,
+};
 use prost_types::FieldMask;
 
 use crate::utils::{

@@ -17,6 +17,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
 hyper.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 jsonrpsee.workspace = true
 prometheus.workspace = true
 rand.workspace = true
@@ -39,7 +40,6 @@ iota-open-rpc.workspace = true
 iota-open-rpc-macros.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-simulator.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true

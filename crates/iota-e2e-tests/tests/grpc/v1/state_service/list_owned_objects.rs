@@ -3,17 +3,19 @@
 
 use std::{path::PathBuf, time::Duration};
 
-use iota_sdk_ext::grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::LIST_OWNED_OBJECTS_READ_MASK,
-    v1::state_service::{
-        GetCoinInfoRequest, ListOwnedObjectsRequest, ListOwnedObjectsResponse,
-        state_service_client::StateServiceClient,
-    },
-};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
-use iota_sdk_ext::types::{StructTag, TypeTag};
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::LIST_OWNED_OBJECTS_READ_MASK,
+        v1::state_service::{
+            GetCoinInfoRequest, ListOwnedObjectsRequest, ListOwnedObjectsResponse,
+            state_service_client::StateServiceClient,
+        },
+    },
+    types::{StructTag, TypeTag},
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::IotaAddress,

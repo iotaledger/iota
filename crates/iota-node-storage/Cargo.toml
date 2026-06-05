@@ -10,6 +10,9 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
 iota-sdk-ext = { workspace = true, features = ["types"] }
+
+# internal dependencies
 iota-types.workspace = true
 move-core-types.workspace = true

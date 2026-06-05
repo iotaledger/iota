@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::grpc_types::{
     field::FieldMaskTree,
     read_masks::SIMULATE_TRANSACTIONS_READ_MASK,
@@ -18,7 +19,6 @@ use iota_sdk_ext::grpc_types::{
         },
     },
 };
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     effects::TransactionEffectsAPI,
     transaction::TransactionDataAPI,

@@ -2,9 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
-use iota_sdk_ext::types::{Command, ObjectId};
+use iota_sdk_ext::{
+    grpc_types::v1::filter as proto_filter,
+    types::{Command, ObjectId},
+};
 use iota_types::{
     base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},

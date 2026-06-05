@@ -7,12 +7,14 @@
 use std::str::FromStr;
 
 use fastcrypto::traits::ToFromBytes;
-use iota_sdk_ext::crypto::{Signer, ed25519::Ed25519PrivateKey};
-use iota_sdk_ext::types::{
-    SimpleSignature,
-    crypto::{
-        Ed25519Signature, Intent, IntentMessage, MULTISIG_COMMITTEE_SIZE_MAX, PersonalMessage,
-        Secp256k1Signature, Secp256r1Signature, UserSignature,
+use iota_sdk_ext::{
+    crypto::{Signer, ed25519::Ed25519PrivateKey},
+    types::{
+        SimpleSignature,
+        crypto::{
+            Ed25519Signature, Intent, IntentMessage, MULTISIG_COMMITTEE_SIZE_MAX, PersonalMessage,
+            Secp256k1Signature, Secp256r1Signature, UserSignature,
+        },
     },
 };
 

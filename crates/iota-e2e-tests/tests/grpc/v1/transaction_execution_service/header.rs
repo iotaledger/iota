@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_macros::sim_test;
 use iota_sdk_ext::grpc_types::{
     headers,
     v1::{
@@ -11,7 +12,6 @@ use iota_sdk_ext::grpc_types::{
         },
     },
 };
-use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::transaction::{TransactionData, TransactionDataAPI};
 

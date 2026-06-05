@@ -59,8 +59,10 @@
 
 use std::ops::Not;
 
-use iota_sdk_ext::grpc_types::v1::{filter as proto, types::ObjectReference};
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::{
+    grpc_types::v1::{filter as proto, types::ObjectReference},
+    types::ObjectId,
+};
 use iota_types::base_types::{IotaAddress, ObjectDigest, SequenceNumber};
 
 /// Available transaction kinds for filtering.

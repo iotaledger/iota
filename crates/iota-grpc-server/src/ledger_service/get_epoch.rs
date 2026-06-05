@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
 use iota_sdk_ext::grpc_types::{
     field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
@@ -14,7 +15,6 @@ use iota_sdk_ext::grpc_types::{
         ledger_service::{GetEpochRequest, GetEpochResponse},
     },
 };
-use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
 use iota_types::committee::EpochId;
 use tonic::Status;
 

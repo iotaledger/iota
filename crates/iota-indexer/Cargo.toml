@@ -25,6 +25,7 @@ diesel_migrations = "2.2.0"
 downcast.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 itertools.workspace = true
 jsonrpsee.workspace = true
 moka.workspace = true
@@ -62,7 +63,6 @@ iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 iota-storage.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true

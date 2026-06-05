@@ -6,14 +6,16 @@
 use std::{collections::BTreeMap, fs::File, io::Write};
 
 use clap::*;
-use iota_sdk_ext::crypto::{
-    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey,
-};
-use iota_sdk_ext::types::{
-    ChangeEpoch, Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-    Identifier, ObjectId, SimpleSignature, StructTag, TypeTag,
-    crypto::{Intent, IntentMessage, PersonalMessage},
+use iota_sdk_ext::{
+    crypto::{
+        Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey,
+    },
+    types::{
+        ChangeEpoch, Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+        Identifier, ObjectId, SimpleSignature, StructTag, TypeTag,
+        crypto::{Intent, IntentMessage, PersonalMessage},
+    },
 };
 use iota_types::{
     base_types::{
@@ -615,7 +617,9 @@ fn get_registry() -> Result<Registry> {
         network_total_transactions: 0,
         content_digest: CheckpointContentsDigest::default(),
         previous_digest: None,
-        epoch_rolling_gas_cost_summary: iota_sdk_ext::types::gas::GasCostSummary::new(0, 0, 0, 0, 0),
+        epoch_rolling_gas_cost_summary: iota_sdk_ext::types::gas::GasCostSummary::new(
+            0, 0, 0, 0, 0,
+        ),
         timestamp_ms: 0,
         checkpoint_commitments: vec![],
         end_of_epoch_data: None,

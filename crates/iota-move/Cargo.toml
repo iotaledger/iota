@@ -11,6 +11,7 @@ publish = false
 anyhow.workspace = true
 clap.workspace = true
 colored.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 once_cell.workspace = true
 prometheus.workspace = true
 serde_yaml.workspace = true
@@ -23,7 +24,6 @@ iota-move-build.workspace = true
 iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true

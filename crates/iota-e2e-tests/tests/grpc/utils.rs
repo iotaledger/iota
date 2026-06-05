@@ -3,9 +3,11 @@
 
 use std::collections::{HashMap, HashSet};
 
-use iota_sdk_ext::grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
-use iota_sdk_ext::grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
-use iota_sdk_ext::types::{Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction};
+use iota_sdk_ext::{
+    grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField},
+    grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
+    types::{Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction},
+};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
 use test_cluster::{TestCluster, TestClusterBuilder};

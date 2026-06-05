@@ -10,11 +10,11 @@ publish = false
 # external dependencies
 async-trait.workspace = true
 bcs.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 lru.workspace = true
 thiserror.workspace = true
 
 # internal dependencies
-iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 # TODO: `move-command-line-common` is used for `ErrorBitset`. We should

@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_macros::sim_test;
 use iota_sdk_ext::grpc_types::{
     field::FieldMaskUtil,
     read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
@@ -16,7 +17,6 @@ use iota_sdk_ext::grpc_types::{
         },
     },
 };
-use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
 
@@ -39,7 +39,9 @@ fn first_executed_transaction(response: &ExecuteTransactionsResponse) -> &Execut
 }
 
 async fn assert_execute_transaction_request(
-    exec_client: &mut TransactionExecutionServiceClient<iota_sdk_ext::grpc_client::InterceptedChannel>,
+    exec_client: &mut TransactionExecutionServiceClient<
+        iota_sdk_ext::grpc_client::InterceptedChannel,
+    >,
     item: ExecuteTransactionItem,
     read_mask: Option<FieldMask>,
     expected_fields: &[&str],

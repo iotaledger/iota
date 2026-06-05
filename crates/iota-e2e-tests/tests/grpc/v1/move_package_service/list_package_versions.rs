@@ -1,8 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::grpc_types::v1::move_package_service::ListPackageVersionsRequest;
 use iota_macros::sim_test;
+use iota_sdk_ext::grpc_types::v1::move_package_service::ListPackageVersionsRequest;
 
 use crate::utils::{
     assert_field_presence, assert_tonic_error, object_id_from_hex, setup_grpc_test,

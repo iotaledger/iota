@@ -1,11 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_macros::sim_test;
 use iota_sdk_ext::grpc_types::v1::{
     coin::{coin_treasury::SupplyState, regulated_coin_metadata::CoinRegulatedState},
     state_service::GetCoinInfoRequest,
 };
-use iota_macros::sim_test;
 
 use crate::utils::{assert_field_presence, assert_tonic_error, setup_grpc_test};
 

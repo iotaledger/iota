@@ -3,16 +3,18 @@
 
 use std::sync::Arc;
 
-use iota_sdk_ext::grpc_types::{
-    field::FieldMaskTree,
-    read_masks::LIST_DYNAMIC_FIELDS_READ_MASK,
-    v1::{
-        bcs::BcsData,
-        dynamic_field::DynamicField,
-        state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskTree,
+        read_masks::LIST_DYNAMIC_FIELDS_READ_MASK,
+        v1::{
+            bcs::BcsData,
+            dynamic_field::DynamicField,
+            state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
+        },
     },
+    types::{ObjectId, TypeTag},
 };
-use iota_sdk_ext::types::{ObjectId, TypeTag};
 use iota_types::dynamic_field::visitor as DFV;
 use prost::Message;
 use serde::{Deserialize, Serialize};

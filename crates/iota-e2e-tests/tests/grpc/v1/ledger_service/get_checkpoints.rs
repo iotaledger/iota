@@ -4,23 +4,25 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_sdk_ext::grpc_client::{
-    ReadMask,
-    read_mask_fields::{CheckpointEventField, CheckpointResponseField},
-};
-use iota_sdk_ext::grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::GET_CHECKPOINT_READ_MASK,
-    v1::{
-        filter as grpc_filter,
-        ledger_service::{
-            CheckpointData, GetCheckpointRequest, StreamCheckpointsRequest, checkpoint_data,
-            ledger_service_client::LedgerServiceClient,
+use iota_macros::sim_test;
+use iota_sdk_ext::{
+    grpc_client::{
+        ReadMask,
+        read_mask_fields::{CheckpointEventField, CheckpointResponseField},
+    },
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::GET_CHECKPOINT_READ_MASK,
+        v1::{
+            filter as grpc_filter,
+            ledger_service::{
+                CheckpointData, GetCheckpointRequest, StreamCheckpointsRequest, checkpoint_data,
+                ledger_service_client::LedgerServiceClient,
+            },
+            types as grpc_types,
         },
-        types as grpc_types,
     },
 };
-use iota_macros::sim_test;
 use iota_types::transaction::CallArg;
 use prost_types::FieldMask;
 use tokio::time::timeout;
