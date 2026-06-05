@@ -296,13 +296,8 @@ sleep 5
 GRAFANA_DIR="../../grafana-local"
 cd "$GRAFANA_DIR" || { log "Grafana folder not found"; exit 1; }
 
-# Check if any Grafana container is already running
-if docker compose ps --services --filter "status=running" | grep -q grafana; then
-  log "Grafana already running, skipping start"
-else
-  log "Starting Grafana dashboard..."
-  docker compose up -d
-fi
+log "Starting Grafana dashboard..."
+docker compose up -d
 log "Grafana URL: http://localhost:3000/dashboards"
 cd - >/dev/null
 
