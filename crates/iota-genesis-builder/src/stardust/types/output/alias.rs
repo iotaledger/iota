@@ -5,14 +5,14 @@
 //! during migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_stardust_types::block::output::AliasOutput as StardustAlias;
 use iota_types::{
     balance::Balance,
     base_types::{SequenceNumber, TxContext},
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object},
     stardust::{
         coin_type::CoinType,
         output::alias::{Alias, AliasOutput},

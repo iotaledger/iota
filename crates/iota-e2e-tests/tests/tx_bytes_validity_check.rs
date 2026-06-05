@@ -41,7 +41,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
         Identifier::new_unchecked("_"),
         Identifier::new_unchecked("timestamp_ms"),
         vec![],
-        vec![iota_types::transaction::Argument::Input(0)],
+        vec![iota_sdk_types::Argument::Input(0)],
     )];
     let pt = ProgrammableTransaction { inputs, commands };
     let tx = TransactionKind::new_programmable(pt);

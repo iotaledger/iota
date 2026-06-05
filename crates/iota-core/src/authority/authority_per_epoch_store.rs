@@ -30,7 +30,7 @@ use iota_metrics::monitored_scope;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{CancelledTransaction, CheckpointTimestamp, ObjectId, VersionAssignment};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{
@@ -52,9 +52,9 @@ use iota_types::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
-        AuthorityCapabilitiesV1, CancelledTransaction, ConsensusTransaction,
-        ConsensusTransactionKey, ConsensusTransactionKind, SignedAuthorityCapabilitiesV1,
-        TimestampMs, VerifiedAuthorityCapabilitiesV1, VersionAssignment, VersionedDkgConfirmation,
+        AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, VerifiedAuthorityCapabilitiesV1,
+        VersionedDkgConfirmation,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey},
@@ -2699,7 +2699,9 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    pub(crate) fn get_randomness_last_round_timestamp(&self) -> IotaResult<Option<TimestampMs>> {
+    pub(crate) fn get_randomness_last_round_timestamp(
+        &self,
+    ) -> IotaResult<Option<CheckpointTimestamp>> {
         if let Some(ts) = self
             .consensus_quarantine
             .read()

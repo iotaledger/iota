@@ -12,16 +12,18 @@ use iota_json::{
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::{MovePackage, MovePackageExt},
-    object::{Object, Owner},
+    move_package::MovePackageExt,
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedObjectRef},
+    transaction::{CallArg, SharedObjectRef},
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
@@ -433,7 +435,11 @@ impl TransactionBuilder {
                 .collect(),
             ProtocolConfig::get_for_min_version().max_move_package_size(),
             package.type_origin_table,
-            package.linkage_table,
+            package
+                .linkage_table
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
         )?)
     }
 }

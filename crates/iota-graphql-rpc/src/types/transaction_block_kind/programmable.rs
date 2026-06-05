@@ -8,11 +8,12 @@ use async_graphql::{
 };
 use iota_json_rpc_types::IotaArgument;
 use iota_sdk_types::{
-    Command as NativeProgrammableTransaction, MoveCall as NativeMoveCallTransaction,
+    Argument as NativeArgument, Command as NativeProgrammableTransaction,
+    MoveCall as NativeMoveCallTransaction,
 };
 use iota_types::transaction::{
-    Argument as NativeArgument, CallArg as NativeCallArg,
-    ProgrammableTransaction as NativeProgrammableTransactionBlock, SharedObjectRef,
+    CallArg as NativeCallArg, ProgrammableTransaction as NativeProgrammableTransactionBlock,
+    SharedObjectRef,
 };
 
 use crate::{

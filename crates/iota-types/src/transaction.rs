@@ -16,17 +16,17 @@ use std::{
 use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, Digest, Identifier, Input, MakeMoveVector, MergeCoins,
+    MoveCall, ObjectId, Owner, Publish, SplitCoins, TransferObjects, TypeTag, Upgrade,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 pub use iota_sdk_types::{
-    Argument, EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
+    EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
     ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
     SystemPackage, Transaction as TransactionData, TransactionExpiration, TransactionKind,
     TransactionV1 as TransactionDataV1,
-};
-use iota_sdk_types::{
-    CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, Identifier, Input, MakeMoveVector, MergeCoins,
-    MoveCall, ObjectId, Publish, SplitCoins, TransferObjects, TypeTag, Upgrade,
-    crypto::{Intent, IntentMessage, IntentScope},
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
@@ -49,7 +49,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     move_authenticator::MoveAuthenticator,
-    object::{MoveObject, Object, Owner},
+    object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
     signature_verification::verify_sender_signed_data_message_signatures,

@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use better_any::{Tid, TidAble};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
@@ -15,7 +15,7 @@ use crate::{
     committee::EpochId,
     error::{IotaError, IotaResult},
     inner_temporary_store::WrittenObjects,
-    object::{Object, Owner},
+    object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
         get_module_by_id, load_package_object_from_object_store,

@@ -7877,7 +7877,6 @@ dependencies = [
  "iota-config",
  "iota-core",
  "iota-framework",
- "iota-graphql-rpc",
  "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-json-rpc-types",

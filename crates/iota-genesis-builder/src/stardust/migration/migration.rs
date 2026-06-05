@@ -467,12 +467,9 @@ pub(super) fn create_migration_context(
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::Owner;
     use iota_types::{
-        balance::Balance,
-        base_types::SequenceNumber,
-        gas_coin::GasCoin,
-        id::UID,
-        object::{Data, Owner},
+        balance::Balance, base_types::SequenceNumber, gas_coin::GasCoin, id::UID, object::Data,
         timelock::timelock::TimeLock,
     };
 
