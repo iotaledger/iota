@@ -316,6 +316,10 @@ pub async fn validate_and_resolve_conflicts(
         //   - Gas, ownership, `MoveAuthenticator` execution: re-applied in the
         //     execution pipeline (`check_certificate_input` and
         //     `authenticate_then_execute_transaction_to_effects`).
+        //   - User signature: re-verified pre-execution in `prepare_certificate` so a
+        //     Byzantine attestor cannot forge transactions; the failure is reported as
+        //     `IotaError::AttestationInvalidUserSignature` and carries the
+        //     `attestor_index` for future attestor-accountability.
         //
         // Coin deny list v1 MUST be re-checked here for attested
         // transactions: the attestor's view may be stale if a deny-list

@@ -61,6 +61,7 @@ use iota_types::{
             AuthenticatorFunctionRefV1,
         },
     },
+    attestation::Attestation,
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType,
         SequenceNumber, StructTag, TypeTag, VersionNumber,
@@ -1794,6 +1795,32 @@ impl AuthorityState {
         // checks.
         let tx_data = certificate.data().transaction_data();
         tx_data.validity_check(protocol_config)?;
+
+        // V2 attested path: re-verify the user signature here as a Byzantine attestor
+        // can lie. Catching it pre-execution leaves the (attestation, tx,
+        // attestor_index) tuple on-chain as evidence for the future
+        // attestor-accountability path.
+        if let Some(attestation) = certificate.attestation() {
+            let attestor_index = match attestation {
+                Attestation::Validator { attestor_index, .. } => *attestor_index,
+                Attestation::Explicit { .. } => {
+                    // Explicit attestations are rejected at post-consensus
+                    // (Check #3); reaching here means a protocol-level bug.
+                    return Err(IotaError::UnsupportedFeature {
+                        error: "Explicit attestation reached prepare_certificate".into(),
+                    });
+                }
+            };
+            if epoch_store
+                .signature_verifier
+                .verify_tx(certificate.data())
+                .is_err()
+            {
+                return Err(IotaError::AttestationInvalidUserSignature {
+                    attestor: attestor_index,
+                });
+            }
+        }
 
         let (kind, signer, gas_data) = tx_data.execution_parts();
 
