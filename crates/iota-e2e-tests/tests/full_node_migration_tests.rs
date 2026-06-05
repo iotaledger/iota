@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_macros::sim_test;
 use iota_sdk::IotaClient;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
 use iota_types::{
     balance::Balance,
     base_types::IotaAddress,
@@ -37,7 +37,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::{coin_type::CoinType, output::NftOutput},
     timelock::timelock::TimeLock,
-    transaction::{Argument, CallArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use test_cluster::TestClusterBuilder;
 

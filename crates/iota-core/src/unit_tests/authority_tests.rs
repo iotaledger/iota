@@ -17,8 +17,8 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    CancelledTransaction, Command, ConsensusDeterminedVersionAssignments, Identifier, Owner,
-    StructTag, TypeTag, VersionAssignment,
+    Argument, CancelledTransaction, Command, ConsensusDeterminedVersionAssignments, Identifier,
+    Owner, StructTag, TypeTag, VersionAssignment,
 };
 use iota_types::{
     base_types::{

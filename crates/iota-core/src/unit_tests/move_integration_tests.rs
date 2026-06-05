@@ -6,7 +6,7 @@
 use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk_types::{Command, Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Argument, Command, Identifier, StructTag, TypeTag};
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},

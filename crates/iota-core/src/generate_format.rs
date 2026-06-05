@@ -11,8 +11,9 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    ChangeEpoch, Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-    Identifier, ObjectId, Owner, SimpleSignature, StructTag, TypeTag,
+    Argument, ChangeEpoch, Command, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, Identifier, ObjectId, Owner, SimpleSignature, StructTag,
+    TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
@@ -47,7 +48,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
+        CallArg, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
         ProgrammableTransaction, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
         Transaction, TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
     },
