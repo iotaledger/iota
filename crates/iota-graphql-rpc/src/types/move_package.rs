@@ -319,8 +319,6 @@ impl MovePackage {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -827,9 +825,11 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let package =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?;
-            conn.edges.push(Edge::new(cursor, package));
+            if let Some(package) =
+                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?
+            {
+                conn.edges.push(Edge::new(cursor, package));
+            }
         }
 
         Ok(conn)
@@ -881,9 +881,11 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let package =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?;
-            conn.edges.push(Edge::new(cursor, package));
+            if let Some(package) =
+                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?
+            {
+                conn.edges.push(Edge::new(cursor, package));
+            }
         }
 
         Ok(conn)
@@ -896,14 +898,19 @@ impl MovePackage {
     pub(crate) fn try_from_stored_history_object(
         history_object: StoredHistoryObject,
         checkpoint_viewed_at: u64,
-    ) -> Result<Self, Error> {
-        let object = Object::try_from_stored_history_object(
+    ) -> Result<Option<Self>, Error> {
+        let Some(object) = Object::try_from_stored_history_object(
             history_object,
             checkpoint_viewed_at,
             // root_version
             None,
-        )?;
-        Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))
+        )?
+        else {
+            return Ok(None);
+        };
+        let package =
+            Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))?;
+        Ok(Some(package))
     }
 }
 
@@ -1105,9 +1112,7 @@ impl TryFrom<&Object> for MovePackage {
     type Error = MovePackageDowncastError;
 
     fn try_from(object: &Object) -> Result<Self, MovePackageDowncastError> {
-        let Some(native) = object.native_impl() else {
-            return Err(MovePackageDowncastError);
-        };
+        let native = object.native_impl();
 
         if let Data::Package(move_package) = &native.data {
             Ok(Self {

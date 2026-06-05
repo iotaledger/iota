@@ -213,8 +213,6 @@ impl NameRegistration {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -562,8 +560,11 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            let object =
-                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?;
+            let Some(object) =
+                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?
+            else {
+                continue;
+            };
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
                     "Expected {0} to be a NameRecord, but it's not a Move Object.",

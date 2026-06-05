@@ -92,9 +92,6 @@ pub(crate) enum ObjectKind {
     NotIndexed(NativeObject),
     /// An object fetched from the index.
     Indexed(NativeObject, StoredHistoryObject),
-    /// The object is wrapped or deleted and only partial information can be
-    /// loaded from the indexer. The `u64` is the version of the object.
-    WrappedOrDeleted(u64),
 }
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
@@ -105,12 +102,6 @@ pub enum ObjectStatus {
     NotIndexed,
     /// The object is fetched from the index.
     Indexed,
-    /// The object is deleted or wrapped and only partial information can be
-    /// loaded from the indexer.
-    #[graphql(
-        deprecation = "will be removed with v1.26, as such objects can be considered non-existent"
-    )]
-    WrappedOrDeleted,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, InputObject)]
@@ -263,8 +254,6 @@ pub(crate) struct HistoricalObjectCursor {
             contents of a genesis or system package upgrade transaction.
             - INDEXED: The object is retrieved from the off-chain index and
             represents the most recent or historical state of the object.
-            - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-            information can be loaded.
         "#
     ),
     field(
@@ -468,8 +457,6 @@ impl Object {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(self).status().await
     }
@@ -628,15 +615,13 @@ impl ObjectImpl<'_> {
     }
 
     pub(crate) async fn digest(&self) -> Option<String> {
-        self.0
-            .native_impl()
-            .map(|native| native.digest().to_base58())
+        Some(self.0.native_impl().digest().to_base58())
     }
 
     pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
         use NativeOwner as O;
 
-        let native = self.0.native_impl()?;
+        let native = self.0.native_impl();
 
         match native.owner {
             O::Address(address) => {
@@ -673,9 +658,7 @@ impl ObjectImpl<'_> {
         &self,
         ctx: &Context<'_>,
     ) -> Result<Option<TransactionBlock>> {
-        let Some(native) = self.0.native_impl() else {
-            return Ok(None);
-        };
+        let native = self.0.native_impl();
         let digest = native.previous_transaction;
         let key = transaction_block::DigestKey::new(digest.into(), self.0.checkpoint_viewed_at);
 
@@ -683,9 +666,7 @@ impl ObjectImpl<'_> {
     }
 
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
-        self.0
-            .native_impl()
-            .map(|native| BigInt::from(native.storage_rebate))
+        Some(self.0.native_impl().storage_rebate.into())
     }
 
     pub(crate) async fn received_transaction_blocks(
@@ -718,10 +699,6 @@ impl ObjectImpl<'_> {
     pub(crate) async fn bcs(&self) -> Result<Option<Base64>> {
         use ObjectKind as K;
         Ok(match &self.0.kind {
-            K::WrappedOrDeleted(_) => None,
-            // WrappedOrDeleted objects are also read from the historical objects table, and they do
-            // not have a serialized object, so the column is also nullable for stored historical
-            // objects.
             K::Indexed(_, stored) => stored.serialized_object.as_ref().map(Base64::from),
 
             K::NotIndexed(native) => {
@@ -741,9 +718,7 @@ impl ObjectImpl<'_> {
     /// `display` is part of the `IMoveObject` interface, but is implemented on
     /// `ObjectImpl` to allow for a convenience function on `Object`.
     pub(crate) async fn display(&self, ctx: &Context<'_>) -> Result<Option<Vec<DisplayEntry>>> {
-        let Some(native) = self.0.native_impl() else {
-            return Ok(None);
-        };
+        let native = self.0.native_impl();
 
         let move_object = native
             .data
@@ -796,22 +771,16 @@ impl Object {
         }
     }
 
-    pub(crate) fn native_impl(&self) -> Option<&NativeObject> {
+    pub(crate) fn native_impl(&self) -> &NativeObject {
         use ObjectKind as K;
 
         match &self.kind {
-            K::NotIndexed(native) | K::Indexed(native, _) => Some(native),
-            K::WrappedOrDeleted(_) => None,
+            K::NotIndexed(native) | K::Indexed(native, _) => native,
         }
     }
 
     pub(crate) fn version_impl(&self) -> u64 {
-        use ObjectKind as K;
-
-        match &self.kind {
-            K::NotIndexed(native) | K::Indexed(native, _) => native.version().as_u64(),
-            K::WrappedOrDeleted(object_version) => *object_version,
-        }
+        self.native_impl().version().as_u64()
     }
 
     /// Root parent object version for dynamic fields.
@@ -901,9 +870,11 @@ impl Object {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            let object =
-                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?;
-            conn.edges.push(Edge::new(cursor, downcast(object)?));
+            if let Some(object) =
+                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?
+            {
+                conn.edges.push(Edge::new(cursor, downcast(object)?));
+            }
         }
 
         Ok(conn)
@@ -1022,7 +993,7 @@ impl Object {
         history_object: StoredHistoryObject,
         checkpoint_viewed_at: u64,
         root_version: Option<u64>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Option<Self>, Error> {
         let address = addr(&history_object.object_id)?;
 
         let object_status =
@@ -1048,19 +1019,14 @@ impl Object {
 
                 let root_version =
                     root_version.unwrap_or_else(|| version_for_dynamic_fields(&native_object));
-                Ok(Self {
+                Ok(Some(Self {
                     address,
                     kind: ObjectKind::Indexed(native_object, history_object),
                     checkpoint_viewed_at,
                     root_version,
-                })
+                }))
             }
-            NativeObjectStatus::WrappedOrDeleted => Ok(Self {
-                address,
-                kind: ObjectKind::WrappedOrDeleted(history_object.object_version as u64),
-                checkpoint_viewed_at,
-                root_version: history_object.object_version as u64,
-            }),
+            NativeObjectStatus::WrappedOrDeleted => Ok(None),
         }
     }
 
@@ -1628,13 +1594,14 @@ impl Loader<HistoricalKey> for Db {
                 continue;
             }
 
-            let object = Object::try_from_stored_history_object(
+            if let Some(object) = Object::try_from_stored_history_object(
                 stored.clone(),
                 key.checkpoint_viewed_at,
                 // This conversion will use the object's own version as the `Object::root_version`.
                 None,
-            )?;
-            result.insert(*key, object);
+            )? {
+                result.insert(*key, object);
+            }
         }
 
         Ok(result)
@@ -1848,13 +1815,16 @@ impl Loader<ParentVersionKey> for Db {
                     continue;
                 }
 
-                let object = Object::try_from_stored_history_object(
+                let Some(object) = Object::try_from_stored_history_object(
                     stored,
                     group_key.checkpoint_viewed_at,
                     // If `LatestAtKey::parent_version` is set, it must have been correctly
                     // propagated from the `Object::root_version` of some object.
                     Some(group_key.parent_version),
-                )?;
+                )?
+                else {
+                    continue;
+                };
 
                 let key = ParentVersionKey {
                     id: object.address,
@@ -1939,8 +1909,11 @@ impl Loader<LatestAtKey> for Db {
             for (checkpoint_viewed_at, stored) in
                 group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
             {
-                let object =
-                    Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?;
+                let Some(object) =
+                    Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?
+                else {
+                    continue;
+                };
 
                 let key = LatestAtKey {
                     id: object.address,
@@ -1960,7 +1933,6 @@ impl From<&ObjectKind> for ObjectStatus {
         match kind {
             ObjectKind::NotIndexed(_) => ObjectStatus::NotIndexed,
             ObjectKind::Indexed(_, _) => ObjectStatus::Indexed,
-            ObjectKind::WrappedOrDeleted(_) => ObjectStatus::WrappedOrDeleted,
         }
     }
 }

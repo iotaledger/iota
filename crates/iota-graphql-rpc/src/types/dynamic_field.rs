@@ -241,11 +241,14 @@ impl DynamicField {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
 
-            let object = Object::try_from_stored_history_object(
+            let Some(object) = Object::try_from_stored_history_object(
                 stored_history,
                 checkpoint_viewed_at,
                 parent_version,
-            )?;
+            )?
+            else {
+                continue;
+            };
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
@@ -274,12 +277,6 @@ impl TryFrom<MoveObject> for DynamicField {
 
         let native = match &super_.kind {
             ObjectKind::NotIndexed(native) | ObjectKind::Indexed(native, _) => native,
-
-            ObjectKind::WrappedOrDeleted(_) => {
-                return Err(Error::Internal(
-                    "DynamicField is wrapped or deleted.".to_string(),
-                ));
-            }
         };
 
         let Some(object) = native.data.as_struct_opt() else {
