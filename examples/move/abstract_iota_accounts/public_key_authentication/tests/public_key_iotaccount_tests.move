@@ -108,6 +108,135 @@ fun test_ed25519_authenticator_wrong_signature() {
     test_scenario::end(scenario_val);
 }
 
+// --------------------------------------- Ed25519 Sponsorship Authentication ---------------------------------------
+
+// Test vectors below were generated offline with OpenSSL ed25519 over the exact byte sequence
+// that `authenticate_ed25519_for_sponsorship` reconstructs at runtime:
+//   tx_digest || sender_auth_digest || (bcs(sender_info) if sender_info.is_some())
+//
+// The keypair is fresh and lives only in these tests; the secret key is not stored.
+//   pub_key = 20f76913ad844a620434f553f009cfda151fe9aba1a6de707c5efa5bc205552b
+
+#[test]
+fun test_sponsorship_ed25519_authenticator_no_sender_info() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"20f76913ad844a620434f553f009cfda151fe9aba1a6de707c5efa5bc205552b";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+        // `create_auth_context_for_testing` sets sender_auth_digest to 32 ASCII '0's and
+        // sender_authenticator_function_info_v1 to None — so the signed message is the
+        // 64-byte concatenation `tx_digest || sender_auth_digest`.
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature =
+            x"dd87af8b1221ef766cb70491668b4dc0d093e177bcaff6ca8d28210fe71f972a2bca18b8256e342a10a3b2e8843de43f1be94703089d89ebb9dbfc246048de02";
+
+        public_key_iotaccount::sponsorship_ed25519_authenticator(
+            &account,
+            signature,
+            &auth_ctx,
+            &ctx,
+        );
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+fun test_sponsorship_ed25519_authenticator_with_sender_info() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"20f76913ad844a620434f553f009cfda151fe9aba1a6de707c5efa5bc205552b";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+
+        // The sender uses a `MoveAuthenticator` whose function is identified by
+        //   (package = @0x42, module = "foo", function = "bar")
+        // The signed message is `tx_digest || sender_auth_digest || bcs(sender_info)`,
+        // where bcs(sender_info) is:
+        //   32 bytes (package, left-padded)
+        //   || 0x03 || "foo"
+        //   || 0x03 || "bar"
+        let sender_info = auth_context::create_auth_function_info_v1_for_testing(
+            @0x42,
+            ascii::string(b"foo"),
+            ascii::string(b"bar"),
+        );
+        let auth_ctx = auth_context::new_for_testing(
+            b"00000000000000000000000000000000",
+            vector::empty(),
+            vector::empty(),
+            vector[],
+            b"00000000000000000000000000000000",
+            option::none(),
+            option::some(sender_info),
+            option::none(),
+        );
+
+        let signature =
+            x"725cb1abb7050e0959b1c6a80e3b774178f6b9d98c1739d89bbcea1e778e12fd0deb4260c713609564b006d4adb936851ff7e704a8b82d881676a11194aa1a09";
+
+        public_key_iotaccount::sponsorship_ed25519_authenticator(
+            &account,
+            signature,
+            &auth_ctx,
+            &ctx,
+        );
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = public_key_authentication::EEd25519VerificationFailed)]
+fun test_sponsorship_ed25519_authenticator_wrong_signature() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"20f76913ad844a620434f553f009cfda151fe9aba1a6de707c5efa5bc205552b";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        // Last byte perturbed from `02` to `aa` — verification must fail.
+        let signature =
+            x"dd87af8b1221ef766cb70491668b4dc0d093e177bcaff6ca8d28210fe71f972a2bca18b8256e342a10a3b2e8843de43f1be94703089d89ebb9dbfc246048deaa";
+
+        public_key_iotaccount::sponsorship_ed25519_authenticator(
+            &account,
+            signature,
+            &auth_ctx,
+            &ctx,
+        );
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
 // --------------------------------------- Secp256k1 Authentication ---------------------------------------
 
 #[test]

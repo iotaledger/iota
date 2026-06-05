@@ -7,10 +7,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI,
 };
 use iota_macros::sim_test;
+use iota_sdk_types::Owner;
 use iota_simulator::fastcrypto::encoding::Base64;
 use iota_types::{
-    object::Owner, programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionKind,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionKind,
 };
 use test_cluster::TestClusterBuilder;
 

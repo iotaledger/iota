@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use iota_sdk_types::{Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::{
     address::{Address, AliasAddress, Ed25519Address},
     output::{
@@ -19,7 +19,7 @@ use iota_stardust_types::block::{
 use iota_types::{
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
-    object::{Object, Owner},
+    object::Object,
     stardust::{
         coin_type::CoinType,
         output::{

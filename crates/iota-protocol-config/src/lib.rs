@@ -151,6 +151,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 28: Move authenticator contracts can now inspect which authenticator
 //             function the sender and sponsor used during transaction execution
 //             via new AuthContext accessors.
+//             Enable Move-based account authentication in mainnet.
+//             Enable Move-based sponsor account authentication in testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2829,6 +2831,29 @@ impl ProtocolConfig {
                     // digest. auth_context_digest_cost_base = 30 for 32 bytes →
                     // 9 × 30 = 270.
                     cfg.auth_context_authenticator_function_info_v1_cost_base = Some(270);
+
+                    // Enable storing metadata in module bytes and then
+                    // publishing package metadata in mainnet.
+                    cfg.feature_flags.metadata_in_module_bytes = true;
+                    cfg.feature_flags.publish_package_metadata = true;
+                    // Enable Move authentication in mainnet.
+                    cfg.feature_flags.enable_move_authentication = true;
+                    // Increase the base cost for transfer receive object in mainnet, since the
+                    // implementation now does check if parent is not an account.
+                    cfg.transfer_receive_object_cost_base = Some(100);
+
+                    if chain != Chain::Unknown {
+                        // max_auth_gas is 0.00002 IOTA in testnet and mainnet.
+                        cfg.max_auth_gas = Some(20_000);
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Enable Move-based sponsor account authentication in testnet.
+                        cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                        // Only sponsor Move authentication is performed pre-consensus in testnet.
+                        cfg.feature_flags
+                            .pre_consensus_sponsor_only_move_authentication = true;
+                    }
                 }
                 // Use this template when making changes:
                 //

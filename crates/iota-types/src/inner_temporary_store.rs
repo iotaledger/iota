@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::{Identifier, ObjectId, Owner};
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
@@ -18,7 +18,7 @@ use crate::{
     error::IotaResult,
     execution::DynamicallyLoadedObjectMetadata,
     move_package::MovePackageExt,
-    object::{Object, Owner},
+    object::Object,
     storage::{BackingPackageStore, InputKey, PackageObject},
 };
 

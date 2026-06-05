@@ -130,5 +130,13 @@ iota/
 
 ### Conventions reference
 
-- [`RUST_CONVENTIONS.md`](RUST_CONVENTIONS.md) — full list of Rust style and safety rules (panics, error handling, naming, module layout, etc.).
+- [`RUST_CONVENTIONS.md`](RUST_CONVENTIONS.md) — full list of Rust style and safety rules (panics, error handling, naming, module layout, comment style, etc.).
 - [`REVIEW.md`](REVIEW.md) — review depth tiers, cross-cutting checks (license headers, breaking changes, dependency hygiene), and language-specific review guidance.
+
+### Comment style
+
+When writing or modifying comments, follow the **Comments** rules in [`RUST_CONVENTIONS.md`](RUST_CONVENTIONS.md#comments). In short:
+
+- Doc comments are for the **caller** — what they need to know to call it correctly, not how it works inside.
+- Inline comments explain a non-obvious **why**, never a **what**; default to none.
+- Never embed conversational or change history ("added for X", "as discussed", PR/issue numbers) — that belongs in the PR description or commit message, not the code.

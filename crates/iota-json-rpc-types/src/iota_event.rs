@@ -25,7 +25,7 @@ use crate::{
     Page,
     iota_primitives::{
         Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
-        IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema, StructTag as StructTagSchema,
+        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
     },
     type_and_fields_from_move_event_data,
 };
@@ -39,6 +39,7 @@ pub type EventPage = Page<IotaEvent, EventID>;
 #[serde(rename_all = "camelCase")]
 #[schemars(rename = "EventID")]
 pub struct IotaEventID {
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub tx_digest: TransactionDigest,
     #[schemars(with = "String")]
@@ -76,12 +77,15 @@ pub struct IotaEvent {
     #[schemars(with = "IotaEventID")]
     pub id: EventID,
     /// Move package where this event was emitted.
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub package_id: ObjectId,
+    #[serde_as(as = "IdentifierSchema")]
     #[schemars(with = "IdentifierSchema")]
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
     /// Sender's IOTA address.
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub sender: IotaAddress,
     /// Move event type.
@@ -331,24 +335,35 @@ fn try_into_byte(v: &Value) -> Option<u8> {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub enum EventFilter {
     /// Query by sender address.
-    Sender(#[schemars(with = "IotaAddressSchema")] IotaAddress),
+    Sender(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     /// Return events emitted by the given transaction.
     Transaction(
         /// digest of the transaction, as base-64 encoded string
+        #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         TransactionDigest,
     ),
     /// Return events emitted in a specified Package.
-    Package(#[schemars(with = "ObjectIDSchema")] ObjectId),
+    Package(
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
+    ),
     /// Return events emitted in a specified Move module.
     /// If the event is defined in Module A but emitted in a tx with Module B,
     /// query `MoveModule` by module B returns the event.
     /// Query `MoveEventModule` by module A returns the event too.
     MoveModule {
         /// the Move package ID
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         package: ObjectId,
         /// the module name
+        #[serde_as(as = "IdentifierSchema")]
         #[schemars(with = "IdentifierSchema")]
         module: Identifier,
     },
@@ -366,9 +381,11 @@ pub enum EventFilter {
     /// event. Query `MoveModule` by module B returns the event too.
     MoveEventModule {
         /// the Move package ID
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         package: ObjectId,
         /// the module name
+        #[serde_as(as = "IdentifierSchema")]
         #[schemars(with = "IdentifierSchema")]
         module: Identifier,
     },

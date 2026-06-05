@@ -50,12 +50,12 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{ObjectId, Owner};
     use iota_types::{
         balance::Balance,
         base_types::{IotaAddress, TxContext},
         id::UID,
-        object::{Object, Owner},
+        object::Object,
         stardust::{
             coin_type::CoinType,
             output::{AliasOutput, BasicOutput, NftOutput},

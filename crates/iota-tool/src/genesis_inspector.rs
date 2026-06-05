@@ -6,15 +6,14 @@ use std::collections::BTreeMap;
 
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner, move_package::MovePackage};
 use iota_types::{
     balance::Balance,
     coin::CoinMetadata,
     gas_coin::{GasCoin, IotaTreasuryCap, NANOS_PER_IOTA},
     governance::StakedIota,
     iota_system_state::IotaValidatorGenesis,
-    move_package::MovePackage,
-    object::{MoveObject, Object, Owner},
+    object::{MoveObject, Object},
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::{
         timelock::{TimeLock, is_timelocked_gas_balance},

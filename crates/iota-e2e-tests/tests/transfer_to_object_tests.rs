@@ -5,14 +5,13 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use iota_macros::*;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::ObjectRef,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
-    object::Owner,
     transaction::{CallArg, Transaction},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
