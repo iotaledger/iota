@@ -75,15 +75,23 @@ if [ "${DOCKER_BUILDKIT:-0}" = "1" ]; then
 	print_step "Cache mounts enabled - creating temporary Dockerfile with cache support"
 	DOCKERFILE_TMP="${DOCKERFILE}.cache"
 
-	# Add BuildKit syntax and inject cache mounts before cargo build
+	# Add BuildKit syntax and inject cache mounts into the RUN instruction
+	# that builds the binaries (either `RUN cargo build ...` or the
+	# `RUN BINARIES=...` loop form used by multi-binary images).
 	{
 		echo "# syntax=docker/dockerfile:1"
-		sed 's/^RUN cargo build --profile \${PROFILE}/RUN --mount=type=cache,target=\/usr\/local\/cargo\/registry \\\
+		sed -E 's/^RUN (cargo build --profile \$\{PROFILE\}|BINARIES=)/RUN --mount=type=cache,target=\/usr\/local\/cargo\/registry \\\
     --mount=type=cache,target=\/usr\/local\/cargo\/git \\\
     --mount=type=cache,target=\/iota\/target,sharing=locked \\\
-    cargo build --profile ${PROFILE}/' "$DOCKERFILE"
+    \1/' "$DOCKERFILE"
 	} > "$DOCKERFILE_TMP"
 	
+	# A pattern mismatch must fail loudly: a silent no-op here means every
+	# source change triggers a full cold rebuild of all binaries.
+	if ! grep -q -- '--mount=type=cache' "$DOCKERFILE_TMP"; then
+		print_error "Failed to inject cargo cache mounts into $DOCKERFILE: no build instruction matched"
+		exit 1
+	fi
 	DOCKERFILE="$DOCKERFILE_TMP"
 	
 	# Ensure cleanup on exit
