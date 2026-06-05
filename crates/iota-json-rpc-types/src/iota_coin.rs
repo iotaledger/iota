@@ -18,7 +18,7 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 use crate::{
     Page,
     iota_primitives::{
-        Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+        Base58 as Base58Schema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema,
     },
 };
@@ -95,16 +95,19 @@ impl Balance {
 #[serde(rename_all = "camelCase")]
 pub struct Coin {
     pub coin_type: String,
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub coin_object_id: ObjectId,
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub balance: u64,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub previous_transaction: TransactionDigest,
 }
@@ -130,7 +133,8 @@ pub struct IotaCoinMetadata {
     /// URL for the token logo
     pub icon_url: Option<String>,
     /// Object id for the CoinMetadata object
-    #[schemars(with = "Option<ObjectIDSchema>")]
+    #[serde_as(as = "Option<ObjectIdSchema>")]
+    #[schemars(with = "Option<ObjectIdSchema>")]
     pub id: Option<ObjectId>,
 }
 

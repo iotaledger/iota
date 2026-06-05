@@ -11,7 +11,9 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Argument, ChangeEpoch, Command, Identifier, ObjectId, SimpleSignature, StructTag, TypeTag,
+    Argument, ChangeEpoch, Command, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, Identifier, ObjectId, SimpleSignature, StructTag,
+    TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
@@ -39,7 +41,6 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
-    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
     messages_grpc::ObjectInfoRequestKind,
     move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},

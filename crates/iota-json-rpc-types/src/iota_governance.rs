@@ -13,7 +13,7 @@ use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
     IotaAuthorityPublicKeyBytes,
-    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema},
 };
 
 /// RPC representation of the [Committee] type.
@@ -52,10 +52,12 @@ impl From<IotaCommittee> for Committee {
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedStake {
     /// Validator's Address.
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub validator_address: IotaAddress,
     /// Staking pool object id.
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub staking_pool: ObjectId,
     pub stakes: Vec<Stake>,
 }
@@ -64,9 +66,11 @@ pub struct DelegatedStake {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedTimelockedStake {
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub validator_address: IotaAddress,
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub staking_pool: ObjectId,
     pub stakes: Vec<TimelockedStake>,
 }
@@ -90,7 +94,8 @@ pub enum StakeStatus {
 #[serde(rename_all = "camelCase")]
 pub struct Stake {
     /// ID of the StakedIota receipt object.
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub staked_iota_id: ObjectId,
     #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
@@ -109,7 +114,8 @@ pub struct Stake {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TimelockedStake {
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub timelocked_staked_iota_id: ObjectId,
     #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
@@ -140,6 +146,7 @@ pub struct ValidatorApys {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ValidatorApy {
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub address: IotaAddress,
     pub apy: f64,

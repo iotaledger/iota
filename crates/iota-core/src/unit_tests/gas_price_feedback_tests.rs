@@ -7,16 +7,15 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    CancelledTransaction, ConsensusDeterminedVersionAssignments, ObjectId, VersionAssignment,
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
     executable_transaction::VerifiedExecutableTransaction,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    messages_consensus::{
-        CancelledTransaction, ConsensusDeterminedVersionAssignments, VersionAssignment,
-    },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{

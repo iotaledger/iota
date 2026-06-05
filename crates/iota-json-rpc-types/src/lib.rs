@@ -19,7 +19,7 @@ pub use iota_object::*;
 pub use iota_object_response_error::*;
 pub use iota_owner::*;
 use iota_primitives::{
-    Base58 as Base58Schema, Base64 as Base64Schema, ObjectID as ObjectIDSchema,
+    Base58 as Base58Schema, Base64 as Base64Schema, ObjectId as ObjectIdSchema,
     SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
 };
 pub use iota_protocol::*;
@@ -191,10 +191,13 @@ pub struct IotaDynamicFieldInfo {
     #[serde_as(as = "DynamicFieldTypeSchema")]
     pub type_: DynamicFieldType,
     pub object_type: String,
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub object_id: ObjectId,
+    #[serde_as(as = "SequenceNumberU64Schema")]
     #[schemars(with = "SequenceNumberU64Schema")]
     pub version: iota_types::base_types::SequenceNumber,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: iota_types::digests::ObjectDigest,
 }

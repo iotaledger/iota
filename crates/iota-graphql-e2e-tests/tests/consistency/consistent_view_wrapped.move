@@ -8,7 +8,7 @@
 // cp 3: Wrapper destroyed (Foo unwrapped back to active)
 // Query Foo at cp 2 via objectIds + cursor: should be WRAPPED_OR_DELETED
 
-//# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator --objects-snapshot-min-checkpoint-lag 1
+//# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator
 
 //# publish
 module P0::m {
