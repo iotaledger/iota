@@ -280,46 +280,66 @@ fun create_multisig_incomplete_threshold_aborts() {
 // === from_prefixed_bytes — happy paths ===
 
 // Same key material used throughout; addresses cross-checked against the Rust node.
-const ED25519_PK:   vector<u8> = x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-const SECP256K1_PK: vector<u8> = x"0102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
-const SECP256R1_PK: vector<u8> = x"020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
-const PASSKEY_PK:   vector<u8> = x"060227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+const ED25519_PK: vector<u8> =
+    x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+const SECP256K1_PK: vector<u8> =
+    x"0102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+const SECP256R1_PK: vector<u8> =
+    x"020227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+const PASSKEY_PK: vector<u8> =
+    x"060227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
 // 1-of-1 Ed25519 MultiSig: [0x03] | vec_len(1) | tag(0) | 32-byte key | weight(1) | threshold_le16(1)
-const MULTISIG_PK:  vector<u8> = x"030100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
+const MULTISIG_PK: vector<u8> =
+    x"030100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100";
 
 #[test]
 fun from_prefixed_bytes_ed25519() {
     let pk = public_key::from_prefixed_bytes(ED25519_PK);
     assert_eq(pk.scheme(), signature_scheme::ed25519());
-    assert_ref_eq(pk.raw_bytes(), &x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88");
+    assert_ref_eq(
+        pk.raw_bytes(),
+        &x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88",
+    );
 }
 
 #[test]
 fun from_prefixed_bytes_secp256k1() {
     let pk = public_key::from_prefixed_bytes(SECP256K1_PK);
     assert_eq(pk.scheme(), signature_scheme::secp256k1());
-    assert_ref_eq(pk.raw_bytes(), &x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c");
+    assert_ref_eq(
+        pk.raw_bytes(),
+        &x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c",
+    );
 }
 
 #[test]
 fun from_prefixed_bytes_secp256r1() {
     let pk = public_key::from_prefixed_bytes(SECP256R1_PK);
     assert_eq(pk.scheme(), signature_scheme::secp256r1());
-    assert_ref_eq(pk.raw_bytes(), &x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a");
+    assert_ref_eq(
+        pk.raw_bytes(),
+        &x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a",
+    );
 }
 
 #[test]
 fun from_prefixed_bytes_passkey() {
     let pk = public_key::from_prefixed_bytes(PASSKEY_PK);
     assert_eq(pk.scheme(), signature_scheme::passkey());
-    assert_ref_eq(pk.raw_bytes(), &x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a");
+    assert_ref_eq(
+        pk.raw_bytes(),
+        &x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a",
+    );
 }
 
 #[test]
 fun from_prefixed_bytes_multisig() {
     let pk = public_key::from_prefixed_bytes(MULTISIG_PK);
     assert_eq(pk.scheme(), signature_scheme::multisig());
-    assert_ref_eq(pk.raw_bytes(), &x"0100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100");
+    assert_ref_eq(
+        pk.raw_bytes(),
+        &x"0100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100",
+    );
 }
 
 // === from_prefixed_bytes — failure paths ===
@@ -334,23 +354,25 @@ fun from_prefixed_bytes_empty_aborts() {
 #[expected_failure(abort_code = iota::signature_scheme::EUnknownScheme)]
 fun from_prefixed_bytes_unknown_flag_aborts() {
     // 0xff is not a recognized scheme flag
-    public_key::from_prefixed_bytes(x"ffcc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88");
+    public_key::from_prefixed_bytes(
+        x"ffcc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88",
+    );
 }
 
 // === to_iota_address — cross-checked against Rust-computed vectors ===
 
 // Expected IOTA addresses computed independently by the Rust node (Blake2b256 via fastcrypto).
-const ED25519_ADDR:   address = @0xcef6bafea1d59edb73ff5ec9e8aa58354796e1b572b695d64237ce9c15a34a03;
+const ED25519_ADDR: address = @0xcef6bafea1d59edb73ff5ec9e8aa58354796e1b572b695d64237ce9c15a34a03;
 const SECP256K1_ADDR: address = @0x2fecbdf2652b089c64d127158d388621fdbbd156533fbcca5a0082aa0d2939fa;
 const SECP256R1_ADDR: address = @0x318f591092f10b67a81963954fb9539ea3919444417726be4e1b95ce44fe2fc0;
-const PASSKEY_ADDR:   address = @0xa2f90cd2552d45ab5ba157dacf19597e2018108c6a80e4d7a4a5680d1542a7e8;
-const MULTISIG_ADDR:  address = @0x5792280ab4865b96d664366ef04edfd2953f5d67465b4f08d290d89f0616ab31;
+const PASSKEY_ADDR: address = @0xa2f90cd2552d45ab5ba157dacf19597e2018108c6a80e4d7a4a5680d1542a7e8;
+const MULTISIG_ADDR: address = @0x5792280ab4865b96d664366ef04edfd2953f5d67465b4f08d290d89f0616ab31;
 
 #[test]
 fun to_iota_address_vectors() {
-    assert_eq(public_key::from_prefixed_bytes(ED25519_PK).to_iota_address(),   ED25519_ADDR);
+    assert_eq(public_key::from_prefixed_bytes(ED25519_PK).to_iota_address(), ED25519_ADDR);
     assert_eq(public_key::from_prefixed_bytes(SECP256K1_PK).to_iota_address(), SECP256K1_ADDR);
     assert_eq(public_key::from_prefixed_bytes(SECP256R1_PK).to_iota_address(), SECP256R1_ADDR);
-    assert_eq(public_key::from_prefixed_bytes(PASSKEY_PK).to_iota_address(),   PASSKEY_ADDR);
-    assert_eq(public_key::from_prefixed_bytes(MULTISIG_PK).to_iota_address(),  MULTISIG_ADDR);
+    assert_eq(public_key::from_prefixed_bytes(PASSKEY_PK).to_iota_address(), PASSKEY_ADDR);
+    assert_eq(public_key::from_prefixed_bytes(MULTISIG_PK).to_iota_address(), MULTISIG_ADDR);
 }

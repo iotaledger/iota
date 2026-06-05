@@ -1286,10 +1286,10 @@ mod checked {
                 )
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                let builder = ProgrammableTransactionBuilder::new();
+                let mut builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
 
-                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
+                for (i, tx) in txns.into_iter().enumerate() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
@@ -1353,7 +1353,7 @@ mod checked {
                         }
                         EndOfEpochTransactionKind::ClaimRegistryCreate => {
                             assert!(protocol_config.enable_claim_registry());
-                            setup_claim_registry_create(builder);
+                            builder = setup_claim_registry_create(builder);
                         }
                     }
                 }

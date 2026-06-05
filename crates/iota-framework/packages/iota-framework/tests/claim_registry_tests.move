@@ -45,11 +45,11 @@ const PASSKEY_PK: vector<u8> =
 // Ed25519:  Blake2b256(raw)
 // Others:   Blake2b256([flag] || raw)
 // MultiSig: Blake2b256([0x03] || threshold_le16 || (scheme_flag || pk || weight)*)
-const ED25519_ADDR:   address = @0xcef6bafea1d59edb73ff5ec9e8aa58354796e1b572b695d64237ce9c15a34a03;
+const ED25519_ADDR: address = @0xcef6bafea1d59edb73ff5ec9e8aa58354796e1b572b695d64237ce9c15a34a03;
 const SECP256K1_ADDR: address = @0x2fecbdf2652b089c64d127158d388621fdbbd156533fbcca5a0082aa0d2939fa;
 const SECP256R1_ADDR: address = @0x318f591092f10b67a81963954fb9539ea3919444417726be4e1b95ce44fe2fc0;
-const PASSKEY_ADDR:   address = @0xa2f90cd2552d45ab5ba157dacf19597e2018108c6a80e4d7a4a5680d1542a7e8;
-const MULTISIG_ADDR:  address = @0x5792280ab4865b96d664366ef04edfd2953f5d67465b4f08d290d89f0616ab31;
+const PASSKEY_ADDR: address = @0xa2f90cd2552d45ab5ba157dacf19597e2018108c6a80e4d7a4a5680d1542a7e8;
+const MULTISIG_ADDR: address = @0x5792280ab4865b96d664366ef04edfd2953f5d67465b4f08d290d89f0616ab31;
 
 // ============================================================
 // Helpers

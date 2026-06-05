@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// On-chain registry for claiming addresses.
-/// This registry is used to allow anyone owning a public-key/private-key keypair to claim the address derived from that, 
+/// This registry is used to allow anyone owning a public-key/private-key keypair to claim the address derived from that,
 /// such that it can be used as UID of a new object on-chain.
 ///
 /// `claim` takes an already-validated `PublicKey`, marks the sender's address
@@ -24,12 +24,10 @@ const EAddressMismatch: vector<u8> =
     b"The public key does not correspond to the transaction sender address.";
 
 #[error(code = 1)]
-const EAlreadyClaimed: vector<u8> =
-    b"This address has already been claimed.";
+const EAlreadyClaimed: vector<u8> = b"This address has already been claimed.";
 
 #[error(code = 4)]
-const ENotSystemAddress: vector<u8> =
-     b"ClaimRegistry can only be created in a system transaction.";
+const ENotSystemAddress: vector<u8> = b"ClaimRegistry can only be created in a system transaction.";
 
 // === Structs ===
 
@@ -84,4 +82,3 @@ public fun is_claimed(registry: &ClaimRegistry, addr: address): bool {
 public fun create_for_testing(ctx: &mut TxContext) {
     create(ctx);
 }
-
