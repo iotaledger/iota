@@ -28,6 +28,7 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 - [ ] Protocol:
 - [ ] Nodes (Validators and Full nodes):
 - [ ] Indexer:
+- [ ] Ingestion Framework:
 - [ ] JSON-RPC:
 - [ ] GraphQL:
 - [ ] CLI:
