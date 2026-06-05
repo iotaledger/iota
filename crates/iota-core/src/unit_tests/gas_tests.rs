@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Command, Identifier};
+use iota_sdk_types::{Command, ExecutionError, ExecutionStatus, Identifier};
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEvents,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     object::GAS_VALUE_FOR_TESTING,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -212,7 +211,7 @@ where
     // check effects
     assert_eq!(
         effects.status().clone().unwrap_err().0,
-        ExecutionFailureStatus::InsufficientGas
+        ExecutionError::InsufficientGas
     );
     // gas object in effects is first coin in vector of coins
     assert_eq!(gas_coin_ids[0], effects.gas_object().0.object_id);
@@ -585,7 +584,7 @@ async fn test_transfer_iota_insufficient_gas() {
     // We expect this to fail due to insufficient gas.
     assert_eq!(
         *effects.status(),
-        ExecutionStatus::new_failure(ExecutionFailureStatus::InsufficientGas, None)
+        ExecutionStatus::new_failure(ExecutionError::InsufficientGas, None)
     );
     // Ensure that the owner of the object did not change if the transfer failed.
     assert_eq!(effects.mutated()[0].1, sender);
@@ -715,7 +714,7 @@ async fn test_native_transfer_insufficient_gas_reading_objects() {
         .into_data();
     assert_eq!(
         effects.into_status().unwrap_err().0,
-        ExecutionFailureStatus::InsufficientGas
+        ExecutionError::InsufficientGas
     );
 }
 
@@ -757,7 +756,7 @@ async fn test_native_transfer_insufficient_gas_execution() {
 
     assert_eq!(
         effects.into_status().unwrap_err().0,
-        ExecutionFailureStatus::InsufficientGas,
+        ExecutionError::InsufficientGas,
     );
 }
 
@@ -820,7 +819,7 @@ async fn test_publish_gas() -> anyhow::Result<()> {
     let gas_cost = effects.gas_cost_summary().clone();
     let err = effects.into_status().unwrap_err().0;
 
-    assert_eq!(err, ExecutionFailureStatus::InsufficientGas);
+    assert_eq!(err, ExecutionError::InsufficientGas);
 
     assert!(gas_cost.gas_used() > 0);
 

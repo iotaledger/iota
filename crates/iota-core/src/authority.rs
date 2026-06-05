@@ -45,7 +45,7 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    ObjectId, Owner, StructTag, TypeTag,
+    ExecutionStatus, ObjectId, Owner, StructTag, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };
 use iota_storage::{
@@ -82,7 +82,6 @@ use iota_types::{
     event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
-    execution_status::ExecutionStatus,
     fp_ensure,
     gas::{GasCostSummary, IotaGasStatus},
     gas_coin::NANOS_PER_IOTA,

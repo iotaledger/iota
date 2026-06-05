@@ -2695,7 +2695,7 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
-    use iota_sdk_types::{Identifier, ObjectId, Owner};
+    use iota_sdk_types::{Identifier, ObjectId, Owner, move_package::MovePackage};
     use iota_types::{
         base_types::{SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
@@ -2704,7 +2704,6 @@ mod tests {
             TransactionEvents,
         },
         messages_checkpoint::SignedCheckpointSummary,
-        move_package::MovePackage,
         object,
         transaction::{GenesisObject, VerifiedTransaction},
     };

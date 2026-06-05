@@ -4,10 +4,9 @@
 
 use authority_tests::send_and_confirm_transaction;
 use bcs;
-use iota_sdk_types::{Identifier, Owner};
+use iota_sdk_types::{ExecutionStatus, Identifier, Owner};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    execution_status::ExecutionStatus,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };

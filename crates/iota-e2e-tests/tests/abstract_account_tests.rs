@@ -26,7 +26,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Argument, Identifier, ObjectId, Owner, TypeTag, crypto::Intent};
+use iota_sdk_types::{
+    Argument, ExecutionError, Identifier, MoveLocation, ObjectId, Owner, TypeTag, crypto::Intent,
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -34,7 +36,6 @@ use iota_types::{
     crypto::{PublicKey, SignatureScheme},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
-    execution_status::{ExecutionFailureStatus, MoveLocation},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
     move_authenticator::MoveAuthenticator,
     move_package,
@@ -456,7 +457,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     assert!(
         matches!(
             summary.status.unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
+            ExecutionError::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
             if module.as_str() == "basic_keyed_aa"
             && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
             && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
@@ -1420,7 +1421,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     assert!(
         matches!(
             summary.status.unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort { .. }
+            ExecutionError::MoveAbort { .. }
         ),
         "Expected a Move abort from the failed ED25519 authentication"
     );

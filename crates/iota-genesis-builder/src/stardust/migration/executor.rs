@@ -17,7 +17,10 @@ use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Command, Identifier, ObjectId};
+use iota_sdk_types::{
+    Command, Identifier, ObjectId,
+    move_package::{MovePackage, TypeOrigin},
+};
 use iota_stardust_types::block::output::{
     AliasOutput as StardustAliasOutput, BasicOutput as StardustBasicOutput, FoundryOutput,
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
@@ -32,7 +35,6 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
-    move_package::{MovePackage, TypeOrigin},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{

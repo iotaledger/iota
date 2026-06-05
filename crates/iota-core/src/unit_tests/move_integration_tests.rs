@@ -6,12 +6,14 @@
 use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk_types::{Argument, Command, Identifier, StructTag, TypeTag};
+use iota_sdk_types::{
+    Argument, Command, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier,
+    StructTag, TypeTag,
+};
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
-    execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
@@ -2133,7 +2135,7 @@ async fn test_entry_point_string_error() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
+            error: ExecutionError::CommandArgumentError {
                 argument: 0,
                 kind: CommandArgumentError::InvalidBcsBytes
             },
@@ -2168,7 +2170,7 @@ async fn test_entry_point_string_error() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
+            error: ExecutionError::CommandArgumentError {
                 argument: 0,
                 kind: CommandArgumentError::InvalidBcsBytes
             },
@@ -2203,7 +2205,7 @@ async fn test_entry_point_string_error() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
+            error: ExecutionError::CommandArgumentError {
                 argument: 0,
                 kind: CommandArgumentError::InvalidBcsBytes
             },
@@ -2259,7 +2261,7 @@ async fn test_entry_point_string_vec_error() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
+            error: ExecutionError::CommandArgumentError {
                 argument: 0,
                 kind: CommandArgumentError::InvalidBcsBytes
             },
@@ -2305,7 +2307,7 @@ async fn test_entry_point_string_option_error() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
+            error: ExecutionError::CommandArgumentError {
                 argument: 0,
                 kind: CommandArgumentError::InvalidBcsBytes
             },
@@ -2335,7 +2337,7 @@ async fn test_entry_point_string_option_error() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
+            error: ExecutionError::CommandArgumentError {
                 argument: 0,
                 kind: CommandArgumentError::InvalidBcsBytes
             },
@@ -2363,7 +2365,7 @@ async fn test_entry_point_string_option_error() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
+            error: ExecutionError::CommandArgumentError {
                 argument: 0,
                 kind: CommandArgumentError::InvalidBcsBytes
             },
@@ -2672,10 +2674,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::TypeMismatch,
-                0
-            ),
+            error: ExecutionError::command_argument_error(CommandArgumentError::TypeMismatch, 0),
             command: Some(0)
         }
     );
@@ -2701,10 +2700,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBcsBytes,
-                0
-            ),
+            error: ExecutionError::command_argument_error(CommandArgumentError::InvalidBcsBytes, 0),
             command: Some(0)
         }
     );
@@ -2732,10 +2728,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBcsBytes,
-                3,
-            ),
+            error: ExecutionError::command_argument_error(CommandArgumentError::InvalidBcsBytes, 3,),
             command: Some(0)
         }
     );
