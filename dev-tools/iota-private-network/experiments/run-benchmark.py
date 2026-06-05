@@ -141,34 +141,64 @@ def _phase(title: str, phase: str = "") -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Benchmark runner for the IOTA private network.")
-    p.add_argument("-n", "--num-validators", type=int, default=4, metavar="N")
+    p = argparse.ArgumentParser(
+        description="Benchmark runner for the IOTA private network.",
+        epilog=(
+            "Defaults: 4 validators, build the local image, geodistributed "
+            "latency, 3600s run, no block/loss/restart disruption, no spammer. "
+            "Disruption percents (-x/-l/-r) drive network-benchmark.sh."
+        ),
+    )
+    p.add_argument("-n", "--num-validators", type=int, default=4, metavar="N",
+                   help="Number of validators to run (default: 4)")
     p.add_argument("-b", "--build", type=lambda v: v.lower() in ("true", "1", "yes"),
-                   default=True)
+                   default=True,
+                   help="Build the local iota-node image before the run (default: true)")
     p.add_argument("-g", "--geodistributed",
-                   type=lambda v: v.lower() in ("true", "1", "yes"), default=True)
-    p.add_argument("-s", "--seed", type=int, default=42)
-    p.add_argument("-x", "--percent-block", type=int, default=0)
-    p.add_argument("-l", "--percent-loss", type=int, default=0)
-    p.add_argument("-r", "--percent-restart", type=int, default=0)
-    p.add_argument("-t", "--run-duration", type=int, default=3600, metavar="SECONDS")
-    p.add_argument("-d", "--restart-duration", type=int, default=120)
-    p.add_argument("-w", "--restart-timeout", type=int, default=60)
+                   type=lambda v: v.lower() in ("true", "1", "yes"), default=True,
+                   help="Large geodistributed latencies (true) or small ones (false) "
+                        "(default: true)")
+    p.add_argument("-s", "--seed", type=int, default=42,
+                   help="Seed for the deterministic disruption schedule (default: 42)")
+    p.add_argument("-x", "--percent-block", type=int, default=0,
+                   help="Percent chance to block a connection (default: 0)")
+    p.add_argument("-l", "--percent-loss", type=int, default=0,
+                   help="Percent chance to apply packet loss (default: 0)")
+    p.add_argument("-r", "--percent-restart", type=int, default=0,
+                   help="Percent of validators to periodically restart (default: 0)")
+    p.add_argument("-t", "--run-duration", type=int, default=3600, metavar="SECONDS",
+                   help="Total run duration in seconds (default: 3600)")
+    p.add_argument("-d", "--restart-duration", type=int, default=120,
+                   help="Seconds between restart rounds (default: 120)")
+    p.add_argument("-w", "--restart-timeout", type=int, default=60,
+                   help="Seconds to wait for a restarted validator (default: 60)")
     p.add_argument("-M", "--restart-mode", default="preserve-consensus",
-                   choices=("preserve-consensus", "full-reset", "simple-restart"))
-    p.add_argument("-E", "--epoch-duration-ms", type=int, default=1_200_000)
-    p.add_argument("-m", "--network-metric", action="store_true")
+                   choices=("preserve-consensus", "full-reset", "simple-restart"),
+                   help="Database handling on restart (default: preserve-consensus)")
+    p.add_argument("-E", "--epoch-duration-ms", type=int, default=1_200_000,
+                   help="Epoch duration in milliseconds (default: 1200000 = 20 min)")
+    p.add_argument("-m", "--network-metric", action="store_true",
+                   help="Collect per-validator network stats at teardown")
     p.add_argument("-S", "--spammer", type=lambda v: v.lower() in ("true", "1", "yes"),
-                   default=False, dest="spammer_enable")
-    p.add_argument("-T", "--spammer-tps", type=int, default=10)
-    p.add_argument("-Z", "--spammer-size", default="10KiB")
+                   default=False, dest="spammer_enable",
+                   help="Run a transaction spammer for load (default: false)")
+    p.add_argument("-T", "--spammer-tps", type=int, default=10,
+                   help="Target transactions per second for the spammer (default: 10)")
+    p.add_argument("-Z", "--spammer-size", default="10KiB",
+                   help="Transaction payload size, iota-spammer only (default: 10KiB)")
     p.add_argument("-C", "--spammer-type", default="stress",
-                   choices=("stress", "iota-spammer"))
+                   choices=("stress", "iota-spammer"),
+                   help="Spammer backend: stress (container) or iota-spammer "
+                        "(host clone) (default: stress)")
     p.add_argument("--spammer-image", default="iotaledger/stress",
-                   help="Docker image for the stress spammer (auto-pulled if missing)")
-    p.add_argument("-c", "--chain-override", default="", choices=("", "testnet", "mainnet"))
+                   help="Docker image for the stress spammer (pulled if missing, "
+                        "else built from the network-benchmark clone)")
+    p.add_argument("-c", "--chain-override", default="", choices=("", "testnet", "mainnet"),
+                   help="Protocol feature-flag override; empty defaults to testnet "
+                        "for the local image")
     p.add_argument("--block-measurement-seconds", type=int, default=90, metavar="S",
-                   help="pre-disruption block-production window (0 disables)")
+                   help="Block-production measurement window under the applied "
+                        "latency/disruption/load (0 disables, default: 90)")
     return p.parse_args()
 
 

@@ -990,9 +990,10 @@ def start_spammer(cfg) -> None:
 
     if cfg.spammer_type == "stress":
         # The `stress` load tool is the iota-benchmark binary, shipped as the
-        # iotaledger/stress image. ensure_image pulls it, offering an
-        # interactive `docker login` on auth failures; load was explicitly
-        # requested, so a still-missing image fails the run.
+        # iotaledger/stress image. The runners resolve it up front via
+        # ensure_stress_image (local copy, else pull, else build); this
+        # non-interactive guard fails the run if it is somehow still missing —
+        # load was explicitly requested.
         if not ensure_image(cfg.spammer_image):
             raise RuntimeError(
                 f"spammer requested (-S true) but image {cfg.spammer_image} is "

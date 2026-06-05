@@ -42,7 +42,7 @@ while getopts "g:n:s:b:l:r:d:w:M:o:L:D:" opt; do
     o) LOG_FILE="$OPTARG" ;;
     L) LATENCY_FILE="$OPTARG" ;;
     D) DUMP_FILE="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool] [-L latency_matrix.tsv] [-D dump_matrix.tsv]"; exit 1 ;;
+    *) echo "Usage: $0 [-n num_validators] [-s seed] [-b percent_block] [-l percent_packet_loss] [-r percent_restart] [-d restart_duration] [-w restart_timeout] [-M restart_mode(preserve-consensus|full-reset|simple-restart)] [-g geodistributed_bool] [-o logfile] [-L latency_matrix.tsv] [-D dump_matrix.tsv]"; exit 1 ;;
   esac
 done
 shift $((OPTIND-1))

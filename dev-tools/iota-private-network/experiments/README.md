@@ -28,6 +28,11 @@ Run every runner from inside `iota/dev-tools/iota-private-network/experiments/`.
 - `sudo` access on the host (for `iptables` and `tc` via `nsenter`)
 - `docker compose` for Grafana
 
+Only one experiment run (benchmark, fuzz, or migration) can be active at a
+time — they share container names and host `tc`/`iptables` state. A second
+run aborts immediately, naming the current holder (lock:
+`/tmp/iota-experiments.lock`).
+
 The scripts apply:
 
 - host-level `iptables` rules in the `DOCKER-USER` chain to drop traffic between validator containers, and
@@ -48,8 +53,8 @@ docker pull nicolaka/netshoot
 2. Generates a docker compose file for N validators and bootstraps genesis.
 3. Starts the validators (and a fullnode when the spammer is enabled).
 4. Starts Grafana/Prometheus on the experiment network (available at `http://localhost:3000/dashboards`).
-5. Applies the role-based latency model (`network-benchmark.sh`) plus optional block/loss/restart disruptions, then optionally measures pre-disruption block production.
-6. Optionally drives a transaction spammer, runs for a fixed duration collecting logs, and tears everything down.
+5. Applies the role-based latency model (`network-benchmark.sh`) plus optional block/loss/restart disruptions.
+6. Optionally starts a transaction spammer, then measures block production under that load, runs for a fixed duration collecting logs, and tears everything down.
 
 Supports the following flags:
 
@@ -102,13 +107,17 @@ The `stress` binary is the **`iota-benchmark`** load tool, distributed as the
 [`iotaledger/network-benchmark`](https://github.com/iotaledger/network-benchmark)
 repo). It submits `--target-qps` transfer transactions through `fullnode-1`.
 
-The runner **auto-pulls the image if it is missing**. `iotaledger/stress` is a
-private registry image: when the pull fails on an interactive terminal the
-runner offers to run `docker login` and retries; if the image still can't be
-obtained, the run **fails** (load was explicitly requested) — build/tag the
-image locally or pass a different `--spammer-image` as alternatives. After
-startup the runner re-checks that the container survived its first seconds and
-fails with the container logs if not.
+The runner resolves the image **up front, before the network starts**: it uses
+a local copy, else pulls it, else **builds it** from a `~/network-benchmark`
+clone (`docker/stress/build.sh` tags `iotaledger/stress`; the first build takes
+~30 min, later ones hit the docker cache). A missing clone is fetched only
+after a timeout-guarded y/N confirmation (auto-No); an existing clone is
+ff-only updated best-effort. If the image still can't be obtained the run
+**fails** (load was explicitly requested) — `docker login` to the registry,
+clone the repo, or pass a different `--spammer-image`. After startup the runner
+re-checks that the container survived its first seconds and fails with the
+container logs if not. The migration runner uses the same resolution for
+`--load-tools-image`.
 
 ```bash
 # stress at 500 TPS
@@ -147,7 +156,7 @@ continues without load.
    - host-level connection blocking (bidirectional, `DOCKER-USER` chain),
    - periodic validator restarts,
    - optional heal rounds and TTL.
-6. Optionally runs a transaction spammer, runs for a fixed duration collecting logs, and tears everything down (including the host `fuzzdrop` iptables rules).
+6. Optionally starts a transaction spammer, then measures block production under that load, runs for a fixed duration collecting logs, and tears everything down (including the host `fuzzdrop` iptables rules).
 
 Run from inside `iota/dev-tools/iota-private-network/experiments/`:
 
@@ -317,7 +326,7 @@ On exit, `run-fuzz.py`:
 
 ## Rolling Migration Test: `run-migration-test.py`
 
-`run-migration-test.py` validates that a rolling upgrade from a released validator image to a locally-built image succeeds across an epoch boundary. It pulls the old image from Docker Hub, bootstraps a local network, applies the role-based latency model built into `network-benchmark.sh`, and performs a rolling upgrade. Roles repeat every ten validators: a hub with fast inbound spokes, an ordinary `48-54ms` band, a relay follower whose rounds complete via headers embedded in hub blocks, and one heavy-tail validator per decade with deep volatile direct latencies (`540-659ms ± 150ms`, 80% correlated wander, so every direct edge into it stays above `500ms` on average) plus a single bursty `60ms` hub route (netem `slot`; `100-146ms` at `n=10`, both bounds growing `2ms` per validator above 10 to track the longer band round) that makes it skip rounds. On the testnet image the per-decade heavy-tails are the slowest block producers, each at least `1 blk/s` below the fastest validator, with block-creation reasons ordered AddBlock > AddBlockHeader > MinBlockDelayTimeout (validated live for every `n` in `10..24` and `30`; the absolute band pace declines with `N` — `~18 blk/s` at `n=10`, `~13 blk/s` at `n=30`). The effective matrix is dumped to `logs/latency-matrix.tsv` (`network-benchmark.sh -D`); larger validator sets repeat the same role profiles per decade.
+`run-migration-test.py` validates that a rolling upgrade from a released validator image to a locally-built image succeeds across an epoch boundary. It pulls the old image from Docker Hub, bootstraps a local network, applies the role-based latency model built into `network-benchmark.sh` (hub / `48-54ms` band / relay follower / one heavy-tail validator per decade of ten), and performs the rolling upgrade under monitoring and optional load. The heavy-tail node is the slowest block producer by design (≥ `1 blk/s` below the fastest), with block-creation reasons ordered AddBlock > AddBlockHeader > MinBlockDelayTimeout — validated live for every `n` in `10..24` and `30`. The effective per-edge matrix is dumped to `logs/latency-matrix.tsv` (`network-benchmark.sh -D`); see that script's header comment for the exact bands and slot bursts.
 
 Two modes (`--mode`, default `simple`):
 
@@ -374,13 +383,14 @@ Supported flags:
 ### Phases
 
 1. **Image preparation** — pull released image, optionally build local image with BuildKit caching
-2. **Compose generation** — write `docker-compose.migration.yaml` for N validators with Prometheus/Grafana
+2. **Compose generation** — write `docker-compose.migration.yaml` for N validators (plus a fullnode when load is enabled)
 3. **Genesis bootstrap** — generate genesis template and validator configs
 4. **Network startup** — start validators, verify all are running (exact name matching, hard failure)
-5. **Latency injection** — dump the effective role-based matrix (`network-benchmark.sh -D`) for the log, then launch `network-benchmark.sh`, which computes and applies the same model natively; optionally start the load generator and report pre-upgrade block production
-6. **Pre-rolling wait** — fixed warm-up offset into epoch 0 (simple) or mid-epoch wait (advanced)
-7. **Rolling upgrade** — upgrade validators one-by-one; hard failure if any validator isn't running afterwards
-8. **Post-upgrade** — simple: wait for the next epoch boundary and run the stable-window comparison; advanced: keep-DB and wipe-DB restart stress across two post-upgrade epochs, then extended checkpoint liveness observation
+5. **Monitoring** — (re)create the Grafana/Prometheus stack with `--force-recreate`, so a container left over from a prior run rebinds to the current network
+6. **Latency injection** — dump the effective role-based matrix (`network-benchmark.sh -D`) for the log, then launch `network-benchmark.sh`, which computes and applies the same model natively; optionally start the load generator and report block production under it
+7. **Pre-rolling wait** — fixed warm-up offset into epoch 0 (simple) or mid-epoch wait (advanced)
+8. **Rolling upgrade** — upgrade validators one-by-one; hard failure if any validator isn't running afterwards
+9. **Post-upgrade** — simple: wait for the next epoch boundary and run the stable-window comparison; advanced: keep-DB and wipe-DB restart stress across two post-upgrade epochs, then extended checkpoint liveness observation
 
 ### Examples
 
@@ -401,7 +411,7 @@ Supported flags:
 ### Logs
 
 - Main log: `logs/migration_script_latest.log` (archived as `logs/migration_script_<TIMESTAMP>.log`)
-- Per-validator logs: `logs/exp-validator-<i>-latest.log`
+- Per-validator logs: `logs/exp-validator-<i>-latest.log` during the run; final snapshots `logs/migration-validator-<i>-latest.log` (+ timestamped copies, and a fullnode snapshot when load is enabled)
 - Load generator logs: `logs/load-generator-latest.log`
 
 ---

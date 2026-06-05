@@ -3,9 +3,12 @@
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-"""Rolling migration test: start validators on a release image, then
-perform a rolling upgrade to a locally-built image. Simple mode (default)
-rolls a short fixed offset into the epoch; --mode advanced runs the full
+"""Rolling migration test: start validators on a release image under the
+role-based latency model (network-benchmark.sh), with Grafana/Prometheus
+monitoring, checkpoint-liveness tracking, and an optional stress load
+generator, then perform a rolling upgrade to a locally-built image. Simple
+mode (default) rolls a short fixed offset into the epoch and reports a
+pre/post-upgrade stable-window comparison; --mode advanced runs the full
 mid-epoch + post-upgrade restart schedule.
 
 Run from: iota/dev-tools/iota-private-network/experiments/
@@ -732,10 +735,10 @@ def start_load_generator(cfg: Config) -> None:
     phase_start = time.time()
     log(_phase_banner(f"Starting load generator ({cfg.load_qps} qps)", "PHASE 6b"))
 
-    # Load was explicitly requested (--load-qps > 0): ensure_image pulls the
-    # stress image, offering an interactive `docker login` on auth failures;
-    # if it is still unavailable, fail the run instead of silently measuring
-    # an unloaded network.
+    # Load was explicitly requested (--load-qps > 0). The image was resolved
+    # up front by ensure_stress_image (pull or build); this non-interactive
+    # guard fails the run instead of silently measuring an unloaded network
+    # if it is somehow still missing.
     if not ec.ensure_image(cfg.load_tools_image):
         raise RuntimeError(
             f"--load-qps {cfg.load_qps} requested but image "
@@ -1318,7 +1321,8 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     latency_output.close()
     _latency_proc = proc
 
-    # Wait for latency application (no readiness marker on develop version)
+    # network-benchmark.sh emits no readiness marker, so wait a fixed window
+    # for the matrix to apply and consensus to settle.
     latency_wait = cfg.latency_apply_wait
     for sec in range(latency_wait):
         if proc.poll() is not None:
