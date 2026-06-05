@@ -13,7 +13,8 @@ use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver}
 use iota_sdk_types::{
     Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
     Command, ConsensusDeterminedVersionAssignments, ExecutionError as ExecutionFailureStatus,
-    ExecutionStatus, Identifier, MoveCall, ObjectId, TransferObjects, TypeTag, VersionAssignment,
+    ExecutionStatus, Identifier, MoveCall, ObjectId, Owner, TransferObjects, TypeTag,
+    VersionAssignment,
 };
 use iota_types::{
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
@@ -27,7 +28,7 @@ use iota_types::{
     iota_serde::BigInt,
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
-    object::{Owner, bounded_visitor::BoundedVisitor},
+    object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
     signature::GenericSignature,

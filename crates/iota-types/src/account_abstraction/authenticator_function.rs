@@ -1,14 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{IotaAddress, ObjectRef, TransactionDigest},
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
-    object::{Data, Object, Owner},
+    object::{Data, Object},
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =

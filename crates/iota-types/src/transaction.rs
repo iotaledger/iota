@@ -19,7 +19,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, Digest, Identifier, Input, MakeMoveVector, MergeCoins,
-    MoveCall, ObjectId, Publish, SplitCoins, TransferObjects, TypeTag, Upgrade,
+    MoveCall, ObjectId, Owner, Publish, SplitCoins, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -49,7 +49,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     move_authenticator::MoveAuthenticator,
-    object::{MoveObject, Object, Owner},
+    object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
     signature_verification::verify_sender_signed_data_message_signatures,

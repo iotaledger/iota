@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::{
@@ -42,7 +42,7 @@ use iota_types::{
     message_envelope::Message,
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticator,
-    object::{Data, Object, Owner},
+    object::{Data, Object},
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
         get_module_by_id,

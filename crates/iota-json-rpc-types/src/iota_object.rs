@@ -13,7 +13,7 @@ use anyhow::{anyhow, bail};
 use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag};
 use iota_types::{
     base_types::{
         IotaAddress, ObjectDigest, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
@@ -23,7 +23,7 @@ use iota_types::{
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead},
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStructLayout, MoveValue};

@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use iota_sdk_types::{Argument, ObjectId, TypeTag};
+use iota_sdk_types::{Argument, ObjectId, Owner, TypeTag};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ use crate::{
     base_types::{ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
     event::Event,
-    object::{Data, MoveObjectExt, Object, Owner},
+    object::{Data, MoveObjectExt, Object},
     storage::BackingPackageStore,
 };
 

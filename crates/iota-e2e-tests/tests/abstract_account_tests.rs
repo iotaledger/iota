@@ -27,7 +27,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Argument, ExecutionError, Identifier, MoveLocation, ObjectId, TypeTag, crypto::Intent,
+    Argument, ExecutionError, Identifier, MoveLocation, ObjectId, Owner, TypeTag, crypto::Intent,
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
@@ -39,7 +39,6 @@ use iota_types::{
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
     move_authenticator::MoveAuthenticator,
     move_package,
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
     signature::GenericSignature,

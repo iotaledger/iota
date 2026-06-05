@@ -611,12 +611,12 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, StructTag, TypeTag};
+    use iota_sdk_types::{Identifier, Owner, StructTag, TypeTag};
     use iota_types::{
         base_types::IotaAddress,
         digests::TransactionDigest,
         gas_coin::GasCoin,
-        object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
+        object::{Data, MoveObject, MoveObjectExt, ObjectInner},
     };
 
     use super::*;

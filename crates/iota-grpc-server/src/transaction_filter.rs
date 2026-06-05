@@ -4,12 +4,11 @@
 
 use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{Command, ExecutionStatus, ObjectId};
+use iota_sdk_types::{Command, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
     base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
-    object::Owner,
     transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};

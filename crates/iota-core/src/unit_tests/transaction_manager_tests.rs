@@ -4,13 +4,13 @@
 
 use std::{time::Duration, vec};
 
-use iota_sdk_types::{ObjectId, VersionAssignment};
+use iota_sdk_types::{ObjectId, Owner, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::SequenceNumber,
     crypto::deterministic_random_account_key,
     executable_transaction::VerifiedExecutableTransaction,
-    object::{Object, Owner},
+    object::Object,
     storage::InputKey,
     transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
 };

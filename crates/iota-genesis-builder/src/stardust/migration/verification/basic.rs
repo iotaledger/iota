@@ -4,14 +4,13 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, ensure};
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{Owner, TypeTag};
 use iota_stardust_types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
     balance::Balance,
     coin::Coin,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
-    object::Owner,
     timelock::{stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE, timelock::TimeLock},
 };
 

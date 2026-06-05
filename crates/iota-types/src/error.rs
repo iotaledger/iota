@@ -6,7 +6,7 @@
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
 pub use iota_sdk_types::move_core::TypeParseError;
-use iota_sdk_types::{CommandArgumentError, ObjectId};
+use iota_sdk_types::{CommandArgumentError, ObjectId, Owner};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -19,7 +19,6 @@ use crate::{
     committee::{Committee, EpochId, StakeUnit},
     digests::CheckpointContentsDigest,
     messages_checkpoint::CheckpointSequenceNumber,
-    object::Owner,
 };
 
 pub const TRANSACTION_NOT_FOUND_MSG_PREFIX: &str = "Could not find the referenced transaction";

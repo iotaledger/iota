@@ -11,7 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
-use iota_sdk_types::{Argument, Command, ObjectId};
+use iota_sdk_types::{Argument, Command, ObjectId, Owner};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -21,7 +21,7 @@ use iota_types::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
     transaction::{CallArg, ProgrammableTransaction},

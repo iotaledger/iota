@@ -15,12 +15,12 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk_types::Owner;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
     gas_coin::GasCoin,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };

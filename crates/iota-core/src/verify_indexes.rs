@@ -5,7 +5,8 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
-use iota_types::{base_types::ObjectInfo, object::Owner};
+use iota_sdk_types::Owner;
+use iota_types::base_types::ObjectInfo;
 use tracing::info;
 use typed_store::traits::Map;
 

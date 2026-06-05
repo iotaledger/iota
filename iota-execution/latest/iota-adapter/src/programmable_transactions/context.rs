@@ -19,7 +19,7 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Argument, CommandArgumentError, Identifier, ObjectId, StructTag, TypeTag,
+        Argument, CommandArgumentError, Identifier, ObjectId, Owner, StructTag, TypeTag,
     };
     use iota_types::{
         balance::Balance,
@@ -31,7 +31,7 @@ mod checked {
         iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
         move_package::{MovePackage, MovePackageExt, derive_package_metadata_id},
-        object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, Owner},
+        object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{CallArg, SharedObjectRef},
     };

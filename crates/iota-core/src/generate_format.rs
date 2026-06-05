@@ -13,8 +13,8 @@ use iota_sdk_crypto::{
 use iota_sdk_types::{
     Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, Identifier,
-    MoveLocation, ObjectId, PackageUpgradeError, SimpleSignature, StructTag, TypeArgumentError,
-    TypeTag,
+    MoveLocation, ObjectId, Owner, PackageUpgradeError, SimpleSignature, StructTag,
+    TypeArgumentError, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
 };
 use iota_types::{
@@ -41,7 +41,7 @@ use iota_types::{
     messages_grpc::ObjectInfoRequestKind,
     move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, ObjectInner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{

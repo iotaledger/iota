@@ -51,7 +51,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Identifier, ObjectId, TypeTag,
+    Identifier, ObjectId, Owner, TypeTag,
     crypto::{Intent, IntentMessage},
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
@@ -71,7 +71,6 @@ use iota_types::{
     metrics::BytecodeVerifierMetrics,
     move_authenticator::MoveAuthenticator,
     move_package::{MovePackage, UpgradeCap},
-    object::Owner,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
