@@ -1021,6 +1021,7 @@ def cleanup() -> None:
 
     lock_dir = cfg.script_dir / "logs" / "network-benchmark-locks"
     shutil.rmtree(lock_dir, ignore_errors=True)
+    subprocess.run(["sudo", "rm", "-f", "/var/lock/apply_and_mark_*.lock"], check=False)
     shutil.rmtree(cfg.log_dir / "load-generator-keystore", ignore_errors=True)
 
     log("Cleanup complete.")
@@ -1365,6 +1366,7 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
 
     # Kill stale network-benchmark.sh from a previous run (may be owned by root)
     run(["sudo", "pkill", "-f", r"network-benchmark\.sh"], check=False, quiet=True)
+    run(["sudo", "rm", "-f", "/var/lock/apply_and_mark_*.lock"], check=False, quiet=True)
 
     # Avoid confusion from a stale default benchmark log; this migration run writes
     # all latency-script output into the main migration log instead.

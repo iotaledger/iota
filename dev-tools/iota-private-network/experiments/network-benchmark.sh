@@ -408,6 +408,9 @@ reapply_latencies_and_fuzz_loop() {
 log "Starting fuzz manager"
 RANDOM=$SEED
 
+# Clean up any stale latency lockfiles
+rm -f /var/lock/apply_and_mark_*.lock 2>/dev/null || true
+
 # Initially set latencies
 initially_apply_latency
 

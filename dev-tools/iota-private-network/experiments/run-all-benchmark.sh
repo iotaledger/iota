@@ -144,6 +144,11 @@ kill_spammer_processes() {
     # also remove per-user and global lock files
     rm -f /tmp/spammer-*.lock 2>/dev/null || true
     rm -f /tmp/spammer.lock 2>/dev/null || true
+    if command -v sudo >/dev/null 2>&1; then
+      sudo rm -f /var/lock/apply_and_mark_*.lock 2>/dev/null || true
+    else
+      rm -f /var/lock/apply_and_mark_*.lock 2>/dev/null || true
+    fi
 }
 
 trap cleanup_and_kill SIGINT SIGTERM EXIT
@@ -307,6 +312,12 @@ log "Grafana URL: http://localhost:3000/dashboards"
 cd - >/dev/null
 
 # --- 5) Launch combined latency + fuzz watcher in background ---
+if command -v sudo >/dev/null 2>&1; then
+  sudo rm -f /var/lock/apply_and_mark_*.lock 2>/dev/null || true
+else
+  rm -f /var/lock/apply_and_mark_*.lock 2>/dev/null || true
+fi
+
 ./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
     -s "$SEED" \
