@@ -74,7 +74,8 @@ RTT_LATENCY_TABLE=(
 # === Subfunctions ===
 
 # latency_from_table(i, j)
-# Returns RTT between validator i and j from RTT table, scaled by GEODISTRIBUTED.
+# Returns RTT latency between validator i and j, introducing network asymmetry,
+# triangle inequality violations, and outlier volatile nodes.
 latency_from_table() {
   local i=$1 j=$2
   local size=${#RTT_LATENCY_TABLE[@]}
@@ -90,12 +91,51 @@ latency_from_table() {
     divisor=8
   fi
 
-  local res=$(( val / divisor ))
-  if [ "$res" -gt "$val" ]; then
-    res=$MAX
+  local base_res=$(( val / divisor ))
+
+  # Same node latency is minimal
+  if [ "$i" -eq "$j" ]; then
+    echo "1"
+    return
+  fi
+
+  # 1. Asymmetry: D(A -> B) != D(B -> A)
+  local asym=$(((i * 11 + j * 17) % 31 - 15)) # Range [-15, 15] ms
+
+  # 2. Outlier profile (slow / remote site):
+  # Simulate every 4th validator (index % 4 == 2) as a lagging remote site.
+  local slow_node_penalty=0
+  if [ $((i % 4)) -eq 2 ] || [ $((j % 4)) -eq 2 ]; then
+    slow_node_penalty=80 # Add 80ms extra delay
+  fi
+
+  # 3. Triangle Inequality Violations (TIV):
+  # Break metric spaces using structured non-metric offsets
+  local tiv_offset=$(((i * 3 + j * 7 + (i + j) * 13) % 41 - 10)) # Range [-10, 30] ms
+
+  local res=$(( base_res + asym + slow_node_penalty + tiv_offset ))
+
+  if [ "$res" -lt 1 ]; then
+    res=1
   fi
 
   echo "$res"
+}
+
+# jitter_from_table(i, j)
+# Returns latency jitter in ms, adding volatility to slow/outlier sites.
+jitter_from_table() {
+  local i=$1 j=$2
+  # Base jitter is small (0-2 ms)
+  local base_jitter=$(( (i * 3 + j * 7) % 3 ))
+  
+  # Volatile / slow site penalty for every 4th validator (index % 4 == 2)
+  if [ $((i % 4)) -eq 2 ] || [ $((j % 4)) -eq 2 ]; then
+    # Add significant volatility/jitter (10-25 ms)
+    base_jitter=$(( base_jitter + 10 + ((i * 13 + j * 19) % 16) ))
+  fi
+  
+  echo "$base_jitter"
 }
 
 
@@ -321,7 +361,8 @@ initially_apply_latency() {
       A=${validators[i]} B=${validators[j]}
       D1=$(latency_from_table $i $j)
       D2=$(latency_from_table $j $i)
-      J1=$((RANDOM % 3)) J2=$((RANDOM % 3))
+      J1=$(jitter_from_table $i $j)
+      J2=$(jitter_from_table $j $i)
       log "Injecting ${D1}ms±${J1}ms latency $A → $B"
       log "Injecting ${D2}ms±${J2}ms latency $B → $A"
       apply_and_mark "$A" "$B" "$D1" "$J1" &
@@ -386,7 +427,7 @@ reapply_latencies_and_fuzz_loop() {
                     v_idx=${v#validator-}
                     u_idx=${u#validator-}
                     D=$(latency_from_table "$((v_idx - 1))" "$((u_idx - 1))")
-                    J=$((RANDOM % 3))
+                    J=$(jitter_from_table "$((v_idx - 1))" "$((u_idx - 1))")
                     apply_and_mark "$v" "$u" "$D" "$J" &
                 done
 
