@@ -17,8 +17,8 @@
 		}
 	},
 	"engines": {
-		"node": ">=24",
-		"pnpm": ">=10"
+		"node": ">=23",
+		"pnpm": ">=9"
 	},
 	"devDependencies": {
 		"prettier": "^3.3.1",
