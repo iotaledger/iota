@@ -16,7 +16,6 @@ use iota_sdk_types::{
     TypeTag, VersionAssignment,
 };
 use iota_types::{
-    self,
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
