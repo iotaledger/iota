@@ -89,16 +89,28 @@ export RUST_LOG=iota=debug,info
 # and a fullnode
 "$WORKING_DIR/iota-node-release" --config-path "$IOTA_CONFIG_DIR/fullnode.yaml" > "$LOG_DIR/fullnode.log" 2>&1 &
 
-echo "sleeping for 60 seconds"
-sleep 60
+RECONFIG_LOG_MESSAGE="Node State has been reconfigured"
+RECONFIG_TIMEOUT_SECONDS=${SPLIT_CLUSTER_RECONFIG_TIMEOUT_SECONDS:-180}
+RECONFIG_POLL_INTERVAL_SECONDS=${SPLIT_CLUSTER_RECONFIG_POLL_INTERVAL_SECONDS:-5}
+
+echo "waiting up to ${RECONFIG_TIMEOUT_SECONDS} seconds for fullnode reconfiguration"
+reconfig_deadline=$((SECONDS + RECONFIG_TIMEOUT_SECONDS))
+while [ "$SECONDS" -lt "$reconfig_deadline" ]; do
+  if grep -q "$RECONFIG_LOG_MESSAGE" "$LOG_DIR/fullnode.log"; then
+    echo "fullnode reconfigured"
+    break
+  fi
+
+  sleep "$RECONFIG_POLL_INTERVAL_SECONDS"
+done
 
 # kill all child processes
 echo "shutting down nodes"
 pkill -P $$
 
 # ensure that "Node State has been reconfigured" is in "$LOG_DIR/fullnode.log"
-if ! grep -q "Node State has been reconfigured" "$LOG_DIR/fullnode.log"; then
-  echo "Could not find 'Node State has been reconfigured' in fullnode log"
+if ! grep -q "$RECONFIG_LOG_MESSAGE" "$LOG_DIR/fullnode.log"; then
+  echo "Could not find '$RECONFIG_LOG_MESSAGE' in fullnode log after ${RECONFIG_TIMEOUT_SECONDS} seconds"
   exit 1
 fi
 
