@@ -1,4 +1,0 @@
-networks:
-  iota-network:
-    name: iota-private-network_migration-network
-    external: true
