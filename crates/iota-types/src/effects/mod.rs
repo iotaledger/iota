@@ -360,7 +360,7 @@ pub trait TransactionEffectsExtForTesting: transaction_effects_ext::Sealed {
     /// Build empty V1 effects for `transaction_digest`: success status, no
     /// object changes, and no gas object. For tests that need a placeholder
     /// whose effects content is irrelevant, e.g. system transactions.
-    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self;
+    fn new_empty_v1_for_testing(transaction_digest: TransactionDigest) -> Self;
 }
 
 // Helper macro to reduce boilerplate code
@@ -621,7 +621,7 @@ impl TransactionEffectsExt for TransactionEffects {
 }
 
 impl TransactionEffectsExtForTesting for TransactionEffects {
-    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self {
+    fn new_empty_v1_for_testing(transaction_digest: TransactionDigest) -> Self {
         Self::new_from_execution_v1(
             ExecutionStatus::Success,
             0,
@@ -692,7 +692,7 @@ mod tests {
     /// divergence would split-brain storage and consensus digests.
     #[test]
     fn message_trait_and_effects_digest_match() {
-        let effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
+        let effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
         let message_digest = <TransactionEffects as Message>::digest(&effects);
         let effects_digest = effects.digest();
         assert_eq!(message_digest, effects_digest);

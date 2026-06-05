@@ -1062,7 +1062,8 @@ mod tests {
                 total_unique_object_ids,
             )
             .unwrap();
-            let mut effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
+            let mut effects =
+                TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
             for object in to_delete {
                 effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
                     object.0,
@@ -1155,7 +1156,8 @@ mod tests {
         perpetual_db.objects.compact_range(&start, &end)?;
         let before_compaction_size = get_sst_size(&db_path);
 
-        let mut effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
+        let mut effects =
+            TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
         for object in to_delete {
             effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
                 object.0,

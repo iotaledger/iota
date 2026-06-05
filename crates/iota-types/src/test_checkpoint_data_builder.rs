@@ -597,7 +597,7 @@ impl TestCheckpointDataBuilder {
 
         let transaction_events = events.map(TransactionEvents);
 
-        let effects = TransactionEffects::new_empty_v1(*end_of_epoch_tx.digest());
+        let effects = TransactionEffects::new_empty_v1_for_testing(*end_of_epoch_tx.digest());
 
         // Similar to calling self.finish_transaction()
         self.checkpoint_builder

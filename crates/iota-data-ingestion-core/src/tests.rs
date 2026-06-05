@@ -452,7 +452,7 @@ async fn basic_flow_with_custom_callback() {
     );
 
     let transaction = Transaction::from_data(tx_data, vec![]);
-    let effects = TransactionEffects::new_empty_v1(*transaction.digest());
+    let effects = TransactionEffects::new_empty_v1_for_testing(*transaction.digest());
     let ch_tx = CheckpointTransaction {
         transaction,
         effects,
