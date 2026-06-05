@@ -10,7 +10,7 @@ teams:
 
 # Smart Contracts
 
-![Wasp Node Smart Contracts](/img/banner/banner_wasp_core_concepts_smart_contracts.png)
+![Wasp Node Smart Contracts](https://docs.iota.org/img/banner/banner_wasp_core_concepts_smart_contracts.png)
 
 ## What Are Smart Contracts?
 

@@ -83,7 +83,7 @@ By calling this contract, it is possible to:
 The following diagram illustrates an example situation.
 The IDs and hnames are shortened for simplicity.
 
-[![Example situation. Two chains are deployed, with three smart contracts and one address.](/img/iota-evm/tutorials/accounts.png)](/img/iota-evm/tutorials/accounts.png)
+[![Example situation. Two chains are deployed, with three smart contracts and one address.](https://docs.iota.org/img/iota-evm/tutorials/accounts.png)](https://docs.iota.org/img/iota-evm/tutorials/accounts.png)
 
 Two chains are deployed, with IDs `chainA` and `chainB`.
 `chainA` has two smart contracts on it (with hnames `3037` and `2225`), and `chainB` has one smart contract (`7003`).

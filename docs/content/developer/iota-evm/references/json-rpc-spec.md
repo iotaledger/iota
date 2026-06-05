@@ -80,7 +80,7 @@ This page deals with the JSON-RPC API used by EVM execution clients.
 | [web3_clientVersion] | _Returns the current client version (Response is always `wasp/evmproxy` on IOTA EVM)_ |   ✅   |
 | [web3_sha]           | _Returns Keccak-256 (not the standardized SHA3-256) of the given data_                |   ✅   |
 
-You can find the complete set of available specs in the [Ethereum API Documentation](https://ethereum.github.io/execution-apis/api-documentation/).
+You can find the complete set of available specs in the [Ethereum API Documentation](https://ethereum.github.io/execution-apis/).
 
 [eth_accounts]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_accounts
 [eth_blockNumber]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_blocknumber
