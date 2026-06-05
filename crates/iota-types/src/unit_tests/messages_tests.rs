@@ -13,7 +13,7 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, KeyPair},
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ExecutionStatus, Owner, StructTag};
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -29,9 +29,7 @@ use crate::{
     },
     digests::TransactionEventsDigest,
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
-    execution_status::ExecutionStatus,
     gas::GasCostSummary,
-    object::Owner,
     signature::ZkLoginAuthenticatorDeprecated,
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,

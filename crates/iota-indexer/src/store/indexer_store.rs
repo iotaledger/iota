@@ -35,14 +35,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn get_available_checkpoint_range(&self) -> Result<(u64, u64), IndexerError>;
 
-    async fn get_latest_object_snapshot_watermark(
-        &self,
-    ) -> Result<Option<CommitterWatermark>, IndexerError>;
-
-    async fn get_latest_object_snapshot_checkpoint_sequence_number(
-        &self,
-    ) -> Result<Option<u64>, IndexerError>;
-
     async fn get_chain_identifier(&self) -> Result<Option<Vec<u8>>, IndexerError>;
 
     fn persist_protocol_configs_and_feature_flags(
@@ -58,11 +50,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn persist_object_versions(
         &self,
         object_versions: Vec<StoredObjectVersion>,
-    ) -> Result<(), IndexerError>;
-
-    async fn persist_objects_snapshot(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_checkpoints(

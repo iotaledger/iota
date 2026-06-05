@@ -1,25 +1,42 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! JSON Schema adapter types for the IOTA JSON-RPC surface, applied at field
-//! sites via `#[serde_as(as = "...")]`. Core serde behaviour lives in
-//! `iota_types::iota_serde`; this module adds the `schemars::JsonSchema` layer
-//! on top (the `iota-types` crate intentionally has no `schemars` dependency).
+//! JSON Schema and serialization adapter types for the IOTA JSON-RPC surface,
+//! applied at field sites via `#[schemars(with = "...")]` and
+//! `#[serde_as(as = "...")]`. Each adapter owns both the `schemars::JsonSchema`
+//! layer and the JSON serialization for its type, so the JSON-RPC wire format
+//! is defined in this crate rather than relying on the serde impls of the
+//! external `iota-sdk-types` crate.
 //!
-//! To add a new adapter, prefer a unit marker struct with a manual
-//! `JsonSchema` impl for explicit control over description, format, and shape.
-//! If custom serialisation is needed, delegate `SerializeAs` / `DeserializeAs`
-//! to the corresponding adapter in `iota_types::iota_serde` so the two crates
-//! cannot drift. Newtype wrappers (e.g. `SequenceNumberString(u64)`) are only
+//! To add a new adapter, prefer a unit marker struct with a manual `JsonSchema`
+//! impl (for explicit control over description, format, and shape) plus
+//! `SerializeAs` / `DeserializeAs` impls for the target type(s). String-like
+//! types reuse `serde_with::DisplayFromStr` so the format matches the type's
+//! `Display`/`FromStr`; byte payloads reuse the `fastcrypto` encoders. The Move
+//! tag adapters reuse the shared, IOTA-specific formatting/parsing helpers from
+//! `iota_types` (which many other crates depend on) rather than duplicating
+//! that logic. Newtype wrappers (e.g. `SequenceNumberString(u64)`) are only
 //! appropriate when the wrapper itself is the serialised value.
 
-use iota_sdk_types::{StructTag as NativeStructTag, TypeTag as NativeTypeTag};
-use iota_types::iota_serde::{IotaStructTag, IotaTypeTag};
+use fastcrypto::{
+    encoding::{Base58 as FastCryptoBase58, Base64 as FastCryptoBase64},
+    traits::EncodeDecodeBase64,
+};
+use iota_sdk_types::{
+    Digest, Identifier as NativeIdentifier, ObjectId as NativeObjectId,
+    StructTag as NativeStructTag, TypeTag as NativeTypeTag,
+};
+use iota_types::{
+    base_types::{IotaAddress as NativeIotaAddress, SequenceNumber},
+    iota_serde::{to_iota_struct_tag_string, to_iota_type_tag_string},
+    parse_iota_struct_tag, parse_iota_type_tag,
+    signature::GenericSignature as NativeGenericSignature,
+};
 use schemars::{
     JsonSchema,
     schema::{InstanceType, Metadata, NumberValidation, SchemaObject},
 };
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _, ser::Error as _};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 /// A schema type that defines the JSON representation of the
@@ -45,11 +62,29 @@ impl JsonSchema for IotaAddress {
     }
 }
 
+impl SerializeAs<NativeIotaAddress> for IotaAddress {
+    fn serialize_as<S>(value: &NativeIotaAddress, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        DisplayFromStr::serialize_as(value, serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, NativeIotaAddress> for IotaAddress {
+    fn deserialize_as<D>(deserializer: D) -> Result<NativeIotaAddress, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        DisplayFromStr::deserialize_as(deserializer)
+    }
+}
+
 /// A schema type that defines the JSON representation of the
 /// [`ObjectId`](iota_sdk_types::ObjectId) type.
-pub struct ObjectID;
+pub struct ObjectId;
 
-impl JsonSchema for ObjectID {
+impl JsonSchema for ObjectId {
     fn schema_name() -> String {
         "ObjectID".to_owned()
     }
@@ -68,8 +103,26 @@ impl JsonSchema for ObjectID {
     }
 }
 
+impl SerializeAs<NativeObjectId> for ObjectId {
+    fn serialize_as<S>(value: &NativeObjectId, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        DisplayFromStr::serialize_as(value, serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, NativeObjectId> for ObjectId {
+    fn deserialize_as<D>(deserializer: D) -> Result<NativeObjectId, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        DisplayFromStr::deserialize_as(deserializer)
+    }
+}
+
 /// A schema type that defines the JSON representation of the
-/// [`SequenceNumber`](iota_types::base_types::SequenceNumber) type as a string
+/// [`SequenceNumber`] type as a string
 /// and provides an alternate serialization usable via `#[serde_as]`.
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -118,7 +171,7 @@ impl<'de> DeserializeAs<'de, iota_types::base_types::SequenceNumber> for Sequenc
 }
 
 /// A schema type that defines the JSON representation of the
-/// [`SequenceNumber`](iota_types::base_types::SequenceNumber) type as a u64
+/// [`SequenceNumber`] type as a u64
 /// integer and uses the default serialization.
 pub struct SequenceNumberU64;
 
@@ -142,6 +195,24 @@ impl JsonSchema for SequenceNumberU64 {
             ..Default::default()
         }
         .into()
+    }
+}
+
+impl SerializeAs<SequenceNumber> for SequenceNumberU64 {
+    fn serialize_as<S>(value: &SequenceNumber, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        value.as_u64().serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, SequenceNumber> for SequenceNumberU64 {
+    fn deserialize_as<D>(deserializer: D) -> Result<SequenceNumber, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(SequenceNumber::from_u64(u64::deserialize(deserializer)?))
     }
 }
 
@@ -202,6 +273,42 @@ impl JsonSchema for Base58 {
     }
 }
 
+impl SerializeAs<Digest> for Base58 {
+    fn serialize_as<S>(value: &Digest, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        DisplayFromStr::serialize_as(value, serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, Digest> for Base58 {
+    fn deserialize_as<D>(deserializer: D) -> Result<Digest, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        DisplayFromStr::deserialize_as(deserializer)
+    }
+}
+
+impl SerializeAs<Vec<u8>> for Base58 {
+    fn serialize_as<S>(value: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        FastCryptoBase58::serialize_as(value, serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, Vec<u8>> for Base58 {
+    fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        FastCryptoBase58::deserialize_as(deserializer)
+    }
+}
+
 /// A schema type that defines the JSON representation of a Base64 encoded
 /// string. A custom JsonSchema impl is necessary to add the "base64" format to
 /// the schema.
@@ -226,6 +333,24 @@ impl JsonSchema for Base64 {
     }
 }
 
+impl SerializeAs<Vec<u8>> for Base64 {
+    fn serialize_as<S>(value: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        FastCryptoBase64::serialize_as(value, serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, Vec<u8>> for Base64 {
+    fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        FastCryptoBase64::deserialize_as(deserializer)
+    }
+}
+
 /// A schema type that defines the JSON representation of a Base64 encoded
 /// signature.
 pub struct GenericSignature;
@@ -246,6 +371,25 @@ impl JsonSchema for GenericSignature {
             ..Default::default()
         }
         .into()
+    }
+}
+
+impl SerializeAs<NativeGenericSignature> for GenericSignature {
+    fn serialize_as<S>(value: &NativeGenericSignature, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        value.encode_base64().serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, NativeGenericSignature> for GenericSignature {
+    fn deserialize_as<D>(deserializer: D) -> Result<NativeGenericSignature, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        NativeGenericSignature::decode_base64(&s).map_err(D::Error::custom)
     }
 }
 
@@ -280,7 +424,9 @@ impl SerializeAs<NativeStructTag> for StructTag {
     where
         S: Serializer,
     {
-        IotaStructTag::serialize_as(value, serializer)
+        to_iota_struct_tag_string(value)
+            .map_err(S::Error::custom)?
+            .serialize(serializer)
     }
 }
 
@@ -289,7 +435,8 @@ impl<'de> DeserializeAs<'de, NativeStructTag> for StructTag {
     where
         D: Deserializer<'de>,
     {
-        IotaStructTag::deserialize_as(deserializer)
+        let s = String::deserialize(deserializer)?;
+        parse_iota_struct_tag(&s).map_err(D::Error::custom)
     }
 }
 
@@ -321,7 +468,9 @@ impl SerializeAs<NativeTypeTag> for TypeTag {
     where
         S: Serializer,
     {
-        IotaTypeTag::serialize_as(value, serializer)
+        to_iota_type_tag_string(value)
+            .map_err(S::Error::custom)?
+            .serialize(serializer)
     }
 }
 
@@ -330,7 +479,8 @@ impl<'de> DeserializeAs<'de, NativeTypeTag> for TypeTag {
     where
         D: Deserializer<'de>,
     {
-        IotaTypeTag::deserialize_as(deserializer)
+        let s = String::deserialize(deserializer)?;
+        parse_iota_type_tag(&s).map_err(D::Error::custom)
     }
 }
 
@@ -353,5 +503,23 @@ impl JsonSchema for Identifier {
             ..Default::default()
         }
         .into()
+    }
+}
+
+impl SerializeAs<NativeIdentifier> for Identifier {
+    fn serialize_as<S>(value: &NativeIdentifier, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        DisplayFromStr::serialize_as(value, serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, NativeIdentifier> for Identifier {
+    fn deserialize_as<D>(deserializer: D) -> Result<NativeIdentifier, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        DisplayFromStr::deserialize_as(deserializer)
     }
 }

@@ -19,7 +19,7 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
@@ -31,7 +31,7 @@ use iota_types::{
     effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
     inner_temporary_store::TxCoins,
-    object::{Object, Owner},
+    object::Object,
     parse_iota_struct_tag,
 };
 use itertools::Itertools;
@@ -1704,14 +1704,13 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{ObjectId, Owner};
     use iota_types::{
         base_types::{IotaAddress, ObjectInfo, ObjectType},
         digests::TransactionDigest,
         effects::TransactionEvents,
         gas_coin::GAS,
         object,
-        object::Owner,
     };
     use prometheus::Registry;
 

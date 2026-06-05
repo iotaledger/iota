@@ -978,7 +978,8 @@ mod tests {
     }
 
     mod get_all_coins_tests {
-        use iota_types::object::{MoveObject, Owner};
+        use iota_sdk_types::Owner;
+        use iota_types::object::MoveObject;
 
         use super::{super::*, *};
 

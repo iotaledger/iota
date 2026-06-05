@@ -15,7 +15,7 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
 use iota_sdk_types::{
-    Identifier,
+    ExecutionError, ExecutionStatus, Identifier,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 #[cfg(msim)]
@@ -27,7 +27,6 @@ use iota_types::{
         KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
     },
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsExt, TransactionEvents},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
@@ -789,7 +788,7 @@ async fn test_handle_transaction_fork() {
     // Validator 0 and 1 return failed effects
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -1061,7 +1060,7 @@ async fn test_handle_transaction_response() {
     // Validators 3 returns tx-cert with epoch 1
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -1101,7 +1100,7 @@ async fn test_handle_transaction_response() {
     // Validators 2 returns tx-cert and tx-effects with epoch 1
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -1127,7 +1126,7 @@ async fn test_handle_transaction_response() {
     // (simulating byzantine behavior)
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InvalidGasObject,
+            error: ExecutionError::InvalidGasObject,
             command: None,
         })
         .build();
@@ -1188,7 +1187,7 @@ async fn test_handle_transaction_response() {
     // Validators 2 returns tx-cert and tx-effects with epoch 1
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -1214,7 +1213,7 @@ async fn test_handle_transaction_response() {
     // byzantine behavior)
     let effects = TestEffectsBuilder::new(cert_epoch_0_2.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();

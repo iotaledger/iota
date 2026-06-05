@@ -42,6 +42,7 @@ pub struct Checkpoint {
     #[serde_as(as = "DisplayFromStr")]
     pub sequence_number: CheckpointSequenceNumber,
     /// Checkpoint digest
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: CheckpointDigest,
     /// Total number of transactions committed since genesis, including those in
@@ -51,6 +52,7 @@ pub struct Checkpoint {
     pub network_total_transactions: u64,
     /// Digest of the previous checkpoint
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde_as(as = "Option<Base58Schema>")]
     #[schemars(with = "Option<Base58Schema>")]
     pub previous_digest: Option<CheckpointDigest>,
     /// The running total gas costs of all transactions included in the current
@@ -71,6 +73,7 @@ pub struct Checkpoint {
     #[serde_as(as = "Option<EndOfEpochDataSchema>")]
     pub end_of_epoch_data: Option<EndOfEpochData>,
     /// Transaction digests
+    #[serde_as(as = "Vec<Base58Schema>")]
     #[schemars(with = "Vec<Base58Schema>")]
     pub transactions: Vec<TransactionDigest>,
 
@@ -317,7 +320,11 @@ pub enum CheckpointId {
         #[serde_as(as = "DisplayFromStr")]
         CheckpointSequenceNumber,
     ),
-    Digest(#[schemars(with = "Base58Schema")] CheckpointDigest),
+    Digest(
+        #[serde_as(as = "Base58Schema")]
+        #[schemars(with = "Base58Schema")]
+        CheckpointDigest,
+    ),
 }
 
 impl From<CheckpointSequenceNumber> for CheckpointId {

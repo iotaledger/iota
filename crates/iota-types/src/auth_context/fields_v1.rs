@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Command, ObjectId, TypeTag};
+use iota_sdk_types::{Argument, Command, ObjectId, TypeTag};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -10,7 +10,7 @@ use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectRef, SequenceNumber},
     iota_serde::TypeName,
-    transaction::{Argument, CallArg},
+    transaction::CallArg,
 };
 
 // ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ mod tests {
     use super::*;
     use crate::{
         base_types::{IotaAddress, ObjectDigest, SequenceNumber},
-        transaction::{Argument, CallArg, SharedObjectRef},
+        transaction::{CallArg, SharedObjectRef},
     };
 
     // ── helpers ─────────────────────────────────────────────────────────────

@@ -430,33 +430,24 @@ impl RetentionConfig {
     }
 }
 
-#[derive(Args, Debug, Clone)]
+/// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline has
+/// been removed; these flags are now no-ops.
+#[derive(Args, Default, Debug, Clone)]
 pub struct SnapshotLagConfig {
     #[arg(
         long = "objects-snapshot-min-checkpoint-lag",
-        default_value_t = Self::DEFAULT_MIN_LAG,
-        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG",
+        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG"
     )]
-    pub snapshot_min_lag: usize,
+    pub snapshot_min_lag: Option<usize>,
 
-    #[arg(
-        long = "objects-snapshot-sleep-duration",
-        default_value_t = Self::DEFAULT_SLEEP_DURATION_SEC,
-    )]
-    pub sleep_duration: u64,
+    #[arg(long = "objects-snapshot-sleep-duration")]
+    pub sleep_duration: Option<u64>,
 }
 
 impl SnapshotLagConfig {
-    pub const DEFAULT_MIN_LAG: usize = 300;
-    pub const DEFAULT_SLEEP_DURATION_SEC: u64 = 5;
-}
-
-impl Default for SnapshotLagConfig {
-    fn default() -> Self {
-        SnapshotLagConfig {
-            snapshot_min_lag: Self::DEFAULT_MIN_LAG,
-            sleep_duration: Self::DEFAULT_SLEEP_DURATION_SEC,
-        }
+    /// Returns `true` if any deprecated flag was explicitly provided.
+    pub fn is_set(&self) -> bool {
+        self.snapshot_min_lag.is_some() || self.sleep_duration.is_some()
     }
 }
 

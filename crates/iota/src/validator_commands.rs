@@ -32,7 +32,7 @@ use iota_keys::{
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::{
-    Identifier, ObjectId, TypeTag,
+    Identifier, ObjectId, Owner, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -49,7 +49,6 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     multiaddr::Multiaddr,
-    object::Owner,
     transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use serde::Serialize;

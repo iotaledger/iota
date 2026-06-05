@@ -209,6 +209,10 @@ To view help information:
 cargo run --bin iota-indexer -- help
 ```
 
+#### Deprecated flags
+
+`--objects-snapshot-min-checkpoint-lag` / `--objects-snapshot-sleep-duration` (and the `OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG` env var) are deprecated and will be removed in v1.31.0. The `objects_snapshot` pipeline has been removed; these flags are now no-ops.
+
 ### Experimental Features
 
 #### Historic Fallback (REST KV Store)
