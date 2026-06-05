@@ -294,11 +294,6 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
         dependencies: Vec<TransactionDigest>,
     ) -> Self;
 
-    /// Build empty V1 effects for `transaction_digest`: success status, no
-    /// object changes, and no gas object. For tests that need a placeholder
-    /// whose effects content is irrelevant, e.g. system transactions.
-    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self;
-
     /// Returns the `(transaction_digest, effects_digest)` pair identifying
     /// this execution.
     fn execution_digests(&self) -> ExecutionDigests;
@@ -356,6 +351,16 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
 
         fixed_sizes + approx_change_entry_size + deps_size
     }
+}
+
+/// Test-only counterpart to [`TransactionEffectsExt`]: enum-level extensions
+/// (version-selecting constructors and aggregating helpers). Sealed;
+/// implemented for the enum only.
+pub trait TransactionEffectsExtForTesting: transaction_effects_ext::Sealed {
+    /// Build empty V1 effects for `transaction_digest`: success status, no
+    /// object changes, and no gas object. For tests that need a placeholder
+    /// whose effects content is irrelevant, e.g. system transactions.
+    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self;
 }
 
 // Helper macro to reduce boilerplate code
@@ -511,22 +516,6 @@ impl TransactionEffectsExt for TransactionEffects {
         )))
     }
 
-    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self {
-        Self::new_from_execution_v1(
-            ExecutionStatus::Success,
-            0,
-            GasCostSummary::default(),
-            vec![],
-            BTreeSet::new(),
-            transaction_digest,
-            SequenceNumber::default(),
-            BTreeMap::new(),
-            None,
-            None,
-            vec![],
-        )
-    }
-
     fn execution_digests(&self) -> ExecutionDigests {
         ExecutionDigests {
             transaction: *self.transaction_digest(),
@@ -628,6 +617,24 @@ impl TransactionEffectsExt for TransactionEffects {
             wrapped_object_count: self.wrapped().len(),
             dependency_count: self.dependencies().len(),
         }
+    }
+}
+
+impl TransactionEffectsExtForTesting for TransactionEffects {
+    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self {
+        Self::new_from_execution_v1(
+            ExecutionStatus::Success,
+            0,
+            GasCostSummary::default(),
+            vec![],
+            BTreeSet::new(),
+            transaction_digest,
+            SequenceNumber::default(),
+            BTreeMap::new(),
+            None,
+            None,
+            vec![],
+        )
     }
 }
 

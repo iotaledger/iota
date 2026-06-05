@@ -228,7 +228,9 @@ mod tests {
     use iota_sdk_types::ObjectId;
     use iota_types::{
         base_types::{ObjectDigest, ObjectRef, SequenceNumber},
-        effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt},
+        effects::{
+            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
+        },
     };
 
     use super::*;

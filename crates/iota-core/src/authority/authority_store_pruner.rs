@@ -935,7 +935,9 @@ mod tests {
     use iota_types::{
         base_types::{ObjectDigest, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
-        effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt},
+        effects::{
+            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
+        },
         object::Object,
         storage::ObjectKey,
     };

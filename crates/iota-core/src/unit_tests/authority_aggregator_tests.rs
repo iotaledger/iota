@@ -26,7 +26,9 @@ use iota_types::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
     },
-    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsExt, TransactionEvents},
+    effects::{
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents,
+    },
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,

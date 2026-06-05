@@ -2700,7 +2700,7 @@ mod tests {
         base_types::{SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
         effects::{
-            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt,
+            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
             TransactionEvents,
         },
         messages_checkpoint::SignedCheckpointSummary,

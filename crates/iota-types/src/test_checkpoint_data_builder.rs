@@ -15,8 +15,8 @@ use crate::{
     committee::Committee,
     digests::TransactionDigest,
     effects::{
-        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
-        TransactionEvents,
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
+        TransactionEffectsExtForTesting, TransactionEvents,
     },
     event::{Event, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},

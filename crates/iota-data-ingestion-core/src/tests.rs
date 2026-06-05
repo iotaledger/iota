@@ -20,7 +20,7 @@ use iota_types::{
     committee::EpochId,
     crypto::KeypairTraits,
     digests::ObjectDigest,
-    effects::{TransactionEffects, TransactionEffectsExt},
+    effects::{TransactionEffects, TransactionEffectsExtForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas::GasCostSummary,
     messages_checkpoint::{

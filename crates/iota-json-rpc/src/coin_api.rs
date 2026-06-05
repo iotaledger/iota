@@ -580,7 +580,7 @@ mod tests {
         base_types::{IotaAddress, SequenceNumber},
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest},
-        effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
+        effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
         error::{IotaError, IotaResult},
         id::UID,
         messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
