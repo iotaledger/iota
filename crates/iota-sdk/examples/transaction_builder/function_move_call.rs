@@ -13,10 +13,10 @@ use iota_sdk::{
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, CallArg, Transaction, TransactionData, TransactionDataAPI},
+        transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
     },
 };
-use iota_sdk_types::{Command, Identifier, ObjectId, crypto::Intent};
+use iota_sdk_types::{Argument, Command, Identifier, ObjectId, crypto::Intent};
 use utils::setup_for_write;
 
 // This example shows how to use programmable transactions to chain multiple

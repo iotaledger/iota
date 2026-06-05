@@ -10,11 +10,11 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
     base_types::ObjectRef, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::Owner, quorum_driver_types::ExecuteTransactionRequestType,
+    quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::rpc_params;
 use serde_json::json;

@@ -13,6 +13,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_core::consensus_adapter::position_submit_certificate;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
+use iota_sdk_types::ExecutionStatus;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
@@ -20,7 +21,6 @@ use iota_test_transaction_builder::{
 use iota_types::{
     effects::TransactionEffectsAPI,
     event::Event,
-    execution_status::ExecutionStatus,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
     transaction::{CallArg, SharedObjectRef},
 };

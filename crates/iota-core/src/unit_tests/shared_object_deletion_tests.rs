@@ -6,17 +6,17 @@
 use std::sync::Arc;
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    CommandArgumentError, ExecutionError as ExecutionFailureStatus,
+    ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
+    ObjectId,
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     committee::EpochId,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{ExecutionError, IotaError},
-    execution_status::{
-        CommandArgumentError, ExecutionFailureStatus,
-        ExecutionFailureStatus::{InputObjectDeleted, SharedObjectOperationNotAllowed},
-    },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{

@@ -33,6 +33,9 @@ feature_flags:
   consensus_commit_transactions_only_for_traversed_headers: true
   congestion_limit_overshoot_in_gas_price_feedback_mechanism: true
   separate_gas_price_feedback_mechanism_for_randomness: true
+  metadata_in_module_bytes: true
+  publish_package_metadata: true
+  enable_move_authentication: true
   pass_validator_scores_to_advance_epoch: true
   move_native_tx_context: true
   additional_borrow_checks: true
@@ -70,6 +73,7 @@ max_move_object_size: 256000
 max_move_package_size: 102400
 max_publish_or_upgrade_per_ptb: 5
 max_tx_gas: 50000000000
+max_auth_gas: 20000
 max_gas_price: 100000
 max_gas_computation_bucket: 5000000
 gas_rounding_step: 1000
@@ -159,7 +163,7 @@ object_record_new_uid_cost_base: 52
 transfer_transfer_internal_cost_base: 52
 transfer_freeze_object_cost_base: 52
 transfer_share_object_cost_base: 52
-transfer_receive_object_cost_base: 52
+transfer_receive_object_cost_base: 100
 tx_context_derive_id_cost_base: 52
 tx_context_fresh_id_cost_base: 52
 tx_context_sender_cost_base: 30

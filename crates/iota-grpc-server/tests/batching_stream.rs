@@ -18,7 +18,7 @@ use iota_grpc_types::{
         types::ObjectReference,
     },
 };
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
@@ -26,7 +26,7 @@ use iota_types::{
     digests::TransactionDigest,
     effects::{TestEffectsBuilder, TransactionEffects},
     gas_coin::GasCoin,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     transaction::VerifiedTransaction,
 };
 use prost::Message;

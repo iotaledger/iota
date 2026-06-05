@@ -16,7 +16,10 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{Command, Identifier, StructTag, TypeTag};
+use iota_sdk_types::{
+    Argument, CancelledTransaction, Command, ConsensusDeterminedVersionAssignments, ExecutionError,
+    ExecutionStatus, Identifier, Owner, StructTag, TypeTag, VersionAssignment,
+};
 use iota_types::{
     base_types::{
         AuthorityName, IotaAddress, TxContext, dbg_addr, dbg_object_id, random_object_ref,
@@ -31,14 +34,10 @@ use iota_types::{
     epoch_data::EpochData,
     error::UserInputError,
     execution::SharedInput,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{
-        AuthorityCapabilitiesV1, CancelledTransaction, ConsensusDeterminedVersionAssignments,
-        VersionAssignment,
-    },
-    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Owner},
+    messages_consensus::AuthorityCapabilitiesV1,
+    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -728,7 +727,7 @@ async fn test_dev_inspect_return_values() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::UnusedValueWithoutDrop {
+            error: ExecutionError::UnusedValueWithoutDrop {
                 result: 0,
                 subresult: 0,
             },
@@ -1911,10 +1910,7 @@ async fn test_package_size_limit() {
     let ExecutionStatus::Failure { error, command: _ } = signed_effects.status() else {
         panic!("expected transaction to fail")
     };
-    assert!(matches!(
-        error,
-        ExecutionFailureStatus::PackageTooBig { .. }
-    ));
+    assert!(matches!(error, ExecutionError::PackageTooBig { .. }));
 }
 
 #[tokio::test]
@@ -2120,7 +2116,7 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
         panic!("expected transaction to fail")
     };
     assert_eq!(command, &Some(0));
-    assert_eq!(error, &ExecutionFailureStatus::InsufficientCoinBalance)
+    assert_eq!(error, &ExecutionError::InsufficientCoinBalance)
 }
 
 #[tokio::test]
@@ -6061,10 +6057,7 @@ async fn test_publish_missing_dependency() {
         .into_status()
         .unwrap_err();
 
-    assert_eq!(
-        ExecutionFailureStatus::PublishUpgradeMissingDependency,
-        failure,
-    );
+    assert_eq!(ExecutionError::PublishUpgradeMissingDependency, failure);
 }
 
 #[tokio::test]
@@ -6110,10 +6103,7 @@ async fn test_publish_missing_transitive_dependency() {
         .into_status()
         .unwrap_err();
 
-    assert_eq!(
-        ExecutionFailureStatus::PublishUpgradeMissingDependency,
-        failure,
-    );
+    assert_eq!(ExecutionError::PublishUpgradeMissingDependency, failure);
 }
 
 #[tokio::test]
