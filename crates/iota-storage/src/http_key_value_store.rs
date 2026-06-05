@@ -44,7 +44,7 @@ pub struct HttpKVStore {
     metrics: Arc<KeyValueStoreMetrics>,
 }
 
-pub fn encode_digest<T: AsRef<[u8]>>(digest: &T) -> String {
+pub fn encode<T: AsRef<[u8]>>(digest: &T) -> String {
     base64_url::encode(digest)
 }
 
@@ -243,13 +243,13 @@ impl Key {
     ///
     /// ```rust
     /// use iota_storage::http_key_value_store::{
-    ///     ItemType, Key, TaggedKey, encode_digest, encode_object_key, encoded_tagged_key,
+    ///     ItemType, Key, TaggedKey, encode, encode_object_key, encoded_tagged_key,
     /// };
     /// use iota_types::digests::TransactionDigest;
     ///
     /// let tx_digest = TransactionDigest::random();
     /// // encode the tx_digest as base64 url
-    /// let expected_encoded_digest = encode_digest(&tx_digest);
+    /// let expected_encoded_digest = encode(&tx_digest);
     /// let key = Key::Transaction(tx_digest);
     /// let (resource_type, encoded_key_digest) = key.to_path_elements();
     /// assert_eq!(resource_type, ItemType::Transaction);
@@ -266,18 +266,18 @@ impl Key {
     /// ```
     pub fn to_path_elements(&self) -> (ItemType, String) {
         let encoded_key_digest = match self {
-            Key::Transaction(digest) => encode_digest(digest),
-            Key::TransactionEffects(digest) => encode_digest(digest),
+            Key::Transaction(digest) => encode(digest),
+            Key::TransactionEffects(digest) => encode(digest),
             Key::CheckpointContents(seq) => {
                 encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(*seq))
             }
             Key::CheckpointSummary(seq) => {
                 encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(*seq))
             }
-            Key::CheckpointSummaryByDigest(digest) => encode_digest(digest),
-            Key::TransactionToCheckpoint(digest) => encode_digest(digest),
+            Key::CheckpointSummaryByDigest(digest) => encode(digest),
+            Key::TransactionToCheckpoint(digest) => encode(digest),
             Key::ObjectKey(object_key) => encode_object_key(object_key),
-            Key::EventsByTransactionDigest(digest) => encode_digest(digest),
+            Key::EventsByTransactionDigest(digest) => encode(digest),
         };
 
         (self.item_type(), encoded_key_digest)
