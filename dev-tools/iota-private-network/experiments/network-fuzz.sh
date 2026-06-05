@@ -242,10 +242,17 @@ apply_node_qdisc(){
   [[ -z "$pid" || "$pid" = "0" ]] && return 0
 
   # Ensure a classful root qdisc exists once per container
-  if ! sudo nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null | grep -q "htb 1:"; then
-    sudo nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
-    sudo nsenter -t "$pid" -n tc qdisc add dev eth0 root handle 1: htb default 1 2>/dev/null || true
-    sudo nsenter -t "$pid" -n tc class add dev eth0 parent 1: classid 1:1 htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
+  local show_out status=0
+  show_out=$(sudo nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null) || status=$?
+  if [ $status -eq 0 ]; then
+    if ! echo "$show_out" | grep -q "htb 1:"; then
+      sudo nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
+      sudo nsenter -t "$pid" -n tc qdisc add dev eth0 root handle 1: htb default 1 2>/dev/null || true
+      sudo nsenter -t "$pid" -n tc class add dev eth0 parent 1: classid 1:1 htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
+    fi
+  else
+    log "Warning: transient tc qdisc show failure for $v (status $status), skipping root recreation"
+    return 0
   fi
 
   # Clear existing filters so we can re-attach per-destination ones
