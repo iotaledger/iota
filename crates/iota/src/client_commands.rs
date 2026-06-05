@@ -53,6 +53,7 @@ use iota_sdk::{
 use iota_sdk_types::{
     Identifier, ObjectId, Owner, TypeTag,
     crypto::{Intent, IntentMessage},
+    move_package::MovePackage,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
@@ -70,7 +71,7 @@ use iota_types::{
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_authenticator::MoveAuthenticator,
-    move_package::{MovePackage, UpgradeCap},
+    move_package::UpgradeCap,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,

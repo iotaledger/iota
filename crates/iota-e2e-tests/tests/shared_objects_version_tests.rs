@@ -5,12 +5,11 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Owner};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::OBJECT_START_VERSION,
     transaction::{CallArg, SharedObjectRef},
 };
@@ -31,7 +30,7 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     let (counter, _) = env.increment_owned_counter(counter).await;
     assert_ne!(counter.version, OBJECT_START_VERSION);
 
-    let ExecutionFailureStatus::MoveAbort { location, code } =
+    let ExecutionError::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
@@ -47,7 +46,7 @@ async fn shared_object_owner_doesnt_change_on_write() {
     let (counter, _) = env.create_counter().await;
 
     let (inc_counter, _) = env.increment_owned_counter(counter).await;
-    let ExecutionFailureStatus::MoveAbort { location, code } =
+    let ExecutionError::MoveAbort { location, code } =
         env.share_counter(inc_counter).await.unwrap_err()
     else {
         panic!()
@@ -63,7 +62,7 @@ async fn initial_shared_version_mismatch_start_version() {
     let (counter, _) = env.create_counter().await;
 
     let (counter, _) = env.increment_owned_counter(counter).await;
-    let ExecutionFailureStatus::MoveAbort { location, code } =
+    let ExecutionError::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
@@ -78,7 +77,7 @@ async fn initial_shared_version_mismatch_current_version() {
     let env = TestEnvironment::new().await;
     let (counter, _) = env.create_counter().await;
 
-    let ExecutionFailureStatus::MoveAbort { location, code } =
+    let ExecutionError::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
@@ -169,7 +168,7 @@ impl TestEnvironment {
     async fn share_counter(
         &self,
         counter: ObjectRef,
-    ) -> Result<(ObjectRef, Owner), ExecutionFailureStatus> {
+    ) -> Result<(ObjectRef, Owner), ExecutionError> {
         let (fx, _) = self
             .move_call("share_counter", vec![CallArg::ImmutableOrOwned(counter)])
             .await
