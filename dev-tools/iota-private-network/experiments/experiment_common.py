@@ -20,9 +20,11 @@ runners support 2-30 validators, matching the Prometheus scrape configuration.
 from __future__ import annotations
 
 import fcntl
+import getpass
 import json
 import math
 import os
+import pwd
 import re
 import selectors
 import shutil
@@ -318,16 +320,83 @@ def acquire_single_run_lock(runner: str) -> None:
     except OSError:
         fh.seek(0)
         holder = fh.read().strip() or "holder unknown"
-        fh.close()
-        raise RuntimeError(
-            f"another experiment run is already active ({holder}; lock: "
-            f"{lock_path}) — wait for it to finish or kill it first"
-        )
+        owner = _lock_holder_owner(holder)
+        if owner:
+            holder = f"{holder}, running as {owner}"
+        if not _offer_to_kill_lock_holder(fh, holder):
+            fh.close()
+            raise RuntimeError(
+                f"another experiment run is already active ({holder}; lock: "
+                f"{lock_path}) — wait for it to finish or kill it first"
+            )
     fh.seek(0)
     fh.truncate()
-    fh.write(f"{runner} pid {os.getpid()} since {datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S} UTC\n")
+    user = os.environ.get("SUDO_USER") or getpass.getuser()
+    fh.write(
+        f"{runner} pid {os.getpid()} user {user} "
+        f"since {datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S} UTC\n"
+    )
     fh.flush()
     _run_lock_fh = fh  # keep the fd open: the flock dies with the process
+
+
+def _lock_holder_pid(holder: str) -> int | None:
+    match = re.search(r"\bpid (\d+)\b", holder)
+    return int(match.group(1)) if match else None
+
+
+def _lock_holder_owner(holder: str) -> str | None:
+    """Resolve the user actually running the lock-holding pid (via /proc, so
+    it also works for lock lines written before the user field existed)."""
+    pid = _lock_holder_pid(holder)
+    if pid is None:
+        return None
+    try:
+        uid = os.stat(f"/proc/{pid}").st_uid
+        return pwd.getpwuid(uid).pw_name
+    except (OSError, KeyError):
+        return None
+
+
+def _offer_to_kill_lock_holder(fh, holder: str) -> bool:
+    """Interactively offer to stop the active run and take over its lock.
+
+    Only asks on a TTY (non-interactive callers keep the fail-fast error) and
+    defaults to no. On yes, SIGINTs the holder — its signal handler runs the
+    full cleanup — and waits for the flock to be released. Returns True once
+    this process holds the lock."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return False
+    pid = _lock_holder_pid(holder)
+    if pid is None:
+        return False
+    try:
+        answer = input(
+            f"Another experiment run is active ({holder}).\n"
+            "Kill it and continue? [y/N] "
+        )
+    except EOFError:
+        return False
+    if answer.strip().lower() not in ("y", "yes"):
+        return False
+    try:
+        os.kill(pid, signal.SIGINT)
+    except ProcessLookupError:
+        pass  # exited in the meantime; the flock may already be free
+    except PermissionError:  # held by another user
+        run(["sudo", "kill", "-INT", str(pid)], check=False, quiet=True)
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            print()
+            return True
+        except OSError:
+            log_status(f"  Waiting for pid {pid} to finish its cleanup...")
+            time.sleep(2)
+    print()
+    log(f"  Run {pid} did not release the lock within 180s; giving up.")
+    return False
 
 
 def require_local_image(image: str, hint: str) -> None:
@@ -1178,3 +1247,113 @@ def compose_down(compose_file: str, env_file: str | None, network_dir: Path) -> 
         cmd += ["--env-file", env_file]
     cmd += ["-f", compose_file, "down", "--remove-orphans"]
     run(cmd, cwd=network_dir, check=False, quiet=True)
+
+
+# ========================= Self-tests =========================
+# Run with: python3 experiment_common.py
+
+
+if __name__ == "__main__":
+    import runpy
+    import tempfile
+    import unittest
+    from types import SimpleNamespace
+    from unittest import mock
+
+    class ExperimentCommonTests(unittest.TestCase):
+        def test_validator_count_bounds(self) -> None:
+            validate_num_validators(2)
+            validate_num_validators(30)
+            for invalid in (1, 31):
+                with self.subTest(invalid=invalid):
+                    with self.assertRaises(ValueError):
+                        validate_num_validators(invalid)
+
+        def test_commit_latency_percentiles_use_histograms(self) -> None:
+            queries = _commit_latency_queries(90)
+            self.assertIn("histogram_quantile(0.5", queries["blk_p50"])
+            self.assertIn("histogram_quantile(0.5", queries["txn_p50"])
+            self.assertNotIn("_sum", queries["blk_p50"])
+            self.assertNotIn("_sum", queries["txn_p50"])
+            self.assertNotIn("block_commit", queries["txn_p50"])
+
+        def test_validator_log_snapshot_names(self) -> None:
+            with mock.patch.object(subprocess, "run") as run_mock:
+                run_mock.return_value = subprocess.CompletedProcess([], 0)
+                with tempfile.TemporaryDirectory() as tmp:
+                    log_dir = Path(tmp)
+                    save_validator_logs(log_dir, 2, prefix="exp")
+                    save_validator_logs(
+                        log_dir, 2, prefix="experiment-20260605-120000",
+                        latest=False,
+                    )
+                    self.assertTrue(
+                        (log_dir / "exp-validator-1-latest.log").exists()
+                    )
+                    self.assertTrue(
+                        (log_dir / "experiment-20260605-120000-validator-2.log")
+                        .exists()
+                    )
+
+        def test_requested_iota_spammer_must_exist(self) -> None:
+            with tempfile.TemporaryDirectory() as tmp:
+                cfg = SimpleNamespace(
+                    spammer_enable=True,
+                    spammer_type="iota-spammer",
+                    spammer_tps=10,
+                    spammer_size="10KiB",
+                    run_duration=60,
+                    block_measurement_seconds=0,
+                    log_dir=Path(tmp),
+                )
+                with mock.patch.object(Path, "home", return_value=Path(tmp)):
+                    with self.assertRaisesRegex(RuntimeError, "script not found"):
+                        start_spammer(cfg)
+
+        def test_host_spammer_cleanup_signals_process_group(self) -> None:
+            cfg = SimpleNamespace(
+                spammer_enable=True,
+                spammer_type="iota-spammer",
+            )
+            proc = mock.Mock(pid=1234)
+            with mock.patch.object(os, "killpg") as killpg:
+                stop_spammer(cfg, proc)
+            killpg.assert_called_once_with(1234, signal.SIGTERM)
+            proc.wait.assert_called_once_with(timeout=10)
+
+        def test_lock_contention_is_fatal_without_tty(self) -> None:
+            # Non-interactive callers must keep the fail-fast error: the
+            # kill-offer only ever engages on a TTY.
+            with mock.patch.object(sys.stdin, "isatty", return_value=False):
+                self.assertFalse(
+                    _offer_to_kill_lock_holder(None, "runner pid 1 user x")
+                )
+
+        def test_lock_holder_pid_parsing(self) -> None:
+            self.assertEqual(
+                _lock_holder_pid("run-benchmark.py pid 4242 user nikita"), 4242
+            )
+            self.assertIsNone(_lock_holder_pid("holder unknown"))
+
+        def test_migration_reserves_stable_window_after_setup(self) -> None:
+            migration = runpy.run_path(
+                Path(__file__).with_name("run-migration-test.py"),
+                run_name="migration_test_module",
+            )
+            config = migration["Config"](num_validators=30)
+            self.assertEqual(config.stable_window_seconds, 60)
+            self.assertFalse(
+                migration["Config"](mode="advanced").block_measurement_enabled()
+            )
+            monitor = migration["CheckpointMonitor"]
+            self.assertIn("histogram_quantile(0.5", monitor._BLK_P50)
+            self.assertNotIn("block_commit", monitor._TXN_P50)
+            planned_start = 1_000.0 + config.pre_rolling_wait
+            with self.assertRaisesRegex(RuntimeError, "stable window does not fit"):
+                migration["phase7_wait_fixed"](
+                    config,
+                    1_000.0,
+                    planned_start + 1,
+                )
+
+    unittest.main()
