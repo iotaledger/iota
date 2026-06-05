@@ -12,13 +12,15 @@ use iota_json::{
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Argument, Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::{MovePackage, MovePackageExt},
+    move_package::MovePackageExt,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SharedObjectRef},

@@ -18,7 +18,9 @@ mod checked {
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{Argument, Identifier, ObjectId, Owner, StructTag, TypeTag};
+    use iota_sdk_types::{
+        Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+    };
     use iota_types::{
         balance::Balance,
         base_types::{IotaAddress, TxContext},
@@ -29,7 +31,7 @@ mod checked {
         execution_status::CommandArgumentError,
         iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
-        move_package::{MovePackage, MovePackageExt, derive_package_metadata_id},
+        move_package::{MovePackageExt, derive_package_metadata_id},
         object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{CallArg, SharedObjectRef},

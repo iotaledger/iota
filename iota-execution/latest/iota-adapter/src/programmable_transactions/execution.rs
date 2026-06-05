@@ -16,7 +16,9 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{Command, Identifier, ObjectId, StructTag, TypeTag};
+    use iota_sdk_types::{
+        Command, Identifier, ObjectId, StructTag, TypeTag, move_package::MovePackage,
+    };
     use iota_types::{
         auth_context,
         base_types::{
@@ -31,7 +33,7 @@ mod checked {
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackage, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
+            IotaAttribute, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules,
         },

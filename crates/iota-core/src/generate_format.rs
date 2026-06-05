@@ -15,6 +15,7 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, Identifier, ObjectId, Owner, SimpleSignature, StructTag,
     TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
     base_types::{
@@ -42,7 +43,6 @@ use iota_types::{
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
-    move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{Data, MoveObject, MoveObjectExt, ObjectInner},
     signature::GenericSignature,
@@ -275,7 +275,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(&mut samples, &Data::Struct(sample_move_obj))
         .unwrap();
-    let sample_upgrade_info = iota_types::move_package::UpgradeInfo {
+    let sample_upgrade_info = UpgradeInfo {
         upgraded_id: ObjectId::ZERO,
         upgraded_version: 1u64.into(),
     };
