@@ -12,7 +12,7 @@ use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
 use iota_sdk::apis::ReadApi;
-use iota_sdk_types::{Command, Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, TxContext, TxContextKind, is_primitive_type_tag},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
@@ -20,7 +20,7 @@ use iota_types::{
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
-    transaction::{self as Tx, CallArg, SharedObjectRef},
+    transaction::{CallArg, SharedObjectRef},
 };
 use miette::Severity;
 use move_binary_format::{
@@ -70,7 +70,7 @@ trait Resolver<'a>: Send {
         builder: &mut PTBBuilder<'a>,
         loc: Span,
         argument: PTBArg,
-    ) -> PTBResult<Tx::Argument> {
+    ) -> PTBResult<Argument> {
         let value = argument.to_pure_move_value(loc)?;
         builder.ptb.pure(value).map_err(|e| err!(loc, "{e}"))
     }
@@ -80,7 +80,7 @@ trait Resolver<'a>: Send {
         builder: &mut PTBBuilder<'a>,
         loc: Span,
         obj_id: ObjectId,
-    ) -> PTBResult<Tx::Argument>;
+    ) -> PTBResult<Argument>;
 
     fn re_resolve(&self) -> bool {
         false
@@ -122,7 +122,7 @@ impl<'a> Resolver<'a> for ToObject {
         builder: &mut PTBBuilder<'a>,
         loc: Span,
         obj_id: ObjectId,
-    ) -> PTBResult<Tx::Argument> {
+    ) -> PTBResult<Argument> {
         // Get the object from the reader to get metadata about the object.
         let obj = builder.get_object(obj_id, loc).await?;
         let owner = obj
@@ -181,7 +181,7 @@ impl<'a> Resolver<'a> for ToPure {
         builder: &mut PTBBuilder<'a>,
         loc: Span,
         argument: PTBArg,
-    ) -> PTBResult<Tx::Argument> {
+    ) -> PTBResult<Argument> {
         let value = argument.checked_to_pure_move_value(loc, &self.type_)?;
         builder.ptb.pure(value).map_err(|e| err!(loc, "{e}"))
     }
@@ -191,7 +191,7 @@ impl<'a> Resolver<'a> for ToPure {
         builder: &mut PTBBuilder<'a>,
         loc: Span,
         obj_id: ObjectId,
-    ) -> PTBResult<Tx::Argument> {
+    ) -> PTBResult<Argument> {
         builder.ptb.pure(obj_id).map_err(|e| err!(loc, "{e}"))
     }
 }
@@ -239,12 +239,12 @@ pub struct PTBBuilder<'a> {
     arguments_to_resolve: BTreeMap<String, ArgWithHistory>,
     /// The arguments that we have resolved. This is a map from identifiers to
     /// the actual transaction arguments.
-    resolved_arguments: BTreeMap<String, Tx::Argument>,
+    resolved_arguments: BTreeMap<String, Argument>,
     /// Read API for reading objects from chain. Needed for object resolution.
     reader: &'a ReadApi,
     /// The last command that we have added. This is used to support assignment
     /// commands.
-    last_command: Option<Tx::Argument>,
+    last_command: Option<Argument>,
     /// The actual PTB that we are building up.
     ptb: ProgrammableTransactionBuilder,
     /// The list of errors that we have built up while processing commands. We
@@ -321,7 +321,7 @@ impl<'a> PTBBuilder<'a> {
         mut self,
         warn_on_shadowing: bool,
     ) -> (
-        Result<Tx::ProgrammableTransaction, Vec<PTBError>>,
+        Result<ProgrammableTransaction, Vec<PTBError>>,
         Vec<PTBError>,
     ) {
         // A `--compile-upgrade` must always be paired with an
@@ -381,7 +381,7 @@ impl<'a> PTBBuilder<'a> {
         mut self,
         program: Program,
     ) -> (
-        Result<Tx::ProgrammableTransaction, Vec<PTBError>>,
+        Result<ProgrammableTransaction, Vec<PTBError>>,
         Vec<PTBError>,
     ) {
         for command in program.commands.into_iter() {
@@ -495,7 +495,7 @@ impl<'a> PTBBuilder<'a> {
         ty_args: &[TypeTag],
         sp!(loc, arg): Spanned<PTBArg>,
         param: &SignatureToken,
-    ) -> PTBResult<Tx::Argument> {
+    ) -> PTBResult<Argument> {
         let layout = primitive_type(view, ty_args, param);
 
         // If it's a primitive value, see if we've already resolved this argument.
@@ -563,7 +563,7 @@ impl<'a> PTBBuilder<'a> {
         ty_args: &[TypeTag],
         args: Vec<Spanned<PTBArg>>,
         package_name_loc: Span,
-    ) -> PTBResult<Vec<Tx::Argument>> {
+    ) -> PTBResult<Vec<Argument>> {
         let module = package
             .deserialize_module(module_name, &BinaryConfig::standard())
             .map_err(|e| {
@@ -678,7 +678,7 @@ impl<'a> PTBBuilder<'a> {
         &mut self,
         sp!(arg_loc, arg): Spanned<PTBArg>,
         mut ctx: impl Resolver<'a> + 'async_recursion,
-    ) -> PTBResult<Tx::Argument> {
+    ) -> PTBResult<Argument> {
         match arg {
             a @ (PTBArg::Bool(_)
             | PTBArg::U8(_)
@@ -691,7 +691,7 @@ impl<'a> PTBBuilder<'a> {
             | PTBArg::String(_)
             | PTBArg::Option(_)
             | PTBArg::Vector(_)) => ctx.pure(self, arg_loc, a).await,
-            PTBArg::Gas => Ok(Tx::Argument::Gas),
+            PTBArg::Gas => Ok(Argument::Gas),
             // NB: the ordering of these lines is important so that shadowing is properly
             // supported.
             // If we encounter an identifier that we have not already resolved, then we resolve the
@@ -751,14 +751,12 @@ impl<'a> PTBBuilder<'a> {
                     }
                     sp!(_, ResolvedAccess::ResultAccess(access)) => {
                         match self.resolved_arguments.get(&head.value) {
-                            Some(Tx::Argument::Result(u)) => {
-                                Ok(Tx::Argument::NestedResult(*u, access))
-                            }
+                            Some(Argument::Result(u)) => Ok(Argument::NestedResult(*u, access)),
                             // Tried to access into a nested result, input, or gascoin
                             Some(
-                                x @ (Tx::Argument::NestedResult(..)
-                                | Tx::Argument::Input(..)
-                                | Tx::Argument::Gas),
+                                x @ (Argument::NestedResult(..)
+                                | Argument::Input(..)
+                                | Argument::Gas),
                             ) => {
                                 error!(
                                     arg_loc,
@@ -893,7 +891,7 @@ impl<'a> PTBBuilder<'a> {
                         .into_type_tag(&resolve_address)
                         .map_err(|e| err!(ty_loc, "{e}"))?,
                 );
-                let mut vec_args: Vec<Tx::Argument> = vec![];
+                let mut vec_args: Vec<Argument> = vec![];
                 if is_primitive_type_tag(&ty_arg) {
                     for arg in args.into_iter() {
                         let arg = self.resolve(arg, ToPure::new(ty_arg.clone())).await?;
@@ -1198,7 +1196,7 @@ impl<'a> PTBBuilder<'a> {
     async fn resolve_upgrade_cap(
         &mut self,
         arg: &mut Spanned<PTBArg>,
-    ) -> PTBResult<(NumericalAddress, Tx::Argument)> {
+    ) -> PTBResult<(NumericalAddress, Argument)> {
         let upgrade_cap_id = self.resolve_upgrade_cap_id(arg)?;
 
         let cap_loc = arg.span;

@@ -12,7 +12,7 @@ use std::{
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId,
+    Argument, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId,
     PackageUpgradeError, StructTag,
 };
 use iota_types::{
@@ -26,7 +26,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::ident_str;
 

@@ -40,7 +40,7 @@ use iota_types::{
         output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
     },
     transaction::{
-        Argument, CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
+        CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
         ProgrammableTransaction,
     },
 };
@@ -763,7 +763,7 @@ impl Executor {
 }
 
 mod pt {
-    use iota_sdk_types::{Identifier, StructTag, TypeTag};
+    use iota_sdk_types::{Argument, Identifier, StructTag, TypeTag};
 
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;

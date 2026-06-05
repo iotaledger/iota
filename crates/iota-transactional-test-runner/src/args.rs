@@ -6,12 +6,13 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
+use iota_sdk_types::Argument;
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     move_package::UpgradePolicy,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedObjectRef},
+    transaction::{CallArg, SharedObjectRef},
 };
 use move_compiler::editions::Flavor;
 use move_core_types::{
