@@ -113,9 +113,6 @@ pub enum ItemType {
     #[strum(serialize = "evtx")]
     #[serde(rename = "evtx")]
     EventTransactionDigest,
-    #[strum(serialize = "txa")]
-    #[serde(rename = "txa")]
-    TransactionDigestsByAddress,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -128,7 +125,6 @@ pub enum Key {
     TransactionToCheckpoint(TransactionDigest),
     ObjectKey(ObjectKey),
     EventsByTransactionDigest(TransactionDigest),
-    TransactionDigestsByAddress(IotaAddress),
 }
 
 impl Key {
@@ -202,9 +198,6 @@ impl Key {
             ItemType::EventTransactionDigest => Ok(Key::EventsByTransactionDigest(
                 TransactionDigest::from_bytes(decoded_key.as_slice())?,
             )),
-            ItemType::TransactionDigestsByAddress => Ok(Key::TransactionDigestsByAddress(
-                IotaAddress::from_bytes(decoded_key.as_slice())?,
-            )),
         }
     }
 
@@ -237,7 +230,6 @@ impl Key {
             Key::TransactionToCheckpoint(_) => ItemType::TransactionToCheckpoint,
             Key::ObjectKey(_) => ItemType::Object,
             Key::EventsByTransactionDigest(_) => ItemType::EventTransactionDigest,
-            Key::TransactionDigestsByAddress(_) => ItemType::TransactionDigestsByAddress,
         }
     }
 
@@ -285,9 +277,6 @@ impl Key {
             Key::TransactionToCheckpoint(digest) => encode_digest(digest),
             Key::ObjectKey(object_key) => encode_object_key(object_key),
             Key::EventsByTransactionDigest(digest) => encode_digest(digest),
-            // TODO: `encode_digest` could be renamed to `encode` to fit more use cases.
-            // tracking issue: https://github.com/iotaledger/iota/issues/11754
-            Key::TransactionDigestsByAddress(address) => encode_digest(address),
         };
 
         (self.item_type(), encoded_key_digest)

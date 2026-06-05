@@ -319,9 +319,6 @@ impl KvStoreClient {
         let item_type = key.item_type().to_string();
 
         match key {
-            Key::TransactionDigestsByAddress(_address) => {
-                bail!("unsupported key");
-            }
             Key::Transaction(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
