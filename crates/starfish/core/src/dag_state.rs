@@ -1576,7 +1576,6 @@ impl DagState {
     /// Block headers returned are limited to round >= `start`, and cached.
     /// NOTE: caller should not assume returned block headers are always
     /// chained.
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn get_cached_block_headers_since_round(
         &self,
         authority: AuthorityIndex,
