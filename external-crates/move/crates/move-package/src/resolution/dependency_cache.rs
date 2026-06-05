@@ -60,13 +60,14 @@ impl DependencyCache {
             DependencyKind::Git(GitInfo {
                 git_url,
                 git_rev,
-                subdir: _,
+                subdir,
             }) => {
                 let repository_path = repository_path(kind);
-                // check if a give dependency type has already been fetched
-                if !self.fetched_deps.insert(repository_path.clone()) {
-                    return Ok(());
-                }
+                let git_path = repository_path.clone();
+                let os_git_url = OsStr::new(git_url.as_str());
+                let os_git_rev = OsStr::new(git_rev.as_str());
+                let subdir_str = subdir.to_string_lossy();
+                let has_subdir = !subdir_str.is_empty() && subdir_str != ".";
 
                 if Command::new("git")
                     .arg("--version")
@@ -78,9 +79,46 @@ impl DependencyCache {
                     return Err(anyhow::anyhow!("Git is not installed or not in the PATH."));
                 }
 
-                let git_path = repository_path;
-                let os_git_url = OsStr::new(git_url.as_str());
-                let os_git_rev = OsStr::new(git_rev.as_str());
+                // If this repository has already been processed in the current session, ensure its subdir is checked out
+                if !self.fetched_deps.insert(repository_path.clone()) {
+                    if has_subdir {
+                        let status = Command::new("git")
+                            .args([
+                                OsStr::new("-C"),
+                                git_path.as_os_str(),
+                                OsStr::new("sparse-checkout"),
+                                OsStr::new("add"),
+                                subdir.as_os_str(),
+                            ])
+                            .stdin(Stdio::null())
+                            .status()?;
+                        if !status.success() {
+                            return Err(anyhow::anyhow!(
+                                "Failed to add sparse-checkout path '{}' for package '{}'",
+                                subdir_str,
+                                dep_name
+                            ));
+                        }
+
+                        let status = Command::new("git")
+                            .args([
+                                OsStr::new("-C"),
+                                git_path.as_os_str(),
+                                OsStr::new("checkout"),
+                                os_git_rev,
+                            ])
+                            .stdin(Stdio::null())
+                            .status()?;
+                        if !status.success() {
+                            return Err(anyhow::anyhow!(
+                                "Failed to checkout Git reference '{}' for package '{}'",
+                                git_rev,
+                                dep_name
+                            ));
+                        }
+                    }
+                    return Ok(());
+                }
 
                 if !git_path.exists() {
                     writeln!(
@@ -89,9 +127,21 @@ impl DependencyCache {
                         "FETCHING GIT DEPENDENCY".bold().green(),
                         git_url,
                     )?;
-                    // If the cached folder does not exist, download and clone accordingly
+                    // If the cached folder does not exist, download and clone accordingly.
+                    // We use a blobless clone (`--filter=blob:none`) and sparse-checkout to save bandwidth and disk space.
+                    let mut clone_args = vec![
+                        OsStr::new("clone"),
+                        OsStr::new("--filter=blob:none"),
+                        OsStr::new("--no-checkout"),
+                    ];
+                    if has_subdir {
+                        clone_args.push(OsStr::new("--sparse"));
+                    }
+                    clone_args.push(os_git_url);
+                    clone_args.push(git_path.as_os_str());
+
                     if let Ok(mut output) = Command::new("git")
-                        .args([OsStr::new("clone"), os_git_url, git_path.as_os_str()])
+                        .args(&clone_args)
                         .stdin(Stdio::null())
                         .spawn()
                     {
@@ -101,14 +151,31 @@ impl DependencyCache {
                                 dep_name
                             )
                         })?;
-                        if output.stdout.is_some() {
-                            writeln!(progress_output, "{:?}", output)?;
-                        }
                     } else {
                         return Err(anyhow::anyhow!(
                             "Failed to clone Git repository for package '{}'",
                             dep_name
                         ));
+                    }
+
+                    if has_subdir {
+                        Command::new("git")
+                            .args([
+                                OsStr::new("-C"),
+                                git_path.as_os_str(),
+                                OsStr::new("sparse-checkout"),
+                                OsStr::new("set"),
+                                subdir.as_os_str(),
+                            ])
+                            .stdin(Stdio::null())
+                            .output()
+                            .map_err(|_| {
+                                anyhow::anyhow!(
+                                    "Failed to set sparse-checkout path '{}' for package '{}'",
+                                    subdir_str,
+                                    dep_name
+                                )
+                            })?;
                     }
 
                     Command::new("git")
@@ -128,6 +195,19 @@ impl DependencyCache {
                             )
                         })?;
                 } else if !self.skip_fetch_latest_git_deps {
+                    // Update the git dependency. Ensure the subdir is added to sparse-checkout if needed.
+                    if has_subdir {
+                        let _ = Command::new("git")
+                            .args([
+                                OsStr::new("-C"),
+                                git_path.as_os_str(),
+                                OsStr::new("sparse-checkout"),
+                                OsStr::new("add"),
+                                subdir.as_os_str(),
+                            ])
+                            .stdin(Stdio::null())
+                            .output();
+                    }
                     // Update the git dependency
                     // Check first that it isn't a git rev (if it doesn't work, just continue with
                     // the fetch)
