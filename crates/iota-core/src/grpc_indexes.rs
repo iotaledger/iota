@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     committee::EpochId,
@@ -20,7 +20,7 @@ use iota_types::{
     iota_system_state::IotaSystemStateTrait,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     move_package::MovePackageExt,
-    object::{Object, Owner},
+    object::Object,
     storage::{
         AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, OwnedObjectCursor,
         OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey,

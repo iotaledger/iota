@@ -4,13 +4,12 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure};
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
     balance::Balance,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
-    object::Owner,
     stardust::output::{
         NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Nft as MoveNft,
         NftOutput as MoveNftOutput,

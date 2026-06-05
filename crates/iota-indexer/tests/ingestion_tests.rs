@@ -20,16 +20,12 @@ mod ingestion_tests {
         insert_or_ignore_into,
         models::{
             checkpoints::StoredCheckpoint,
-            objects::{
-                BackwardHistoryObjectStatus, StoredCheckpointedObject, StoredObject,
-                StoredObjectSnapshot,
-            },
+            objects::{BackwardHistoryObjectStatus, StoredCheckpointedObject, StoredObject},
             transactions::{StoredTransaction, TxGlobalOrder},
             tx_indices::StoredTxDigest,
         },
         schema::{
-            checkpointed_objects, checkpoints, objects, objects_snapshot, transactions, tx_digests,
-            tx_global_order,
+            checkpointed_objects, checkpoints, objects, transactions, tx_digests, tx_global_order,
         },
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
@@ -43,7 +39,6 @@ mod ingestion_tests {
     use crate::common::{
         backward_history::{find_all_entries_at_checkpoint, find_backward_entry},
         indexer_wait_for_checkpoint, start_simulacrum_grpc_with_write_indexer,
-        wait_for_objects_snapshot,
     };
 
     macro_rules! read_only_blocking {
@@ -182,86 +177,6 @@ mod ingestion_tests {
         );
         assert_eq!(db_object.object_type_module, Some("coin".to_string()));
         assert_eq!(db_object.object_type_name, Some("Coin".to_string()));
-        Ok(())
-    }
-
-    #[tokio::test]
-    pub async fn objects_snapshot() -> Result<(), IndexerError> {
-        let tmp_dir = iota_common::tempdir();
-        let sim = Simulacrum::new();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        // Run 10 transfer transactions and create 10 checkpoints
-        let mut last_transaction = None;
-        let total_checkpoint_sequence_number = 7usize;
-        for _ in 0..total_checkpoint_sequence_number {
-            let transfer_recipient = IotaAddress::random();
-            let (transaction, _) = sim.transfer_txn(transfer_recipient);
-            let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
-            assert!(err.is_none());
-            last_transaction = Some(transaction);
-            let _ = sim.create_checkpoint();
-        }
-
-        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
-        // Wait for objects snapshot at checkpoint
-        // max_expected_checkpoint_sequence_number
-        let max_expected_checkpoint_sequence_number = total_checkpoint_sequence_number - 5;
-        wait_for_objects_snapshot(&pg_store, max_expected_checkpoint_sequence_number as u64)
-            .await?;
-
-        // Get max checkpoint_sequence_number from objects_snapshot table and assert
-        // it's expected
-        let max_checkpoint_sequence_number = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            objects_snapshot::table
-                .select(objects_snapshot::checkpoint_sequence_number)
-                .order(objects_snapshot::checkpoint_sequence_number.desc())
-                .limit(1)
-                .first::<i64>(conn)
-        })
-        .context("failed reading max checkpoint_sequence_number from PostgresDB")?;
-
-        assert_eq!(
-            max_checkpoint_sequence_number,
-            max_expected_checkpoint_sequence_number as i64
-        );
-
-        // Get the object state at max_expected_checkpoint_sequence_number and assert.
-        let last_tx = last_transaction.unwrap();
-        let obj_id = last_tx.gas()[0].object_id;
-        let gas_owner_id = last_tx.sender_address();
-
-        let snapshot_object = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            objects_snapshot::table
-                .filter(objects_snapshot::object_id.eq(obj_id.as_bytes()))
-                .filter(
-                    objects_snapshot::checkpoint_sequence_number
-                        .eq(max_expected_checkpoint_sequence_number as i64),
-                )
-                .first::<StoredObjectSnapshot>(conn)
-        })
-        .context("failed reading snapshot object from PostgresDB")?;
-        // Assert that the object state is as expected at checkpoint
-        // max_expected_checkpoint_sequence_number
-        assert_eq!(snapshot_object.object_id, obj_id.as_bytes());
-        assert_eq!(
-            snapshot_object.checkpoint_sequence_number,
-            max_expected_checkpoint_sequence_number as i64
-        );
-        assert_eq!(snapshot_object.owner_type, Some(1));
-        assert_eq!(
-            snapshot_object.owner_id.as_deref(),
-            Some(gas_owner_id.as_bytes())
-        );
         Ok(())
     }
 

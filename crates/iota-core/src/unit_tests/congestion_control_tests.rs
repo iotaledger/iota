@@ -9,14 +9,13 @@ use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SharedObjectRef, Transaction},
@@ -405,7 +404,7 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            error: ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price,
             },
@@ -448,7 +447,7 @@ async fn test_congestion_control_execution_cancellation() {
     // Should result in the same cancellation.
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
-        ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
             congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
             suggested_gas_price,
         }
@@ -629,7 +628,7 @@ async fn test_congestion_control_debt_tracking() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            error: ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects: vec![shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },
@@ -771,7 +770,7 @@ async fn test_congestion_control_debt_tracking() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            error: ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },

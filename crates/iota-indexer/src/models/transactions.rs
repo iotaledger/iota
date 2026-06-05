@@ -25,7 +25,7 @@ use serde::Deserialize;
 use crate::{
     errors::IndexerError,
     schema::{optimistic_transactions, transactions, tx_global_order},
-    types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
+    types::{IndexedBalanceChange, IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
@@ -360,13 +360,13 @@ impl StoredTransaction {
                 self.balance_changes.into_iter().map(|balance_change| {
                         match balance_change {
                             Some(balance_change) => {
-                                let balance_change: BalanceChange = bcs::from_bytes(&balance_change)
+                                let balance_change: IndexedBalanceChange = bcs::from_bytes(&balance_change)
                                     .map_err(|e| IndexerError::PersistentStorageDataCorruption(
-                                        format!("Can't convert balance_change bytes into BalanceChange. tx_digest={tx_digest} Error: {e}")
+                                        format!("Can't convert balance_change bytes into IndexedBalanceChange. tx_digest={tx_digest} Error: {e}")
                                     ))?;
-                                Ok(balance_change)
+                                Ok(BalanceChange::from(balance_change))
                             }
-                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={tx_digest}"))),
+                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("balance_change should not be null, tx_digest={tx_digest}"))),
                         }
                     }).collect::<Result<Vec<BalanceChange>, IndexerError>>()?
             };

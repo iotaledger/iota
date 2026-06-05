@@ -5,13 +5,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use futures::future::join_all;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, dbg_addr},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -88,7 +87,7 @@ async fn test_pay_iota_failure_insufficient_total_balance_one_input_coin() {
     assert_eq!(
         res.txn_result.as_ref().unwrap().status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientCoinBalance,
+            error: ExecutionError::InsufficientCoinBalance,
             command: Some(0) // SplitCoins is the first command in the implementation of pay
         },
     );
@@ -141,7 +140,7 @@ async fn test_pay_iota_failure_insufficient_total_balance_multiple_input_coins()
     assert_eq!(
         res.txn_result.as_ref().unwrap().status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientCoinBalance,
+            error: ExecutionError::InsufficientCoinBalance,
             command: Some(0) // SplitCoins is the first command in the implementation of pay
         },
     );

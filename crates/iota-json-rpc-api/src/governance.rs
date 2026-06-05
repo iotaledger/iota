@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, IotaCommittee, IotaSystemStateSummary,
     IotaSystemStateSummaryV1, ValidatorApys,
-    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema},
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_sdk_types::ObjectId;
@@ -22,7 +22,7 @@ pub trait GovernanceReadApi {
     #[method(name = "getStakesByIds")]
     async fn get_stakes_by_ids(
         &self,
-        #[schemars(with = "Vec<ObjectIDSchema>")] staked_iota_ids: Vec<ObjectId>,
+        #[schemars(with = "Vec<ObjectIdSchema>")] staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedStake>>;
 
     /// Return all [DelegatedStake].
@@ -37,7 +37,7 @@ pub trait GovernanceReadApi {
     #[method(name = "getTimelockedStakesByIds")]
     async fn get_timelocked_stakes_by_ids(
         &self,
-        #[schemars(with = "Vec<ObjectIDSchema>")] timelocked_staked_iota_ids: Vec<ObjectId>,
+        #[schemars(with = "Vec<ObjectIdSchema>")] timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>>;
 
     /// Return all [DelegatedTimelockedStake].

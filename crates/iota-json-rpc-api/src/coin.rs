@@ -4,7 +4,7 @@
 
 use iota_json_rpc_types::{
     Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, Page,
-    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
+    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema},
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_sdk_types::ObjectId;
@@ -19,7 +19,7 @@ pub trait CoinReadApi {
     /// Return all Coin<`coin_type`> objects owned by an address.
     #[rustfmt::skip]
     #[method(name = "getCoins")]
-    #[schemars(with = "Page<Coin, ObjectIDSchema>")]
+    #[schemars(with = "Page<Coin, ObjectIdSchema>")]
     async fn get_coins(
         &self,
         /// the owner's IOTA address
@@ -28,7 +28,7 @@ pub trait CoinReadApi {
         /// optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::iota::IOTA if not specified.
         coin_type: Option<String>,
         /// optional paging cursor
-        #[schemars(with = "Option<ObjectIDSchema>")]
+        #[schemars(with = "Option<ObjectIdSchema>")]
         cursor: Option<ObjectId>,
         /// maximum number of items per page
         limit: Option<usize>,
@@ -37,14 +37,14 @@ pub trait CoinReadApi {
     /// Return all Coin objects owned by an address.
     #[rustfmt::skip]
     #[method(name = "getAllCoins")]
-    #[schemars(with = "Page<Coin, ObjectIDSchema>")]
+    #[schemars(with = "Page<Coin, ObjectIdSchema>")]
     async fn get_all_coins(
         &self,
         /// the owner's IOTA address
         #[schemars(with = "IotaAddressSchema")]
         owner: IotaAddress,
         /// optional paging cursor
-        #[schemars(with = "Option<ObjectIDSchema>")]
+        #[schemars(with = "Option<ObjectIdSchema>")]
         cursor: Option<ObjectId>,
         /// maximum number of items per page
         limit: Option<usize>,

@@ -10,6 +10,7 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
+use iota_sdk_types::Owner;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::TransactionDigest,
@@ -17,7 +18,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
-    object::{Object, Owner},
+    object::Object,
     transaction::{
         CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
         VerifiedCertificate,

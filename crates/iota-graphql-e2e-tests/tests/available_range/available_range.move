@@ -8,7 +8,7 @@
 // committed; no pruner advances it) and `latest` never reaches the lookback
 // threshold, so the range is always `(0, latest)`.
 
-//# init --protocol-version 4 --simulator --objects-snapshot-min-checkpoint-lag 2
+//# init --protocol-version 4 --simulator
 
 //# run-graphql
 {

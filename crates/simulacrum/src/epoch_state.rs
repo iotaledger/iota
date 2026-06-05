@@ -10,7 +10,7 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
     committee::{Committee, EpochId},
     digests::TransactionDigest,
@@ -24,7 +24,7 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, MoveObjectExt, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };

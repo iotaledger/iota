@@ -3,8 +3,13 @@
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-"""Rolling migration test: start validators on a release image, then
-perform a mid-epoch rolling upgrade to a locally-built image.
+"""Rolling migration test: start validators on a release image under the
+role-based latency model (network-benchmark.sh), with Grafana/Prometheus
+monitoring, checkpoint-liveness tracking, and an optional stress load
+generator, then perform a rolling upgrade to a locally-built image. Simple
+mode (default) rolls a short fixed offset into the epoch and reports a
+pre/post-upgrade stable-window comparison; --mode advanced runs the full
+mid-epoch + post-upgrade restart schedule.
 
 Run from: iota/dev-tools/iota-private-network/experiments/
 """
@@ -13,23 +18,37 @@ from __future__ import annotations
 
 import argparse
 import atexit
-import json
+import math
 import os
 import random
 import re
-import selectors
 import shutil
 import signal
 import subprocess
 import sys
 import threading
 import time
-import urllib.parse
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+import experiment_common as ec
+from experiment_common import (
+    _C,
+    _phase_banner,
+    _phase_complete,
+    _progress_bar,
+    countdown as _countdown,
+    find_repo_root as _find_repo_root,
+    log,
+    log_status,
+    prometheus_query as _prometheus_query,
+    prometheus_scalar as _prometheus_scalar,
+    run,
+    run_timed,
+)
+
 
 
 # ========================= Configuration =========================
@@ -40,15 +59,17 @@ class Config:
     """All parameters for the migration test."""
 
     # --- Hardcoded (fixed for every run) ---
-    num_validators: int = 20
-    epoch_duration_ms: int = 900_000  # 15 minutes
+    num_validators: int = 10
+    epoch_duration_ms: int = 600_000  # 10 minutes
     seed: int = 42
     geodistributed: bool = True
     log_interval: int = 60  # save logs every N seconds
     final_epoch_settle_wait: int = 10  # seconds after the second post-start epoch
+    epoch_start_slop_seconds: int = 15  # epoch_0_start is observed after boot
 
     # Derived from epoch_duration_ms (set in __post_init__)
     mid_epoch_wait: int = field(init=False)
+    pre_rolling_wait: int = field(init=False)  # simple mode: wait into epoch 0 before rolling
     upgrade_delay: int = field(init=False)
     protocol_probe_wait: int = field(init=False)
     restart_settle_wait: int = field(init=False)
@@ -59,8 +80,20 @@ class Config:
     fresh_db_restart_pause_min: int = field(init=False)
     fresh_db_restart_pause_max: int = field(init=False)
     phase8_worst_case: int = field(init=False)
+    phase8_simple_estimate: int = field(init=False)
     phase9_epoch0_worst_case: int = field(init=False)
     timeline_safety_margin: int = field(init=False)
+    # End-of-run stable-window comparison: matched-length windows in epoch 0
+    # (pre-rolling, no upgrades started) and epoch 1 (post-migration, after a
+    # short settle offset). Window length is capped so total test time stays
+    # reasonable when pre_rolling_wait is large.
+    stable_window_seconds: int = field(init=False)
+    stable_window_settle_seconds: int = 30
+    block_measurement_seconds: int = 120
+    # Wait inside phase 6 for network-benchmark.sh to apply the matrix.
+    # The injector applies the full matrix in a few seconds and its watcher
+    # heals any wiped edge within ~2s, so 15s covers apply + consensus settle.
+    latency_apply_wait: int = 15
 
     image_old: str = "iota-node:old"
     image_upgrade: str = "iota-node:upgrade"
@@ -69,17 +102,18 @@ class Config:
     grafana_override_file: str = "docker-compose.migration-override.yaml"
 
     # --- CLI tunables ---
-    release_network: str = "devnet"
+    release_network: str = "testnet"
+    # "simple": fast rolling upgrade, no mid-epoch wait, no post-upgrade restarts.
+    # "advanced": full schedule with rolling offline windows + keep/wipe-DB restarts.
+    mode: str = "simple"
     build: bool = True
     chain_override: str = ""  # empty = Chain::Unknown (devnet-like)
     load_qps: int = 0
     load_in_flight_ratio: int = 5
     load_transfer_objects: int = 100
     load_rpc_address: str = "http://fullnode-1:9000"
-    load_tools_image: str = "iotaledger/iota-tools"
-    load_primary_gas_owner_id: str = (
-        "0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0"
-    )
+    load_tools_image: str = "iotaledger/stress"
+    load_primary_gas_owner_id: str = ec.DEFAULT_PRIMARY_GAS_OWNER_ID
 
     # --- Derived paths (set in __post_init__) ---
     script_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent)
@@ -90,6 +124,9 @@ class Config:
     log_file: Path = field(init=False)
 
     def __post_init__(self) -> None:
+        ec.validate_num_validators(self.num_validators)
+        if self.mode not in ("simple", "advanced"):
+            raise ValueError(f"mode must be 'simple' or 'advanced', got {self.mode!r}")
         if self.load_qps < 0:
             raise ValueError("load qps must be >= 0")
         if self.load_in_flight_ratio <= 0:
@@ -111,7 +148,12 @@ class Config:
         )
         self.fresh_db_restart_pause_min = self.rolling_restart_pause_min
         self.fresh_db_restart_pause_max = self.rolling_restart_pause_max
-        self.protocol_probe_wait = min(15, max(1, self.rolling_restart_pause_max // 2))
+        # Upper bound on waiting for validator-1's logs to show the new
+        # max_protocol_version after restart. The probe polls and exits as
+        # soon as the line appears (usually a few seconds); the bound covers
+        # slow starts (image load, WAL replay) and is charged to the phase-8
+        # estimates below.
+        self.protocol_probe_wait = 15
         self.restart_settle_wait = min(10, max(1, self.rolling_restart_pause_max // 3))
 
         # Keep the post-upgrade restarts inside the same epoch by scaling the
@@ -137,18 +179,91 @@ class Config:
             - self.phase8_worst_case
             - self.phase9_epoch0_worst_case
             - self.timeline_safety_margin
+            - self.epoch_start_slop_seconds
         )
         if self.mid_epoch_wait < 0:
-            required = (
-                self.phase8_worst_case
-                + self.phase9_epoch0_worst_case
-                + self.timeline_safety_margin
+            # Simple mode skips phases 7 and 9, so the rolling schedule need not
+            # fit inside one epoch — only advanced mode requires it.
+            if self.mode == "advanced":
+                required = (
+                    self.phase8_worst_case
+                    + self.phase9_epoch0_worst_case
+                    + self.timeline_safety_margin
+                    + self.epoch_start_slop_seconds
+                )
+                raise ValueError(
+                    "epoch duration is too short for the derived migration schedule: "
+                    f"need at least {required}s for {self.num_validators} validators, "
+                    f"got {epoch_s}s"
+                )
+            self.mid_epoch_wait = 0
+
+        # Simple mode: per-validator phase-8 cost is dominated by docker
+        # compose CLI overhead (~4-6s parsing the compose YAML + env file)
+        # plus container start (~3-5s). With `stop -t 1` and no per-validator
+        # log save / `docker ps` check, this lands around 10s. Plus the
+        # one-time protocol probe after validator-1 and the final liveness
+        # sweep (5s settle + one `docker ps`).
+        self.phase8_simple_estimate = n * 10 + self.protocol_probe_wait + 5
+        min_stable_window_seconds = 60
+        # Phases 5-6B burn epoch-0 time before the fixed pre-rolling wait is
+        # checked: the latency-apply wait, the block-production measurement
+        # window, plus slack for monitoring setup and matrix generation.
+        # pre_rolling_wait must cover them, or phase 7 would start already
+        # past its planned offset and abort.
+        pre_phase7_overhead = (
+            self.latency_apply_wait
+            + (
+                self.block_measurement_seconds
+                if self.block_measurement_enabled()
+                else 0
             )
-            raise ValueError(
-                "epoch duration is too short for the derived migration schedule: "
-                f"need at least {required}s for {self.num_validators} validators, "
-                f"got {epoch_s}s"
-            )
+            + 30
+        )
+        min_pre_rolling_wait = (
+            pre_phase7_overhead
+            + self.stable_window_settle_seconds
+            + min_stable_window_seconds
+        )
+        self.pre_rolling_wait = (
+            epoch_s
+            - self.phase8_simple_estimate
+            - self.timeline_safety_margin
+            - self.epoch_start_slop_seconds
+        )
+        if self.pre_rolling_wait < min_pre_rolling_wait:
+            if self.mode == "simple":
+                required = (
+                    min_pre_rolling_wait
+                    + self.phase8_simple_estimate
+                    + self.timeline_safety_margin
+                    + self.epoch_start_slop_seconds
+                )
+                raise ValueError(
+                    "epoch duration is too short for the simple migration schedule: "
+                    f"need at least {required}s for {self.num_validators} validators "
+                    f"({min_pre_rolling_wait}s pre-rolling wait covering "
+                    f"{pre_phase7_overhead}s phase 5-6B overhead, "
+                    f"{self.stable_window_settle_seconds}s settle, and a "
+                    f"{min_stable_window_seconds}s stable window, "
+                    f"{self.phase8_simple_estimate}s phase-8 estimate, "
+                    f"{self.timeline_safety_margin}s safety, "
+                    f"{self.epoch_start_slop_seconds}s epoch-start slop), "
+                    f"got {epoch_s}s"
+                )
+            self.pre_rolling_wait = min_pre_rolling_wait
+        # Stable analysis window: same length after setup completes in epoch 0
+        # and after the epoch-1 settle offset. Reserve estimated phase 5-6B
+        # overhead before deriving the available pre-upgrade window.
+        self.stable_window_seconds = max(
+            min_stable_window_seconds,
+            min(
+                180,
+                self.pre_rolling_wait
+                - pre_phase7_overhead
+                - self.stable_window_settle_seconds,
+            ),
+        )
 
         self.network_dir = self.script_dir.parent
         self.repo_root = _find_repo_root(self.script_dir)
@@ -161,18 +276,9 @@ class Config:
             if self.release_network in ("testnet", "mainnet"):
                 self.chain_override = self.release_network
 
-
-def _find_repo_root(start: Path) -> Path:
-    try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=start,
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        return Path(out.strip())
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return start.parent.parent.parent
+    def block_measurement_enabled(self) -> bool:
+        """Run the pre-upgrade report only in the simple schedule."""
+        return self.mode == "simple" and self.block_measurement_seconds > 0
 
 
 def _restart_validator_count(n: int) -> int:
@@ -195,285 +301,39 @@ def _pick_restart_validators(n: int, epoch: int) -> list[int]:
 # ========================= Globals / State =========================
 
 _cfg: Config | None = None
-_log_fh = None  # file handle for log file
 _cleaning = False
 _latency_proc: subprocess.Popen[str] | None = None
 _load_logs_proc: subprocess.Popen[str] | None = None
 _load_log_archived = False
-_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
-# ========================= Colors / Formatting =========================
+# ========================= Prometheus / Epoch =========================
 
 
-class _C:
-    """ANSI color codes, disabled when not writing to a terminal."""
+def get_current_epoch() -> int | None:
+    """Current epoch from Prometheus, or None when the query fails.
 
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
-
-    @classmethod
-    def disable(cls) -> None:
-        for attr in ("RESET", "BOLD", "DIM", "RED", "GREEN", "YELLOW",
-                      "BLUE", "MAGENTA", "CYAN", "WHITE"):
-            setattr(cls, attr, "")
-
-
-if not sys.stdout.isatty():
-    _C.disable()
-
-
-def _phase_banner(title: str, phase: str = "") -> str:
-    """Return a decorated phase header."""
-    c = _C
-    label = f"{phase}: " if phase else ""
-    return f"\n{c.BOLD}{c.CYAN}▶ {label}{title}{c.RESET}"
-
-
-def _phase_complete(phase: str, duration: float | None = None) -> str:
-    c = _C
-    dur = f" ({int(duration)}s)" if duration is not None else ""
-    return f"{c.GREEN}✔ {phase} complete{dur}{c.RESET}"
-
-
-def _progress_bar(current: int, total: int, width: int = 30) -> str:
-    frac = min(current / total, 1.0) if total else 0
-    filled = int(width * frac)
-    bar = "█" * filled + "░" * (width - filled)
-    pct = int(frac * 100)
-    return f"[{bar}] {pct:3d}%"
-
-
-def _countdown(seconds: int) -> None:
-    """Sleep for *seconds* with a live progress bar."""
-    start = time.time()
-    while time.time() < start + seconds:
-        elapsed = int(time.time() - start)
-        bar = _progress_bar(elapsed, seconds)
-        log_status(f"  {bar} {elapsed}s / {seconds}s")
-        time.sleep(1)
-    print()  # finish status line
-
-
-# ========================= Helpers =========================
-
-
-def log(msg: str) -> None:
-    ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
-    plain_msg = _ANSI_RE.sub("", msg).replace("\r", "")
-    colored = f"{_C.DIM}{ts}{_C.RESET} {msg}"
-    print(f"\r\033[K{colored}", flush=True)
-    if _log_fh is not None:
-        timestamp = datetime.now(timezone.utc).isoformat()
-        for line in plain_msg.split("\n"):
-            _log_fh.write(f"{timestamp} {line}\n")
-        _log_fh.flush()
-
-
-def log_status(msg: str) -> None:
-    """Overwrite the current terminal line with a status message (no newline).
-
-    The message is still written to the log file normally.
+    None (unknown) is deliberately distinct from 0 (genesis epoch) so a
+    transient Prometheus failure can't masquerade as an epoch reading.
     """
-    ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
-    plain_msg = _ANSI_RE.sub("", msg).replace("\r", "")
-    colored = f"{_C.DIM}{ts}{_C.RESET} {msg}"
-    print(f"\r\033[K{colored}", end="", flush=True)
-    if _log_fh is not None:
-        timestamp = datetime.now(timezone.utc).isoformat()
-        for line in plain_msg.split("\n"):
-            _log_fh.write(f"{timestamp} {line}\n")
-        _log_fh.flush()
-
-
-def run_timed(
-    cmd: list[str],
-    label: str,
-    *,
-    cwd: Path | None = None,
-    env: dict[str, str] | None = None,
-    check: bool = True,
-) -> subprocess.CompletedProcess[str]:
-    """Run a command quietly, showing *label* with a live elapsed timer.
-
-    On success the timer line is overwritten by the next output.
-    On failure the full buffered output is dumped.
-    """
-    start = time.time()
-
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        bufsize=1,
-    )
-    output_lines: list[str] = []
-
-    # Log the command to the file
-    if _log_fh is not None:
-        timestamp = datetime.now(timezone.utc).isoformat()
-        _log_fh.write(f"{timestamp}   $ {' '.join(cmd)}\n")
-        _log_fh.flush()
-
-    assert proc.stdout is not None
-    sel = selectors.DefaultSelector()
-    sel.register(proc.stdout, selectors.EVENT_READ)
-
-    while proc.poll() is None:
-        elapsed = int(time.time() - start)
-        log_status(f"  {label}... {_C.DIM}{elapsed}s{_C.RESET}")
-        ready = sel.select(timeout=1.0)
-        if ready:
-            raw_line = proc.stdout.readline()
-            if raw_line:
-                clean = _ANSI_RE.sub("", raw_line).replace("\r", "\n")
-                for line in clean.splitlines():
-                    output_lines.append(line)
-                    if _log_fh is not None:
-                        _log_fh.write(f"{datetime.now(timezone.utc).isoformat()}     {line}\n")
-
-    # Drain remaining output
-    for raw_line in proc.stdout:
-        clean = _ANSI_RE.sub("", raw_line).replace("\r", "\n")
-        for line in clean.splitlines():
-            output_lines.append(line)
-            if _log_fh is not None:
-                _log_fh.write(f"{datetime.now(timezone.utc).isoformat()}     {line}\n")
-    if _log_fh is not None:
-        _log_fh.flush()
-
-    sel.close()
-    returncode = proc.wait()
-    elapsed = int(time.time() - start)
-    result = subprocess.CompletedProcess(cmd, returncode, stdout="\n".join(output_lines), stderr="")
-
-    if check and returncode != 0:
-        print()  # finish status line
-        log(f"  {_C.RED}✘ {label} failed ({elapsed}s){_C.RESET}")
-        for line in output_lines:
-            if line:
-                log(f"    {line}")
-        raise subprocess.CalledProcessError(returncode, cmd, output=result.stdout)
-
-    # Show completion on status line (will be overwritten by next log/log_status)
-    log_status(f"  {label} {_C.DIM}{elapsed}s{_C.RESET}")
-    return result
-
-
-def run(
-    cmd: list[str],
-    *,
-    cwd: Path | None = None,
-    check: bool = True,
-    capture: bool = False,
-    env: dict[str, str] | None = None,
-    verbose: bool = False,
-    quiet: bool = False,
-) -> subprocess.CompletedProcess[str]:
-    """Run a subprocess with logging.
-
-    By default output is buffered silently. On failure the full output is
-    printed so the error context is visible. Pass ``verbose=True`` to stream
-    every line as it arrives (useful for long-running commands where progress
-    feedback matters). Pass ``quiet=True`` to also suppress the ``$ command``
-    echo (the command is still written to the log file).
-    """
-    if quiet:
-        # Write to log file only, not to terminal
-        if _log_fh is not None:
-            timestamp = datetime.now(timezone.utc).isoformat()
-            plain = " ".join(cmd)
-            _log_fh.write(f"{timestamp}   $ {plain}\n")
-            _log_fh.flush()
-    else:
-        log(f"  $ {' '.join(cmd)}")
-    if capture:
-        return subprocess.run(
-            cmd,
-            cwd=cwd,
-            check=check,
-            text=True,
-            capture_output=True,
-            env=env,
-        )
-
-    proc = subprocess.Popen(
-        cmd,
-        cwd=cwd,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        bufsize=1,
-        env=env,
-    )
-    output_lines: list[str] = []
-
-    assert proc.stdout is not None
-    for raw_line in proc.stdout:
-        clean = _ANSI_RE.sub("", raw_line).replace("\r", "\n")
-        for line in clean.splitlines():
-            output_lines.append(line)
-            if verbose and line:
-                log(f"    {line}")
-
-    returncode = proc.wait()
-    result = subprocess.CompletedProcess(
-        cmd,
-        returncode,
-        stdout="\n".join(output_lines),
-        stderr="",
-    )
-    if check and returncode != 0:
-        # Dump buffered output so the failure is diagnosable
-        if not verbose:
-            for line in output_lines:
-                if line:
-                    log(f"    {line}")
-        raise subprocess.CalledProcessError(returncode, cmd, output=result.stdout)
-    return result
-
-
-def _prometheus_query(expr: str) -> dict[str, object] | None:
-    try:
-        query = urllib.parse.urlencode({"query": expr})
-        with urllib.request.urlopen(
-            f"http://localhost:9090/api/v1/query?{query}", timeout=5
-        ) as resp:
-            return json.loads(resp.read())
-    except Exception:
-        return None
-
-
-def _prometheus_scalar(expr: str) -> str | None:
-    data = _prometheus_query(expr)
-    if not data:
-        return None
-    try:
-        result = data["data"]["result"]
-        if not result:
-            return None
-        return str(result[0]["value"][1])
-    except (KeyError, IndexError, TypeError):
-        return None
-
-
-def get_current_epoch() -> int:
     try:
         value = _prometheus_scalar("max(current_epoch)")
-        return int(value) if value is not None else 0
+        return int(value) if value is not None else None
     except Exception:
-        return 0
+        return None
+
+
+def get_current_epoch_or_raise(attempts: int = 5, delay: float = 2.0) -> int:
+    """get_current_epoch with retries; raises after repeated query failures."""
+    for attempt in range(attempts):
+        epoch = get_current_epoch()
+        if epoch is not None:
+            return epoch
+        if attempt < attempts - 1:
+            time.sleep(delay)
+    raise RuntimeError(
+        f"could not read current epoch from Prometheus after {attempts} attempts"
+    )
 
 
 def wait_for_epoch_change(cfg: Config, epoch_before: int) -> int:
@@ -482,9 +342,12 @@ def wait_for_epoch_change(cfg: Config, epoch_before: int) -> int:
     timeout = cfg.epoch_duration_ms // 1000 * 3 // 2  # 1.5x epoch duration
     start = time.time()
 
+    last_known = epoch_before
     while True:
         epoch_now = get_current_epoch()
-        if epoch_now > epoch_before:
+        if epoch_now is not None:
+            last_known = epoch_now
+        if epoch_now is not None and epoch_now > epoch_before:
             print()  # finish status line
             log(f"  {_C.GREEN}Epoch advanced to {epoch_now}{_C.RESET} (was {epoch_before})")
             return epoch_now
@@ -493,10 +356,11 @@ def wait_for_epoch_change(cfg: Config, epoch_before: int) -> int:
         if elapsed >= timeout:
             print()  # finish status line
             log(f"  {_C.YELLOW}WARNING: Epoch did not advance within {timeout}s — proceeding anyway{_C.RESET}")
-            return epoch_now
+            return last_known
 
         bar = _progress_bar(elapsed, timeout)
-        log_status(f"  Epoch wait: {bar} epoch={epoch_now}, {elapsed}s / {timeout}s")
+        epoch_label = "?" if epoch_now is None else str(epoch_now)
+        log_status(f"  Epoch wait: {bar} epoch={epoch_label}, {elapsed}s / {timeout}s")
         time.sleep(30)
 
 
@@ -509,40 +373,16 @@ class CheckpointMonitor:
 
     _MS_PER_SECOND = 1000.0
 
-    # Block commit latency (covers both metric naming conventions)
-    _BLK_P50 = (
-        "quantile(0.5,"
-        " rate(consensus_block_commit_latency_sum[1m])"
-        " / rate(consensus_block_commit_latency_count[1m])"
-        " or rate(consensus_block_header_commit_latency_sum[1m])"
-        " / rate(consensus_block_header_commit_latency_count[1m]))"
-    )
-    _BLK_P90 = (
-        "histogram_quantile(0.9,"
-        " sum(rate(consensus_block_commit_latency_bucket[1m])) by (le)"
-        " or sum(rate(consensus_block_header_commit_latency_bucket[1m])) by (le))"
-    )
-    # Transaction commit latency (falls back to block latency if unavailable)
-    _TXN_P50 = (
-        "quantile(0.5,"
-        " rate(consensus_transaction_commit_latency_sum[1m])"
-        " / rate(consensus_transaction_commit_latency_count[1m])"
-        " or rate(consensus_block_commit_latency_sum[1m])"
-        " / rate(consensus_block_commit_latency_count[1m])"
-        " or rate(consensus_block_header_commit_latency_sum[1m])"
-        " / rate(consensus_block_header_commit_latency_count[1m]))"
-    )
-    _TXN_P90 = (
-        "histogram_quantile(0.9,"
-        " sum(rate(consensus_transaction_commit_latency_bucket[1m])) by (le)"
-        " or sum(rate(consensus_block_commit_latency_bucket[1m])) by (le)"
-        " or sum(rate(consensus_block_header_commit_latency_bucket[1m])) by (le))"
-    )
+    _COMMIT_LATENCY_QUERIES = ec._commit_latency_queries(60)
+    _BLK_P50 = _COMMIT_LATENCY_QUERIES["blk_p50"]
+    _BLK_P95 = _COMMIT_LATENCY_QUERIES["blk_p95"]
+    _TXN_P50 = _COMMIT_LATENCY_QUERIES["txn_p50"]
+    _TXN_P95 = _COMMIT_LATENCY_QUERIES["txn_p95"]
 
     def __init__(self, interval: int = 10):
         self.interval = interval
         self._samples: list[tuple[float, int, int]] = []  # (ts, checkpoint, epoch)
-        # (ts, epoch, blk_p50, blk_p90, txn_p50, txn_p90)
+        # (ts, epoch, blk_p50, blk_p95, txn_p50, txn_p95)
         self._latencies: list[tuple[float, int, float, float, float, float]] = []
         self._stalls: list[tuple[float, float, int]] = []
         self._epoch_regressions: list[tuple[float, int, int, int]] = []
@@ -615,12 +455,12 @@ class CheckpointMonitor:
                 elif stall_start is None and last_cp >= 0:
                     stall_start = now
             bp50 = self._query_latency_ms(self._BLK_P50)
-            bp90 = self._query_latency_ms(self._BLK_P90)
+            bp95 = self._query_latency_ms(self._BLK_P95)
             tp50 = self._query_latency_ms(self._TXN_P50)
-            tp90 = self._query_latency_ms(self._TXN_P90)
+            tp95 = self._query_latency_ms(self._TXN_P95)
             if bp50 >= 0:
                 self._latencies.append((
-                    now, epoch, bp50, bp90, tp50, tp90,
+                    now, epoch, bp50, bp95, tp50, tp95,
                 ))
             self._stop.wait(self.interval)
         if stall_start is not None:
@@ -676,6 +516,77 @@ class CheckpointMonitor:
             segments.append((current_epoch, start_ts, last_ts, start_cp, last_cp))
         return segments
 
+    def stable_window_report(
+        self,
+        cfg: "Config",
+        pre_upgrade_ready_ts: float,
+        epoch_1_start_ts: float,
+    ) -> str:
+        """Side-by-side metric comparison over equal-length stable windows.
+
+        Pre-upgrade window: [setup_complete + settle, setup_complete + settle
+        + window]. Setup is complete only after monitoring, latency, optional
+        load, and the block-production measurement are established.
+
+        Epoch 1 window: [epoch_1_start + settle, epoch_1_start + settle + window].
+        Skips the reconfig transient; same duration as the pre-upgrade window.
+
+        Queries Prometheus with the `@` modifier so the report stays valid
+        regardless of how long the test ran after these windows.
+        """
+        w = cfg.stable_window_seconds
+        settle = cfg.stable_window_settle_seconds
+        e0_window_start = pre_upgrade_ready_ts + settle
+        e1_window_start = epoch_1_start_ts + settle
+        e0_end = int(e0_window_start + w)
+        e1_end = int(e1_window_start + w)
+
+        def _eval(expr: str) -> float | None:
+            data = _prometheus_query(expr)
+            if not data:
+                return None
+            try:
+                r = data["data"]["result"]
+                if not r:
+                    return None
+                v = float(r[0]["value"][1])
+                return v if v == v else None  # NaN guard
+            except (KeyError, IndexError, TypeError, ValueError):
+                return None
+
+        # (label, query_template, unit, value_scale)
+        metrics = [
+            ("Tx commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Tx commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Tx commit p99", "histogram_quantile(0.99, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_block_commit_latency_bucket[{w}s] @ {t})) or sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_block_commit_latency_bucket[{w}s] @ {t})) or sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Proposed blocks/s", "sum(rate(consensus_proposed_blocks[{w}s] @ {t}))", "blk/s", 1.0),
+            ("Commits/s", "sum(rate(consensus_transaction_commit_latency_count[{w}s] @ {t}))", "/s", 1.0),
+        ]
+
+        e0_label = datetime.fromtimestamp(e0_window_start, tz=timezone.utc).strftime("%H:%M:%S")
+        e1_label = datetime.fromtimestamp(e1_window_start, tz=timezone.utc).strftime("%H:%M:%S")
+        lines = [
+            f"  Windows ({w}s each): pre-upgrade starts {e0_label} UTC "
+            f"(= setup_complete_at + {settle}s settle), "
+            f"post-upgrade starts {e1_label} UTC (= next_epoch_at + {settle}s settle)",
+            "",
+            f"  {'Metric':<24} {'pre-upgrade':>14} {'post-upgrade':>14} {'delta':>14}",
+            f"  {'-' * 24} {'-' * 14:>14} {'-' * 14:>14} {'-' * 14:>14}",
+        ]
+        for label, tpl, unit, scale in metrics:
+            v0 = _eval(tpl.format(w=w, t=e0_end))
+            v1 = _eval(tpl.format(w=w, t=e1_end))
+            s0 = f"{v0 * scale:.1f} {unit}" if v0 is not None else "—"
+            s1 = f"{v1 * scale:.1f} {unit}" if v1 is not None else "—"
+            if v0 is not None and v1 is not None:
+                sd = f"{(v1 - v0) * scale:+.1f} {unit}"
+            else:
+                sd = "—"
+            lines.append(f"  {label:<24} {s0:>14} {s1:>14} {sd:>14}")
+        return "\n".join(lines)
+
     def report(self) -> str:
         if not self._samples:
             return "  No checkpoint samples collected."
@@ -695,11 +606,11 @@ class CheckpointMonitor:
         ]
         if self._latencies:
             bp50 = self._median([v for _, _, v, _, _, _ in self._latencies])
-            bp90 = self._median([v for _, _, _, v, _, _ in self._latencies])
+            bp95 = self._median([v for _, _, _, v, _, _ in self._latencies])
             tp50 = self._median([v for _, _, _, _, v, _ in self._latencies if v >= 0])
-            tp90 = self._median([v for _, _, _, _, _, v in self._latencies if v >= 0])
-            lines.append(f"  Block  lat   : p50={bp50:.0f}ms  p90={bp90:.0f}ms")
-            lines.append(f"  Tx lat       : p50={tp50:.0f}ms  p90={tp90:.0f}ms")
+            tp95 = self._median([v for _, _, _, _, _, v in self._latencies if v >= 0])
+            lines.append(f"  Block  lat   : p50={bp50:.0f}ms  p95={bp95:.0f}ms")
+            lines.append(f"  Tx lat       : p50={tp50:.0f}ms  p95={tp95:.0f}ms")
         lines.append(f"  Samples      : {len(self._samples)}")
         epoch_changes = self._observed_epoch_changes()
         lines.append(f"  Stalls       : {len(self._stalls) if self._stalls else 'none'}")
@@ -723,17 +634,17 @@ class CheckpointMonitor:
 
         # --- Per-epoch table ---
         lat_by_epoch: dict[int, list[tuple[float, float, float, float]]] = {}
-        for _, ep, bp50, bp90, tp50, tp90 in self._latencies:
+        for _, ep, bp50, bp95, tp50, tp95 in self._latencies:
             if ep < 0:
                 continue
-            lat_by_epoch.setdefault(ep, []).append((bp50, bp90, tp50, tp90))
+            lat_by_epoch.setdefault(ep, []).append((bp50, bp95, tp50, tp95))
 
         epoch_segments = self._epoch_segments()
         if len(epoch_segments) > 1:
             hdr = (
                 f"  {'Epoch':>5}  {'Duration':>8}  {'CP rate':>8}"
-                f"  {'Blk p50':>8}  {'Blk p90':>8}"
-                f"  {'Tx p50':>8}  {'Tx p90':>8}"
+                f"  {'Blk p50':>8}  {'Blk p95':>8}"
+                f"  {'Tx p50':>8}  {'Tx p95':>8}"
             )
             sep = (
                 f"  {'-----':>5}  {'--------':>8}  {'-------':>8}"
@@ -751,15 +662,15 @@ class CheckpointMonitor:
                 lats = lat_by_epoch.get(ep, [])
                 if lats:
                     ebp50 = f"{self._median([v for v, _, _, _ in lats]):.0f}ms"
-                    ebp90 = f"{self._median([v for _, v, _, _ in lats]):.0f}ms"
+                    ebp95 = f"{self._median([v for _, v, _, _ in lats]):.0f}ms"
                     etp50 = f"{self._median([v for _, _, v, _ in lats if v >= 0]):.0f}ms"
-                    etp90 = f"{self._median([v for _, _, _, v in lats if v >= 0]):.0f}ms"
+                    etp95 = f"{self._median([v for _, _, _, v in lats if v >= 0]):.0f}ms"
                 else:
-                    ebp50 = ebp90 = etp50 = etp90 = "-"
+                    ebp50 = ebp95 = etp50 = etp95 = "-"
                 lines.append(
                     f"  {ep:>5}  {dur_s:>8}  {rate_s:>8}"
-                    f"  {ebp50:>8}  {ebp90:>8}"
-                    f"  {etp50:>8}  {etp90:>8}"
+                    f"  {ebp50:>8}  {ebp95:>8}"
+                    f"  {etp50:>8}  {etp95:>8}"
                 )
 
         return "\n".join(lines)
@@ -808,17 +719,16 @@ def start_load_generator(cfg: Config) -> None:
     phase_start = time.time()
     log(_phase_banner(f"Starting load generator ({cfg.load_qps} qps)", "PHASE 6b"))
 
-    genesis_blob = cfg.network_dir / "configs" / "genesis" / "genesis.blob"
-    faucet_keystore = cfg.network_dir / "configs" / "faucet" / "iota.keystore"
-    load_keystore_dir = cfg.log_dir / "load-generator-keystore"
-    load_keystore = load_keystore_dir / "iota.keystore"
-    if not genesis_blob.exists():
-        raise FileNotFoundError(f"genesis blob not found: {genesis_blob}")
-    if not faucet_keystore.exists():
-        raise FileNotFoundError(f"faucet keystore not found: {faucet_keystore}")
-    shutil.rmtree(load_keystore_dir, ignore_errors=True)
-    load_keystore_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(faucet_keystore, load_keystore)
+    # Load was explicitly requested (--load-qps > 0). The image was resolved
+    # up front by ensure_stress_image (pull or build); this non-interactive
+    # guard fails the run instead of silently measuring an unloaded network
+    # if it is somehow still missing.
+    if not ec.ensure_image(cfg.load_tools_image):
+        raise RuntimeError(
+            f"--load-qps {cfg.load_qps} requested but image "
+            f"{cfg.load_tools_image} is unavailable — `docker login` to the "
+            "registry or pass --load-tools-image"
+        )
 
     for sec in range(30):
         result = run(
@@ -835,63 +745,19 @@ def start_load_generator(cfg: Config) -> None:
         raise RuntimeError("fullnode-1 is not running; cannot start load generator")
     print()
 
-    run(["docker", "rm", "-f", "stress-benchmark"], check=False, quiet=True)
-    result = run(
-        [
-            "docker",
-            "run",
-            "-d",
-            "--rm",
-            "--name",
-            "stress-benchmark",
-            "--network",
-            _migration_network_name(cfg),
-            "-v",
-            f"{genesis_blob.resolve()}:/opt/iota/config/genesis.blob:ro",
-            "-v",
-            f"{load_keystore_dir.resolve()}:/opt/iota/config:rw",
-            cfg.load_tools_image,
-            "/usr/local/bin/stress",
-            "--local",
-            "false",
-            "--use-fullnode-for-execution",
-            "true",
-            "--fullnode-rpc-addresses",
-            cfg.load_rpc_address,
-            "--genesis-blob-path",
-            "/opt/iota/config/genesis.blob",
-            "--keystore-path",
-            "/opt/iota/config/iota.keystore",
-            "--primary-gas-owner-id",
-            cfg.load_primary_gas_owner_id,
-            "bench",
-            "--target-qps",
-            str(cfg.load_qps),
-            "--in-flight-ratio",
-            str(cfg.load_in_flight_ratio),
-            "--transfer-object",
-            str(cfg.load_transfer_objects),
-        ],
-        capture=True,
-        quiet=True,
+    # Shared implementation: writable keystore copy, docker run, and a 5s
+    # startup liveness check (raises with the container logs on failure).
+    ec.start_stress_container(
+        image=cfg.load_tools_image,
+        network_name=_migration_network_name(cfg),
+        network_dir=cfg.network_dir,
+        log_dir=cfg.log_dir,
+        rpc_address=cfg.load_rpc_address,
+        gas_owner_id=cfg.load_primary_gas_owner_id,
+        target_qps=cfg.load_qps,
+        in_flight_ratio=cfg.load_in_flight_ratio,
+        transfer_objects=cfg.load_transfer_objects,
     )
-    container_id = result.stdout.strip()[:12] or "unknown"
-
-    # Health check: verify the container is still running after a short startup period
-    time.sleep(5)
-    health = run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", "stress-benchmark"],
-        capture=True, check=False, quiet=True,
-    )
-    if health.returncode != 0 or health.stdout.strip() != "true":
-        fail_logs = run(
-            ["docker", "logs", "--tail", "20", "stress-benchmark"],
-            capture=True, check=False, quiet=True,
-        )
-        raise RuntimeError(
-            f"Load generator exited immediately after start.\n"
-            f"  Last logs:\n{fail_logs.stdout.strip()}"
-        )
 
     # Verify the stress tool actually connected to the fullnode RPC.
     # "Found new state" is emitted after successful system state retrieval.
@@ -927,7 +793,6 @@ def start_load_generator(cfg: Config) -> None:
     )
     load_log_fh.close()
 
-    log(f"  Load generator container: {container_id}")
     log(f"  RPC target: {cfg.load_rpc_address}")
     log(f"  Logs: {load_log}")
     log(_phase_complete("Phase 6b", time.time() - phase_start))
@@ -962,7 +827,7 @@ def stop_load_generator(cfg: Config) -> None:
 
 
 def cleanup() -> None:
-    global _cleaning, _log_fh
+    global _cleaning
     if _cleaning:
         return
     _cleaning = True
@@ -1019,17 +884,13 @@ def cleanup() -> None:
     if data_dir.exists():
         subprocess.run(["sudo", "rm", "-rf", str(data_dir)], check=False)
 
-    lock_dir = cfg.script_dir / "logs" / "network-benchmark-locks"
-    shutil.rmtree(lock_dir, ignore_errors=True)
     shutil.rmtree(cfg.log_dir / "load-generator-keystore", ignore_errors=True)
 
     log("Cleanup complete.")
     # Restore terminal to a sane state after subprocess output
     os.system("stty sane 2>/dev/null")
     print("\r\033[K", end="", flush=True)
-    if _log_fh is not None:
-        _log_fh.close()
-        _log_fh = None
+    ec.close_logging()
 
 
 def _signal_handler(signum: int, _frame: object) -> None:
@@ -1312,6 +1173,21 @@ def _read_validator_protocol_info(validator: str = "validator-1", *, last: bool 
     return max_protocol, consensus
 
 
+def _probe_protocol_info(validator: str, deadline_s: int) -> tuple[str, str]:
+    """Poll a freshly (re)started validator's logs for its protocol info.
+
+    Returns as soon as the max_protocol_version line appears, bounded by
+    *deadline_s* so a slow start degrades to 'unknown' instead of stalling
+    the schedule.
+    """
+    deadline = time.time() + deadline_s
+    while True:
+        proto, consensus = _read_validator_protocol_info(validator, last=True)
+        if proto or time.time() >= deadline:
+            return proto, consensus
+        time.sleep(2)
+
+
 # ========================= Phase 5: Start Monitoring =========================
 
 
@@ -1327,30 +1203,55 @@ def phase5_start_monitoring(cfg: Config) -> None:
         "    external: true\n"
     )
 
-    run_timed(
-        [
-            "docker",
-            "compose",
-            "--ansi",
-            "never",
-            "-f",
-            "docker-compose.yaml",
-            "-f",
-            cfg.grafana_override_file,
-            "up",
-            "-d",
-        ],
-        "Starting/reusing monitoring containers",
-        cwd=cfg.grafana_dir,
-    )
-
-    print()  # finish status line
-    log(f"  Grafana: {_C.CYAN}http://localhost:3000/dashboards{_C.RESET}")
-    log(f"  Prometheus: {_C.CYAN}http://localhost:9090/targets{_C.RESET}")
+    # start_grafana force-recreates: a monitoring container left over from a
+    # prior run still references that run's (now deleted) network ID and
+    # otherwise fails `up` with "network ... not found".
+    ec.start_grafana(cfg.grafana_dir, cfg.grafana_override_file)
     log(_phase_complete("Phase 5", time.time() - phase_start))
 
 
 # ========================= Phase 6: Apply Latency =========================
+
+
+def _generate_latency_matrix(cfg: Config) -> Path:
+    """Dump the effective latency matrix to ``logs/latency-matrix.tsv``.
+
+    network-benchmark.sh natively computes the role-based model (the single
+    source of truth) for any validator count; ``-D`` writes the matrix it
+    would apply without touching docker or netem state. The dump serves as
+    the run's audit artifact and feeds the logged summary.
+    """
+    matrix_path = cfg.log_dir / "latency-matrix.tsv"
+    run(
+        [
+            "./network-benchmark.sh",
+            "-n",
+            str(cfg.num_validators),
+            "-g",
+            str(cfg.geodistributed).lower(),
+            "-o",
+            str(cfg.log_file.resolve()),
+            "-D",
+            str(matrix_path.resolve()),
+        ],
+        cwd=cfg.script_dir,
+        quiet=True,
+    )
+
+    rows = [
+        line.split("\t")
+        for line in matrix_path.read_text().splitlines()
+        if line and not line.startswith("#")
+    ]
+    delays = [int(row[2]) for row in rows]
+    slot_edges = sum(1 for row in rows if len(row) > 7 and int(row[7]) > 0)
+    log(f"  {_C.BOLD}Latency matrix{_C.RESET}    : {matrix_path}")
+    log(
+        f"  Edges: {len(rows)}, delay mean/max: "
+        f"{sum(delays) / len(delays):.1f}/{max(delays)} ms, "
+        f"slot-burst edges: {slot_edges}"
+    )
+    return matrix_path
 
 
 def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
@@ -1363,13 +1264,18 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
         )
     )
 
-    # Kill stale network-benchmark.sh from a previous run (may be owned by root)
+    # Kill stale network-benchmark.sh from a previous run (may be owned by root).
+    # The script sweeps its own lock directory at startup, so no extra cleanup here.
     run(["sudo", "pkill", "-f", r"network-benchmark\.sh"], check=False, quiet=True)
 
     # Avoid confusion from a stale default benchmark log; this migration run writes
     # all latency-script output into the main migration log instead.
     stale_fuzz_log = cfg.script_dir / "logs" / "fuzz_script.log"
     stale_fuzz_log.unlink(missing_ok=True)
+
+    # Dump the effective matrix for the log; the injector below computes the
+    # same role-based model natively, so no -L override is passed.
+    _generate_latency_matrix(cfg)
 
     latency_output = cfg.log_file.open("a")
 
@@ -1399,8 +1305,9 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     latency_output.close()
     _latency_proc = proc
 
-    # Wait for latency application (no readiness marker on develop version)
-    latency_wait = 30
+    # network-benchmark.sh emits no readiness marker, so wait a fixed window
+    # for the matrix to apply and consensus to settle.
+    latency_wait = cfg.latency_apply_wait
     for sec in range(latency_wait):
         if proc.poll() is not None:
             raise RuntimeError(
@@ -1415,6 +1322,23 @@ def phase6_apply_latency(cfg: Config) -> subprocess.Popen[str]:
     return proc
 
 
+def measure_block_production(cfg: Config) -> None:
+    if cfg.mode == "advanced":
+        # The advanced schedule must fit phases 7-9 inside epoch 0; the
+        # measurement window does not, so it is simple-mode only.
+        log("  Block-production measurement skipped in advanced mode")
+        return
+    if not cfg.block_measurement_enabled():
+        log("  Block-production measurement disabled")
+        return
+
+    # Shared implementation: per-validator own-block rates, block-creation
+    # reasons, and block/transaction commit latencies over the window.
+    ec.measure_block_production(
+        cfg.num_validators, cfg.block_measurement_seconds, phase="PHASE 6B",
+    )
+
+
 # ========================= Phase 7: Wait Mid-Epoch =========================
 
 
@@ -1423,7 +1347,9 @@ def phase7_wait_mid_epoch(cfg: Config, epoch_0_start: float) -> None:
     epoch_s = cfg.epoch_duration_ms // 1000
     elapsed_since_epoch_start = int(time.time() - epoch_0_start)
     required_after_phase7 = cfg.phase8_worst_case + cfg.phase9_epoch0_worst_case
-    remaining_epoch = epoch_s - elapsed_since_epoch_start
+    remaining_epoch = (
+        epoch_s - elapsed_since_epoch_start - cfg.epoch_start_slop_seconds
+    )
     if remaining_epoch < required_after_phase7:
         raise RuntimeError(
             "not enough epoch time left for migration schedule: "
@@ -1436,6 +1362,7 @@ def phase7_wait_mid_epoch(cfg: Config, epoch_0_start: float) -> None:
     log(
         f"  Epoch elapsed={elapsed_since_epoch_start}s, "
         f"reserved after wait={required_after_phase7}s, "
+        f"epoch-start slop={cfg.epoch_start_slop_seconds}s, "
         f"safety={max(0, remaining_epoch - wait_s - required_after_phase7)}s"
     )
 
@@ -1448,6 +1375,48 @@ def phase7_wait_mid_epoch(cfg: Config, epoch_0_start: float) -> None:
         if time.time() - last_log_save >= cfg.log_interval:
             save_validator_logs(cfg, cfg.num_validators)
             last_log_save = time.time()
+        time.sleep(1)
+
+    print()  # finish status line
+    log(_phase_complete("Phase 7", time.time() - phase_start))
+
+
+def phase7_wait_fixed(
+    cfg: Config, epoch_0_start: float, stable_window_complete_at: float
+) -> None:
+    """Simple mode: wait a short fixed offset into epoch 0 before rolling.
+
+    Unlike the advanced schedule, simple mode does not reserve epoch time for
+    post-upgrade restarts, so it just gives the network a brief warm-up before
+    the upgrade rather than aiming for mid-epoch. No in-loop log save: each
+    `docker logs` over 10 validators with multi-minute accumulated state takes
+    tens of seconds and was making phase 7 overshoot its budget; the post-run
+    archive captures everything we need.
+    """
+    phase_start = time.time()
+    planned_start = epoch_0_start + cfg.pre_rolling_wait
+    if stable_window_complete_at > planned_start:
+        overrun = math.ceil(stable_window_complete_at - planned_start)
+        raise RuntimeError(
+            "pre-upgrade stable window does not fit before the planned rolling "
+            f"upgrade ({overrun}s over budget). Increase --epoch-duration or "
+            "reduce --num-validators/--block-measurement-seconds."
+        )
+    elapsed = int(time.time() - epoch_0_start)
+    if elapsed > cfg.pre_rolling_wait:
+        raise RuntimeError(
+            "simple migration schedule missed the planned rolling-upgrade start: "
+            f"elapsed={elapsed}s, planned={cfg.pre_rolling_wait}s from epoch start. "
+            "Increase --epoch-duration or reduce --num-validators."
+        )
+    wait_s = max(0, cfg.pre_rolling_wait - elapsed)
+    log(_phase_banner(f"Waiting {wait_s}s before rolling upgrade", "PHASE 7"))
+
+    start = time.time()
+    while time.time() < start + wait_s:
+        e = int(time.time() - start)
+        bar = _progress_bar(e, wait_s)
+        log_status(f"  {bar} {e}s / {wait_s}s")
         time.sleep(1)
 
     print()  # finish status line
@@ -1477,49 +1446,63 @@ def phase8_rolling_upgrade(
         bar = _progress_bar(i - 1, cfg.num_validators)
         log_status(f"  {bar} Upgrading {_C.BOLD}{v}{_C.RESET}...")
 
-        # Save pre-upgrade logs
-        with (cfg.log_dir / f"pre-upgrade-{v}.log").open("w") as fh:
-            subprocess.run(
-                ["docker", "logs", v],
-                stdout=fh,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
+        # Advanced mode snapshots per-validator pre-upgrade logs for debugging
+        # rolling-window scheduling. Simple mode skips it: each `docker logs`
+        # over a multi-minute-old validator takes 5–10s, and the final archive
+        # at phase 10 captures the same state.
+        if cfg.mode == "advanced":
+            with (cfg.log_dir / f"pre-upgrade-{v}.log").open("w") as fh:
+                subprocess.run(
+                    ["docker", "logs", v],
+                    stdout=fh,
+                    stderr=subprocess.STDOUT,
+                    check=False,
+                )
 
         # Append image override to env file
         with env_path.open("a") as f:
             f.write(f"VALIDATOR_{i}_IMAGE={cfg.image_upgrade}\n")
 
-        # Stop old container, pause (simulating real-world upgrade delay), start new
-        docker_compose(cfg, ["stop", v], quiet=True)
-        restart_pause = rng.randint(
-            cfg.rolling_restart_pause_min,
-            cfg.rolling_restart_pause_max,
-        )
-        log_status(f"  {bar} {v} stopped — restarting in {restart_pause}s...")
-        time.sleep(restart_pause)
+        # Stop old container, start it back on the upgrade image. Advanced mode
+        # keeps each validator offline for a randomized rolling window (and paces
+        # between validators); simple mode swaps back-to-back with a 1s SIGTERM
+        # grace, so only one validator is briefly down at a time. RocksDB WAL
+        # makes the short grace safe (replay on restart restores last state).
+        stop_args = ["stop", v] if cfg.mode == "advanced" else ["stop", "-t", "1", v]
+        docker_compose(cfg, stop_args, quiet=True)
+        if cfg.mode == "advanced":
+            restart_pause = rng.randint(
+                cfg.rolling_restart_pause_min,
+                cfg.rolling_restart_pause_max,
+            )
+            log_status(f"  {bar} {v} stopped — restarting in {restart_pause}s...")
+            time.sleep(restart_pause)
         docker_compose(cfg, ["up", "-d", "--no-deps", v], quiet=True)
 
-        time.sleep(cfg.upgrade_delay)
-
-        result = run(
-            ["docker", "ps", "--format", "{{.Names}}"],
-            capture=True,
-            quiet=True,
-        )
-        running_names = set(result.stdout.strip().splitlines())
-        if v in running_names:
-            bar = _progress_bar(i, cfg.num_validators)
-            log_status(f"  {bar} {_C.GREEN}✔{_C.RESET} {v} upgraded")
-        else:
-            print()  # newline before error
-            raise RuntimeError(f"{v} failed to start after upgrade!")
+        if cfg.mode == "advanced":
+            time.sleep(cfg.upgrade_delay)
+            # `docker ps` validation is advanced-mode only because the
+            # randomized restart pause introduces a non-trivial window where
+            # the container could legitimately fail to come up. Simple mode
+            # trusts `docker compose up`'s exit code (raised on failure).
+            result = run(
+                ["docker", "ps", "--format", "{{.Names}}"],
+                capture=True,
+                quiet=True,
+            )
+            running_names = set(result.stdout.strip().splitlines())
+            if v not in running_names:
+                print()  # newline before error
+                raise RuntimeError(f"{v} failed to start after upgrade!")
+        bar = _progress_bar(i, cfg.num_validators)
+        log_status(f"  {bar} {_C.GREEN}✔{_C.RESET} {v} upgraded")
 
         # After first validator, extract upgrade protocol info
         if i == 1:
             print()  # finish status line
-            time.sleep(cfg.protocol_probe_wait)
-            upgrade_proto, upgrade_consensus = _read_validator_protocol_info("validator-1", last=True)
+            upgrade_proto, upgrade_consensus = _probe_protocol_info(
+                "validator-1", cfg.protocol_probe_wait
+            )
             log(f"  {_C.BOLD}Protocol Version Comparison{_C.RESET}")
             log(
                 f"  {_C.YELLOW}Old{_C.RESET}     ({cfg.release_network:>8s})            : "
@@ -1530,6 +1513,27 @@ def phase8_rolling_upgrade(
                 f"  {_C.GREEN}Upgrade{_C.RESET} ({local_branch}@{local_commit}) : "
                 f"max_protocol={upgrade_proto or 'unknown'}, "
                 f"consensus={upgrade_consensus or 'unknown'}"
+            )
+
+    if cfg.mode == "simple":
+        # `docker compose up -d` exits 0 even if the node crashes right after
+        # start, so sweep once at the end: every upgraded validator must
+        # still be running. (Advanced mode checks per validator above.)
+        time.sleep(5)
+        result = run(
+            ["docker", "ps", "--format", "{{.Names}}"], capture=True, quiet=True
+        )
+        running_names = set(result.stdout.strip().splitlines())
+        missing = [
+            f"validator-{i}"
+            for i in range(1, cfg.num_validators + 1)
+            if f"validator-{i}" not in running_names
+        ]
+        if missing:
+            print()  # newline before error
+            raise RuntimeError(
+                "validators not running after rolling upgrade: "
+                + ", ".join(missing)
             )
 
     duration = time.time() - upgrade_start
@@ -1633,7 +1637,7 @@ def phase9_post_upgrade_restarts(
     upgrade_consensus: str,
 ) -> int:
     # --- 9a: Epoch 0 — restart with DB intact ---
-    epoch_0 = get_current_epoch()
+    epoch_0 = get_current_epoch_or_raise()
     phase_start = time.time()
     log(_phase_banner(f"Epoch {epoch_0} — restart with DB intact", "PHASE 9a"))
     log(f"  Waiting {cfg.restart_pause_keep_db}s before restart...")
@@ -1705,6 +1709,55 @@ def phase9_post_upgrade_restarts(
 # ========================= Phase 10: Observation =========================
 
 
+def phase10_observe_stable_window(cfg: Config, epoch_0_at_phase8_end: int) -> int:
+    """Simple-mode post-upgrade observation.
+
+    Waits for the next epoch to start (proves the upgrade vote landed), then
+    sleeps `stable_window_settle_seconds + stable_window_seconds` so the
+    end-of-run report has a clean stable window in the post-upgrade epoch that
+    matches the pre-rolling window. The precise next-epoch start timestamp is
+    read from the CheckpointMonitor's higher-resolution polling, not from here.
+    """
+    phase_start = time.time()
+    total_wait = cfg.stable_window_settle_seconds + cfg.stable_window_seconds
+    log(
+        _phase_banner(
+            f"Waiting for epoch > {epoch_0_at_phase8_end}, then {total_wait}s "
+            f"of stable epoch-1 observation",
+            "PHASE 10",
+        )
+    )
+
+    epoch_1 = wait_for_epoch_change(cfg, epoch_0_at_phase8_end)
+    if epoch_1 <= epoch_0_at_phase8_end:
+        raise RuntimeError(
+            f"Epoch did not advance past {epoch_0_at_phase8_end}; "
+            "aborting final observation"
+        )
+    log(
+        f"  Epoch advanced to {epoch_1}; observing {total_wait}s "
+        f"({cfg.stable_window_settle_seconds}s settle + "
+        f"{cfg.stable_window_seconds}s window)"
+    )
+
+    obs_start = time.time()
+    last_log_save = obs_start
+    while time.time() < obs_start + total_wait:
+        elapsed = int(time.time() - obs_start)
+        bar = _progress_bar(elapsed, total_wait)
+        log_status(f"  {bar} {elapsed}s / {total_wait}s")
+        if time.time() - last_log_save >= cfg.log_interval:
+            save_validator_logs(cfg, cfg.num_validators)
+            last_log_save = time.time()
+        time.sleep(1)
+    print()
+
+    _archive_final_logs(cfg)
+    log(_phase_complete("Phase 10", time.time() - phase_start))
+    log(f"\n{_C.GREEN}{_C.BOLD}All phases completed. Cleanup will run on script exit.{_C.RESET}")
+    return epoch_1
+
+
 def phase10_observation(cfg: Config, epoch_1: int) -> None:
     phase_start = time.time()
     log(
@@ -1734,9 +1787,13 @@ def phase10_observation(cfg: Config, epoch_1: int) -> None:
         time.sleep(1)
 
     print()  # finish status line
-    # Final log save with timestamp
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    _archive_final_logs(cfg)
+    log(_phase_complete("Phase 10", time.time() - phase_start))
+    log(f"\n{_C.GREEN}{_C.BOLD}All phases completed. Cleanup will run on script exit.{_C.RESET}")
 
+
+def _archive_final_logs(cfg: Config) -> None:
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     for i in range(1, cfg.num_validators + 1):
         v = f"validator-{i}"
         dest = cfg.log_dir / f"migration-{v}-{ts}.log"
@@ -1762,9 +1819,6 @@ def phase10_observation(cfg: Config, epoch_1: int) -> None:
 
     shutil.copy2(cfg.log_file, cfg.log_dir / f"migration_script_{ts}.log")
 
-    log(_phase_complete("Phase 10", time.time() - phase_start))
-    log(f"\n{_C.GREEN}{_C.BOLD}All phases completed. Cleanup will run on script exit.{_C.RESET}")
-
 
 # ========================= Main =========================
 
@@ -1774,16 +1828,29 @@ def parse_args() -> argparse.Namespace:
         description="Rolling migration test for IOTA validators.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Defaults: 20 validators (-n to change), 15min epoch (-e to change), "
-            "geodistributed latency, mid-epoch rolling upgrade."
+            "Defaults: simple mode (--mode advanced for the full restart "
+            "schedule), testnet release image, 10 validators (-n to change), "
+            "10min epoch (-e to change), geodistributed latency, and a "
+            "rolling upgrade scheduled to finish before the epoch boundary."
         ),
     )
     parser.add_argument(
         "-r",
         "--release-network",
-        default="devnet",
+        default="testnet",
         choices=("devnet", "testnet", "mainnet", "alphanet"),
-        help="Release network to pull the old image from Docker Hub (default: devnet)",
+        help="Release network to pull the old image from Docker Hub (default: testnet)",
+    )
+    parser.add_argument(
+        "--mode",
+        default="simple",
+        choices=("simple", "advanced"),
+        help=(
+            "simple: fast back-to-back rolling upgrade after a short fixed "
+            "warm-up, no post-upgrade restarts (default). advanced: full "
+            "schedule with a mid-epoch wait, rolling offline windows, and "
+            "keep-DB/wipe-DB restart torture across two epochs."
+        ),
     )
     parser.add_argument(
         "-b",
@@ -1795,11 +1862,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-n",
         "--num-validators",
-        default=20,
+        default=10,
         type=int,
-        choices=range(2, 101),
+        choices=range(ec.MIN_VALIDATORS, ec.MAX_VALIDATORS + 1),
         metavar="N",
-        help="Number of validators to run (2-100, default: 20)",
+        help="Number of validators to run (2-30, default: 10)",
     )
     parser.add_argument(
         "-c",
@@ -1807,17 +1874,19 @@ def parse_args() -> argparse.Namespace:
         default="",
         choices=("", "testnet", "mainnet"),
         help=(
-            "Chain override for protocol feature flags (default: none = devnet-like). "
-            "Controls which features are enabled at each protocol version."
+            "Chain override for protocol feature flags. Default: empty, which "
+            "inherits from --release-network (testnet/mainnet set the matching "
+            "override; devnet/alphanet = none). Controls which features are "
+            "enabled at each protocol version."
         ),
     )
     parser.add_argument(
         "-e",
         "--epoch-duration",
-        default=15,
+        default=10,
         type=int,
         metavar="MINUTES",
-        help="Epoch duration in minutes (default: 15)",
+        help="Epoch duration in minutes (default: 10)",
     )
     parser.add_argument(
         "--geodistributed",
@@ -1854,13 +1923,33 @@ def parse_args() -> argparse.Namespace:
         default="iotaledger/stress",
         help="Docker image containing /usr/local/bin/stress (default: iotaledger/stress)",
     )
+    parser.add_argument(
+        "--block-measurement-seconds",
+        "--block-validation-seconds",
+        dest="block_measurement_seconds",
+        default=120,
+        type=int,
+        help=(
+            "Seconds to measure pre-upgrade block production after latency "
+            "is applied (0 disables, default: 120)"
+        ),
+    )
     return parser.parse_args()
 
 
 def main() -> None:
-    global _cfg, _log_fh
+    global _cfg
 
     args = parse_args()
+
+    # Single-run guard: a concurrent benchmark/fuzz/migration run shares
+    # container names and tc/iptables state — its cleanup would tear this
+    # run's network down mid-flight.
+    try:
+        ec.acquire_single_run_lock("run-migration-test.py")
+    except RuntimeError as err:
+        print(f"ERROR: {err}")
+        sys.exit(1)
 
     # Cache sudo credentials first so the password prompt is immediately visible
     print("Caching sudo credentials (you may be prompted for your password)...")
@@ -1877,6 +1966,7 @@ def main() -> None:
     try:
         cfg = Config(
             release_network=args.release_network,
+            mode=args.mode,
             build=args.build,
             chain_override=args.chain_override,
             num_validators=args.num_validators,
@@ -1886,6 +1976,7 @@ def main() -> None:
             load_transfer_objects=args.load_transfer_objects,
             load_rpc_address=args.load_rpc_address,
             load_tools_image=args.load_tools_image,
+            block_measurement_seconds=args.block_measurement_seconds,
             epoch_duration_ms=args.epoch_duration * 60_000,
         )
     except ValueError as err:
@@ -1898,9 +1989,8 @@ def main() -> None:
         log("Error: run from experiments/")
         sys.exit(1)
 
-    # Setup logging
-    cfg.log_dir.mkdir(parents=True, exist_ok=True)
-    _log_fh = cfg.log_file.open("w")
+    # Setup logging (truncate, then O_APPEND — see experiment_common).
+    ec.setup_logging(cfg.log_file)
 
     # Register cleanup
     atexit.register(cleanup)
@@ -1909,53 +1999,79 @@ def main() -> None:
 
     # Summary
     log(_phase_banner("Migration Test Configuration"))
+    log(f"  {_C.BOLD}Mode{_C.RESET}                 : {cfg.mode}")
     log(f"  {_C.BOLD}Validators{_C.RESET}           : {cfg.num_validators}")
     log(f"  {_C.BOLD}Consensus protocol{_C.RESET}   : auto-detected from protocol config")
     log(f"  {_C.BOLD}Epoch duration{_C.RESET}       : {cfg.epoch_duration_ms}ms ({cfg.epoch_duration_ms // 60_000} min)")
     log(f"  {_C.BOLD}Release network{_C.RESET}      : {cfg.release_network}")
     log(f"  {_C.BOLD}Chain override{_C.RESET}       : {cfg.chain_override or 'none (devnet-like)'}")
     log(f"  {_C.BOLD}Build local image{_C.RESET}    : {cfg.build}")
-    log(f"  {_C.BOLD}Geodistributed{_C.RESET}      : {cfg.geodistributed}")
+    log(
+        f"  {_C.BOLD}Latency model{_C.RESET}        : "
+        "role-based, built into network-benchmark.sh"
+    )
     if cfg.load_qps > 0:
         log(
-            f"  {_C.BOLD}Load generator{_C.RESET}      : "
+            f"  {_C.BOLD}Load generator{_C.RESET}       : "
             f"{cfg.load_qps} qps, in-flight ratio {cfg.load_in_flight_ratio}, "
             f"transfer-object {cfg.load_transfer_objects}, rpc {cfg.load_rpc_address}"
         )
     else:
-        log(f"  {_C.BOLD}Load generator{_C.RESET}      : disabled")
-    log(f"  {_C.BOLD}Rolling start offset{_C.RESET}: <= {cfg.mid_epoch_wait}s from epoch start")
-    log(f"  {_C.BOLD}Next-validator pause{_C.RESET} : {cfg.upgrade_delay}s")
+        log(f"  {_C.BOLD}Load generator{_C.RESET}       : disabled")
     log(f"  {_C.BOLD}Protocol probe wait{_C.RESET}  : {cfg.protocol_probe_wait}s")
-    log(
-        f"  {_C.BOLD}Epoch-0 schedule cap{_C.RESET} : "
-        f"phase8 <= {cfg.phase8_worst_case}s, "
-        f"phase9a/9b <= {cfg.phase9_epoch0_worst_case}s, "
-        f"safety {cfg.timeline_safety_margin}s"
-    )
-    log(
-        f"  {_C.BOLD}Rolling offline pause{_C.RESET}: "
-        f"{cfg.rolling_restart_pause_min}-{cfg.rolling_restart_pause_max}s per validator"
-    )
-    log(
-        f"  {_C.BOLD}Restart validators{_C.RESET}   : "
-        f"{_restart_validator_count(cfg.num_validators)} per epoch "
-        f"(ceil(n/3)-1, deterministic by epoch)"
-    )
-    log(f"    keep-DB after {cfg.restart_pause_keep_db}s, wipe-DB after {cfg.restart_pause_wipe_db}s")
-    log(f"    restart settle wait {cfg.restart_settle_wait}s")
-    log(
-        f"    fresh DB follow-up restart pause "
-        f"{cfg.fresh_db_restart_pause_min}-{cfg.fresh_db_restart_pause_max}s"
-    )
-    log(f"    epoch 1 wipe-DB aligned to same offset as epoch 0")
-    log(
-        f"  {_C.BOLD}Stop condition{_C.RESET}       : "
-        f"second epoch observed + {cfg.final_epoch_settle_wait}s"
-    )
+    if cfg.mode == "advanced":
+        log(f"  {_C.BOLD}Rolling start offset{_C.RESET} : <= {cfg.mid_epoch_wait}s from epoch start")
+        log(f"  {_C.BOLD}Next-validator pause{_C.RESET} : {cfg.upgrade_delay}s")
+        log(
+            f"  {_C.BOLD}Epoch-0 schedule cap{_C.RESET} : "
+            f"phase8 <= {cfg.phase8_worst_case}s, "
+            f"phase9a/9b <= {cfg.phase9_epoch0_worst_case}s, "
+            f"safety {cfg.timeline_safety_margin}s, "
+            f"epoch-start slop {cfg.epoch_start_slop_seconds}s"
+        )
+        log(
+            f"  {_C.BOLD}Rolling offline pause{_C.RESET}: "
+            f"{cfg.rolling_restart_pause_min}-{cfg.rolling_restart_pause_max}s per validator"
+        )
+        log(
+            f"  {_C.BOLD}Restart validators{_C.RESET}   : "
+            f"{_restart_validator_count(cfg.num_validators)} per epoch "
+            f"(ceil(n/3)-1, deterministic by epoch)"
+        )
+        log(f"    keep-DB after {cfg.restart_pause_keep_db}s, wipe-DB after {cfg.restart_pause_wipe_db}s")
+        log(f"    restart settle wait {cfg.restart_settle_wait}s")
+        log(
+            f"    fresh DB follow-up restart pause "
+            f"{cfg.fresh_db_restart_pause_min}-{cfg.fresh_db_restart_pause_max}s"
+        )
+        log(f"    epoch 1 wipe-DB aligned to same offset as epoch 0")
+        log(
+            f"  {_C.BOLD}Stop condition{_C.RESET}       : "
+            f"second epoch observed + {cfg.final_epoch_settle_wait}s"
+        )
+    else:
+        log(
+            f"  {_C.BOLD}Rolling upgrade{_C.RESET}      : "
+            f"back-to-back, no offline pause, no post-upgrade restarts"
+        )
+        log(
+            f"  {_C.BOLD}Pre-rolling wait{_C.RESET}     : {cfg.pre_rolling_wait}s from epoch start "
+            f"(phase8 estimate {cfg.phase8_simple_estimate}s, "
+            f"safety {cfg.timeline_safety_margin}s, "
+            f"epoch-start slop {cfg.epoch_start_slop_seconds}s)"
+        )
+        log(
+            f"  {_C.BOLD}Stop condition{_C.RESET}       : "
+            f"one epoch boundary after upgrade + "
+            f"{cfg.stable_window_settle_seconds + cfg.stable_window_seconds}s"
+        )
 
     # Run all phases
     local_branch, local_commit = phase1_docker_images(cfg)
+    if cfg.load_qps > 0:
+        # Resolve the load image up front (pull, else build from the
+        # network-benchmark clone) instead of surprising phase 6b mid-run.
+        ec.ensure_stress_image(cfg.load_tools_image)
     phase2_generate_compose(cfg)
     phase3_bootstrap_genesis(cfg)
     old_max_proto, old_consensus, epoch_0_start = phase4_start_validators(cfg)
@@ -1964,32 +2080,90 @@ def main() -> None:
     cp_monitor.start()
     latency_proc = phase6_apply_latency(cfg)
     start_load_generator(cfg)
+    measure_block_production(cfg)
+    pre_upgrade_ready_ts = time.time()
 
-    phase7_wait_mid_epoch(cfg, epoch_0_start)
+    if cfg.mode == "advanced":
+        phase7_wait_mid_epoch(cfg, epoch_0_start)
+        simple_upgrade_epoch = None
+    else:
+        stable_window_complete_at = (
+            pre_upgrade_ready_ts
+            + cfg.stable_window_settle_seconds
+            + cfg.stable_window_seconds
+        )
+        phase7_wait_fixed(cfg, epoch_0_start, stable_window_complete_at)
+        simple_upgrade_epoch = get_current_epoch_or_raise()
     upgrade_proto, upgrade_consensus = phase8_rolling_upgrade(
         cfg, old_max_proto, old_consensus, local_branch, local_commit
     )
-    epoch_1 = phase9_post_upgrade_restarts(
-        cfg,
-        epoch_0_start,
-        old_max_proto,
-        old_consensus,
-        f"{local_branch}@{local_commit}",
-        upgrade_proto,
-        upgrade_consensus,
-    )
-    phase10_observation(cfg, epoch_1)
+    if cfg.mode == "advanced":
+        epoch_1 = phase9_post_upgrade_restarts(
+            cfg,
+            epoch_0_start,
+            old_max_proto,
+            old_consensus,
+            f"{local_branch}@{local_commit}",
+            upgrade_proto,
+            upgrade_consensus,
+        )
+        phase10_observation(cfg, epoch_1)
+        simple_observed_epoch = None
+    else:
+        epoch_after_upgrade = get_current_epoch_or_raise()
+        if (
+            simple_upgrade_epoch is not None
+            and epoch_after_upgrade != simple_upgrade_epoch
+        ):
+            raise RuntimeError(
+                "simple rolling upgrade crossed an epoch boundary: "
+                f"started in epoch {simple_upgrade_epoch}, ended in epoch "
+                f"{epoch_after_upgrade}. Increase --epoch-duration or reduce "
+                "--num-validators."
+            )
+        # Simple mode: no post-upgrade restarts. Wait for the next epoch to
+        # start and then hold long enough for the stable-window comparison.
+        simple_observed_epoch = phase10_observe_stable_window(
+            cfg, epoch_after_upgrade
+        )
     stop_load_generator(cfg)
 
     cp_monitor.stop()
     log(_phase_banner("Checkpoint Liveness Report"))
     for line in cp_monitor.report().split("\n"):
         log(line)
+    if cfg.mode == "simple" and simple_observed_epoch is not None:
+        # Pull the precise post-upgrade epoch start from the monitor's
+        # 10s-resolution polling rather than from the 30s wait_for_epoch_change
+        # loop.
+        epoch_1_start_ts = next(
+            (
+                ts
+                for ts, _, to_ep, _ in cp_monitor._observed_epoch_changes()
+                if to_ep == simple_observed_epoch
+            ),
+            None,
+        )
+        if epoch_1_start_ts is None:
+            raise RuntimeError(
+                "checkpoint monitor did not observe the post-upgrade epoch "
+                "transition; cannot produce the required stable-window comparison"
+            )
+        log(_phase_banner("Stable-Window Comparison"))
+        for line in cp_monitor.stable_window_report(
+            cfg, pre_upgrade_ready_ts, epoch_1_start_ts
+        ).split("\n"):
+            log(line)
 
     # Kill latency background process (runs under sudo, so use sudo pkill)
     run(["sudo", "pkill", "-f", r"network-benchmark\.sh"], check=False, quiet=True)
     if latency_proc.poll() is None:
         latency_proc.terminate()
+
+    # Re-snapshot the script log so the timestamped archive includes the
+    # liveness and stable-window reports logged after _archive_final_logs.
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    shutil.copy2(cfg.log_file, cfg.log_dir / f"migration_script_{ts}.log")
 
 
 if __name__ == "__main__":

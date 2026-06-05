@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
@@ -20,7 +20,7 @@ use iota_types::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
-    object::{Object, Owner},
+    object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
         load_package_object_from_object_store,
