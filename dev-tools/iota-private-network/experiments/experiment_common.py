@@ -13,10 +13,8 @@ measurement, teardown). Anything specific to one runner — the rolling
 upgrade and epoch schedule for migration, the fuzz/spammer matrix for the
 benchmark — stays in that runner.
 
-The compose generator emits one service block per validator, so a network of
-any size is produced from ``num_validators`` alone (the static
-``docker-compose.yaml`` caps the legacy bash path at its hand-written 19
-services; this path has no such limit beyond the /24 subnet).
+The compose generator emits one service block per validator. Experiment
+runners support 2-30 validators, matching the Prometheus scrape configuration.
 """
 
 from __future__ import annotations
@@ -28,6 +26,7 @@ import os
 import re
 import selectors
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -68,6 +67,8 @@ if not sys.stdout.isatty():
 
 _ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _log_fh = None  # file handle for the run log, set by setup_logging()
+MIN_VALIDATORS = 2
+MAX_VALIDATORS = 30
 
 
 def setup_logging(log_file: Path) -> None:
@@ -90,6 +91,18 @@ def close_logging() -> None:
     if _log_fh is not None:
         _log_fh.close()
         _log_fh = None
+
+
+def archive_run_log(log_file: Path, prefix: str) -> Path | None:
+    """Copy the latest coordinator log to a timestamped archive."""
+    if not log_file.exists():
+        return None
+    if _log_fh is not None:
+        _log_fh.flush()
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    destination = log_file.parent / f"{prefix}_{ts}.log"
+    shutil.copy2(log_file, destination)
+    return destination
 
 
 def _phase_banner(title: str, phase: str = "") -> str:
@@ -351,6 +364,15 @@ def cache_sudo() -> None:
     threading.Thread(target=_refresh, daemon=True).start()
 
 
+def validate_num_validators(num_validators: int) -> None:
+    """Validate the range supported by compose addressing and monitoring."""
+    if not MIN_VALIDATORS <= num_validators <= MAX_VALIDATORS:
+        raise ValueError(
+            f"num_validators must be in [{MIN_VALIDATORS}, {MAX_VALIDATORS}], "
+            f"got {num_validators}"
+        )
+
+
 # ========================= Prometheus =========================
 
 
@@ -396,17 +418,16 @@ def prometheus_vector(expr: str) -> list[tuple[dict[str, str], float]]:
 def _commit_latency_queries(range_s: int) -> dict[str, str]:
     """PromQL for block/transaction commit latency over a *range_s* window.
 
-    Each query carries `or` fallbacks across the two block-latency metric
-    naming conventions, and the transaction queries additionally fall back to
-    block latency when the transaction histogram is unavailable."""
+    Block queries carry `or` fallbacks across the two block-latency metric
+    naming conventions. Transaction queries intentionally have no block
+    fallback: unavailable transaction latency must be reported as n/a rather
+    than mislabeled block latency."""
     r = f"{range_s}s"
     return {
         "blk_p50": (
-            "quantile(0.5,"
-            f" rate(consensus_block_commit_latency_sum[{r}])"
-            f" / rate(consensus_block_commit_latency_count[{r}])"
-            f" or rate(consensus_block_header_commit_latency_sum[{r}])"
-            f" / rate(consensus_block_header_commit_latency_count[{r}]))"
+            "histogram_quantile(0.5,"
+            f" sum(rate(consensus_block_commit_latency_bucket[{r}])) by (le)"
+            f" or sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
         ),
         "blk_p95": (
             "histogram_quantile(0.95,"
@@ -414,19 +435,12 @@ def _commit_latency_queries(range_s: int) -> dict[str, str]:
             f" or sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
         ),
         "txn_p50": (
-            "quantile(0.5,"
-            f" rate(consensus_transaction_commit_latency_sum[{r}])"
-            f" / rate(consensus_transaction_commit_latency_count[{r}])"
-            f" or rate(consensus_block_commit_latency_sum[{r}])"
-            f" / rate(consensus_block_commit_latency_count[{r}])"
-            f" or rate(consensus_block_header_commit_latency_sum[{r}])"
-            f" / rate(consensus_block_header_commit_latency_count[{r}]))"
+            "histogram_quantile(0.5,"
+            f" sum(rate(consensus_transaction_commit_latency_bucket[{r}])) by (le))"
         ),
         "txn_p95": (
             "histogram_quantile(0.95,"
-            f" sum(rate(consensus_transaction_commit_latency_bucket[{r}])) by (le)"
-            f" or sum(rate(consensus_block_commit_latency_bucket[{r}])) by (le)"
-            f" or sum(rate(consensus_block_header_commit_latency_bucket[{r}])) by (le))"
+            f" sum(rate(consensus_transaction_commit_latency_bucket[{r}])) by (le))"
         ),
     }
 
@@ -528,6 +542,7 @@ def generate_compose_file(
     faucet and publishes the fullnode RPC (127.0.0.1:9000) and faucet
     (127.0.0.1:5003) to the host — host-side load tools (iota-spammer) need
     both."""
+    validate_num_validators(num_validators)
     lines = [f"# {header}", f"# {num_validators} validators.", "", "services:"]
 
     for i in range(1, num_validators + 1):
@@ -987,12 +1002,16 @@ def start_stress_container(
         raise RuntimeError("stress load container exited right after start (logs above)")
 
 
-def start_spammer(cfg) -> None:
+def start_spammer(cfg) -> subprocess.Popen[str] | None:
     """Start the configured transaction spammer for the benchmark/fuzz
-    runners (duck-typed over their Config fields)."""
+    runners and return its host process, if any."""
     if not cfg.spammer_enable:
-        return
-    duration = max(10, cfg.run_duration - 60)
+        return None
+    duration = (
+        cfg.run_duration
+        + max(0, getattr(cfg, "block_measurement_seconds", 0))
+        + 60
+    )
     log(_phase_banner(
         f"Starting {cfg.spammer_type} spammer (tps={cfg.spammer_tps})", "LOAD",
     ))
@@ -1020,25 +1039,77 @@ def start_spammer(cfg) -> None:
             in_flight_ratio=cfg.load_in_flight_ratio,
             transfer_objects=cfg.load_transfer_objects,
         )
-        log(f"  stress-benchmark started (~{duration}s); logs: docker logs stress-benchmark")
+        log("  stress-benchmark started; logs: docker logs stress-benchmark")
+        return None
     else:  # iota-spammer
         home = Path.home()
         sudo_user = os.environ.get("SUDO_USER")
         script = home / "iota-spammer" / "scripts" / "spamming_fuzz_test.sh"
         if not script.is_file():
-            log(f"  Skipping spammer: iota-spammer script not at {script} "
-                "(clone github.com/iotaledger/iota-spammer); run continues without load.")
-            return
+            raise RuntimeError(
+                f"iota-spammer requested but script not found at {script}; "
+                "clone github.com/iotaledger/iota-spammer or select the stress backend"
+            )
         spam_log = (cfg.log_dir / "spammer.log").open("w")
         cmd = ["bash", str(script), "-T", str(cfg.spammer_tps),
                "-s", cfg.spammer_size, "-d", f"{duration}s"]
         if sudo_user:
             cmd = ["sudo", "-u", sudo_user, "-H", *cmd]
-        subprocess.Popen(cmd, stdout=spam_log, stderr=subprocess.STDOUT)
+        proc = subprocess.Popen(
+            cmd,
+            stdout=spam_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        spam_log.close()
+        time.sleep(2)
+        if proc.poll() is not None:
+            raise RuntimeError(
+                f"iota-spammer exited during startup with code {proc.returncode}; "
+                f"see {cfg.log_dir / 'spammer.log'}"
+            )
         log(f"  iota-spammer started (~{duration}s); logs: {cfg.log_dir / 'spammer.log'}")
+        return proc
 
 
-def run_loop(cfg, prefix: str) -> None:
+def stop_spammer(cfg, proc: subprocess.Popen[str] | None) -> None:
+    """Stop the configured spammer and retain its logs."""
+    if not cfg.spammer_enable:
+        return
+
+    if cfg.spammer_type == "stress":
+        latest = cfg.log_dir / "stress-benchmark-latest.log"
+        with latest.open("w") as fh:
+            subprocess.run(
+                ["docker", "logs", "stress-benchmark"],
+                stdout=fh,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+        if latest.stat().st_size > 0:
+            ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+            shutil.copy2(latest, cfg.log_dir / f"stress-benchmark-{ts}.log")
+        run(["docker", "rm", "-f", "stress-benchmark"], check=False, quiet=True)
+        return
+
+    if proc is None:
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=10)
+    except ProcessLookupError:
+        proc.poll()
+        return
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait(timeout=5)
+
+
+def run_loop(cfg, prefix: str, final_prefix: str) -> None:
     """Sleep for cfg.run_duration with a progress bar, saving validator logs
     every cfg.log_interval seconds and once more at the end."""
     log(_phase_banner(
@@ -1057,7 +1128,12 @@ def run_loop(cfg, prefix: str) -> None:
     print()
     # Final timestamped snapshot.
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    save_validator_logs(cfg.log_dir, cfg.num_validators, prefix=f"{prefix}-{ts}")
+    save_validator_logs(
+        cfg.log_dir,
+        cfg.num_validators,
+        prefix=f"{final_prefix}-{ts}",
+        latest=False,
+    )
 
 
 def network_stats(num_validators: int) -> None:
@@ -1082,9 +1158,12 @@ def network_stats(num_validators: int) -> None:
             log(f"  {v}: stats unavailable")
 
 
-def save_validator_logs(log_dir: Path, num: int, prefix: str = "exp") -> None:
+def save_validator_logs(
+    log_dir: Path, num: int, prefix: str = "exp", *, latest: bool = True
+) -> None:
     for i in range(1, num + 1):
-        dest = log_dir / f"{prefix}-validator-{i}-latest.log"
+        suffix = "-latest" if latest else ""
+        dest = log_dir / f"{prefix}-validator-{i}{suffix}.log"
         with dest.open("w") as fh:
             subprocess.run(
                 ["docker", "logs", f"validator-{i}"],

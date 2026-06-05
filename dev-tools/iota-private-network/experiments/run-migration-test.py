@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import math
 import os
 import random
 import re
@@ -123,6 +124,7 @@ class Config:
     log_file: Path = field(init=False)
 
     def __post_init__(self) -> None:
+        ec.validate_num_validators(self.num_validators)
         if self.mode not in ("simple", "advanced"):
             raise ValueError(f"mode must be 'simple' or 'advanced', got {self.mode!r}")
         if self.load_qps < 0:
@@ -218,9 +220,10 @@ class Config:
             )
             + 30
         )
-        min_pre_rolling_wait = max(
-            self.stable_window_settle_seconds + min_stable_window_seconds,
-            pre_phase7_overhead,
+        min_pre_rolling_wait = (
+            pre_phase7_overhead
+            + self.stable_window_settle_seconds
+            + min_stable_window_seconds
         )
         self.pre_rolling_wait = (
             epoch_s
@@ -240,7 +243,8 @@ class Config:
                     "epoch duration is too short for the simple migration schedule: "
                     f"need at least {required}s for {self.num_validators} validators "
                     f"({min_pre_rolling_wait}s pre-rolling wait covering "
-                    f"{pre_phase7_overhead}s phase 5-6B overhead and a "
+                    f"{pre_phase7_overhead}s phase 5-6B overhead, "
+                    f"{self.stable_window_settle_seconds}s settle, and a "
                     f"{min_stable_window_seconds}s stable window, "
                     f"{self.phase8_simple_estimate}s phase-8 estimate, "
                     f"{self.timeline_safety_margin}s safety, "
@@ -248,13 +252,17 @@ class Config:
                     f"got {epoch_s}s"
                 )
             self.pre_rolling_wait = min_pre_rolling_wait
-        # Stable analysis window: same length in epoch 0 (pre-rolling, no
-        # upgrades) and in epoch 1 (after settle). Cap at 180s so test runtime
-        # extension stays bounded even for long pre_rolling_wait values; floor
-        # at 60s so the histogram_quantile inputs aren't statistical noise.
+        # Stable analysis window: same length after setup completes in epoch 0
+        # and after the epoch-1 settle offset. Reserve estimated phase 5-6B
+        # overhead before deriving the available pre-upgrade window.
         self.stable_window_seconds = max(
             min_stable_window_seconds,
-            min(180, self.pre_rolling_wait - self.stable_window_settle_seconds),
+            min(
+                180,
+                self.pre_rolling_wait
+                - pre_phase7_overhead
+                - self.stable_window_settle_seconds,
+            ),
         )
 
         self.network_dir = self.script_dir.parent
@@ -269,8 +277,8 @@ class Config:
                 self.chain_override = self.release_network
 
     def block_measurement_enabled(self) -> bool:
-        """Block-production reporting runs when a positive window is configured."""
-        return self.block_measurement_seconds > 0
+        """Run the pre-upgrade report only in the simple schedule."""
+        return self.mode == "simple" and self.block_measurement_seconds > 0
 
 
 def _restart_validator_count(n: int) -> int:
@@ -365,35 +373,11 @@ class CheckpointMonitor:
 
     _MS_PER_SECOND = 1000.0
 
-    # Block commit latency (covers both metric naming conventions)
-    _BLK_P50 = (
-        "quantile(0.5,"
-        " rate(consensus_block_commit_latency_sum[1m])"
-        " / rate(consensus_block_commit_latency_count[1m])"
-        " or rate(consensus_block_header_commit_latency_sum[1m])"
-        " / rate(consensus_block_header_commit_latency_count[1m]))"
-    )
-    _BLK_P95 = (
-        "histogram_quantile(0.95,"
-        " sum(rate(consensus_block_commit_latency_bucket[1m])) by (le)"
-        " or sum(rate(consensus_block_header_commit_latency_bucket[1m])) by (le))"
-    )
-    # Transaction commit latency (falls back to block latency if unavailable)
-    _TXN_P50 = (
-        "quantile(0.5,"
-        " rate(consensus_transaction_commit_latency_sum[1m])"
-        " / rate(consensus_transaction_commit_latency_count[1m])"
-        " or rate(consensus_block_commit_latency_sum[1m])"
-        " / rate(consensus_block_commit_latency_count[1m])"
-        " or rate(consensus_block_header_commit_latency_sum[1m])"
-        " / rate(consensus_block_header_commit_latency_count[1m]))"
-    )
-    _TXN_P95 = (
-        "histogram_quantile(0.95,"
-        " sum(rate(consensus_transaction_commit_latency_bucket[1m])) by (le)"
-        " or sum(rate(consensus_block_commit_latency_bucket[1m])) by (le)"
-        " or sum(rate(consensus_block_header_commit_latency_bucket[1m])) by (le))"
-    )
+    _COMMIT_LATENCY_QUERIES = ec._commit_latency_queries(60)
+    _BLK_P50 = _COMMIT_LATENCY_QUERIES["blk_p50"]
+    _BLK_P95 = _COMMIT_LATENCY_QUERIES["blk_p95"]
+    _TXN_P50 = _COMMIT_LATENCY_QUERIES["txn_p50"]
+    _TXN_P95 = _COMMIT_LATENCY_QUERIES["txn_p95"]
 
     def __init__(self, interval: int = 10):
         self.interval = interval
@@ -535,24 +519,24 @@ class CheckpointMonitor:
     def stable_window_report(
         self,
         cfg: "Config",
-        epoch_0_start: float,
+        pre_upgrade_ready_ts: float,
         epoch_1_start_ts: float,
     ) -> str:
         """Side-by-side metric comparison over equal-length stable windows.
 
-        Epoch 0 window: [epoch_0_start + settle, epoch_0_start + settle + window].
-        Captures the pre-rolling state before any upgrades start, after the
-        initial startup/latency-application transient.
+        Pre-upgrade window: [setup_complete + settle, setup_complete + settle
+        + window]. Setup is complete only after monitoring, latency, optional
+        load, and the block-production measurement are established.
 
         Epoch 1 window: [epoch_1_start + settle, epoch_1_start + settle + window].
-        Skips the reconfig transient; same duration as the epoch-0 window.
+        Skips the reconfig transient; same duration as the pre-upgrade window.
 
         Queries Prometheus with the `@` modifier so the report stays valid
         regardless of how long the test ran after these windows.
         """
         w = cfg.stable_window_seconds
         settle = cfg.stable_window_settle_seconds
-        e0_window_start = epoch_0_start + settle
+        e0_window_start = pre_upgrade_ready_ts + settle
         e1_window_start = epoch_1_start_ts + settle
         e0_end = int(e0_window_start + w)
         e1_end = int(e1_window_start + w)
@@ -575,8 +559,8 @@ class CheckpointMonitor:
             ("Tx commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Tx commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Tx commit p99", "histogram_quantile(0.99, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
-            ("Block commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
-            ("Block commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_block_commit_latency_bucket[{w}s] @ {t})) or sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_block_commit_latency_bucket[{w}s] @ {t})) or sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Proposed blocks/s", "sum(rate(consensus_proposed_blocks[{w}s] @ {t}))", "blk/s", 1.0),
             ("Commits/s", "sum(rate(consensus_transaction_commit_latency_count[{w}s] @ {t}))", "/s", 1.0),
         ]
@@ -585,7 +569,7 @@ class CheckpointMonitor:
         e1_label = datetime.fromtimestamp(e1_window_start, tz=timezone.utc).strftime("%H:%M:%S")
         lines = [
             f"  Windows ({w}s each): pre-upgrade starts {e0_label} UTC "
-            f"(= epoch_0_at + {settle}s settle), "
+            f"(= setup_complete_at + {settle}s settle), "
             f"post-upgrade starts {e1_label} UTC (= next_epoch_at + {settle}s settle)",
             "",
             f"  {'Metric':<24} {'pre-upgrade':>14} {'post-upgrade':>14} {'delta':>14}",
@@ -1397,7 +1381,9 @@ def phase7_wait_mid_epoch(cfg: Config, epoch_0_start: float) -> None:
     log(_phase_complete("Phase 7", time.time() - phase_start))
 
 
-def phase7_wait_fixed(cfg: Config, epoch_0_start: float) -> None:
+def phase7_wait_fixed(
+    cfg: Config, epoch_0_start: float, stable_window_complete_at: float
+) -> None:
     """Simple mode: wait a short fixed offset into epoch 0 before rolling.
 
     Unlike the advanced schedule, simple mode does not reserve epoch time for
@@ -1408,6 +1394,14 @@ def phase7_wait_fixed(cfg: Config, epoch_0_start: float) -> None:
     archive captures everything we need.
     """
     phase_start = time.time()
+    planned_start = epoch_0_start + cfg.pre_rolling_wait
+    if stable_window_complete_at > planned_start:
+        overrun = math.ceil(stable_window_complete_at - planned_start)
+        raise RuntimeError(
+            "pre-upgrade stable window does not fit before the planned rolling "
+            f"upgrade ({overrun}s over budget). Increase --epoch-duration or "
+            "reduce --num-validators/--block-measurement-seconds."
+        )
     elapsed = int(time.time() - epoch_0_start)
     if elapsed > cfg.pre_rolling_wait:
         raise RuntimeError(
@@ -1870,9 +1864,9 @@ def parse_args() -> argparse.Namespace:
         "--num-validators",
         default=10,
         type=int,
-        choices=range(2, 101),
+        choices=range(ec.MIN_VALIDATORS, ec.MAX_VALIDATORS + 1),
         metavar="N",
-        help="Number of validators to run (2-100, default: 10)",
+        help="Number of validators to run (2-30, default: 10)",
     )
     parser.add_argument(
         "-c",
@@ -2087,12 +2081,18 @@ def main() -> None:
     latency_proc = phase6_apply_latency(cfg)
     start_load_generator(cfg)
     measure_block_production(cfg)
+    pre_upgrade_ready_ts = time.time()
 
     if cfg.mode == "advanced":
         phase7_wait_mid_epoch(cfg, epoch_0_start)
         simple_upgrade_epoch = None
     else:
-        phase7_wait_fixed(cfg, epoch_0_start)
+        stable_window_complete_at = (
+            pre_upgrade_ready_ts
+            + cfg.stable_window_settle_seconds
+            + cfg.stable_window_seconds
+        )
+        phase7_wait_fixed(cfg, epoch_0_start, stable_window_complete_at)
         simple_upgrade_epoch = get_current_epoch_or_raise()
     upgrade_proto, upgrade_consensus = phase8_rolling_upgrade(
         cfg, old_max_proto, old_consensus, local_branch, local_commit
@@ -2144,12 +2144,16 @@ def main() -> None:
             ),
             None,
         )
-        if epoch_1_start_ts is not None:
-            log(_phase_banner("Stable-Window Comparison"))
-            for line in cp_monitor.stable_window_report(
-                cfg, epoch_0_start, epoch_1_start_ts
-            ).split("\n"):
-                log(line)
+        if epoch_1_start_ts is None:
+            raise RuntimeError(
+                "checkpoint monitor did not observe the post-upgrade epoch "
+                "transition; cannot produce the required stable-window comparison"
+            )
+        log(_phase_banner("Stable-Window Comparison"))
+        for line in cp_monitor.stable_window_report(
+            cfg, pre_upgrade_ready_ts, epoch_1_start_ts
+        ).split("\n"):
+            log(line)
 
     # Kill latency background process (runs under sudo, so use sudo pkill)
     run(["sudo", "pkill", "-f", r"network-benchmark\.sh"], check=False, quiet=True)

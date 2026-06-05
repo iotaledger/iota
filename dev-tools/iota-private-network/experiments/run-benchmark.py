@@ -74,6 +74,7 @@ class Config:
     network_name: str = field(init=False)
 
     def __post_init__(self) -> None:
+        ec.validate_num_validators(self.num_validators)
         if self.restart_mode not in (
             "preserve-consensus", "full-reset", "simple-restart"
         ):
@@ -103,6 +104,7 @@ class Config:
 _cfg: Config | None = None
 _cleaning = False
 _latency_proc: subprocess.Popen[str] | None = None
+_spammer_proc: subprocess.Popen[str] | None = None
 
 
 # ========================= Teardown =========================
@@ -119,8 +121,7 @@ def cleanup(cfg: Config) -> None:
             ec.network_stats(cfg.num_validators)
         except Exception:
             pass
-    # Stop spammer container if present.
-    run(["docker", "rm", "-f", "stress-benchmark"], check=False, quiet=True)
+    ec.stop_spammer(cfg, _spammer_proc)
     # Kill the latency injector (runs under sudo; escaped dot avoids matching
     # this pkill's own argv).
     run(["sudo", "pkill", "-f", r"network-benchmark\.sh"], check=False, quiet=True)
@@ -128,6 +129,10 @@ def cleanup(cfg: Config) -> None:
         _latency_proc.terminate()
     ec.compose_down(cfg.compose_file, None, cfg.network_dir)
     log("Cleanup complete.")
+    archived = ec.archive_run_log(cfg.log_file, "experiment_script")
+    if archived is not None:
+        print(f"Coordinator log archived at {archived}")
+    ec.close_logging()
 
 
 def _phase(title: str, phase: str = "") -> str:
@@ -149,8 +154,11 @@ def parse_args() -> argparse.Namespace:
             "Disruption percents (-x/-l/-r) drive network-benchmark.sh."
         ),
     )
-    p.add_argument("-n", "--num-validators", type=int, default=4, metavar="N",
-                   help="Number of validators to run (default: 4)")
+    p.add_argument(
+        "-n", "--num-validators", type=int, default=4, metavar="N",
+        choices=range(ec.MIN_VALIDATORS, ec.MAX_VALIDATORS + 1),
+        help="Number of validators to run (2-30, default: 4)",
+    )
     p.add_argument("-b", "--build", type=lambda v: v.lower() in ("true", "1", "yes"),
                    default=True,
                    help="Build the local iota-node image before the run (default: true)")
@@ -169,9 +177,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("-t", "--run-duration", type=int, default=3600, metavar="SECONDS",
                    help="Total run duration in seconds (default: 3600)")
     p.add_argument("-d", "--restart-duration", type=int, default=120,
-                   help="Seconds between restart rounds (default: 120)")
+                   help="Seconds a validator remains stopped (default: 120)")
     p.add_argument("-w", "--restart-timeout", type=int, default=60,
-                   help="Seconds to wait for a restarted validator (default: 60)")
+                   help="Seconds to verify a restarted validator is running "
+                        "(default: 60)")
     p.add_argument("-M", "--restart-mode", default="preserve-consensus",
                    choices=("preserve-consensus", "full-reset", "simple-restart"),
                    help="Database handling on restart (default: preserve-consensus)")
@@ -203,7 +212,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    global _cfg, _latency_proc
+    global _cfg, _latency_proc, _spammer_proc
     args = parse_args()
     cfg = Config(
         num_validators=args.num_validators, build=args.build,
@@ -309,10 +318,10 @@ def main() -> None:
         # applied) so the block-production measurement runs under load — matching
         # the migration runner. Previously the spammer started only after the
         # measurement window, leaving it idle.
-        ec.start_spammer(cfg)
+        _spammer_proc = ec.start_spammer(cfg)
         if cfg.block_measurement_enabled():
             ec.measure_block_production(cfg.num_validators, cfg.block_measurement_seconds)
-        ec.run_loop(cfg, "exp")
+        ec.run_loop(cfg, "exp", "experiment")
     finally:
         cleanup(cfg)
 

@@ -18,9 +18,9 @@ NUMBER_VALIDATORS=4       # Number of validator containers
 SEED=${SEED:-42}       # Seed for reproducibility of pseudorandom disruptions
 PERCENT_BLOCK=0           # Percent chance to block a connection
 PERCENT_LOSS=0           # Percent chance to apply packet loss
-PERCENT_RESTART=0         # Percent of validators to stop and start after RESTART_DURATION seconds
-RESTART_DURATION=120    # Seconds to stop validators during restart
-RESTART_TIMEOUT=60      # Seconds to wait before restarting (timeout duration)
+PERCENT_RESTART=0         # Percent of validators to stop and start in each restart round
+RESTART_DURATION=120      # Seconds validators remain stopped during a restart
+RESTART_TIMEOUT=60        # Seconds to verify a restarted validator is running
 RESTART_MODE="preserve-consensus"  # restart mode: preserve-consensus | full-reset | simple-restart
 GEODISTRIBUTED=false  # Large geodistributed latencies or small ones
 LOG_FILE="logs/fuzz_script.log" # Output file for script
@@ -401,13 +401,32 @@ apply_and_mark() {
   flock -u 200
 }
 
-# apply netem loss for packetes
+# Combine matrix loss with source-wide fuzz loss as independent probabilities.
+effective_loss_for() {
+  local A=$1 B=$2
+  local base extra
+  base=$(loss_for "$A" "$B")
+  extra=${fuzz_loss_amount["$A"]:-0}
+  awk -v base="$base" -v extra="$extra" \
+    'BEGIN { printf "%.2f", 100 - ((100 - base) * (100 - extra) / 100) }'
+}
+
+# Apply source-wide fuzz loss without replacing the per-edge latency tree.
 apply_loss() {
   local A=$1 percent=$2
-  local pid; pid=$(container_pid "$A")
-  nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
-  nsenter -t "$pid" -n tc qdisc add dev eth0 root netem loss "${percent}%"
-  log "Applied ${percent}% packet loss to $A"
+  local B D J L C SMIN SMAX
+  fuzz_loss_amount["$A"]=$percent
+  for B in "${validators[@]}"; do
+    [ "$A" = "$B" ] && continue
+    D=$(latency_for "$A" "$B")
+    J=$(jitter_for "$A" "$B")
+    L=$(effective_loss_for "$A" "$B")
+    C=$(corr_for "$A" "$B")
+    SMIN=$(slot_min_for "$A" "$B")
+    SMAX=$(slot_max_for "$A" "$B")
+    apply_and_mark "$A" "$B" "$D" "$J" "$L" "$C" "$SMIN" "$SMAX"
+  done
+  log "Applied ${percent}% source-wide packet loss to $A without removing latency"
 }
 
 # Record a blocked target for later reapplication after container restarts.
@@ -441,7 +460,7 @@ block_connection() {
 #   - full-reset: Remove both authorities_db and consensus_db
 #   - simple-restart: Don't remove any databases, clean docker restart only
 restart_validator() {
- local v=$1 d=$2 timeout=${3:-60} mode=${4:-preserve-consensus}
+ local v=$1 stop_duration=$2 timeout=${3:-60} mode=${4:-preserve-consensus}
  log "Stopping $v..."
  docker stop "$v" >/dev/null 2>&1
 
@@ -487,12 +506,20 @@ restart_validator() {
      ;;
  esac
 
- log "Waiting $timeout seconds before restarting $v..."
- sleep "$timeout"
+ log "Keeping $v stopped for $stop_duration seconds..."
+ sleep "$stop_duration"
 
- # Restart the validator
  docker start "$v" >/dev/null 2>&1
- log "Restarted $v"
+ local deadline=$((SECONDS + timeout))
+ while [ "$SECONDS" -lt "$deadline" ]; do
+   if [ "$(docker inspect -f '{{.State.Running}}' "$v" 2>/dev/null || true)" = "true" ]; then
+     log "Restarted $v"
+     return 0
+   fi
+   sleep 1
+ done
+ log "Error: $v did not remain running within ${timeout}s after restart"
+ return 1
 }
 
 # apply fuzz network conditions
@@ -536,7 +563,6 @@ initially_apply_fuzz() {
     A=${validators[indices[k]]}
     LOSS=$((RANDOM % 31 + 10 ))
     apply_loss "$A" "$LOSS"
-    fuzz_loss_amount["$A"]=$LOSS
   done
 }
 
@@ -626,13 +652,10 @@ reapply_latencies_and_fuzz_loop() {
 
             # Compare against the expected netem count: a partial wipe (some
             # qdiscs lost, others surviving) must heal too, not only the
-            # all-gone case after a container restart. A loss-selected source
-            # carries a single bare `netem loss` root (apply_loss replaces the
-            # whole htb tree and drops the per-edge latency), so its expected
-            # count is 1, not n-1 — otherwise the trigger fires every second
-            # and thrashes latency against loss.
+            # all-gone case after a container restart. Source-wide fuzz loss
+            # is carried by every per-edge netem qdisc, so latency remains
+            # active and the expected count is always n-1.
             local expected=$(( ${#validators[@]} - 1 ))
-            (( ${fuzz_loss_amount["$v"]:-0} > 0 )) && expected=1
             netem_count=$(nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null | grep -c "netem" || true)
             if [ "${netem_count:-0}" -lt "$expected" ]; then
                 log "Reapplying latency + fuzz for $v (netem ${netem_count:-0}/$expected — container restarted or tc removed)"
@@ -642,7 +665,7 @@ reapply_latencies_and_fuzz_loop() {
                     [ "$v" = "$u" ] && continue
                     D=$(latency_for "$v" "$u")
                     J=$(jitter_for "$v" "$u")
-                    L=$(loss_for "$v" "$u")
+                    L=$(effective_loss_for "$v" "$u")
                     C=$(corr_for "$v" "$u")
                     SMIN=$(slot_min_for "$v" "$u")
                     SMAX=$(slot_max_for "$v" "$u")
@@ -656,10 +679,6 @@ reapply_latencies_and_fuzz_loop() {
                 for target in ${fuzz_block_targets["$v"]}; do
                     block_connection "$v" "$target" || true
                 done
-
-                # --- Reapply fuzz (netem loss) ---
-                loss=${fuzz_loss_amount["$v"]}
-                (( loss > 0 )) && { apply_loss "$v" "$loss" || true; }
             fi
         done
         sleep 1

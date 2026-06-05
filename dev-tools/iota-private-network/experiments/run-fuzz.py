@@ -83,6 +83,7 @@ class Config:
     network_name: str = field(init=False)
 
     def __post_init__(self) -> None:
+        ec.validate_num_validators(self.num_validators)
         if self.topology not in TOPOLOGIES:
             raise ValueError(f"topology must be one of {TOPOLOGIES}, got {self.topology!r}")
         if self.spammer_type not in ("stress", "iota-spammer"):
@@ -102,6 +103,7 @@ class Config:
 _cfg: Config | None = None
 _cleaning = False
 _fuzz_proc: subprocess.Popen[str] | None = None
+_spammer_proc: subprocess.Popen[str] | None = None
 
 
 # ========================= Fuzz-specific phases =========================
@@ -178,7 +180,7 @@ def cleanup(cfg: Config) -> None:
             ec.network_stats(cfg.num_validators)
         except Exception:
             pass
-    run(["docker", "rm", "-f", "stress-benchmark"], check=False, quiet=True)
+    ec.stop_spammer(cfg, _spammer_proc)
     # Stop the fuzzer (it runs under sudo internally) and clear its host rules.
     run(["sudo", "rm", "-f", "/tmp/network-fuzz.stop"], check=False, quiet=True)
     run(["sudo", "pkill", "-9", "-f", r"network-fuzz\.sh"], check=False, quiet=True)
@@ -187,6 +189,10 @@ def cleanup(cfg: Config) -> None:
     _clear_fuzzdrop_rules()
     ec.compose_down(cfg.compose_file, None, cfg.network_dir)
     log("Cleanup complete.")
+    archived = ec.archive_run_log(cfg.log_file, "experiment_script")
+    if archived is not None:
+        print(f"Coordinator log archived at {archived}")
+    ec.close_logging()
 
 
 
@@ -206,8 +212,11 @@ def parse_args() -> argparse.Namespace:
             "disruptions are applied by network-fuzz.sh."
         ),
     )
-    p.add_argument("-n", "--num-validators", type=int, default=4, metavar="N",
-                   help="Number of validators to run (default: 4)")
+    p.add_argument(
+        "-n", "--num-validators", type=int, default=4, metavar="N",
+        choices=range(ec.MIN_VALIDATORS, ec.MAX_VALIDATORS + 1),
+        help="Number of validators to run (2-30, default: 4)",
+    )
     p.add_argument("-b", "--build", type=lambda v: v.lower() in ("true", "1", "yes"),
                    default=True,
                    help="Build the local iota-node image before the run (default: true)")
@@ -225,7 +234,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("-d", "--run-duration", type=int, default=3600, metavar="SECONDS",
                    help="Total run duration in seconds (default: 3600)")
     p.add_argument("--restart-duration", type=int, default=120,
-                   help="Seconds between restart rounds (default: 120)")
+                   help="Seconds validators remain stopped in restart rounds "
+                        "(default: 120)")
     p.add_argument("--round-span", type=int, default=0,
                    help="fuzz round length in seconds (0 = 2*restart_duration)")
     p.add_argument("--ttl", type=int, default=0, help="fuzz TTL in seconds (0 = none)")
@@ -261,7 +271,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    global _cfg, _fuzz_proc
+    global _cfg, _fuzz_proc, _spammer_proc
     args = parse_args()
     cfg = Config(
         num_validators=args.num_validators, build=args.build, topology=args.topology,
@@ -353,12 +363,12 @@ def main() -> None:
         # applied) so the block-production measurement runs under load — matching
         # the migration runner. Previously the spammer started only after the
         # measurement window, leaving it idle.
-        ec.start_spammer(cfg)
+        _spammer_proc = ec.start_spammer(cfg)
         if cfg.block_measurement_seconds > 0:
             ec.measure_block_production(
                 cfg.num_validators, cfg.block_measurement_seconds,
             )
-        ec.run_loop(cfg, "fuzz")
+        ec.run_loop(cfg, "fuzz", "fuzz")
     finally:
         cleanup(cfg)
 

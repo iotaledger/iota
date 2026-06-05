@@ -9,7 +9,7 @@ Use it to:
 - optionally spam the network with transactions,
 - collect logs and basic network statistics.
 
-Three Python runners orchestrate the workflows, sharing `experiment_common.py` (logging, subprocess helpers, Prometheus queries, and the network phases). Each **generates its docker compose file per run** — one service block per validator — so they scale to any validator count (the static `docker-compose.yaml` only matters for the legacy injectors' fallback). The runners drive two lower-level Bash injectors:
+Three Python runners orchestrate the workflows, sharing `experiment_common.py` (logging, subprocess helpers, Prometheus queries, and the network phases). Each **generates its docker compose file per run** — one service block per validator — and supports 2–30 validators, matching the Prometheus scrape configuration. The runners drive two lower-level Bash injectors:
 
 - `run-benchmark.py` → `network-benchmark.sh` (deterministic role-based latency model + optional block/loss/restart).
 - `run-fuzz.py` → `network-fuzz.sh` (topology latency profiles + loss/block/restart + heal rounds / TTL).
@@ -58,12 +58,12 @@ docker pull nicolaka/netshoot
 
 Supports the following flags:
 
-- `-n <NUM>`: number of validators (default: `4`; scales to any N — compose is generated per run)
+- `-n <NUM>`: number of validators (2–30, default: `4`; compose is generated per run)
 - `-b <true|false>`: rebuild Docker images before running (default: `true`)
 - `-g <true|false>`: enable geodistributed large network latencies (default: `true`; `false` divides all delays by 4 and drops the heavy-tail slot bursts)
 - `-s <SEED>`: seed for pseudorandom disruptions (default: `42`)
 - `-x <PERCENT_BLOCK>`: percent of validator pairs to block connections (default: `0`)
-- `-l <PERCENT_LOSS>`: percent of validators to apply packet loss (default: `0`)
+- `-l <PERCENT_LOSS>`: percent of validators to apply source-wide packet loss while preserving each per-peer latency rule (default: `0`)
 - `-r <PERCENT_RESTART>`: percent of validators to restart periodically (default: `0`)
 - `-t <RUN_DURATION>`: total experiment duration in seconds (default: `3600`)
 - `-d <RESTART_DURATION>`: seconds a validator stays stopped per restart (default: `120`)
@@ -76,7 +76,7 @@ Supports the following flags:
 - `-Z <SIZE>`: per-transaction size for the `iota-spammer` spammer, e.g. `10KiB` (default: `10KiB`)
 - `-C <spammer_type>`: type of spammer to use (default: `stress`; another option: `iota-spammer`, which runs on the host and needs a `~/iota-spammer` clone with a Rust toolchain — the runner then also starts a faucet and publishes the fullnode RPC (`127.0.0.1:9000`) and faucet (`127.0.0.1:5003`))
 - `-c <testnet|mainnet>`: protocol-config chain override (default: empty → `testnet`)
-- `--block-measurement-seconds <S>`: pre-disruption measurement window reporting per-validator block rates, block-creation reasons, and block/transaction commit latencies (p50/p95) (default: `90`; `0` disables)
+- `--block-measurement-seconds <S>`: measurement window under the applied latency, disruptions, and optional load, reporting per-validator block rates, block-creation reasons, and block/transaction commit latencies (p50/p95) (default: `90`; `0` disables)
 
 Run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
 
@@ -126,7 +126,8 @@ container logs if not. The migration runner uses the same resolution for
 ./run-benchmark.py -n 4 -S true -T 500 --spammer-image my-stress:local
 ```
 
-Stream its output with `docker logs stress-benchmark`.
+During a run, stream its output with `docker logs stress-benchmark`. Cleanup
+archives it as `logs/stress-benchmark-latest.log` and a timestamped copy.
 
 ### 2. `iota-spammer` — external sizable-transaction spammer
 
@@ -139,8 +140,9 @@ adds a `sizable` transaction type whose payload size is set with `-Z`:
 ./run-benchmark.py -n 4 -S true -C iota-spammer -T 100 -Z 10KiB
 ```
 
-Logs are written to `logs/spammer.log`. If the script is absent the run
-continues without load.
+Logs are written to `logs/spammer.log`. If the script is absent, the run fails
+because the requested load was not started. Cleanup terminates the complete
+host-side spammer process group.
 
 ## Main Fuzz Runner: `run-fuzz.py`
 
@@ -166,7 +168,7 @@ Run from inside `iota/dev-tools/iota-private-network/experiments/`:
 
 Supported flags:
 
-- `-n <NUM>`: number of validators (default: `4`; scales to any N — compose is generated per run).
+- `-n <NUM>`: number of validators (2–30, default: `4`; compose is generated per run).
 - `-b <true|false>`: rebuild Docker images before running (default: `true`).
 - `-t <topology>`: topology / latency profile — `ring` | `star` | `non-triangle` | `random` | `geo-high` | `geo-low` (default: `geo-low`).
 - `-s <SEED>`: seed for deterministic pseudorandom disruptions (default: `42`).
@@ -314,7 +316,8 @@ behavior, and `--spammer-image`. Example:
   - `logs/fuzz_<TIMESTAMP>.log` (the file `run-fuzz.py` passes via `-o` to `network-fuzz.sh`).
 
 - Spammer logs (if enabled):
-  - `logs/spammer.log` (iota-spammer) or `docker logs stress-benchmark` (stress).
+  - `logs/spammer.log` (iota-spammer)
+  - `logs/stress-benchmark-latest.log` and `logs/stress-benchmark-<TIMESTAMP>.log` (stress)
 
 On exit, `run-fuzz.py`:
 
@@ -330,7 +333,7 @@ On exit, `run-fuzz.py`:
 
 Two modes (`--mode`, default `simple`):
 
-- **simple** — fast back-to-back rolling upgrade after a short fixed warm-up inside epoch 0, then a stable-window comparison (same-length measurement windows before the upgrade and after the next epoch boundary). No post-upgrade restarts.
+- **simple** — fast back-to-back rolling upgrade after a fixed warm-up inside epoch 0, then a stable-window comparison (same-length windows after monitoring/latency/load setup and after the next epoch boundary). No post-upgrade restarts.
 - **advanced** — full schedule: mid-epoch wait, randomized per-validator offline windows during the rolling upgrade, then keep-DB and wipe-DB restart stress across two post-upgrade epochs.
 
 The script must be run from inside:
@@ -357,7 +360,7 @@ Supported flags:
   Build the local upgrade image before running (default: `true`).
 
 - `-n <N>`\
-  Number of validators (2–100, default: `10`).
+  Number of validators (2–30, default: `10`).
 
 - `-c <chain>`\
   Chain override for protocol feature flags (`testnet`, `mainnet`, or empty; default: empty, which **inherits from `-r`** — `testnet`/`mainnet` set the matching override, `devnet`/`alphanet` set none. With the default `-r testnet` the network therefore runs with testnet feature flags).
