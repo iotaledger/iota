@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
@@ -25,12 +25,16 @@ use iota_types::{
     object::Object,
 };
 use itertools::{Either, Itertools, izip};
+use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use prometheus::Registry;
 
 use crate::{
     errors::{IndexerError, IndexerResult},
     historical_fallback::{
-        client::{HttpRestKVClient, KeyValueStoreClient},
+        client::{
+            CACHE_TIME_TO_IDLE, HttpRestKVClient, KeyValueStoreClient,
+            PaginatedKeyValueStoreClient, TransactionSequenceNumber,
+        },
         convert::{
             HistoricalFallbackCheckpoint, HistoricalFallbackEvents, HistoricalFallbackTransaction,
         },
@@ -61,6 +65,7 @@ pub(crate) struct HistoricalFallbackReader {
     /// storage through REST API interface.
     client: HttpRestKVClient,
     package_resolver: PackageResolver,
+    cache_cursor: MokaCache<TransactionDigest, TransactionSequenceNumber>,
 }
 
 impl HistoricalFallbackReader {
@@ -79,9 +84,15 @@ impl HistoricalFallbackReader {
             fallback_kv_concurrent_fetches,
             HistoricalFallbackClientMetrics::new(registry),
         )?;
+
+        let cache_cursor = MokaCacheBuilder::new(cache_size)
+            .time_to_idle(CACHE_TIME_TO_IDLE)
+            .build();
+
         Ok(Self {
             client,
             package_resolver,
+            cache_cursor,
         })
     }
 
@@ -496,5 +507,77 @@ impl HistoricalFallbackReader {
         };
 
         Ok(events)
+    }
+
+    /// Resolves the [`TransactionSequenceNumber`] for a given transaction
+    /// digest.
+    async fn resolve_transaction_sequence_number(
+        &self,
+        digest: TransactionDigest,
+    ) -> IndexerResult<Option<TransactionSequenceNumber>> {
+        let checkpoints = self.resolve_checkpoints(&[digest]).await?;
+        let (summary, contents) = checkpoints
+            .get(&digest)
+            .cloned()
+            // if transaction exists but summary is not found this indicates a bug in data
+            // consistency in the KV Store.
+            .ok_or_else(|| {
+                IndexerError::HistoricalFallbackStorageError(format!(
+                    "checkpoint summary and contents linked to transaction: {digest} not found",
+                ))
+            })?;
+
+        let result = contents
+            .enumerate_transactions(&summary)
+            .find(|(_seq, execution_digest)| execution_digest.transaction == digest)
+            .map(|(seq, _execution_digest)| seq);
+
+        Ok(result)
+    }
+
+    /// Fetches a paginated list of transaction digests that affect a given
+    /// address.
+    pub(crate) async fn paginate_transaction_digests_by_address(
+        &self,
+        address: IotaAddress,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        oldest_first: bool,
+    ) -> IndexerResult<Vec<TransactionDigest>> {
+        let cursor = match cursor {
+            Some(digest) => match self.cache_cursor.get(&digest) {
+                Some(tx_sequence_number) => Some(tx_sequence_number),
+                None => self.resolve_transaction_sequence_number(digest).await?,
+            },
+            None => None,
+        };
+
+        let pairs = self
+            .client
+            .transaction_digests_by_address(address, cursor, limit, oldest_first)
+            .await?;
+
+        Ok(pairs
+            .into_iter()
+            .map(|(seq, digest)| {
+                self.cache_cursor.insert(digest, seq);
+                digest
+            })
+            .collect())
+    }
+
+    /// Fetches a paginated list of transactions that affect a given address.
+    pub(crate) async fn transactions_by_address(
+        &self,
+        address: IotaAddress,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        oldest_first: bool,
+    ) -> IndexerResult<Vec<Option<StoredTransaction>>> {
+        let digests = self
+            .paginate_transaction_digests_by_address(address, cursor, limit, oldest_first)
+            .await?;
+
+        self.transactions(&digests).await
     }
 }
