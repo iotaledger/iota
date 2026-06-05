@@ -49,6 +49,7 @@ tempfile.workspace = true
 
 # internal dependencies
 iota-move-build.workspace = true
+iota-sdk-crypto.workspace = true
 move-compiler.workspace = true
 move-package.workspace = true
 

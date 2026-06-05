@@ -2,29 +2,44 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// TODO move tests to SDK?
-
 use std::str::FromStr;
 
 use fastcrypto::traits::ToFromBytes;
-use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    Signer,
+};
 use iota_sdk_types::{
-    SimpleSignature,
     crypto::{
         Ed25519Signature, Intent, IntentMessage, MULTISIG_COMMITTEE_SIZE_MAX, PersonalMessage,
         Secp256k1Signature, Secp256r1Signature, UserSignature,
     },
+    SimpleSignature,
 };
-
-use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
-use crate::{
+use iota_types::{
     base_types::IotaAddress,
     crypto::{Ed25519IotaSignature, IotaSignatureInner},
     error::IotaError,
-    multisig::{MultiSig, MultisigMember, MultisigMemberSignature},
+    multisig::{
+        MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberSignature, ThresholdUnit,
+        WeightUnit,
+    },
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    utils::multisig_keys,
 };
+use rand::{rngs::StdRng, SeedableRng};
+
+pub fn multisig_keys() -> (
+    Ed25519PrivateKey,
+    Secp256k1PrivateKey,
+    Secp256r1PrivateKey,
+) {
+    let mut rng = StdRng::from_seed([0; 32]);
+    let kp1 = Ed25519PrivateKey::generate(&mut rng);
+    let kp2 = Secp256k1PrivateKey::generate(&mut rng);
+    let kp3 = Secp256r1PrivateKey::generate(&mut rng);
+
+    (kp1, kp2, kp3)
+}
 
 #[test]
 fn test_combine_sigs() {

@@ -17,9 +17,6 @@ use crate::{
     signature::{AuthenticatorTrait, VerifyParams},
 };
 
-#[cfg(test)]
-#[path = "unit_tests/multisig_tests.rs"]
-mod multisig_tests;
 
 impl AuthenticatorTrait for MultiSig {
     fn verify_claims<T>(
