@@ -22,19 +22,19 @@ The architecture of the marketplace will evolve as we progress through the tutor
 ### Part I
 
 In part I, we will start with this very simple architecture:
-![Cross Chain MarketPlace V1](/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V1.png)
+![Cross Chain MarketPlace V1](https://docs.iota.org/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V1.png)
 
 ### Part II
 
 In Part II, you will add the contracts and scripts to manually bridge NFTs from the BNB Testnet to the IOTA EVM Testnet and list them on the marketplace. The architecture will evolve to look like this:
-![Cross Chain MarketPlace V2](/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V2.png)
+![Cross Chain MarketPlace V2](https://docs.iota.org/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V2.png)
 
 <!-- ### Part III
 
 Finally, in part III, you will deploy another marketplace instance on the BNB Testnet, where the contract will handle cross-chain transactions.
 This enables a user on the BNB Testnet, to view and buy an NFT listed on the IOTA EVM Testnet and vice versa without switching networks.
 The architecture will look like this:
-![Cross Chain MarketPlace V3](/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V3.png) -->
+![Cross Chain MarketPlace V3](https://docs.iota.org/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V3.png) -->
 
 ## Prerequisites
 
