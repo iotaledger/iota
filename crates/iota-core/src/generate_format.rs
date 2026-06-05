@@ -13,14 +13,14 @@ use iota_sdk_crypto::{
 use iota_sdk_types::{
     Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, Identifier,
-    MoveLocation, ObjectId, Owner, PackageUpgradeError, SimpleSignature, StructTag,
+    MoveLocation, MoveObjectType, ObjectId, Owner, PackageUpgradeError, SimpleSignature, StructTag,
     TypeArgumentError, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
     base_types::{
-        self, ExecutionData, IotaAddress, MoveObjectType, ObjectDigest, TransactionDigest,
+        self, ExecutionData, IotaAddress, ObjectDigest, TransactionDigest,
         TransactionEffectsDigest,
     },
     crypto::{
