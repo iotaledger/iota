@@ -60,13 +60,7 @@ const operator = [
             'operator/activate_DoS_protection_for_validators',
         ],
     },
-    {
-        type: 'category',
-        label: 'Extensions',
-        items: [
-            'operator/extensions/indexer-functions',
-        ],
-    },
+    'operator/indexer',
     'operator/data-management',
     // 'operator/security-releases',
     {
