@@ -17,12 +17,12 @@ use iota_package_management::{
     PublishedAtError, resolve_published_id,
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, move_package::MovePackage};
 use iota_types::{
     base_types::IotaAddress,
     error::{IotaError, IotaResult},
     move_package::{
-        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, RuntimeModuleMetadata,
         RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
     },
 };

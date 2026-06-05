@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag};
 // Re-export the canonical type from iota-types
 pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
@@ -15,7 +15,7 @@ use iota_types::{
     coin::Coin,
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object},
     stardust::{
         coin_type::CoinType,
         output::unlock_conditions::{

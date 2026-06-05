@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag, move_package::MovePackage};
 use iota_types::{
     base_types::{
         IotaAddress, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext,
@@ -18,7 +18,7 @@ use iota_types::{
     },
     id::{self, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    move_package::{MovePackage, MovePackageExt},
+    move_package::MovePackageExt,
     object::bounded_visitor::BoundedVisitor,
     transfer::RESOLVED_RECEIVING_STRUCT,
 };

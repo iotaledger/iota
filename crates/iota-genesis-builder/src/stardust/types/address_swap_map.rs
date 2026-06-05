@@ -4,8 +4,9 @@
 use std::{collections::HashMap, fs::File};
 
 use iota_config::genesis::csv_reader_with_comments;
+use iota_sdk_types::Owner;
 use iota_stardust_types::block::address::Address as StardustAddress;
-use iota_types::{base_types::IotaAddress, object::Owner};
+use iota_types::base_types::IotaAddress;
 
 use super::address::stardust_to_iota_address;
 

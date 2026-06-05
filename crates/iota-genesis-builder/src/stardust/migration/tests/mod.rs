@@ -5,7 +5,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag, TypeTag};
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
@@ -23,7 +23,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::coin_type::CoinType,
-    transaction::{Argument, CallArg, CheckedInputObjects},
+    transaction::{CallArg, CheckedInputObjects},
 };
 use move_binary_format::errors::VMError;
 use move_core_types::vm_status::StatusCode;

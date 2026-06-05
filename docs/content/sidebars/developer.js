@@ -483,6 +483,7 @@ const developer = [
                                     'developer/move/how-tos/account-abstraction/authenticator/create-time-locked-account',
                                     'developer/move/how-tos/account-abstraction/authenticator/create-onesig-account',
                                     'developer/move/how-tos/account-abstraction/authenticator/create-spending-limit-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-whitelist-sponsorship-account',
                                     'developer/move/how-tos/account-abstraction/authenticator/create-lean-imt-account',
                                     'developer/move/how-tos/account-abstraction/authenticator/dynamic-multisig-account',
                                 ]
@@ -498,6 +499,7 @@ const developer = [
                                 items: [
                                     'developer/move/how-tos/account-abstraction/security/inputs-cryptographic-protection',
                                     'developer/move/how-tos/account-abstraction/security/tx-data-cryptographic-protection',
+                                    'developer/move/how-tos/account-abstraction/security/sender-identity-binding',
                                     'developer/move/how-tos/account-abstraction/security/shared-object-inputs',
                                 ],
                             },

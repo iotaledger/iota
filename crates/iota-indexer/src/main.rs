@@ -82,12 +82,20 @@ async fn main() -> Result<(), IndexerError> {
                 );
             }
 
+            if snapshot_config.is_set() {
+                warn!(
+                    "the --objects-snapshot-min-checkpoint-lag / --objects-snapshot-sleep-duration arguments \
+                     (and the OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG env var) are deprecated. \
+                     These arguments will be removed in v1.31.0. \
+                     The objects_snapshot pipeline has been removed; these flags are now no-ops."
+                );
+            }
+
             let store = PgIndexerStore::new(connection_pool, indexer_metrics.clone());
             Indexer::start_writer_with_config(
                 &ingestion_config,
                 store,
                 indexer_metrics,
-                snapshot_config,
                 retention_config,
                 cancel.clone(),
             )

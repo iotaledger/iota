@@ -5,8 +5,8 @@
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
 use anyhow::{Context, Result, bail};
-use iota_sdk_types::{Command, Identifier, MoveCall, ObjectId};
-use iota_types::{iota_sdk_types_conversions::type_tag_core_to_sdk, transaction::Argument};
+use iota_sdk_types::{Argument, Command, Identifier, MoveCall, ObjectId};
+use iota_types::iota_sdk_types_conversions::type_tag_core_to_sdk;
 use move_core_types::{
     account_address::AccountAddress,
     parsing::{

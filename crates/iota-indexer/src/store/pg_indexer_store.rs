@@ -19,10 +19,7 @@ use diesel::{
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::ObjectId;
-use iota_types::{
-    digests::{ChainIdentifier, CheckpointDigest},
-    messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::digests::{ChainIdentifier, CheckpointDigest};
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 use tap::TapFallible;
@@ -35,7 +32,7 @@ use crate::{
     errors::{Context, IndexerError},
     ingestion::{
         common::{
-            persist::{CommitterWatermark, ObjectsSnapshotHandlerTables},
+            persist::CommitterWatermark,
             prepare::{
                 CheckpointObjectChanges, LiveObject, RemovedObject,
                 retain_latest_objects_from_checkpoint_batch,
@@ -53,7 +50,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::{
             StoredBackwardHistoryObject, StoredCheckpointedObject, StoredDeletedObject,
-            StoredHistoryObject, StoredObject, StoredObjectSnapshot, StoredObjects,
+            StoredHistoryObject, StoredObject, StoredObjects,
         },
         packages::StoredPackage,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
@@ -68,11 +65,10 @@ use crate::{
         chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
         event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
         event_struct_name, event_struct_package, events, feature_flags, objects,
-        objects_backward_history, objects_history, objects_snapshot, objects_version,
-        optimistic_transactions, packages, protocol_configs, pruner_cp_watermark, transactions,
-        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order,
-        tx_input_objects, tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
-        watermarks,
+        objects_backward_history, objects_history, objects_version, optimistic_transactions,
+        packages, protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
+        tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds,
+        tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
     store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
     transactional_blocking_with_retry,
@@ -255,46 +251,6 @@ impl PgIndexerStore {
                 })
         })
         .context("Failed reading min and max epoch numbers from PostgresDB")
-    }
-
-    fn get_latest_object_snapshot_watermark(
-        &self,
-    ) -> Result<Option<CommitterWatermark>, IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            watermarks::table
-                .select((
-                    watermarks::current_epoch,
-                    watermarks::max_committed_cp,
-                    watermarks::max_committed_tx,
-                ))
-                .filter(
-                    watermarks::entity
-                        .eq(ObjectsSnapshotHandlerTables::ObjectsSnapshot.to_string()),
-                )
-                .first::<(i64, i64, i64)>(conn)
-                // Handle case where the watermark is not set yet
-                .optional()
-                .map(|v| {
-                    v.map(|(epoch, cp, tx)| CommitterWatermark {
-                        current_epoch: epoch as u64,
-                        max_committed_cp: cp as u64,
-                        max_committed_tx: tx as u64,
-                    })
-                })
-        })
-        .context("Failed reading latest object snapshot watermark from PostgresDB")
-    }
-
-    fn get_latest_object_snapshot_checkpoint_sequence_number(
-        &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            objects_snapshot::table
-                .select(max(objects_snapshot::checkpoint_sequence_number))
-                .first::<Option<i64>>(conn)
-                .map(|v| v.map(|v| v as CheckpointSequenceNumber))
-        })
-        .context("Failed reading latest object snapshot checkpoint sequence number from PostgresDB")
     }
 
     fn persist_display_updates(
@@ -592,70 +548,6 @@ impl PgIndexerStore {
             .map_err(IndexerError::from)
             .context("Failed to write object deletion to PostgresDB")?;
         Ok::<(), IndexerError>(())
-    }
-
-    fn backfill_objects_snapshot_chunk(
-        &self,
-        objects_snapshot: Vec<StoredObjectSnapshot>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_objects_snapshot_chunks
-            .start_timer();
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                for objects_snapshot_chunk in
-                    objects_snapshot.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
-                {
-                    on_conflict_do_update!(
-                        objects_snapshot::table,
-                        objects_snapshot_chunk,
-                        objects_snapshot::object_id,
-                        (
-                            objects_snapshot::object_version
-                                .eq(excluded(objects_snapshot::object_version)),
-                            objects_snapshot::object_status
-                                .eq(excluded(objects_snapshot::object_status)),
-                            objects_snapshot::object_digest
-                                .eq(excluded(objects_snapshot::object_digest)),
-                            objects_snapshot::checkpoint_sequence_number
-                                .eq(excluded(objects_snapshot::checkpoint_sequence_number)),
-                            objects_snapshot::owner_type.eq(excluded(objects_snapshot::owner_type)),
-                            objects_snapshot::owner_id.eq(excluded(objects_snapshot::owner_id)),
-                            objects_snapshot::object_type_package
-                                .eq(excluded(objects_snapshot::object_type_package)),
-                            objects_snapshot::object_type_module
-                                .eq(excluded(objects_snapshot::object_type_module)),
-                            objects_snapshot::object_type_name
-                                .eq(excluded(objects_snapshot::object_type_name)),
-                            objects_snapshot::object_type
-                                .eq(excluded(objects_snapshot::object_type)),
-                            objects_snapshot::serialized_object
-                                .eq(excluded(objects_snapshot::serialized_object)),
-                            objects_snapshot::coin_type.eq(excluded(objects_snapshot::coin_type)),
-                            objects_snapshot::coin_balance
-                                .eq(excluded(objects_snapshot::coin_balance)),
-                            objects_snapshot::df_kind.eq(excluded(objects_snapshot::df_kind)),
-                        ),
-                        conn
-                    );
-                }
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(
-                elapsed,
-                "Persisted {} chunked objects snapshot",
-                objects_snapshot.len(),
-            );
-        })
-        .tap_err(|e| {
-            tracing::error!("failed to persist object snapshot with error: {e}");
-        })
     }
 
     fn persist_objects_history_chunk(
@@ -1941,22 +1833,6 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    async fn get_latest_object_snapshot_watermark(
-        &self,
-    ) -> Result<Option<CommitterWatermark>, IndexerError> {
-        self.execute_in_blocking_worker(|this| this.get_latest_object_snapshot_watermark())
-            .await
-    }
-
-    async fn get_latest_object_snapshot_checkpoint_sequence_number(
-        &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
-        self.execute_in_blocking_worker(|this| {
-            this.get_latest_object_snapshot_checkpoint_sequence_number()
-        })
-        .await
-    }
-
     fn persist_objects_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
@@ -1979,51 +1855,6 @@ impl IndexerStore for PgIndexerStore {
         self.persist_object_mutation_chunk_in_existing_transaction(conn, object_mutations)?;
         self.persist_object_deletion_chunk_in_existing_transaction(conn, object_deletions)?;
 
-        Ok(())
-    }
-
-    async fn persist_objects_snapshot(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
-    ) -> Result<(), IndexerError> {
-        if object_changes.is_empty() {
-            return Ok(());
-        }
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_objects_snapshot
-            .start_timer();
-        let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
-        let objects_snapshot = indexed_mutations
-            .into_iter()
-            .map(StoredObjectSnapshot::try_from)
-            .chain(
-                indexed_deletions
-                    .into_iter()
-                    .map(|o| Ok(StoredObjectSnapshot::from(o))),
-            )
-            .collect::<Result<Vec<_>, _>>()?;
-        let len = objects_snapshot.len();
-        let chunks = chunk!(objects_snapshot, self.config.parallel_objects_chunk_size);
-        let futures = chunks
-            .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.backfill_objects_snapshot_chunk(c)));
-
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!("failed to join backfill_objects_snapshot_chunk futures: {e}");
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all objects snapshot chunks: {e:?}"
-                ))
-            })?;
-        let elapsed = guard.stop_and_record();
-        info!(elapsed, "Persisted {} objects snapshot", len);
         Ok(())
     }
 
@@ -2513,14 +2344,13 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .map(|live| {
                 let (indexed, _tx_digest) = live.split();
-                StoredObjectSnapshot::try_from(indexed)
+                StoredCheckpointedObject::try_from(indexed)
             })
             .chain(
                 deletions
                     .into_iter()
-                    .map(|removed| Ok(StoredObjectSnapshot::from(removed.indexed_object))),
+                    .map(|removed| Ok(StoredCheckpointedObject::from(removed.indexed_object))),
             )
-            .map(|snap| Ok(StoredCheckpointedObject::from(&snap?)))
             .collect::<Result<Vec<_>, IndexerError>>()?;
 
         let len = checkpointed_objects.len();

@@ -13,12 +13,11 @@ use iota_grpc_types::{
 };
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{Owner, StructTag, TypeTag};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    object::Owner,
     parse_iota_struct_tag,
     transaction::CallArg,
 };

@@ -6,7 +6,7 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_stardust_types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
@@ -15,7 +15,7 @@ use iota_types::{
     base_types::{IotaAddress, SequenceNumber, TxContext},
     collection_types::{Bag, Entry, VecMap},
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object},
     stardust::{
         coin_type::CoinType,
         output::{

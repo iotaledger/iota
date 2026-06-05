@@ -22,9 +22,9 @@ mod utils;
 
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI},
 };
-use iota_sdk_types::Command;
+use iota_sdk_types::{Argument, Command};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
