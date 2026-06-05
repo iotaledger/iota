@@ -354,10 +354,16 @@ sleep 5
 GRAFANA_DIR="../../grafana-local"
 cd "$GRAFANA_DIR" || { log "Grafana folder not found"; exit 1; }
 
+# Check if any Grafana container is already running on the correct network
+current_net=""
 if docker compose ps --services --filter "status=running" | grep -q grafana; then
-  log "Grafana already running, skipping start"
+  current_net=$(docker inspect -f '{{range $net, $val := .NetworkSettings.Networks}}{{$net}}{{end}}' "$(docker compose ps -q grafana)" 2>/dev/null || true)
+fi
+
+if [ "$current_net" = "iota-private-network_iota-network" ]; then
+  log "Grafana already running on correct network, skipping start"
 else
-  log "Starting Grafana dashboard..."
+  log "Starting/recreating Grafana dashboard on correct network..."
   docker compose up -d
 fi
 log "Grafana URL: http://localhost:3000/dashboards"
