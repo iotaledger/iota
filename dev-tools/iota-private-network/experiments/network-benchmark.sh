@@ -377,8 +377,22 @@ reapply_latencies_and_fuzz_loop() {
                 continue
             fi
 
-            if ! nsenter -t "$pid" -n tc qdisc show dev eth0 | grep -q "netem"; then
-                log "Reapplying latency + fuzz for $v (container restarted or tc removed)"
+            local loss expected_netem current_netem status=0
+            loss=${fuzz_loss_amount["$v"]:-0}
+            if (( loss > 0 )); then
+                expected_netem=1
+            else
+                expected_netem=$(( NUMBER_VALIDATORS - 1 ))
+            fi
+
+            current_netem=$(nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null | grep -c "netem") || status=$?
+            if [ $status -ne 0 ]; then
+                # Transient error, skip this iteration to avoid fake triggers/aborts
+                continue
+            fi
+
+            if [ "$current_netem" -lt "$expected_netem" ]; then
+                log "Reapplying latency + fuzz for $v (expected $expected_netem netem qdiscs, found $current_netem)"
 
                 # --- Reapply latency ---
                 for u in "${validators[@]}"; do
@@ -392,12 +406,11 @@ reapply_latencies_and_fuzz_loop() {
 
                 # --- Reapply fuzz (blocking) ---
                 for target in ${fuzz_block_targets["$v"]}; do
-                    block_connection "$v" "$target"
+                    block_connection "$v" "$target" || log "Warning: failed to reapply block $v → $target"
                 done
 
                 # --- Reapply fuzz (netem loss) ---
-                loss=${fuzz_loss_amount["$v"]}
-                (( loss > 0 )) && apply_loss "$v" "$loss"
+                (( loss > 0 )) && { apply_loss "$v" "$loss" || log "Warning: failed to reapply loss to $v"; }
             fi
         done
         sleep 1
