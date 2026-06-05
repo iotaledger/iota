@@ -911,9 +911,9 @@ impl ValidatorService {
     ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let client_addr = if let Some(client_id_source) = &self.client_id_source {
-            self.get_client_ip_addr(&request, client_id_source)
+            self.get_client_ip_addr(&request, client_id_source)?
         } else {
-            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
+            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)?
         };
 
         let request = request.into_inner();
@@ -1018,7 +1018,7 @@ impl ValidatorService {
         &self,
         request: &tonic::Request<T>,
         source: &ClientIdSource,
-    ) -> Option<IpAddr> {
+    ) -> Result<Option<IpAddr>, tonic::Status> {
         let forwarded_header = request.metadata().get_all("x-forwarded-for").iter().next();
 
         if let Some(header) = forwarded_header {
@@ -1036,25 +1036,25 @@ impl ValidatorService {
 
                 // We will hit this case if the IO type used does not
                 // implement Connected or when using a unix domain socket.
-                // TODO: once we have confirmed that no legitimate traffic
-                // is hitting this case, we should reject such requests that
-                // hit this case.
                 if let Some(socket_addr) = socket_addr {
-                    Some(socket_addr.ip())
+                    Ok(Some(socket_addr.ip()))
                 } else {
                     if cfg!(msim) {
                         // Ignore the error from simtests.
+                        Ok(None)
                     } else if cfg!(test) {
                         panic!("Failed to get remote address from request");
                     } else {
                         self.metrics.connection_ip_not_found.inc();
                         error!("Failed to get remote address from request");
+                        Err(tonic::Status::invalid_argument(
+                            "Failed to get remote address from request"
+                        ))
                     }
-                    None
                 }
             }
             ClientIdSource::XForwardedFor(num_hops) => {
-                let do_header_parse = |op: &MetadataValue<Ascii>| {
+                let do_header_parse = |op: &MetadataValue<Ascii>| -> Result<Option<IpAddr>, tonic::Status> {
                     match op.to_str() {
                         Ok(header_val) => {
                             let header_contents =
@@ -1066,7 +1066,7 @@ impl ValidatorService {
                                     to this node. Skipping traffic controller request handling.",
                                     header_contents,
                                 );
-                                return None;
+                                return Ok(None);
                             }
                             let contents_len = header_contents.len();
                             if contents_len < *num_hops {
@@ -1077,7 +1077,7 @@ impl ValidatorService {
                                     header_contents, contents_len, num_hops, contents_len,
                                 );
                                 self.metrics.client_id_source_config_mismatch.inc();
-                                return None;
+                                return Ok(None);
                             }
                             let Some(client_ip) = header_contents.get(contents_len - num_hops)
                             else {
@@ -1086,20 +1086,20 @@ impl ValidatorService {
                                     Expected at least {} values. Skipping traffic controller request handling.",
                                     header_contents, contents_len, num_hops, contents_len,
                                 );
-                                return None;
+                                return Ok(None);
                             };
-                            parse_ip(client_ip).or_else(|| {
+                            Ok(parse_ip(client_ip).or_else(|| {
                                 self.metrics.forwarded_header_parse_error.inc();
                                 None
-                            })
+                            }))
                         }
                         Err(e) => {
-                            // TODO: once we have confirmed that no legitimate traffic
-                            // is hitting this case, we should reject such requests that
-                            // hit this case.
                             self.metrics.forwarded_header_invalid.inc();
                             error!("Invalid UTF-8 in x-forwarded-for header: {:?}", e);
-                            None
+                            Err(tonic::Status::invalid_argument(format!(
+                                "Invalid UTF-8 in x-forwarded-for header: {:?}",
+                                e
+                            )))
                         }
                     }
                 };
@@ -1112,7 +1112,7 @@ impl ValidatorService {
                     error!(
                         "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
                     );
-                    None
+                    Ok(None)
                 }
             }
         }
@@ -1291,7 +1291,7 @@ macro_rules! handle_with_decoration {
             return $self.$func_name($request).await.map(|(result, _)| result);
         }
 
-        let client = $self.get_client_ip_addr(&$request, $self.client_id_source.as_ref().unwrap());
+        let client = $self.get_client_ip_addr(&$request, $self.client_id_source.as_ref().unwrap())?;
 
         // check if either IP is blocked, in which case return early
         $self.handle_traffic_req(client.clone()).await?;
