@@ -505,8 +505,8 @@ pub fn mean_apy_from_exchange_rates<'er>(
         .map(|(er, er_next)| calculate_apy(er, er_next))
         .collect::<Vec<_>>();
 
-    // Return 0.0 if there is no data OR if any APY is negative
-    if apys.is_empty() || apys.iter().any(|&apy| apy < 0.0) {
+    // Return 0.0 if there is no data
+    if apys.is_empty() {
         return 0.0;
     }
     // If any single epoch has outliers (that is APY > MAX_VALID_APY or exchange
@@ -517,12 +517,13 @@ pub fn mean_apy_from_exchange_rates<'er>(
 
     apys.truncate(SAMPLES);
 
-    if has_outlier {
+    let final_apy = if has_outlier {
         Data::new(apys).median()
     } else {
         let sum: f64 = apys.iter().sum();
         sum / SAMPLES as f64
-    }
+    };
+    final_apy.max(0.0)
 }
 
 /// Calculate the APY by the exchange rate of two consecutive epochs
