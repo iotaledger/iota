@@ -27,7 +27,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus},
+    object::{self, Object, ObjectFilter, ObjectImpl, ObjectKind, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -41,7 +41,7 @@ use crate::{
     connection::ScanConnection,
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
-    types::object::{ObjectOwner, StoredBackwardObject},
+    types::object::{ObjectOwner, StoredBackwardObject, is_active},
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and
@@ -560,11 +560,14 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            let Some(object) =
-                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?
-            else {
-                continue;
-            };
+            if !is_active(&result) {
+                return Err(Error::Internal(format!(
+                    "Expected NameRecord 0x{} to be active",
+                    hex::encode(&result.object_id)
+                )));
+            }
+            let kind = ObjectKind::try_from(result)?;
+            let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
                     "Expected {0} to be a NameRecord, but it's not a Move Object.",

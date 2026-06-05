@@ -85,13 +85,14 @@ pub(crate) struct Object {
 pub(crate) struct ObjectImpl<'o>(pub &'o Object);
 
 #[derive(Clone, Debug)]
-#[expect(clippy::large_enum_variant)]
-pub(crate) enum ObjectKind {
-    /// An object loaded from serialized data, such as the contents of a
-    /// transaction that hasn't been indexed yet.
-    NotIndexed(NativeObject),
-    /// An object fetched from the index.
-    Indexed(NativeObject, StoredHistoryObject),
+pub(crate) struct ObjectKind {
+    /// The deserialized object.
+    native: NativeObject,
+    /// Where the object's state was read from.
+    status: ObjectStatus,
+    /// The serialized object as stored in the index. `None` for `NotIndexed`
+    /// objects.
+    bcs: Option<Vec<u8>>,
 }
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
@@ -697,12 +698,12 @@ impl ObjectImpl<'_> {
     }
 
     pub(crate) async fn bcs(&self) -> Result<Option<Base64>> {
-        use ObjectKind as K;
-        Ok(match &self.0.kind {
-            K::Indexed(_, stored) => stored.serialized_object.as_ref().map(Base64::from),
+        let kind = &self.0.kind;
+        Ok(match &kind.bcs {
+            Some(serialized) => Some(Base64::from(serialized)),
 
-            K::NotIndexed(native) => {
-                let bytes = bcs::to_bytes(native)
+            None => {
+                let bytes = bcs::to_bytes(&kind.native)
                     .map_err(|e| {
                         Error::Internal(format!(
                             "Failed to serialize object at {}: {e}",
@@ -765,18 +766,18 @@ impl Object {
         let root_version = root_version.unwrap_or_else(|| version_for_dynamic_fields(&native));
         Object {
             address,
-            kind: ObjectKind::NotIndexed(native),
+            kind: ObjectKind {
+                native,
+                status: ObjectStatus::NotIndexed,
+                bcs: None,
+            },
             checkpoint_viewed_at,
             root_version,
         }
     }
 
     pub(crate) fn native_impl(&self) -> &NativeObject {
-        use ObjectKind as K;
-
-        match &self.kind {
-            K::NotIndexed(native) | K::Indexed(native, _) => native,
-        }
+        &self.kind.native
     }
 
     pub(crate) fn version_impl(&self) -> u64 {
@@ -870,11 +871,12 @@ impl Object {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            if let Some(object) =
-                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?
-            {
-                conn.edges.push(Edge::new(cursor, downcast(object)?));
+            if !is_active(&stored_history) {
+                continue;
             }
+            let kind = ObjectKind::try_from(stored_history)?;
+            let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
+            conn.edges.push(Edge::new(cursor, downcast(object)?));
         }
 
         Ok(conn)
@@ -978,6 +980,8 @@ impl Object {
         Ok(connection.edges.into_iter().next().map(|edge| edge.node))
     }
 
+    /// Builds an `Object` from its `kind`, viewed at `checkpoint_viewed_at`.
+    ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
     /// which this `Object` was constructed in. This is stored on `Object`
     /// so that when viewing that entity's state, it will be as if it was
@@ -989,44 +993,18 @@ impl Object {
     /// `root_version` has been explicitly set for this object. If None, then
     /// we use [`version_for_dynamic_fields`] to infer a root version to then
     /// propagate from this object down to its dynamic fields.
-    pub(crate) fn try_from_stored_history_object(
-        history_object: StoredHistoryObject,
+    pub(crate) fn from_object_kind(
+        kind: ObjectKind,
         checkpoint_viewed_at: u64,
         root_version: Option<u64>,
-    ) -> Result<Option<Self>, Error> {
-        let address = addr(&history_object.object_id)?;
-
-        let object_status =
-            NativeObjectStatus::try_from(history_object.object_status).map_err(|_| {
-                Error::Internal(format!(
-                    "Unknown object status {} for object {} at version {}",
-                    history_object.object_status, address, history_object.object_version
-                ))
-            })?;
-
-        match object_status {
-            NativeObjectStatus::Active => {
-                let Some(serialized_object) = &history_object.serialized_object else {
-                    return Err(Error::Internal(format!(
-                        "Live object {} at version {} cannot have missing serialized_object field",
-                        address, history_object.object_version
-                    )));
-                };
-
-                let native_object = bcs::from_bytes(serialized_object).map_err(|_| {
-                    Error::Internal(format!("Failed to deserialize object {address}"))
-                })?;
-
-                let root_version =
-                    root_version.unwrap_or_else(|| version_for_dynamic_fields(&native_object));
-                Ok(Some(Self {
-                    address,
-                    kind: ObjectKind::Indexed(native_object, history_object),
-                    checkpoint_viewed_at,
-                    root_version,
-                }))
-            }
-            NativeObjectStatus::WrappedOrDeleted => Ok(None),
+    ) -> Self {
+        let address = IotaAddress::from(kind.native.id());
+        let root_version = root_version.unwrap_or_else(|| version_for_dynamic_fields(&kind.native));
+        Self {
+            address,
+            kind,
+            checkpoint_viewed_at,
+            root_version,
         }
     }
 
@@ -1034,36 +1012,44 @@ impl Object {
         stored_object: StoredObject,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
-        let address = addr(&stored_object.object_id)?;
-
-        let native_object = bcs::from_bytes(&stored_object.serialized_object)
-            .map_err(|_| Error::Internal(format!("Failed to deserialize object {address}")))?;
-
-        let root_version = version_for_dynamic_fields(&native_object);
-
-        let stored_history_like = StoredHistoryObject {
-            object_id: stored_object.object_id,
-            object_version: stored_object.object_version,
-            object_digest: Some(stored_object.object_digest),
-            object_status: NativeObjectStatus::Active as i16,
-            checkpoint_sequence_number: checkpoint_viewed_at as i64,
-            serialized_object: Some(stored_object.serialized_object),
-            object_type: stored_object.object_type,
-            object_type_package: stored_object.object_type_package,
-            object_type_module: stored_object.object_type_module,
-            object_type_name: stored_object.object_type_name,
-            owner_type: Some(stored_object.owner_type),
-            owner_id: stored_object.owner_id,
-            coin_type: stored_object.coin_type,
-            coin_balance: stored_object.coin_balance,
-            df_kind: stored_object.df_kind,
+        let kind = ObjectKind {
+            native: NativeObject::try_from(&stored_object)?,
+            status: ObjectStatus::Indexed,
+            bcs: Some(stored_object.serialized_object),
         };
+        Ok(Self::from_object_kind(kind, checkpoint_viewed_at, None))
+    }
+}
 
-        Ok(Self {
-            address,
-            kind: ObjectKind::Indexed(native_object, stored_history_like),
-            checkpoint_viewed_at,
-            root_version,
+/// Whether a stored history row represents a live object, as opposed to a
+/// wrapped or deleted tombstone (or an unrecognized status).
+///
+/// Callers skip tombstones with this before converting a row into an
+/// [`ObjectKind`].
+pub(crate) fn is_active(stored: &StoredHistoryObject) -> bool {
+    matches!(
+        NativeObjectStatus::try_from(stored.object_status),
+        Ok(NativeObjectStatus::Active)
+    )
+}
+
+impl TryFrom<StoredHistoryObject> for ObjectKind {
+    type Error = Error;
+
+    /// Builds an `ObjectKind` from a stored history row by deserializing its
+    /// native object.
+    ///
+    /// Callers skip wrapped or deleted tombstones with [`is_active`] first.
+    ///
+    /// # Errors
+    /// The row has no serialized object, or it fails to deserialize — either
+    /// way a corrupted index entry, surfaced by the indexer's conversion.
+    fn try_from(stored: StoredHistoryObject) -> Result<Self, Self::Error> {
+        let native = NativeObject::try_from(&stored)?;
+        Ok(ObjectKind {
+            native,
+            status: ObjectStatus::Indexed,
+            bcs: stored.serialized_object,
         })
     }
 }
@@ -1594,14 +1580,14 @@ impl Loader<HistoricalKey> for Db {
                 continue;
             }
 
-            if let Some(object) = Object::try_from_stored_history_object(
-                stored.clone(),
-                key.checkpoint_viewed_at,
-                // This conversion will use the object's own version as the `Object::root_version`.
-                None,
-            )? {
-                result.insert(*key, object);
+            if !is_active(stored) {
+                continue;
             }
+            let kind = ObjectKind::try_from(stored.clone())?;
+            // This conversion will use the object's own version as the
+            // `Object::root_version`.
+            let object = Object::from_object_kind(kind, key.checkpoint_viewed_at, None);
+            result.insert(*key, object);
         }
 
         Ok(result)
@@ -1815,16 +1801,17 @@ impl Loader<ParentVersionKey> for Db {
                     continue;
                 }
 
-                let Some(object) = Object::try_from_stored_history_object(
-                    stored,
-                    group_key.checkpoint_viewed_at,
-                    // If `LatestAtKey::parent_version` is set, it must have been correctly
-                    // propagated from the `Object::root_version` of some object.
-                    Some(group_key.parent_version),
-                )?
-                else {
+                if !is_active(&stored) {
                     continue;
-                };
+                }
+                let kind = ObjectKind::try_from(stored)?;
+                // If `LatestAtKey::parent_version` is set, it must have been correctly
+                // propagated from the `Object::root_version` of some object.
+                let object = Object::from_object_kind(
+                    kind,
+                    group_key.checkpoint_viewed_at,
+                    Some(group_key.parent_version),
+                );
 
                 let key = ParentVersionKey {
                     id: object.address,
@@ -1909,11 +1896,11 @@ impl Loader<LatestAtKey> for Db {
             for (checkpoint_viewed_at, stored) in
                 group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
             {
-                let Some(object) =
-                    Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?
-                else {
+                if !is_active(&stored) {
                     continue;
-                };
+                }
+                let kind = ObjectKind::try_from(stored)?;
+                let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
 
                 let key = LatestAtKey {
                     id: object.address,
@@ -1930,10 +1917,7 @@ impl Loader<LatestAtKey> for Db {
 
 impl From<&ObjectKind> for ObjectStatus {
     fn from(kind: &ObjectKind) -> Self {
-        match kind {
-            ObjectKind::NotIndexed(_) => ObjectStatus::NotIndexed,
-            ObjectKind::Indexed(_, _) => ObjectStatus::Indexed,
-        }
+        kind.status
     }
 }
 

@@ -28,7 +28,7 @@ use crate::{
         iota_address::IotaAddress,
         move_object::MoveObject,
         move_value::MoveValue,
-        object::{self, Object, ObjectKind, StoredBackwardObject},
+        object::{self, Object, ObjectKind, StoredBackwardObject, is_active},
         type_filter::ExactTypeFilter,
     },
 };
@@ -240,15 +240,11 @@ impl DynamicField {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-
-            let Some(object) = Object::try_from_stored_history_object(
-                stored_history,
-                checkpoint_viewed_at,
-                parent_version,
-            )?
-            else {
+            if !is_active(&stored_history) {
                 continue;
-            };
+            }
+            let kind = ObjectKind::try_from(stored_history)?;
+            let object = Object::from_object_kind(kind, checkpoint_viewed_at, parent_version);
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
@@ -275,9 +271,7 @@ impl TryFrom<MoveObject> for DynamicField {
     fn try_from(stored: MoveObject) -> Result<Self, Error> {
         let super_ = &stored.super_;
 
-        let native = match &super_.kind {
-            ObjectKind::NotIndexed(native) | ObjectKind::Indexed(native, _) => native,
-        };
+        let native = super_.native_impl();
 
         let Some(object) = native.data.as_struct_opt() else {
             return Err(Error::Internal("DynamicField is not an object".to_string()));

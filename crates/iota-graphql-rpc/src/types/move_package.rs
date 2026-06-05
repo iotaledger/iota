@@ -37,7 +37,10 @@ use crate::{
         iota_names_registration::{NameFormat, NameRegistration},
         move_module::MoveModule,
         move_object::MoveObject,
-        object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+        object::{
+            self, Object, ObjectFilter, ObjectImpl, ObjectKind, ObjectOwner, ObjectStatus,
+            is_active,
+        },
         owner::OwnerImpl,
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
@@ -825,11 +828,12 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            if let Some(package) =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?
-            {
-                conn.edges.push(Edge::new(cursor, package));
+            if !is_active(&stored.object) {
+                continue;
             }
+            let kind = ObjectKind::try_from(stored.object)?;
+            let package = MovePackage::from_object_kind(kind, checkpoint_viewed_at)?;
+            conn.edges.push(Edge::new(cursor, package));
         }
 
         Ok(conn)
@@ -881,11 +885,12 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            if let Some(package) =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?
-            {
-                conn.edges.push(Edge::new(cursor, package));
+            if !is_active(&stored.object) {
+                continue;
             }
+            let kind = ObjectKind::try_from(stored.object)?;
+            let package = MovePackage::from_object_kind(kind, checkpoint_viewed_at)?;
+            conn.edges.push(Edge::new(cursor, package));
         }
 
         Ok(conn)
@@ -895,22 +900,13 @@ impl MovePackage {
     /// `MovePackage` came from. This is stored in the `MovePackage` so that
     /// related fields from the package are read from the same checkpoint
     /// (consistently).
-    pub(crate) fn try_from_stored_history_object(
-        history_object: StoredHistoryObject,
+    pub(crate) fn from_object_kind(
+        kind: ObjectKind,
         checkpoint_viewed_at: u64,
-    ) -> Result<Option<Self>, Error> {
-        let Some(object) = Object::try_from_stored_history_object(
-            history_object,
-            checkpoint_viewed_at,
-            // root_version
-            None,
-        )?
-        else {
-            return Ok(None);
-        };
-        let package =
-            Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))?;
-        Ok(Some(package))
+    ) -> Result<Self, Error> {
+        // root_version
+        let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
+        Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))
     }
 }
 
