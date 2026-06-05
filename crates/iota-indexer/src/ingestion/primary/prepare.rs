@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::SequenceNumber,
     digests::TransactionDigest,

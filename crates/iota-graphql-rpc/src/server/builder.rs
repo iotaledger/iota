@@ -30,7 +30,7 @@ use axum_extra::{TypedHeader, headers::ContentLength};
 use chrono::Utc;
 use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::LIMITS_HEADER;
-use iota_grpc_client::Client as GrpcClient;
+use iota_sdk_ext::grpc_client::Client as GrpcClient;
 use iota_indexer::{
     apis::{OptimisticWriteApi, ReadApi, WriteApi},
     db::{get_pool_connection, setup_postgres::check_db_migration_consistency},

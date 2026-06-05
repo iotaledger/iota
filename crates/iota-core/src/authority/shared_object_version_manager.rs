@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iota_sdk_types::{ObjectId, VersionAssignment};
+use iota_sdk_ext::types::{ObjectId, VersionAssignment};
 use iota_types::{
     base_types::{SequenceNumber, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},

@@ -13,7 +13,7 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::EpochId,
     digests::{CheckpointContentsDigest, TransactionDigest},

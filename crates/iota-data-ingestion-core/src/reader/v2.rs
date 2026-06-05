@@ -14,8 +14,8 @@ use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
-use iota_grpc_client::Client as GrpcClient;
 use iota_metrics::spawn_monitored_task;
+use iota_sdk_ext::grpc_client::Client as GrpcClient;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
@@ -328,7 +328,7 @@ impl CheckpointReaderActor {
             .stream_checkpoints(
                 Some(self.current_checkpoint_number),
                 None,
-                Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA.into()),
+                Some(iota_sdk_ext::grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA.into()),
                 self.fullnode_transaction_filter.clone().map(Into::into),
                 None,
             )

@@ -9,7 +9,7 @@ use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use clap::Parser;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::base_types::{IotaAddress, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -14,7 +14,7 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
-use iota_sdk_types::{Command, Identifier, ObjectId, StructTag};
+use iota_sdk_ext::types::{Command, Identifier, ObjectId, StructTag};
 use iota_types::{
     base_types::IotaAddress,
     coin,

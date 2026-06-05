@@ -12,7 +12,7 @@ mod common;
 use std::{collections::HashMap, sync::Arc};
 
 use common::{MockGrpcStateReader, start_test_server};
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskUtil,
     v1::{
         state_service::{
@@ -22,7 +22,7 @@ use iota_grpc_types::{
         types::Address as ProtoAddress,
     },
 };
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{ObjectId, StructTag};
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType},
     crypto::{AccountKeyPair, get_key_pair},

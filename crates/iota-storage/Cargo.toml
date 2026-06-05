@@ -49,7 +49,7 @@ zstd = "0.13"
 iota-config.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true

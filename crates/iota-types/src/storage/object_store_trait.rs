@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 use super::{ObjectKey, error::Result};
 use crate::{

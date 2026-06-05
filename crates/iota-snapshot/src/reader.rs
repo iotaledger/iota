@@ -27,7 +27,7 @@ use integer_encoding::VarIntReader;
 use iota_common::stream_ext::TrySpawnStreamExt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{

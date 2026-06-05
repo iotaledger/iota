@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
     base_types::{

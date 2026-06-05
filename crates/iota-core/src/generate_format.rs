@@ -6,11 +6,11 @@
 use std::{collections::BTreeMap, fs::File, io::Write};
 
 use clap::*;
-use iota_sdk_crypto::{
+use iota_sdk_ext::crypto::{
     Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ChangeEpoch, Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
     Identifier, ObjectId, SimpleSignature, StructTag, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
@@ -91,7 +91,7 @@ fn get_registry() -> Result<Registry> {
     // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
     // serde that requires valid sample values to be provided before types
     // containing them are traced.
-    let sdk_identifier = iota_sdk_types::Identifier::from_static("sample_identifier");
+    let sdk_identifier = iota_sdk_ext::types::Identifier::from_static("sample_identifier");
     tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
     let struct_tag = StructTag::new_gas_coin();
     tracer.trace_value(&mut samples, &struct_tag).unwrap();
@@ -335,7 +335,7 @@ fn get_registry() -> Result<Registry> {
 
     // 2. Trace the main entry point(s) + every enum separately.
     tracer.trace_type::<Owner>(&samples).unwrap();
-    // Trace all CallArg (= iota_sdk_types::Input) variants
+    // Trace all CallArg (= iota_sdk_ext::types::Input) variants
     tracer
         .trace_value(&mut samples, &CallArg::Pure(vec![0u8]))
         .unwrap();
@@ -615,7 +615,7 @@ fn get_registry() -> Result<Registry> {
         network_total_transactions: 0,
         content_digest: CheckpointContentsDigest::default(),
         previous_digest: None,
-        epoch_rolling_gas_cost_summary: iota_sdk_types::gas::GasCostSummary::new(0, 0, 0, 0, 0),
+        epoch_rolling_gas_cost_summary: iota_sdk_ext::types::gas::GasCostSummary::new(0, 0, 0, 0, 0),
         timestamp_ms: 0,
         checkpoint_commitments: vec![],
         end_of_epoch_data: None,

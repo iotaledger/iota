@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskUtil,
     read_masks::GET_SERVICE_INFO_READ_MASK,
     v1::ledger_service::{
@@ -15,7 +15,7 @@ use prost_types::FieldMask;
 use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
 
 async fn assert_service_info_request(
-    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    ledger_client: &mut LedgerServiceClient<iota_sdk_ext::grpc_client::InterceptedChannel>,
     read_mask: Option<FieldMask>,
     expected_fields: &[&str],
     scenario: &str,

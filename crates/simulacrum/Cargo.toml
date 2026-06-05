@@ -20,7 +20,7 @@ iota-config.workspace = true
 iota-execution.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-transaction-checks.workspace = true

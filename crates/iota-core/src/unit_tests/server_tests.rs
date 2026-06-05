@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities};
+use iota_sdk_ext::types::crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities};
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id},
     crypto::{

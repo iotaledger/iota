@@ -5,7 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Identifier, ObjectId,
     crypto::{Intent, IntentScope},
 };

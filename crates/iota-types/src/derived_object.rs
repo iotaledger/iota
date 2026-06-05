@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
 
 use crate::{base_types::IotaAddress, dynamic_field};
 

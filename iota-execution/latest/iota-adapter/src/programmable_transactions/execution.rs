@@ -16,7 +16,7 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{Command, Identifier, ObjectId, StructTag, TypeTag};
+    use iota_sdk_ext::types::{Command, Identifier, ObjectId, StructTag, TypeTag};
     use iota_types::{
         auth_context,
         base_types::{

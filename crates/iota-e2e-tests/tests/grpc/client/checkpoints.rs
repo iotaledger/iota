@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
+use iota_sdk_ext::grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
 use iota_macros::sim_test;
 use tokio::time::timeout;
 

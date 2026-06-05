@@ -5,7 +5,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
+use iota_sdk_ext::grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::SequenceNumber,
     digests::{ChainIdentifier, TransactionDigest},
@@ -178,7 +178,7 @@ impl ReadApi {
                 Ok(executed_tx.transaction()?.digest()? == digest)
             }
             Err(e) => {
-                if matches!(e, iota_grpc_client::Error::Server(ref e) if e.to_tonic_status().code() == tonic::Code::NotFound)
+                if matches!(e, iota_sdk_ext::grpc_client::Error::Server(ref e) if e.to_tonic_status().code() == tonic::Code::NotFound)
                 {
                     return Ok(false);
                 }

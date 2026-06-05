@@ -6,7 +6,7 @@ use std::result::Result;
 
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_ext::types::{Identifier, ObjectId};
 use iota_types::{
     base_types::IotaAddress,
     move_package::MovePackage,
@@ -21,7 +21,7 @@ use crate::TransactionBuilder;
 
 impl TransactionBuilder {
     /// Build a [`TransactionKind::Programmable`] that contains
-    /// [`iota_sdk_types::Command::Publish`] for the provided package.
+    /// [`iota_sdk_ext::types::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
         sender: IotaAddress,
@@ -61,7 +61,7 @@ impl TransactionBuilder {
     }
 
     /// Build a [`TransactionKind::Programmable`] that contains
-    /// [`iota_sdk_types::Command::Upgrade`] for the provided package.
+    /// [`iota_sdk_ext::types::Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,
         package_id: ObjectId,

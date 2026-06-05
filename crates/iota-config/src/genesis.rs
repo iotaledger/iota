@@ -14,7 +14,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::IotaAddress,
     clock::Clock,

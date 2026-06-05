@@ -11,7 +11,7 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     auth_context::AuthContext,
     base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},

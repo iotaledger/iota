@@ -16,7 +16,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_ext::types::{Identifier, ObjectId};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;

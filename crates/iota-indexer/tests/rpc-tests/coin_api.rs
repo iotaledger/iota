@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectRef},

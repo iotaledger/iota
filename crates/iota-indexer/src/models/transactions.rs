@@ -11,7 +11,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::TypeTag;
+use iota_sdk_ext::types::TypeTag;
 use iota_types::{
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},

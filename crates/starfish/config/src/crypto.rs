@@ -20,7 +20,7 @@ use fastcrypto::{
     hash::{Digest, HashFunction},
     traits::{KeyPair as _, Signer as _, ToFromBytes as _, VerifyingKey as _},
 };
-use iota_sdk_types::crypto::INTENT_PREFIX_LENGTH;
+use iota_sdk_ext::types::crypto::INTENT_PREFIX_LENGTH;
 use rs_merkle::Hasher;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;

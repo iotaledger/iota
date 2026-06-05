@@ -14,7 +14,7 @@ use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Identifier,
     crypto::{Intent, IntentMessage, IntentScope},
 };

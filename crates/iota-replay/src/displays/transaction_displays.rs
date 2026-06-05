@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_execution::Executor;
-use iota_sdk_types::{Command, MoveCall, TypeTag};
+use iota_sdk_ext::types::{Command, MoveCall, TypeTag};
 use iota_types::{
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,

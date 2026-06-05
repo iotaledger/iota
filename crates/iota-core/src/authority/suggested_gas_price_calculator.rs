@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::executable_transaction::VerifiedExecutableTransaction;
 use tracing::instrument;
 
@@ -268,7 +268,7 @@ impl SuggestedGasPriceCalculator {
 #[cfg(test)]
 pub mod suggested_gas_price_calculator_test_utils {
     use iota_protocol_config::PerObjectCongestionControlMode;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
 
     use super::SuggestedGasPriceCalculator;
     use crate::authority::{
@@ -350,7 +350,7 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
     use iota_types::executable_transaction::VerifiedExecutableTransaction;
     use rstest::rstest;
 

@@ -5,7 +5,7 @@
 use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 

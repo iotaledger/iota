@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_ext::types::{Identifier, StructTag};
 
 use crate::base_types::IotaAddress;
 

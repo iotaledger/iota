@@ -22,7 +22,7 @@ tracing.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-move-build.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-storage.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-transaction-checks.workspace = true

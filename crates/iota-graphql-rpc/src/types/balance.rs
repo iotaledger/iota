@@ -13,7 +13,7 @@ use diesel::{
     sql_types::{BigInt as SqlBigInt, Nullable, Text},
 };
 use iota_indexer::types::OwnerType;
-use iota_sdk_types::TypeTag;
+use iota_sdk_ext::types::TypeTag;
 use serde::{Deserialize, Serialize};
 
 use crate::{

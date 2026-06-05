@@ -10,7 +10,7 @@ use std::{
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use iota_kvstore::{BigTableClient, KeyValueStoreReader};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{digests::TransactionDigest, storage::ObjectKey};
 use telemetry_subscribers::TelemetryConfig;
 

@@ -51,7 +51,6 @@ iota-common.workspace = true
 iota-graphql-config.workspace = true
 iota-graphql-rpc-client.workspace = true
 iota-graphql-rpc-headers.workspace = true
-iota-grpc-client.workspace = true
 iota-indexer.workspace = true
 iota-indexer-streaming.workspace = true
 iota-json.workspace = true
@@ -64,7 +63,7 @@ iota-network-stack.workspace = true
 iota-node-storage.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 iota-swarm-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true

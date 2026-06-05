@@ -5,7 +5,7 @@
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 

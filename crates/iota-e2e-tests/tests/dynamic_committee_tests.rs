@@ -11,7 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
-use iota_sdk_types::{Command, ObjectId};
+use iota_sdk_ext::types::{Command, ObjectId};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -37,8 +37,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
-            iota_sdk_types::Identifier::from_static(stringify!($func)),
+            iota_sdk_ext::types::Identifier::from_static(stringify!($module_name)),
+            iota_sdk_ext::types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )

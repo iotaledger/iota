@@ -10,7 +10,7 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},

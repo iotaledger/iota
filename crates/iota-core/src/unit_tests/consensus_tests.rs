@@ -7,7 +7,7 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_ext::types::{Identifier, ObjectId};
 use iota_types::{
     base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,

@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::{Arg, Command};
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_ext::types::crypto::Intent;
 use iota_types::{crypto::EncodeDecodeBase64, object::Object, transaction::TransactionData};
 
 fn transaction_from_base64(b64: &str) -> TransactionData {

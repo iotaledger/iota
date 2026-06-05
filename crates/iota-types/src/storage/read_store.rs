@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 

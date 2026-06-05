@@ -14,7 +14,7 @@ use std::{
 use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_ext::types::crypto::{Intent, IntentMessage};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
     v1::{
@@ -13,7 +13,7 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_sdk_types::TypeTag;
+use iota_sdk_ext::types::TypeTag;
 
 use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 
@@ -21,8 +21,8 @@ use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 pub struct TransactionReadSource<'a> {
     pub reader: Arc<GrpcReader>,
     pub config: &'a iota_config::node::GrpcApiConfig,
-    pub transaction: Option<iota_sdk_types::transaction::Transaction>,
-    pub signatures: Option<Vec<iota_sdk_types::UserSignature>>,
+    pub transaction: Option<iota_sdk_ext::types::transaction::Transaction>,
+    pub signatures: Option<Vec<iota_sdk_ext::types::UserSignature>>,
     pub effects: Option<iota_types::effects::TransactionEffects>,
     pub events: Option<iota_types::effects::TransactionEvents>,
     pub checkpoint: Option<u64>,

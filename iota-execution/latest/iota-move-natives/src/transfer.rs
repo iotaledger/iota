@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     account_abstraction::account::AuthenticatorFunctionRefV1Key,
     base_types::{IotaAddress, SequenceNumber},

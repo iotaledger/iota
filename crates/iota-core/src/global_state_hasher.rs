@@ -7,7 +7,7 @@ use std::sync::Arc;
 use fastcrypto::hash::MultisetHash;
 use iota_common::fatal;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::SequenceNumber,
     committee::EpochId,

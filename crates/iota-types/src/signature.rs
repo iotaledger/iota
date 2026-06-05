@@ -12,7 +12,7 @@ use fastcrypto::{
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-use iota_sdk_types::crypto::IntentMessage;
+use iota_sdk_ext::types::crypto::IntentMessage;
 use serde::Serialize;
 use tracing::instrument;
 

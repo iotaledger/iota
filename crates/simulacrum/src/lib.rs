@@ -31,7 +31,7 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{ObjectId, StructTag};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
@@ -842,8 +842,8 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn dynamic_field_iter(
         &self,
-        _parent: iota_sdk_types::ObjectId,
-        _cursor: Option<iota_sdk_types::ObjectId>,
+        _parent: iota_sdk_ext::types::ObjectId,
+        _cursor: Option<iota_sdk_ext::types::ObjectId>,
     ) -> iota_types::storage::error::Result<
         Box<
             dyn Iterator<
@@ -866,7 +866,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn package_versions_iter(
         &self,
-        _original_package_id: iota_sdk_types::ObjectId,
+        _original_package_id: iota_sdk_ext::types::ObjectId,
         _cursor: Option<u64>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,

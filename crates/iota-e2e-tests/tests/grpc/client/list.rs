@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 use super::super::utils::{first_sender, setup_grpc_test};
 

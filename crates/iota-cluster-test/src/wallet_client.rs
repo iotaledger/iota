@@ -4,7 +4,7 @@
 
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, IotaClientBuilder, wallet_context::WalletContext};
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_ext::types::crypto::Intent;
 use iota_types::{
     base_types::{IotaAddress, address_from_iota_pub_key},
     crypto::{KeypairTraits, Signature},

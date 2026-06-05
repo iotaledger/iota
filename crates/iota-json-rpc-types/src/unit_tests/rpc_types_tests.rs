@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
     base_types::{IotaAddress, ObjectDigest, SequenceNumber},

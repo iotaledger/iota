@@ -18,7 +18,7 @@ use iota_core::{authority_aggregator::AuthorityAggregatorBuilder, authority_clie
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
@@ -1100,7 +1100,7 @@ impl ToolCommand {
                 crate::fire_drill::run_fire_drill(fire_drill).await?;
             }
             ToolCommand::GrpcHealthCheck { address } => {
-                let client = iota_grpc_client::Client::new(address)?;
+                let client = iota_sdk_ext::grpc_client::Client::new(address)?;
                 client.get_health(None).await?;
                 println!("OK");
             }

@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 use crate::{
     digests::TransactionDigest,

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskUtil, read_masks::LIST_DYNAMIC_FIELDS_READ_MASK,
     v1::state_service::ListDynamicFieldsRequest,
 };

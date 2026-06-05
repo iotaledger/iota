@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     google::rpc::bad_request::FieldViolation,
     v1::{
         coin::{

@@ -36,7 +36,7 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     SenderSignedTransaction, Transaction,
     crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey, UserSignature},
 };

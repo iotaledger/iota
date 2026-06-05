@@ -7,7 +7,7 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 

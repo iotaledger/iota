@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::IotaAddress,
     dynamic_field::derive_dynamic_field_id,

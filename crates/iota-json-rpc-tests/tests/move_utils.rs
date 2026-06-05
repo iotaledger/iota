@@ -9,7 +9,7 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, ObjectValueKind,
 };
 use iota_macros::sim_test;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::base_types::IotaAddress;
 use test_cluster::TestClusterBuilder;
 

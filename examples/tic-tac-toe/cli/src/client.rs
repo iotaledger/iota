@@ -17,7 +17,7 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Identifier, ObjectId, StructTag,
     crypto::{Intent, UserSignature},
 };

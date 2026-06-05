@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
@@ -284,7 +284,7 @@ fn parse_struct_field(
 mod tests {
     use std::{collections::BTreeMap, str::FromStr};
 
-    use iota_sdk_types::{ObjectId, StructTag};
+    use iota_sdk_ext::types::{ObjectId, StructTag};
     use move_core_types::{
         account_address::AccountAddress,
         annotated_value::{MoveStruct, MoveValue, MoveVariant},

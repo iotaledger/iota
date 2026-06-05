@@ -32,7 +32,7 @@ use iota_json_rpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Command, Identifier, ObjectId, TypeTag};
+use iota_sdk_ext::types::{Command, Identifier, ObjectId, TypeTag};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };

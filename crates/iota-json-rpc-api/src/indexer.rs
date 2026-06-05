@@ -13,7 +13,7 @@ use iota_json_rpc_types::{
     },
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::IotaAddress, digests::TransactionDigest, dynamic_field::DynamicFieldName,
     event::EventID,

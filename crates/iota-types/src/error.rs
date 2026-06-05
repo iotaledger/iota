@@ -5,8 +5,8 @@
 
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
-use iota_sdk_types::ObjectId;
-pub use iota_sdk_types::move_core::TypeParseError;
+use iota_sdk_ext::types::ObjectId;
+pub use iota_sdk_ext::types::move_core::TypeParseError;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;

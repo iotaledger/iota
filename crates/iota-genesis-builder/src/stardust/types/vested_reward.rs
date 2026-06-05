@@ -4,7 +4,7 @@
 //! Vested reward detection and conversion logic for Stardust migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{ObjectId, StructTag};
 use iota_stardust_types::block::output::{BasicOutput, OutputId};
 use iota_types::{
     balance::Balance,
@@ -142,7 +142,7 @@ pub fn to_genesis_object(
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
     use iota_stardust_types::block::{
         address::Ed25519Address,
         output::{

@@ -7,7 +7,7 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::base_types::IotaAddress;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;

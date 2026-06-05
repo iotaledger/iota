@@ -12,7 +12,7 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, ObjectValueKind,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     move_package::normalize_modules,
     object::{Data, ObjectRead},

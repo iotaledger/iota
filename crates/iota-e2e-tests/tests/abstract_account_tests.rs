@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, TypeTag, crypto::Intent};
+use iota_sdk_ext::types::{Identifier, ObjectId, TypeTag, crypto::Intent};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,

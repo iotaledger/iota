@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_macros::sim_test;
 use iota_sdk::IotaClient;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
 use iota_types::{
     balance::Balance,
     base_types::IotaAddress,

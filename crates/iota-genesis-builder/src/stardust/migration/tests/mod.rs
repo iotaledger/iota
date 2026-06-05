@@ -5,7 +5,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{

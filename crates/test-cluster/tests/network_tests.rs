@@ -6,7 +6,7 @@ use iota_framework::BuiltInFramework;
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::IotaObjectResponse;
 use iota_macros::sim_test;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{IOTA_SYSTEM_ADDRESS, digests::TransactionDigest, object::Object};
 use test_cluster::TestClusterBuilder;
 

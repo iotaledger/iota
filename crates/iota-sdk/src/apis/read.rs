@@ -21,7 +21,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
     TransactionBlocksPage, TransactionFilter,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber, TransactionDigest},
     dynamic_field::DynamicFieldName,
@@ -102,7 +102,7 @@ impl ReadApi {
     /// use std::str::FromStr;
     ///
     /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk_ext::types::ObjectId;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -186,7 +186,7 @@ impl ReadApi {
     /// use iota_sdk::{
     ///     IotaClientBuilder, rpc_types::IotaObjectDataOptions, types::base_types::IotaAddress,
     /// };
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk_ext::types::ObjectId;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -254,7 +254,7 @@ impl ReadApi {
     ///     rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions},
     ///     types::base_types::IotaAddress,
     /// };
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk_ext::types::ObjectId;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {

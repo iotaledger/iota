@@ -14,7 +14,7 @@ use std::{
 use anyhow::Result;
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_stardust_types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     balance::Balance,

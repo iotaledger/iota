@@ -18,7 +18,7 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{ObjectId, TypeTag};
 use iota_types::{
     base_types::IotaAddress,
     digests::TransactionDigest,

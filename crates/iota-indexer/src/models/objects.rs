@@ -6,7 +6,7 @@ use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::{ObjectIdParseError, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
@@ -611,7 +611,7 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, StructTag, TypeTag};
+    use iota_sdk_ext::types::{Identifier, StructTag, TypeTag};
     use iota_types::{
         base_types::IotaAddress,
         digests::TransactionDigest,

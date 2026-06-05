@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},

@@ -106,7 +106,7 @@ pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
 };
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{ObjectId, StructTag};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
 use iota_types::base_types::IotaAddress;

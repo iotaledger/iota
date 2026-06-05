@@ -25,7 +25,7 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::Chain;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };

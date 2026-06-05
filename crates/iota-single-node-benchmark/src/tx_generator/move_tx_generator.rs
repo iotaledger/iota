@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_ext::types::{Identifier, ObjectId};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},

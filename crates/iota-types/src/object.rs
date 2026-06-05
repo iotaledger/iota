@@ -10,8 +10,8 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{MoveStruct as MoveObject, ObjectData as Data, Owner};
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+pub use iota_sdk_ext::types::{MoveStruct as MoveObject, ObjectData as Data, Owner};
+use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
@@ -1002,7 +1002,7 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
 
     use crate::{
         base_types::{IotaAddress, TransactionDigest},

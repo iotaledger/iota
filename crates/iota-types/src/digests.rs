@@ -6,7 +6,7 @@ use std::{env, fmt};
 
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
-pub use iota_sdk_types::Digest;
+pub use iota_sdk_ext::types::Digest;
 use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
 use tracing::info;

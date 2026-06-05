@@ -10,7 +10,7 @@ pub mod registry;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag};
 use iota_types::base_types::IotaAddress;
 use serde::{Deserialize, Serialize};
 

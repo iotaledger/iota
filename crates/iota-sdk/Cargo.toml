@@ -34,7 +34,7 @@ iota-json.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 # NOTE: It's important to keep the above dependency list short.

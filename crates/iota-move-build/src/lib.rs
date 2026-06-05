@@ -17,7 +17,7 @@ use iota_package_management::{
     PublishedAtError, resolve_published_id,
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::IotaAddress,
     error::{IotaError, IotaResult},

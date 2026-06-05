@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},

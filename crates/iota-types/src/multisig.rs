@@ -3,11 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use enum_dispatch::enum_dispatch;
-use iota_sdk_crypto::{Verifier, multisig::MultisigVerifier};
-use iota_sdk_types::crypto::IntentMessage;
-pub use iota_sdk_types::crypto::{
+pub use iota_sdk_ext::types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
     MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
+};
+use iota_sdk_ext::{
+    crypto::{Verifier, multisig::MultisigVerifier},
+    types::crypto::IntentMessage,
 };
 use serde::Serialize;
 

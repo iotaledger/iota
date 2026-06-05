@@ -6,7 +6,7 @@ use std::{fmt::Debug, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, bail};
 use iota_core::jsonrpc_index::IndexStoreTables;
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_ext::types::{Identifier, ObjectId};
 use iota_types::{
     base_types::{IotaAddress, TxSequenceNumber},
     digests::TransactionDigest,

@@ -15,7 +15,7 @@ use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
@@ -568,7 +568,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
-    use iota_sdk_types::{StructTag, TypeTag};
+    use iota_sdk_ext::types::{StructTag, TypeTag};
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Result, anyhow, bail};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 /// Defines objects that may have been created by migrating an
 /// [`Output`](iota_stardust_types::block::output::Output).

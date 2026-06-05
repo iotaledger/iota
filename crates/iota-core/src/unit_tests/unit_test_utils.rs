@@ -11,7 +11,7 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_move_build::test_utils::compile_basics_package;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
     crypto::{

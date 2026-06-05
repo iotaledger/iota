@@ -16,7 +16,7 @@ mod checked {
         transaction_context::TransactionContext,
     };
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
     use iota_types::{
         auth_context::AuthContext,
         base_types::*,

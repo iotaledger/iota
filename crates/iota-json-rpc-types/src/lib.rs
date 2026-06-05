@@ -23,7 +23,7 @@ use iota_primitives::{
     SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
 };
 pub use iota_protocol::*;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{ObjectId, TypeTag};
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{

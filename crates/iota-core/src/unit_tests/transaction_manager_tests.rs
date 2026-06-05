@@ -4,7 +4,7 @@
 
 use std::{time::Duration, vec};
 
-use iota_sdk_types::{ObjectId, VersionAssignment};
+use iota_sdk_ext::types::{ObjectId, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::SequenceNumber,

@@ -38,7 +38,7 @@ iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true

@@ -30,7 +30,7 @@ use iota_sdk::{
         transaction::{TransactionData, TransactionDataAPI},
     },
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_ext::types::crypto::{Intent, IntentMessage};
 use rand::{SeedableRng, rngs::StdRng};
 use utils::request_tokens_from_faucet;
 

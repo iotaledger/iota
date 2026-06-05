@@ -12,7 +12,7 @@ use std::{
 use anyhow::{Context, bail};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, get_new_package_obj_from_response};
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::base_types::IotaAddress;
 use move_package::{
     lock_file::{self, LockFile, schema::ManagedPackage},

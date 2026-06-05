@@ -8,7 +8,7 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_types::{StructTag, TypeTag, crypto::HashingIntentScope};
+use iota_sdk_ext::types::{StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;

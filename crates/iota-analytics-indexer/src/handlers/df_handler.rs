@@ -10,7 +10,7 @@ use iota_data_ingestion_core::Worker;
 use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{ObjectId, TypeTag};
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES,
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
@@ -96,7 +96,7 @@ impl AnalyticsHandler<DynamicFieldEntry> for DynamicFieldHandler {
 }
 
 impl DynamicFieldHandler {
-    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+    pub fn new(store_path: &Path, client: iota_sdk_ext::grpc_client::Client) -> Self {
         let package_store = LocalDBPackageStore::new(&store_path.join("dynamic_field"), client);
         let state = State {
             dynamic_fields: vec![],

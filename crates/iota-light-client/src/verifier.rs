@@ -8,7 +8,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::TransactionDigest,
     committee::Committee,
@@ -284,7 +284,7 @@ pub async fn get_verified_checkpoint(
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
-    use iota_sdk_types::{Identifier, StructTag};
+    use iota_sdk_ext::types::{Identifier, StructTag};
     use iota_types::{
         base_types::IotaAddress,
         event::Event,

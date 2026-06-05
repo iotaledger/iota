@@ -68,14 +68,14 @@ pub enum IngestionError {
     Unsupported(String),
 }
 
-impl From<iota_grpc_types::proto::TryFromProtoError> for IngestionError {
-    fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
+impl From<iota_sdk_ext::grpc_types::proto::TryFromProtoError> for IngestionError {
+    fn from(err: iota_sdk_ext::grpc_types::proto::TryFromProtoError) -> Self {
         Self::Grpc(err.to_string())
     }
 }
 
-impl From<iota_grpc_client::Error> for IngestionError {
-    fn from(err: iota_grpc_client::Error) -> Self {
+impl From<iota_sdk_ext::grpc_client::Error> for IngestionError {
+    fn from(err: iota_sdk_ext::grpc_client::Error) -> Self {
         Self::Grpc(err.to_string())
     }
 }

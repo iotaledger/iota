@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use iota_sdk_types::{Identifier, ObjectId, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, TypeTag};
 use iota_stardust_types::block::{
     address::{AliasAddress, Bech32Address, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
     output::{

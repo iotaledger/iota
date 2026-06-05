@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_config::genesis;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::{
         AuthorityName, IotaAddress, ObjectRef, SequenceNumber, address_from_iota_pub_key,

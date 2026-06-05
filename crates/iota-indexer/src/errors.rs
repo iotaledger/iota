@@ -7,7 +7,7 @@ use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
 use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::{ObjectIdParseError, SequenceNumber},
     error::{IotaError, UserInputError},
@@ -223,14 +223,14 @@ impl From<url::ParseError> for IndexerError {
     }
 }
 
-impl From<iota_grpc_client::Error> for IndexerError {
-    fn from(err: iota_grpc_client::Error) -> Self {
+impl From<iota_sdk_ext::grpc_client::Error> for IndexerError {
+    fn from(err: iota_sdk_ext::grpc_client::Error) -> Self {
         IndexerError::Grpc(err.to_string())
     }
 }
 
-impl From<iota_grpc_types::proto::TryFromProtoError> for IndexerError {
-    fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
+impl From<iota_sdk_ext::grpc_types::proto::TryFromProtoError> for IndexerError {
+    fn from(err: iota_sdk_ext::grpc_types::proto::TryFromProtoError) -> Self {
         IndexerError::Grpc(err.to_string())
     }
 }

@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction};
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;

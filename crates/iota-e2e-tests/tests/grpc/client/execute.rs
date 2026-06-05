@@ -1,9 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::{Error, ReadMask, read_mask_fields::TransactionField};
+use iota_sdk_ext::grpc_client::{Error, ReadMask, read_mask_fields::TransactionField};
 use iota_macros::sim_test;
-use iota_sdk_types::UserSignature;
+use iota_sdk_ext::types::UserSignature;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
 
@@ -59,7 +59,7 @@ async fn execute_transaction_transfer_outputs() {
 
     let tx =
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
-    let signed_tx: iota_sdk_types::SignedTransaction =
+    let signed_tx: iota_sdk_ext::types::SignedTransaction =
         tx.try_into().expect("SDK type conversion failed");
 
     let result = client

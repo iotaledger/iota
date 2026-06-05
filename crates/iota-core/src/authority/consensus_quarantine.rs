@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::{ObjectId, VersionAssignment};
+use iota_sdk_ext::types::{ObjectId, VersionAssignment};
 use iota_types::{
     base_types::{AuthorityName, SequenceNumber, TransactionDigest},
     crypto::RandomnessRound,

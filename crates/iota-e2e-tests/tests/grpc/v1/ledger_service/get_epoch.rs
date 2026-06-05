@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskUtil, read_masks::GET_EPOCH_READ_MASK, v1::ledger_service::GetEpochRequest,
 };
 use iota_macros::sim_test;

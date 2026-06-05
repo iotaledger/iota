@@ -12,7 +12,7 @@ use std::{
 use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_ext::types::crypto::{Intent, IntentMessage, IntentScope};
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use starfish_config::{

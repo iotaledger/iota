@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     effects::TransactionEffects,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},

@@ -10,7 +10,7 @@ use std::{
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Identifier,
     crypto::{Intent, IntentScope},
 };

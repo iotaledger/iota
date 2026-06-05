@@ -11,7 +11,7 @@ use iota_sdk::{
     error::Error as SdkError,
     rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMovePackage},
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::base_types::IotaAddress;
 use move_binary_format::CompiledModule;
 use move_compiler::compiled_unit::NamedCompiledModule;

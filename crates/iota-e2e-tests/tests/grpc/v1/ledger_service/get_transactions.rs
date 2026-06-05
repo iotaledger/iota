@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::StreamExt;
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskUtil,
     read_masks::GET_TRANSACTIONS_READ_MASK,
     v1::ledger_service::{
@@ -11,7 +11,7 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_sdk_types::Digest;
+use iota_sdk_ext::types::Digest;
 use prost_types::FieldMask;
 
 use crate::utils::{
@@ -21,7 +21,7 @@ use crate::utils::{
 
 /// Helper function to make GetTransactions requests and validate responses..
 async fn assert_get_transactions_request(
-    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    ledger_client: &mut LedgerServiceClient<iota_sdk_ext::grpc_client::InterceptedChannel>,
     digests: Vec<Digest>,
     read_mask: Option<FieldMask>,
     max_message_size_bytes: Option<u32>,
@@ -34,7 +34,7 @@ async fn assert_get_transactions_request(
                 .iter()
                 .map(|d| {
                     TransactionRequest::default().with_digest({
-                        iota_grpc_types::v1::types::Digest::default()
+                        iota_sdk_ext::grpc_types::v1::types::Digest::default()
                             .with_digest(d.inner().to_vec())
                     })
                 })
@@ -337,11 +337,11 @@ async fn get_transactions_nonexistent() {
     let request = GetTransactionsRequest::default().with_requests(
         TransactionRequests::default().with_requests(vec![
             TransactionRequest::default().with_digest({
-                iota_grpc_types::v1::types::Digest::default()
+                iota_sdk_ext::grpc_types::v1::types::Digest::default()
                     .with_digest(fake_digest1.inner().to_vec())
             }),
             TransactionRequest::default().with_digest({
-                iota_grpc_types::v1::types::Digest::default()
+                iota_sdk_ext::grpc_types::v1::types::Digest::default()
                     .with_digest(fake_digest2.inner().to_vec())
             }),
         ]),
@@ -410,12 +410,12 @@ async fn get_transactions_mixed_valid_invalid() {
         .with_requests(TransactionRequests::default().with_requests(vec![
             // Valid digest first
             TransactionRequest::default().with_digest({
-                iota_grpc_types::v1::types::Digest::default()
+                iota_sdk_ext::grpc_types::v1::types::Digest::default()
                     .with_digest(real_digest.inner().to_vec())
             }),
             // Invalid digest
             TransactionRequest::default().with_digest({
-                iota_grpc_types::v1::types::Digest::default()
+                iota_sdk_ext::grpc_types::v1::types::Digest::default()
                     .with_digest(fake_digest.inner().to_vec())
             }),
         ]))

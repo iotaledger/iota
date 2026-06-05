@@ -8,7 +8,7 @@ use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::SequenceNumber,
     digests::{CheckpointDigest, TransactionDigest},

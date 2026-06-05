@@ -7,7 +7,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +36,7 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use iota_sdk_types::{StructTag, TypeTag};
+    use iota_sdk_ext::types::{StructTag, TypeTag};
 
     use super::*;
 

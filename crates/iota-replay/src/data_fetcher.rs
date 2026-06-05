@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{ObjectId, StructTag};
 use iota_types::{
     base_types::{SequenceNumber, VersionNumber},
     digests::{ChainIdentifier, TransactionDigest},

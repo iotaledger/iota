@@ -20,7 +20,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{ObjectId, crypto::Intent};
+use iota_sdk_ext::types::{ObjectId, crypto::Intent};
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
     gas_coin::GasCoin,
@@ -1181,7 +1181,7 @@ mod tests {
     use anyhow::*;
     use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
     use iota_sdk::wallet_context::WalletContext;
-    use iota_sdk_types::crypto::Intent;
+    use iota_sdk_ext::types::crypto::Intent;
     use iota_types::transaction::{SenderSignedData, TransactionDataAPI};
     use test_cluster::TestClusterBuilder;
 

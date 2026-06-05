@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::{
+    grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo},
+    types::ObjectId,
+};
 use iota_types::digests::TransactionDigest;
 use tonic::{Code, Status};
 
@@ -54,8 +56,8 @@ impl RpcError {
         }
     }
 
-    pub fn into_status_proto(self) -> iota_grpc_types::google::rpc::Status {
-        iota_grpc_types::google::rpc::Status {
+    pub fn into_status_proto(self) -> iota_sdk_ext::grpc_types::google::rpc::Status {
+        iota_sdk_ext::grpc_types::google::rpc::Status {
             code: self.code.into(),
             message: self.message.unwrap_or_default(),
             details: self
@@ -112,14 +114,14 @@ impl From<bcs::Error> for RpcError {
     }
 }
 
-impl From<iota_grpc_types::proto::GrpcConversionError> for RpcError {
-    fn from(value: iota_grpc_types::proto::GrpcConversionError) -> Self {
+impl From<iota_sdk_ext::grpc_types::proto::GrpcConversionError> for RpcError {
+    fn from(value: iota_sdk_ext::grpc_types::proto::GrpcConversionError) -> Self {
         Self::internal().with_context(value)
     }
 }
 
-impl From<iota_grpc_types::google::rpc::bad_request::FieldViolation> for RpcError {
-    fn from(value: iota_grpc_types::google::rpc::bad_request::FieldViolation) -> Self {
+impl From<iota_sdk_ext::grpc_types::google::rpc::bad_request::FieldViolation> for RpcError {
+    fn from(value: iota_sdk_ext::grpc_types::google::rpc::bad_request::FieldViolation) -> Self {
         BadRequest::from(value).into()
     }
 }

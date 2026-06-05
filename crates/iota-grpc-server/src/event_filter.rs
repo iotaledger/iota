@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag};
 use iota_types::{base_types::IotaAddress, event::Event};
 use serde::{Deserialize, Serialize};
 
@@ -51,11 +51,11 @@ pub enum EventFilter {
 }
 
 // Proto-to-internal filter conversion
-impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
+impl TryFrom<iota_sdk_ext::grpc_types::v1::filter::EventFilter> for EventFilter {
     type Error = String;
 
-    fn try_from(proto: iota_grpc_types::v1::filter::EventFilter) -> Result<Self, Self::Error> {
-        use iota_grpc_types::v1::filter::event_filter::Filter as ProtoFilter;
+    fn try_from(proto: iota_sdk_ext::grpc_types::v1::filter::EventFilter) -> Result<Self, Self::Error> {
+        use iota_sdk_ext::grpc_types::v1::filter::event_filter::Filter as ProtoFilter;
 
         let filter = proto.filter.ok_or("event filter is missing")?;
 

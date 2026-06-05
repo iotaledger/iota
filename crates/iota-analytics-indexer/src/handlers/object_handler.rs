@@ -95,7 +95,7 @@ impl AnalyticsHandler<ObjectEntry> for ObjectHandler {
 }
 
 impl ObjectHandler {
-    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+    pub fn new(store_path: &Path, client: iota_sdk_ext::grpc_client::Client) -> Self {
         let package_store = LocalDBPackageStore::new(&store_path.join("object"), client);
         let state = State {
             objects: vec![],

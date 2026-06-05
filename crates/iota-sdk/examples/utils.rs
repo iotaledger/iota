@@ -29,7 +29,7 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Command, ObjectId, crypto::Intent};
+use iota_sdk_ext::types::{Command, ObjectId, crypto::Intent};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;

@@ -11,7 +11,7 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     TransactionBlockBytes,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::IotaAddress, gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType,
     storage::ReadStore,

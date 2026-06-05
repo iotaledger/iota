@@ -4,11 +4,11 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_grpc_client::{
+use iota_sdk_ext::grpc_client::{
     ReadMask,
     read_mask_fields::{CheckpointEventField, CheckpointResponseField},
 };
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskUtil,
     read_masks::GET_CHECKPOINT_READ_MASK,
     v1::{
@@ -186,7 +186,7 @@ fn validate_checkpoint_payload(
 /// by optional `ExecutedTransactions` / `Events` payloads and terminates with
 /// a single `EndMarker`.
 async fn assert_get_checkpoint_request(
-    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    ledger_client: &mut LedgerServiceClient<iota_sdk_ext::grpc_client::InterceptedChannel>,
     request: GetCheckpointRequest,
     expected_field_mask_paths: &[&str],
     scenario: &str,
@@ -235,7 +235,7 @@ async fn assert_get_checkpoint_request(
 /// `expected_checkpoint_count` checkpoints are returned, each with a matching
 /// `EndMarker`.
 async fn assert_stream_checkpoints_request(
-    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    ledger_client: &mut LedgerServiceClient<iota_sdk_ext::grpc_client::InterceptedChannel>,
     request: StreamCheckpointsRequest,
     expected_field_mask_paths: &[&str],
     expected_checkpoint_count: usize,
@@ -464,7 +464,7 @@ async fn get_checkpoint_nonexistent() {
 }
 
 async fn assert_sequence_number_not_found(
-    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    ledger_client: &mut LedgerServiceClient<iota_sdk_ext::grpc_client::InterceptedChannel>,
     sequence_number: u64,
 ) {
     let mut stream = ledger_client

@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -380,7 +380,7 @@ mod simtests {
         routing::get,
     };
     use iota_macros::sim_test;
-    use iota_sdk_types::{Identifier, StructTag};
+    use iota_sdk_ext::types::{Identifier, StructTag};
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
     use iota_types::{base_types::IotaAddress, event::Event};

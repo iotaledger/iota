@@ -10,8 +10,8 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointEventField};
-use iota_grpc_types::v1::{filter as grpc_filter, types as grpc_types};
+use iota_sdk_ext::grpc_client::{ReadMask, read_mask_fields::CheckpointEventField};
+use iota_sdk_ext::grpc_types::v1::{filter as grpc_filter, types as grpc_types};
 use iota_macros::sim_test;
 use iota_types::transaction::CallArg;
 use tokio::time::timeout;
@@ -107,7 +107,7 @@ async fn event_filter_scenarios() {
                 .await
                 .expect("Failed to create stream");
 
-            let mut events: Vec<iota_grpc_types::v1::event::Event> = Vec::new();
+            let mut events: Vec<iota_sdk_ext::grpc_types::v1::event::Event> = Vec::new();
             timeout(Duration::from_secs(10), async {
                 while let Some(result) = stream.body_mut().next().await {
                     let cp = result.expect("stream error");

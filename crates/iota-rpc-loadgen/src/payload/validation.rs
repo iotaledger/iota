@@ -10,7 +10,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::IotaClient;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::base_types::TransactionDigest;
 use itertools::Itertools;
 use tracing::{error, warn};

@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use iota_grpc_client::{Client, ReadMask, read_mask_fields::EpochField};
+use iota_sdk_ext::grpc_client::{Client, ReadMask, read_mask_fields::EpochField};
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
 
 /// Gets epoch id and its first checkpoint sequence number.

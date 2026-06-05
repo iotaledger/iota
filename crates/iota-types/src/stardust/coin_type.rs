@@ -3,7 +3,7 @@
 
 use std::fmt::Display;
 
-use iota_sdk_types::TypeTag;
+use iota_sdk_ext::types::TypeTag;
 
 use crate::gas_coin::GAS;
 

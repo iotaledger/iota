@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use better_any::{Tid, TidAble};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};

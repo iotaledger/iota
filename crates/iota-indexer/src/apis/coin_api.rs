@@ -16,7 +16,7 @@ use iota_json_rpc_types::{
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{balance::Supply, base_types::IotaAddress};
 use jsonrpsee::{RpcModule, core::RpcResult};
 

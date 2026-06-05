@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     proto::timestamp_ms_to_proto,
     read_masks::GET_SERVICE_INFO_READ_MASK,
     v1::ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse},
@@ -49,7 +49,7 @@ pub fn get_service_info(
     let mut message = GetServiceInfoResponse::default();
 
     if read_mask.contains(GetServiceInfoResponse::CHAIN_ID_FIELD.name) {
-        message = message.with_chain_id(iota_sdk_types::Digest::new(
+        message = message.with_chain_id(iota_sdk_ext::types::Digest::new(
             service.chain_id.digest().into_inner(),
         ));
     }

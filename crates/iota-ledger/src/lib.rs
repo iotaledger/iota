@@ -11,7 +11,7 @@ use transport::{APDUAnswer, APDUCommand, LedgerTransport};
 
 pub use crate::api::errors::LedgerError;
 mod api;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_ext::types::crypto::{Intent, IntentMessage};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{Ed25519IotaSignature, Signature, SignatureScheme, ToFromBytes},

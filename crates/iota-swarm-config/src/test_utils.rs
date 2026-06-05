@@ -5,7 +5,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_config::genesis::Genesis;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_ext::types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     base_types::{AuthorityName, ExecutionData},
     committee::{Committee, EpochId, StakeUnit},

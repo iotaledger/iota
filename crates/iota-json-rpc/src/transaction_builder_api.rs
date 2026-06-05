@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
     TransactionBlockBytes,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{ObjectId, StructTag};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 use iota_types::{base_types::IotaAddress, iota_serde::BigInt};
 use jsonrpsee::{RpcModule, core::RpcResult};

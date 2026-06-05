@@ -11,7 +11,7 @@ use fuzz::{ReplayFuzzer, ReplayFuzzerConfig};
 use fuzz_mutations::base_fuzzers;
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_protocol_config::Chain;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::SequenceNumber,
     digests::{TransactionDigest, get_mainnet_chain_identifier, get_testnet_chain_identifier},

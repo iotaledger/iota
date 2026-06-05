@@ -20,7 +20,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-network-stack.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 
 [dev-dependencies]
 insta.workspace = true

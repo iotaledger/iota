@@ -10,7 +10,7 @@ use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
     ConsensusDeterminedVersionAssignments, Identifier, MoveCall, ObjectId, TransferObjects,
     TypeTag, VersionAssignment,

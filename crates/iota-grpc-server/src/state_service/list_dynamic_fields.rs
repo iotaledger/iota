@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskTree,
     read_masks::LIST_DYNAMIC_FIELDS_READ_MASK,
     v1::{
@@ -12,7 +12,7 @@ use iota_grpc_types::{
         state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
     },
 };
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{ObjectId, TypeTag};
 use iota_types::dynamic_field::visitor as DFV;
 use prost::Message;
 use serde::{Deserialize, Serialize};
@@ -139,7 +139,7 @@ fn load_dynamic_field(
         .map_err(|e| RpcError::from(e).with_context("failed to deserialize dynamic field"))?;
 
     if read_mask.contains(DynamicField::KIND_FIELD.name) {
-        use iota_grpc_types::v1::dynamic_field::dynamic_field::DynamicFieldKind;
+        use iota_sdk_ext::grpc_types::v1::dynamic_field::dynamic_field::DynamicFieldKind;
         let kind = match field.kind {
             iota_types::dynamic_field::DynamicFieldType::DynamicField => {
                 DynamicFieldKind::Field.into()

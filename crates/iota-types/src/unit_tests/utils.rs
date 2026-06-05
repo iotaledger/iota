@@ -5,11 +5,11 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
-use iota_sdk_crypto::{
+use iota_sdk_ext::crypto::{
     Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId, SimpleSignature,
     crypto::{Intent, IntentMessage},
 };
@@ -230,7 +230,7 @@ pub fn make_sponsored_regular_sig_tx() -> (Transaction, IotaAddress, IotaAddress
 
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
-    use iota_sdk_types::Digest;
+    use iota_sdk_ext::types::Digest;
 
     pub use crate::move_authenticator::MoveAuthenticator;
     use crate::{

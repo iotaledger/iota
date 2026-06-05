@@ -12,7 +12,7 @@ use iota_sdk::{
         transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
     },
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 use crate::LedgerSignerError;
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::Command;
+use iota_sdk_ext::types::Command;
 use iota_types::{
     base_types::ObjectRef,
     error::{IotaError, IotaResult, UserInputError},

@@ -4,11 +4,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, Owner,
     UnchangedSharedObject, Version, crypto::Intent,
 };
-pub use iota_sdk_types::{
+pub use iota_sdk_ext::types::{
     effects::{
         ChangedObject as EffectsObjectChange, IdOperation as IDOperation, ObjectIn, ObjectOut,
         TransactionEffects, TransactionEffectsV1, UnchangedSharedKind,

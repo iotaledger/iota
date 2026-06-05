@@ -7,7 +7,7 @@
 //! mnemonics using the BIP44 derivation path format.
 
 use fastcrypto::hash::{Blake2b256, HashFunction};
-use iota_sdk_crypto::{FromMnemonic, ed25519::Ed25519PrivateKey};
+use iota_sdk_ext::crypto::{FromMnemonic, ed25519::Ed25519PrivateKey};
 use iota_stardust_types::block::address::Ed25519Address;
 
 /// Derive an Ed25519Address from a mnemonic phrase using BIP44 derivation path.

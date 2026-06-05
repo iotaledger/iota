@@ -11,8 +11,10 @@ use fastcrypto::{
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::ToFromBytes,
 };
-use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
-use iota_sdk_types::crypto::IntentMessage;
+use iota_sdk_ext::{
+    crypto::{Verifier, passkey::PasskeyVerifier},
+    types::crypto::IntentMessage,
+};
 use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -236,7 +238,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         let digest = intent_msg.signing_digest();
 
         // TODO https://github.com/iotaledger/iota/issues/11607
-        let authenticator = iota_sdk_types::PasskeyAuthenticator::from_bytes(self.as_bytes())
+        let authenticator = iota_sdk_ext::types::PasskeyAuthenticator::from_bytes(self.as_bytes())
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid passkey authenticator bytes".to_string(),
             })?;

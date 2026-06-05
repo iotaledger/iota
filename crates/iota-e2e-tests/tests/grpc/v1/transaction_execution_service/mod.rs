@@ -5,7 +5,7 @@ mod execute;
 mod header;
 mod simulate;
 
-use iota_grpc_types::v1::{
+use iota_sdk_ext::grpc_types::v1::{
     bcs::BcsData,
     signatures::{UserSignature, UserSignatures},
     transaction::Transaction as ProtoTransaction,

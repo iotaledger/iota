@@ -3,7 +3,7 @@
 
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::IotaAddress,
     iota_serde::{BigInt, Readable},

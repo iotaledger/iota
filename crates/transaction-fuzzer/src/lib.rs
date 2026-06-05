@@ -13,7 +13,7 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},

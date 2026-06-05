@@ -10,7 +10,7 @@ use fastcrypto::{
     rsa::{Base64UrlUnpadded, Encoding as _},
     traits::ToFromBytes,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId,
     crypto::{Intent, IntentMessage},
 };

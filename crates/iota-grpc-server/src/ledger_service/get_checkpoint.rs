@@ -82,7 +82,7 @@
 //!   - `events.json_contents` - the JSON-encoded contents of the event
 
 use futures::Stream;
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::{FieldMaskTree, MessageField, MessageFields},
     read_masks::GET_CHECKPOINT_READ_MASK,
     v1::{
@@ -102,8 +102,8 @@ use crate::{
 /// Helper function to convert proto filters to internal filters and validate
 /// their complexity
 fn convert_and_validate_filters(
-    transactions_filter: Option<iota_grpc_types::v1::filter::TransactionFilter>,
-    events_filter: Option<iota_grpc_types::v1::filter::EventFilter>,
+    transactions_filter: Option<iota_sdk_ext::grpc_types::v1::filter::TransactionFilter>,
+    events_filter: Option<iota_sdk_ext::grpc_types::v1::filter::EventFilter>,
 ) -> Result<(Option<TransactionFilter>, Option<EventFilter>), Status> {
     // Convert proto filters to internal filters
     let transaction_filter = transactions_filter

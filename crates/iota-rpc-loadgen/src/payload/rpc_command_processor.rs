@@ -20,7 +20,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId,
     crypto::{Intent, IntentMessage},
 };

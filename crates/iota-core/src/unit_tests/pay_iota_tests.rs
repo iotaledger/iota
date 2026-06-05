@@ -5,7 +5,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use futures::future::join_all;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, dbg_addr},
     crypto::{AccountKeyPair, get_key_pair},

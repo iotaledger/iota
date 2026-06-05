@@ -42,8 +42,8 @@ use fastcrypto::{
         Secp256r1SignatureAsBytes,
     },
 };
-pub use iota_sdk_types::RandomnessRound;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+pub use iota_sdk_ext::types::RandomnessRound;
+use iota_sdk_ext::types::crypto::{Intent, IntentMessage, IntentScope};
 use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
@@ -1648,7 +1648,7 @@ pub mod bcs_signable_test {
     where
         T: super::bcs_signable::BcsSignable,
     {
-        use iota_sdk_types::crypto::{Intent, IntentScope};
+        use iota_sdk_ext::types::crypto::{Intent, IntentScope};
 
         let mut obligation = VerificationObligation::default();
         // Add the obligation of the authority signature verifications.

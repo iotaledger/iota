@@ -22,7 +22,7 @@ use fastcrypto::{
     encoding::{Base58 as FastCryptoBase58, Base64 as FastCryptoBase64},
     traits::EncodeDecodeBase64,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Digest, Identifier as NativeIdentifier, ObjectId as NativeObjectId,
     StructTag as NativeStructTag, TypeTag as NativeTypeTag,
 };
@@ -81,7 +81,7 @@ impl<'de> DeserializeAs<'de, NativeIotaAddress> for IotaAddress {
 }
 
 /// A schema type that defines the JSON representation of the
-/// [`ObjectId`](iota_sdk_types::ObjectId) type.
+/// [`ObjectId`](iota_sdk_ext::types::ObjectId) type.
 pub struct ObjectId;
 
 impl JsonSchema for ObjectId {
@@ -394,7 +394,7 @@ impl<'de> DeserializeAs<'de, NativeGenericSignature> for GenericSignature {
 }
 
 /// A schema type that defines the JSON representation of a Move
-/// [`StructTag`](iota_sdk_types::StructTag) as a string, and
+/// [`StructTag`](iota_sdk_ext::types::StructTag) as a string, and
 /// provides a string serialization usable via `#[serde_as]`.
 pub struct StructTag;
 
@@ -441,7 +441,7 @@ impl<'de> DeserializeAs<'de, NativeStructTag> for StructTag {
 }
 
 /// A schema type that defines the JSON representation of a Move
-/// [`TypeTag`](iota_sdk_types::TypeTag) as a string, and
+/// [`TypeTag`](iota_sdk_ext::types::TypeTag) as a string, and
 /// provides a string serialization usable via `#[serde_as]`.
 pub struct TypeTag;
 

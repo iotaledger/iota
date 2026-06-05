@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_ext::types::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{MoveTypeTagTrait, base_types::EpochId, id::UID};

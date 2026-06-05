@@ -8,7 +8,7 @@ use std::{
 };
 
 use fastcrypto::traits::KeyPair;
-use iota_sdk_types::crypto::{Intent, IntentScope};
+use iota_sdk_ext::types::crypto::{Intent, IntentScope};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_name::{DeserializeNameAdapter, SerializeNameAdapter};

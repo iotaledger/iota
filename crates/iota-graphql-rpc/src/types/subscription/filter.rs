@@ -4,7 +4,7 @@
 use async_graphql::OneofObject;
 use iota_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
 use iota_json_rpc_types::{Filter, IotaTransactionKind};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::transaction::TransactionDataAPI;
 
 use crate::types::{

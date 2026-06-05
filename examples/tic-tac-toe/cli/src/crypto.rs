@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::crypto::PublicKey as SdkPublicKey;
+use iota_sdk_ext::types::crypto::PublicKey as SdkPublicKey;
 use iota_types::{
     crypto::{EncodeDecodeBase64, PublicKey, SignatureScheme},
     multisig::{MultiSigPublicKey, MultisigMember},

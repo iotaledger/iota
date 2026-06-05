@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::v1::move_package_service::ListPackageVersionsRequest;
+use iota_sdk_ext::grpc_types::v1::move_package_service::ListPackageVersionsRequest;
 use iota_macros::sim_test;
 
 use crate::utils::{

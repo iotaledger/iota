@@ -4,7 +4,7 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::CommitRound,
     executable_transaction::VerifiedExecutableTransaction,

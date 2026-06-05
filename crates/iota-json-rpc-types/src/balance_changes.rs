@@ -4,7 +4,7 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_sdk_types::TypeTag;
+use iota_sdk_ext::types::TypeTag;
 use iota_types::object::Owner;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

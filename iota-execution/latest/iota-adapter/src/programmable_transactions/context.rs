@@ -18,7 +18,7 @@ mod checked {
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+    use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
     use iota_types::{
         balance::Balance,
         base_types::{IotaAddress, TxContext},

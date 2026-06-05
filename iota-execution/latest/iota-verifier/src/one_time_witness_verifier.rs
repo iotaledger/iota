@@ -21,7 +21,7 @@
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
 
-use iota_sdk_types::Identifier;
+use iota_sdk_ext::types::Identifier;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::IotaAddress,

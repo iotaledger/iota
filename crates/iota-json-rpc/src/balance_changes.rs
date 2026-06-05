@@ -9,7 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{ObjectId, TypeTag};
 use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     coin::Coin,

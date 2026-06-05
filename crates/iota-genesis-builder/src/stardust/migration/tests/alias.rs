@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use iota_sdk_types::{Identifier, ObjectId, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, TypeTag};
 use iota_stardust_types::block::{
     address::{Address, AliasAddress, Ed25519Address},
     output::{

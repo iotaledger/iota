@@ -10,7 +10,7 @@ use iota_core::{
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,

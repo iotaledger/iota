@@ -20,7 +20,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-data-ingestion-core.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
 

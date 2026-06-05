@@ -12,7 +12,7 @@ use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     global_state_hasher::GlobalStateHasher,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     global_state_hash::GlobalStateHash, messages_checkpoint::ECMHLiveObjectSetDigest,
     object::Object,

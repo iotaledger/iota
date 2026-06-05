@@ -4,7 +4,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{Result, anyhow, ensure};
-use iota_sdk_types::Identifier;
+use iota_sdk_ext::types::Identifier;
 use iota_stardust_types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
     base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,

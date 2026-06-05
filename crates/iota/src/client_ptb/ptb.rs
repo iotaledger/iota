@@ -9,7 +9,7 @@ use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use iota_types::{
     digests::TransactionDigest,
     gas::GasCostSummary,

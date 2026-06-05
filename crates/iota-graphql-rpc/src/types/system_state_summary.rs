@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use async_graphql::*;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     iota_system_state::iota_system_state_summary::{

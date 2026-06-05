@@ -10,7 +10,7 @@ use futures::{
     TryStreamExt,
     stream::{self, StreamExt},
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
     base_types::SequenceNumber,

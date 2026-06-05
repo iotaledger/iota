@@ -193,9 +193,9 @@ impl MockCheckpointBuilder {
             .voting_rights
             .iter()
             .map(|(name, _)| {
-                let intent_msg = iota_sdk_types::crypto::IntentMessage::new(
-                    iota_sdk_types::crypto::Intent::iota_app(
-                        iota_sdk_types::crypto::IntentScope::CheckpointSummary,
+                let intent_msg = iota_sdk_ext::types::crypto::IntentMessage::new(
+                    iota_sdk_ext::types::crypto::Intent::iota_app(
+                        iota_sdk_ext::types::crypto::IntentScope::CheckpointSummary,
                     ),
                     &checkpoint,
                 );

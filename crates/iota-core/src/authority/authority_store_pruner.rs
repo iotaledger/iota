@@ -14,7 +14,7 @@ use bincode::Options;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
@@ -931,7 +931,7 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
     use iota_types::{
         base_types::{ObjectDigest, ObjectRef, SequenceNumber},
         digests::TransactionDigest,

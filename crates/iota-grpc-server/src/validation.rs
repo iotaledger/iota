@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil, MessageFields},
     google::rpc::bad_request::FieldViolation,
     v1::{
@@ -9,7 +9,7 @@ use iota_grpc_types::{
         types::{Address, ObjectId as ProtoObjectId},
     },
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::base_types::IotaAddress;
 use prost_types::FieldMask;
 

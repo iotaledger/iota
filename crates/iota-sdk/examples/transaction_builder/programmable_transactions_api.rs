@@ -24,7 +24,7 @@ use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, TransactionData, TransactionDataAPI},
 };
-use iota_sdk_types::Command;
+use iota_sdk_ext::types::Command;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]

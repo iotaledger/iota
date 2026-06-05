@@ -16,7 +16,7 @@
 
 use std::mem::size_of;
 
-use iota_sdk_types::StructTag;
+use iota_sdk_ext::types::StructTag;
 use iota_types::{
     balance::Balance,
     gas_coin::GAS,
@@ -50,7 +50,7 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
     use iota_types::{
         balance::Balance,
         base_types::{IotaAddress, TxContext},

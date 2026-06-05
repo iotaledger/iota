@@ -4,7 +4,7 @@
 
 use std::{fmt::Formatter, sync::LazyLock};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     base_types::ObjectRef,
     digests::TransactionDigest,

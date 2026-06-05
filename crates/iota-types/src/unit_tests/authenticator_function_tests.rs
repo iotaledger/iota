@@ -3,7 +3,7 @@
 
 use std::cell::Cell;
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 use crate::{
     account_abstraction::authenticator_function::{

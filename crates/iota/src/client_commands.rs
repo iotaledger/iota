@@ -50,7 +50,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Identifier, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage},
 };

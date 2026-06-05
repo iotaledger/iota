@@ -7,7 +7,7 @@ use iota_json_rpc_types::{
     BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions, IotaObjectResponseError,
 };
 use iota_sdk::IotaClient;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{ObjectId, TypeTag};
 use iota_types::{gas_coin::GasCoin, object::Owner, parse_iota_type_tag};
 use tracing::{debug, trace};
 

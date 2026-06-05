@@ -7,8 +7,8 @@ use std::net::SocketAddr;
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
-use iota_sdk_types::crypto::{
+use iota_sdk_ext::crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
+use iota_sdk_ext::types::crypto::{
     Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, PublicKey, Secp256r1PublicKey,
     Secp256r1Signature, SimpleSignature,
 };

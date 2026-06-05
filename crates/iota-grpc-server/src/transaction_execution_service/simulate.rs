@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskTree,
     read_masks::SIMULATE_TRANSACTIONS_READ_MASK,
     v1::{
@@ -305,7 +305,7 @@ async fn simulate_single_transaction(
                             .map_err(|e| e.with_context("failed to merge command results"))?;
 
                     response.execution_result = Some(
-                        iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult::CommandResults(command_results),
+                        iota_sdk_ext::grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult::CommandResults(command_results),
                     );
                 }
             }
@@ -342,7 +342,7 @@ async fn simulate_single_transaction(
                     }
 
                     response.execution_result = Some(
-                        iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult::ExecutionError(exec_error),
+                        iota_sdk_ext::grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult::ExecutionError(exec_error),
                     );
                 }
             }

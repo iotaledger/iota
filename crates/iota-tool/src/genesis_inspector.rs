@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     balance::Balance,
     coin::CoinMetadata,

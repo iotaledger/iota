@@ -225,7 +225,7 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
     use iota_types::{
         base_types::{ObjectDigest, ObjectRef, SequenceNumber},
         effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt},

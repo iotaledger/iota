@@ -13,7 +13,7 @@ use anyhow::{anyhow, bail};
 use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, StructTag};
 use iota_types::{
     base_types::{
         IotaAddress, ObjectDigest, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,

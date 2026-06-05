@@ -33,7 +33,7 @@ use iota_core::{
     epoch::committee_store::CommitteeStore,
     global_state_hasher::WrappedObject,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };

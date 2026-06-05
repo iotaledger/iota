@@ -16,7 +16,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CancelledTransaction, Command, ConsensusDeterminedVersionAssignments, Identifier, StructTag,
     TypeTag, VersionAssignment,
 };

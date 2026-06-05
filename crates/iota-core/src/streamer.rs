@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 use futures::Stream;
 use iota_json_rpc_types::Filter;
 use iota_metrics::{metered_channel::Sender, spawn_monitored_task};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::error::IotaError;
 use parking_lot::RwLock;
 use prometheus::Registry;

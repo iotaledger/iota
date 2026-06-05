@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_stardust_types::block::output::{FoundryOutput, OutputId};
 use iota_types::{
     base_types::{SequenceNumber, TxContext},

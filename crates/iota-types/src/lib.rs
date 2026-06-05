@@ -15,8 +15,8 @@ pub use iota_network_stack::multiaddr;
 #[cfg(target_arch = "wasm32")]
 #[path = "wasm_multiaddr.rs"]
 pub mod multiaddr;
-pub use iota_sdk_types as sdk_types;
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+pub use iota_sdk_ext::types as sdk_types;
+use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},

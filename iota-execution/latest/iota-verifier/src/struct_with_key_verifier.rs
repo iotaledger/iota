@@ -7,7 +7,7 @@
 //! - The first field is named "id"
 //! - The first field has type `iota::object::UID`
 
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_ext::types::{Identifier, StructTag};
 use iota_types::{base_types::IotaAddress, error::ExecutionError, fp_ensure};
 use move_binary_format::file_format::{CompiledModule, SignatureToken};
 

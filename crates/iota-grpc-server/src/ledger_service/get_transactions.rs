@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use futures::Stream;
-use iota_grpc_types::{
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
     read_masks::GET_TRANSACTIONS_READ_MASK,

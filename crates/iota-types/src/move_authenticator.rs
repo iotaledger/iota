@@ -9,7 +9,7 @@ use std::{
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, TypeTag, crypto::IntentMessage};
+use iota_sdk_ext::types::{ObjectId, TypeTag, crypto::IntentMessage};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 

@@ -19,7 +19,7 @@ tempfile.workspace = true
 bin-version.workspace = true
 iota-framework.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 
 [dev-dependencies]

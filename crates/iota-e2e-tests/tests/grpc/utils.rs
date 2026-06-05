@@ -3,9 +3,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
-use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
-use iota_sdk_types::{Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction};
+use iota_sdk_ext::grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
+use iota_sdk_ext::grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
+use iota_sdk_ext::types::{Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -27,7 +27,7 @@ pub const NFT_MINTED_EVENT: &str = "NFTMinted";
 pub async fn setup_grpc_test(
     wait_for_checkpoint: Option<u64>,
     client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, iota_grpc_client::Client) {
+) -> (TestCluster, iota_sdk_ext::grpc_client::Client) {
     setup_grpc_test_with_builder(
         |builder| builder,
         wait_for_checkpoint,
@@ -46,7 +46,7 @@ pub async fn setup_grpc_test_with_builder<F>(
     builder_fn: F,
     wait_for_checkpoint: Option<u64>,
     client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, iota_grpc_client::Client)
+) -> (TestCluster, iota_sdk_ext::grpc_client::Client)
 where
     F: FnOnce(TestClusterBuilder) -> TestClusterBuilder,
 {
@@ -61,7 +61,7 @@ where
         test_cluster.wait_for_checkpoint(checkpoint, None).await;
     }
 
-    let mut client = iota_grpc_client::Client::new(test_cluster.grpc_url())
+    let mut client = iota_sdk_ext::grpc_client::Client::new(test_cluster.grpc_url())
         .expect("Failed to connect to gRPC service");
 
     if let Some(max_size) = client_max_message_size_bytes {
@@ -173,7 +173,7 @@ pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> D
 /// safe upper bound for stream ranges that need to cover those transactions.
 pub async fn wait_for_executed_transactions_checkpointed(
     cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_sdk_ext::grpc_client::Client,
 ) -> u64 {
     let baseline_seq = client
         .get_checkpoint_latest(

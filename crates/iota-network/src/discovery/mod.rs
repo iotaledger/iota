@@ -15,7 +15,7 @@ use anemo::{
 use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use futures::StreamExt;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
-use iota_sdk_types::crypto::IntentScope;
+use iota_sdk_ext::types::crypto::IntentScope;
 use iota_types::{
     crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey},
     digests::Digest,

@@ -12,7 +12,7 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_ext::types::crypto::{Intent, IntentMessage, IntentScope};
 use move_binary_format::file_format;
 
 use super::*;

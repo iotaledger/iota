@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 

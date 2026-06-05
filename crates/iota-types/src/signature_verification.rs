@@ -5,7 +5,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::hash::Hash;
 
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_ext::types::crypto::Intent;
 #[cfg(not(target_arch = "wasm32"))]
 use lru::LruCache;
 use nonempty::NonEmpty;

@@ -6,7 +6,7 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::{Identifier, ObjectId, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, TypeTag};
 use iota_types::{
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,

@@ -7,7 +7,7 @@ use backoff::{self, ExponentialBackoff};
 use iota_data_ingestion_core::{
     create_remote_store_client, history::manifest::Manifest, reader::v2::RemoteUrl,
 };
-use iota_grpc_client::Client as GrpcClient;
+use iota_sdk_ext::grpc_client::Client as GrpcClient;
 use object_store::ObjectStoreExt;
 use tracing::{debug, info};
 
