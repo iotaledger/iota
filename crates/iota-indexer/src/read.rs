@@ -1225,19 +1225,53 @@ impl IndexerReader {
                 .await;
         };
 
-        // All transaction-related tables that could be used by any filter
-        let tx_tables = [
-            CommitterTables::Transactions,
-            CommitterTables::TxCallsFun,
-            CommitterTables::TxCallsMod,
-            CommitterTables::TxCallsPkg,
-            CommitterTables::TxInputObjects,
-            CommitterTables::TxChangedObjects,
-            CommitterTables::TxWrappedOrDeletedObjects,
-            CommitterTables::TxSenders,
-            CommitterTables::TxRecipients,
-            CommitterTables::TxKinds,
-        ];
+        // All transaction-related tables that could be used by the active filter
+        let tx_tables = match &filter {
+            Some(TransactionFilterKind::V1(TransactionFilter::MoveFunction { module, function, .. }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::MoveFunction { module, function, .. })) => {
+                match (module, function) {
+                    (Some(_), Some(_)) => vec![CommitterTables::TxCallsFun],
+                    (Some(_), None) => vec![CommitterTables::TxCallsMod],
+                    _ => vec![CommitterTables::TxCallsPkg],
+                }
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::InputObject(_)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::InputObject(_))) => {
+                vec![CommitterTables::TxInputObjects]
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::ChangedObject(_)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(_))) => {
+                vec![CommitterTables::TxChangedObjects]
+            }
+            Some(TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(_))) => {
+                vec![CommitterTables::TxWrappedOrDeletedObjects]
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::FromAddress(_)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAddress(_))) => {
+                vec![CommitterTables::TxSenders]
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::ToAddress(_)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::ToAddress(_))) => {
+                vec![CommitterTables::TxRecipients]
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { .. }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { .. })) => {
+                vec![CommitterTables::TxSenders, CommitterTables::TxRecipients]
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { .. }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. })) => {
+                vec![CommitterTables::TxSenders, CommitterTables::TxRecipients]
+            }
+            Some(TransactionFilterKind::V1(TransactionFilter::TransactionKind(_)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(_)))
+            | Some(TransactionFilterKind::V1(TransactionFilter::TransactionKindIn(_)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::TransactionKindIn(_))) => {
+                vec![CommitterTables::TxKinds]
+            }
+            _ => {
+                vec![CommitterTables::Transactions]
+            }
+        };
         let min_available_tx = self
             .watermark_cache
             .get_lowest_available_tx_for_tables(&tx_tables)
