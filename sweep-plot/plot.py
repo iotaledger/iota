@@ -152,33 +152,41 @@ else:
     df["inflight_cv"] = np.nan
 
 
-# ---------- admit-ratio (honest vs spammer admission fairness) ----------
-# honest_admit_fraction / spammer_admit_fraction. 1.0 = uniform drop
-# probability across sources. >>1 = phase-effect bias under tail-drop
-# (binary). Closer to 1 under graduated.
+# ---------- CL vs OL uniformness (closed-loop vs open-loop per-tx ratio) ----------
+# Two ratios per iter, both centered on 1.0 = uniform per-tx treatment.
+#   admit_ratio  = cl_admit_frac  / ol_admit_frac
+#   reject_ratio = cl_reject_frac / ol_reject_frac
+# Closed-loop = honest_cl process (TD with OVERLOAD_RETRY_AFTER backoff).
+# Open-loop = spammer process (TD wrapped with 2s timeout that cancels
+# retry-after, so it never backs off). Validator cannot distinguish them at
+# admission — any deviation from 1.0 is a policy-induced bias toward one
+# client implementation style.
 #
-# spammer_admit_count is derived: total_commits − honest_cl_commits.
-# Open-loop honest's `bench_success` is unreliable (stress.rs caps
-# latency_ms at ~41 entries per proc), so we use honest_cl exclusively.
-def _compute_admit_ratio(r):
+# ol_admit_count is derived: total_commits − cl_admit_count. Open-loop
+# `bench_success` is unreliable (stress.rs caps latency_ms at ~41 entries
+# per proc), so we use cl process counts directly and infer ol's by
+# subtraction from total useful_tps.
+def _compute_cl_ol_ratios(r):
     iw = r.get("iter_window") or {}
     spam_dur = (iw.get("spam_end_epoch") or 0) - (iw.get("spam_start_epoch") or 0)
     if spam_dur <= 0:
         spam_dur = (r.get("spammer") or {}).get("duration_secs") or 15
     tps = (r.get("results") or {}).get("useful_tps") or 0
     hcl = r.get("honest_cl") or {}
-    hcl_commits = hcl.get("bench_success") or 0
-    hcl_offered = hcl.get("offered") or 0
-    spam_offered = (r.get("spammer") or {}).get("offered") or 0
+    cl_admits = hcl.get("bench_success") or 0
+    cl_offered = hcl.get("offered") or 0
+    ol_offered = (r.get("spammer") or {}).get("offered") or 0
     total_commits = tps * spam_dur
-    spam_commits = max(total_commits - hcl_commits, 0)
-    if spam_offered == 0 or hcl_offered == 0:
-        return np.nan
-    spam_admit = spam_commits / spam_offered
-    hcl_admit = hcl_commits / hcl_offered
-    if spam_admit == 0:
-        return np.nan
-    return hcl_admit / spam_admit
+    ol_admits = max(total_commits - cl_admits, 0)
+    if ol_offered == 0 or cl_offered == 0:
+        return np.nan, np.nan
+    cl_admit_frac = cl_admits / cl_offered
+    ol_admit_frac = ol_admits / ol_offered
+    cl_reject_frac = (cl_offered - cl_admits) / cl_offered
+    ol_reject_frac = (ol_offered - ol_admits) / ol_offered
+    admit_ratio = cl_admit_frac / ol_admit_frac if ol_admit_frac > 0 else np.nan
+    reject_ratio = cl_reject_frac / ol_reject_frac if ol_reject_frac > 0 else np.nan
+    return admit_ratio, reject_ratio
 
 
 # Recompute per-window aggregates from the raw timeseries, restricted to
@@ -284,16 +292,22 @@ import json as _json_for_recs
 
 try:
     with open(PATH) as _f:
-        _raw_recs = [_json_for_recs.loads(_l) for _l in _f if _l.strip()]
-    _ratios = []
+        _all_recs = [_json_for_recs.loads(_l) for _l in _f if _l.strip()]
+    # Mirror df's filter: drop failed iters and exit-codes-not-ok records so
+    # len(_raw_recs) == len(df). Without this, a single failed iter shifts
+    # alignment and the if-check below silently fills the whole column with NaN.
+    _raw_recs = [
+        _r for _r in _all_recs
+        if not _r.get("failed") and (_r.get("results") or {}).get("exit_codes_ok", True)
+    ]
+    _admit_ratios = []
+    _reject_ratios = []
     _ts_stats = []
     for _r in _raw_recs:
-        if _r.get("failed"):
-            _ratios.append(np.nan)
-            _ts_stats.append({})
-        else:
-            _ratios.append(_compute_admit_ratio(_r))
-            _ts_stats.append(_compute_ts_window_stats(_r))
+        _ar, _rr = _compute_cl_ol_ratios(_r)
+        _admit_ratios.append(_ar)
+        _reject_ratios.append(_rr)
+        _ts_stats.append(_compute_ts_window_stats(_r))
     _ts_columns = [
         "inflight_mean_ts",
         "inflight_stddev_ts",
@@ -312,17 +326,20 @@ try:
         "tps_p75_ts",
         "tps_cv_ts",
     ]
-    if len(_ratios) == len(df):
-        df["admit_ratio"] = _ratios
+    if len(_admit_ratios) == len(df):
+        df["admit_ratio"] = _admit_ratios
+        df["reject_ratio"] = _reject_ratios
         _ts_df = pd.DataFrame(_ts_stats, index=df.index)
         for _col in _ts_columns:
             df[_col] = _ts_df.get(_col, pd.Series([np.nan] * len(df)))
     else:
         df["admit_ratio"] = np.nan
+        df["reject_ratio"] = np.nan
         for _col in _ts_columns:
             df[_col] = np.nan
 except Exception:
     df["admit_ratio"] = np.nan
+    df["reject_ratio"] = np.nan
     for _col in [
         "inflight_mean_ts",
         "inflight_stddev_ts",
@@ -445,6 +462,7 @@ metrics = {
     "inflight_p99_med": ("inflight_p99_ts", "median"),
     "firstdiff_std_med": ("inflight_firstdiff_std", "median"),
     "admit_ratio_med": ("admit_ratio", "median"),
+    "reject_ratio_med": ("reject_ratio", "median"),
     "drop_prob_med": ("validator_drop_prob", "median"),
 }
 
@@ -542,10 +560,11 @@ GRADUATED_TICK_COLOR = "#9bd49b"  # light green
 # a figure without touching individual group specs. Re-enable by removing it.
 #   cv / cv-saturated — CV (stddev/mean) cancels graduated's mean reduction;
 #                       see comment in plot_group near `inflight-mean`.
-#   admit-ratio       — admit-fairness needs a more robust spammer/honest
-#                       accounting split before it's worth plotting.
+#   admit-ratio / reject-ratio — closed-loop vs open-loop per-tx
+#                       uniformness. 1.0 = uniform treatment; deviation
+#                       = policy-induced bias toward one client style.
 #   tps-mean          — redundant with the tps boxplot when n ≥ ~10/policy.
-GLOBAL_SKIP_PLOTS = set()
+GLOBAL_SKIP_PLOTS = {"overshoot", "tradeoff"}
 
 
 def _highlight_color(policy):
@@ -1489,15 +1508,16 @@ def plot_group(group):
             tick_labels=short_labels,
             hline=1,
         )
-    boxplot(
-        overshoot_col,
-        f"Absolute over/under-shoot — {overshoot_label} — [lower = safer]",
-        "Transactions",
-        out_dir / "overshoot.png",
-        policies,
-        tick_labels=short_labels,
-        hline=0,
-    )
+    if "overshoot" not in skip:
+        boxplot(
+            overshoot_col,
+            f"Absolute over/under-shoot — {overshoot_label} — [lower = safer]",
+            "Transactions",
+            out_dir / "overshoot.png",
+            policies,
+            tick_labels=short_labels,
+            hline=0,
+        )
     boxplot(
         "results.useful_tps",
         "Useful TPS — [higher = better]",
@@ -1644,18 +1664,37 @@ def plot_group(group):
             tick_labels=short_labels,
         )
 
-    # Admit fairness: honest_cl_admit_frac / spammer_admit_frac.
-    # 1.0 = uniform admission across sources. >>1 = bias toward honest
-    # (good); <1 = bias toward spammers (bad).
+    # CL/OL admission uniformness: cl_admit_frac / ol_admit_frac.
+    # 1.0 = uniform per-tx admission regardless of client implementation
+    # style. Closed-loop = TD with retry-after backoff; open-loop = TD with
+    # 2s timeout that cancels retry-after. Validator can't distinguish them
+    # at admission, so any deviation from 1.0 is a policy-induced bias
+    # toward one client style (typically closed-loop, which exploits
+    # binary's bimodal queue windows).
     if "admit-ratio" not in skip and "admit_ratio" in df.columns:
         boxplot(
             "admit_ratio",
-            "Admit fairness — honest / spammer — [higher = better]",
-            "Ratio",
+            "Admission uniformness — closed-loop / open-loop — [closer to 1.0 = more uniform]",
+            "CL admit-rate / OL admit-rate",
             out_dir / "admit-ratio.png",
             policies,
             tick_labels=short_labels,
-            hline=1.0,
+        )
+
+    # CL/OL rejection uniformness: cl_reject_frac / ol_reject_frac.
+    # Same framing as admit-ratio, complementary view. 1.0 = uniform
+    # rejection. Far below 1.0 = closed-loop is rejected much less than
+    # open-loop per offered tx (binary's exploitable-window bias). Far
+    # above 1.0 = closed-loop is rejected more (would indicate spammer
+    # preference, shouldn't occur under either policy here).
+    if "reject-ratio" not in skip and "reject_ratio" in df.columns:
+        boxplot(
+            "reject_ratio",
+            "Rejection uniformness — closed-loop / open-loop — [closer to 1.0 = more uniform]",
+            "CL reject-rate / OL reject-rate",
+            out_dir / "reject-ratio.png",
+            policies,
+            tick_labels=short_labels,
         )
 
     # Validator-side drop probability — the authoritative drop-fraction surface.
@@ -1802,46 +1841,47 @@ def plot_group(group):
     # Tradeoff scatter — uses the group's ratio metric on x-axis. Each
     # policy gets a distinct marker + the family color from _line_style_for
     # so visual identity matches the inflight-timeseries plot.
-    _, ax = plt.subplots(figsize=(9, 6))
-    for p in policies:
-        sub = df[df.policy == p]
-        color, _, _ = _line_style_for(p)
-        marker, mult = _marker_for(p)
-        ax.scatter(
-            sub[ratio_col],
-            sub["results.useful_tps"],
-            label=label_for[p],
-            alpha=0.7,
-            s=36 * mult,
-            edgecolor="white",
-            color=color,
-            marker=marker,
-        )
-    ax.set_xlabel(f"{ratio_label}  (← safer)")
-    ax.set_ylabel("Useful TPS  (better →)")
-    ax.set_title("Safety / throughput trade-off")
-    ax.minorticks_on()
-    ax.grid(which="major", alpha=0.5)
-    ax.grid(which="minor", alpha=0.5, linestyle=":", linewidth=0.8)
-    leg = ax.legend(fontsize=8, loc="best")
-    # Apply the same green/red highlights to legend entries. The legend
-    # is in the same order as `policies`, so we match by index into the
-    # full policy string (same matching logic as x-tick labels).
-    for text, policy in zip(leg.get_texts(), policies):
-        color = _highlight_color(policy)
-        if color:
-            text.set_bbox(
-                dict(
-                    facecolor=color,
-                    alpha=0.5,
-                    edgecolor="none",
-                    boxstyle="round,pad=0.25",
-                )
+    if "tradeoff" not in skip:
+        _, ax = plt.subplots(figsize=(9, 6))
+        for p in policies:
+            sub = df[df.policy == p]
+            color, _, _ = _line_style_for(p)
+            marker, mult = _marker_for(p)
+            ax.scatter(
+                sub[ratio_col],
+                sub["results.useful_tps"],
+                label=label_for[p],
+                alpha=0.7,
+                s=36 * mult,
+                edgecolor="white",
+                color=color,
+                marker=marker,
             )
-    plt.tight_layout()
-    plt.savefig(out_dir / "tradeoff.png", dpi=130)
-    plt.close()
-    print(f"Wrote {out_dir / 'tradeoff.png'}")
+        ax.set_xlabel(f"{ratio_label}  (← safer)")
+        ax.set_ylabel("Useful TPS  (better →)")
+        ax.set_title("Safety / throughput trade-off")
+        ax.minorticks_on()
+        ax.grid(which="major", alpha=0.5)
+        ax.grid(which="minor", alpha=0.5, linestyle=":", linewidth=0.8)
+        leg = ax.legend(fontsize=8, loc="best")
+        # Apply the same green/red highlights to legend entries. The legend
+        # is in the same order as `policies`, so we match by index into the
+        # full policy string (same matching logic as x-tick labels).
+        for text, policy in zip(leg.get_texts(), policies):
+            color = _highlight_color(policy)
+            if color:
+                text.set_bbox(
+                    dict(
+                        facecolor=color,
+                        alpha=0.5,
+                        edgecolor="none",
+                        boxstyle="round,pad=0.25",
+                    )
+                )
+        plt.tight_layout()
+        plt.savefig(out_dir / "tradeoff.png", dpi=130)
+        plt.close()
+        print(f"Wrote {out_dir / 'tradeoff.png'}")
 
 
 # Generate per-group plots.
