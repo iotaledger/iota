@@ -13,7 +13,7 @@ use reqwest::{Client, ClientBuilder};
 
 use crate::object_store::{
     ObjectStoreGetExt,
-    http::{DEFAULT_USER_AGENT, STRICT_PATH_ENCODE_SET, get},
+    http::{DEFAULT_USER_AGENT, STRICT_PATH_ENCODE_SET, get, exists_http},
 };
 
 #[derive(Debug)]
@@ -38,6 +38,10 @@ impl S3Client {
     async fn get(&self, location: &Path) -> Result<GetResult> {
         let url = self.path_url(location);
         get(&url, "s3", location, &self.client).await
+    }
+    async fn exists(&self, location: &Path) -> Result<bool> {
+        let url = self.path_url(location);
+        exists_http(&url, &self.client).await
     }
     fn path_url(&self, path: &Path) -> String {
         format!("{}/{}", self.endpoint, Self::encode_path(path))
@@ -74,5 +78,9 @@ impl ObjectStoreGetExt for AmazonS3 {
         let result = self.client.get(location).await?;
         let bytes = result.bytes().await?;
         Ok(bytes)
+    }
+
+    async fn exists(&self, location: &Path) -> Result<bool> {
+        self.client.exists(location).await
     }
 }

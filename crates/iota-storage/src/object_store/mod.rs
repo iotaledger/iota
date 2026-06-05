@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::{DynObjectStore, ObjectMeta, ObjectStore, ObjectStoreExt, path::Path};
+use object_store::{DynObjectStore, Error, ObjectMeta, ObjectStore, ObjectStoreExt, path::Path};
 pub mod http;
 pub mod util;
 
@@ -16,6 +16,9 @@ pub mod util;
 pub trait ObjectStoreGetExt: std::fmt::Display + Send + Sync + 'static {
     /// Return the bytes at given path in object store
     async fn get_bytes(&self, src: &Path) -> Result<Bytes>;
+
+    /// Check if the file exists at given path in object store without downloading its contents
+    async fn exists(&self, src: &Path) -> Result<bool>;
 }
 
 macro_rules! as_ref_get_ext_impl {
@@ -24,6 +27,9 @@ macro_rules! as_ref_get_ext_impl {
         impl ObjectStoreGetExt for $type {
             async fn get_bytes(&self, src: &Path) -> Result<Bytes> {
                 self.as_ref().get_bytes(src).await
+            }
+            async fn exists(&self, src: &Path) -> Result<bool> {
+                self.as_ref().exists(src).await
             }
         }
     };
@@ -49,6 +55,13 @@ macro_rules! as_ref_get_impl {
                             e
                         )
                     })
+            }
+            async fn exists(&self, src: &Path) -> Result<bool> {
+                match self.head(src).await {
+                    Ok(_) => Ok(true),
+                    Err(Error::NotFound { .. }) => Ok(false),
+                    Err(e) => Err(anyhow!("Failed to check if file {} exists with error: {:?}", src, e)),
+                }
             }
         }
     };

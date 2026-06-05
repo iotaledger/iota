@@ -14,7 +14,7 @@ use futures::{StreamExt, TryStreamExt};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use object_store::{Error, GetResult, GetResultPayload, ObjectMeta, path::Path};
 use reqwest::{
-    Client, Method,
+    Client, Method, StatusCode,
     header::{CONTENT_LENGTH, ETAG, HeaderMap, LAST_MODIFIED},
 };
 
@@ -94,6 +94,22 @@ async fn get(
         meta,
         attributes: object_store::Attributes::new(),
     })
+}
+
+pub(crate) async fn exists_http(
+    url: &str,
+    client: &Client,
+) -> Result<bool> {
+    let request = client.request(Method::HEAD, url);
+    let response = request.send().await.context("failed to send HEAD request")?;
+    let status = response.status();
+    if status.is_success() {
+        Ok(true)
+    } else if status == StatusCode::NOT_FOUND {
+        Ok(false)
+    } else {
+        Err(anyhow!("Unexpected status code checking existence of {}: {}", url, status))
+    }
 }
 
 fn header_meta(location: &Path, headers: &HeaderMap) -> Result<ObjectMeta> {

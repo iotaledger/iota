@@ -46,4 +46,10 @@ impl ObjectStoreGetExt for LocalStorage {
         });
         handle.await?
     }
+
+    async fn exists(&self, location: &Path) -> Result<bool> {
+        let path_to_filesystem = path_to_filesystem(self.root.clone(), location)?;
+        let handle = tokio::task::spawn_blocking(move || path_to_filesystem.exists());
+        Ok(handle.await?)
+    }
 }
