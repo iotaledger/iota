@@ -54,7 +54,7 @@ pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<Checkpo
         3,
         100_000,
     );
-    checkpoint_service.spawn().now_or_never().unwrap();
+    checkpoint_service.spawn(None).now_or_never().unwrap();
     checkpoint_service
 }
 
