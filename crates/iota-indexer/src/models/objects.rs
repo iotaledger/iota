@@ -18,7 +18,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     errors::IndexerError,
-    schema::{checkpointed_objects, objects, objects_backward_history, objects_history},
+    schema::{checkpointed_objects, objects, objects_backward_history},
     types::{IndexedDeletedObject, IndexedObject, ObjectStatus, owner_to_owner_info},
 };
 
@@ -133,8 +133,8 @@ impl From<IndexedDeletedObject> for StoredCheckpointedObject {
     }
 }
 
-#[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
-#[diesel(table_name = objects_history, primary_key(object_id, object_version, checkpoint_sequence_number))]
+#[derive(Queryable, Selectable, Debug, Clone, QueryableByName)]
+#[diesel(table_name = checkpointed_objects)]
 pub struct StoredHistoryObject {
     pub object_id: Vec<u8>,
     pub object_version: i64,
@@ -317,14 +317,6 @@ impl From<IndexedDeletedObject> for StoredDeletedObject {
     }
 }
 
-#[derive(Queryable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
-#[diesel(table_name = objects_history, primary_key(object_id, object_version, checkpoint_sequence_number))]
-pub(crate) struct StoredDeletedHistoryObject {
-    pub object_id: Vec<u8>,
-    pub object_version: i64,
-    pub object_status: i16,
-    pub checkpoint_sequence_number: i64,
-}
 
 /// Snapshot of the `objects` table written exclusively by checkpoint ingestion.
 ///

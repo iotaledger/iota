@@ -19,9 +19,6 @@ use crate::{
     types::IndexerResult,
 };
 
-/// The primary purpose of objects_history is to serve consistency query.
-/// A short retention is sufficient.
-const OBJECTS_HISTORY_EPOCHS_TO_KEEP: u64 = 2;
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -395,12 +392,6 @@ impl RetentionConfig {
     }
 
     pub fn new_with_default_retention_only_for_testing(epochs_to_keep: u64) -> Self {
-        let mut overrides = HashMap::new();
-        overrides.insert(
-            PrunableTable::ObjectsHistory,
-            OBJECTS_HISTORY_EPOCHS_TO_KEEP,
-        );
-
         Self::new(epochs_to_keep, HashMap::new())
     }
 
@@ -418,12 +409,7 @@ impl RetentionConfig {
         } = self;
 
         for table in PrunableTable::iter() {
-            let default_retention = match table {
-                PrunableTable::ObjectsHistory => OBJECTS_HISTORY_EPOCHS_TO_KEEP,
-                _ => epochs_to_keep,
-            };
-
-            overrides.entry(table).or_insert(default_retention);
+            overrides.entry(table).or_insert(epochs_to_keep);
         }
 
         overrides
@@ -536,12 +522,12 @@ mod test {
     }
 
     #[test]
-    fn pruning_options_with_objects_history_override() {
+    fn pruning_options_with_events_override() {
         let mut temp_file = NamedTempFile::new().unwrap();
         let toml_content = r#"
         epochs_to_keep = 5
         [overrides]
-        objects_history = 10
+        events = 10
         transactions = 20
         "#;
         temp_file.write_all(toml_content.as_bytes()).unwrap();
@@ -558,7 +544,7 @@ mod test {
         assert_eq!(
             retention_config
                 .overrides
-                .get(&PrunableTable::ObjectsHistory)
+                .get(&PrunableTable::Events)
                 .copied(),
             Some(10)
         );
@@ -579,7 +565,7 @@ mod test {
             };
 
             match table {
-                PrunableTable::ObjectsHistory => assert_eq!(retention, 10),
+                PrunableTable::Events => assert_eq!(retention, 10),
                 PrunableTable::Transactions => assert_eq!(retention, 20),
                 _ => assert_eq!(retention, 5),
             };
@@ -587,7 +573,7 @@ mod test {
     }
 
     #[test]
-    fn pruning_options_no_objects_history_override() {
+    fn pruning_options_no_events_override() {
         let mut temp_file = NamedTempFile::new().unwrap();
         let toml_content = r#"
         epochs_to_keep = 5
@@ -630,9 +616,6 @@ mod test {
             };
 
             match table {
-                PrunableTable::ObjectsHistory => {
-                    assert_eq!(retention, OBJECTS_HISTORY_EPOCHS_TO_KEEP)
-                }
                 PrunableTable::TxSenders => assert_eq!(retention, 10),
                 PrunableTable::Transactions => assert_eq!(retention, 20),
                 _ => assert_eq!(retention, 5),
@@ -645,7 +628,6 @@ mod test {
         let toml_str = r#"
         epochs_to_keep = 5
         [overrides]
-        objects_history = 10
         transactions = 20
         invalid_table = 30
         "#;
