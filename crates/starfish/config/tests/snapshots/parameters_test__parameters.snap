@@ -11,9 +11,6 @@ min_block_delay:
 soft_leader_timeout:
   secs: 0
   nanos: 100000000
-max_forward_time_drift:
-  secs: 0
-  nanos: 500000000
 max_headers_per_commit_sync_fetch: 1000
 max_transactions_per_commit_sync_fetch: 1000
 max_headers_per_regular_sync_fetch: 100

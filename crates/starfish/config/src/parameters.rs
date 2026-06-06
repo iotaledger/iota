@@ -43,11 +43,6 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_soft_leader_timeout")]
     pub soft_leader_timeout: Duration,
 
-    /// Maximum forward time drift (how far in future) allowed for received
-    /// blocks.
-    #[serde(default = "Parameters::default_max_forward_time_drift")]
-    pub max_forward_time_drift: Duration,
-
     /// Number of block headers to fetch per commit sync request.
     #[serde(default = "Parameters::default_max_headers_per_commit_sync_fetch")]
     pub max_headers_per_commit_sync_fetch: usize,
@@ -166,10 +161,6 @@ impl Parameters {
 
     pub(crate) fn default_soft_leader_timeout() -> Duration {
         Duration::from_millis(100)
-    }
-
-    pub(crate) fn default_max_forward_time_drift() -> Duration {
-        Duration::from_millis(500)
     }
 
     // Maximum number of block headers to fetch per commit sync request.
@@ -296,7 +287,6 @@ impl Default for Parameters {
             leader_timeout: Parameters::default_leader_timeout(),
             min_block_delay: Parameters::default_min_block_delay(),
             soft_leader_timeout: Parameters::default_soft_leader_timeout(),
-            max_forward_time_drift: Parameters::default_max_forward_time_drift(),
             max_headers_per_commit_sync_fetch:
                 Parameters::default_max_headers_per_commit_sync_fetch(),
             max_transactions_per_commit_sync_fetch:
