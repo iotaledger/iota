@@ -1064,8 +1064,8 @@ mod tests {
                 .any(|cmd| {
                     cmd == &Command::new_move_call(
                         ObjectId::ZERO,
-                        Identifier::new_unchecked("test"),
-                        Identifier::new_unchecked("test"),
+                        Identifier::from("test"),
+                        Identifier::from("test"),
                         vec![],
                         vec![],
                     )

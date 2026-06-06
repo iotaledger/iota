@@ -535,8 +535,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
     } = value;
 
     let address = Address::new(address.into_bytes());
-    let module = Identifier::new_unchecked(module.as_str());
-    let name = Identifier::new_unchecked(name.as_str());
+    let module = module.to_sdk_identifier();
+    let name = name.to_sdk_identifier();
     let type_params = type_params.iter().map(type_tag_core_to_sdk).collect();
     StructTag::new(address, module, name, type_params)
 }
@@ -544,8 +544,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
 pub fn struct_tag_sdk_to_core(value: &StructTag) -> move_core_types::language_storage::StructTag {
     let address =
         move_core_types::account_address::AccountAddress::new(value.address().into_bytes());
-    let module = move_core_types::identifier::Identifier::new(value.module().as_str()).unwrap();
-    let name = move_core_types::identifier::Identifier::new(value.name().as_str()).unwrap();
+    let module = value.module().to_core_identifier();
+    let name = value.name().to_core_identifier();
     let type_params = value
         .type_params()
         .iter()
@@ -598,5 +598,45 @@ impl From<crate::crypto::AuthorityPublicKeyBytes> for Bls12381PublicKey {
 impl From<Bls12381PublicKey> for crate::crypto::AuthorityPublicKeyBytes {
     fn from(value: Bls12381PublicKey) -> Self {
         Self::new(value.into_inner())
+    }
+}
+
+/// Extension trait to convert to `iota_sdk_types::move_core::Identifier`.
+pub trait AsSdkIdentifier {
+    fn to_sdk_identifier(&self) -> iota_sdk_types::move_core::Identifier;
+}
+
+impl AsSdkIdentifier for move_core_types::identifier::IdentStr {
+    fn to_sdk_identifier(&self) -> iota_sdk_types::move_core::Identifier {
+        iota_sdk_types::move_core::Identifier::new_unchecked(self.as_str())
+    }
+}
+
+impl AsSdkIdentifier for move_core_types::identifier::Identifier {
+    fn to_sdk_identifier(&self) -> iota_sdk_types::move_core::Identifier {
+        iota_sdk_types::move_core::Identifier::new_unchecked(self.as_str())
+    }
+}
+
+impl AsSdkIdentifier for str {
+    fn to_sdk_identifier(&self) -> iota_sdk_types::move_core::Identifier {
+        iota_sdk_types::move_core::Identifier::new_unchecked(self)
+    }
+}
+
+impl AsSdkIdentifier for String {
+    fn to_sdk_identifier(&self) -> iota_sdk_types::move_core::Identifier {
+        iota_sdk_types::move_core::Identifier::new_unchecked(self)
+    }
+}
+
+/// Extension trait to convert to `move_core_types::identifier::Identifier`.
+pub trait AsCoreIdentifier {
+    fn to_core_identifier(&self) -> move_core_types::identifier::Identifier;
+}
+
+impl AsCoreIdentifier for Identifier {
+    fn to_core_identifier(&self) -> move_core_types::identifier::Identifier {
+        unsafe { move_core_types::identifier::Identifier::new_unchecked(self.as_str()) }
     }
 }

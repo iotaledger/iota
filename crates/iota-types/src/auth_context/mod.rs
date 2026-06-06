@@ -284,8 +284,8 @@ mod tests {
             commands: vec![Command::new_move_call(
                 ObjectId::from_prefixed_short_hex("0x0000000000000000000000000000000000000001")
                     .unwrap(),
-                Identifier::new_unchecked("mod"),
-                Identifier::new_unchecked("fun"),
+                Identifier::from("mod"),
+                Identifier::from("fun"),
                 vec![TypeTag::U8],
                 vec![Argument::Gas],
             )],

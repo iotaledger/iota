@@ -18,6 +18,7 @@ use iota_sdk_types::{
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
+    AsSdkIdentifier,
     base_types::{
         IotaAddress, ObjectDigest, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
         TransactionDigest,
@@ -618,7 +619,7 @@ impl TryInto<Object> for IotaObjectData {
                 self.version,
                 p.module_map
                     .iter()
-                    .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
+                    .map(|(k, v)| (k.to_sdk_identifier(), v.clone()))
                     .collect(),
                 protocol_config.max_move_package_size(),
                 p.type_origin_table.into_iter().collect(),
@@ -1163,7 +1164,7 @@ impl IotaRawMovePackage {
             self.version,
             self.module_map
                 .iter()
-                .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
+                .map(|(k, v)| (k.to_sdk_identifier(), v.clone()))
                 .collect(),
             max_move_package_size,
             self.type_origin_table.clone(),

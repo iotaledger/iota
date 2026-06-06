@@ -579,8 +579,8 @@ mod tests {
     fn make_move_call_cmd(package: ObjectId, module: &str, function: &str) -> Command {
         Command::new_move_call(
             package,
-            Identifier::new_unchecked(module),
-            Identifier::new_unchecked(function),
+            Identifier::from(module),
+            Identifier::from(function),
             vec![],
             vec![],
         )

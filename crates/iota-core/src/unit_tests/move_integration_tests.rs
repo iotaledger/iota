@@ -11,6 +11,7 @@ use iota_sdk_types::{
     StructTag, TypeTag,
 };
 use iota_types::{
+    AsSdkIdentifier,
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
@@ -2859,8 +2860,8 @@ fn resolved_struct(
 ) -> TypeTag {
     TypeTag::Struct(Box::new(StructTag::new(
         IotaAddress::new(address.into_bytes()),
-        Identifier::new_unchecked(module.as_str()),
-        Identifier::new_unchecked(name.as_str()),
+        module.to_sdk_identifier(),
+        name.to_sdk_identifier(),
         type_args,
     )))
 }

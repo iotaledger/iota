@@ -401,8 +401,8 @@ mod tests {
         for (type_tag, expected_name) in cases {
             let cmd = Command::new_move_call(
                 obj_id(),
-                Identifier::new_unchecked("m"),
-                Identifier::new_unchecked("f"),
+                Identifier::from("m"),
+                Identifier::from("f"),
                 vec![type_tag],
                 vec![],
             );
@@ -429,8 +429,8 @@ mod tests {
 
         let cmd = Command::new_move_call(
             obj_id(),
-            Identifier::new_unchecked("m"),
-            Identifier::new_unchecked("f"),
+            Identifier::from("m"),
+            Identifier::from("f"),
             vec![expected.clone()],
             vec![],
         );
@@ -464,8 +464,8 @@ mod tests {
     fn command_from_command() {
         let cmd = Command::new_move_call(
             obj_id(),
-            Identifier::new_unchecked("m"),
-            Identifier::new_unchecked("f"),
+            Identifier::from("m"),
+            Identifier::from("f"),
             vec![TypeTag::U8],
             vec![],
         );

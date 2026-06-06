@@ -17,6 +17,7 @@ use iota_sdk_types::{
     VersionAssignment,
 };
 use iota_types::{
+    AsCoreIdentifier,
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
@@ -2077,9 +2078,7 @@ impl IotaProgrammableTransactionBlock {
             match command {
                 Command::MoveCall(cmd) => {
                     // Unsafe: `cmd.module` is an already validated `Identifier`
-                    let module = unsafe {
-                        move_core_types::identifier::Identifier::new_unchecked(cmd.module.as_str())
-                    };
+                    let module = cmd.module.to_core_identifier();
                     let id = ModuleId::new(AccountAddress::new(cmd.package.into_bytes()), module);
                     let Some(types) = get_signature_types(id, &cmd.function, module_cache) else {
                         return result_types;

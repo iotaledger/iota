@@ -53,6 +53,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
+    AsSdkIdentifier,
     IotaAddress,
     base_types::SequenceNumber,
     collection_types::{Entry, VecMap},
@@ -301,7 +302,7 @@ impl MovePackageExt for MovePackage {
         }));
 
         let module_map = BTreeMap::from_iter(modules.iter().map(|module| {
-            let name = Identifier::new_unchecked(module.name().as_str());
+            let name = module.name().to_sdk_identifier();
             let mut bytes = Vec::new();
             module
                 .serialize_with_version(module.version, &mut bytes)
@@ -333,7 +334,7 @@ impl MovePackageExt for MovePackage {
         let mut immediate_dependencies = BTreeSet::new();
 
         for module in modules {
-            let name = Identifier::new_unchecked(module.name().as_str());
+            let name = module.name().to_sdk_identifier();
 
             immediate_dependencies.extend(
                 module
@@ -620,23 +621,23 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
                 .iter()
                 .map(|struct_def| {
                     let struct_handle = m.datatype_handle_at(struct_def.struct_handle);
-                    let module_name = m.name().to_string();
-                    let struct_name = m.identifier_at(struct_handle.name).to_string();
+                    let module_name = m.name().to_sdk_identifier();
+                    let struct_name = m.identifier_at(struct_handle.name).to_sdk_identifier();
                     let package = ObjectId::new(m.self_id().address().into_bytes());
                     TypeOrigin {
-                        module_name: Identifier::new_unchecked(module_name),
-                        datatype_name: Identifier::new_unchecked(struct_name),
+                        module_name,
+                        datatype_name: struct_name,
                         package,
                     }
                 })
                 .chain(m.enum_defs().iter().map(|enum_def| {
                     let enum_handle = m.datatype_handle_at(enum_def.enum_handle);
-                    let module_name = m.name().to_string();
-                    let enum_name = m.identifier_at(enum_handle.name).to_string();
+                    let module_name = m.name().to_sdk_identifier();
+                    let enum_name = m.identifier_at(enum_handle.name).to_sdk_identifier();
                     let package = ObjectId::new(m.self_id().address().into_bytes());
                     TypeOrigin {
-                        module_name: Identifier::new_unchecked(module_name),
-                        datatype_name: Identifier::new_unchecked(enum_name),
+                        module_name,
+                        datatype_name: enum_name,
                         package,
                     }
                 }))
@@ -654,9 +655,9 @@ fn build_upgraded_type_origin_table(
     for m in modules {
         for struct_def in m.struct_defs() {
             let struct_handle = m.datatype_handle_at(struct_def.struct_handle);
-            let module_name = Identifier::new_unchecked(m.name().as_str());
+            let module_name = m.name().to_sdk_identifier();
             let struct_name =
-                Identifier::new_unchecked(m.identifier_at(struct_handle.name).as_str());
+                m.identifier_at(struct_handle.name).to_sdk_identifier();
             let mod_key = (module_name.clone(), struct_name.clone());
             // if id exists in the predecessor's table, use it, otherwise use the id of the
             // upgraded module
@@ -670,8 +671,8 @@ fn build_upgraded_type_origin_table(
 
         for enum_def in m.enum_defs() {
             let enum_handle = m.datatype_handle_at(enum_def.enum_handle);
-            let module_name = Identifier::new_unchecked(m.name().as_str());
-            let enum_name = Identifier::new_unchecked(m.identifier_at(enum_handle.name).as_str());
+            let module_name = m.name().to_sdk_identifier();
+            let enum_name = m.identifier_at(enum_handle.name).to_sdk_identifier();
             let mod_key = (module_name.clone(), enum_name.clone());
             // if id exists in the predecessor's table, use it, otherwise use the id of the
             // upgraded module

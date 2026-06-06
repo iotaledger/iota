@@ -15,8 +15,8 @@ use diesel::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, schema::packages};
 use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
-use iota_sdk_types::{Identifier, move_package::MovePackage as NativeMovePackage};
-use iota_types::object::Data;
+use iota_sdk_types::move_package::MovePackage as NativeMovePackage;
+use iota_types::{AsSdkIdentifier, object::Data};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -518,7 +518,7 @@ impl MovePackage {
             let Some(native) = self
                 .native
                 .serialized_module_map()
-                .get(&Identifier::new_unchecked(name))
+                .get(&name.to_sdk_identifier())
             else {
                 return Err(Error::Internal(format!(
                     "Module '{name}' exists in PackageCache but not in serialized map.",
@@ -623,7 +623,7 @@ impl MovePackage {
         match (
             self.native
                 .serialized_module_map()
-                .get(&Identifier::new_unchecked(name)),
+                .get(&name.to_sdk_identifier()),
             self.parsed_package()?.module(name),
         ) {
             (Some(native), Ok(parsed)) => Ok(Some(MoveModule {

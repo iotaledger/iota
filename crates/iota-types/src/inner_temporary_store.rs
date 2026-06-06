@@ -7,12 +7,13 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{Identifier, ObjectId, Owner};
+use iota_sdk_types::{ObjectId, Owner};
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 
 use crate::{
+    AsSdkIdentifier,
     base_types::{SequenceNumber, VersionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
@@ -123,7 +124,7 @@ where
         if let Some(o) = obj {
             if let Some(p) = o.data.as_package_opt() {
                 return Ok(Some(Arc::new(p.deserialize_module(
-                    &Identifier::new_unchecked(id.name().as_str()),
+                    &id.name().to_sdk_identifier(),
                     &self.temp_store.binary_config,
                 )?)));
             }

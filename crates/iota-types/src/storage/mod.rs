@@ -16,7 +16,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{Identifier, ObjectId, move_package::MovePackage};
+use iota_sdk_types::{ObjectId, move_package::MovePackage};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
@@ -32,6 +32,7 @@ pub use shared_in_memory_store::{SharedInMemoryStore, SingleCheckpointSharedInMe
 pub use write_store::WriteStore;
 
 use crate::{
+    AsSdkIdentifier,
     auth_context::AuthContext,
     base_types::{ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
     committee::EpochId,
@@ -337,7 +338,7 @@ pub fn get_module(
             package
                 .move_package()
                 .serialized_module_map()
-                .get(&Identifier::new_unchecked(module_id.name().as_str()))
+                .get(&module_id.name().to_sdk_identifier())
                 .cloned()
         }))
 }
