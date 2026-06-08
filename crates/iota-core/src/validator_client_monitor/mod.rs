@@ -91,16 +91,8 @@ impl OperationFeedbackBuilder {
         self.result_at(result, Instant::now())
     }
 
-    pub fn ok_at(self, latency: Duration, timestamp: Instant) -> OperationFeedback {
-        self.result_at(Ok(latency), timestamp)
-    }
-
     pub fn ok_now(self, latency: Duration) -> OperationFeedback {
         self.result_now(Ok(latency))
-    }
-
-    pub fn err_at(self, timestamp: Instant) -> OperationFeedback {
-        self.result_at(Err(()), timestamp)
     }
 
     pub fn err_now(self) -> OperationFeedback {

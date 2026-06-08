@@ -165,14 +165,4 @@ impl ValidatorClientMonitor {
             .select_shuffled_preferred_validators(committee, now, rng);
         validators
     }
-
-    #[cfg(test)]
-    pub fn get_client_stats_len(&self) -> usize {
-        self.client_stats.read().num_validators()
-    }
-
-    #[cfg(test)]
-    pub fn has_validator_stats(&self, validator: &AuthorityName) -> bool {
-        self.client_stats.read().has_validator(validator)
-    }
 }
