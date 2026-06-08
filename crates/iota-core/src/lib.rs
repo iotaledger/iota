@@ -49,7 +49,7 @@ mod transaction_input_loader;
 mod transaction_manager;
 pub mod transaction_orchestrator;
 mod transaction_outputs;
-pub mod validator_client_monitor;
+pub(crate) mod validator_client_monitor;
 pub mod validator_tx_finalizer;
 pub mod verify_indexes;
 
