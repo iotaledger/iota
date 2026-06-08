@@ -18,13 +18,13 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, GenesisObject, Identifier, Input,
-    MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish, SplitCoins,
+    ConsensusDeterminedVersionAssignments, Digest, GenesisObject, GenesisTransaction, Identifier,
+    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish, SplitCoins,
     TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
-    EndOfEpochTransactionKind, GasPayment as GasData, GenesisTransaction, ProgrammableTransaction,
+    EndOfEpochTransactionKind, GasPayment as GasData, ProgrammableTransaction,
     RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
     Transaction as TransactionData, TransactionV1 as TransactionDataV1,
 };
