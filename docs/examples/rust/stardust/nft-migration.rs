@@ -16,10 +16,10 @@ use iota_sdk::{
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, CallArg, Transaction, TransactionData},
+        transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Identifier, ObjectId, crypto::Intent};
+use iota_sdk_types::{Argument, Identifier, ObjectId, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs

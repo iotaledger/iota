@@ -5,10 +5,10 @@
 use std::fmt;
 
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_sdk_types::Owner;
 use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     digests::ObjectDigest,
-    object::Owner,
 };
 use serde::Deserialize;
 
