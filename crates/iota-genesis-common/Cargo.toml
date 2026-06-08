@@ -11,10 +11,10 @@ workspace = true
 
 [dependencies]
 # external dependencies
-iota-sdk-types.workspace = true
 prometheus.workspace = true
 
 # internal dependencies
 iota-execution.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
