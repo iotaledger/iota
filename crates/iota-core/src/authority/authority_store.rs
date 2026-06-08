@@ -712,7 +712,7 @@ impl AuthorityStore {
         )?;
 
         // Update the index
-        if object.get_single_owner().is_some() {
+        if object.single_owner().is_some() {
             // Only initialize live object markers for address owned objects.
             if !object.is_child_object() {
                 self.initialize_live_object_markers_impl(&mut write_batch, &[object_ref])?;
