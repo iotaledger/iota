@@ -826,12 +826,15 @@ pub struct AuthorityEpochTables {
     /// a new dkg::Confirmation via consensus.
     pub(crate) dkg_confirmations: DBMap<PartyId, VersionedDkgConfirmation>,
 
-    /// Records the final output of DKG after completion, including the public
-    /// VSS key and any local private shares.
+    /// Legacy DKG output table superseded by `dkg_output_v2`. Kept read-only
+    /// for backward compatibility with epoch stores written before the
+    /// introduction of `dkg_output_v2`; the current code never writes to it.
+    /// Only successful DKG outputs were stored here; terminal-failure verdicts
+    /// are stored in `dkg_output_v2`.
     pub(crate) dkg_output: DBMap<u64, dkg_v1::Output<PkG, EncG>>,
     /// Successor of `dkg_output`. Wraps the output in an `Option` so the
-    /// terminal-failure verdict is persistable: `Some(Some(out))` = success,
-    /// `Some(None)` = DKG failed (terminal), table-absent = still pending.
+    /// terminal-failure verdict is persistable: `Some(out)` = success,
+    /// `None` = DKG failed (terminal), table-absent = still pending.
     /// `RandomnessManager::try_new` loads this table first and falls back to
     /// `dkg_output` for backward compatibility with existing epoch stores.
     pub(crate) dkg_output_v2: DBMap<u64, Option<dkg_v1::Output<PkG, EncG>>>,

@@ -71,8 +71,10 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
-    // Outer Option = "set this commit"; inner Option = success (`Some(out)`) /
-    // terminal failure (`None`). Persisted to `dkg_output_v2`.
+    // DKG state, the inner Option value persisted to `dkg_output_v2`:
+    // - `Some(Some(out))` -- DKG success
+    // - `Some(None)` -- terminal DKG failure
+    // - `None` -- DKG pending (default value)
     dkg_output: Option<Option<dkg_v1::Output<PkG, EncG>>>,
 
     // misbehavior report state — per-authority post-merge snapshot captured
