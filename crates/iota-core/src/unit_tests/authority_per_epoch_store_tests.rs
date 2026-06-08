@@ -267,7 +267,11 @@ async fn test_load_overload_notifications_invariant_under_disk_queue_split() {
     // Disk holds an earlier value for the authority.
     flush_overload_notification(&store, authority_name, 30);
     assert_eq!(
-        store.load_overload_notifications().unwrap().get(&authority_name).copied(),
+        store
+            .load_overload_notifications()
+            .unwrap()
+            .get(&authority_name)
+            .copied(),
         Some(30),
     );
 
