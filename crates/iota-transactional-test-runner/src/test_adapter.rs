@@ -34,7 +34,7 @@ use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Argument, Command, ExecutionStatus, Identifier, ObjectId, TransactionKind, TypeTag,
-    move_package::MovePackage,
+    gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -47,7 +47,6 @@ use iota_types::{
     digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
-    gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,

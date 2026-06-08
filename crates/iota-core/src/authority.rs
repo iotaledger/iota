@@ -47,6 +47,7 @@ use iota_metrics::{
 use iota_sdk_types::{
     ExecutionStatus, ObjectId, Owner, StructTag, TransactionExpiration, TransactionKind, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+    gas::GasCostSummary,
 };
 use iota_storage::{
     key_value_store::{
@@ -83,7 +84,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,
-    gas::{GasCostSummary, IotaGasStatus},
+    gas::IotaGasStatus,
     gas_coin::NANOS_PER_IOTA,
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,

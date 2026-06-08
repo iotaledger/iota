@@ -8,10 +8,10 @@ use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::gas::GasCostSummary;
 use iota_types::{
     committee::Committee,
     crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
-    gas::GasCostSummary,
     messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
     transaction::CertifiedTransaction,
 };

@@ -14,7 +14,7 @@ use iota_sdk_types::{
     Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
     Command, ConsensusDeterminedVersionAssignments, ExecutionError as ExecutionFailureStatus,
     ExecutionStatus, GenesisObject, Identifier, MoveCall, ObjectId, Owner, TransactionKind,
-    TransferObjects, TypeTag, VersionAssignment,
+    TransferObjects, TypeTag, VersionAssignment, gas::GasCostSummary,
 };
 use iota_types::{
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
@@ -23,7 +23,6 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
-    gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::BigInt,
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},

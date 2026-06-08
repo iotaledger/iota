@@ -10,7 +10,7 @@ pub mod checked {
 
     use enum_dispatch::enum_dispatch;
     use iota_protocol_config::ProtocolConfig;
-    pub use iota_sdk_types::gas::GasCostSummary;
+    use iota_sdk_types::gas::GasCostSummary;
 
     use crate::{
         ObjectId,

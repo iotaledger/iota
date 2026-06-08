@@ -13,7 +13,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, TransactionKind};
+use iota_sdk_types::{ObjectId, TransactionKind, gas::GasCostSummary};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
@@ -22,7 +22,6 @@ use iota_types::{
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsExt},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    gas::GasCostSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         CheckpointSummary, SignedCheckpointSummary,
