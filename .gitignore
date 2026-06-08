@@ -109,5 +109,9 @@ yalc.lock
 # ignore explorer files
 apps/explorer/public/*.wasm
 
+
 # iota-vm-sdk authenticator_gas_profile example output
 authenticator_gas_profile.speedscope.json
+
+# stress-test attestation and total execution cost mode
+dev-tools/iota-private-network/configs/genesis/benchmark.keystore
