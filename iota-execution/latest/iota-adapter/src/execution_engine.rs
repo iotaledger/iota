@@ -1846,10 +1846,7 @@ mod checked {
                     tx_ctx.borrow().digest(),
                 );
 
-                info!(
-                    "upgraded system package {:?}",
-                    new_package.compute_object_reference()
-                );
+                info!("upgraded system package {:?}", new_package.object_ref());
 
                 // Decrement the version before writing the package so that the store can record
                 // the version growing by one in the effects.

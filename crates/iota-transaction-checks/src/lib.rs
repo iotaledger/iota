@@ -116,7 +116,7 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        let gas_object_ref = gas_object.compute_object_reference();
+        let gas_object_ref = gas_object.object_ref();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
 
         let gas_status = check_transaction_input_inner(

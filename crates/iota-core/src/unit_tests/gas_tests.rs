@@ -182,7 +182,7 @@ where
             .get_object(coin_id)
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         gas_coin_refs.push(coin_ref);
     }
     let module = Identifier::from_static("move_random");
@@ -277,7 +277,7 @@ async fn touch_gas_coins(
             .get_object(coin_id)
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         builder.transfer_object(recipient, coin_ref).unwrap();
     }
     let pt = builder.finish();
@@ -286,7 +286,7 @@ async fn touch_gas_coins(
         .get_object(&gas_object_id)
         .await
         .unwrap()
-        .compute_object_reference();
+        .object_ref();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let data = TransactionData::new(kind, sender, gas_object_ref, 100_000_000, rgp);
     let tx = to_sender_signed_transaction(data, sender_key);
@@ -557,7 +557,7 @@ async fn test_transfer_iota_insufficient_gas() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(gas_object_id, sender, *MAX_GAS_BUDGET);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     authority_state.insert_genesis_object(gas_object).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
@@ -598,7 +598,7 @@ async fn test_invalid_gas_owners() {
     let authority_state = TestAuthorityBuilder::new().build().await;
 
     let init_object = |o: Object| async {
-        let obj_ref = o.compute_object_reference();
+        let obj_ref = o.object_ref();
         authority_state.insert_genesis_object(o).await;
         obj_ref
     };
@@ -854,7 +854,7 @@ async fn test_move_call_gas() -> IotaResult {
         module.clone(),
         function.clone(),
         Vec::new(),
-        gas_object.compute_object_reference(),
+        gas_object.object_ref(),
         args.clone(),
         *MAX_GAS_BUDGET,
         rgp,
@@ -887,7 +887,7 @@ async fn test_move_call_gas() -> IotaResult {
         module.clone(),
         Identifier::from_static("delete"),
         vec![],
-        gas_object.compute_object_reference(),
+        gas_object.object_ref(),
         vec![CallArg::ImmutableOrOwned(created_object_ref)],
         *MAX_GAS_BUDGET,
         rgp,
@@ -934,19 +934,16 @@ async fn test_tx_gas_coins_input_coins() {
         .collect::<Vec<_>>();
     let gas_coin_refs = gas_coins
         .iter()
-        .map(|obj| obj.compute_object_reference())
+        .map(|obj| obj.object_ref())
         .collect::<Vec<_>>();
     authority_state.insert_genesis_objects(&gas_coins).await;
     let coins = (0..260)
         .map(|_| Object::with_owner_for_testing(sender))
         .collect::<Vec<_>>();
-    let coin_refs = coins
-        .iter()
-        .map(|obj| obj.compute_object_reference())
-        .collect::<Vec<_>>();
+    let coin_refs = coins.iter().map(|obj| obj.object_ref()).collect::<Vec<_>>();
     authority_state.insert_genesis_objects(&coins).await;
     let coin = Object::with_owner_for_testing(sender);
-    let coin_ref = coin.compute_object_reference();
+    let coin_ref = coin.object_ref();
     authority_state.insert_genesis_object(coin).await;
 
     async fn run_merge(
@@ -1035,14 +1032,14 @@ async fn execute_transfer_with_price(
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(gas_object_id, sender, gas_balance);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     authority_state.insert_genesis_object(gas_object).await;
     let object = authority_state.get_object(&object_id).await.unwrap();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .transfer_object(recipient, object.compute_object_reference())
+            .transfer_object(recipient, object.object_ref())
             .unwrap();
         builder.finish()
     };

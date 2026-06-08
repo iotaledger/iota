@@ -113,7 +113,7 @@ impl TransactionBuilder {
             .await?;
 
         let obj: Object = response.into_object()?.try_into()?;
-        let obj_ref = obj.compute_object_reference();
+        let obj_ref = obj.object_ref();
         let owner = obj.owner;
         if is_receiving_argument(view, arg_type) {
             return Ok(CallArg::Receiving(obj_ref));

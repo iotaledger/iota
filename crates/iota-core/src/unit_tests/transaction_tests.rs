@@ -367,8 +367,8 @@ async fn do_transaction_test_impl(
         sender1,
         &sender_key1,
         recipient,
-        object.compute_object_reference(),
-        gas_object1.compute_object_reference(),
+        object.object_ref(),
+        gas_object1.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -377,7 +377,7 @@ async fn do_transaction_test_impl(
         &pre_sign_mutations,
         sender2,
         &sender_key2,
-        gas_object2.compute_object_reference(),
+        gas_object2.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -485,7 +485,7 @@ async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<Objec
         assert!(
             authority_state
                 .get_transaction_lock(
-                    &object.compute_object_reference(),
+                    &object.object_ref(),
                     &authority_state.epoch_store_for_testing()
                 )
                 .await
@@ -511,7 +511,7 @@ async fn test_oversized_txn() {
         .protocol_config()
         .max_tx_size_bytes() as usize;
     let object = authority_state.get_object(&object_id).await.unwrap();
-    let obj_ref = object.compute_object_reference();
+    let obj_ref = object.object_ref();
 
     // Construct an oversized txn.
     let pt = {
@@ -578,8 +578,8 @@ async fn test_very_large_certificate() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -669,8 +669,8 @@ async fn test_handle_certificate_errors() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -915,7 +915,7 @@ async fn test_handle_soft_bundle_certificates() {
                 .get_object(&gas_object_ids[i])
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[i].0,
                 package.object_id,
@@ -1097,12 +1097,12 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&owned_objects[i].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let gas_object_ref = authority
                 .get_object(&gas_objects[i].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_transfer(
                 senders[i + 1].0,
                 owned_object_ref,
@@ -1144,12 +1144,12 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .get_object(&owned_objects[5].id())
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         let gas_object_ref = authority
             .get_object(&gas_objects[5].id())
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         let data = TransactionData::new_transfer(
             senders[6].0,
             owned_object_ref,
@@ -1190,7 +1190,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[6].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[6].0,
                 package.object_id,
@@ -1220,7 +1220,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[7].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[7].0,
                 package.object_id,
@@ -1276,7 +1276,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[8].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[8].0,
                 package.object_id,
@@ -1306,7 +1306,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[9].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let data = TransactionData::new_move_call(
                 senders[9].0,
                 package.object_id,
@@ -1365,12 +1365,12 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&owned_objects[i].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let gas_object_ref = authority
                 .get_object(&gas_objects[i].id())
                 .await
                 .unwrap()
-                .compute_object_reference();
+                .object_ref();
             let sender = &senders[i];
             let recipient = &senders[i + 1].0;
 

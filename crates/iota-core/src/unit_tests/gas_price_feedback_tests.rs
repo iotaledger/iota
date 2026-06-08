@@ -192,7 +192,7 @@ impl GasPriceFeedbackTester {
             .get_object(gas_object_id)
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
 
         let transaction_data = TransactionData::new_programmable(
             *sender,
@@ -231,7 +231,7 @@ impl GasPriceFeedbackTester {
             .get_object(&gas_data.gas_object_id)
             .await
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
 
         let transaction_data = TransactionData::new_programmable(
             self.sender,

@@ -230,7 +230,7 @@ impl TestEnv {
             .get_object_from_fullnode_store(object_id)
             .await
             .unwrap()
-            .compute_object_reference()
+            .object_ref()
     }
 }
 

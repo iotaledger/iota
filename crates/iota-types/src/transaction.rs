@@ -2849,7 +2849,7 @@ impl std::fmt::Debug for ObjectReadResultKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectReadResultKind::Object(obj) => {
-                write!(f, "Object({:?})", obj.compute_object_reference())
+                write!(f, "Object({:?})", obj.object_ref())
             }
             ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
                 write!(f, "DeletedSharedObject({seq}, {digest})")
@@ -2904,7 +2904,7 @@ impl ObjectReadResult {
     }
 
     pub fn new_from_gas_object(gas: &Object) -> Self {
-        let objref = gas.compute_object_reference();
+        let objref = gas.object_ref();
         Self {
             input_object_kind: InputObjectKind::ImmOrOwnedMoveObject(objref),
             object: ObjectReadResultKind::Object(gas.clone()),
@@ -2980,9 +2980,7 @@ impl ObjectReadResult {
             InputObjectKind::MovePackage(_) => None,
             InputObjectKind::ImmOrOwnedMoveObject(_) => None,
             InputObjectKind::SharedMoveObject { id, mutable, .. } => Some(match &self.object {
-                ObjectReadResultKind::Object(obj) => {
-                    SharedInput::Existing(obj.compute_object_reference())
-                }
+                ObjectReadResultKind::Object(obj) => SharedInput::Existing(obj.object_ref()),
                 ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
                     SharedInput::Deleted((id, *seq, mutable, *digest))
                 }
@@ -3172,7 +3170,7 @@ impl InputObjects {
                         ObjectReadResultKind::Object(object),
                     ) => {
                         if *mutable {
-                            let oref = object.compute_object_reference();
+                            let oref = object.object_ref();
                             Some((oref.object_id, ((oref.version, oref.digest), object.owner)))
                         } else {
                             None

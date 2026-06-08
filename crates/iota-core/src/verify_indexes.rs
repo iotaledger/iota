@@ -36,7 +36,7 @@ pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>
 
         // Owner Index Calculation
         let owner_index_key = (owner, object.id());
-        let object_info = ObjectInfo::new(&object.compute_object_reference(), &object);
+        let object_info = ObjectInfo::new(&object.object_ref(), &object);
 
         owner_index.insert(owner_index_key, object_info);
 

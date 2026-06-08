@@ -211,7 +211,7 @@ pub async fn compare_system_package<S: ObjectStore>(
                     // the update
                     TransactionDigest::GENESIS_MARKER,
                 )
-                .compute_object_reference(),
+                .object_ref(),
             );
         }
 
@@ -221,7 +221,7 @@ pub async fn compare_system_package<S: ObjectStore>(
         }
     };
 
-    let cur_ref = cur_object.compute_object_reference();
+    let cur_ref = cur_object.object_ref();
     let cur_pkg = cur_object
         .data
         .as_package_opt()
@@ -236,7 +236,7 @@ pub async fn compare_system_package<S: ObjectStore>(
         cur_object.previous_transaction,
     );
 
-    if cur_ref == new_object.compute_object_reference() {
+    if cur_ref == new_object.object_ref() {
         return Some(cur_ref);
     }
 
@@ -272,5 +272,5 @@ pub async fn compare_system_package<S: ObjectStore>(
         .increment_version()
         .expect("package version should never overflow");
 
-    Some(new_object.compute_object_reference())
+    Some(new_object.object_ref())
 }

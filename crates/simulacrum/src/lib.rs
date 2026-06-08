@@ -450,7 +450,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             })?;
 
         let gas_data = iota_types::transaction::GasData {
-            objects: vec![object.compute_object_reference()],
+            objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: NANOS_PER_IOTA,
@@ -906,7 +906,7 @@ impl Simulacrum {
 
         let kind = TransactionKind::Programmable(pt);
         let gas_data = GasData {
-            objects: vec![object.compute_object_reference()],
+            objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: 1_000_000_000,

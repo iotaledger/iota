@@ -81,7 +81,7 @@ pub async fn test_certificates(
             Identifier::from_static(function),
             // type_args
             vec![],
-            gas_object.compute_object_reference(),
+            gas_object.object_ref(),
             // args
             vec![
                 shared_object_arg.clone(),

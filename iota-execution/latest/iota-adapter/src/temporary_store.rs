@@ -376,7 +376,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// otherwise.
     pub fn mutate_child_object(&mut self, old_object: Object, new_object: Object) {
         let id = new_object.id();
-        let old_ref = old_object.compute_object_reference();
+        let old_ref = old_object.object_ref();
         debug_assert_eq!(old_ref.object_id, id);
         self.loaded_runtime_objects.insert(
             id,

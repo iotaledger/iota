@@ -76,7 +76,7 @@ pub fn create_fake_transaction() -> Transaction {
     };
     let data = TransactionData::new_programmable(
         sender,
-        vec![object.compute_object_reference()],
+        vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,
@@ -94,7 +94,7 @@ pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
     };
     TransactionData::new_programmable(
         sender,
-        vec![object.compute_object_reference()],
+        vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,

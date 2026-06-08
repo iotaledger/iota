@@ -275,7 +275,7 @@ impl TestCluster {
         self.get_object_from_fullnode_store(object_id)
             .await
             .unwrap()
-            .compute_object_reference()
+            .object_ref()
     }
 
     pub async fn get_object_or_tombstone_from_fullnode_store(

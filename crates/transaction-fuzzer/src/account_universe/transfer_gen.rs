@@ -134,10 +134,10 @@ impl TransactionSponsorship {
             TransactionSponsorship::None => {
                 let gas_object = accounts.account_1.new_gas_object(exec);
                 let mut gas_amount = *accounts.account_1.current_balances.last().unwrap();
-                let mut gas_coin_refs = vec![gas_object.compute_object_reference()];
+                let mut gas_coin_refs = vec![gas_object.object_ref()];
                 for _ in 1..gas_coins {
                     let gas_object = accounts.account_1.new_gas_object(exec);
-                    gas_coin_refs.push(gas_object.compute_object_reference());
+                    gas_coin_refs.push(gas_object.object_ref());
                     gas_amount += *accounts.account_1.current_balances.last().unwrap();
                 }
                 (
@@ -149,10 +149,10 @@ impl TransactionSponsorship {
             TransactionSponsorship::Good => {
                 let gas_object = accounts.account_3.new_gas_object(exec);
                 let mut gas_amount = *accounts.account_3.current_balances.last().unwrap();
-                let mut gas_coin_refs = vec![gas_object.compute_object_reference()];
+                let mut gas_coin_refs = vec![gas_object.object_ref()];
                 for _ in 1..gas_coins {
                     let gas_object = accounts.account_3.new_gas_object(exec);
-                    gas_coin_refs.push(gas_object.compute_object_reference());
+                    gas_coin_refs.push(gas_object.object_ref());
                     gas_amount += *accounts.account_3.current_balances.last().unwrap();
                 }
                 (
@@ -164,10 +164,10 @@ impl TransactionSponsorship {
             TransactionSponsorship::WrongGasOwner => {
                 let gas_object = accounts.account_1.new_gas_object(exec);
                 let mut gas_amount = *accounts.account_1.current_balances.last().unwrap();
-                let mut gas_coin_refs = vec![gas_object.compute_object_reference()];
+                let mut gas_coin_refs = vec![gas_object.object_ref()];
                 for _ in 1..gas_coins {
                     let gas_object = accounts.account_1.new_gas_object(exec);
-                    gas_coin_refs.push(gas_object.compute_object_reference());
+                    gas_coin_refs.push(gas_object.object_ref());
                     gas_amount += *accounts.account_1.current_balances.last().unwrap();
                 }
                 (

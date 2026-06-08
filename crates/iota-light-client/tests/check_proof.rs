@@ -192,7 +192,7 @@ async fn test_object_target_fail_no_data() {
     let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
-    let sample_ref = sample_object.compute_object_reference();
+    let sample_ref = sample_object.object_ref();
 
     let bad_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary,
@@ -208,7 +208,7 @@ async fn test_object_target_success() {
     let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
-    let sample_ref = sample_object.compute_object_reference();
+    let sample_ref = sample_object.object_ref();
 
     let target = ProofTargets::new().add_object(sample_ref, sample_object);
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();
@@ -222,8 +222,8 @@ async fn test_object_target_fail_wrong_object() {
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let wrong_object: Object = full_checkpoint.transactions[1].output_objects[1].clone();
-    let mut sample_ref = sample_object.compute_object_reference();
-    let wrong_ref = wrong_object.compute_object_reference();
+    let mut sample_ref = sample_object.object_ref();
+    let wrong_ref = wrong_object.object_ref();
 
     let target = ProofTargets::new().add_object(wrong_ref, sample_object.clone()); // WRONG
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();

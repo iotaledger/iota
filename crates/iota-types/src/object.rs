@@ -475,9 +475,9 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    pub fn compute_object_reference(&self) -> ObjectRef {
-        ObjectRef::new(self.id(), self.version(), self.digest())
-    }
+    // pub fn object_ref(&self) -> ObjectRef {
+    //     ObjectRef::new(self.id(), self.version(), self.digest())
+    // }
 
     pub fn digest(&self) -> ObjectDigest {
         ObjectDigest::new(default_hash(self.as_inner()))
@@ -952,7 +952,7 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
-        let objref = o.compute_object_reference();
+        let objref = o.object_ref();
 
         assert_eq!(objref.object_id, ObjectId::ZERO);
         assert_eq!(objref.version, 1);

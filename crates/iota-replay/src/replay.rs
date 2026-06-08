@@ -175,11 +175,11 @@ impl std::fmt::Display for Storage {
             .expect("Unable to lock")
             .iter()
         {
-            writeln!(f, "{}: {:?}", id, obj.compute_object_reference())?;
+            writeln!(f, "{}: {:?}", id, obj.object_ref())?;
         }
         writeln!(f, "Package cache")?;
         for (id, obj) in self.package_cache.lock().expect("Unable to lock").iter() {
-            writeln!(f, "{}: {:?}", id, obj.compute_object_reference())?;
+            writeln!(f, "{}: {:?}", id, obj.object_ref())?;
         }
         writeln!(f, "Object version cache")?;
         for (id, _) in self
@@ -460,7 +460,7 @@ impl LocalExec {
 
         // Backfill the store
         for obj in objs.iter() {
-            let o_ref = obj.compute_object_reference();
+            let o_ref = obj.object_ref();
             self.storage
                 .live_objects_store
                 .lock()
@@ -509,7 +509,7 @@ impl LocalExec {
             .chain(syst_packages_objs);
 
         for obj in objs.clone() {
-            let o_ref = obj.compute_object_reference();
+            let o_ref = obj.object_ref();
             // We dont always want the latest in store
             // self.storage.store.insert(o_ref.object_id, obj.clone());
             self.storage
@@ -564,7 +564,7 @@ impl LocalExec {
             })
         })?;
 
-        let o_ref = o.compute_object_reference();
+        let o_ref = o.object_ref();
         self.storage
             .object_version_cache
             .lock()
@@ -632,7 +632,7 @@ impl LocalExec {
         });
         match response {
             Ok(object) => {
-                let obj_ref = object.compute_object_reference();
+                let obj_ref = object.object_ref();
                 self.storage
                     .live_objects_store
                     .lock()
@@ -1354,7 +1354,7 @@ impl LocalExec {
                 .expect("Cannot lock")
                 .insert(*obj_id, o.clone());
         }
-        let o_ref = o.compute_object_reference();
+        let o_ref = o.object_ref();
         self.storage
             .object_version_cache
             .lock()
@@ -1558,7 +1558,7 @@ impl LocalExec {
             // or created it
             let previous_txs: Vec<_> = system_package_objs
                 .iter()
-                .map(|o| (o.compute_object_reference(), o.previous_transaction))
+                .map(|o| (o.object_ref(), o.previous_transaction))
                 .collect();
 
             previous_txs.iter().for_each(|(object_ref, tx)| {
@@ -2205,7 +2205,7 @@ fn load_authenticator_function_ref(
 
     Ok(AuthenticatorFunctionRefForExecution::new_v1(
         field.value,
-        field_obj.compute_object_reference(),
+        field_obj.object_ref(),
         field_obj.owner,
         field_obj.storage_rebate,
         field_obj.previous_transaction,

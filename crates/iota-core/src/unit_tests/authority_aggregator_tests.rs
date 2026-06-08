@@ -269,7 +269,7 @@ where
         ))
         .await
     {
-        return object.compute_object_reference();
+        return object.object_ref();
     }
     panic!("Object not found!");
 }
@@ -293,8 +293,8 @@ async fn execute_transaction_with_fault_configs(
     }
     let rgp = reference_gas_price(&authorities);
     let tx = make_transfer_object_transaction(
-        gas_object1.compute_object_reference(),
-        gas_object2.compute_object_reference(),
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
         addr1,
         &key1,
         addr2,
@@ -378,7 +378,7 @@ async fn test_quorum_map_and_reduce_timeout() {
     let rgp = reference_gas_price(&authorities);
     let pkg = genesis.object(pkg.id()).unwrap();
     let gas_object1 = genesis.object(gas_object1.id()).unwrap();
-    let gas_ref_1 = gas_object1.compute_object_reference();
+    let gas_ref_1 = gas_object1.object_ref();
     let tx = create_object_move_transaction(addr1, &key1, addr1, 100, pkg.id(), gas_ref_1, rgp);
     let certified_tx = authorities
         .process_transaction(tx.clone(), Some(client_ip))

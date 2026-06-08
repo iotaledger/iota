@@ -71,7 +71,7 @@ fn test_authority_signature_intent() {
         recipient,
         sender,
         None,
-        object.compute_object_reference(),
+        object.object_ref(),
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );

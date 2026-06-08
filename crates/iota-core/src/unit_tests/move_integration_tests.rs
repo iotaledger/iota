@@ -2937,7 +2937,7 @@ pub async fn build_and_try_publish_test_package(
     let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let gas_object = authority.get_object(gas_object_id).await;
-    let gas_object_ref = gas_object.unwrap().compute_object_reference();
+    let gas_object_ref = gas_object.unwrap().object_ref();
 
     let data = TransactionData::new_module(
         *sender,
@@ -3055,7 +3055,7 @@ pub async fn run_multi_txns(
     // build the transaction data
     let pt = builder.finish();
     let gas_object = authority.get_object(gas_object_id).await;
-    let gas_object_ref = gas_object.unwrap().compute_object_reference();
+    let gas_object_ref = gas_object.unwrap().object_ref();
     let gas_price = authority.reference_gas_price_for_testing().unwrap();
     let gas_budget = pt.non_system_packages_to_be_published().count() as u64
         * TEST_ONLY_GAS_UNIT_FOR_PUBLISH
@@ -3140,9 +3140,6 @@ async fn check_latest_object_ref(
             UserInputError::ObjectNotFound { .. },
         ));
     } else {
-        assert_eq!(
-            &response.unwrap().object.compute_object_reference(),
-            object_ref
-        );
+        assert_eq!(&response.unwrap().object.object_ref(), object_ref);
     }
 }

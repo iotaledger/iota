@@ -404,7 +404,7 @@ impl DataFetcher for RemoteFetcher {
                 x.extend(cached);
                 // Backfill the cache
                 for obj in &x {
-                    let r = obj.compute_object_reference();
+                    let r = obj.object_ref();
                     self.versioned_object_cache
                         .write()
                         .put((r.object_id, r.version), obj.clone());

@@ -125,12 +125,12 @@ fn object_migration_with_object_owner(
         .store()
         .get_object(owner_created_objects.output()?)
         .ok_or_else(|| anyhow!("missing owner-created output"))?
-        .compute_object_reference();
+        .object_ref();
     let owned_output_object_ref = executor
         .store()
         .get_object(owned_created_objects.output()?)
         .ok_or_else(|| anyhow!("missing owned created output"))?
-        .compute_object_reference();
+        .object_ref();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -262,7 +262,7 @@ fn extract_native_tokens_from_bag(
         .store()
         .get_object(output_created_objects.output()?)
         .ok_or_else(|| anyhow!("missing output-created output"))?
-        .compute_object_reference();
+        .object_ref();
 
     // Recreate the keys under which the tokens are stored in the bag.
     let native_tokens = native_tokens
@@ -457,7 +457,7 @@ fn unlock_object(
         .store()
         .get_object(output_created_objects.output().unwrap())
         .unwrap()
-        .compute_object_reference();
+        .object_ref();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
