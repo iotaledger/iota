@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{io::Cursor, ops::Range, sync::Arc};
+use std::{io::Cursor, ops::Range, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use backoff::{SystemClock, exponential::ExponentialBackoffBuilder, future::retry};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
 use iota_config::object_storage_config::ObjectStoreConfig;
@@ -33,8 +34,11 @@ use object_store::{
     DynObjectStore, Error as ObjectStoreError, ObjectStore, ObjectStoreExt, PutMode,
 };
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::RelayWorker;
+
+const RECORD_EPOCH_BOUNDARY_TIMEOUT_SECS: u64 = 5;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -140,11 +144,22 @@ impl HistoricalReducer {
         let mut epoch_boundaries =
             read_epoch_boundaries_or_default(self.remote_store.clone()).await?;
         epoch_boundaries.insert_next(epoch_id, checkpoint_sequence_number)?;
-        write_epoch_boundaries(
-            &epoch_boundaries,
-            self.remote_store.clone(),
-            PutMode::Overwrite,
-        )
+
+        let backoff = ExponentialBackoffBuilder::<SystemClock>::new()
+            .with_max_interval(Duration::from_secs(RECORD_EPOCH_BOUNDARY_TIMEOUT_SECS))
+            .build();
+        retry(backoff, || async {
+            write_epoch_boundaries(
+                &epoch_boundaries,
+                self.remote_store.clone(),
+                PutMode::Overwrite,
+            )
+            .await
+            .map_err(|e| {
+                error!("failed to write epoch boundaries to the store: {:?}", &e);
+                backoff::Error::transient(e)
+            })
+        })
         .await?;
         Ok(())
     }
