@@ -225,9 +225,9 @@ uninlined_format_args = "warn"
 [workspace.dependencies]
 # external dependencies
 # anemo dependencies
-anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
-anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
-anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
+anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
+anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
+anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
 anyhow = "1.0.71"
 arc-swap = { version = "1.7.1", features = ["serde"] }
 async-graphql = { version = "7.1.0", default-features = false }
