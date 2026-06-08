@@ -13144,8 +13144,8 @@ dependencies = [
 name = "starfish-simtests"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "arc-swap",
+ "eyre",
  "iota-config",
  "iota-macros",
  "iota-metrics",

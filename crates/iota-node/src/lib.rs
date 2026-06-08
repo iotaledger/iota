@@ -171,8 +171,6 @@ pub struct ValidatorComponents {
 mod simulator {
     use std::sync::atomic::AtomicBool;
 
-    use super::*;
-
     pub(super) struct SimState {
         pub sim_node: iota_simulator::runtime::NodeHandle,
         pub sim_safe_mode_expected: AtomicBool,

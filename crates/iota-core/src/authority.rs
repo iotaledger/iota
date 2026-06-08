@@ -4870,7 +4870,11 @@ impl AuthorityState {
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
         #[cfg(msim)]
-        let system_packages = system_packages.map(|p| p).chain(extra_packages.iter());
+        let system_packages = {
+            let mut packages: Vec<_> = system_packages.collect();
+            packages.extend(extra_packages.iter());
+            packages
+        };
 
         for system_package in system_packages {
             let modules = system_package.modules().to_vec();

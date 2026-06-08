@@ -356,8 +356,7 @@ where
                 get_dynamic_field_from_store(object_store, versioned.id.id.bytes, &version)
                     .map_err(|err| {
                         IotaError::IotaSystemStateRead(format!(
-                            "Failed to load inner validator from the wrapper: {:?}",
-                            err
+                            "Failed to load inner validator from the wrapper: {err:?}"
                         ))
                     })?;
             Ok(validator.into_iota_validator_summary())
@@ -368,8 +367,7 @@ where
                 get_dynamic_field_from_store(object_store, versioned.id.id.bytes, &version)
                     .map_err(|err| {
                         IotaError::IotaSystemStateRead(format!(
-                            "Failed to load inner validator from the wrapper: {:?}",
-                            err
+                            "Failed to load inner validator from the wrapper: {err:?}"
                         ))
                     })?;
             Ok(validator.into_iota_validator_summary())
