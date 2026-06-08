@@ -479,43 +479,6 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    /// Returns true if the object is a system package.
-    pub fn is_system_package(&self) -> bool {
-        self.is_package() && self.id().is_system_package()
-    }
-
-    pub fn is_immutable(&self) -> bool {
-        self.owner.is_immutable()
-    }
-
-    pub fn is_address_owned(&self) -> bool {
-        self.owner.is_address()
-    }
-
-    pub fn is_child_object(&self) -> bool {
-        self.owner.is_object()
-    }
-
-    pub fn is_shared(&self) -> bool {
-        self.owner.is_shared()
-    }
-
-    pub fn get_single_owner(&self) -> Option<IotaAddress> {
-        self.owner.address_or_object().copied()
-    }
-
-    // It's a common pattern to retrieve both the owner and object ID
-    // together, if it's owned by a single owner.
-    pub fn get_owner_and_id(&self) -> Option<(Owner, ObjectId)> {
-        Some((self.owner, self.id()))
-    }
-
-    /// Return true if this object is a Move package, false if it is a Move
-    /// value
-    pub fn is_package(&self) -> bool {
-        matches!(&self.data, Data::Package(_))
-    }
-
     pub fn compute_object_reference(&self) -> ObjectRef {
         ObjectRef::new(self.id(), self.version(), self.digest())
     }
@@ -546,21 +509,9 @@ impl Object {
         self.data.object_type()
     }
 
-    pub fn struct_tag(&self) -> Option<StructTag> {
-        self.data.struct_tag()
-    }
-
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.as_struct_opt() {
             move_object.struct_tag().is_coin()
-        } else {
-            false
-        }
-    }
-
-    pub fn is_gas_coin(&self) -> bool {
-        if let Some(move_object) = self.data.as_struct_opt() {
-            move_object.struct_tag().is_gas_coin()
         } else {
             false
         }
@@ -580,14 +531,6 @@ impl Object {
     pub fn as_timelock_balance_maybe(&self) -> Option<TimeLock<Balance>> {
         if let Some(move_object) = self.data.as_struct_opt() {
             Some(TimeLock::from_bcs_bytes(move_object.contents()).ok()?)
-        } else {
-            None
-        }
-    }
-
-    pub fn coin_type_opt(&self) -> Option<&TypeTag> {
-        if let Some(move_object) = self.data.as_struct_opt() {
-            move_object.struct_tag().coin_type_opt()
         } else {
             None
         }
@@ -615,11 +558,6 @@ impl Object {
             Data::Package(p) => p.size(),
         };
         meta_data_size + data_size
-    }
-
-    /// Change the owner of `self` to `new_owner`.
-    pub fn transfer(&mut self, new_owner: IotaAddress) {
-        self.owner = Owner::Address(new_owner);
     }
 
     /// Get a `MoveStructLayout` for `self`.
