@@ -232,6 +232,58 @@ struct ValidatorClientStats {
 /// The reference interval for Submit, Effects, and Consensus operations.
 const TAU: f64 = 60.0;
 
+/// Failure penalty (max latency or timeout in seconds) for Submit operation.
+const FAILURE_SUBMIT: f64 = 5.0;
+
+/// Failure penalty (max latency or timeout in seconds) for Effects operation.
+const FAILURE_EFFECTS: f64 = 10.0;
+
+/// Failure penalty (max latency or timeout in seconds) for Consensus operation.
+const FAILURE_CONSENSUS: f64 = FAILURE_SUBMIT + FAILURE_EFFECTS;
+
+/// Default value for maximum weighted interval (in seconds) in case there is not enough observations.
+/// No observations in practice is equivalent to the last observation being very old.
+const MAX_INTERVAL: f64 = 3600.0;
+
+/// Penalty coefficient k used in latency score calculation: latency_score = mean + k * stddev.
+/// Higher k means more penalty for variability and less confidence in the estimate.
+/// Health-check operation is the most stable.
+const VARIANCE_PENALTY_HEALTH_CHECK: f64 = 0.5;
+
+/// Penalty coefficient k used in latency score calculation: latency_score = mean + k * stddev.
+/// Higher k means more penalty for variability and less confidence in the estimate.
+/// Submit operation is less stable.
+const VARIANCE_PENALTY_SUBMIT: f64 = 2.0;
+
+/// Penalty coefficient k used in latency score calculation: latency_score = mean + k * stddev.
+/// Higher k means more penalty for variability and less confidence in the estimate.
+/// Effects operation is less stable.
+const VARIANCE_PENALTY_EFFECTS: f64 = 3.0;
+
+/// Penalty coefficient k used in latency score calculation: latency_score = mean + k * stddev.
+/// Higher k means more penalty for variability and less confidence in the estimate.
+/// Consensus operation is the least stable.
+const VARIANCE_PENALTY_CONSENSUS: f64 = 4.0;
+
+/// Default latency score (in seconds) for missing observations.
+/// Health-check operation is expected to have the lowest latency.
+const EMPTY_SCORE_HEALTH_CHECK: f64 = 0.5;
+
+/// Default latency score (in seconds) for missing observations.
+/// Submit operation is expected to have lower latency.
+const EMPTY_SCORE_SUBMIT: f64 = 2.0;
+
+/// Default latency score (in seconds) for missing observations.
+/// Effects operation is expected to have higher latency.
+const EMPTY_SCORE_EFFECTS: f64 = 3.0;
+
+/// Default latency score (in seconds) for missing observations.
+/// Consensus operation is expected to have the highest latency.
+const EMPTY_SCORE_CONSENSUS: f64 = 4.0;
+
+/// Penalty score (in seconds) for failed operations.
+const FAILURE_SCORE: f64 = 10.0;
+
 impl ValidatorClientStats {
     fn new() -> Self {
         Self {
@@ -247,9 +299,6 @@ impl ValidatorClientStats {
         config: &ValidatorClientMonitorConfig,
         feedback: &OperationFeedback,
     ) {
-        const FAILURE_SUB: f64 = 5.0;
-        const FAILURE_EFF: f64 = 10.0;
-        const FAILURE_CON: f64 = FAILURE_SUB + FAILURE_EFF;
 
         let observation = feedback.result.map(|latency| latency.as_secs_f64());
         match feedback.operation {
@@ -266,60 +315,51 @@ impl ValidatorClientStats {
                 self.stats_submit.update(
                     TAU,
                     feedback.timestamp,
-                    observation.map_err(|()| FAILURE_SUB),
+                    observation.map_err(|()| FAILURE_SUBMIT),
                 );
             }
             OperationType::Effects => {
                 self.stats_effects.update(
                     TAU,
                     feedback.timestamp,
-                    observation.map_err(|()| FAILURE_EFF),
+                    observation.map_err(|()| FAILURE_EFFECTS),
                 );
             }
             OperationType::Consensus => {
                 self.stats_consensus.update(
                     TAU,
                     feedback.timestamp,
-                    observation.map_err(|()| FAILURE_CON),
+                    observation.map_err(|()| FAILURE_CONSENSUS),
                 );
             }
         }
     }
 
     fn performance_score(&self, config: &ValidatorClientMonitorConfig, now: Instant) -> (f64, f64) {
-        const MAX_INTERVAL: f64 = 3600.0;
-        const VARIANCE_PENALTY_HC: f64 = 0.5;
-        const VARIANCE_PENALTY_SUB: f64 = 2.0;
-        const VARIANCE_PENALTY_EFF: f64 = 3.0;
-        const VARIANCE_PENALTY_CON: f64 = 4.0;
-        const EMPTY_SCORE_HC: f64 = 0.5;
-        const EMPTY_SCORE_SUB: f64 = 2.0;
-        const EMPTY_SCORE_EFF: f64 = 3.0;
-        const EMPTY_SCORE_CON: f64 = 4.0;
-        const FAILURE_COEFF: f64 = 10.0;
         let tau_hc = config.health_check_interval.as_secs_f64();
 
         let (score_hc, _sample_size_hc, failures_hc, _alpha_hc, _interval_hc) = self
             .stats_health_check
-            .get_stats(VARIANCE_PENALTY_HC, tau_hc, now)
-            .unwrap_or((EMPTY_SCORE_HC, 0.0, 0.0, 1.0, None));
+            .get_stats(VARIANCE_PENALTY_HEALTH_CHECK, tau_hc, now)
+            .unwrap_or((EMPTY_SCORE_HEALTH_CHECK, 0.0, 0.0, 1.0, None));
         let (score_sub, sample_size_sub, failures_sub, alpha_sub, interval_sub) = self
             .stats_submit
-            .get_stats(VARIANCE_PENALTY_SUB, TAU, now)
-            .unwrap_or((EMPTY_SCORE_SUB, 0.0, 0.0, 1.0, None));
+            .get_stats(VARIANCE_PENALTY_SUBMIT, TAU, now)
+            .unwrap_or((EMPTY_SCORE_SUBMIT, 0.0, 0.0, 1.0, None));
         let (score_eff, sample_size_eff, failures_eff, alpha_eff, interval_eff) = self
             .stats_effects
-            .get_stats(VARIANCE_PENALTY_EFF, TAU, now)
-            .unwrap_or((EMPTY_SCORE_EFF, 0.0, 0.0, 1.0, None));
+            .get_stats(VARIANCE_PENALTY_EFFECTS, TAU, now)
+            .unwrap_or((EMPTY_SCORE_EFFECTS, 0.0, 0.0, 1.0, None));
         let (score_con, sample_size_con, failures_con, alpha_con, interval_con) = self
             .stats_consensus
-            .get_stats(VARIANCE_PENALTY_CON, TAU, now)
-            .unwrap_or((EMPTY_SCORE_CON, 0.0, 0.0, 1.0, None));
+            .get_stats(VARIANCE_PENALTY_CONSENSUS, TAU, now)
+            .unwrap_or((EMPTY_SCORE_CONSENSUS, 0.0, 0.0, 1.0, None));
 
         let score = score_hc + score_sub + score_eff + score_con;
         let sample_size = sample_size_sub.max(sample_size_eff).max(sample_size_con);
         let failures = failures_hc + failures_sub + failures_eff + failures_con;
         let recency = alpha_sub.max(alpha_eff).max(alpha_con);
+        // max weighted interval over Submit, Effects, and Consensus operations
         let interval = interval_sub
             .unwrap_or(MAX_INTERVAL)
             .max(interval_eff.unwrap_or(MAX_INTERVAL))
@@ -334,7 +374,7 @@ impl ValidatorClientStats {
         // - small interval (frequent observations)
         // exploitation score is constructed such that lower value means better
         // performance
-        let exploitation = (score + failures * FAILURE_COEFF)
+        let exploitation = (score + failures * FAILURE_SCORE)
             * (1.0 + recency)
             * ((interval + 1e-2) / (sample_size + 1e-2)).sqrt();
 
