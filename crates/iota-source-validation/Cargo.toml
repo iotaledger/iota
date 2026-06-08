@@ -26,6 +26,7 @@ iota-json-rpc-types.workspace = true
 iota-move-build.workspace = true
 iota-package-management.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map = { path = "../../external-crates/move/crates/move-bytecode-source-map" }

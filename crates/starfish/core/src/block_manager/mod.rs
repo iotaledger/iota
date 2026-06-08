@@ -607,7 +607,7 @@ mod tests {
         // GIVEN
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -626,8 +626,8 @@ mod tests {
         // Take only the blocks of round 2 and try to accept them
         let round_2_block_headers = dag_builder
             .block_headers
-            .into_iter()
-            .filter_map(|(_, block_header)| (block_header.round() == 2).then_some(block_header))
+            .into_values()
+            .filter_map(|block_header| (block_header.round() == 2).then_some(block_header))
             .collect::<Vec<VerifiedBlockHeader>>();
 
         // WHEN
@@ -679,7 +679,7 @@ mod tests {
     async fn try_accept_block_returns_missing_blocks() {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -724,7 +724,7 @@ mod tests {
         // GIVEN
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -788,7 +788,7 @@ mod tests {
         for seed in 0..100u8 {
             all_block_headers.shuffle(&mut StdRng::from_seed([seed; 32]));
 
-            let store = Arc::new(MemStore::new(context.clone()));
+            let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
             let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -844,7 +844,7 @@ mod tests {
             .map(|block| block.reference())
             .collect::<BTreeSet<_>>();
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context, dag_state);
@@ -916,7 +916,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create BlockManager.
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let mut block_manager = BlockManager::new(context, dag_state);
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
@@ -957,7 +957,7 @@ mod tests {
         // GIVEN
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
@@ -976,8 +976,8 @@ mod tests {
         // Take only the blocks of round 2 and try to accept them
         let round_2_block_headers = dag_builder
             .block_headers
-            .iter()
-            .filter_map(|(_, block_headers)| {
+            .values()
+            .filter_map(|block_headers| {
                 (block_headers.round() == 2).then_some(block_headers.clone())
             })
             .collect::<Vec<VerifiedBlockHeader>>();
@@ -1019,8 +1019,8 @@ mod tests {
 
         let round_3_block_headers = dag_builder
             .block_headers
-            .iter()
-            .filter_map(|(_, block_header)| {
+            .values()
+            .filter_map(|block_header| {
                 (block_header.round() == 3).then_some(block_header.reference())
             })
             .collect::<Vec<BlockRef>>();
@@ -1071,7 +1071,7 @@ mod tests {
         // GIVEN
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1082,10 +1082,8 @@ mod tests {
 
         let round_1_headers = dag_builder
             .block_headers
-            .iter()
-            .filter_map(|(_, block_header)| {
-                (block_header.round() == 1).then_some(block_header.clone())
-            })
+            .values()
+            .filter_map(|block_header| (block_header.round() == 1).then_some(block_header.clone()))
             .collect::<Vec<_>>();
 
         // Get full blocks with transactions for round 2
@@ -1235,7 +1233,7 @@ mod tests {
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // Plant a commit with leader round large enough that gc_floor > 0.
@@ -1279,7 +1277,7 @@ mod tests {
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_leader_round = gc_depth * 2 + 200;
         plant_last_commit(&dag_state, &context, commit_leader_round);
@@ -1362,7 +1360,7 @@ mod tests {
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
 
@@ -1396,7 +1394,7 @@ mod tests {
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_leader_round = gc_depth * 2 + 200;
         plant_last_commit(&dag_state, &context, commit_leader_round);
@@ -1427,7 +1425,7 @@ mod tests {
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_leader_round = gc_depth * 2 + 200;
         plant_last_commit(&dag_state, &context, commit_leader_round);
@@ -1466,7 +1464,7 @@ mod tests {
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
 

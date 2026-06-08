@@ -38,7 +38,7 @@ use iota_keys::{
 use iota_ledger::Ledger;
 use iota_sdk_types::{
     SenderSignedTransaction, Transaction,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey, UserSignature},
 };
 use iota_types::{
     base_types::{IotaAddress, address_from_iota_pub_key},
@@ -47,7 +47,7 @@ use iota_types::{
         get_authority_key_pair,
     },
     error::IotaResult,
-    multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
@@ -166,7 +166,7 @@ pub enum KeyToolCommand {
         #[arg(long)]
         threshold: ThresholdUnit,
         #[arg(long, num_args(1..))]
-        pks: Vec<PublicKey>,
+        pks: Vec<SdkPublicKey>,
         #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
     },
@@ -182,9 +182,9 @@ pub enum KeyToolCommand {
     /// [sig2, sig1, sig5] is invalid.
     MultiSigCombinePartialSig {
         #[arg(long, num_args(1..))]
-        sigs: Vec<GenericSignature>,
+        sigs: Vec<UserSignature>,
         #[arg(long, num_args(1..))]
-        pks: Vec<PublicKey>,
+        pks: Vec<SdkPublicKey>,
         #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
         #[arg(long)]
@@ -425,21 +425,21 @@ impl KeyToolCommand {
                 CommandOutput::Convert(result)
             }
             KeyToolCommand::DecodeMultiSig { multisig, tx_bytes } => {
-                let pks = multisig.get_pk().pubkeys();
-                let sigs = multisig.get_sigs();
-                let bitmap = multisig.get_indices()?;
-                let address = IotaAddress::from(multisig.get_pk());
+                let members = multisig.committee().members();
+                let signatures = multisig.signatures();
+                let indices = multisig.indices()?;
+                let address = IotaAddress::from(multisig.committee());
 
-                let pub_keys = pks
+                let pub_keys = members
                     .iter()
-                    .map(|(pk, w)| MultiSigOutput {
-                        address: (pk).into(),
-                        public_base64_key_with_flag: pk.encode_base64(),
-                        weight: *w,
+                    .map(|member| MultiSigOutput {
+                        address: member.public_key().into(),
+                        public_base64_key_with_flag: member.public_key().to_base64(),
+                        weight: member.weight(),
                     })
                     .collect::<Vec<MultiSigOutput>>();
 
-                let threshold = *multisig.get_pk().threshold() as usize;
+                let threshold = multisig.committee().threshold() as usize;
 
                 let mut output = DecodedMultiSigOutput {
                     multisig_address: address,
@@ -449,14 +449,14 @@ impl KeyToolCommand {
                     sig_verify_result: "".to_string(),
                 };
 
-                for (sig, i) in sigs.iter().zip(bitmap) {
-                    let (pk, w) = pks
+                for (signature, i) in signatures.iter().zip(indices) {
+                    let member = members
                         .get(i as usize)
                         .ok_or_else(|| anyhow!("Invalid public keys index"))?;
                     output.participating_keys_signatures.push(DecodedMultiSig {
-                        public_base64_key: pk.encode_base64(),
-                        sig_base64: Base64::encode(sig.as_ref()),
-                        weight: w.to_string(),
+                        public_base64_key: member.public_key().to_base64(),
+                        sig_base64: Base64::encode(signature.as_ref()),
+                        weight: member.weight().to_string(),
                     })
                 }
 
@@ -514,27 +514,27 @@ impl KeyToolCommand {
                         }
                     }
                     GenericSignature::MultiSig(multisig) => {
-                        let pks = multisig.get_pk().pubkeys();
-                        let sigs = multisig.get_sigs();
-                        let bitmap = multisig.get_indices()?;
-                        let address = IotaAddress::from(multisig.get_pk());
+                        let members = multisig.committee().members();
+                        let signatures = multisig.signatures();
+                        let indices = multisig.indices()?;
+                        let address = IotaAddress::from(multisig.committee());
 
                         let mut participating_signatures = vec![];
 
-                        for (sig, i) in sigs.iter().zip(bitmap) {
-                            let (pk, w) = pks
+                        for (signature, i) in signatures.iter().zip(indices) {
+                            let member = members
                                 .get(i as usize)
                                 .ok_or_else(|| anyhow!("Invalid public keys index"))?;
                             participating_signatures.push(DecodedMultiSig {
-                                public_base64_key: pk.encode_base64(),
-                                sig_base64: Base64::encode(sig.as_ref()),
-                                weight: w.to_string(),
+                                public_base64_key: member.public_key().to_base64(),
+                                sig_base64: Base64::encode(signature.as_ref()),
+                                weight: member.weight().to_string(),
                             })
                         }
 
                         DecodedSigOutput::MultiSig {
                             multisig_address: address.to_string(),
-                            threshold: *multisig.get_pk().threshold() as usize,
+                            threshold: multisig.committee().threshold() as usize,
                             participating_signatures,
                         }
                     }
@@ -740,21 +740,23 @@ impl KeyToolCommand {
                 pks,
                 weights,
             } => {
-                let multisig_pk = MultiSigPublicKey::new(pks.clone(), weights.clone(), threshold)?;
+                let multisig_pk = multisig_public_key(pks, weights, threshold)?;
                 let address: IotaAddress = (&multisig_pk).into();
-                let mut output = MultiSigAddress {
+                let multisig_output = multisig_pk
+                    .members()
+                    .iter()
+                    .map(|member| MultiSigOutput {
+                        address: IotaAddress::from(member.public_key()),
+                        public_base64_key_with_flag: member.public_key().to_base64(),
+                        weight: member.weight(),
+                    })
+                    .collect();
+                let output = MultiSigAddress {
                     multisig_address: address.to_string(),
-                    multisig: vec![],
+                    multisig: multisig_output,
                     threshold,
                 };
 
-                for (pk, w) in pks.into_iter().zip(weights) {
-                    output.multisig.push(MultiSigOutput {
-                        address: Into::<IotaAddress>::into(&pk),
-                        public_base64_key_with_flag: pk.encode_base64(),
-                        weight: w,
-                    });
-                }
                 CommandOutput::MultiSigAddress(output)
             }
             KeyToolCommand::MultiSigCombinePartialSig {
@@ -763,10 +765,10 @@ impl KeyToolCommand {
                 weights,
                 threshold,
             } => {
-                let multisig_pk = MultiSigPublicKey::new(pks, weights, threshold)?;
+                let multisig_pk = multisig_public_key(pks, weights, threshold)?;
                 let address: IotaAddress = (&multisig_pk).into();
-                let multisig = MultiSig::combine(sigs, multisig_pk)?;
-                let multisig_serialized = multisig.encode_base64();
+                let multisig = MultiSig::new(sigs, multisig_pk)?;
+                let multisig_serialized = Base64::encode(multisig.as_ref());
                 CommandOutput::MultiSigCombinePartialSig(MultiSigCombinePartialSig {
                     multisig_address: address,
                     multisig_parsed: multisig,
@@ -1153,6 +1155,29 @@ impl Debug for CommandOutput {
 }
 
 impl PrintableResult for CommandOutput {}
+
+/// Build and validate a [`MultiSigPublicKey`] from a list of public keys and
+/// their corresponding weights. The number of keys must match the number of
+/// weights.
+fn multisig_public_key(
+    pks: Vec<SdkPublicKey>,
+    weights: Vec<WeightUnit>,
+    threshold: ThresholdUnit,
+) -> Result<MultiSigPublicKey, anyhow::Error> {
+    if pks.len() != weights.len() {
+        bail!(
+            "Number of public keys ({}) does not match number of weights ({})",
+            pks.len(),
+            weights.len()
+        );
+    }
+    let members = pks
+        .into_iter()
+        .zip(weights)
+        .map(|(pk, w)| MultisigMember::new(pk, w))
+        .collect();
+    Ok(MultiSigPublicKey::new(members, threshold)?)
+}
 
 /// Converts legacy formatted private key to 33 bytes bech32 encoded private key
 /// or vice versa. It can handle:

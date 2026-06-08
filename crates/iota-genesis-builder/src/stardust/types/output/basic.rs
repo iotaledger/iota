@@ -6,15 +6,16 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{ObjectId, Owner, StructTag};
 // Re-export the canonical type from iota-types
 pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TxContext},
+    base_types::{IotaAddress, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object},
     stardust::{
         coin_type::CoinType,
         output::unlock_conditions::{
@@ -33,7 +34,7 @@ use super::{
 
 /// Creates a genesis coin object.
 pub fn create_coin(
-    object_id: ObjectID,
+    object_id: ObjectId,
     owner: IotaAddress,
     amount: u64,
     tx_context: &TxContext,
@@ -65,7 +66,7 @@ pub trait BasicOutputExt {
     /// Output Header ID and Stardust
     /// [`BasicOutput`][iota_stardust_types::block::output::BasicOutput].
     fn new_from_stardust(
-        header_object_id: ObjectID,
+        header_object_id: ObjectId,
         output: &iota_stardust_types::block::output::BasicOutput,
     ) -> Result<BasicOutput>;
 
@@ -99,7 +100,7 @@ pub trait BasicOutputExt {
 
 impl BasicOutputExt for BasicOutput {
     fn new_from_stardust(
-        header_object_id: ObjectID,
+        header_object_id: ObjectId,
         output: &iota_stardust_types::block::output::BasicOutput,
     ) -> Result<BasicOutput> {
         let id = UID::new(header_object_id);

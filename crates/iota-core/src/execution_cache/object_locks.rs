@@ -4,8 +4,9 @@
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::debug_fatal;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::ObjectRef,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     storage::ObjectStore,
@@ -175,7 +176,7 @@ impl ObjectLocks {
 
     fn multi_get_objects_must_exist(
         cache: &WritebackCache,
-        object_ids: &[ObjectID],
+        object_ids: &[ObjectId],
     ) -> IotaResult<Vec<Object>> {
         let objects = cache.try_multi_get_objects(object_ids)?;
         let mut result = Vec::with_capacity(objects.len());

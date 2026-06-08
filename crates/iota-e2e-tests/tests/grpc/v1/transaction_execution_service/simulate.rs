@@ -17,6 +17,7 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
+use iota_sdk_types::Command;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionData, TransactionDataAPI},
@@ -255,10 +256,7 @@ async fn simulate_transaction_readmask_scenarios() {
         .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let amount = builder.pure(1000u64).unwrap();
-    let split_result = builder.command(iota_types::transaction::Command::new_split_coins(
-        gas_coin_arg,
-        vec![amount],
-    ));
+    let split_result = builder.command(Command::new_split_coins(gas_coin_arg, vec![amount]));
     builder.transfer_arg(sender, split_result);
     let pt = builder.finish();
 
@@ -286,7 +284,7 @@ async fn simulate_transaction_readmask_scenarios() {
         .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let huge_amount = failing_builder.pure(u64::MAX).unwrap();
-    failing_builder.command(iota_types::transaction::Command::new_split_coins(
+    failing_builder.command(Command::new_split_coins(
         failing_coin_arg,
         vec![huge_amount],
     ));

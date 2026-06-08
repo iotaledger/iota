@@ -36,6 +36,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
+    misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -146,6 +147,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
+        misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Arc<AtomicBool>,
     ) -> Self {
         let inner = Arc::new(Inner {
@@ -157,6 +159,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             block_verifier,
             dag_state,
             header_synchronizer,
+            misbehavior_store,
             sync_type: CommitSyncType::Fast,
             fast_sync_active: Some(fast_sync_active),
         });
@@ -659,6 +662,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // For fast commit sync, we use block headers refs and reputation scores from
         // the commit.
         let mut committed_subdags = Vec::new();
+        // Replayed commits share one snapshot of current store state; downstream
+        // consumers merge-max against their last-seen, so repeating absolute
+        // totals across the batch is a no-op after the first.
+        let misbehavior_counts = inner.dag_state.read().misbehavior_store().snapshot_totals();
         for commit in &commits {
             // Get block headers from the commit
             let committed_header_refs = commit.block_headers().to_vec();
@@ -681,6 +688,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 commit.timestamp_ms(),
                 commit.reference(),
                 reputation_scores,
+                misbehavior_counts.clone(),
             ));
         }
 
@@ -790,6 +798,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
+                                // TODO: verify_fetched_headers currently only returns
+                                // fetch-shape errors (wrong count/ref) which classify
+                                // as Untracked. When per-header faults become observable
+                                // here, record them as peer misbehavior via
+                                // `inner.misbehavior_store.record_faulty_block_header`.
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),

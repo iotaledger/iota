@@ -10,14 +10,13 @@ use std::{
 };
 
 use async_trait::async_trait;
+use iota_sdk_types::{Argument, Command, Identifier, MakeMoveVector, StructTag, TypeTag};
 use iota_types::{
-    base_types::{
-        Identifier, IotaAddress, SequenceNumber, StructTag, TypeTag, is_primitive_type_tag,
-    },
+    base_types::{IotaAddress, SequenceNumber, is_primitive_type_tag},
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     move_package::{MovePackage, TypeOrigin},
     object::Object,
-    transaction::{Argument, CallArg, Command, MakeMoveVector, ProgrammableTransaction},
+    transaction::{CallArg, ProgrammableTransaction},
 };
 use lru::LruCache;
 use move_binary_format::{
@@ -562,11 +561,9 @@ impl<S: PackageStore> Resolver<S> {
                 Command::MakeMoveVector(MakeMoveVector {
                     type_: Some(tag),
                     elements,
-                }) => {
-                    if is_primitive_type_tag(tag) {
-                        for elem in elements {
-                            register_type(elem, tag)?;
-                        }
+                }) if is_primitive_type_tag(tag) => {
+                    for elem in elements {
+                        register_type(elem, tag)?;
                     }
                 }
                 _ => { /* nop */ }
@@ -1850,10 +1847,8 @@ mod tests {
 
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_types::{
-        base_types::{Identifier, ObjectID, random_object_ref},
-        error::IotaResult,
-    };
+    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+    use iota_types::{base_types::random_object_ref, error::IotaResult};
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;
 
@@ -3200,8 +3195,8 @@ mod tests {
         IotaAddress::from_str(a).unwrap()
     }
 
-    fn obj_id(a: &str) -> ObjectID {
-        ObjectID::from_str(a).unwrap()
+    fn obj_id(a: &str) -> ObjectId {
+        ObjectId::from_str(a).unwrap()
     }
 
     fn datakey(a: &str, m: &'static str, n: &'static str) -> DatatypeKey {

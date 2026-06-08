@@ -10,7 +10,7 @@ use diesel::{
     sql_types::{BigInt, Binary, Text},
 };
 use iota_json_rpc_types::MoveFunctionName;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 
 use crate::{
     errors::IndexerError,
@@ -72,8 +72,8 @@ impl TryFrom<QueriedMoveCallMetrics> for (MoveFunctionName, usize) {
     type Error = IndexerError;
 
     fn try_from(metrics: QueriedMoveCallMetrics) -> Result<(MoveFunctionName, usize), Self::Error> {
-        let package = ObjectID::from_str(&metrics.move_package).map_err(|_| {
-            IndexerError::ObjectIdParse(iota_types::base_types::ObjectIDParseError::TryFromSlice)
+        let package = ObjectId::from_str(&metrics.move_package).map_err(|_| {
+            IndexerError::ObjectIdParse(iota_types::base_types::ObjectIdParseError::TryFromSlice)
         })?;
         Ok((
             MoveFunctionName {

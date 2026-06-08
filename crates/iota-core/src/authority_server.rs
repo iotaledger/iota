@@ -36,13 +36,14 @@ use iota_types::{
         TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
-    traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
+    traffic_control::{ClientIdSource, Weight},
     transaction::*,
 };
 use nonempty::{NonEmpty, nonempty};
 use prometheus::{
-    Histogram, IntCounter, IntCounterVec, Registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    Gauge, Histogram, IntCounter, IntCounterVec, Registry, register_gauge_with_registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry,
 };
 use tap::TapFallible;
 use tonic::{
@@ -58,9 +59,7 @@ use crate::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
     starfish_adapter::LazyStarfishClient,
-    traffic_controller::{
-        TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
-    },
+    traffic_controller::{TrafficController, parse_ip, policies::TrafficTally},
 };
 
 #[cfg(test)]
@@ -191,6 +190,7 @@ pub struct ValidatorServiceMetrics {
     forwarded_header_invalid: IntCounter,
     forwarded_header_not_included: IntCounter,
     client_id_source_config_mismatch: IntCounter,
+    x_forwarded_for_num_hops: Gauge,
 }
 
 impl ValidatorServiceMetrics {
@@ -343,6 +343,12 @@ impl ValidatorServiceMetrics {
                 registry,
             )
             .unwrap(),
+            x_forwarded_for_num_hops: register_gauge_with_registry!(
+                "validator_service_x_forwarded_for_num_hops",
+                "Number of hops in x-forwarded-for header",
+                registry,
+            )
+            .unwrap(),
         }
     }
 
@@ -369,22 +375,15 @@ impl ValidatorService {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         validator_metrics: Arc<ValidatorServiceMetrics>,
-        traffic_controller_metrics: TrafficControllerMetrics,
-        policy_config: Option<PolicyConfig>,
-        firewall_config: Option<RemoteFirewallConfig>,
+        client_id_source: Option<ClientIdSource>,
     ) -> Self {
+        let traffic_controller = state.traffic_controller.clone();
         Self {
             state,
             consensus_adapter,
             metrics: validator_metrics,
-            traffic_controller: policy_config.clone().map(|policy| {
-                Arc::new(TrafficController::init(
-                    policy,
-                    traffic_controller_metrics,
-                    firewall_config,
-                ))
-            }),
-            client_id_source: policy_config.map(|policy| policy.client_id_source),
+            traffic_controller,
+            client_id_source,
         }
     }
 
@@ -1020,6 +1019,17 @@ impl ValidatorService {
         request: &tonic::Request<T>,
         source: &ClientIdSource,
     ) -> Option<IpAddr> {
+        let forwarded_header = request.metadata().get_all("x-forwarded-for").iter().next();
+
+        if let Some(header) = forwarded_header {
+            let num_hops = header
+                .to_str()
+                .map(|h| h.split(',').count().saturating_sub(1))
+                .unwrap_or(0);
+
+            self.metrics.x_forwarded_for_num_hops.set(num_hops as f64);
+        }
+
         match source {
             ClientIdSource::SocketAddr => {
                 let socket_addr: Option<SocketAddr> = request.remote_addr();

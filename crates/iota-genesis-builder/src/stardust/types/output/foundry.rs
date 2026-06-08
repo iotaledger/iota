@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::ObjectId;
 use iota_stardust_types::block::output::{FoundryOutput, OutputId};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TxContext},
+    base_types::{SequenceNumber, TxContext},
     object::Object,
     stardust::coin_type::CoinType,
 };
@@ -20,7 +21,7 @@ pub fn create_foundry_amount_coin(
     coin_type: &CoinType,
 ) -> anyhow::Result<Object> {
     super::basic::create_coin(
-        ObjectID::new(output_id.hash()),
+        ObjectId::new(output_id.hash()),
         stardust_to_iota_address(*foundry.alias_address())?,
         foundry.amount(),
         tx_context,

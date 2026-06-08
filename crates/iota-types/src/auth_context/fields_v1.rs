@@ -1,15 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Argument, Command, ObjectId, TypeTag};
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{ObjectRef, SequenceNumber},
     iota_serde::TypeName,
-    transaction::{Argument, CallArg, Command},
+    transaction::CallArg,
 };
 
 // ---------------------------------------------------------------------------
@@ -36,14 +37,14 @@ pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
 // MoveProgrammableMoveCall
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::ProgrammableMoveCall`] for use in
+/// Mirrors [`iota_sdk_types::MoveCall`] for use in
 /// [`MoveCommand`], substituting [`TypeTag`] for a string in the type arguments
 /// so that the type matches the BCS layout expected by the Move-side
 /// `ptb_command::ProgrammableMoveCall`.
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoveProgrammableMoveCall {
-    pub package: ObjectID,
+    pub package: ObjectId,
     pub module: String,
     pub function: String,
     #[serde_as(as = "Vec<TypeName>")]
@@ -55,7 +56,7 @@ pub struct MoveProgrammableMoveCall {
 // MoveCommand
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::Command`], substituting [`TypeTag`] for
+/// Mirrors [`iota_sdk_types::Command`], substituting [`TypeTag`] for
 /// a string in `MoveCall` and `MakeMoveVec` so that
 /// the type matches the BCS layout expected by the Move-side
 /// `ptb_command::Command`.
@@ -66,12 +67,12 @@ pub enum MoveCommand {
     TransferObjects(Vec<Argument>, Argument),
     SplitCoins(Argument, Vec<Argument>),
     MergeCoins(Argument, Vec<Argument>),
-    Publish(Vec<Vec<u8>>, Vec<ObjectID>),
+    Publish(Vec<Vec<u8>>, Vec<ObjectId>),
     MakeMoveVec(
         #[serde_as(as = "Option<TypeName>")] Option<TypeTag>,
         Vec<Argument>,
     ),
-    Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
+    Upgrade(Vec<Vec<u8>>, Vec<ObjectId>, ObjectId, Argument),
 }
 
 impl From<&Command> for MoveCommand {
@@ -129,7 +130,7 @@ impl MoveCommand {
 pub enum MoveObjectArg {
     ImmOrOwnedObject(ObjectRef),
     SharedObject {
-        id: ObjectID,
+        id: ObjectId,
         initial_shared_version: SequenceNumber,
         mutable: bool,
     },
@@ -188,20 +189,18 @@ impl MoveCallArg {
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::ObjectReference;
+    use iota_sdk_types::{Identifier, ObjectReference, StructTag, TypeTag};
 
     use super::*;
     use crate::{
-        base_types::{
-            Identifier, IotaAddress, ObjectDigest, ObjectID, SequenceNumber, StructTag, TypeTag,
-        },
-        transaction::{Argument, CallArg, Command, SharedObjectRef},
+        base_types::{IotaAddress, ObjectDigest, SequenceNumber},
+        transaction::{CallArg, SharedObjectRef},
     };
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
-    fn obj_id() -> ObjectID {
-        ObjectID::from_prefixed_short_hex("0x0000000000000000000000000000000000000001").unwrap()
+    fn obj_id() -> ObjectId {
+        ObjectId::from_prefixed_short_hex("0x0000000000000000000000000000000000000001").unwrap()
     }
 
     fn obj_ref() -> ObjectReference {

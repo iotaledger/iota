@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::base_types::{MoveObjectType, StructTag, TypeTag};
+use iota_sdk_types::{StructTag, TypeTag};
+use iota_types::base_types::MoveObjectType;
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::annotated_value as A;
 use serde::{Deserialize, Serialize};

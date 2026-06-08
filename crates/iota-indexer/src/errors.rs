@@ -7,8 +7,9 @@ use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
 use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, ObjectIDParseError, SequenceNumber},
+    base_types::{ObjectIdParseError, SequenceNumber},
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::SdkTypeConversionError,
 };
@@ -109,7 +110,7 @@ pub enum IndexerError {
     Uncategorized(#[from] anyhow::Error),
 
     #[error(transparent)]
-    ObjectIdParse(#[from] ObjectIDParseError),
+    ObjectIdParse(#[from] ObjectIdParseError),
 
     #[error("Invalid transaction digest with error: `{0}`")]
     InvalidTransactionDigest(String),
@@ -158,7 +159,7 @@ pub enum IndexerError {
 
     #[error("historical fallback object not found: id {object_id}, version {version}")]
     HistoricalFallbackObjectNotFound {
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     },
     #[error("historical fallback storage error: {0}")]

@@ -39,6 +39,7 @@ iota-open-rpc.workspace = true
 iota-open-rpc-macros.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-simulator.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true

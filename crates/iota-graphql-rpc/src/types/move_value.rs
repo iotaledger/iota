@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_types::{
-    base_types::{StructTag, TypeTag},
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
     object::bounded_visitor::BoundedVisitor,
 };

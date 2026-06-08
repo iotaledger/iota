@@ -13,13 +13,11 @@ use axum::{
     response::Response,
 };
 use hyper::{HeaderMap, header::HeaderValue};
-use iota_core::traffic_controller::{
-    TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
-};
+use iota_core::traffic_controller::{TrafficController, parse_ip, policies::TrafficTally};
 use iota_json_rpc_api::{
     CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
 };
-use iota_types::traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight};
+use iota_types::traffic_control::{ClientIdSource, PolicyConfig, Weight};
 use jsonrpsee::{
     BoundedSubscriptions, ConnectionId, Extensions, MethodCallback, MethodKind, MethodResponse,
     core::server::{Methods, helpers::MethodSink},
@@ -59,9 +57,8 @@ impl<L> JsonRpcService<L> {
         methods: Methods,
         rpc_router: RpcRouter,
         logger: L,
-        remote_fw_config: Option<RemoteFirewallConfig>,
+        traffic_controller: Option<Arc<TrafficController>>,
         policy_config: Option<PolicyConfig>,
-        traffic_controller_metrics: TrafficControllerMetrics,
         extensions: Extensions,
     ) -> Self {
         Self {
@@ -70,13 +67,7 @@ impl<L> JsonRpcService<L> {
             logger,
             extensions,
             id_provider: Arc::new(RandomIntegerIdProvider),
-            traffic_controller: policy_config.clone().map(|policy| {
-                Arc::new(TrafficController::init(
-                    policy,
-                    traffic_controller_metrics,
-                    remote_fw_config,
-                ))
-            }),
+            traffic_controller,
             client_id_source: policy_config.map(|policy| policy.client_id_source),
         }
     }

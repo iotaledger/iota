@@ -5,6 +5,7 @@
 use std::{collections::BTreeMap, fmt::Display};
 
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
+use itertools::Itertools as _;
 
 use crate::consensus_types::AuthorityIndex;
 /// A list of tuples of:
@@ -134,5 +135,91 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
                 *num_of_committed_headers.entry(author_index).or_insert(0) += 1;
             });
         num_of_committed_headers.into_iter().collect()
+    }
+
+    fn misbehavior_counts(&self) -> ConsensusOutputMisbehaviorCounts {
+        let (faulty_blocks_provable, faulty_blocks_unprovable, missing_proposals, equivocations) =
+            self.misbehavior_counts
+                .iter()
+                .map(|counts| match counts {
+                    starfish_core::MisbehaviorCounts::V1(v1) => (
+                        v1.faulty_blocks_provable,
+                        v1.faulty_blocks_unprovable,
+                        v1.missing_proposals,
+                        v1.equivocations,
+                    ),
+                })
+                .multiunzip();
+        ConsensusOutputMisbehaviorCounts {
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use starfish_core::{
+        BlockRef, CommitDigest, CommitRef, CommittedSubDag, MisbehaviorCounts, MisbehaviorCountsV1,
+        VerifiedBlockHeader,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_misbehavior_counts_transposes_per_authority_to_per_field_vecs() {
+        let counts = vec![
+            MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                faulty_blocks_provable: 1,
+                faulty_blocks_unprovable: 2,
+                missing_proposals: 3,
+                equivocations: 4,
+            }),
+            MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                faulty_blocks_provable: 10,
+                faulty_blocks_unprovable: 20,
+                missing_proposals: 30,
+                equivocations: 40,
+            }),
+            MisbehaviorCounts::default(),
+        ];
+
+        let subdag = CommittedSubDag::new(
+            BlockRef::MIN,
+            Vec::<VerifiedBlockHeader>::new(),
+            vec![],
+            vec![],
+            0,
+            CommitRef::new(1, CommitDigest::MIN),
+            vec![],
+            counts,
+        );
+
+        let out = subdag.misbehavior_counts();
+        assert_eq!(out.faulty_blocks_provable, vec![1, 10, 0]);
+        assert_eq!(out.faulty_blocks_unprovable, vec![2, 20, 0]);
+        assert_eq!(out.missing_proposals, vec![3, 30, 0]);
+        assert_eq!(out.equivocations, vec![4, 40, 0]);
+    }
+
+    #[test]
+    fn test_misbehavior_counts_empty_snapshot_produces_empty_vecs() {
+        let subdag = CommittedSubDag::new(
+            BlockRef::MIN,
+            Vec::<VerifiedBlockHeader>::new(),
+            vec![],
+            vec![],
+            0,
+            CommitRef::new(1, CommitDigest::MIN),
+            vec![],
+            vec![],
+        );
+        let out = subdag.misbehavior_counts();
+        assert!(out.faulty_blocks_provable.is_empty());
+        assert!(out.faulty_blocks_unprovable.is_empty());
+        assert!(out.missing_proposals.is_empty());
+        assert!(out.equivocations.is_empty());
     }
 }

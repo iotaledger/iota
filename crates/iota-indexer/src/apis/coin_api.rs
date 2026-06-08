@@ -16,10 +16,8 @@ use iota_json_rpc_types::{
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_types::{
-    balance::Supply,
-    base_types::{IotaAddress, ObjectID},
-};
+use iota_sdk_types::ObjectId;
+use iota_types::{balance::Supply, base_types::IotaAddress};
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
@@ -47,7 +45,7 @@ impl CoinReadApiServer for CoinReadApi {
         &self,
         owner: IotaAddress,
         coin_type: Option<String>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         let limit = cap_page_limit(limit);
@@ -62,8 +60,8 @@ impl CoinReadApiServer for CoinReadApi {
         let cursor = match cursor {
             Some(c) => c,
             // If cursor is not specified, we need to start from the beginning of the coin type,
-            // which is the minimal possible ObjectID.
-            None => ObjectID::ZERO,
+            // which is the minimal possible ObjectId.
+            None => ObjectId::ZERO,
         };
         let mut results = self
             .inner
@@ -83,7 +81,7 @@ impl CoinReadApiServer for CoinReadApi {
     async fn get_all_coins(
         &self,
         owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         let limit = cap_page_limit(limit);
@@ -94,8 +92,8 @@ impl CoinReadApiServer for CoinReadApi {
         let cursor = match cursor {
             Some(c) => c,
             // If cursor is not specified, we need to start from the beginning of the coin type,
-            // which is the minimal possible ObjectID.
-            None => ObjectID::ZERO,
+            // which is the minimal possible ObjectId.
+            None => ObjectId::ZERO,
         };
         let mut results = self
             .inner

@@ -66,10 +66,9 @@ mod sim_only_tests {
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
+    use iota_sdk_types::{Command, Identifier, MoveCall, ObjectId, Owner};
     use iota_types::{
-        base_types::{
-            ConciseableName, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
-        },
+        base_types::{ConciseableName, IotaAddress, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
@@ -78,12 +77,12 @@ mod sim_only_tests {
             IOTA_SYSTEM_STATE_SIM_TEST_V1, IotaSystemState, IotaSystemStateTrait,
             epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
         },
-        object::{Object, Owner},
+        object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
-            CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction,
-            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI, TransactionKind,
+            CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData,
+            TransactionDataAPI, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -399,7 +398,7 @@ mod sim_only_tests {
     async fn test_new_framework_package() {
         ProtocolConfig::poison_get_for_min_version();
 
-        let iota_extra = ObjectID::from_u16(0x42);
+        let iota_extra = ObjectId::from_u16(0x42);
         framework_injection::set_override(iota_extra, fixture_modules("extra_package"));
 
         let cluster = TestClusterBuilder::new()
@@ -422,10 +421,10 @@ mod sim_only_tests {
             .find_map(|(obj, owner)| {
                 if let Owner::Shared(_) = owner {
                     let is_framework_obj = [
-                        ObjectID::SYSTEM_STATE,
-                        ObjectID::CLOCK,
-                        ObjectID::AUTHENTICATOR_STATE,
-                        ObjectID::RANDOMNESS_STATE,
+                        ObjectId::SYSTEM_STATE,
+                        ObjectId::CLOCK,
+                        ObjectId::AUTHENTICATOR_STATE,
+                        ObjectId::RANDOMNESS_STATE,
                     ]
                     .contains(&obj.object_id);
                     (!is_framework_obj).then_some(obj.object_id)
@@ -444,7 +443,7 @@ mod sim_only_tests {
         assert_eq!(
             dev_inspect_call(
                 &cluster,
-                ProgrammableMoveCall {
+                MoveCall {
                     package: iota_extra,
                     module: Identifier::new_unchecked("msim_extra_1"),
                     function: Identifier::new_unchecked("canary"),
@@ -474,8 +473,8 @@ mod sim_only_tests {
     async fn call_canary(cluster: &TestCluster) -> u64 {
         dev_inspect_call(
             cluster,
-            ProgrammableMoveCall {
-                package: ObjectID::SYSTEM,
+            MoveCall {
+                package: ObjectId::SYSTEM,
                 module: Identifier::new_unchecked("msim_extra_1"),
                 function: Identifier::new_unchecked("canary"),
                 type_arguments: vec![],
@@ -490,7 +489,7 @@ mod sim_only_tests {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    ObjectID::SYSTEM,
+                    ObjectId::SYSTEM,
                     Identifier::new_unchecked("msim_extra_1"),
                     Identifier::new_unchecked("mint"),
                     // type_arguments
@@ -511,7 +510,7 @@ mod sim_only_tests {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    ObjectID::SYSTEM,
+                    ObjectId::SYSTEM,
                     Identifier::from_static("msim_extra_1"),
                     Identifier::from_static("wrap"),
                     // type_arguments
@@ -544,7 +543,7 @@ mod sim_only_tests {
         .reference
     }
 
-    async fn dev_inspect_call(cluster: &TestCluster, call: ProgrammableMoveCall) -> u64 {
+    async fn dev_inspect_call(cluster: &TestCluster, call: MoveCall) -> u64 {
         let client = cluster.rpc_client();
         let sender = cluster.get_address_0();
 
@@ -621,15 +620,15 @@ mod sim_only_tests {
     async fn get_framework_upgrade_versions(
         cluster: &TestCluster,
     ) -> (Option<SequenceNumber>, Option<SequenceNumber>) {
-        let effects = get_framework_upgrade_effects(cluster, &ObjectID::SYSTEM).await;
+        let effects = get_framework_upgrade_effects(cluster, &ObjectId::SYSTEM).await;
 
         let modified_at = effects
             .modified_at_versions()
             .iter()
-            .find_map(|(id, v)| (id == &ObjectID::SYSTEM).then_some(*v));
+            .find_map(|(id, v)| (id == &ObjectId::SYSTEM).then_some(*v));
 
         let mutated_to = effects.mutated().iter().find_map(|(object_ref, _)| {
-            (object_ref.object_id == ObjectID::SYSTEM).then_some(object_ref.version)
+            (object_ref.object_id == ObjectId::SYSTEM).then_some(object_ref.version)
         });
 
         (modified_at, mutated_to)
@@ -637,7 +636,7 @@ mod sim_only_tests {
 
     async fn get_framework_upgrade_effects(
         cluster: &TestCluster,
-        package: &ObjectID,
+        package: &ObjectId,
     ) -> TransactionEffects {
         let node_handle = &cluster.fullnode_handle.iota_node;
 
@@ -653,7 +652,7 @@ mod sim_only_tests {
             .await
     }
 
-    async fn get_object(cluster: &TestCluster, object_id: &ObjectID) -> Object {
+    async fn get_object(cluster: &TestCluster, object_id: &ObjectId) -> Object {
         let node_handle = &cluster.fullnode_handle.iota_node;
 
         node_handle
@@ -898,7 +897,7 @@ mod sim_only_tests {
                     .get_object_store()
                     .as_ref(),
                 inner.validators.inactive_validators.id,
-                &ID::new(ObjectID::ZERO),
+                &ID::new(ObjectId::ZERO),
                 Some(inner.protocol_version),
             )
             .unwrap();
@@ -924,7 +923,7 @@ mod sim_only_tests {
                     .get_object_store()
                     .as_ref(),
                 inner.validators.inactive_validators.id,
-                &ID::new(ObjectID::ZERO),
+                &ID::new(ObjectId::ZERO),
                 None,
             )
             .unwrap();
@@ -972,11 +971,11 @@ mod sim_only_tests {
     }
 
     fn override_iota_system_modules(path: &str) {
-        framework_injection::set_override(ObjectID::SYSTEM, iota_system_modules(path));
+        framework_injection::set_override(ObjectId::SYSTEM, iota_system_modules(path));
     }
 
     fn override_iota_system_modules_cb(f: framework_injection::PackageUpgradeCallback) {
-        framework_injection::set_override_cb(ObjectID::SYSTEM, f)
+        framework_injection::set_override_cb(ObjectId::SYSTEM, f)
     }
 
     /// Get compiled modules for IOTA System, built from fixture `fixture` in
@@ -995,8 +994,8 @@ mod sim_only_tests {
             TransactionDigest::GENESIS_MARKER,
             &ProtocolConfig::get_for_version(FINISH.into(), Chain::Unknown),
             &[
-                BuiltInFramework::get_package_by_id(&ObjectID::STD).genesis_move_package(),
-                BuiltInFramework::get_package_by_id(&ObjectID::FRAMEWORK).genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectId::STD).genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectId::FRAMEWORK).genesis_move_package(),
             ],
         )
         .unwrap()

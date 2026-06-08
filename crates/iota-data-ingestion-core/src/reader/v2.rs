@@ -106,7 +106,7 @@ impl RemoteStore {
     ) -> IngestionResult<Self> {
         let store = match remote_url {
             RemoteUrl::Fullnode(ref url) => {
-                let grpc_client = GrpcClient::new(url).await.map(|client| {
+                let grpc_client = GrpcClient::new(url).map(|client| {
                     client.with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES)
                 })?;
                 RemoteStore::Fullnode(grpc_client)

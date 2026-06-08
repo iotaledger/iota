@@ -60,7 +60,8 @@
 use std::ops::Not;
 
 use iota_grpc_types::v1::{filter as proto, types::ObjectReference};
-use iota_types::base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::{IotaAddress, ObjectDigest, SequenceNumber};
 
 /// Available transaction kinds for filtering.
 pub type TransactionKind = proto::TransactionKind;
@@ -200,7 +201,7 @@ impl TransactionFilter {
     }
 
     /// Matches transactions that touch the given object id.
-    pub fn affected_object(self, object_id: ObjectID) -> Self {
+    pub fn affected_object(self, object_id: ObjectId) -> Self {
         let object_ref = ObjectReference::default().with_object_id(object_id);
         self.and_with(
             proto::TransactionFilter::default()
@@ -209,7 +210,7 @@ impl TransactionFilter {
     }
 
     /// Matches transactions that touch the given object id and version.
-    pub fn affected_object_version(self, object_id: ObjectID, version: SequenceNumber) -> Self {
+    pub fn affected_object_version(self, object_id: ObjectId, version: SequenceNumber) -> Self {
         let object_ref = ObjectReference::default()
             .with_object_id(object_id)
             .with_version(version.as_u64());
@@ -305,7 +306,7 @@ pub struct CommandFilter(proto::CommandFilter);
 
 impl CommandFilter {
     /// Matches any `MoveCall` to the given package.
-    pub fn move_call(package_id: ObjectID) -> Self {
+    pub fn move_call(package_id: ObjectId) -> Self {
         Self(
             proto::CommandFilter::default().with_move_call(
                 proto::MoveCallCommandFilter::default().with_package_id(package_id),
@@ -314,7 +315,7 @@ impl CommandFilter {
     }
 
     /// Matches any `MoveCall` to the given package and module.
-    pub fn move_call_in_module(package_id: ObjectID, module: impl Into<String>) -> Self {
+    pub fn move_call_in_module(package_id: ObjectId, module: impl Into<String>) -> Self {
         Self(
             proto::CommandFilter::default().with_move_call(
                 proto::MoveCallCommandFilter::default()
@@ -327,7 +328,7 @@ impl CommandFilter {
     /// Matches a specific `MoveCall` to the given package, module and
     /// function.
     pub fn move_call_to(
-        package_id: ObjectID,
+        package_id: ObjectId,
         module: impl Into<String>,
         function: impl Into<String>,
     ) -> Self {
@@ -384,7 +385,7 @@ impl CommandFilter {
     }
 
     /// Matches an `Upgrade` command for the given package.
-    pub fn upgrade_of(package_id: ObjectID) -> Self {
+    pub fn upgrade_of(package_id: ObjectId) -> Self {
         Self(
             proto::CommandFilter::default()
                 .with_upgrade(proto::UpgradeCommandFilter::default().with_package_id(package_id)),
@@ -494,7 +495,7 @@ impl EventFilter {
     /// This matches the package the event was *emitted from*,
     /// not where the event struct is defined. For the latter, use
     /// [`EventFilter::defined_in`] / [`EventFilter::defined_in_module`].
-    pub fn emitted_in(self, package_id: ObjectID) -> Self {
+    pub fn emitted_in(self, package_id: ObjectId) -> Self {
         self.and_with(proto::EventFilter::default().with_move_package_and_module(
             proto::MovePackageAndModuleFilter::default().with_package_id(package_id),
         ))
@@ -506,7 +507,7 @@ impl EventFilter {
     /// This matches the package and module the event was *emitted from*,
     /// not where the event struct is defined. For the latter, use
     /// [`EventFilter::defined_in`] / [`EventFilter::defined_in_module`].
-    pub fn emitted_in_module(self, package_id: ObjectID, module: impl Into<String>) -> Self {
+    pub fn emitted_in_module(self, package_id: ObjectId, module: impl Into<String>) -> Self {
         self.and_with(
             proto::EventFilter::default().with_move_package_and_module(
                 proto::MovePackageAndModuleFilter::default()
@@ -521,7 +522,7 @@ impl EventFilter {
     /// This matches the package the event struct is *defined
     /// in*, not where it was emitted from. For the latter, use
     /// [`EventFilter::emitted_in`] / [`EventFilter::emitted_in_module`].
-    pub fn defined_in(self, package_id: ObjectID) -> Self {
+    pub fn defined_in(self, package_id: ObjectId) -> Self {
         self.and_with(
             proto::EventFilter::default().with_move_event_package_and_module(
                 proto::MovePackageAndModuleFilter::default().with_package_id(package_id),
@@ -534,7 +535,7 @@ impl EventFilter {
     /// This matches the package and module the event struct is *defined
     /// in*, not where it was emitted from. For the latter, use
     /// [`EventFilter::emitted_in`] / [`EventFilter::emitted_in_module`].
-    pub fn defined_in_module(self, package_id: ObjectID, module: impl Into<String>) -> Self {
+    pub fn defined_in_module(self, package_id: ObjectId, module: impl Into<String>) -> Self {
         self.and_with(
             proto::EventFilter::default().with_move_event_package_and_module(
                 proto::MovePackageAndModuleFilter::default()
@@ -677,7 +678,7 @@ mod tests {
 
     #[test]
     fn complex_nested_composition_matches_proto() {
-        let pkg = ObjectID::ZERO;
+        let pkg = ObjectId::ZERO;
         let alice = IotaAddress::ZERO;
         let bob = IotaAddress::ZERO;
 

@@ -13,7 +13,7 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_types::base_types::TypeTag;
+use iota_sdk_types::TypeTag;
 
 use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 
@@ -159,7 +159,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
         // not requested in the mask".
         let events = source.events.clone().unwrap_or_default();
 
-        Self::merge(self, events.clone(), mask)?;
+        Self::merge(self, &events, mask)?;
 
         if mask
             .subtree(Self::EVENTS_FIELD.name)
@@ -170,7 +170,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
             match self.events.as_mut() {
                 None => return Ok(()),
                 Some(proto_events) => {
-                    for (message, event) in proto_events.events.iter_mut().zip(&events.data) {
+                    for (message, event) in proto_events.events.iter_mut().zip(&events.0) {
                         // Populate json_contents if we have a valid datatype layout
                         message.json_contents = crate::utils::render_json(
                             source.reader.clone(),
@@ -247,7 +247,7 @@ impl Merge<&CommandResultsReadSource<'_>> for CommandResults {
 struct CommandResultReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    mutable_reference_outputs: &'a [(iota_types::transaction::Argument, Vec<u8>, TypeTag)],
+    mutable_reference_outputs: &'a [(iota_sdk_types::Argument, Vec<u8>, TypeTag)],
     return_values: &'a [(Vec<u8>, TypeTag)],
 }
 
@@ -295,11 +295,7 @@ impl Merge<&CommandResultReadSource<'_>> for CommandResult {
 struct CommandOutputsReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    outputs: Vec<(
-        Option<iota_types::transaction::Argument>,
-        &'a [u8],
-        &'a TypeTag,
-    )>,
+    outputs: Vec<(Option<iota_sdk_types::Argument>, &'a [u8], &'a TypeTag)>,
 }
 
 impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
@@ -334,7 +330,7 @@ impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
 struct CommandOutputReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    arg: Option<iota_types::transaction::Argument>,
+    arg: Option<iota_sdk_types::Argument>,
     bcs_bytes: &'a [u8],
     ty: &'a TypeTag,
 }

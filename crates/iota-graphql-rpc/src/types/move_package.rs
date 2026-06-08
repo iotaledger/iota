@@ -761,21 +761,51 @@ impl MovePackage {
             .unwrap_or(u64::MAX)
             .min(checkpoint_viewed_at + 1);
 
+        // Locate each `(package_id, package_version)` row in
+        // `checkpointed_objects` (current state) or
+        // `objects_backward_history` (superseded versions). User packages
+        // are immutable (each upgrade publishes a fresh `object_id`), so their row is
+        // always the current state in `checkpointed_objects`. System packages
+        // are upgraded in place — the `packages` row records the genesis
+        // publish (`version = 1`), which may be in `checkpointed_objects` or
+        // `objects_backward_history` depending on whether it's the current version or
+        // not.
+        //
+        // The join is wrapped in a subquery aliased as `o` so the cursor
+        // filters and ordering in `RawPaginated for StoredHistoryPackage` keep
+        // resolving.
         let (prev, next, results) = db
             .execute(move |conn| {
                 let mut q = query!(
                     r#"
-                    SELECT
-                            p.original_id,
-                            o.*
-                    FROM
-                            packages p
-                    INNER JOIN
-                            objects_history o
-                    ON
-                            p.package_id = o.object_id
-                    AND     p.package_version = o.object_version
-                    AND     p.checkpoint_sequence_number = o.checkpoint_sequence_number
+                    SELECT * FROM (
+                        SELECT
+                                p.original_id,
+                                p.package_id                                                 AS object_id,
+                                p.package_version                                            AS object_version,
+                                COALESCE(co.object_status, bh.object_status)                 AS object_status,
+                                COALESCE(co.object_digest, bh.object_digest)                 AS object_digest,
+                                p.checkpoint_sequence_number,
+                                COALESCE(co.owner_type, bh.owner_type)                       AS owner_type,
+                                COALESCE(co.owner_id, bh.owner_id)                           AS owner_id,
+                                COALESCE(co.object_type, bh.object_type)                     AS object_type,
+                                COALESCE(co.object_type_package, bh.object_type_package)     AS object_type_package,
+                                COALESCE(co.object_type_module, bh.object_type_module)       AS object_type_module,
+                                COALESCE(co.object_type_name, bh.object_type_name)           AS object_type_name,
+                                COALESCE(co.serialized_object, bh.serialized_object)         AS serialized_object,
+                                COALESCE(co.coin_type, bh.coin_type)                         AS coin_type,
+                                COALESCE(co.coin_balance, bh.coin_balance)                   AS coin_balance,
+                                COALESCE(co.df_kind, bh.df_kind)                             AS df_kind
+                        FROM packages p
+                        LEFT JOIN checkpointed_objects co
+                               ON co.object_id = p.package_id
+                              AND co.object_version = p.package_version
+                        LEFT JOIN objects_backward_history bh
+                               ON bh.object_id = p.package_id
+                              AND bh.object_version = p.package_version
+                        WHERE co.object_id IS NOT NULL
+                           OR bh.object_id IS NOT NULL
+                    ) AS o
                 "#
                 );
 
@@ -1092,73 +1122,91 @@ impl TryFrom<&Object> for MovePackage {
 
 /// Query for fetching all the versions of a system package (assumes that
 /// `package` has already been verified as a system package). This is an
-/// `objects_history` query disguised as a package query.
+/// `objects_backward_history` query disguised as a package query.
 fn system_package_version_query(
     package: IotaAddress,
     filter: Option<MovePackageVersionFilter>,
 ) -> RawQuery {
-    // Query uses a left join to force the query planner to use `objects_version` in
-    // the outer loop.
+    // System packages are upgraded in place (there may be many versions with the
+    // same object id).
+    //
+    // The query loads the most recent version from `checkpointed_objects` and all
+    // previous versions from `objects_backward_history` (which may be pruned).
+    //
+    // The join is wrapped in a subquery aliased as `o` so the cursor filters
+    // and ordering in `RawPaginated for StoredHistoryPackage` keep resolving.
     let mut q = query!(
         r#"
-            SELECT
-                    o.object_id AS original_id,
-                    o.*
-            FROM
-                    objects_version v
-            LEFT JOIN
-                    objects_history o
-            ON
-                    v.object_id = o.object_id
-            AND     v.object_version = o.object_version
-            AND     v.cp_sequence_number = o.checkpoint_sequence_number
+            SELECT * FROM (
+                SELECT
+                        v.object_id                                              AS original_id,
+                        v.object_id                                              AS object_id,
+                        v.object_version                                         AS object_version,
+                        COALESCE(co.object_status, bh.object_status)             AS object_status,
+                        COALESCE(co.object_digest, bh.object_digest)             AS object_digest,
+                        v.cp_sequence_number                                     AS checkpoint_sequence_number,
+                        COALESCE(co.owner_type, bh.owner_type)                   AS owner_type,
+                        COALESCE(co.owner_id, bh.owner_id)                       AS owner_id,
+                        COALESCE(co.object_type, bh.object_type)                 AS object_type,
+                        COALESCE(co.object_type_package, bh.object_type_package) AS object_type_package,
+                        COALESCE(co.object_type_module, bh.object_type_module)   AS object_type_module,
+                        COALESCE(co.object_type_name, bh.object_type_name)       AS object_type_name,
+                        COALESCE(co.serialized_object, bh.serialized_object)     AS serialized_object,
+                        COALESCE(co.coin_type, bh.coin_type)                     AS coin_type,
+                        COALESCE(co.coin_balance, bh.coin_balance)               AS coin_balance,
+                        COALESCE(co.df_kind, bh.df_kind)                         AS df_kind
+                FROM objects_version v
+                LEFT JOIN checkpointed_objects co
+                       ON co.object_id = v.object_id
+                      AND co.object_version = v.object_version
+                LEFT JOIN objects_backward_history bh
+                       ON bh.object_id = v.object_id
+                      AND bh.object_version = v.object_version
+                WHERE co.object_id IS NOT NULL
+                   OR bh.object_id IS NOT NULL
+            ) AS o
         "#
     );
 
     q = filter!(
         q,
         format!(
-            "v.object_id = '\\x{}'::bytea",
+            "o.object_id = '\\x{}'::bytea",
             hex::encode(package.into_vec())
         )
     );
 
     if let Some(after) = filter.as_ref().and_then(|f| f.after_version) {
         let a: u64 = after.into();
-        q = filter!(q, format!("v.object_version > {a}"));
+        q = filter!(q, format!("o.object_version > {a}"));
     }
 
     if let Some(before) = filter.as_ref().and_then(|f| f.before_version) {
         let b: u64 = before.into();
-        q = filter!(q, format!("v.object_version < {b}"));
+        q = filter!(q, format!("o.object_version < {b}"));
     }
 
     q
 }
 
-/// Query for fetching all the versions of a non-system package (assumes that
-/// `package` has already been verified as a system package)
+/// Query for fetching all the versions of a non-system (user) package
+/// (assumes that `package` has already been verified as a non-system package).
+/// `package` can be any version's ID — it doesn't have to be the `original_id`.
 fn user_package_version_query(
     package: IotaAddress,
     filter: Option<MovePackageVersionFilter>,
 ) -> RawQuery {
+    // User packages are immutable — each upgrade publishes a fresh `object_id`,
+    // so every user package row has a matching live row in `checkpointed_objects`,
+    // no need to query `objects_backward_history`.
     let mut q = query!(
         r#"
-            SELECT
-                    p.original_id,
-                    o.*
-            FROM
-                    packages q
-            INNER JOIN
-                    packages p
-            ON
-                    q.original_id = p.original_id
-            INNER JOIN
-                    objects_history o
-            ON
-                    p.package_id = o.object_id
-            AND     p.package_version = o.object_version
-            AND     p.checkpoint_sequence_number = o.checkpoint_sequence_number
+            SELECT p.original_id, o.*
+            FROM packages q
+            INNER JOIN packages p
+                   ON q.original_id = p.original_id
+            INNER JOIN checkpointed_objects o
+                   ON p.package_id = o.object_id
         "#
     );
 

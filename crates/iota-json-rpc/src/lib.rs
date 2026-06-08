@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, net::SocketAddr, str::FromStr};
+use std::{env, net::SocketAddr, str::FromStr, sync::Arc};
 
 use axum::{
     body::Body,
@@ -14,12 +14,12 @@ use hyper::{
     header::{HeaderName, HeaderValue},
 };
 pub use iota_config::node::ServerType;
-use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
+use iota_core::traffic_controller::TrafficController;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 use iota_open_rpc::{Module, Project};
-use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
+use iota_types::traffic_control::PolicyConfig;
 use jsonrpsee::{Extensions, RpcModule, types::ErrorObjectOwned};
 pub use object_changes::*;
 use prometheus::Registry;
@@ -62,8 +62,8 @@ pub struct JsonRpcServerBuilder {
     module: RpcModule<()>,
     rpc_doc: Project,
     registry: Registry,
+    traffic_controller: Option<Arc<TrafficController>>,
     policy_config: Option<PolicyConfig>,
-    firewall_config: Option<RemoteFirewallConfig>,
 }
 
 pub fn iota_rpc_doc(version: &str) -> Project {
@@ -83,15 +83,15 @@ impl JsonRpcServerBuilder {
     pub fn new(
         version: &str,
         prometheus_registry: &Registry,
+        traffic_controller: Option<Arc<TrafficController>>,
         policy_config: Option<PolicyConfig>,
-        firewall_config: Option<RemoteFirewallConfig>,
     ) -> Self {
         Self {
             module: RpcModule::new(()),
             rpc_doc: iota_rpc_doc(version),
             registry: prometheus_registry.clone(),
+            traffic_controller,
             policy_config,
-            firewall_config,
         }
     }
 
@@ -168,7 +168,6 @@ impl JsonRpcServerBuilder {
         let methods_names = module.method_names().collect::<Vec<_>>();
 
         let metrics_logger = MetricsLogger::new(&self.registry, &methods_names);
-        let traffic_controller_metrics = TrafficControllerMetrics::new(&self.registry);
 
         let middleware = tower::ServiceBuilder::new()
             .layer(Self::trace_layer())
@@ -178,9 +177,8 @@ impl JsonRpcServerBuilder {
             module.into(),
             rpc_router,
             metrics_logger,
-            self.firewall_config.clone(),
+            self.traffic_controller.clone(),
             self.policy_config.clone(),
-            traffic_controller_metrics,
             Extensions::new(),
         );
 

@@ -1433,6 +1433,7 @@ mod bcs_signable {
     impl BcsSignable for crate::committee::Committee {}
     impl BcsSignable for crate::messages_checkpoint::CheckpointSummary {}
     impl BcsSignable for crate::messages_checkpoint::CheckpointContents {}
+    #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 
     impl BcsSignable for crate::effects::TransactionEffects {}
@@ -1780,7 +1781,10 @@ impl FromStr for GenericSignature {
 
 // Types for randomness generation
 //
+#[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessSignature = fastcrypto_tbls::types::Signature;
+#[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessPartialSignature = fastcrypto_tbls::tbls::PartialSignature<RandomnessSignature>;
+#[cfg(not(target_arch = "wasm32"))]
 pub type RandomnessPrivateKey =
     fastcrypto_tbls::ecies_v1::PrivateKey<fastcrypto::groups::bls12381::G2Element>;

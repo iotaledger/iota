@@ -6,9 +6,11 @@
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
 pub use iota_sdk_types::move_core::TypeParseError;
+use iota_sdk_types::{CommandArgumentError, ObjectId, Owner};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
+#[cfg(not(target_arch = "wasm32"))]
 use tonic::Status;
 use typed_store_error::TypedStoreError;
 
@@ -16,9 +18,7 @@ use crate::{
     base_types::*,
     committee::{Committee, EpochId, StakeUnit},
     digests::CheckpointContentsDigest,
-    execution_status::CommandArgumentError,
     messages_checkpoint::CheckpointSequenceNumber,
-    object::Owner,
 };
 
 pub const TRANSACTION_NOT_FOUND_MSG_PREFIX: &str = "Could not find the referenced transaction";
@@ -40,7 +40,7 @@ macro_rules! fp_ensure {
     };
 }
 
-use crate::execution_status::ExecutionFailureStatus;
+use iota_sdk_types::ExecutionError as ExecutionFailureStatus;
 
 #[macro_export]
 macro_rules! exit_main {
@@ -87,12 +87,12 @@ macro_rules! assert_invariant {
 )]
 pub enum UserInputError {
     #[error("Mutable object {object_id} cannot appear more than once in one transaction")]
-    MutableObjectUsedMoreThanOnce { object_id: ObjectID },
+    MutableObjectUsedMoreThanOnce { object_id: ObjectId },
     #[error("Wrong number of parameters for the transaction")]
     ObjectInputArityViolation,
     #[error("Could not find the referenced object {object_id} at version {version:?}")]
     ObjectNotFound {
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: Option<SequenceNumber>,
     },
     #[error(
@@ -106,9 +106,9 @@ pub enum UserInputError {
     #[error("Package verification failed: {err}")]
     PackageVerificationTimedout { err: String },
     #[error("Dependent package not found on-chain: {package_id}")]
-    DependentPackageNotFound { package_id: ObjectID },
+    DependentPackageNotFound { package_id: ObjectId },
     #[error("Mutable parameter provided, immutable parameter expected")]
-    ImmutableParameterExpected { object_id: ObjectID },
+    ImmutableParameterExpected { object_id: ObjectId },
     #[error("Size limit exceeded: {limit} is {value}")]
     SizeLimitExceeded { limit: String, value: String },
     #[error(
@@ -116,20 +116,20 @@ pub enum UserInputError {
         Objects owned by other objects cannot be used as input arguments"
     )]
     InvalidChildObjectArgument {
-        child_id: ObjectID,
-        parent_id: ObjectID,
+        child_id: ObjectId,
+        parent_id: ObjectId,
     },
     #[error("Invalid Object digest for object {object_id}. Expected digest : {expected_digest}")]
     InvalidObjectDigest {
-        object_id: ObjectID,
+        object_id: ObjectId,
         expected_digest: ObjectDigest,
     },
     #[error("Sequence numbers above the maximal value are not usable for transfers")]
     InvalidSequenceNumber,
     #[error("A move object is expected, instead a move package is passed: {object_id}")]
-    MovePackageAsObject { object_id: ObjectID },
+    MovePackageAsObject { object_id: ObjectId },
     #[error("A move package is expected, instead a move object is passed: {object_id}")]
-    MoveObjectAsPackage { object_id: ObjectID },
+    MoveObjectAsPackage { object_id: ObjectId },
     #[error("Transaction was not signed by the correct sender: {}", error)]
     IncorrectUserSignature { error: String },
 
@@ -138,7 +138,7 @@ pub enum UserInputError {
     #[error("The transaction inputs contain duplicated ObjectRef's")]
     DuplicateObjectRefInput,
     #[error("A transaction input {object_id} is inconsistent")]
-    InconsistentInput { object_id: ObjectID },
+    InconsistentInput { object_id: ObjectId },
 
     // Gas related errors
     #[error("Transaction gas payment missing")]
@@ -172,7 +172,7 @@ pub enum UserInputError {
     #[error("Gas price cannot exceed {} nanos", max_gas_price)]
     GasPriceTooHigh { max_gas_price: u64 },
     #[error("Object {object_id} is not a gas object")]
-    InvalidGasObject { object_id: ObjectID },
+    InvalidGasObject { object_id: ObjectId },
     #[error("Gas object does not have enough balance to cover minimal gas spend")]
     InsufficientBalanceToCoverMinimalGas,
 
@@ -183,7 +183,7 @@ pub enum UserInputError {
         latest_version
     )]
     ObjectSequenceNumberTooHigh {
-        object_id: ObjectID,
+        object_id: ObjectId,
         asked_version: SequenceNumber,
         latest_version: SequenceNumber,
     },
@@ -212,7 +212,7 @@ pub enum UserInputError {
     #[error(
         "Attempt to transfer object {object_id} that does not have public transfer. Object transfer must be done instead using a distinct Move function call"
     )]
-    TransferObjectWithoutPublicTransfer { object_id: ObjectID },
+    TransferObjectWithoutPublicTransfer { object_id: ObjectId },
 
     #[error(
         "TransferObjects, MergeCoin, and Publish cannot have empty arguments. \
@@ -248,7 +248,7 @@ pub enum UserInputError {
     TransactionCursorNotFound(u64),
 
     #[error("Object {object_id} is a system object and cannot be accessed by user transactions")]
-    InaccessibleSystemObject { object_id: ObjectID },
+    InaccessibleSystemObject { object_id: ObjectId },
     #[error(
         "{max_publish_commands} max publish/upgrade commands allowed, {publish_count} provided"
     )]
@@ -258,7 +258,7 @@ pub enum UserInputError {
     },
 
     #[error("Immutable parameter provided, mutable parameter expected for {object_id}")]
-    MutableParameterExpected { object_id: ObjectID },
+    MutableParameterExpected { object_id: ObjectId },
 
     #[error("Address {address} is denied for coin {coin_type}")]
     AddressDeniedForCoin {
@@ -302,7 +302,7 @@ pub enum UserInputError {
         "Account object {account_id} with version {account_version} was deleted in transaction {transaction_digest}"
     )]
     AccountObjectDeleted {
-        account_id: ObjectID,
+        account_id: ObjectId,
         account_version: SequenceNumber,
         transaction_digest: TransactionDigest,
     },
@@ -310,16 +310,16 @@ pub enum UserInputError {
         "Account object {account_id} with version {account_version} is used in a canceled transaction"
     )]
     AccountObjectInCanceledTransaction {
-        account_id: ObjectID,
+        account_id: ObjectId,
         account_version: SequenceNumber,
     },
     #[error("Account object {object_id} is not a shared or immutable object that is unsupported")]
-    AccountObjectNotSupported { object_id: ObjectID },
+    AccountObjectNotSupported { object_id: ObjectId },
     #[error(
         "The fetched account object version {actual_version} does not match the expected version {expected_version}, object id: {object_id}"
     )]
     AccountObjectVersionMismatch {
-        object_id: ObjectID,
+        object_id: ObjectId,
         expected_version: SequenceNumber,
         actual_version: SequenceNumber,
     },
@@ -327,7 +327,7 @@ pub enum UserInputError {
         "The fetched account object digest {actual_digest} does not match the expected digest {expected_digest}, object id: {object_id}"
     )]
     InvalidAccountObjectDigest {
-        object_id: ObjectID,
+        object_id: ObjectId,
         expected_digest: ObjectDigest,
         actual_digest: ObjectDigest,
     },
@@ -336,31 +336,31 @@ pub enum UserInputError {
         "AuthenticatorFunctionRef {authenticator_function_ref_id} not found for account {account_object_id} with version {account_object_version}"
     )]
     MoveAuthenticatorNotFound {
-        authenticator_function_ref_id: ObjectID,
-        account_object_id: ObjectID,
+        authenticator_function_ref_id: ObjectId,
+        account_object_id: ObjectId,
         account_object_version: SequenceNumber,
     },
     #[error("Unable to get a `MoveAuthenticator` object ID for account {account_object_id}")]
-    UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
+    UnableToGetMoveAuthenticatorId { account_object_id: ObjectId },
     #[error(
         "Invalid authenticator function ref field value found for the account {account_object_id}"
     )]
-    InvalidAuthenticatorFunctionRefField { account_object_id: ObjectID },
+    InvalidAuthenticatorFunctionRefField { account_object_id: ObjectId },
 
     #[error("Package {package_id} is in the `MoveAuthenticator` input that is unsupported")]
-    PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
+    PackageIsInMoveAuthenticatorInput { package_id: ObjectId },
     #[error(
         "Address-owned object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
-    AddressOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    AddressOwnedIsInMoveAuthenticatorInput { object_id: ObjectId },
     #[error(
         "Object-owned object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
-    ObjectOwnedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    ObjectOwnedIsInMoveAuthenticatorInput { object_id: ObjectId },
     #[error(
         "Mutable shared object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
-    MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
+    MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectId },
 }
 
 /// Custom error type for Iota.
@@ -381,7 +381,7 @@ pub enum IotaError {
         "Input {object_id} already has {queue_len} transactions pending, above threshold of {threshold}"
     )]
     TooManyTransactionsPendingOnObject {
-        object_id: ObjectID,
+        object_id: ObjectId,
         queue_len: usize,
         threshold: usize,
     },
@@ -390,7 +390,7 @@ pub enum IotaError {
         "Input {object_id} has a transaction {txn_age_sec} seconds old pending, above threshold of {threshold} seconds"
     )]
     TooOldTransactionPendingOnObject {
-        object_id: ObjectID,
+        object_id: ObjectId,
         txn_age_sec: u64,
         threshold: u64,
     },
@@ -546,8 +546,8 @@ pub enum IotaError {
         but it's actual parent is {actual_owner}"
     )]
     InvalidChildObjectAccess {
-        object: ObjectID,
-        given_parent: ObjectID,
+        object: ObjectId,
+        given_parent: ObjectId,
         actual_owner: Owner,
     },
 
@@ -684,6 +684,9 @@ pub enum IotaError {
 
     #[error("The request did not contain a certificate")]
     NoCertificateProvided,
+
+    #[error("Invalid admin request: {0}")]
+    InvalidAdminRequest(String),
 }
 
 #[repr(u64)]
@@ -728,6 +731,7 @@ impl From<ExecutionError> for IotaError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<Status> for IotaError {
     fn from(status: Status) -> Self {
         if status.message() == "Too many requests" {
@@ -757,6 +761,7 @@ impl From<crate::storage::error::Error> for IotaError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<IotaError> for Status {
     fn from(error: IotaError) -> Self {
         let bytes = bcs::to_bytes(&error).unwrap();

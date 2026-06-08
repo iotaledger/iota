@@ -351,7 +351,7 @@ where
         match (&events, signed_effects.events_digest()) {
             (None, None) | (None, Some(_)) => {}
             (Some(events), None) => {
-                if !events.data.is_empty() {
+                if !events.is_empty() {
                     return Err(IotaError::ByzantineAuthoritySuspicion {
                         authority: self.address,
                         reason: "Returned events but no event digest present in the signed effects"

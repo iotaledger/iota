@@ -626,18 +626,6 @@ impl Merge<&TransactionEffects> for TransactionEffects {
     }
 }
 
-impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
-    type Error = RpcError;
-
-    fn merge(
-        &mut self,
-        source: iota_types::effects::TransactionEvents,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Self::Error> {
-        Merge::merge(self, &iota_sdk_types::TransactionEvents(source.data), mask)
-    }
-}
-
 impl Merge<&iota_sdk_types::TransactionEvents> for TransactionEvents {
     type Error = RpcError;
 

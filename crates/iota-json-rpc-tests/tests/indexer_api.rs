@@ -13,21 +13,22 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Command, Identifier, ObjectId, Owner, StructTag, TypeTag};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::IotaAddress,
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
@@ -38,7 +39,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     let (address, _) = deterministic_random_account_key();
 
     let nft = Nft {
-        id: UID::new(ObjectID::random()),
+        id: UID::new(ObjectId::random()),
         legacy_sender: Some(IotaAddress::ZERO),
         metadata: Some(String::from("metadata value").into_bytes()),
         tag: Some(String::from("tag value").into_bytes()),
@@ -214,7 +215,7 @@ async fn query_events_unsupported_filters() {
             path: String::default(),
             value: true.into(),
         },
-        EventFilter::Package(ObjectID::random()),
+        EventFilter::Package(ObjectId::random()),
     ];
 
     for event_filter in unsupported_filters {
@@ -453,7 +454,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         .data;
 
     // make 2 move calls of same package & module, but different functions
-    let package_id = ObjectID::FRAMEWORK;
+    let package_id = ObjectId::FRAMEWORK;
     let coin = objects.first().unwrap();
     let coin_2 = &objects[1];
     let signer = cluster.wallet.active_address().unwrap();
@@ -557,7 +558,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let bag = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_str("bag")?,
             Identifier::from_str("new")?,
             vec![],
@@ -568,7 +569,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let field_value_argument = builder.pure(0u64).expect("valid pure");
 
         let _ = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_str("bag")?,
             Identifier::from_str("add")?,
             vec![TypeTag::U64, TypeTag::U64],
@@ -642,7 +643,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let bag = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_str("object_bag")?,
             Identifier::from_str("new")?,
             vec![],
@@ -655,7 +656,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
             .unwrap();
 
         let _ = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectId::FRAMEWORK,
             Identifier::from_str("object_bag")?,
             Identifier::from_str("add")?,
             vec![

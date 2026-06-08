@@ -44,7 +44,10 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_sdk_types::{
+    ExecutionStatus, ObjectId, Owner, StructTag, TypeTag,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+};
 use iota_storage::{
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -58,12 +61,13 @@ use iota_types::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefV1, extract_auth_fun_refs,
         },
     },
+    auth_context::AuthContextData,
     base_types::{
-        AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType,
-        SequenceNumber, StructTag, TypeTag, VersionNumber,
+        AuthorityName, ConciseableName, IotaAddress, ObjectInfo, ObjectRef, ObjectType,
+        SequenceNumber, VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
@@ -78,7 +82,6 @@ use iota_types::{
     event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
-    execution_status::ExecutionStatus,
     fp_ensure,
     gas::{GasCostSummary, IotaGasStatus},
     gas_coin::NANOS_PER_IOTA,
@@ -108,7 +111,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     object::{
-        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{
@@ -117,6 +120,7 @@ use iota_types::{
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
+    traffic_control::{PolicyConfig, RemoteFirewallConfig, TrafficControlReconfigParams},
     transaction::*,
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
@@ -177,6 +181,7 @@ use crate::{
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
+    traffic_controller::{TrafficController, metrics::TrafficControllerMetrics},
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
     transaction_outputs::TransactionOutputs,
@@ -309,6 +314,9 @@ pub struct AuthorityMetrics {
     pub consensus_handler_leader_round: IntGauge,
     pub consensus_calculated_throughput: IntGauge,
     pub consensus_calculated_throughput_profile: IntGauge,
+
+    pub validator_scoreboard_scores: IntGaugeVec,
+    pub invalid_misbehavior_reports_by_authority: IntGaugeVec,
 
     pub limits_metrics: Arc<LimitsMetrics>,
 
@@ -683,6 +691,18 @@ impl AuthorityMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
+            validator_scoreboard_scores: register_int_gauge_vec_with_registry!(
+                "validator_scoreboard_scores",
+                "Per-authority validator scores published by the local Scoreboard after each consensus commit. Range [0, MAX_SCORE].",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            invalid_misbehavior_reports_by_authority: register_int_gauge_vec_with_registry!(
+                "invalid_misbehavior_reports_by_authority",
+                "Cumulative count of invalid misbehavior reports received from each reporting authority in the current epoch. Bumped when a `MisbehaviorReport` consensus transaction fails sender/authority match or payload validation. Snapshot republished after each consensus commit.",
+                &["authority"],
+                registry,
+            ).unwrap(),
             consensus_handler_deferred_transactions: register_int_counter_with_registry!(
                 "consensus_handler_deferred_transactions",
                 "Number of transactions deferred by consensus handler",
@@ -757,6 +777,8 @@ impl AuthorityMetrics {
     pub fn reset_on_reconfigure(&self) {
         self.consensus_committed_messages.reset();
         self.consensus_handler_scores.reset();
+        self.validator_scoreboard_scores.reset();
+        self.invalid_misbehavior_reports_by_authority.reset();
         self.consensus_committed_user_transactions.reset();
     }
 }
@@ -824,6 +846,9 @@ pub struct AuthorityState {
     chain_identifier: ChainIdentifier,
 
     pub(crate) congestion_tracker: Arc<CongestionTracker>,
+
+    /// Traffic controller for IOTA core servers (json-rpc, validator service)
+    pub traffic_controller: Option<Arc<TrafficController>>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -943,6 +968,19 @@ impl AuthorityState {
             &self.get_object_store(),
         )?;
 
+        let (kind, signer, gas_data) = tx_data.execution_parts();
+
+        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+            extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                move_authenticators
+                    .iter()
+                    .zip(per_authenticator_checked_inputs.iter())
+                    .find(|(move_authenticator, _)| {
+                        move_authenticator.address().ok().as_ref() == Some(&address)
+                    })
+                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
+            });
+
         // Filter the authenticators and their checked inputs down to those that must
         // be executed pre-consensus. This is done *after* the deny-list check so
         // that all MoveAuthenticator input objects are covered by that check regardless
@@ -1001,7 +1039,13 @@ impl AuthorityState {
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
 
-            let (kind, signer, gas_data) = tx_data.execution_parts();
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
 
             // Execute the Move authenticators.
             let validation_result = epoch_store.executor().authenticate_transaction(
@@ -1020,9 +1064,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction.digest().to_owned(),
-                tx_data_bytes,
-                sender_auth_digest,
-                sponsor_auth_digest,
+                auth_context_data,
                 &mut None,
             );
 
@@ -1261,7 +1303,7 @@ impl AuthorityState {
         // We could be re-executing a previously executed but uncommitted transaction,
         // perhaps after restarting with a new binary. In this situation, if
         // we have published an effects signature, we must be sure not to
-        // equivocate. TODO: read from cache instead of DB
+        // equivocate.
         let expected_effects_digest =
             expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
@@ -1501,6 +1543,19 @@ impl AuthorityState {
                 .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
         };
         Ok((effects, execution_error_opt))
+    }
+
+    pub async fn reconfigure_traffic_control(
+        &self,
+        params: TrafficControlReconfigParams,
+    ) -> Result<TrafficControlReconfigParams, IotaError> {
+        if let Some(traffic_controller) = self.traffic_controller.as_ref() {
+            traffic_controller.admin_reconfigure(params).await
+        } else {
+            Err(IotaError::InvalidAdminRequest(
+                "Traffic controller is not configured on this node".to_string(),
+            ))
+        }
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -1798,6 +1853,22 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                    move_authenticators
+                        .iter()
+                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
             epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
@@ -1817,9 +1888,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
-                    tx_data_bytes,
-                    sender_auth_digest,
-                    sponsor_auth_digest,
+                    auth_context_data,
                     &mut None,
                 )
         };
@@ -1871,9 +1940,9 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
         TransactionEffects,
-        Option<ObjectID>,
+        Option<ObjectId>,
     )> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
         if !self.is_fullnode(&epoch_store) {
@@ -1898,9 +1967,9 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
         TransactionEffects,
-        Option<ObjectID>,
+        Option<ObjectId>,
     )> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
         self.dry_exec_transaction_impl(&epoch_store, transaction, transaction_digest)
@@ -1915,9 +1984,9 @@ impl AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectID, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
         TransactionEffects,
-        Option<ObjectID>,
+        Option<ObjectId>,
     )> {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
@@ -1947,7 +2016,7 @@ impl AuthorityState {
         let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.gas_owner();
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             let gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
                     OBJECT_START_VERSION,
@@ -2151,7 +2220,7 @@ impl AuthorityState {
             let mock_gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
                     OBJECT_START_VERSION,
-                    ObjectID::MAX,
+                    ObjectId::MAX,
                     SIMULATION_GAS_COIN_VALUE,
                 ),
                 Owner::Address(transaction.gas_data().owner),
@@ -3044,6 +3113,7 @@ impl AuthorityState {
     }
 
     #[expect(clippy::disallowed_methods)] // allow unbounded_channel()
+    #[expect(clippy::too_many_arguments)]
     pub async fn new(
         name: AuthorityName,
         secret: StableSyncAuthoritySigner,
@@ -3064,6 +3134,8 @@ impl AuthorityState {
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
+        policy_config: Option<PolicyConfig>,
+        firewall_config: Option<RemoteFirewallConfig>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3104,6 +3176,20 @@ impl AuthorityState {
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
         let rgp = epoch_store.reference_gas_price();
+        let traffic_controller_metrics =
+            Arc::new(TrafficControllerMetrics::new(prometheus_registry));
+        let traffic_controller = if let Some(policy_config) = policy_config {
+            Some(Arc::new(
+                TrafficController::init(
+                    policy_config,
+                    traffic_controller_metrics,
+                    firewall_config.clone(),
+                )
+                .await,
+            ))
+        } else {
+            None
+        };
         let state = Arc::new(AuthorityState {
             name,
             secret,
@@ -3128,6 +3214,7 @@ impl AuthorityState {
             validator_tx_finalizer,
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
+            traffic_controller,
         });
 
         // Start a task to execute ready certificates.
@@ -3451,10 +3538,6 @@ impl AuthorityState {
             }
         }
 
-        self.get_reconfig_api()
-            .reconfigure_cache(&epoch_start_configuration)
-            .await;
-
         let new_epoch = new_committee.epoch;
         let new_epoch_store = self
             .reopen_epoch_db(
@@ -3663,14 +3746,14 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn try_get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
+    pub async fn try_get_object(&self, object_id: &ObjectId) -> IotaResult<Option<Object>> {
         self.get_object_store()
             .try_get_object(object_id)
             .map_err(Into::into)
     }
 
     /// Non-fallible version of `try_get_object`.
-    pub async fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+    pub async fn get_object(&self, object_id: &ObjectId) -> Option<Object> {
         self.try_get_object(object_id)
             .await
             .expect("storage access failed")
@@ -3678,7 +3761,7 @@ impl AuthorityState {
 
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .try_get_object(&ObjectID::SYSTEM)
+            .try_get_object(&ObjectId::SYSTEM)
             .await?
             .expect("system package should always exist")
             .compute_object_reference())
@@ -3754,7 +3837,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn get_object_read(&self, object_id: &ObjectID) -> IotaResult<ObjectRead> {
+    pub fn get_object_read(&self, object_id: &ObjectId) -> IotaResult<ObjectRead> {
         Ok(
             match self
                 .get_object_cache_reader()
@@ -3776,7 +3859,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn get_move_object<T>(&self, object_id: &ObjectID) -> IotaResult<T>
+    pub fn get_move_object<T>(&self, object_id: &ObjectId) -> IotaResult<T>
     where
         T: DeserializeOwned,
     {
@@ -3802,7 +3885,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_past_object_read(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<PastObjectRead> {
         // Firstly we see if the object ever existed by getting its latest data
@@ -3856,7 +3939,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     fn read_object_at_version(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
         let Some(object) = self
@@ -3889,7 +3972,7 @@ impl AuthorityState {
 
     fn get_owner_at_version(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Owner> {
         self.get_object_store()
@@ -3908,7 +3991,7 @@ impl AuthorityState {
         &self,
         owner: IotaAddress,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<Vec<ObjectInfo>> {
@@ -3924,10 +4007,10 @@ impl AuthorityState {
         &self,
         owner: IotaAddress,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: (String, ObjectID),
+        cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
-    ) -> IotaResult<impl Iterator<Item = (String, ObjectID, CoinInfo)> + '_> {
+    ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
         if let Some(indexes) = &self.indexes {
             indexes.get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)
         } else {
@@ -3940,10 +4023,10 @@ impl AuthorityState {
         &self,
         owner: IotaAddress,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
-        let cursor_u = cursor.unwrap_or(ObjectID::ZERO);
+        let cursor_u = cursor.unwrap_or(ObjectId::ZERO);
         if let Some(indexes) = &self.indexes {
             indexes.get_owner_objects_iterator(owner, cursor_u, filter)
         } else {
@@ -3996,11 +4079,11 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_dynamic_fields(
         &self,
-        owner: ObjectID,
+        owner: ObjectId,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
-    ) -> IotaResult<Vec<(ObjectID, DynamicFieldInfo)>> {
+    ) -> IotaResult<Vec<(ObjectId, DynamicFieldInfo)>> {
         Ok(self
             .get_dynamic_fields_iterator(owner, cursor)?
             .take(limit)
@@ -4009,10 +4092,10 @@ impl AuthorityState {
 
     fn get_dynamic_fields_iterator(
         &self,
-        owner: ObjectID,
+        owner: ObjectId,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
-    ) -> IotaResult<impl Iterator<Item = Result<(ObjectID, DynamicFieldInfo), TypedStoreError>> + '_>
+        cursor: Option<ObjectId>,
+    ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
     {
         if let Some(indexes) = &self.indexes {
             indexes.get_dynamic_fields_iterator(owner, cursor)
@@ -4024,10 +4107,10 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_dynamic_field_object_id(
         &self,
-        owner: ObjectID,
+        owner: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> IotaResult<Option<ObjectID>> {
+    ) -> IotaResult<Option<ObjectId>> {
         if let Some(indexes) = &self.indexes {
             indexes.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)
         } else {
@@ -4199,7 +4282,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn find_publish_txn_digest(&self, package_id: ObjectID) -> IotaResult<TransactionDigest> {
+    pub fn find_publish_txn_digest(&self, package_id: ObjectId) -> IotaResult<TransactionDigest> {
         if package_id.is_system_package() {
             return self.find_genesis_txn_digest();
         }
@@ -4412,7 +4495,7 @@ impl AuthorityState {
                         .get(&k.1)
                         .expect("fetched digest is missing")
                         .clone()
-                        .and_then(|e| e.data.get(k.2).cloned()),
+                        .and_then(|e| e.get(k.2).cloned()),
                 )
             })
             .map(
@@ -4681,12 +4764,12 @@ impl AuthorityState {
         epoch_store.get_signed_transaction(&lock_info)
     }
 
-    pub async fn try_get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
+    pub async fn try_get_objects(&self, objects: &[ObjectId]) -> IotaResult<Vec<Option<Object>>> {
         self.get_object_cache_reader().try_get_objects(objects)
     }
 
     /// Non-fallible version of `try_get_objects`.
-    pub async fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {
+    pub async fn get_objects(&self, objects: &[ObjectId]) -> Vec<Option<Object>> {
         self.try_get_objects(objects)
             .await
             .expect("storage access failed")
@@ -4694,14 +4777,14 @@ impl AuthorityState {
 
     pub async fn try_get_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IotaResult<Option<ObjectRef>> {
         self.get_object_cache_reader()
             .try_get_latest_object_ref_or_tombstone(object_id)
     }
 
     /// Non-fallible version of `try_get_object_or_tombstone`.
-    pub async fn get_object_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
+    pub async fn get_object_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectRef> {
         self.try_get_object_or_tombstone(object_id)
             .await
             .expect("storage access failed")
@@ -5291,7 +5374,7 @@ impl AuthorityState {
         // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
-            .data
+            .0
             .into_iter()
             .find(|event| event.is_system_epoch_info_event())
             .map(SystemEpochInfoEvent::from);
@@ -5396,7 +5479,7 @@ impl AuthorityState {
     /// account-related `AuthenticatorFunctionRef` object.
     fn check_move_account(
         &self,
-        auth_account_object_id: ObjectID,
+        auth_account_object_id: ObjectId,
         auth_account_object_seq_number: Option<SequenceNumber>,
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
@@ -5494,11 +5577,11 @@ impl AuthorityState {
                 .expect("dynamic field should never be a package object");
 
             let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> =
-                field_move_object.to_rust().ok_or(
+                field_move_object.to_rust().map_err(|_| {
                     UserInputError::InvalidAuthenticatorFunctionRefField {
                         account_object_id: auth_account_object_id,
-                    },
-                )?;
+                    }
+                })?;
 
             Ok(AuthenticatorFunctionRefForExecution::new_v1(
                 field.value,
@@ -5870,7 +5953,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
 
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
         self.get_object_cache_reader()
@@ -5924,10 +6007,11 @@ pub mod framework_injection {
     };
 
     use iota_framework::{BuiltInFramework, SystemPackage};
-    use iota_types::base_types::{AuthorityName, ObjectID};
+    use iota_sdk_types::ObjectId;
+    use iota_types::base_types::AuthorityName;
     use move_binary_format::CompiledModule;
 
-    type FrameworkOverrideConfig = BTreeMap<ObjectID, PackageOverrideConfig>;
+    type FrameworkOverrideConfig = BTreeMap<ObjectId, PackageOverrideConfig>;
 
     // Thread local cache because all simtests run in a single unique thread.
     thread_local! {
@@ -5955,21 +6039,21 @@ pub mod framework_injection {
             .collect()
     }
 
-    pub fn set_override(package_id: ObjectID, modules: Vec<CompiledModule>) {
+    pub fn set_override(package_id: ObjectId, modules: Vec<CompiledModule>) {
         OVERRIDE.with(|bs| {
             bs.borrow_mut()
                 .insert(package_id, PackageOverrideConfig::Global(modules))
         });
     }
 
-    pub fn set_override_cb(package_id: ObjectID, func: PackageUpgradeCallback) {
+    pub fn set_override_cb(package_id: ObjectId, func: PackageUpgradeCallback) {
         OVERRIDE.with(|bs| {
             bs.borrow_mut()
                 .insert(package_id, PackageOverrideConfig::PerValidator(func))
         });
     }
 
-    pub fn get_override_bytes(package_id: &ObjectID, name: AuthorityName) -> Option<Vec<Vec<u8>>> {
+    pub fn get_override_bytes(package_id: &ObjectId, name: AuthorityName) -> Option<Vec<Vec<u8>>> {
         OVERRIDE.with(|cfg| {
             cfg.borrow().get(package_id).and_then(|entry| match entry {
                 PackageOverrideConfig::Global(framework) => {
@@ -5983,7 +6067,7 @@ pub mod framework_injection {
     }
 
     pub fn get_override_modules(
-        package_id: &ObjectID,
+        package_id: &ObjectId,
         name: AuthorityName,
     ) -> Option<Vec<CompiledModule>> {
         OVERRIDE.with(|cfg| {
@@ -5995,7 +6079,7 @@ pub mod framework_injection {
     }
 
     pub fn get_override_system_package(
-        package_id: &ObjectID,
+        package_id: &ObjectId,
         name: AuthorityName,
     ) -> Option<SystemPackage> {
         let bytes = get_override_bytes(package_id, name)?;
@@ -6017,7 +6101,7 @@ pub mod framework_injection {
 
     pub fn get_extra_packages(name: AuthorityName) -> Vec<SystemPackage> {
         let built_in = BTreeSet::from_iter(BuiltInFramework::all_package_ids());
-        let extra: Vec<ObjectID> = OVERRIDE.with(|cfg| {
+        let extra: Vec<ObjectId> = OVERRIDE.with(|cfg| {
             cfg.borrow()
                 .keys()
                 .filter_map(|package| (!built_in.contains(package)).then_some(*package))
@@ -6037,7 +6121,7 @@ pub mod framework_injection {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ObjDumpFormat {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub version: VersionNumber,
     pub digest: ObjectDigest,
     pub object: Object,

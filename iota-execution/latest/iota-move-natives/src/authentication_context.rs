@@ -5,12 +5,15 @@ use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
 use iota_types::{
+    account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     auth_context::{AuthContext, MoveCallArg, MoveCommand},
     digests::{Digest, MoveAuthenticatorDigest},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
-    gas_algebra::AbstractMemorySize, runtime_value::MoveTypeLayout, vm_status::StatusCode,
+    gas_algebra::AbstractMemorySize,
+    runtime_value::{MoveStructLayout, MoveTypeLayout},
+    vm_status::StatusCode,
 };
 use move_vm_runtime::native_extensions::NativeExtensionMarker;
 use move_vm_types::values::{GlobalValue, StructRef, Value};
@@ -36,6 +39,8 @@ pub struct AuthenticationContext {
     cached_digest: Option<GlobalValue>,
     cached_sender_auth_digest: Option<GlobalValue>,
     cached_sponsor_auth_digest: Option<GlobalValue>,
+    cached_sender_authenticator_function_info_v1: Option<GlobalValue>,
+    cached_sponsor_authenticator_function_info_v1: Option<GlobalValue>,
     cached_tx_inputs: Option<(GlobalValue, AbstractMemorySize)>,
     cached_tx_commands: Option<(GlobalValue, AbstractMemorySize)>,
     cached_tx_data_bytes: Option<(GlobalValue, AbstractMemorySize)>,
@@ -51,6 +56,8 @@ impl AuthenticationContext {
             cached_digest: None,
             cached_sender_auth_digest: None,
             cached_sponsor_auth_digest: None,
+            cached_sender_authenticator_function_info_v1: None,
+            cached_sponsor_authenticator_function_info_v1: None,
             cached_tx_inputs: None,
             cached_tx_commands: None,
             cached_tx_data_bytes: None,
@@ -64,6 +71,8 @@ impl AuthenticationContext {
             cached_digest: None,
             cached_sender_auth_digest: None,
             cached_sponsor_auth_digest: None,
+            cached_sender_authenticator_function_info_v1: None,
+            cached_sponsor_authenticator_function_info_v1: None,
             cached_tx_inputs: None,
             cached_tx_commands: None,
             cached_tx_data_bytes: None,
@@ -118,8 +127,6 @@ impl AuthenticationContext {
     /// Returns a `Value` containing the sponsor's auth digest ref, or `None`
     /// for non-sponsored transactions.
     pub fn sponsor_auth_digest_ref(&mut self) -> PartialVMResult<Value> {
-        use move_core_types::runtime_value::MoveStructLayout;
-
         if self.cached_sponsor_auth_digest.is_none() {
             let auth_context = self.auth_context.borrow();
             let bytes: Option<Vec<u8>> = auth_context
@@ -137,6 +144,76 @@ impl AuthenticationContext {
         }
 
         self.cached_sponsor_auth_digest
+            .as_ref()
+            .unwrap()
+            .borrow_global()
+            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+            .value_as::<StructRef>()?
+            .borrow_field(0)
+    }
+
+    /// Returns a `Value` containing the sender's authenticator function info as
+    /// a Move `Option`. Returns `None` if the sender did not use a
+    /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
+    /// signature.
+    pub fn sender_authenticator_function_info_v1_ref(
+        &mut self,
+        authenticator_function_info_v1_type_layout: MoveTypeLayout,
+    ) -> PartialVMResult<Value> {
+        if self.cached_sender_authenticator_function_info_v1.is_none() {
+            let auth_context = self.auth_context.borrow();
+            let sender_authenticator_function_ref_v1_opt: Option<AuthenticatorFunctionRefV1> =
+                auth_context.sender_authenticator_function_ref_v1().cloned();
+            let option_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![
+                MoveTypeLayout::Vector(Box::new(authenticator_function_info_v1_type_layout)),
+            ]))));
+            self.cached_sender_authenticator_function_info_v1 = Some(
+                utils::to_global_value(
+                    &(sender_authenticator_function_ref_v1_opt,),
+                    option_layout,
+                )?
+                .0,
+            );
+        }
+
+        self.cached_sender_authenticator_function_info_v1
+            .as_ref()
+            .unwrap()
+            .borrow_global()
+            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+            .value_as::<StructRef>()?
+            .borrow_field(0)
+    }
+
+    /// Returns a `Value` containing the sponsor's authenticator function info
+    /// as a Move `Option`. Returns `None` if the sponsor did not use a
+    /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
+    /// signature or the transaction has no sponsor.
+    pub fn sponsor_authenticator_function_info_v1_ref(
+        &mut self,
+        authenticator_function_info_v1_type_layout: MoveTypeLayout,
+    ) -> PartialVMResult<Value> {
+        use move_core_types::runtime_value::MoveStructLayout;
+
+        if self.cached_sponsor_authenticator_function_info_v1.is_none() {
+            let auth_context = self.auth_context.borrow();
+            let sponsor_authenticator_function_ref_v1_opt: Option<AuthenticatorFunctionRefV1> =
+                auth_context
+                    .sponsor_authenticator_function_ref_v1()
+                    .cloned();
+            let option_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![
+                MoveTypeLayout::Vector(Box::new(authenticator_function_info_v1_type_layout)),
+            ]))));
+            self.cached_sponsor_authenticator_function_info_v1 = Some(
+                utils::to_global_value(
+                    &(sponsor_authenticator_function_ref_v1_opt,),
+                    option_layout,
+                )?
+                .0,
+            );
+        }
+
+        self.cached_sponsor_authenticator_function_info_v1
             .as_ref()
             .unwrap()
             .borrow_global()
@@ -255,6 +332,8 @@ impl AuthenticationContext {
         tx_data_bytes_opt: Option<Vec<u8>>,
         sender_auth_digest_opt: Option<Vec<u8>>,
         sponsor_auth_digest_opt: Option<Option<Vec<u8>>>,
+        sender_authenticator_function_ref_v1_opt: Option<Option<AuthenticatorFunctionRefV1>>,
+        sponsor_authenticator_function_ref_v1_opt: Option<Option<AuthenticatorFunctionRefV1>>,
     ) -> PartialVMResult<()> {
         if !self.test_only {
             return Err(
@@ -299,6 +378,22 @@ impl AuthenticationContext {
             None => self.auth_context.borrow().sponsor_auth_digest().copied(),
         };
 
+        let sender_authenticator_function_ref_v1 = sender_authenticator_function_ref_v1_opt
+            .unwrap_or(
+                self.auth_context
+                    .borrow()
+                    .sender_authenticator_function_ref_v1()
+                    .cloned(),
+            );
+
+        let sponsor_authenticator_function_ref_v1 = sponsor_authenticator_function_ref_v1_opt
+            .unwrap_or(
+                self.auth_context
+                    .borrow()
+                    .sponsor_authenticator_function_ref_v1()
+                    .cloned(),
+            );
+
         self.auth_context.borrow_mut().replace(
             auth_digest,
             tx_inputs,
@@ -306,6 +401,8 @@ impl AuthenticationContext {
             tx_data_bytes,
             sender_auth_digest,
             sponsor_auth_digest,
+            sender_authenticator_function_ref_v1,
+            sponsor_authenticator_function_ref_v1,
         );
 
         // Drop cached values to ensure they are recreated with the updated AuthContext
@@ -313,6 +410,8 @@ impl AuthenticationContext {
         self.cached_digest = None;
         self.cached_sender_auth_digest = None;
         self.cached_sponsor_auth_digest = None;
+        self.cached_sender_authenticator_function_info_v1 = None;
+        self.cached_sponsor_authenticator_function_info_v1 = None;
         self.cached_tx_inputs = None;
         self.cached_tx_commands = None;
         self.cached_tx_data_bytes = None;

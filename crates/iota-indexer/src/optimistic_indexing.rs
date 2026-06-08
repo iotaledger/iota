@@ -7,9 +7,10 @@ use downcast::Any;
 use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
 use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
-    effects::{TransactionEffectsAPI, TransactionEvents},
+    base_types::{SequenceNumber, TransactionDigest},
+    effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
@@ -103,7 +104,7 @@ impl OptimisticTransactionExecutor {
 
     pub(crate) async fn wait_for_dependencies(
         &self,
-        input_obj_keys: Vec<(ObjectID, SequenceNumber)>,
+        input_obj_keys: Vec<(ObjectId, SequenceNumber)>,
     ) -> Result<(), IndexerError> {
         let backoff = backoff::ExponentialBackoff {
             initial_interval: Duration::from_millis(100),
@@ -168,7 +169,7 @@ impl OptimisticTransactionExecutor {
         // all fields should be Some, the only exception should be `checkpoint` &
         // `timestamp` fields which are always None.
         let effects = executed_transaction.effects()?.effects()?;
-        let events = TransactionEvents::from(executed_transaction.events()?.events()?);
+        let events = executed_transaction.events()?.events()?;
         let input_objects = grpc_conversion::objects(executed_transaction.input_objects()?)?;
         let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
 

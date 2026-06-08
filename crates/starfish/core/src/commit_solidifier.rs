@@ -198,6 +198,9 @@ impl CommitSolidifier {
                 .map(|tx| tx.expect("Transaction must exist since we checked"))
                 .collect();
 
+            // Delayed subdags see current store state, not state at leader-round
+            // commit time. Safe: counts are absolute and consumers merge-max.
+            let misbehavior_counts = dag_state.misbehavior_store().snapshot_totals();
             Ok(CommittedSubDag::new(
                 subdag.leader,
                 subdag.base.headers.clone(),
@@ -206,6 +209,7 @@ impl CommitSolidifier {
                 subdag.timestamp_ms,
                 subdag.commit_ref,
                 subdag.reputation_scores_desc.clone(),
+                misbehavior_counts,
             ))
         } else {
             Err(missing)
@@ -249,7 +253,7 @@ mod tests {
             let context = Arc::new(context);
             let dag_state = Arc::new(RwLock::new(DagState::new(
                 context.clone(),
-                Arc::new(crate::storage::mem_store::MemStore::new(context.clone())),
+                Arc::new(crate::storage::mem_store::MemStore::new()),
             )));
             let mut dag_builder = DagBuilder::new(context.clone());
             dag_builder
@@ -279,7 +283,7 @@ mod tests {
         ) -> Arc<RwLock<DagState>> {
             let selective_dag_state = Arc::new(RwLock::new(DagState::new(
                 self.context.clone(),
-                Arc::new(MemStore::new(self.context.clone())),
+                Arc::new(MemStore::new()),
             )));
 
             let mut state = selective_dag_state.write();

@@ -7,7 +7,7 @@
 // cp 2: Object mutated (version 3)
 // Query objects() without filter at cp 1: should show version 2, not 3.
 
-//# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator --objects-snapshot-min-checkpoint-lag 1
+//# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator
 
 //# publish
 module P0::m {

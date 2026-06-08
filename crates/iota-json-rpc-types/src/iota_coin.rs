@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
     balance::Supply,
-    base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectDigest, ObjectRef, SequenceNumber, TransactionDigest},
     coin::CoinMetadata,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -17,12 +18,12 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 use crate::{
     Page,
     iota_primitives::{
-        Base58 as Base58Schema, ObjectID as ObjectIDSchema,
+        Base58 as Base58Schema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema,
     },
 };
 
-pub type CoinPage = Page<Coin, ObjectID>;
+pub type CoinPage = Page<Coin, ObjectId>;
 
 #[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
@@ -94,16 +95,19 @@ impl Balance {
 #[serde(rename_all = "camelCase")]
 pub struct Coin {
     pub coin_type: String,
-    #[schemars(with = "ObjectIDSchema")]
-    pub coin_object_id: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub coin_object_id: ObjectId,
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
     pub version: SequenceNumber,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub balance: u64,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub previous_transaction: TransactionDigest,
 }
@@ -129,8 +133,9 @@ pub struct IotaCoinMetadata {
     /// URL for the token logo
     pub icon_url: Option<String>,
     /// Object id for the CoinMetadata object
-    #[schemars(with = "Option<ObjectIDSchema>")]
-    pub id: Option<ObjectID>,
+    #[serde_as(as = "Option<ObjectIdSchema>")]
+    #[schemars(with = "Option<ObjectIdSchema>")]
+    pub id: Option<ObjectId>,
 }
 
 impl TryFrom<Object> for IotaCoinMetadata {
