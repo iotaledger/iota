@@ -234,6 +234,10 @@ impl EpochBoundaryVerifier {
 
     /// Fetches a single checkpoint summary into memory.
     ///
+    /// The method downloads the file with the respective batch of checkpoints,
+    /// and then gets the summary from the full-checkpoint data that match the
+    /// requested `sequence_number`.
+    ///
     /// # Errors
     ///
     /// Fails if the checkpoint cannot be read from the remote store, or if
