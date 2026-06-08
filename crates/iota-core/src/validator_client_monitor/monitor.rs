@@ -72,7 +72,6 @@ impl ValidatorClientMonitor {
         )
     }
 
-    /// Background task that runs periodic health checks on all validators.
     fn spawn_health_checks_tasks<A: AuthorityAPI + Send + Sync + 'static>(
         self: Arc<Self>,
         authority_agg: &Arc<AuthorityAggregator<A>>,
@@ -111,6 +110,7 @@ impl ValidatorClientMonitor {
         tasks
     }
 
+    /// Background task that runs periodic health checks on all validators.
     async fn run_health_checks<A: AuthorityAPI + Send + Sync + 'static>(
         monitor: Weak<Self>,
         authority_aggregator: Weak<ArcSwap<AuthorityAggregator<A>>>,
