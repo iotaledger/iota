@@ -118,68 +118,7 @@ task 9, lines 92-115:
 //# run-graphql
 Response: {
   "data": {
-    "object": {
-      "dynamicFields": {
-        "nodes": [
-          {
-            "name": {
-              "bcs": "AAAAAAAAAAA=",
-              "data": {
-                "Number": "0"
-              },
-              "type": {
-                "repr": "u64"
-              }
-            },
-            "value": {
-              "__typename": "MoveObject"
-            }
-          },
-          {
-            "name": {
-              "bcs": "AAAAAAAAAAA=",
-              "data": {
-                "Number": "0"
-              },
-              "type": {
-                "repr": "u64"
-              }
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "bcs": "AA==",
-              "data": {
-                "Vector": []
-              },
-              "type": {
-                "repr": "vector<u8>"
-              }
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "bcs": "AA==",
-              "data": {
-                "Bool": false
-              },
-              "type": {
-                "repr": "bool"
-              }
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          }
-        ]
-      }
-    }
+    "object": null
   }
 }
 
