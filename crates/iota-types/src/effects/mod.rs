@@ -238,12 +238,12 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)>;
 }
 
-/// Test-only mutators and unchecked builders for [`TransactionEffects`] that
-/// bypass the normal invariants. Not for production use.
+/// Test-only mutators for [`TransactionEffects`] that bypass the normal
+/// invariants. Not for production use.
 pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
     // All of these should be #[cfg(test)], but they are used by tests in other
-    // crates, and dependencies don't get built with cfg(test) set as far as I
-    // can tell.
+    // crates.
+
     /// Returns a mutable reference to the execution status, for tests.
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
 
@@ -353,10 +353,11 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     }
 }
 
-/// Test-only counterpart to [`TransactionEffectsExt`]: enum-level extensions
-/// (version-selecting constructors and aggregating helpers). Sealed;
-/// implemented for the enum only.
+/// Test-only counterpart to [`TransactionEffectsExt`]. Not for production use.
 pub trait TransactionEffectsExtForTesting: transaction_effects_ext::Sealed {
+    // All of these should be #[cfg(test)], but they are used by tests in other
+    // crates.
+
     /// Build empty V1 effects for `transaction_digest`: success status, no
     /// object changes, and no gas object. For tests that need a placeholder
     /// whose effects content is irrelevant, e.g. system transactions.
