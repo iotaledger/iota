@@ -473,15 +473,6 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    pub fn id(&self) -> ObjectId {
-        use Data::*;
-
-        match &self.data {
-            Struct(v) => v.id(),
-            Package(m) => m.id(),
-        }
-    }
-
     pub fn type_(&self) -> Option<&MoveObjectType> {
         self.data.object_type()
     }
