@@ -64,13 +64,14 @@ impl<A> RequestRetrier<A> {
         let mut ranked_clients = client_monitor
             .select_shuffled_preferred_validators(committee)
             .into_iter()
-            .filter_map(|name| {
+            .map(|name| {
                 // There is a guarantee that the `name` is in the
                 // `auth_agg.authority_clients`, as the provided `auth_agg` is the same.
-                auth_agg
+                let client = auth_agg
                     .authority_clients
                     .get(name)
-                    .map(|client| (*name, client.clone()))
+                    .expect("selected validators names must be known to authority aggregator");
+                (*name, client.clone())
             })
             .collect::<Vec<_>>();
         // Ranked clients are consumed in reverse order.
