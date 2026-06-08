@@ -20,11 +20,9 @@ use serde::{Deserialize, Serialize};
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectRef, SequenceNumber, TransactionDigest,
-    },
+    base_types::{IotaAddress, MoveObjectType, ObjectRef, SequenceNumber, TransactionDigest},
     coin::{Coin, CoinMetadata, TreasuryCap},
-    crypto::{default_hash, deterministic_random_account_key},
+    crypto::deterministic_random_account_key,
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
@@ -475,10 +473,6 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    pub fn digest(&self) -> ObjectDigest {
-        ObjectDigest::new(default_hash(self.as_inner()))
-    }
-
     pub fn id(&self) -> ObjectId {
         use Data::*;
 
