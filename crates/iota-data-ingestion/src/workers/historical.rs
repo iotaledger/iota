@@ -24,7 +24,6 @@ use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
     compress,
-    object_store::util::exists,
 };
 use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,
@@ -115,10 +114,8 @@ impl HistoricalReducer {
     /// Initializes the epoch boundaries from the provided seed if not already
     /// initialized.
     async fn seed_epoch_boundaries(&self, epoch_boundaries: EpochBoundaries) -> anyhow::Result<()> {
-        if !exists(&self.remote_store, &EpochBoundaries::file_path()).await {
-            write_epoch_boundaries(&epoch_boundaries, self.remote_store.clone()).await?;
-            tracing::info!("Initialized epoch boundaries");
-        }
+        write_epoch_boundaries(&epoch_boundaries, self.remote_store.clone()).await?;
+        tracing::info!("Initialized epoch boundaries");
         Ok(())
     }
 

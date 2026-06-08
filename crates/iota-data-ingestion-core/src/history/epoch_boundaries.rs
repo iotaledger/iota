@@ -7,11 +7,11 @@ use std::{collections::BTreeMap, ops::RangeBounds, time::Duration};
 
 use bytes::Bytes;
 use iota_storage::object_store::{
-    ObjectStoreGetExt, ObjectStorePutExt,
-    util::{exists, get, put},
+    ObjectStoreGetExt,
+    util::{exists, get},
 };
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
-use object_store::path::Path;
+use object_store::{ObjectStore, PutMode, path::Path};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -140,17 +140,24 @@ pub fn finalize_epoch_boundaries(boundaries: &EpochBoundaries) -> Result<Bytes> 
     finalize_magic_blob(boundaries, EPOCH_BOUNDARIES_FILE_MAGIC)
 }
 
-/// Writes the epoch boundaries to the store.
+/// Writes the epoch boundaries to the store atomically.
 ///
 /// # Errors
 ///
-/// Fails if encoding or the upload fails.
-pub async fn write_epoch_boundaries<S: ObjectStorePutExt>(
+/// Fails if the encoding fails, if the remote file already exists or
+/// if the uploading operation fails for other reasons.
+pub async fn write_epoch_boundaries<S: ObjectStore>(
     boundaries: &EpochBoundaries,
     remote_store: S,
 ) -> Result<()> {
     let bytes = finalize_epoch_boundaries(boundaries)?;
-    put(&remote_store, &EpochBoundaries::file_path(), bytes).await?;
+    remote_store
+        .put_opts(
+            &EpochBoundaries::file_path(),
+            bytes.into(),
+            PutMode::Create.into(),
+        )
+        .await?;
     Ok(())
 }
 
