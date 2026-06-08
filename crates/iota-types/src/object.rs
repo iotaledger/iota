@@ -569,13 +569,6 @@ impl Object {
         let type_tag = move_struct.type_params()[0].clone();
         Ok(type_tag)
     }
-
-    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Result<T, bcs::Error> {
-        self.data
-            .as_struct_opt()
-            .ok_or_else(|| bcs::Error::Custom("Object is not a struct".to_string()))?
-            .to_rust()
-    }
 }
 
 // Testing-related APIs.
