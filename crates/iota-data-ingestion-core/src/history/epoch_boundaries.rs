@@ -142,21 +142,20 @@ pub fn finalize_epoch_boundaries(boundaries: &EpochBoundaries) -> Result<Bytes> 
 
 /// Writes the epoch boundaries to the store atomically.
 ///
+///
+///
 /// # Errors
 ///
-/// Fails if the encoding fails, if the remote file already exists or
-/// if the uploading operation fails for other reasons.
+/// Fails if the encoding fails, if the [`PutMode`] invariants are not upheld,
+/// or for any other reason the upload might fail.
 pub async fn write_epoch_boundaries<S: ObjectStore>(
     boundaries: &EpochBoundaries,
     remote_store: S,
+    put_mode: PutMode,
 ) -> Result<()> {
     let bytes = finalize_epoch_boundaries(boundaries)?;
     remote_store
-        .put_opts(
-            &EpochBoundaries::file_path(),
-            bytes.into(),
-            PutMode::Create.into(),
-        )
+        .put_opts(&EpochBoundaries::file_path(), bytes.into(), put_mode.into())
         .await?;
     Ok(())
 }

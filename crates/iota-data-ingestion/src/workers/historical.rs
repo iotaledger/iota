@@ -29,7 +29,9 @@ use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use object_store::{DynObjectStore, Error as ObjectStoreError, ObjectStore, ObjectStoreExt};
+use object_store::{
+    DynObjectStore, Error as ObjectStoreError, ObjectStore, ObjectStoreExt, PutMode,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::RelayWorker;
@@ -114,7 +116,12 @@ impl HistoricalReducer {
     /// Initializes the epoch boundaries from the provided seed if not already
     /// initialized.
     async fn seed_epoch_boundaries(&self, epoch_boundaries: EpochBoundaries) -> anyhow::Result<()> {
-        write_epoch_boundaries(&epoch_boundaries, self.remote_store.clone()).await?;
+        write_epoch_boundaries(
+            &epoch_boundaries,
+            self.remote_store.clone(),
+            PutMode::Create,
+        )
+        .await?;
         tracing::info!("Initialized epoch boundaries");
         Ok(())
     }
@@ -133,7 +140,12 @@ impl HistoricalReducer {
         let mut epoch_boundaries =
             read_epoch_boundaries_or_default(self.remote_store.clone()).await?;
         epoch_boundaries.insert_next(epoch_id, checkpoint_sequence_number)?;
-        write_epoch_boundaries(&epoch_boundaries, self.remote_store.clone()).await?;
+        write_epoch_boundaries(
+            &epoch_boundaries,
+            self.remote_store.clone(),
+            PutMode::Overwrite,
+        )
+        .await?;
         Ok(())
     }
 }
