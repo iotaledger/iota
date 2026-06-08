@@ -9,12 +9,12 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus,
-    ObjectId, TransactionKind, VersionAssignment,
+    ObjectId, TransactionKind, UnchangedSharedKind, VersionAssignment,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
+    effects::{TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

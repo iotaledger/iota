@@ -6,12 +6,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
     Digest, EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, Owner,
-    UnchangedSharedObject, Version, crypto::Intent,
+    UnchangedSharedKind, UnchangedSharedObject, Version, crypto::Intent,
 };
 pub use iota_sdk_types::{
     effects::{
         ChangedObject as EffectsObjectChange, IdOperation as IDOperation, ObjectIn, ObjectOut,
-        TransactionEffects, TransactionEffectsV1, UnchangedSharedKind,
+        TransactionEffects, TransactionEffectsV1,
     },
     events::TransactionEvents,
 };

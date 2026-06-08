@@ -15,6 +15,7 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, GenesisObject,
     GenesisTransaction, Identifier, MoveLocation, ObjectId, Owner, PackageUpgradeError,
     SimpleSignature, StructTag, TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag,
+    UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
@@ -31,7 +32,7 @@ use iota_types::{
     digests::ConsensusCommitDigest,
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExt,
-        TransactionEvents, UnchangedSharedKind,
+        TransactionEvents,
     },
     event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
