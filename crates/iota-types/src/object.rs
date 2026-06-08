@@ -488,15 +488,6 @@ impl Object {
         }
     }
 
-    pub fn version(&self) -> SequenceNumber {
-        use Data::*;
-
-        match &self.data {
-            Struct(o) => o.version(),
-            Package(p) => p.version(),
-        }
-    }
-
     pub fn type_(&self) -> Option<&MoveObjectType> {
         self.data.object_type()
     }
