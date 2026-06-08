@@ -12,7 +12,6 @@ iota-adapter-latest = { path = "latest/iota-adapter" }
 # iota-adapter-$CUT = { path = "$CUT/iota-adapter" }
 iota-move-natives-latest = { path = "latest/iota-move-natives" }
 iota-protocol-config.workspace = true
-# move-vm-types-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-vm-types" }
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 # iota-move-natives-$CUT = { path = "$CUT/iota-move-natives" }
@@ -26,6 +25,7 @@ move-vm-config.workspace = true
 move-vm-runtime-latest = { path = "../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
 # move-vm-runtime-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-vm-runtime" }
 move-vm-types-latest = { path = "../external-crates/move/crates/move-vm-types", package = "move-vm-types" }
+# move-vm-types-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-vm-types" }
 
 [dev-dependencies]
 cargo_metadata = "0.15"

@@ -19,6 +19,7 @@ use crate::{
     storage::{BackingPackageStore, EpochInfo, error::Error as StorageError},
     transaction::{Transaction, TransactionDataAPI},
 };
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointData {
     pub checkpoint_summary: CertifiedCheckpointSummary,
