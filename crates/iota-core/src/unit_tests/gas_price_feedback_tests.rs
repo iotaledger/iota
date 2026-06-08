@@ -9,7 +9,7 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus,
-    ObjectId, VersionAssignment,
+    ObjectId, TransactionKind, VersionAssignment,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
@@ -20,7 +20,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, ProgrammableTransaction, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, VerifiedCertificate,
+        TransactionDataAPI, VerifiedCertificate,
     },
     utils::to_sender_signed_transaction,
 };

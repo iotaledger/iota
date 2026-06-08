@@ -11,7 +11,7 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Identifier,
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Identifier, TransactionKind,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
@@ -19,7 +19,7 @@ use iota_types::{
     crypto::{AccountKeyPair, Signature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
-    transaction::{GenesisTransaction, TransactionDataAPI, TransactionKind},
+    transaction::{GenesisTransaction, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use starfish_core::{BlockRef, BlockStatus};

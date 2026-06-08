@@ -22,7 +22,7 @@ use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::GasCostSummary;
+use iota_sdk_types::{GasCostSummary, TransactionKind};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
     committee::StakeUnit,
@@ -45,7 +45,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
-    transaction::{TransactionDataAPI, TransactionKey, TransactionKind},
+    transaction::{TransactionDataAPI, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;

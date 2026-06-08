@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 # external dependencies
+iota-sdk-types.workspace = true
 prometheus.workspace = true
 
 # internal dependencies

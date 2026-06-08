@@ -30,7 +30,9 @@ use iota_metrics::monitored_scope;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{CancelledTransaction, CheckpointTimestamp, ObjectId, VersionAssignment};
+use iota_sdk_types::{
+    CancelledTransaction, CheckpointTimestamp, ObjectId, TransactionKind, VersionAssignment,
+};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{
@@ -60,8 +62,7 @@ use iota_types::{
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKey, TransactionKind, VerifiedCertificate, VerifiedSignedTransaction,
-        VerifiedTransaction,
+        TransactionKey, VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
 use itertools::izip;

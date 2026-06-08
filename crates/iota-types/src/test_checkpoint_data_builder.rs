@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TransactionKind, TypeTag};
 use tap::Pipe;
 
 use crate::{
@@ -28,7 +28,7 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
-        TransactionData, TransactionDataAPI, TransactionKind,
+        TransactionData, TransactionDataAPI,
     },
 };
 

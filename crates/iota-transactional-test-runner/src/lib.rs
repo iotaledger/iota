@@ -19,7 +19,7 @@ use iota_core::authority::{
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionKind};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, VersionNumber},
@@ -36,7 +36,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{InputObjects, Transaction, TransactionData, TransactionKind},
+    transaction::{InputObjects, Transaction, TransactionData},
 };
 pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,

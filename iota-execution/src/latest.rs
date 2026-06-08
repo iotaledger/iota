@@ -15,6 +15,7 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::TransactionKind;
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
@@ -32,7 +33,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction, TransactionKind},
+    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction},
 };
 use iota_verifier_latest::meter::IotaVerifierMeter;
 use move_binary_format::CompiledModule;
