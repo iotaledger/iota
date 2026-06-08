@@ -281,6 +281,9 @@ pub struct BenchWorker {
     /// epoch into the start-file).
     pub barrier_t_zero: Option<Instant>,
     pub barrier_period: Option<Duration>,
+    /// Per-worker initial burst: fire this many txs at startup (as detached
+    /// OL tasks) before entering the main pacing loop. 0 = disabled.
+    pub initial_burst: u64,
 }
 
 impl Debug for BenchWorker {
@@ -310,6 +313,8 @@ pub struct BenchDriver {
     /// barrier_period`.
     pub barrier_t_zero: Option<Instant>,
     pub barrier_period: Option<Duration>,
+    /// Per-worker initial burst (see [`BenchWorker::initial_burst`]).
+    pub initial_burst: u64,
 }
 
 impl BenchDriver {
@@ -323,6 +328,7 @@ impl BenchDriver {
             open_loop: false,
             barrier_t_zero: None,
             barrier_period: None,
+            initial_burst: 0,
         }
     }
 
@@ -339,6 +345,11 @@ impl BenchDriver {
     pub fn with_barrier(mut self, t_zero: Instant, period: Duration) -> Self {
         self.barrier_t_zero = Some(t_zero);
         self.barrier_period = Some(period);
+        self
+    }
+
+    pub fn with_initial_burst(mut self, initial_burst: u64) -> Self {
+        self.initial_burst = initial_burst;
         self
     }
     pub fn terminate(&self) {
@@ -395,7 +406,14 @@ impl BenchDriver {
         // worker startup jitter at period=50ms.
         let barrier_first_deadline = match (self.barrier_t_zero, self.barrier_period) {
             (Some(t0), Some(period)) => {
-                const SKIP_PERIODS: u128 = 4;
+                // 1 period of skip is enough to guarantee all workers
+                // (within ~500ms of typical CPU/IO startup jitter)
+                // land on the same wall-clock barrier — they all
+                // compute k=0+1=1 as long as elapsed < 1 period.
+                // Previously was 4; that added 4 × INTERVAL of dead
+                // time at the start of every sweep (e.g. 4s wasted at
+                // INTERVAL=1s) without any extra synchronization benefit.
+                const SKIP_PERIODS: u128 = 1;
                 let now = Instant::now();
                 let elapsed = now.saturating_duration_since(t0);
                 let period_ns = period.as_nanos().max(1);
@@ -422,6 +440,7 @@ impl BenchDriver {
                     barrier_first_deadline,
                     barrier_t_zero: self.barrier_t_zero,
                     barrier_period: self.barrier_period,
+                    initial_burst: self.initial_burst,
                 });
                 payloads = remaining;
                 qps -= target_qps;
@@ -1106,6 +1125,89 @@ async fn run_bench_worker(
 
     let mut futures: FuturesUnordered<BoxFuture<NextOp>> = FuturesUnordered::new();
 
+    // Initial burst: pre-fill the validator's in-flight queue BEFORE the
+    // main pacing loop begins. Works in both OL and CL modes:
+    //   OL: each tx fires as a detached `tokio::spawn` task subject to the
+    //       per-worker OPEN_LOOP_MAX_INFLIGHT_PER_WORKER semaphore. Bursts
+    //       larger than the cap are partially dropped client-side
+    //       (counted as num_open_loop_dropped).
+    //   CL: each tx is pushed to the `futures` queue and resolves through
+    //       `handle_execute_transaction_response` like a normal CL
+    //       submission. No client-side cap — every requested tx is fired.
+    //       This is what produces a tightly-synchronized concurrent burst
+    //       at the validator gate at t=0 (matches the burst-sweep findings
+    //       setup that triggers the gate-check race condition).
+    if worker.initial_burst > 0 {
+        tracing::info!(
+            "worker {}: initial-burst firing {} txs (mode={}, sem cap={})",
+            worker.id,
+            worker.initial_burst,
+            if worker.open_loop { "OL" } else { "CL" },
+            open_loop_cap,
+        );
+        for _ in 0..worker.initial_burst {
+            let Some(mut payload) = free_pool.pop_front() else {
+                num_no_gas += 1;
+                break;
+            };
+            let tx = payload.make_transaction();
+            if worker.open_loop {
+                // OL: recycle payload immediately, spawn detached task.
+                free_pool.push_back(payload);
+                match open_loop_inflight.clone().try_acquire_owned() {
+                    Ok(permit) => {
+                        let proxy = worker.proxy.clone();
+                        tokio::spawn(async move {
+                            let _ = tokio::time::timeout(
+                                OPEN_LOOP_TASK_TIMEOUT,
+                                proxy.execute_transaction_block(tx),
+                            )
+                            .await;
+                            drop(permit);
+                        });
+                        num_submitted += 1;
+                        num_in_flight += 1;
+                    }
+                    Err(_) => {
+                        num_open_loop_dropped += 1;
+                    }
+                }
+            } else {
+                // CL: push to futures; response handler returns payload to
+                // free_pool via NextOp::Response. Mirrors the main-loop
+                // CL submission path so per-tx accounting is identical.
+                num_in_flight += 1;
+                num_submitted += 1;
+                metrics_cloned
+                    .num_in_flight
+                    .with_label_values(&[&payload.to_string()])
+                    .inc();
+                metrics_cloned
+                    .num_submitted
+                    .with_label_values(&[&payload.to_string()])
+                    .inc();
+                let start = Arc::new(Instant::now());
+                let committee = worker.proxy.clone_committee();
+                let res =
+                    worker
+                        .proxy
+                        .execute_transaction_block(tx.clone())
+                        .then(|res| async move {
+                            handle_execute_transaction_response(res, start, tx, payload, committee)
+                        });
+                futures.push(Box::pin(res));
+            }
+        }
+        if num_open_loop_dropped > 0 {
+            tracing::warn!(
+                "worker {}: initial-burst dropped {} (sem cap={} exhausted)",
+                worker.id,
+                num_open_loop_dropped,
+                open_loop_cap,
+            );
+        }
+    }
+
     loop {
         tokio::select! {
             _ = cloned_token.cancelled() => {
@@ -1283,6 +1385,23 @@ async fn run_bench_worker(
                                     // submission and roll back the counters
                                     // we incremented optimistically above.
                                     num_open_loop_dropped += 1;
+                                    // Real-time drop visibility. Log:
+                                    //   - the FIRST drop each worker sees
+                                    //     (signals "we hit the cap")
+                                    //   - every 100th drop after that
+                                    //     (steady stream, bounded volume)
+                                    // The full count is also dumped at
+                                    // stat_interval (line ~1144) for the
+                                    // post-hoc summary.
+                                    if num_open_loop_dropped == 1
+                                        || num_open_loop_dropped.is_multiple_of(100)
+                                    {
+                                        tracing::warn!(
+                                            "worker {}: open-loop DROPPED (sem exhausted, total={})",
+                                            worker.id,
+                                            num_open_loop_dropped
+                                        );
+                                    }
                                     num_submitted = num_submitted.saturating_sub(1);
                                     num_in_flight = num_in_flight.saturating_sub(1);
                                 }

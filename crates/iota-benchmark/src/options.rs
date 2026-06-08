@@ -119,6 +119,15 @@ pub struct Opts {
     /// `burst_size × 1000 / barrier_period_ms`.
     #[arg(long, default_value = "0", global = true)]
     pub barrier_period_ms: u64,
+    /// Per-worker initial burst: fire this many transactions as detached
+    /// open-loop submissions at worker startup BEFORE entering the main
+    /// pacing loop. Used to pre-load the validator's in-flight queue to a
+    /// target depth quickly, then maintain it via `target_qps`. Subject to
+    /// the same `OPEN_LOOP_MAX_INFLIGHT_PER_WORKER` semaphore as the main
+    /// loop; excess submissions count as `num_open_loop_dropped`.
+    /// Closed-loop ignores this (set 0). Default 0 = no initial burst.
+    #[arg(long, default_value = "0", global = true)]
+    pub initial_burst: u64,
     /// If set, after coin generation, dump the gas-coin pool (object refs +
     /// keypairs) to this JSON file. On subsequent runs with the same path
     /// and matching config-hash, load the pool and skip the (slow) pay_iota

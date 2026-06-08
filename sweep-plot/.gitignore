@@ -1,5 +1,0 @@
-# Track only the script; everything else here is derived from
-# the sweep JSONL (gitignored) and the plot venv.
-*
-!.gitignore
-!plot.py

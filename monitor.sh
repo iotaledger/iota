@@ -3,13 +3,24 @@
 #
 # Modes:
 #   ./monitor.sh          (default) live-tail of meaningful event lines
-#                         from both run.log and sweep.log. Ctrl-C to stop.
+#                         from both run.log and sweep.log (under
+#                         sweeps/latest/logs/). Ctrl-C to stop.
 #   ./monitor.sh status   one-shot snapshot: running processes,
 #                         per-policy iter count, last log lines.
 #   ./monitor.sh raw      live-tail of ALL output (unfiltered, noisy).
 
 set -uo pipefail
 cd "$(dirname "$0")"
+
+LOGS_DIR="sweeps/latest/logs"
+DATA_DIR="sweeps/latest/data"
+SWEEP_LOG="$LOGS_DIR/sweep.log"
+RUN_LOG="$LOGS_DIR/run.log"
+# Pick the most recently-touched JSONL — there's one per regime, and the
+# active sweep is whichever the running sweep.sh is currently appending to.
+latest_jsonl() {
+  ls -t "$DATA_DIR"/*.jsonl 2>/dev/null | head -1
+}
 
 # Detect TTY once at the top. Must be checked here (not in $() subshells,
 # where stdout is a pipe and the check would always read as non-TTY).
@@ -61,7 +72,7 @@ MODE="${1:-tail}"
 case "$MODE" in
   tail|"")
     section "live monitor (Ctrl-C to stop)"
-    info "  Logs: run.log + sweep.log"
+    info "  Logs: $RUN_LOG + $SWEEP_LOG"
     echo
 
     # Colorize one line in-place (bash function — no pipe overhead).
@@ -98,11 +109,13 @@ case "$MODE" in
       # Format "status/restart_count": e.g. "running/0" = ok, "running/3"
       # = restarted 3 times (likely OOM killed + auto-restarted),
       # "exited/N" = dead, "missing/0" = container not found.
-      local val1_health
+      local val1_health jsonl
       val1_health=$(docker inspect validator-1 \
         --format '{{.State.Status}}/{{.RestartCount}}' 2>/dev/null \
         || echo "missing/0")
-      ELAPSED="$elapsed" VAL1_HEALTH="$val1_health" python3 <<'PY'
+      jsonl=$(latest_jsonl)
+      [ -z "$jsonl" ] && return
+      ELAPSED="$elapsed" VAL1_HEALTH="$val1_health" JSONL_PATH="$jsonl" python3 <<'PY'
 import json, os, sys
 is_tty = os.environ.get("IS_TTY") == "1"
 def c(code, s): return f"\033[{code}m{s}\033[0m" if is_tty else s
@@ -111,9 +124,10 @@ def dim(s):   return c("2", s)
 def red(s):   return c("31", s)
 def green(s): return c("32", s)
 def yellow(s):return c("33", s)
+def magenta(s):return c("35", s)
 def cyan(s):  return c("36", s)
 try:
-    with open("sweep.jsonl") as f:
+    with open(os.environ["JSONL_PATH"]) as f:
         lines = f.readlines()
     if not lines:
         raise SystemExit
@@ -142,19 +156,38 @@ try:
     #                    safety band.
     #   R (reactive)   — hard-cap rejection. High R = binary regime, or
     #                    graduated's saturation didn't hold.
-    prev  = res.get("reject_grad_preventive", 0) or 0
-    sat   = res.get("reject_grad_saturated", 0) or 0
-    react = res.get("reject_grad_reactive", 0) or 0
-    total = prev + sat + react
+    #   C (concurrency-cap) — semaphore-permit rejection. High C = sem
+    #                         gate doing the bulk of admission control.
+    prev    = res.get("reject_grad_preventive", 0) or 0
+    sat     = res.get("reject_grad_saturated",   0) or 0
+    react   = res.get("reject_grad_reactive",    0) or 0
+    rej_max = res.get("reject_max_pending",      0) or 0
+    rej_sem = res.get("reject_semaphore",        0) or 0
+    total   = prev + sat + react + rej_max + rej_sem
+    # Denominator = admission attempts at validator (rejections + commits).
+    # spammer.offered counts only the spammer's first-pass submissions and
+    # excludes CL retries, so total/offered overshoots 100% in sustained
+    # rejection regimes. Use useful_tps × duration for commits to get a
+    # validator-side drop ratio bounded in [0, 1].
+    tps_v       = res.get("useful_tps", 0) or 0
+    duration_s  = (r.get("spammer") or {}).get("duration_secs", 0) or 0
+    commits     = tps_v * duration_s
+    attempts    = total + commits
     if total > 0:
-        p_pct = round(prev  / total * 100)
-        s_pct = round(sat   / total * 100)
-        r_pct = round(react / total * 100)
+        p_pct = round(prev    / total * 100)
+        s_pct = round(sat     / total * 100)
+        r_pct = round(react   / total * 100)
+        c_pct = round(rej_sem / total * 100)
+        rej_frac = (total / attempts) if attempts else 0
         drops_str = (f"drops[P={green(str(p_pct))}% "
                      f"S={yellow(str(s_pct))}% "
-                     f"R={red(str(r_pct))}%]")
+                     f"R={red(str(r_pct))}% "
+                     f"C={magenta(str(c_pct))}%  "
+                     f"{bold(f'{total}')} / "
+                     f"{dim(str(int(attempts)))} = "
+                     f"{bold(f'{rej_frac*100:.1f}%')}]")
     else:
-        drops_str = dim("drops[none]")
+        drops_str = dim(f"drops[none / attempts={int(attempts)}]")
 
     # Validator-1 health — green if running with no restarts, yellow if
     # running but was restarted (likely OOM-killed + auto-restarted),
@@ -197,7 +230,7 @@ PY
     monitor_start=$(date +%s)
     # -F: follow by name (survives log rotation / fresh creation)
     # 2>/dev/null: don't complain if a log file doesn't exist yet
-    tail -F sweep.log run.log 2>/dev/null \
+    tail -F "$SWEEP_LOG" "$RUN_LOG" 2>/dev/null \
       | grep --line-buffered -E '^=== run\.sh|^=== run_inner|^\[sweep |^>>> RESULT|^=== FAST_MODE|fail_streak|validators ready after|exited non-zero|full network reset|drained after|FAILED' \
       | while IFS= read -r line; do
           # Track iter start time for elapsed-wall reporting.
@@ -229,7 +262,7 @@ PY
 
   raw)
     section "live monitor (RAW, Ctrl-C to stop)"
-    tail -F sweep.log run.log 2>/dev/null | colorize_stream
+    tail -F "$SWEEP_LOG" "$RUN_LOG" 2>/dev/null | colorize_stream
     ;;
 
   status|s)
@@ -242,17 +275,18 @@ PY
     fi
 
     section "record count"
-    if [ -f sweep.jsonl ]; then
-      total=$(wc -l < sweep.jsonl)
-      info "  sweep.jsonl: ${C_BOLD}$total${C_RESET}${C_DIM} records${C_RESET}"
-      python3 <<'PY'
+    JSONL_PATH=$(latest_jsonl)
+    if [ -n "$JSONL_PATH" ] && [ -f "$JSONL_PATH" ]; then
+      total=$(wc -l < "$JSONL_PATH")
+      info "  $(basename "$JSONL_PATH"): ${C_BOLD}$total${C_RESET}${C_DIM} records${C_RESET}"
+      JSONL_PATH="$JSONL_PATH" python3 <<'PY'
 import json, os, sys
 from collections import Counter
 is_tty = os.environ.get("IS_TTY") == "1"
 def red(s): return f"\033[31m{s}\033[0m" if is_tty else s
 def green(s): return f"\033[32m{s}\033[0m" if is_tty else s
 try:
-    with open("sweep.jsonl") as f:
+    with open(os.environ["JSONL_PATH"]) as f:
         recs = [json.loads(l) for l in f if l.strip()]
     if not recs:
         print("  (empty)")
@@ -279,21 +313,21 @@ except Exception as e:
     print(f"  error reading jsonl: {e}", file=sys.stderr)
 PY
     else
-      warn "  sweep.jsonl: missing"
+      warn "  no JSONL in $DATA_DIR"
     fi
 
-    section "last 5 lines of sweep.log"
-    if [ -f sweep.log ]; then
-      tail -5 sweep.log | colorize_stream | sed 's/^/  /'
+    section "last 5 lines of $SWEEP_LOG"
+    if [ -f "$SWEEP_LOG" ]; then
+      tail -5 "$SWEEP_LOG" | colorize_stream | sed 's/^/  /'
     else
-      warn "  (no sweep.log)"
+      warn "  (no $SWEEP_LOG)"
     fi
 
-    section "last 5 lines of run.log"
-    if [ -f run.log ]; then
-      tail -5 run.log | colorize_stream | sed 's/^/  /'
+    section "last 5 lines of $RUN_LOG"
+    if [ -f "$RUN_LOG" ]; then
+      tail -5 "$RUN_LOG" | colorize_stream | sed 's/^/  /'
     else
-      warn "  (no run.log)"
+      warn "  (no $RUN_LOG)"
     fi
     ;;
 

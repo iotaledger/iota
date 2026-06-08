@@ -3,27 +3,41 @@
 # Works around iota-benchmark stress.rs's "random proxy chosen once per workload"
 # behavior in bench_driver.rs:356.
 #
-# Outputs go to runs/multi-<utc-ts>/ — one parent dir per invocation, never overwritten.
+# Outputs go to sweeps/latest/logs/multi-<utc-ts>/ — one parent dir per invocation, never overwritten.
 
 set -uo pipefail
 
-QPS_TOTAL="${QPS_TOTAL:-10000}"
+QPS_TOTAL="${QPS_TOTAL:-0}"
 DURATION="${DURATION:-300s}"
 WORKERS="${WORKERS:-12}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-10}"
-BURST_SIZE="${BURST_SIZE:-1}"
-BARRIER_PERIOD_MS="${BARRIER_PERIOD_MS:-0}"
+BURST="${BURST:-0}"
+INTERVAL="${INTERVAL:-0}"
+
+# Parse INTERVAL (e.g. "20ms", "2s", "1m", or bare "1000" = ms) to an
+# integer millisecond value. Mirrors DURATION's suffix-friendly style.
+parse_ms() {
+  local v="$1"
+  if   [[ "$v" =~ ^([0-9]+)ms$ ]]; then echo "${BASH_REMATCH[1]}"
+  elif [[ "$v" =~ ^([0-9]+)s$  ]]; then echo "$(( ${BASH_REMATCH[1]} * 1000 ))"
+  elif [[ "$v" =~ ^([0-9]+)m$  ]]; then echo "$(( ${BASH_REMATCH[1]} * 60000 ))"
+  elif [[ "$v" =~ ^[0-9]+$     ]]; then echo "$v"
+  else echo "Error: cannot parse '$v' as duration (use Nms / Ns / Nm)" >&2; return 1
+  fi
+}
+INTERVAL=$(parse_ms "$INTERVAL") || exit 1
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-2}"
 # Persistent gas-pool cache dir (survives across runs). Each subprocess gets
 # its own cache file under this dir, keyed by primary_gas_owner index. To
 # disable the cache, set GAS_POOL_CACHE_DIR="disable" (or any non-path that
 # doesn't exist and can't be created).
-# Default lives under the monorepo's runs/ (which is gitignored) so all
-# sweep artifacts stay under one tree. Override with GAS_POOL_CACHE_DIR=...
-# if you want a shared cross-clone cache, e.g. $HOME/.stress-gas-pool.
+# Default lives under sweeps/.gas-pool-cache/ (shared across regimes, NOT
+# per-sweep — it's reused across iters to avoid re-paying the slow pay_iota
+# loop). Override with GAS_POOL_CACHE_DIR=... if you want a cross-clone
+# cache, e.g. $HOME/.stress-gas-pool.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GAS_POOL_CACHE_DIR="${GAS_POOL_CACHE_DIR:-$SCRIPT_DIR/runs/.stress-gas-pool}"
+GAS_POOL_CACHE_DIR="${GAS_POOL_CACHE_DIR:-$SCRIPT_DIR/sweeps/.gas-pool-cache}"
 FULLNODES="${FULLNODES:-http://127.0.0.1:9000}"
 PROM_URL="${PROM_URL:-http://localhost:9090}"
 
@@ -39,13 +53,14 @@ N="${NUM_PROCS:-${#FN_ARR[@]}}"
 # graduated-benefits.md). When HONEST_PROC_COUNT > 0, the LAST
 # HONEST_PROC_COUNT procs in this invocation use the honest configuration
 # (low QPS, no burst), and the first (N - HONEST_PROC_COUNT) procs use the
-# existing spammer-style config (QPS_TOTAL, BURST_SIZE, BARRIER_PERIOD_MS,
+# existing spammer-style config (QPS_TOTAL, BURST, INTERVAL,
 # IN_FLIGHT_RATIO, WORKERS). Default 0 keeps single-pool behavior so
 # burst-sweep.sh and other callers are unaffected.
 HONEST_PROC_COUNT="${HONEST_PROC_COUNT:-0}"
 HONEST_QPS_PER_PROC="${HONEST_QPS_PER_PROC:-50}"
-HONEST_BURST_SIZE="${HONEST_BURST_SIZE:-1}"
-HONEST_BARRIER_PERIOD_MS="${HONEST_BARRIER_PERIOD_MS:-0}"
+HONEST_BURST="${HONEST_BURST:-1}"
+HONEST_INTERVAL="${HONEST_INTERVAL:-0}"
+HONEST_INTERVAL=$(parse_ms "$HONEST_INTERVAL") || exit 1
 HONEST_IFR="${HONEST_IFR:-4}"
 HONEST_WORKERS="${HONEST_WORKERS:-4}"
 # When false (legacy), honest is closed-loop: it self-throttles under
@@ -72,6 +87,21 @@ fi
 # honest_cl (always closed-loop) otherwise.
 HONEST_OL_START=$N_SPAMMER
 HONEST_CL_START=$((N_SPAMMER + HONEST_PROC_COUNT))
+
+# bench_driver.rs:407 splits per-proc target_qps across WORKERS and
+# requires per-worker target_qps >= 1 to spawn each worker. Below the
+# floor, some workers silently never start (especially fatal in Mode A
+# where INTERVAL paces the bursts but QPS_TOTAL is still gating spawn).
+MIN_QPS_TOTAL=$((N_SPAMMER * WORKERS))
+if [ "$QPS_TOTAL" -eq 0 ]; then
+  QPS_TOTAL=$MIN_QPS_TOTAL
+  echo "=> QPS_TOTAL unset; using minimum $QPS_TOTAL (= N_SPAMMER=$N_SPAMMER × WORKERS=$WORKERS) so all workers spawn."
+elif [ "$QPS_TOTAL" -lt "$MIN_QPS_TOTAL" ]; then
+  echo "Error: QPS_TOTAL=$QPS_TOTAL is below the minimum $MIN_QPS_TOTAL (= N_SPAMMER=$N_SPAMMER × WORKERS=$WORKERS)." >&2
+  echo "       bench_driver.rs requires per-worker target_qps >= 1 — some workers won't spawn." >&2
+  echo "       Either bump QPS_TOTAL >= $MIN_QPS_TOTAL or reduce NUM_PROCS/WORKERS." >&2
+  exit 1
+fi
 # QPS_PER is the per-spammer-proc QPS. With HONEST_PROC_COUNT=0 this
 # collapses to the original QPS_TOTAL / N.
 QPS_PER=$((QPS_TOTAL / N_SPAMMER))
@@ -120,9 +150,10 @@ cargo build --release -p iota-benchmark --bin stress || {
 }
 mark "cargo build done"
 
-# Master timestamp + parent dir under runs/ so each invocation is preserved.
+# Master timestamp + parent dir under sweeps/latest/logs/ so each
+# invocation is preserved.
 MASTER_TS=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
-PARENT_DIR="runs/multi-${MASTER_TS}"
+PARENT_DIR="$SCRIPT_DIR/sweeps/latest/logs/multi-${MASTER_TS}"
 mkdir -p "$PARENT_DIR"
 
 # Barrier files: each subprocess writes its READY_FILE after setup, then waits
@@ -135,14 +166,14 @@ START_FILE="$BARRIER_DIR/go"
 if [ "$HONEST_PROC_COUNT" -gt 0 ] || [ "$HONEST_CL_PROC_COUNT" -gt 0 ]; then
   echo "=> Launching $N stress.rs processes across pools:"
   echo "     spammer pool:   $N_SPAMMER procs @ QPS=$QPS_PER each (total=$QPS_TOTAL)"
-  echo "                     BURST_SIZE=$BURST_SIZE BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS"
+  echo "                     BURST=$BURST INTERVAL=$INTERVAL"
   if [ "$HONEST_PROC_COUNT" -gt 0 ]; then
     echo "     honest pool:    $HONEST_PROC_COUNT proc(s) @ QPS=$HONEST_QPS_PER_PROC each open_loop=$HONEST_OPEN_LOOP"
-    echo "                     BURST_SIZE=$HONEST_BURST_SIZE BARRIER_PERIOD_MS=$HONEST_BARRIER_PERIOD_MS"
+    echo "                     BURST=$HONEST_BURST INTERVAL=$HONEST_INTERVAL"
   fi
   if [ "$HONEST_CL_PROC_COUNT" -gt 0 ]; then
     echo "     honest_cl pool: $HONEST_CL_PROC_COUNT proc(s) @ QPS=$HONEST_QPS_PER_PROC each open_loop=false (always closed-loop)"
-    echo "                     BURST_SIZE=$HONEST_BURST_SIZE BARRIER_PERIOD_MS=$HONEST_BARRIER_PERIOD_MS"
+    echo "                     BURST=$HONEST_BURST INTERVAL=$HONEST_INTERVAL"
   fi
 else
   echo "=> Launching $N stress.rs processes, each at QPS=$QPS_PER (total=$QPS_TOTAL)"
@@ -191,8 +222,8 @@ for ((i=0; i<N; i++)); do
   if [ "$i" -ge "$HONEST_CL_START" ]; then
     pool="honest_cl"
     proc_qps=$HONEST_QPS_PER_PROC
-    proc_burst=$HONEST_BURST_SIZE
-    proc_barrier=$HONEST_BARRIER_PERIOD_MS
+    proc_burst=$HONEST_BURST
+    proc_barrier=$HONEST_INTERVAL
     proc_ifr=$HONEST_IFR
     proc_workers=$HONEST_WORKERS
     # Closed-loop by design — models a polite client that backs off
@@ -201,8 +232,8 @@ for ((i=0; i<N; i++)); do
   elif [ "$i" -ge "$HONEST_OL_START" ]; then
     pool="honest"
     proc_qps=$HONEST_QPS_PER_PROC
-    proc_burst=$HONEST_BURST_SIZE
-    proc_barrier=$HONEST_BARRIER_PERIOD_MS
+    proc_burst=$HONEST_BURST
+    proc_barrier=$HONEST_INTERVAL
     proc_ifr=$HONEST_IFR
     proc_workers=$HONEST_WORKERS
     # Open/closed-loop controlled by HONEST_OPEN_LOOP. When true (the
@@ -212,8 +243,8 @@ for ((i=0; i<N; i++)); do
   else
     pool="spammer"
     proc_qps=$QPS_PER
-    proc_burst=$BURST_SIZE
-    proc_barrier=$BARRIER_PERIOD_MS
+    proc_burst=$BURST
+    proc_barrier=$INTERVAL
     proc_ifr=$IN_FLIGHT_RATIO
     proc_workers=$WORKERS
     # Spammer pool may opt into open-loop via the OPEN_LOOP env var so
@@ -228,10 +259,11 @@ for ((i=0; i<N; i++)); do
   DURATION="$DURATION" \
   WORKERS="$proc_workers" \
   IN_FLIGHT_RATIO="$proc_ifr" \
-  BURST_SIZE="$proc_burst" \
+  BURST="$proc_burst" \
   OPEN_LOOP="$proc_open_loop" \
   OPEN_LOOP_MAX_INFLIGHT_PER_WORKER="${OPEN_LOOP_MAX_INFLIGHT_PER_WORKER:-}" \
-  BARRIER_PERIOD_MS="$proc_barrier" \
+  INITIAL_BURST="${INITIAL_BURST:-0}" \
+  INTERVAL="$proc_barrier" \
   GAS_CHUNK_SIZE="$GAS_CHUNK_SIZE" \
   GAS_POOL_CACHE_PATH="$proc_cache" \
   NUM_TRANSFER_ACCOUNTS="$NUM_TRANSFER_ACCOUNTS" \
@@ -347,7 +379,7 @@ SPAM_START_EPOCH=$(date +%s)
 # also covers stress-multi setup + cooldown, which is ~70s of mostly-idle).
 SPAM_DURATION_SECS=$(echo "$DURATION" | sed 's/s$//')
 SPAM_END_EPOCH=$((SPAM_START_EPOCH + SPAM_DURATION_SECS))
-echo "=> Spam phase running (DURATION=$DURATION, BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS)..."
+echo "=> Spam phase running (DURATION=$DURATION, INTERVAL=$INTERVAL)..."
 mark "spam start"
 
 echo "=> Waiting for all $N processes to finish (pids: ${pids[*]})"
@@ -661,6 +693,17 @@ CONSENSUS_LAT_P999=$(prom_scalar "histogram_quantile(0.999, sum by (le) (rate(se
 [ -z "$CONSENSUS_LAT_P99" ] && CONSENSUS_LAT_P99=0
 [ -z "$CONSENSUS_LAT_P999" ] && CONSENSUS_LAT_P999=0
 
+# Per-container CPU & memory consumption over the spam window — from
+# cadvisor (grafana-local/docker-compose.yaml). Direct test of graduated's
+# "cheaper per-rejection cost" claim (preventive shed at admission gate vs
+# binary's reactive shed after permit/cert work). max() picks the targeted
+# validator (validator-1 gets all spam under the single-validator-target
+# strategy). Falls back to 0 if cadvisor isn't running.
+VALIDATOR_CPU_SECONDS=$(prom_scalar "max(increase(container_cpu_usage_seconds_total{host=~\"validator.*\"}[${WINDOW}s]))")
+VALIDATOR_MEM_PEAK=$(prom_scalar "max(max_over_time(container_memory_usage_bytes{host=~\"validator.*\"}[${WINDOW}s]))")
+[ -z "$VALIDATOR_CPU_SECONDS" ] && VALIDATOR_CPU_SECONDS=0
+[ -z "$VALIDATOR_MEM_PEAK" ] && VALIDATOR_MEM_PEAK=0
+
 # Time-series captures for post-hoc analysis (e.g. plotting cliff vs ramp,
 # inspecting queue-depth shape during a burst). One JSON per metric, saved
 # alongside summary.txt under the run directory. We aggregate across hosts
@@ -672,7 +715,7 @@ prom_range "max(sum by (host) (sequencing_certificate_inflight{host=~\"validator
   "$PARENT_DIR/queue_depth.json"
 
 # Per-pool aggregation. Reads each per-process benchmark_stats.json (written
-# by stress.rs to RUNS_DIR/<inner-ts>/benchmark_stats.json via the
+# by stress.rs to PARENT_DIR/<inner-ts>/benchmark_stats.json via the
 # --benchmark-stats-path flag in stress-load-shedding.sh) and sums
 # num_success_txes / num_error_txes grouped by pool. With HONEST_PROC_COUNT=0
 # the honest pool is empty and the spammer pool equals the whole run.
@@ -733,7 +776,7 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
 # Save a top-level summary so this run is self-contained
 {
   echo "ts:           $MASTER_TS"
-  echo "config:       QPS_TOTAL=$QPS_TOTAL DURATION=$DURATION WORKERS=$WORKERS IN_FLIGHT_RATIO=$IN_FLIGHT_RATIO BURST_SIZE=$BURST_SIZE BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS GAS_CHUNK_SIZE=$GAS_CHUNK_SIZE NUM_TRANSFER_ACCOUNTS=$NUM_TRANSFER_ACCOUNTS"
+  echo "config:       QPS_TOTAL=$QPS_TOTAL DURATION=$DURATION WORKERS=$WORKERS IN_FLIGHT_RATIO=$IN_FLIGHT_RATIO BURST=$BURST INTERVAL=$INTERVAL GAS_CHUNK_SIZE=$GAS_CHUNK_SIZE NUM_TRANSFER_ACCOUNTS=$NUM_TRANSFER_ACCOUNTS"
   echo "fullnodes:    $FULLNODES"
   echo "target_validator: $TARGET_VALIDATOR"
   echo "exit codes:   ${exit_codes[*]}"
@@ -778,6 +821,8 @@ TARGET_VALIDATOR=$(grep "Targeting [0-9]\+ of [0-9]\+ validators" "$PARENT_DIR/p
   echo "consensus_lat_p95:      $CONSENSUS_LAT_P95"
   echo "consensus_lat_p99:      $CONSENSUS_LAT_P99"
   echo "consensus_lat_p999:     $CONSENSUS_LAT_P999"
+  echo "validator_cpu_seconds:  $VALIDATOR_CPU_SECONDS"
+  echo "validator_mem_peak:     $VALIDATOR_MEM_PEAK"
   echo "spam_start_epoch:       $SPAM_START_EPOCH"
   echo "spam_end_epoch:         $SPAM_END_EPOCH"
   echo "spam_duration_secs:     $SPAM_DURATION_SECS"

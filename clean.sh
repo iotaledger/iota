@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# clean.sh — remove sweep logs and (optionally) JSONL data + runs/.
+# clean.sh — remove sweep logs only.
 #
-# Logs (run.log, sweep.log): removed without prompt — they grow on every
-# run and have no irreplaceable content.
+# Logs (sweeps/latest/logs/*): grow on every run, removed without prompt.
+# Per-iter forensic dirs (multi-<ts>/, failed-<ts>/) are included since
+# they're log-class artifacts.
 #
-# Data (sweep.jsonl + runs/): contains the actual measurement records and
-# per-iter logs (including failed-* forensic snapshots), may represent
-# hours of compute. Prompts for explicit confirmation unless --force.
+# Data (sweeps/latest/data/*.jsonl) and plots (sweeps/latest/plots/*) are
+# the actual research output and are NEVER touched by this script. Archive
+# them by renaming sweeps/latest → sweeps/v3/ (etc.) when you want to start
+# fresh.
 #
 # Usage:
-#   ./clean.sh           interactive (prompts before removing data + runs/)
-#   ./clean.sh --force   skip the prompt, remove EVERYTHING including data
+#   ./clean.sh
 
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -30,39 +31,24 @@ else
 fi
 section() { echo; echo "${C_BOLD}${C_CYAN}=== $* ===${C_RESET}"; }
 info()    { echo "${C_DIM}$*${C_RESET}"; }
-warn()    { echo "${C_YELLOW}$*${C_RESET}"; }
 good()    { echo "${C_GREEN}$*${C_RESET}"; }
 bad()     { echo "${C_RED}$*${C_RESET}"; }
 
-FORCE=0
 case "${1:-}" in
-  --force|-f) FORCE=1 ;;
   --help|-h)
-    echo "Usage: $0 [--force]"
-    echo "  no args  remove logs unconditionally, prompt for sweep.jsonl + runs/"
-    echo "  --force  remove logs + sweep.jsonl + runs/ without prompt"
+    echo "Usage: $0"
+    echo "  Removes sweeps/latest/logs/* (logs + multi-<ts>/ + failed-<ts>/)."
+    echo "  Never touches data/ or plots/."
     exit 0
     ;;
   "") ;;
   *)
-    bad "Unknown option: $1"
-    echo "See: $0 --help"
+    bad "Unknown option: $1 — see $0 --help"
     exit 1
     ;;
 esac
 
-LOG_FILES=(sweep.log run.log)
-DATA_FILE=sweep.jsonl
-RUNS_DIR=runs
-
-# Human-readable file size (or "missing").
-file_size() {
-  if [ -f "$1" ]; then
-    du -h "$1" 2>/dev/null | awk '{print $1}'
-  else
-    echo "missing"
-  fi
-}
+LOGS_DIR="sweeps/latest/logs"
 
 # Human-readable dir size + top-level entry count (or "missing").
 dir_size() {
@@ -75,79 +61,20 @@ dir_size() {
   fi
 }
 
-# ---------- preview what would be removed ----------
-section "logs (will be removed unconditionally)"
-any_logs=0
-for f in "${LOG_FILES[@]}"; do
-  if [ -f "$f" ]; then
-    info "  $f  ($(file_size "$f"))"
-    any_logs=1
-  else
-    info "  $f  (missing — skip)"
+section "removing $LOGS_DIR/"
+if [ -d "$LOGS_DIR" ] && [ -n "$(ls -A "$LOGS_DIR" 2>/dev/null)" ]; then
+  info "  before: $(dir_size "$LOGS_DIR")"
+  rm -rf "$LOGS_DIR"/* "$LOGS_DIR"/.[!.]* 2>/dev/null || true
+  good "  removed all contents of $LOGS_DIR/"
+else
+  info "  (nothing to remove)"
+fi
+
+# Confirm data/plots untouched.
+section "data + plots (untouched)"
+for d in sweeps/latest/data sweeps/latest/plots; do
+  if [ -d "$d" ]; then
+    info "  $d  ($(dir_size "$d"))"
   fi
 done
-
-section "data"
-REMOVE_DATA=1
-REMOVE_RUNS=1
-HAS_ANY=0
-if [ -f "$DATA_FILE" ]; then
-  records=$(wc -l < "$DATA_FILE" 2>/dev/null || echo "?")
-  size=$(file_size "$DATA_FILE")
-  warn "  $DATA_FILE  (${C_BOLD}$size${C_RESET}${C_YELLOW}, ${C_BOLD}$records${C_RESET}${C_YELLOW} records)"
-  HAS_ANY=1
-else
-  info "  $DATA_FILE  (missing — nothing to do)"
-  REMOVE_DATA=0
-fi
-if [ -d "$RUNS_DIR" ]; then
-  warn "  $RUNS_DIR/  (${C_BOLD}$(dir_size "$RUNS_DIR")${C_RESET}${C_YELLOW}) — per-iter logs, failed-* forensic snapshots, gas-pool cache"
-  HAS_ANY=1
-else
-  info "  $RUNS_DIR/  (missing — nothing to do)"
-  REMOVE_RUNS=0
-fi
-
-if [ "$HAS_ANY" = "1" ]; then
-  if [ "$FORCE" = "1" ]; then
-    bad "  --force set: removing without prompt"
-  else
-    echo
-    printf "%b" "${C_BOLD}${C_RED}Remove research data above? This deletes collected JSONL + per-iter run logs.${C_RESET} [y/N] "
-    read -r REPLY
-    case "${REPLY:-N}" in
-      y|Y|yes|YES) ;;
-      *)
-        REMOVE_DATA=0
-        REMOVE_RUNS=0
-        good "  Keeping $DATA_FILE and $RUNS_DIR/"
-        ;;
-    esac
-  fi
-fi
-
-# ---------- actually remove ----------
-section "cleaning"
-removed=0
-for f in "${LOG_FILES[@]}"; do
-  if [ -f "$f" ]; then
-    rm -f "$f"
-    good "  removed $f"
-    removed=$((removed + 1))
-  fi
-done
-if [ -f "$DATA_FILE" ] && [ "$REMOVE_DATA" = "1" ]; then
-  rm -f "$DATA_FILE"
-  good "  removed $DATA_FILE"
-  removed=$((removed + 1))
-fi
-if [ -d "$RUNS_DIR" ] && [ "$REMOVE_RUNS" = "1" ]; then
-  rm -rf "$RUNS_DIR"
-  good "  removed $RUNS_DIR/"
-  removed=$((removed + 1))
-fi
-
-if [ "$removed" = "0" ]; then
-  info "  (nothing removed)"
-fi
 echo

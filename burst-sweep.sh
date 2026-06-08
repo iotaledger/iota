@@ -12,8 +12,9 @@
 # `sudo ./tune-sysctl.sh` once per boot session.
 set -uo pipefail
 
-OUT_CSV="burst-sweep.csv"
-OUT_LOG="burst-sweep.log"
+mkdir -p sweeps/latest/data sweeps/latest/logs
+OUT_CSV="sweeps/latest/data/burst-sweep.csv"
+OUT_LOG="sweeps/latest/logs/burst-sweep.log"
 
 # CRITICAL: the validator-side white-flag override needs these env vars at
 # `docker compose up` time, otherwise iota-node boots in QD/cert mode and
@@ -202,7 +203,7 @@ for burst in "${BURSTS[@]}"; do
     docker compose down -v 2>&1 | tail -1 || true
     sudo ./bootstrap.sh -b -n 4 2>&1 | tail -3
     ./run.sh -n 4 faucet 2>&1 | tail -1
-    rm -f "$REPO"/runs/.stress-gas-pool/owner-*.json
+    rm -f "$REPO"/sweeps/.gas-pool-cache/owner-*.json
     # 20s gives Mysticeti time to form quorum, validators to bind gRPC,
     # and the first /etc/hosts lookups to resolve. 5s was too short and
     # caused initial pay_iota tx to time out → fail-fast.
@@ -222,15 +223,15 @@ for burst in "${BURSTS[@]}"; do
     #   NUM_PROCS=48 QPS_TOTAL=78000
     #   NUM_PROCS=72 QPS_TOTAL=118000
     NUM_VALIDATORS_TO_TARGET=1 \
-      NUM_PROCS="${NUM_PROCS:-24}" QPS_TOTAL="${QPS_TOTAL:-40000}" \
+      NUM_PROCS="${NUM_PROCS:-24}" QPS_TOTAL="${QPS_TOTAL:-0}" \
       DURATION=15s \
-      WORKERS=16 IN_FLIGHT_RATIO=20 BURST_SIZE=$burst BARRIER_PERIOD_MS=$bar \
+      WORKERS=16 IN_FLIGHT_RATIO=20 BURST=$burst INTERVAL=$bar \
       OPEN_LOOP="$OPEN_LOOP" \
       GAS_CHUNK_SIZE=500 ./stress-multi.sh 2>&1 | tail -50 \
-      | tee "$REPO/runs/burst-sweep-iter.log"
+      | tee "$REPO/sweeps/latest/logs/burst-sweep-iter.log"
 
     # Extract result from latest summary.txt
-    latest=$(ls -td "$REPO"/runs/multi-*/ | head -1)
+    latest=$(ls -td "$REPO"/sweeps/latest/logs/multi-*/ | head -1)
     if [ -f "$latest/summary.txt" ]; then
       peak=$(grep '^peak inflight:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
       ratio=$(grep '^ratio:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs | sed 's/×//')
@@ -324,14 +325,14 @@ for burst in "${BURSTS[@]}"; do
       echo ">>> RESULT: burst=$burst bar=$bar iter=$i pct=$start_pct FAILED"
     fi
 
-    # Disk-leak prevention: runs/multi-* dirs accumulate 24 process logs each
+    # Disk-leak prevention: sweeps/latest/logs/multi-* dirs accumulate 24 process logs each
     # (~80 MB per process → ~2 GB per iter). A full sweep at ITERS=30 is ~60 GB;
     # back-to-back sweep runs were filling the EPYC's 1.8T root
     # within hours. The CSV already holds the result we care about, so we
     # only need to keep the most recent N run dirs for forensic debugging.
     # Keep last 2 (current iter + previous, in case the current one is the
     # one we want to inspect post-mortem).
-    ls -dt "$REPO"/runs/multi-* 2>/dev/null | tail -n +3 | xargs -r rm -rf
+    ls -dt "$REPO"/sweeps/latest/logs/multi-* 2>/dev/null | tail -n +3 | xargs -r rm -rf
   done
  done
 done

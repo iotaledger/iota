@@ -18,11 +18,11 @@ command -v curl >/dev/null || { echo "Error: curl required for metrics capture" 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-QPS="${QPS:-2000}"
+QPS="${QPS:-0}"
 DURATION="${DURATION:-120s}"
 WORKERS="${WORKERS:-12}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-5}"
-BURST_SIZE="${BURST_SIZE:-1}"
+BURST="${BURST:-0}"
 # OPEN_LOOP=true makes stress.rs recycle each payload back into its free
 # pool immediately after submission, instead of waiting for the response.
 # Per-worker fire rate then matches `target_qps` even when validator
@@ -48,7 +48,19 @@ FULLNODE_RPC_ALL="${FULLNODE_RPC_ALL:-$FULLNODE_RPC}"
 CLIENT_METRIC_PORT="${CLIENT_METRIC_PORT:-8081}"
 READY_FILE="${READY_FILE:-}"
 START_FILE="${START_FILE:-}"
-BARRIER_PERIOD_MS="${BARRIER_PERIOD_MS:-0}"
+INTERVAL="${INTERVAL:-0}"
+# Parse INTERVAL with optional unit suffix (Nms / Ns / Nm). Bare number
+# is treated as ms (back-compat). After parsing, INTERVAL is integer ms.
+parse_ms() {
+  local v="$1"
+  if   [[ "$v" =~ ^([0-9]+)ms$ ]]; then echo "${BASH_REMATCH[1]}"
+  elif [[ "$v" =~ ^([0-9]+)s$  ]]; then echo "$(( ${BASH_REMATCH[1]} * 1000 ))"
+  elif [[ "$v" =~ ^([0-9]+)m$  ]]; then echo "$(( ${BASH_REMATCH[1]} * 60000 ))"
+  elif [[ "$v" =~ ^[0-9]+$     ]]; then echo "$v"
+  else echo "Error: cannot parse '$v' as duration (use Nms / Ns / Nm)" >&2; return 1
+  fi
+}
+INTERVAL=$(parse_ms "$INTERVAL") || exit 1
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 GAS_POOL_CACHE_PATH="${GAS_POOL_CACHE_PATH:-}"
 PRIMARY_GAS_OWNER="${PRIMARY_GAS_OWNER:-0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681}"
@@ -92,8 +104,8 @@ QPS=$QPS
 DURATION=$DURATION
 WORKERS=$WORKERS
 IN_FLIGHT_RATIO=$IN_FLIGHT_RATIO
-BURST_SIZE=$BURST_SIZE
-BARRIER_PERIOD_MS=$BARRIER_PERIOD_MS
+BURST=$BURST
+INTERVAL=$INTERVAL
 GAS_CHUNK_SIZE=$GAS_CHUNK_SIZE
 NUM_TRANSFER_ACCOUNTS=$NUM_TRANSFER_ACCOUNTS
 NUM_CLIENT_THREADS=$NUM_CLIENT_THREADS
@@ -108,7 +120,7 @@ white_flag_flow=$white_flag
 extra_args="$*"
 EOF
 
-echo "=> stress run: qps=$QPS duration=$DURATION workers=$WORKERS in_flight_ratio=$IN_FLIGHT_RATIO burst=$BURST_SIZE barrier_ms=$BARRIER_PERIOD_MS"
+echo "=> stress run: qps=$QPS duration=$DURATION workers=$WORKERS in_flight_ratio=$IN_FLIGHT_RATIO burst=$BURST barrier_ms=$INTERVAL"
 echo "=> output:    $out/"
 echo "=> dashboard: http://localhost:3000/d/load-shedding-stress/load-shedding-stress-test?refresh=5s&from=now-5m&to=now"
 echo
@@ -157,8 +169,11 @@ stress_args=(
 if [ -n "$READY_FILE" ] && [ -n "$START_FILE" ]; then
     stress_args+=(--ready-file "$READY_FILE" --start-file "$START_FILE")
 fi
-if [ "$BARRIER_PERIOD_MS" -gt 0 ] 2>/dev/null; then
-    stress_args+=(--barrier-period-ms "$BARRIER_PERIOD_MS")
+if [ "$INTERVAL" -gt 0 ] 2>/dev/null; then
+    stress_args+=(--barrier-period-ms "$INTERVAL")
+fi
+if [ "${INITIAL_BURST:-0}" -gt 0 ] 2>/dev/null; then
+    stress_args+=(--initial-burst "$INITIAL_BURST")
 fi
 if [ -n "$GAS_POOL_CACHE_PATH" ]; then
     stress_args+=(--gas-pool-cache-path "$GAS_POOL_CACHE_PATH")
@@ -173,7 +188,7 @@ stress_args+=(
     --target-qps "$QPS"
     --in-flight-ratio "$IN_FLIGHT_RATIO"
     --num-workers "$WORKERS"
-    --burst-size "$BURST_SIZE"
+    --burst-size "$BURST"
     --open-loop "$OPEN_LOOP"
     --transfer-object "$TRANSFER_OBJECT_PCT"
     --shared-counter "$SHARED_COUNTER_PCT"

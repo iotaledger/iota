@@ -71,7 +71,7 @@ full_reset() {
   (cd "$GRAFANA" && docker compose down 2>&1 | tail -1) || true
   sleep 2
   (cd "$PRIVNET" && docker compose down -v 2>&1 | tail -1) || true
-  rm -f runs/.stress-gas-pool/owner-*.json
+  rm -f sweeps/.gas-pool-cache/owner-*.json
   initial_bringup
 }
 
@@ -83,13 +83,13 @@ initial_bringup
 # use sat=100 — sat<100 only makes sense in the graduated zone.
 POLICIES=(
   # binary
-  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=100 SAT_PCT=100"
-  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=90  SAT_PCT=90"
-  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=75  SAT_PCT=75"
-  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=50  SAT_PCT=50"
+  "SEM_SHEDDING=true MAX_PENDING=1000 SEM_CAP=20 START_PCT=100 SAT_PCT=100"
+  "SEM_SHEDDING=true MAX_PENDING=1000 SEM_CAP=20 START_PCT=90  SAT_PCT=90"
+  "SEM_SHEDDING=true MAX_PENDING=1000 SEM_CAP=20 START_PCT=75  SAT_PCT=75"
+  "SEM_SHEDDING=true MAX_PENDING=1000 SEM_CAP=20 START_PCT=60  SAT_PCT=60"
+  "SEM_SHEDDING=true MAX_PENDING=1000 SEM_CAP=20 START_PCT=50  SAT_PCT=50"
   # graduated
-  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=50  SAT_PCT=100"
-  "SEM_SHEDDING=false MAX_PENDING=2000 START_PCT=25  SAT_PCT=100"
+  "SEM_SHEDDING=true MAX_PENDING=1000 SEM_CAP=20 START_PCT=50  SAT_PCT=100"
 )
 
 P_TOTAL=${#POLICIES[@]}
@@ -129,3 +129,14 @@ done
 echo "=== run.sh: final teardown $(date -u +%H:%M:%S) ==="
 (cd "$GRAFANA" && docker compose down 2>&1 | tail -3) || true
 (cd "$PRIVNET" && docker compose down -v 2>&1 | tail -3) || true
+
+# ---------- auto-plot the regime we just finished ----------
+# plot.py without args defaults to the most-recently-modified JSONL in
+# sweeps/latest/data/ and writes to sweeps/latest/plots/<regime>/.
+echo "=== run.sh: auto-plot $(date -u +%H:%M:%S) ==="
+PY="sweeps/.venv/bin/python"
+if [ -x "$PY" ] && [ -f "sweeps/plot.py" ]; then
+  "$PY" sweeps/plot.py 2>&1 | tail -10 || echo "  (plot.py failed — inspect manually)"
+else
+  echo "  (skipped: $PY or sweeps/plot.py missing)"
+fi

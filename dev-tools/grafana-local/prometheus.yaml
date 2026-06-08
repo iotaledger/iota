@@ -221,3 +221,12 @@ scrape_configs:
         labels:
           host: node
           network: local
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+    metric_relabel_configs:
+      # Map cadvisor's `name` label (the docker container name) onto `host`
+      # so per-container CPU/memory queries can use the same selector
+      # (`host=~"validator.*"`) as IOTA's own metrics.
+      - source_labels: [name]
+        target_label: host

@@ -115,17 +115,4 @@ crates/iota-aws-orchestrator/assets/logs/
 # ignore explorer files
 apps/explorer/public/*.wasm
 
-runs/
-burst-sweep.*
-!burst-sweep.sh
-# Legacy sweep artefacts (cap-policy-sweep.sh + fairness-sweep.sh were
-# merged into sweep.sh; keep these patterns for backwards-compat with
-# old data files on disk).
-cap-policy-sweep*
-fairness-sweep*
-# Unified sweep.sh — script tracked, data/log files gitignored.
-sweep.jsonl*
-sweep.log*
-sweep-*.jsonl
-sweep-*.log
-run.log
+sweeps/

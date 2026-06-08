@@ -7,8 +7,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # Refuse to launch if a previous run_inner.sh is still alive — concurrent
-# runs share run.log / sweep.log and fight over docker state, producing
-# garbled monitor output and corrupted iter data.
+# runs share sweeps/latest/logs/run.log + sweep.log and fight over docker
+# state, producing garbled monitor output and corrupted iter data.
 if pgrep -f "run_inner.sh" >/dev/null 2>&1; then
   echo "Error: a run_inner.sh is already running. Stop it with ./kill.sh first." >&2
   pgrep -af "run_inner.sh" | sed 's/^/  /' >&2
@@ -54,7 +54,9 @@ export OPEN_LOOP_MAX_INFLIGHT_PER_WORKER
 
 echo "config: ITERS=$ITERS  SEM_CAP=$SEM_CAP  SAT_PCT=$SAT_PCT  OPEN_LOOP_CAP=$OPEN_LOOP_MAX_INFLIGHT_PER_WORKER  AIMD=${AIMD:-false}  OPEN_LOOP=${OPEN_LOOP:-false}"
 
-nohup ./run_inner.sh >> run.log 2>&1 &
+LOGS_DIR="sweeps/latest/logs"
+mkdir -p "$LOGS_DIR"
+nohup ./run_inner.sh >> "$LOGS_DIR/run.log" 2>&1 &
 
 disown
 echo "PID: $!"

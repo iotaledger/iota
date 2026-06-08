@@ -82,7 +82,7 @@ SEM_SHEDDING="${SEM_SHEDDING:-}"
 # Pool config. Total NUM_PROCS = spammer + honest + honest_cl. Default
 # matches burst-sweep.sh's 24-spammer baseline so spam pressure stays
 # comparable (the +2 honest procs take 2 slots, leaving 24 spammers).
-NUM_PROCS="${NUM_PROCS:-26}"
+NUM_PROCS="${NUM_PROCS:-24}"
 
 # Honest pools: low-rate steady submitters that double as the fairness
 # probe. Two pools by default — one open-loop (the canonical fairness
@@ -92,10 +92,10 @@ NUM_PROCS="${NUM_PROCS:-26}"
 # negligible impact on cap-policy metrics. Set HONEST_PROC_COUNT=0 and
 # HONEST_CL_PROC_COUNT=0 to disable the honest experiment entirely.
 HONEST_PROC_COUNT="${HONEST_PROC_COUNT:-0}"
-HONEST_CL_PROC_COUNT="${HONEST_CL_PROC_COUNT:-1}"
+HONEST_CL_PROC_COUNT="${HONEST_CL_PROC_COUNT:-0}"
 HONEST_QPS_PER_PROC="${HONEST_QPS_PER_PROC:-100}"
-HONEST_BURST_SIZE="${HONEST_BURST_SIZE:-1}"
-HONEST_BARRIER_PERIOD_MS="${HONEST_BARRIER_PERIOD_MS:-0}"
+HONEST_BURST="${HONEST_BURST:-1}"
+HONEST_INTERVAL="${HONEST_INTERVAL:-0}"
 HONEST_IFR="${HONEST_IFR:-4}"
 HONEST_WORKERS="${HONEST_WORKERS:-4}"
 # When true, the HONEST_PROC_COUNT pool fires at fixed QPS regardless
@@ -104,20 +104,44 @@ HONEST_WORKERS="${HONEST_WORKERS:-4}"
 # this flag does not affect it.
 HONEST_OPEN_LOOP="${HONEST_OPEN_LOOP:-true}"
 
-# Spammer pool config (canonical settings from burst-sweep.sh).
-QPS_TOTAL="${QPS_TOTAL:-2000}"
+# Spammer pool config. All regime-controlling params default to 0 — the
+# caller MUST specify the regime explicitly via env vars.
+#   QPS_TOTAL=N    → Mode B (rate-paced): aggregate ~N tx/s, smooth arrival
+#   INTERVAL>0  → Mode A (barrier): synchronized bursts of BURST txs
+#                    every INTERVAL ms; QPS_TOTAL ignored in this mode.
+# Setting all three to 0 produces no spam (bench_driver returns empty
+# worker list when target_qps=0). This is intentional — fail loud rather
+# than silently default to some implicit regime.
+QPS_TOTAL="${QPS_TOTAL:-40000}"
 DURATION="${DURATION:-30s}"
 WORKERS="${WORKERS:-16}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-20}"
-BURST_SIZE="${BURST_SIZE:-1800}"
 # OPEN_LOOP=true makes the spammer pool fire submissions at target_qps
 # regardless of in-flight count. Removes the closed-loop per-worker
 # round-trip ceiling that pins per-proc submission rate well below
 # nominal QPS under heavy validator contention. Use for cap-safety and
 # goodput experiments where sustained validator-gate pressure matters
 # more than per-tx correctness. Honest pool is always closed-loop.
-OPEN_LOOP="${OPEN_LOOP:-true}"
-BARRIER_PERIOD_MS="${BARRIER_PERIOD_MS:-500}"
+OPEN_LOOP="${OPEN_LOOP:-false}"
+BURST="${BURST:-0}"
+INTERVAL="${INTERVAL:-0}"
+
+# Parse INTERVAL / HONEST_INTERVAL with unit suffix (ms / s / m). Bare
+# number is treated as ms (back-compat). After parsing, the variable
+# holds an integer millisecond value suitable for stress.rs's
+# --barrier-period-ms. Mirrors DURATION's parsing style.
+parse_ms() {
+  local v="$1"
+  if   [[ "$v" =~ ^([0-9]+)ms$ ]]; then echo "${BASH_REMATCH[1]}"
+  elif [[ "$v" =~ ^([0-9]+)s$  ]]; then echo "$(( ${BASH_REMATCH[1]} * 1000 ))"
+  elif [[ "$v" =~ ^([0-9]+)m$  ]]; then echo "$(( ${BASH_REMATCH[1]} * 60000 ))"
+  elif [[ "$v" =~ ^[0-9]+$     ]]; then echo "$v"
+  else echo "Error: cannot parse '$v' as duration (use Nms / Ns / Nm)" >&2; return 1
+  fi
+}
+INTERVAL=$(parse_ms "$INTERVAL") || exit 1
+HONEST_INTERVAL=$(parse_ms "$HONEST_INTERVAL") || exit 1
+
 GAS_CHUNK_SIZE="${GAS_CHUNK_SIZE:-500}"
 NUM_VALIDATORS_TO_TARGET="${NUM_VALIDATORS_TO_TARGET:-1}"
 
@@ -148,27 +172,59 @@ SKIP_NETWORK_LIFECYCLE="${SKIP_NETWORK_LIFECYCLE:-false}"
 # to experiment.
 FAST_MODE="${FAST_MODE:-false}"
 
-OUT_JSONL="sweep.jsonl"
-OUT_LOG="sweep.log"
 PRIVNET=/home/roman/IOTA/iotaledger/iota/dev-tools/iota-private-network
 REPO=/home/roman/IOTA/iotaledger/iota
 YAML_CFG="$PRIVNET/configs/validator-common.yaml"
 
+# Layout (see sweeps/ structure):
+#   sweeps/latest/data/sweep-<host>-b<BURST>-i<INTERVAL>-q<QPS>.jsonl
+#   sweeps/latest/plots/sweep-<host>-b<BURST>-i<INTERVAL>-q<QPS>/...
+#   sweeps/latest/logs/{sweep,run}.log, multi-<ts>/, failed-<ts>/
+#   sweeps/.gas-pool-cache/   (shared across sweep sessions)
+SWEEPS_DIR="$REPO/sweeps/latest"
+DATA_DIR="$SWEEPS_DIR/data"
+LOGS_DIR="$SWEEPS_DIR/logs"
+PLOTS_DIR="$SWEEPS_DIR/plots"
+mkdir -p "$DATA_DIR" "$LOGS_DIR" "$PLOTS_DIR"
+
 # Derived
 DURATION_SECS=$(echo "$DURATION" | sed 's/s$//')
 N_SPAMMER=$((NUM_PROCS - HONEST_PROC_COUNT - HONEST_CL_PROC_COUNT))
+
+# bench_driver.rs:407 splits target_qps across num_workers and requires
+# per-worker target_qps >= 1 to spawn each worker. Below the floor, some
+# workers silently never start (especially fatal in Mode A where INTERVAL
+# does the pacing but QPS_TOTAL is still gating spawn).
+MIN_QPS_TOTAL=$((N_SPAMMER * WORKERS))
+if [ "$QPS_TOTAL" -eq 0 ]; then
+  QPS_TOTAL=$MIN_QPS_TOTAL
+  echo "=> QPS_TOTAL unset; using minimum $QPS_TOTAL (= N_SPAMMER=$N_SPAMMER × WORKERS=$WORKERS) so all workers spawn."
+elif [ "$QPS_TOTAL" -lt "$MIN_QPS_TOTAL" ]; then
+  echo "Error: QPS_TOTAL=$QPS_TOTAL is below the minimum $MIN_QPS_TOTAL (= N_SPAMMER=$N_SPAMMER × WORKERS=$WORKERS)." >&2
+  echo "       bench_driver.rs requires per-worker target_qps >= 1 — some workers won't spawn." >&2
+  echo "       Either bump QPS_TOTAL >= $MIN_QPS_TOTAL or reduce NUM_PROCS/WORKERS." >&2
+  exit 1
+fi
 QPS_PER_SPAMMER=$((QPS_TOTAL / N_SPAMMER))
+
+# Regime tag — embedded in JSONL + plot dir names so multiple regimes in
+# one sweep session don't collide. HOST_NAME is captured below; we sneak
+# the hostname() call up here so the tag is ready for OUT_JSONL.
+HOST_NAME="$(hostname)"
+REGIME_TAG="sweep-${HOST_NAME}-b${BURST}-i${INTERVAL}-q${QPS_TOTAL}-w${WORKERS}"
+OUT_JSONL="$DATA_DIR/${REGIME_TAG}.jsonl"
+OUT_LOG="$LOGS_DIR/sweep.log"
 # Spammer "offered" includes the burst at t=0 plus QPS-paced submissions
 # over DURATION_SECS. Both honest pools are QPS-paced from start. All
 # ignore retries (which inflate stress.rs's view but not what the client
 # originally intended to submit).
-SPAMMER_OFFERED=$((BURST_SIZE * N_SPAMMER + QPS_PER_SPAMMER * DURATION_SECS * N_SPAMMER))
+SPAMMER_OFFERED=$((BURST * N_SPAMMER + QPS_PER_SPAMMER * DURATION_SECS * N_SPAMMER))
 HONEST_OFFERED=$((HONEST_QPS_PER_PROC * DURATION_SECS * HONEST_PROC_COUNT))
 HONEST_CL_OFFERED=$((HONEST_QPS_PER_PROC * DURATION_SECS * HONEST_CL_PROC_COUNT))
 
 # Host + git context captured ONCE at sweep start; embedded into every
 # JSONL record so post-hoc analysis can group / filter by host or commit.
-HOST_NAME="$(hostname)"
+# HOST_NAME already captured above for REGIME_TAG.
 HOST_NPROC="$(nproc 2>/dev/null || echo 0)"
 HOST_KERNEL="$(uname -r)"
 HOST_MEM_GIB="$(awk '/MemTotal/ {printf "%.0f", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 0)"
@@ -180,7 +236,7 @@ exec >> "$OUT_LOG" 2>&1
 
 echo "================ sweep $(date -u) ================"
 echo "config: NUM_PROCS=$NUM_PROCS  (spammer=$N_SPAMMER honest=$HONEST_PROC_COUNT honest_cl=$HONEST_CL_PROC_COUNT)"
-echo "        spammer:   N=$N_SPAMMER QPS_per=$QPS_PER_SPAMMER BURST=$BURST_SIZE BAR=${BARRIER_PERIOD_MS}ms OPEN_LOOP=$OPEN_LOOP"
+echo "        spammer:   N=$N_SPAMMER QPS_per=$QPS_PER_SPAMMER BURST=$BURST INTERVAL=${INTERVAL}ms OPEN_LOOP=$OPEN_LOOP"
 if [ "$HONEST_PROC_COUNT" -gt 0 ]; then
   echo "        honest:    N=$HONEST_PROC_COUNT QPS_per=$HONEST_QPS_PER_PROC OPEN_LOOP=$HONEST_OPEN_LOOP"
 fi
@@ -427,7 +483,7 @@ for i in $(seq 1 $ITERS); do
   hdr="[sweep"
   [ "${ITERS}" -gt 1 ] && hdr="$hdr iter=$i/$ITERS"
   [ -n "${POLICY_IDX:-}" ] && hdr="$hdr policy=${POLICY_IDX}/${POLICY_TOTAL}"
-  hdr="$hdr  pct=${START_PCT:-(current yaml)}  fast=$FAST_MODE]  $(date -u +%H:%M:%S)"
+  hdr="$hdr  pct=${START_PCT:-(current yaml)}  sat=${SAT_PCT:-(current yaml)}  fast=$FAST_MODE]  $(date -u +%H:%M:%S)"
   echo "$hdr"
   echo "=================================================="
 
@@ -499,7 +555,7 @@ for i in $(seq 1 $ITERS); do
   mark "bootstrap done"
   ./run.sh -n 4 faucet 2>&1 | tail -1
   mark "validators up"
-  rm -f "$REPO"/runs/.stress-gas-pool/owner-*.json
+  rm -f "$REPO"/sweeps/.gas-pool-cache/owner-*.json
   (cd "$REPO/dev-tools/grafana-local" && docker compose up -d 2>&1 | tail -1)
   mark "grafana up"
   # Wait for Prometheus to be ready before the spam window starts.
@@ -550,8 +606,8 @@ for i in $(seq 1 $ITERS); do
   HONEST_PROC_COUNT="$HONEST_PROC_COUNT" \
   HONEST_CL_PROC_COUNT="$HONEST_CL_PROC_COUNT" \
   HONEST_QPS_PER_PROC="$HONEST_QPS_PER_PROC" \
-  HONEST_BURST_SIZE="$HONEST_BURST_SIZE" \
-  HONEST_BARRIER_PERIOD_MS="$HONEST_BARRIER_PERIOD_MS" \
+  HONEST_BURST="$HONEST_BURST" \
+  HONEST_INTERVAL="$HONEST_INTERVAL" \
   HONEST_IFR="$HONEST_IFR" \
   HONEST_WORKERS="$HONEST_WORKERS" \
   HONEST_OPEN_LOOP="$HONEST_OPEN_LOOP" \
@@ -560,10 +616,11 @@ for i in $(seq 1 $ITERS); do
   DURATION="$DURATION" \
   WORKERS="$WORKERS" \
   IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" \
-  BURST_SIZE="$BURST_SIZE" \
+  BURST="$BURST" \
   OPEN_LOOP="$OPEN_LOOP" \
   OPEN_LOOP_MAX_INFLIGHT_PER_WORKER="${OPEN_LOOP_MAX_INFLIGHT_PER_WORKER:-}" \
-  BARRIER_PERIOD_MS="$BARRIER_PERIOD_MS" \
+  INITIAL_BURST="${INITIAL_BURST:-0}" \
+  INTERVAL="$INTERVAL" \
   GAS_CHUNK_SIZE="$GAS_CHUNK_SIZE" \
   ./stress-multi.sh 2>&1 \
     | awk '
@@ -571,13 +628,13 @@ for i in $(seq 1 $ITERS); do
         { buf[NR % 100] = $0 }
         END { for (i = 0; i < 100; i++) { j = (NR + 1 + i) % 100; if (buf[j]) print buf[j] } }
       ' \
-    | tee "$REPO/runs/sweep-iter.log"
+    | tee "$LOGS_DIR/sweep-iter.log"
 
   ITER_END_EPOCH=$(date +%s)
   mark "stress-multi done"
 
   # Parse per-iter summary + emit one JSONL record.
-  latest=$(ls -td "$REPO"/runs/multi-*/ | head -1)
+  latest=$(ls -td "$LOGS_DIR"/multi-*/ | head -1)
 
   # Read validator config from the yaml at THIS moment so each record
   # captures what was actually deployed (in case the yaml was patched
@@ -629,6 +686,8 @@ for i in $(seq 1 $ITERS); do
     consensus_lat_p95=$(grep '^consensus_lat_p95:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     consensus_lat_p99=$(grep '^consensus_lat_p99:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     consensus_lat_p999=$(grep '^consensus_lat_p999:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    validator_cpu_seconds=$(grep '^validator_cpu_seconds:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
+    validator_mem_peak=$(grep '^validator_mem_peak:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     spam_start_epoch=$(grep '^spam_start_epoch:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     spam_end_epoch=$(grep '^spam_end_epoch:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
     spammer_success=$(grep '^spammer_success:' "$latest/summary.txt" | awk -F: '{print $2}' | xargs)
@@ -647,6 +706,7 @@ for i in $(seq 1 $ITERS); do
     : "${queue_depth_p75:=0}"
     : "${consensus_lat_p50:=0}"; : "${consensus_lat_p90:=0}"; : "${consensus_lat_p95:=0}"
     : "${consensus_lat_p99:=0}"; : "${consensus_lat_p999:=0}"
+    : "${validator_cpu_seconds:=0}"; : "${validator_mem_peak:=0}"
     : "${spam_start_epoch:=0}"; : "${spam_end_epoch:=0}"
     : "${spammer_success:=0}"; : "${honest_success:=0}"; : "${honest_cl_success:=0}"
 
@@ -660,22 +720,17 @@ for i in $(seq 1 $ITERS); do
     iso=$(basename "$latest" | sed 's/multi-//')
     failed=0
     silent_collapse=0
-    # Silent-collapse detection — runs BEFORE JSONL emit so the resulting
-    # record has failed=true and plot.py's existing filter excludes it
-    # from medians/boxplots. Signature: queue depth was empty most of the
-    # spam window (p75 < 100) despite a brief peak (peak > max_pending/4)
-    # — i.e. validator accepted an initial burst, then died/restarted,
-    # then trickled along with empty queue for the remainder. This is the
-    # checkpoint-fork failure pattern; see project memory entry
-    # "checkpoint-fork-panic" for the root cause (CheckpointBuilder
-    # fatal! at crates/iota-core/src/checkpoints/mod.rs:545).
-    # Threshold scales to max_pending/4 so detection works at any cap
-    # (max=5K → 1250, max=10K → 2500, max=20K → 5000 = legacy default).
-    # Set SILENT_COLLAPSE_DISABLE=true to skip the detector entirely.
-    # Useful for long-barrier burst regimes (e.g. BURST_SIZE=50 BAR=5000ms)
-    # where queue naturally drains to 0 between bursts, mimicking the fork
-    # signature without an actual fork.
-    if [ "${SILENT_COLLAPSE_DISABLE:-false}" != "true" ]; then
+    # Silent-collapse detection — was added to catch a since-fixed
+    # checkpoint-fork panic (CheckpointBuilder fatal! at
+    # crates/iota-core/src/checkpoints/mod.rs:545; see project memory
+    # "checkpoint-fork-panic"). Now disabled by default since:
+    #   (a) the upstream fork bug is fixed
+    #   (b) intentional Mode A burst regimes produce exactly the
+    #       "queue p75 < 100 + brief peak" signature → constant false
+    #       positives
+    # Re-enable with SILENT_COLLAPSE_DISABLE=false if a new fork-like
+    # failure mode appears and you need detection back.
+    if [ "${SILENT_COLLAPSE_DISABLE:-true}" != "true" ]; then
       queue_p75_int_early=$(awk -v v="${queue_depth_p75:-0}" 'BEGIN{printf "%d", v}')
       sc_peak_threshold=$(( ${val_max_pending:-20000} / 4 ))
       [ "$sc_peak_threshold" -lt 100 ] && sc_peak_threshold=100
@@ -695,6 +750,7 @@ for i in $(seq 1 $ITERS); do
     shed_pct_avg=0; shed_pct_max=0
     inflight_stddev=0; inflight_mean=0; saturation_75pct=0
     consensus_lat_p50=0; consensus_lat_p90=0; consensus_lat_p95=0; consensus_lat_p99=0; consensus_lat_p999=0
+    validator_cpu_seconds=0; validator_mem_peak=0
     spam_start_epoch=0; spam_end_epoch=0
     spammer_success=0; spammer_fp=0; honest_success=0; honest_fp=0
     honest_cl_success=0; honest_cl_fp=0; ok=0; exits=""
@@ -828,13 +884,13 @@ print(json.dumps({
   HOST_NAME="$HOST_NAME" HOST_NPROC="$HOST_NPROC" HOST_KERNEL="$HOST_KERNEL" HOST_MEM_GIB="$HOST_MEM_GIB" \
   IOTA_GIT_COMMIT="$IOTA_GIT_COMMIT" \
   SPAM_NUM_PROCS="$N_SPAMMER" SPAM_QPS_PER="$QPS_PER_SPAMMER" SPAM_QPS_TOTAL="$QPS_TOTAL" \
-  SPAM_BURST="$BURST_SIZE" SPAM_BAR_MS="$BARRIER_PERIOD_MS" SPAM_DURATION="$DURATION" SPAM_DURATION_SECS="$DURATION_SECS" \
+  SPAM_BURST="$BURST" SPAM_INTERVAL="$INTERVAL" SPAM_DURATION="$DURATION" SPAM_DURATION_SECS="$DURATION_SECS" \
   SPAM_WORKERS="$WORKERS" SPAM_IFR="$IN_FLIGHT_RATIO" SPAM_OPEN_LOOP="$OPEN_LOOP" \
   SPAM_OPEN_LOOP_CAP="${OPEN_LOOP_MAX_INFLIGHT_PER_WORKER:-}" \
   SPAM_GAS_CHUNK="$GAS_CHUNK_SIZE" SPAM_NUM_VALIDATORS="$NUM_VALIDATORS_TO_TARGET" \
   SPAM_OFFERED="$SPAMMER_OFFERED" \
-  HON_PROC_COUNT="$HONEST_PROC_COUNT" HON_QPS_PER="$HONEST_QPS_PER_PROC" HON_BURST="$HONEST_BURST_SIZE" \
-  HON_BAR_MS="$HONEST_BARRIER_PERIOD_MS" HON_IFR="$HONEST_IFR" HON_WORKERS="$HONEST_WORKERS" \
+  HON_PROC_COUNT="$HONEST_PROC_COUNT" HON_QPS_PER="$HONEST_QPS_PER_PROC" HON_BURST="$HONEST_BURST" \
+  HON_INTERVAL="$HONEST_INTERVAL" HON_IFR="$HONEST_IFR" HON_WORKERS="$HONEST_WORKERS" \
   HON_OPEN_LOOP="$HONEST_OPEN_LOOP" \
   HON_OFFERED="$HONEST_OFFERED" HON_SUCCESS="$honest_success" HON_FP="$honest_fp" \
   HON_CL_PROC_COUNT="$HONEST_CL_PROC_COUNT" \
@@ -851,6 +907,7 @@ print(json.dumps({
   R_INFLIGHT_STDDEV="$inflight_stddev" R_INFLIGHT_MEAN="$inflight_mean" \
   R_SATURATION_75PCT="$saturation_75pct" \
   R_CONSENSUS_LAT_P50="$consensus_lat_p50" R_CONSENSUS_LAT_P90="$consensus_lat_p90" R_CONSENSUS_LAT_P95="$consensus_lat_p95" R_CONSENSUS_LAT_P99="$consensus_lat_p99" R_CONSENSUS_LAT_P999="$consensus_lat_p999" \
+  R_VALIDATOR_CPU_SECONDS="$validator_cpu_seconds" R_VALIDATOR_MEM_PEAK="$validator_mem_peak" \
   R_SPAM_START_EPOCH="$spam_start_epoch" R_SPAM_END_EPOCH="$spam_end_epoch" \
   R_SPAMMER_SUCCESS="$spammer_success" R_SPAMMER_FP="$spammer_fp" \
   R_REJ_PREV="$r_prev" R_REJ_REACT="$r_grad_react" R_REJ_SAT="$r_grad_sat" R_REJ_MAX="$r_max" R_REJ_SEM="$r_sem" \
@@ -980,7 +1037,7 @@ rec = {
     "qps_per_proc": i("SPAM_QPS_PER"),
     "qps_total": i("SPAM_QPS_TOTAL"),
     "burst_size": i("SPAM_BURST"),
-    "barrier_period_ms": i("SPAM_BAR_MS"),
+    "barrier_period_ms": i("SPAM_INTERVAL"),
     "duration": s("SPAM_DURATION"),
     "duration_secs": i("SPAM_DURATION_SECS"),
     "workers": i("SPAM_WORKERS"),
@@ -1008,7 +1065,7 @@ rec = {
     "proc_count": i("HON_PROC_COUNT"),
     "qps_per_proc": i("HON_QPS_PER"),
     "burst_size": i("HON_BURST"),
-    "barrier_period_ms": i("HON_BAR_MS"),
+    "barrier_period_ms": i("HON_INTERVAL"),
     "in_flight_ratio": i("HON_IFR"),
     "workers": i("HON_WORKERS"),
     "open_loop": b("HON_OPEN_LOOP"),
@@ -1031,7 +1088,7 @@ rec = {
     # quantifies the closed-loop self-throttling bias.
     "qps_per_proc": i("HON_QPS_PER"),
     "burst_size": i("HON_BURST"),
-    "barrier_period_ms": i("HON_BAR_MS"),
+    "barrier_period_ms": i("HON_INTERVAL"),
     "in_flight_ratio": i("HON_IFR"),
     "workers": i("HON_WORKERS"),
     "open_loop": False,
@@ -1081,6 +1138,8 @@ rec = {
     "consensus_lat_p95": f("R_CONSENSUS_LAT_P95"),
     "consensus_lat_p99": f("R_CONSENSUS_LAT_P99"),
     "consensus_lat_p999": f("R_CONSENSUS_LAT_P999"),
+    "validator_cpu_seconds": f("R_VALIDATOR_CPU_SECONDS"),
+    "validator_mem_peak": f("R_VALIDATOR_MEM_PEAK"),
     # Per-pool success / first-pass also lifted into spammer/honest
     # objects above; kept here for backwards-compat with older plot.py
     # that looks at results.spammer_success / results.spammer_first_pass_pct.
@@ -1163,7 +1222,7 @@ print(json.dumps(rec))
   # container exit status (was the target validator killed?), RSS/CPU,
   # the last ~200 log lines per validator, and a Prometheus `up{}` probe.
   # Saved into the iter's multi-* dir; if this iter is later flagged bad,
-  # the rename to runs/failed-<ts>/ preserves it indefinitely. Cheap
+  # the rename to sweeps/latest/logs/failed-<ts>/ preserves it indefinitely. Cheap
   # (~1s) and invaluable when an iter shows tps≈50 with no drops.
   if [ -n "${latest:-}" ] && [ -d "$latest" ]; then
     {
@@ -1222,15 +1281,15 @@ print(json.dumps(rec))
       else
         echo "=== FAST_MODE: exiting non-zero so caller can reset before next iter ==="
       fi
-      # Failed iter — rename to runs/failed-<ts>/ so it survives the
-      # cleanup pass below. The user can manually purge runs/failed-*
+      # Failed iter — rename to sweeps/latest/logs/failed-<ts>/ so it survives the
+      # cleanup pass below. The user can manually purge sweeps/latest/logs/failed-*
       # once they're done diagnosing.
       if [ -n "${latest:-}" ] && [ -d "$latest" ]; then
         ts=$(basename "$latest" | sed 's|^multi-||;s|/$||')
-        mv "$latest" "$REPO/runs/failed-$ts" \
-          && echo "  preserved failed iter as runs/failed-$ts"
+        mv "$latest" "$LOGS_DIR/failed-$ts" \
+          && echo "  preserved failed iter as sweeps/latest/logs/failed-$ts"
       fi
-      ls -dt "$REPO"/runs/multi-* 2>/dev/null | tail -n +31 | xargs -r rm -rf
+      ls -dt "$LOGS_DIR"/multi-* 2>/dev/null | tail -n +3 | xargs -r rm -rf
       exit 1
     fi
   else
@@ -1238,14 +1297,14 @@ print(json.dumps(rec))
   fi
 
   # Per-iter cleanup: keep last 30 healthy multi-* dirs, drop older.
-  # Failed iters get renamed to runs/failed-<ts>/ above (or below for the
+  # Failed iters get renamed to sweeps/latest/logs/failed-<ts>/ above (or below for the
   # non-FAST_MODE path) so they're never deleted by this pass.
   if [ "$iter_bad" -eq 1 ] && [ -n "${latest:-}" ] && [ -d "$latest" ]; then
     ts=$(basename "$latest" | sed 's|^multi-||;s|/$||')
-    mv "$latest" "$REPO/runs/failed-$ts" \
-      && echo "  preserved failed iter as runs/failed-$ts"
+    mv "$latest" "$LOGS_DIR/failed-$ts" \
+      && echo "  preserved failed iter as sweeps/latest/logs/failed-$ts"
   fi
-  ls -dt "$REPO"/runs/multi-* 2>/dev/null | tail -n +31 | xargs -r rm -rf
+  ls -dt "$LOGS_DIR"/multi-* 2>/dev/null | tail -n +3 | xargs -r rm -rf
 done
 
 echo
