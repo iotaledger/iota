@@ -220,13 +220,13 @@ pub(super) struct ClientObservedStats {
 #[derive(Debug, Clone)]
 struct ValidatorClientStats {
     /// Health-check operation stats.
-    stats_hc: LogLatencyEwma,
+    stats_health_check: LogLatencyEwma,
     /// Submit operation stats.
-    stats_sub: LogLatencyEwma,
+    stats_submit: LogLatencyEwma,
     /// Effects operation stats.
-    stats_eff: LogLatencyEwma,
+    stats_effects: LogLatencyEwma,
     /// Consensus operation stats.
-    stats_con: LogLatencyEwma,
+    stats_consensus: LogLatencyEwma,
 }
 
 /// The reference interval for Submit, Effects, and Consensus operations.
@@ -235,10 +235,10 @@ const TAU: f64 = 60.0;
 impl ValidatorClientStats {
     fn new() -> Self {
         Self {
-            stats_hc: LogLatencyEwma::new(),
-            stats_sub: LogLatencyEwma::new(),
-            stats_eff: LogLatencyEwma::new(),
-            stats_con: LogLatencyEwma::new(),
+            stats_health_check: LogLatencyEwma::new(),
+            stats_submit: LogLatencyEwma::new(),
+            stats_effects: LogLatencyEwma::new(),
+            stats_consensus: LogLatencyEwma::new(),
         }
     }
 
@@ -256,28 +256,28 @@ impl ValidatorClientStats {
             OperationType::HealthCheck => {
                 let tau_hc = config.health_check_interval.as_secs_f64();
                 let failure_hc = config.health_check_timeout.as_secs_f64() * 4.0;
-                self.stats_hc.update(
+                self.stats_health_check.update(
                     tau_hc,
                     feedback.timestamp,
                     observation.map_err(|()| failure_hc),
                 );
             }
             OperationType::Submit => {
-                self.stats_sub.update(
+                self.stats_submit.update(
                     TAU,
                     feedback.timestamp,
                     observation.map_err(|()| FAILURE_SUB),
                 );
             }
             OperationType::Effects => {
-                self.stats_eff.update(
+                self.stats_effects.update(
                     TAU,
                     feedback.timestamp,
                     observation.map_err(|()| FAILURE_EFF),
                 );
             }
             OperationType::Consensus => {
-                self.stats_con.update(
+                self.stats_consensus.update(
                     TAU,
                     feedback.timestamp,
                     observation.map_err(|()| FAILURE_CON),
@@ -300,19 +300,19 @@ impl ValidatorClientStats {
         let tau_hc = config.health_check_interval.as_secs_f64();
 
         let (score_hc, _sample_size_hc, failures_hc, _alpha_hc, _interval_hc) = self
-            .stats_hc
+            .stats_health_check
             .get_stats(VARIANCE_PENALTY_HC, tau_hc, now)
             .unwrap_or((EMPTY_SCORE_HC, 0.0, 0.0, 1.0, None));
         let (score_sub, sample_size_sub, failures_sub, alpha_sub, interval_sub) = self
-            .stats_sub
+            .stats_submit
             .get_stats(VARIANCE_PENALTY_SUB, TAU, now)
             .unwrap_or((EMPTY_SCORE_SUB, 0.0, 0.0, 1.0, None));
         let (score_eff, sample_size_eff, failures_eff, alpha_eff, interval_eff) = self
-            .stats_eff
+            .stats_effects
             .get_stats(VARIANCE_PENALTY_EFF, TAU, now)
             .unwrap_or((EMPTY_SCORE_EFF, 0.0, 0.0, 1.0, None));
         let (score_con, sample_size_con, failures_con, alpha_con, interval_con) = self
-            .stats_con
+            .stats_consensus
             .get_stats(VARIANCE_PENALTY_CON, TAU, now)
             .unwrap_or((EMPTY_SCORE_CON, 0.0, 0.0, 1.0, None));
 
