@@ -14,7 +14,7 @@ use iota_sdk_types::{
     Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, Identifier,
     MoveLocation, ObjectId, Owner, PackageUpgradeError, SimpleSignature, StructTag,
-    TypeArgumentError, TypeTag,
+    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
@@ -47,7 +47,7 @@ use iota_types::{
     transaction::{
         CallArg, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
         ProgrammableTransaction, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
-        Transaction, TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
+        Transaction, TransactionData, TransactionDataAPI,
     },
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};

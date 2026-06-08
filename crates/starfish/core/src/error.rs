@@ -356,11 +356,33 @@ pub(crate) enum ConsensusError {
     },
 
     #[error(
-        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
+        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync}, consensus_starfish_speed={starfish_speed})"
     )]
     WrongCommitVersionForFlags {
         actual: &'static str,
         fast_commit_sync: bool,
+        starfish_speed: bool,
+    },
+
+    #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
+    InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
+
+    #[error(
+        "Block at round {block_round} carries strong_vote pinned to leader \
+         authority {leader_authority} but does not reference that leader at round {leader_round}"
+    )]
+    StrongVoteLeaderNotInAncestors {
+        block_round: Round,
+        leader_round: Round,
+        leader_authority: AuthorityIndex,
+    },
+
+    #[error(
+        "BlockHeader variant {actual} does not match protocol flag (consensus_starfish_speed={starfish_speed})"
+    )]
+    WrongBlockHeaderVersionForFlag {
+        actual: &'static str,
+        starfish_speed: bool,
     },
 }
 

@@ -18,7 +18,10 @@ use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    TransactionExpiration,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
@@ -36,7 +39,7 @@ use iota_types::{
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction},
+    transaction::{TransactionDataAPI, VerifiedTransaction},
 };
 use rand::{
     SeedableRng,

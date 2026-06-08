@@ -18,7 +18,7 @@ mod checked {
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
         Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        ExecutionStatus, Identifier, ObjectId,
+        ExecutionStatus, Identifier, ObjectId, TransactionKind,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -50,7 +50,7 @@ mod checked {
         transaction::{
             CallArg, CheckedInputObjects, EndOfEpochTransactionKind, GasData, GenesisTransaction,
             InputObjects, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef,
-            SystemPackage, TransactionKind, TransactionKindExt,
+            SystemPackage, TransactionKindExt,
         },
     };
     use move_binary_format::CompiledModule;

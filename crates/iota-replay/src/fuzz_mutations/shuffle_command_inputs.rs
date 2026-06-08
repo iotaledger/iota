@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Command, MakeMoveVector, MergeCoins, MoveCall, SplitCoins, TransferObjects};
-use iota_types::transaction::TransactionKind;
+use iota_sdk_types::{
+    Command, MakeMoveVector, MergeCoins, MoveCall, SplitCoins, TransactionKind, TransferObjects,
+};
 use rand::seq::SliceRandom;
 use tracing::info;
 

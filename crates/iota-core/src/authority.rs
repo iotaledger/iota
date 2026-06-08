@@ -45,7 +45,7 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    ExecutionStatus, ObjectId, Owner, StructTag, TypeTag,
+    ExecutionStatus, ObjectId, Owner, StructTag, TransactionExpiration, TransactionKind, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };
 use iota_storage::{

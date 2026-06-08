@@ -26,7 +26,7 @@ use iota_package_resolver::{
 };
 use iota_protocol_config::Chain;
 use iota_sdk_types::{
-    ObjectId,
+    ObjectId, TransactionKind,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };
 use iota_transaction_builder::TransactionBuilder;
@@ -40,9 +40,7 @@ use iota_types::{
     },
     signature::GenericSignature,
     storage::PostExecutionPackageResolver,
-    transaction::{
-        InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{InputObjectKind, Transaction, TransactionData, TransactionDataAPI},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{Instrument, instrument};

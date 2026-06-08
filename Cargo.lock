@@ -5918,6 +5918,7 @@ dependencies = [
  "iota-adapter-latest",
  "iota-move-natives-latest",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-types",
  "iota-verifier-latest",
  "move-binary-format",
@@ -6115,6 +6116,7 @@ version = "1.26.0-alpha"
 dependencies = [
  "iota-execution",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-types",
  "prometheus",
 ]

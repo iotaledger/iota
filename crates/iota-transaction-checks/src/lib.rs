@@ -15,7 +15,7 @@ mod checked {
 
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{ObjectId, Owner};
+    use iota_sdk_types::{ObjectId, Owner, TransactionKind};
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
         base_types::{IotaAddress, ObjectRef, SequenceNumber},
@@ -28,8 +28,7 @@ mod checked {
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKind,
-            TransactionKindExt,
+            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKindExt,
         },
     };
     use tracing::{error, instrument};

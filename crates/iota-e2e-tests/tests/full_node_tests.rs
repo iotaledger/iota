@@ -14,7 +14,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Identifier, ObjectId, Owner};
+use iota_sdk_types::{Identifier, ObjectId, Owner, TransactionKind};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -37,7 +37,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{
         CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionData, TransactionDataAPI, TransactionKind,
+        TransactionData, TransactionDataAPI,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };

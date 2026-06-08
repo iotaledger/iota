@@ -6,13 +6,13 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ExecutionError, ExecutionStatus};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionKind};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, TransactionKind},
+    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use once_cell::sync::Lazy;

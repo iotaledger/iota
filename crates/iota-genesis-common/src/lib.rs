@@ -5,6 +5,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::TransactionKind;
 use iota_types::{
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -14,7 +15,7 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI, TransactionKind},
+    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
 };
 use prometheus::Registry;
 

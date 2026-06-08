@@ -30,22 +30,20 @@ pub enum TransactionKind {
     RandomnessStateUpdate = 6,
 }
 
-impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
-    fn from(kind: &iota_types::transaction::TransactionKind) -> Self {
+impl From<&iota_sdk_types::TransactionKind> for TransactionKind {
+    fn from(kind: &iota_sdk_types::TransactionKind) -> Self {
         match kind {
-            iota_types::transaction::TransactionKind::Programmable(_) => {
-                TransactionKind::Programmable
-            }
-            iota_types::transaction::TransactionKind::Genesis(_) => TransactionKind::Genesis,
-            iota_types::transaction::TransactionKind::ConsensusCommitPrologueV1(_) => {
+            iota_sdk_types::TransactionKind::Programmable(_) => TransactionKind::Programmable,
+            iota_sdk_types::TransactionKind::Genesis(_) => TransactionKind::Genesis,
+            iota_sdk_types::TransactionKind::ConsensusCommitPrologueV1(_) => {
                 TransactionKind::ConsensusCommitPrologueV1
             }
             #[allow(deprecated)]
-            iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+            iota_sdk_types::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 TransactionKind::System
             }
-            iota_types::transaction::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
-            iota_types::transaction::TransactionKind::RandomnessStateUpdate(_) => {
+            iota_sdk_types::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
+            iota_sdk_types::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
             _ => unimplemented!(
@@ -365,7 +363,7 @@ impl TransactionFilter {
                 .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
-                iota_types::transaction::TransactionKind::Programmable(pt) => {
+                iota_sdk_types::TransactionKind::Programmable(pt) => {
                     cmd_filter.matches_commands(&pt.commands)
                 }
                 _ => false,

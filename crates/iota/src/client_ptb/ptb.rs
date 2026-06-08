@@ -9,11 +9,9 @@ use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, TransactionKind};
 use iota_types::{
-    digests::TransactionDigest,
-    gas::GasCostSummary,
-    transaction::{ProgrammableTransaction, TransactionKind},
+    digests::TransactionDigest, gas::GasCostSummary, transaction::ProgrammableTransaction,
 };
 use move_core_types::account_address::AccountAddress;
 use serde::Serialize;

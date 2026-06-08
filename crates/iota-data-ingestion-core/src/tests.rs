@@ -13,7 +13,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionKind};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
@@ -27,9 +27,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         CheckpointSummary, SignedCheckpointSummary,
     },
-    transaction::{
-        RandomnessStateUpdate, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{RandomnessStateUpdate, Transaction, TransactionData, TransactionDataAPI},
     utils::make_committee_key,
 };
 use prometheus::Registry;

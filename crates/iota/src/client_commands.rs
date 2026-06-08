@@ -51,7 +51,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Identifier, ObjectId, Owner, TypeTag,
+    Identifier, ObjectId, Owner, TransactionKind, TypeTag,
     crypto::{Intent, IntentMessage},
     move_package::MovePackage,
 };
@@ -77,7 +77,7 @@ use iota_types::{
     signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, TransactionKindExt,
+        TransactionDataAPI, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;

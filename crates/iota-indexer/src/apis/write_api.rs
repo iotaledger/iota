@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_protocol_config::Chain;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionExpiration, TransactionKind};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
@@ -37,7 +37,6 @@ use iota_types::{
     signature::GenericSignature,
     transaction::{
         GasData, SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1,
-        TransactionExpiration, TransactionKind,
     },
 };
 use jsonrpsee::{RpcModule, core::RpcResult};

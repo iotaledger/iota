@@ -16,9 +16,10 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::{
     CommitConsumer, CommittedSubDag,
-    block_header::{BlockHeaderAPI, VerifiedBlockHeader},
+    block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
     commit::{
-        CommitAPI, CommitIndex, PendingSubDag, TrustedCommit, load_pending_subdag_from_store,
+        CommitAPI, CommitIndex, CommitMetastate, PendingSubDag, TrustedCommit,
+        load_pending_subdag_from_store,
     },
     commit_solidifier::CommitSolidifier,
     context::Context,
@@ -146,7 +147,11 @@ impl CommitObserver {
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_committed_leaders(
         &mut self,
-        committed_leaders: Vec<VerifiedBlockHeader>,
+        committed_leaders: Vec<(
+            VerifiedBlockHeader,
+            Option<CommitMetastate>,
+            Vec<AuthorityIndex>,
+        )>,
         source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
@@ -322,6 +327,7 @@ impl CommitObserver {
         for commit in recovery_commits {
             // Recovery only needs headers/acks, so reputation scores are irrelevant here.
             let commit_index = commit.index();
+            let is_optimistic = commit.is_optimistic();
             let pending_sub_dag =
                 load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
 
@@ -339,6 +345,29 @@ impl CommitObserver {
                         authority_idx,
                         transaction_acknowledgments,
                     );
+                }
+
+                // Repopulate the ack tracker for transactions optimistically committed
+                // pre-restart so post-restart acks don't cross 2f+1 and re-commit them.
+                // The full committee is used as a conservative over-approximation of
+                // the actual acknowledging set.
+                if is_optimistic {
+                    let leader_ref = pending_sub_dag.leader;
+                    let leader_header = pending_sub_dag
+                        .headers
+                        .iter()
+                        .find(|h| h.reference() == leader_ref)
+                        .expect("leader header must be present in pending sub-dag");
+                    let refs: Vec<BlockRef> = std::iter::once(leader_ref)
+                        .chain(leader_header.acknowledgments().iter().copied())
+                        .collect();
+                    for (authority_idx, _) in self.context.committee.authorities() {
+                        let _ = self.linearizer.add_committed_transaction_acks(
+                            leader_header.round() + 1,
+                            authority_idx,
+                            refs.clone(),
+                        );
+                    }
                 }
             }
 
@@ -636,10 +665,12 @@ mod tests {
     use super::*;
     use crate::{
         block_header::BlockRef,
+        commit::with_no_metastate,
         context::Context,
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
+        transaction_ref::GenericTransactionRefAPI,
     };
 
     #[tokio::test]
@@ -683,7 +714,10 @@ mod tests {
             .collect::<Vec<_>>();
 
         let (commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(leaders.clone(), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_no_metastate(leaders.clone()),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
@@ -804,11 +838,13 @@ mod tests {
         let expected_last_processed_index: usize = 2;
         let (mut created_commits, _missing_transactions_refs) = observer
             .handle_committed_leaders(
-                leaders
-                    .clone()
-                    .into_iter()
-                    .take(expected_last_processed_index)
-                    .collect::<Vec<_>>(),
+                with_no_metastate(
+                    leaders
+                        .clone()
+                        .into_iter()
+                        .take(expected_last_processed_index)
+                        .collect::<Vec<_>>(),
+                ),
                 CommittedSubDagSource::Consensus,
             )
             .unwrap();
@@ -841,10 +877,12 @@ mod tests {
         created_commits.append(
             &mut observer
                 .handle_committed_leaders(
-                    leaders
-                        .into_iter()
-                        .skip(expected_last_processed_index)
-                        .collect::<Vec<_>>(),
+                    with_no_metastate(
+                        leaders
+                            .into_iter()
+                            .skip(expected_last_processed_index)
+                            .collect::<Vec<_>>(),
+                    ),
                     CommittedSubDagSource::Consensus,
                 )
                 .unwrap()
@@ -950,7 +988,7 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Check commits sent over consensus output channel is accurate
@@ -1045,7 +1083,7 @@ mod tests {
         assert_eq!(leaders.len(), num_rounds as usize);
 
         let _ = observer
-            .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(with_no_metastate(leaders), CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Drain the receiver to simulate consumer processing commits before crash.
@@ -1256,7 +1294,10 @@ mod tests {
         // Commit first 3 leaders (rounds 1-3)
         // Each leader in the first 3 rounds has transactions from previous rounds
         let (_, _) = observer
-            .handle_committed_leaders(all_leaders[0..3].to_vec(), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_no_metastate(all_leaders[0..3].to_vec()),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Count transactions: with 4 authorities and standard DAG, each commit includes
@@ -1297,7 +1338,10 @@ mod tests {
         // Process new blocks - they acknowledge transactions from rounds 5-6
         // plus transactions from recovered blocks (rounds 1-3)
         let (_commits_after, _) = observer_after_restart
-            .handle_committed_leaders(new_leaders, CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(
+                with_no_metastate(new_leaders),
+                CommittedSubDagSource::Consensus,
+            )
             .unwrap();
 
         // Count transactions from new commits: new leaders in rounds 7-8 will process
@@ -1309,5 +1353,197 @@ mod tests {
 
         // Verify that txs_after significantly exceeds txs_before
         assert!(txs_after >= txs_before * 4,);
+    }
+
+    /// Run the commit pipeline through a restart. With `starfish_speed` true,
+    /// L5 is committed Optimistically (full-committee strong-voters); with
+    /// false, L5 is committed standardly. Returns L5's ref, L5's acks, the
+    /// refs in L5's commit, and the refs across all post-restart commits.
+    async fn run_recovery_scenario(
+        starfish_speed: bool,
+    ) -> (
+        BlockRef,
+        Vec<BlockRef>,
+        Vec<GenericTransactionRef>,
+        Vec<GenericTransactionRef>,
+    ) {
+        let num_authorities = 4;
+
+        let mut protocol_config =
+            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_consensus_starfish_speed_for_testing(starfish_speed);
+
+        let (committee, _keypairs) =
+            starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
+        let metrics = crate::metrics::test_metrics();
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let clock = Arc::new(crate::context::Clock::default());
+        let context = Arc::new(Context::new(
+            0,
+            starfish_config::AuthorityIndex::new_for_test(0),
+            committee,
+            starfish_config::Parameters {
+                db_path: temp_dir.keep(),
+                ..Default::default()
+            },
+            protocol_config,
+            metrics,
+            clock,
+        ));
+
+        let mem_store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            mem_store.clone(),
+        )));
+        let (sender, mut receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule.clone(),
+        );
+
+        let mut builder = DagBuilder::new(context.clone());
+        builder
+            .layers(1..=5)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let leaders_1_to_4: Vec<_> = builder
+            .leader_blocks(1..=4)
+            .into_iter()
+            .map(Option::unwrap)
+            .collect();
+        let l5 = builder
+            .leader_block(5)
+            .expect("leader at round 5 should exist");
+        let l5_ref = l5.reference();
+        let l5_acks: Vec<BlockRef> = l5.acknowledgments().to_vec();
+
+        observer
+            .handle_committed_leaders(
+                with_no_metastate(leaders_1_to_4),
+                CommittedSubDagSource::Consensus,
+            )
+            .unwrap();
+
+        let l5_meta = if starfish_speed {
+            let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
+                .map(AuthorityIndex::new_for_test)
+                .collect();
+            vec![(l5, Some(CommitMetastate::Optimistic), strong_voters)]
+        } else {
+            with_no_metastate(vec![l5])
+        };
+        let (pre_commits, _) = observer
+            .handle_committed_leaders(l5_meta, CommittedSubDagSource::Consensus)
+            .unwrap();
+        let pre_refs = pre_commits
+            .last()
+            .expect("at least one commit")
+            .committed_transaction_refs
+            .clone();
+
+        while receiver.try_recv().is_ok() {}
+        drop(observer);
+        let mut observer_after = CommitObserver::new(
+            context,
+            CommitConsumer::new(sender, 0),
+            dag_state.clone(),
+            mem_store,
+            leader_schedule,
+        );
+        while receiver.try_recv().is_ok() {}
+
+        builder.layers(6..=8).build().persist_layers(dag_state);
+        let later_leaders: Vec<_> = builder.leader_blocks(6..=8).into_iter().flatten().collect();
+        let (later_commits, _) = observer_after
+            .handle_committed_leaders(
+                with_no_metastate(later_leaders),
+                CommittedSubDagSource::Consensus,
+            )
+            .unwrap();
+        let post_refs: Vec<GenericTransactionRef> = later_commits
+            .iter()
+            .flat_map(|c| c.committed_transaction_refs.iter().cloned())
+            .collect();
+
+        (l5_ref, l5_acks, pre_refs, post_refs)
+    }
+
+    /// With `consensus_starfish_speed` ON, L5 is committed Optimistically and
+    /// its ref + acks land in commit 5 (early); recovery seeding then
+    /// suppresses re-commit post-restart. With the flag OFF, L5 is
+    /// committed standardly: its ref + acks are NOT in commit 5 and appear
+    /// only later, when natural 2f+1 acks accumulate across post-restart
+    /// commits.
+    #[tokio::test]
+    async fn test_optimistic_vs_standard_recovery_timing() {
+        telemetry_subscribers::init_for_testing();
+
+        let (l5_ref_on, l5_acks_on, pre_on, post_on) = run_recovery_scenario(true).await;
+        let (l5_ref_off, l5_acks_off, pre_off, post_off) = run_recovery_scenario(false).await;
+
+        assert!(!l5_acks_on.is_empty(), "leader should have acks");
+        assert!(!l5_acks_off.is_empty(), "leader should have acks");
+
+        let contains = |refs: &[GenericTransactionRef], target: &BlockRef| -> bool {
+            refs.iter()
+                .any(|r| r.round() == target.round && r.author() == target.author)
+        };
+
+        // Flag ON: L5's ref + every ack land in L5's commit (early), and
+        // recovery seeding suppresses re-commit post-restart.
+        assert!(
+            contains(&pre_on, &l5_ref_on),
+            "ON: L5's commit should include L5_ref"
+        );
+        for ack in &l5_acks_on {
+            assert!(
+                contains(&pre_on, ack),
+                "ON: L5's commit should include L5_ack {ack:?}"
+            );
+        }
+        assert!(
+            !contains(&post_on, &l5_ref_on),
+            "ON: post-restart commits must NOT re-include L5_ref"
+        );
+        for ack in &l5_acks_on {
+            assert!(
+                !contains(&post_on, ack),
+                "ON: post-restart commits must NOT re-include L5_ack {ack:?}"
+            );
+        }
+
+        // Flag OFF: L5's ref + acks are NOT in L5's commit (no Optimistic
+        // pre-credit); they appear only in some later commit when 2f+1 acks
+        // accumulate naturally.
+        assert!(
+            !contains(&pre_off, &l5_ref_off),
+            "OFF: L5's commit must NOT include L5_ref"
+        );
+        for ack in &l5_acks_off {
+            assert!(
+                !contains(&pre_off, ack),
+                "OFF: L5's commit must NOT include L5_ack {ack:?}"
+            );
+        }
+        assert!(
+            contains(&post_off, &l5_ref_off),
+            "OFF: post-restart commits SHOULD include L5_ref once natural acks accumulate"
+        );
+        for ack in &l5_acks_off {
+            assert!(
+                contains(&post_off, ack),
+                "OFF: post-restart commits SHOULD include L5_ack {ack:?} once natural acks accumulate"
+            );
+        }
     }
 }

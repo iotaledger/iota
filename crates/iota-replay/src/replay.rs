@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{ObjectId, Owner, StructTag};
+use iota_sdk_types::{ObjectId, Owner, StructTag, TransactionKind};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::{
@@ -49,7 +49,7 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, GasData, InputObjectKind, InputObjects, ObjectReadResult,
-        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
+        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI,
         VerifiedTransaction,
     },
 };
