@@ -475,10 +475,6 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    // pub fn object_ref(&self) -> ObjectRef {
-    //     ObjectRef::new(self.id(), self.version(), self.digest())
-    // }
-
     pub fn digest(&self) -> ObjectDigest {
         ObjectDigest::new(default_hash(self.as_inner()))
     }
