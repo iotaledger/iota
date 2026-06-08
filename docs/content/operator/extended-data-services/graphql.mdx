@@ -31,7 +31,7 @@ The GraphQL service holds no state of its own. Multiple instances can run in par
 - CPU: 2 cores per instance
 - Memory: 4 GB per instance
 
-Scale the number of instances based on the read throughput required by client applications.
+Scale up the number of instances when client request load grows.
 
 ## Running the GraphQL service
 
@@ -86,15 +86,14 @@ The Prometheus endpoint exposes histograms and counters covering request rate, l
 
 Operators can disable selected groups of queries using the `disabled-features` TOML parameter. The available groups are:
 
-| Name             | Covers                                                                |
-| ---------------- | --------------------------------------------------------------------- |
-| `analytics`      | Network statistics (TPS, top packages, APY, etc.).                    |
-| `coins`          | Coin metadata, per-address coin and balance information.              |
-| `dynamic-fields` | Querying an object's dynamic fields.                                  |
-| `subscriptions`  | Transaction and event subscriptions.                                  |
-| `system-state`   | System-managed protocol state set by validators or system transactions. |
+| Name             | Paths                                                                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coins`          | `Query.coinMetadata`; `Address.balance`/`balances`/`coins`; `Object.balance`/`balances`/`coins`; `Owner.balance`/`balances`/`coins`                                    |
+| `dynamic-fields` | `Object.dynamicField`/`dynamicFields`/`dynamicObjectField`; `Owner.dynamicField`/`dynamicFields`/`dynamicObjectField`                                                  |
+| `subscriptions`  | `Subscription.events`; `Subscription.transactions`                                                                                                                     |
+| `system-state`   | `Query.protocolConfig`; `Epoch.protocolConfigs`/`referenceGasPrice`/`validatorSet`; `SystemStateSummary.safeMode`/`storageFund`/`systemParameters`/`systemStateVersion` |
 
-For instance, with `coins` disabled, the following query is rejected because `coinMetadata`, `Address.balance`, and `Address.coins` are all part of the `coins` group:
+For instance, with `coins` disabled, the following query is rejected because `Query.coinMetadata` and `Address.balance` are both part of the `coins` group:
 
 ```graphql
 {
@@ -113,7 +112,7 @@ For instance, with `coins` disabled, the following query is rejected because `co
 Multiple values allowed, example:
 
 ```toml
-disabled-features = ["analytics", "subscriptions", "coins"]
+disabled-features = ["subscriptions", "coins"]
 ```
 
 ### Watermark task
