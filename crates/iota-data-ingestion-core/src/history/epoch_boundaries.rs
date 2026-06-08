@@ -6,10 +6,7 @@
 use std::{collections::BTreeMap, ops::RangeBounds, time::Duration};
 
 use bytes::Bytes;
-use iota_storage::object_store::{
-    ObjectStoreGetExt,
-    util::{exists, get},
-};
+use iota_storage::object_store::{ObjectStoreGetExt, util::get};
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
 use object_store::{ObjectStore, PutMode, path::Path};
 use serde::{Deserialize, Serialize};
@@ -104,17 +101,12 @@ impl EpochBoundaries {
 
 /// Reads the epoch boundaries from the store.
 ///
-/// If the remote file is not found, this returns an empty collection.
-///
 /// # Errors
 ///
-/// Fails if the file fails to decode.
-pub async fn read_epoch_boundaries_or_default<S: ObjectStoreGetExt>(
+/// Fails if the file cannot be fetched, of if it fails to decode.
+pub async fn read_epoch_boundaries<S: ObjectStoreGetExt>(
     remote_store: S,
 ) -> Result<EpochBoundaries> {
-    if !exists(&remote_store, &EpochBoundaries::file_path()).await {
-        return Ok(Default::default());
-    }
     let bytes = tokio::time::timeout(
         Duration::from_secs(GET_TIMEOUT_SECS),
         get(&remote_store, &EpochBoundaries::file_path()),

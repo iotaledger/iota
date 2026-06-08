@@ -13,9 +13,7 @@ use iota_data_ingestion_core::{
     Reducer,
     history::{
         CHECKPOINT_FILE_MAGIC, MAGIC_BYTES,
-        epoch_boundaries::{
-            EpochBoundaries, read_epoch_boundaries_or_default, write_epoch_boundaries,
-        },
+        epoch_boundaries::{EpochBoundaries, read_epoch_boundaries, write_epoch_boundaries},
         manifest::{
             Manifest, create_file_metadata_from_bytes, finalize_manifest, read_manifest_from_bytes,
         },
@@ -141,8 +139,9 @@ impl HistoricalReducer {
         epoch_id: EpochId,
         checkpoint_sequence_number: CheckpointSequenceNumber,
     ) -> anyhow::Result<()> {
-        let mut epoch_boundaries =
-            read_epoch_boundaries_or_default(self.remote_store.clone()).await?;
+        let mut epoch_boundaries = read_epoch_boundaries(self.remote_store.clone())
+            .await
+            .unwrap_or_default();
         epoch_boundaries.insert_next(epoch_id, checkpoint_sequence_number)?;
 
         let backoff = ExponentialBackoffBuilder::<SystemClock>::new()
