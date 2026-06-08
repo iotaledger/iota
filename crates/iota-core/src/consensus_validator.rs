@@ -8,6 +8,7 @@ use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_types::{
+    base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
@@ -123,13 +124,20 @@ impl IotaTxValidator {
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
 
-                ConsensusTransactionKind::OverloadNotificationV1(_, _) => {
+                ConsensusTransactionKind::OverloadNotificationV1(authority_name, percentage) => {
                     if !self.epoch_store.protocol_config().enable_white_flag_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error:
                                 "OverloadNotificationV1 not supported at current protocol version"
                                     .into(),
                         });
+                    }
+                    if *percentage > 100 {
+                        return Err(IotaError::HandleConsensusTransactionFailure(format!(
+                            "OverloadNotificationV1 with invalid percentage {percentage} from \
+                                authority {}",
+                            authority_name.concise(),
+                        )));
                     }
                 }
             }

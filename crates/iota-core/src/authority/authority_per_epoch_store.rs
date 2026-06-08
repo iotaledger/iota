@@ -2861,6 +2861,16 @@ impl AuthorityPerEpochStore {
         Ok(notifications)
     }
 
+    /// Returns the load shedding percentage `authority` last broadcasted or 0
+    /// if it has not sent a notification this epoch.
+    pub fn load_overload_notification(&self, authority: &AuthorityName) -> IotaResult<u8> {
+        Ok(self
+            .load_overload_notifications()?
+            .get(authority)
+            .copied()
+            .unwrap_or(0))
+    }
+
     /// Computes the stake-weighted 2f+1 percentile of load shedding percentages
     /// received via OverloadNotificationV1 consensus transactions. Authorities
     /// that have not sent a notification are assumed to have a percentage of 0.
@@ -3331,6 +3341,9 @@ impl AuthorityPerEpochStore {
         } else {
             0
         };
+        authority_metrics
+            .consensus_handler_load_shedding_percentage
+            .set(drop_percentage as i64);
         let drop_seed = consensus_commit_info.round;
 
         for tx in verified_transactions {
@@ -3338,24 +3351,32 @@ impl AuthorityPerEpochStore {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
-            } else {
-                // Only user-originated transactions are eligible for load shedding;
-                // internal consensus messages (checkpoint signatures, capability
-                // notifications, randomness DKG, overload notifications, etc.) must
-                // never be dropped here.
+            } else if !enable_white_flag && tx.0.is_user_tx_with_randomness() {
+                // Only user-originated transactions are eligible for load shedding
                 if drop_percentage > 0 {
                     if let Some(digest) = tx.0.transaction.user_transaction_digest() {
                         if should_reject_tx(drop_percentage, digest, drop_seed) {
+                            authority_metrics
+                                .consensus_handler_load_shedding_dropped_transactions
+                                .inc();
                             continue;
                         }
                     }
                 }
-
-                if tx.0.is_user_tx_with_randomness() {
-                    current_commit_sequenced_randomness_transactions.push(tx);
-                } else {
-                    current_commit_sequenced_consensus_transactions.push(tx);
+                current_commit_sequenced_randomness_transactions.push(tx);
+            } else {
+                // Only user-originated transactions are eligible for load shedding
+                if drop_percentage > 0 {
+                    if let Some(digest) = tx.0.transaction.user_transaction_digest() {
+                        if should_reject_tx(drop_percentage, digest, drop_seed) {
+                            authority_metrics
+                                .consensus_handler_load_shedding_dropped_transactions
+                                .inc();
+                            continue;
+                        }
+                    }
                 }
+                current_commit_sequenced_consensus_transactions.push(tx);
             }
         }
 

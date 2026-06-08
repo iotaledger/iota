@@ -311,10 +311,10 @@ impl IotaNode {
         let authority_name = state.name;
 
         Some(spawn_monitored_task!(async move {
-            let mut last_notified_percentage: u32 = state
-                .overload_info
-                .local_load_shedding_percentage
-                .load(std::sync::atomic::Ordering::Relaxed);
+            // Seed from the percentage this authority last broadcasted
+            let mut last_notified_percentage: u32 = epoch_store
+                .load_overload_notification(&authority_name)
+                .unwrap_or(0) as u32;
             loop {
                 tokio::time::sleep(poll_interval).await;
                 let current = state

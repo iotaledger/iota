@@ -181,10 +181,6 @@ fn check_execution_overload(
         cache_config.backpressure_threshold() as usize,
         cache_config.backpressure_soft_limit_pct(),
     );
-    authority
-        .metrics
-        .cache_backpressure_load_shedding_percentage
-        .set(cache_based_percentage as i64);
 
     // The final load shedding percentage combines three signals:
     //   - latency/rate-based, from execution queueing latency,
@@ -220,7 +216,7 @@ fn check_execution_overload(
         .set(is_overload as i64);
     authority
         .metrics
-        .authority_load_shedding_percentage
+        .local_post_consensus_load_shedding_percentage
         .set(load_shedding_percentage as i64);
     true
 }
@@ -831,7 +827,8 @@ mod tests {
 
     /// Verifies that the cache-pressure signal flows end-to-end from
     /// `WritebackCacheConfig` → `check_execution_overload` →
-    /// `overload_info.local_load_shedding_percentage` and the new metric.
+    /// `overload_info.local_load_shedding_percentage` and the
+    /// `local_post_consensus_load_shedding_percentage` metric.
     ///
     /// We can't easily inject a non-zero
     /// `approximate_pending_transaction_count` into the test cache without
@@ -865,13 +862,6 @@ mod tests {
 
         // Cache signal alone should drive 100% shedding via the degenerate
         // threshold; latency and queue signals contribute 0 in a fresh state.
-        assert_eq!(
-            state
-                .metrics
-                .cache_backpressure_load_shedding_percentage
-                .get(),
-            100,
-        );
         assert!(state.overload_info.is_overload.load(Ordering::Relaxed));
         assert_eq!(
             state
@@ -880,7 +870,13 @@ mod tests {
                 .load(Ordering::Relaxed),
             100,
         );
-        assert_eq!(state.metrics.authority_load_shedding_percentage.get(), 100,);
+        assert_eq!(
+            state
+                .metrics
+                .local_post_consensus_load_shedding_percentage
+                .get(),
+            100,
+        );
     }
 
     // Creates an AuthorityState and starts an overload monitor that monitors its
