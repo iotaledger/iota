@@ -364,13 +364,14 @@ impl PreConsensusSoftLocks {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::base_types::{ObjectDigest, ObjectID, SequenceNumber};
+    use iota_sdk_types::ObjectId;
+    use iota_types::base_types::{ObjectDigest, SequenceNumber};
 
     use super::*;
 
     fn obj_ref(id: u8, version: u64) -> ObjectRef {
         ObjectRef::new(
-            ObjectID::new([id; ObjectID::LENGTH]),
+            ObjectId::new([id; ObjectId::LENGTH]),
             SequenceNumber::from_u64(version),
             ObjectDigest::random(),
         )

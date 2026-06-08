@@ -1505,7 +1505,7 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
     assert_ne!(new_digest, *other.digest());
 
     let mut transactions = vec![make_user_tx_v1_verified(new_verified)];
-    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
         &mut transactions,
@@ -1539,7 +1539,7 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     s.execute_via_state_sync(&tx);
 
     let mut transactions = vec![make_user_tx_v1_verified(tx)];
-    let (dropped, _) = post_consensus_validation::validate_and_resolve_conflicts(
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
         &mut transactions,
