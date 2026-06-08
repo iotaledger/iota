@@ -6,12 +6,13 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{Identifier, ObjectId};
+use iota_sdk_ext::types::{
+    Identifier, MovePackage, ObjectId, PackageUpgradeError, TypeOrigin, UpgradeInfo,
+};
 use iota_types::{
     digests::TransactionDigest,
     error::ExecutionErrorKind,
-    execution_status::PackageUpgradeError,
-    move_package::{MovePackage, MovePackageExt, TypeOrigin, UpgradeInfo},
+    move_package::MovePackageExt,
     object::{Data, OBJECT_START_VERSION, Object},
 };
 use move_binary_format::file_format::CompiledModule;

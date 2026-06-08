@@ -10,8 +10,8 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_ext::types::{MovePackage, ObjectId, StructTag, TypeTag};
 pub use iota_sdk_ext::types::{MoveStruct as MoveObject, ObjectData as Data, Owner};
-use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
@@ -31,7 +31,7 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
-    move_package::{MovePackage, MovePackageExt},
+    move_package::MovePackageExt,
     timelock::timelock::TimeLock,
 };
 

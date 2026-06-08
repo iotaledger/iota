@@ -2695,7 +2695,7 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
-    use iota_sdk_ext::types::{Identifier, ObjectId};
+    use iota_sdk_ext::types::{Identifier, MovePackage, ObjectId};
     use iota_types::{
         base_types::{SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
@@ -2704,8 +2704,7 @@ mod tests {
             TransactionEvents,
         },
         messages_checkpoint::SignedCheckpointSummary,
-        move_package::MovePackage,
-        object,
+        object::{self, Owner},
         transaction::{GenesisObject, VerifiedTransaction},
     };
     use tokio::sync::mpsc;
@@ -2743,7 +2742,7 @@ mod tests {
                     )
                     .unwrap(),
                 ),
-                object::Owner::Immutable,
+                Owner::Immutable,
             )],
             vec![],
         );

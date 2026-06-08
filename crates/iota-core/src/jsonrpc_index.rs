@@ -1710,8 +1710,7 @@ mod tests {
         digests::TransactionDigest,
         effects::TransactionEvents,
         gas_coin::GAS,
-        object,
-        object::Owner,
+        object::{self, Owner},
     };
     use prometheus::Registry;
 

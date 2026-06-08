@@ -5,12 +5,11 @@
 use iota_metrics::monitored_scope;
 use iota_sdk_ext::{
     grpc_types::v1::filter as proto_filter,
-    types::{Command, ObjectId},
+    types::{Command, ExecutionStatus, ObjectId},
 };
 use iota_types::{
     base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointTransaction,
     object::Owner,
     transaction::TransactionDataAPI,
@@ -824,7 +823,7 @@ mod tests {
 
         assert!(filter.matches_status(&ExecutionStatus::Success));
         assert!(!filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::InsufficientGas,
+            error: iota_sdk_ext::types::ExecutionError::InsufficientGas,
             command: None,
         }));
     }
@@ -837,21 +836,23 @@ mod tests {
 
         // Regular failure
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::InsufficientGas,
+            error: iota_sdk_ext::types::ExecutionError::InsufficientGas,
             command: None,
         }));
 
         // Cancelled due to congestion
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-                congested_objects: vec![],
-            },
+            error:
+                iota_sdk_ext::types::ExecutionError::ExecutionCancelledDueToSharedObjectCongestion {
+                    congested_objects: vec![],
+                },
             command: None,
         }));
 
         // Cancelled due to randomness
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToRandomnessUnavailable,
+            error:
+                iota_sdk_ext::types::ExecutionError::ExecutionCancelledDueToRandomnessUnavailable,
             command: None,
         }));
     }

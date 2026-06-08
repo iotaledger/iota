@@ -12,8 +12,10 @@ use iota_sdk_ext::{
         secp256r1::Secp256r1PrivateKey,
     },
     types::{
-        ChangeEpoch, Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-        Identifier, ObjectId, SimpleSignature, StructTag, TypeTag,
+        Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
+        ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, Identifier,
+        MoveLocation, MovePackage, ObjectId, PackageUpgradeError, SimpleSignature, StructTag,
+        TypeArgumentError, TypeOrigin, TypeTag, UpgradeInfo,
         crypto::{Intent, IntentMessage, PersonalMessage},
     },
 };
@@ -33,23 +35,18 @@ use iota_types::{
         TransactionEvents, UnchangedSharedKind,
     },
     event::Event,
-    execution_status::{
-        CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, MoveLocation,
-        PackageUpgradeError, TypeArgumentError,
-    },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
-    move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
+        CallArg, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
         ProgrammableTransaction, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
         Transaction, TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
     },
@@ -276,7 +273,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(&mut samples, &Data::Struct(sample_move_obj))
         .unwrap();
-    let sample_upgrade_info = iota_types::move_package::UpgradeInfo {
+    let sample_upgrade_info = UpgradeInfo {
         upgraded_id: ObjectId::ZERO,
         upgraded_version: 1u64.into(),
     };
@@ -295,7 +292,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &Data::Package(sample_move_pkg))
         .unwrap();
 
-    // Trace SDK types with custom serde (ExecutionStatus, ExecutionFailureStatus,
+    // Trace SDK types with custom serde (ExecutionStatus, ExecutionError,
     // CommandArgumentError, PackageUpgradeError). These delegate to internal
     // Binary* helper types that serde_reflection cannot auto-discover through
     // trace_type alone.
@@ -320,7 +317,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(
             &mut samples,
             &ExecutionStatus::Failure {
-                error: ExecutionFailureStatus::InsufficientGas,
+                error: ExecutionError::InsufficientGas,
                 command: Some(0),
             },
         )
@@ -329,9 +326,7 @@ fn get_registry() -> Result<Registry> {
     // Discover all remaining enum variants via deserialization. trace_type
     // loops internally until all variants of the (internal Binary*) enum are
     // found, using the samples we seeded above for custom-serde fields.
-    tracer
-        .trace_type::<ExecutionFailureStatus>(&samples)
-        .unwrap();
+    tracer.trace_type::<ExecutionError>(&samples).unwrap();
     tracer.trace_type::<CommandArgumentError>(&samples).unwrap();
     tracer.trace_type::<PackageUpgradeError>(&samples).unwrap();
 

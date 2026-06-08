@@ -7,8 +7,6 @@ use bcs;
 use iota_sdk_ext::types::Identifier;
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    execution_status::ExecutionStatus,
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };

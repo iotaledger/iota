@@ -9,13 +9,12 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
-use iota_sdk_ext::types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{ExecutionStatus, ObjectId, TypeTag};
 use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     coin::Coin,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    execution_status::ExecutionStatus,
     gas_coin::GAS,
     object::{Object, Owner},
     storage::WriteKind,

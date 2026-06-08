@@ -56,7 +56,6 @@ pub mod event;
 pub mod executable_transaction;
 pub mod execution;
 pub mod execution_config_utils;
-pub mod execution_status;
 pub mod full_checkpoint_content;
 pub mod gas;
 pub mod gas_coin;

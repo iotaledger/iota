@@ -12,7 +12,7 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
 pub use iota_sdk_ext::types::{
     MoveObjectType, ObjectReference as ObjectRef, Version as SequenceNumber,
 };
@@ -36,7 +36,7 @@ use crate::{
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
-    object::{Object, Owner},
+    object::Object,
     parse_iota_struct_tag,
     signature::GenericSignature,
     transaction::{Transaction, VerifiedTransaction},

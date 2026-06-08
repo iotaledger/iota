@@ -40,7 +40,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_ext::types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{MovePackage, ObjectId, StructTag, UpgradeInfo};
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
@@ -50,7 +50,6 @@ use iota_types::{
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
     },
     gas_coin::GasCoin,
-    move_package::{MovePackage, UpgradeInfo},
     object::Owner,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,

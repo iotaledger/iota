@@ -27,7 +27,7 @@ use crate::{
     digests::{Digest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
-    object::{Object, Owner},
+    object::Object,
 };
 
 #[test]
