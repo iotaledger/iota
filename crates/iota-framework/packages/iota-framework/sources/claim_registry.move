@@ -26,7 +26,7 @@ const EAddressMismatch: vector<u8> =
 #[error(code = 1)]
 const EAlreadyClaimed: vector<u8> = b"This address has already been claimed.";
 
-#[error(code = 4)]
+#[error(code = 2)]
 const ENotSystemAddress: vector<u8> = b"ClaimRegistry can only be created in a system transaction.";
 
 // === Structs ===
@@ -43,7 +43,7 @@ public struct ClaimRegistry has key {
 fun create(ctx: &TxContext) {
     assert!(ctx.sender() == @0x0, ENotSystemAddress);
     transfer::share_object(ClaimRegistry {
-        id: object::new_uid_from_hash(@0x10),
+        id: object::claim_registry(),
     });
 }
 

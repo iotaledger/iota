@@ -1264,6 +1264,9 @@ randomness_state
 iota_deny_list_object_id
 	public(package) fun
 	0x2::object
+claim_registry
+	public(package) fun
+	0x2::object
 uid_as_inner
 	public fun
 	0x2::object

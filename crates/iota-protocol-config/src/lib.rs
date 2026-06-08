@@ -144,6 +144,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 26: Introduce a module to allow Move code to query protocol feature
 //             flags at runtime.
 //             Enable built-in Move authenticators in devnet.
+//             Add ClaimRegistry singleton for claiming addresses from public
+// keys.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1378,11 +1380,6 @@ impl ProtocolConfig {
 
     pub fn enable_claim_registry(&self) -> bool {
         self.feature_flags.enable_claim_registry
-    }
-
-    // this function only exists for readability in the genesis code.
-    pub fn create_claim_registry_in_genesis(&self) -> bool {
-        self.enable_claim_registry()
     }
 
     pub fn dkg_version(&self) -> u64 {
@@ -2787,6 +2784,8 @@ impl ProtocolConfig {
                     cfg.max_age_of_jwk_in_epochs = None;
                 }
                 26 => {
+                    // Introduce a module to allow Move code to query protocol feature
+                    // flags at runtime.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable claim registry in devnet only.
                         cfg.feature_flags.enable_claim_registry = true;

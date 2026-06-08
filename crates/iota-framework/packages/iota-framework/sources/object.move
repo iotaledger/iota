@@ -38,6 +38,9 @@ const IOTA_AUTHENTICATOR_STATE_ID: address = @0x7;
 /// The hardcoded ID for the singleton Random Object.
 const IOTA_RANDOM_ID: address = @0x8;
 
+/// The hardcoded ID for the singleton ClaimRegistry Object.
+const IOTA_CLAIM_REGISTRY_OBJECT_ID: address = @0x10;
+
 /// The hardcoded ID for the singleton DenyList.
 const IOTA_DENY_LIST_OBJECT_ID: address = @0x403;
 
@@ -131,6 +134,14 @@ public(package) fun randomness_state(): UID {
 public(package) fun iota_deny_list_object_id(): UID {
     UID {
         id: ID { bytes: IOTA_DENY_LIST_OBJECT_ID },
+    }
+}
+
+/// Create the `UID` for the singleton `ClaimRegistry` object.
+/// This should only be called once from `claim_registry`.
+public(package) fun claim_registry(): UID {
+    UID {
+        id: ID { bytes: IOTA_CLAIM_REGISTRY_OBJECT_ID },
     }
 }
 
