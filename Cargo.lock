@@ -6394,6 +6394,7 @@ dependencies = [
  "diesel",
  "futures",
  "iota-indexer",
+ "iota-sdk-types",
  "iota-types",
  "prometheus",
  "serde",

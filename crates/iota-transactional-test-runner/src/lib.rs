@@ -19,7 +19,7 @@ use iota_core::authority::{
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
-use iota_sdk_types::{ObjectId, TransactionKind};
+use iota_sdk_types::{Event, ObjectId, TransactionKind};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, VersionNumber},
@@ -27,7 +27,6 @@ use iota_types::{
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
-    event::Event,
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,

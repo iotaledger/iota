@@ -45,7 +45,7 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    ExecutionStatus, ObjectId, Owner, RandomnessRound, StructTag, TransactionExpiration,
+    Event, ExecutionStatus, ObjectId, Owner, RandomnessRound, StructTag, TransactionExpiration,
     TransactionKind, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
@@ -81,7 +81,7 @@ use iota_types::{
         TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEvent},
+    event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,

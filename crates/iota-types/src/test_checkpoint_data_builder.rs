@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{Event, Identifier, ObjectId, Owner, StructTag, TransactionKind, TypeTag};
 use tap::Pipe;
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
         TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
         TransactionEvents,
     },
-    event::{Event, SystemEpochInfoEventV2},
+    event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{

@@ -12,7 +12,7 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, GenesisObject,
+    ConsensusDeterminedVersionAssignments, Event, ExecutionError, ExecutionStatus, GenesisObject,
     GenesisTransaction, Identifier, MoveLocation, ObjectId, Owner, PackageUpgradeError,
     RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
     TypeArgumentError, TypeTag, UnchangedSharedKind,
@@ -34,7 +34,6 @@ use iota_types::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExt,
         TransactionEvents,
     },
-    event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,

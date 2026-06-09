@@ -15,13 +15,12 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Event, Identifier, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, random_object_ref},
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
-    event::Event,
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };

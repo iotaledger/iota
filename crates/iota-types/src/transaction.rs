@@ -18,10 +18,10 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, GenesisObject, GenesisTransaction, Identifier,
-    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish, RandomnessRound,
-    RandomnessStateUpdate, SplitCoins, TransactionExpiration, TransactionKind, TransferObjects,
-    TypeTag, Upgrade,
+    ConsensusDeterminedVersionAssignments, Digest, Event, GenesisObject, GenesisTransaction,
+    Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish,
+    RandomnessRound, RandomnessStateUpdate, SplitCoins, TransactionExpiration, TransactionKind,
+    TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -45,7 +45,6 @@ use crate::{
         IotaSignatureInner, Signature, Signer, ToFromBytes,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
-    event::Event,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
