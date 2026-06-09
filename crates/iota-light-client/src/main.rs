@@ -161,7 +161,7 @@ pub async fn main() -> Result<()> {
                     object_id,
                     version,
                     digest: hash,
-                } = object.compute_object_reference();
+                } = object.object_ref();
                 println!(
                     "ObjectId: {object_id}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
                     object.owner,
@@ -255,7 +255,7 @@ pub async fn main() -> Result<()> {
                 // add object ID targets
                 for obj in &tx.output_objects {
                     if object_ids.contains(&obj.id()) {
-                        let obj_ref = obj.compute_object_reference();
+                        let obj_ref = obj.object_ref();
                         object_ids_map.remove(&obj_ref.object_id);
                         objects.push((obj_ref, obj.clone()));
                     }

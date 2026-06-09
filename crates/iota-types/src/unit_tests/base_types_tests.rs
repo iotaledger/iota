@@ -12,7 +12,10 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    Owner,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use move_binary_format::file_format;
 
 use super::*;
@@ -27,7 +30,7 @@ use crate::{
     digests::{Digest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
-    object::{Object, Owner},
+    object::Object,
 };
 
 #[test]

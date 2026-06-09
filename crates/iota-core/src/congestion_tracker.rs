@@ -4,10 +4,9 @@
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
     transaction::{TransactionData, TransactionDataAPI},
 };
@@ -139,14 +138,12 @@ fn get_congested_objects_and_feedback_suggested_gas_price(
     match status {
         ExecutionStatus::Failure {
             error:
-                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-                    congested_objects,
-                },
+                ExecutionError::ExecutionCancelledDueToSharedObjectCongestion { congested_objects },
             ..
         } => Some((congested_objects, None)),
         ExecutionStatus::Failure {
             error:
-                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
                     congested_objects,
                     suggested_gas_price,
                 },

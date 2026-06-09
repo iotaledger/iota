@@ -10,6 +10,7 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
+use iota_sdk_types::Owner;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::TransactionDigest,
@@ -17,7 +18,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
-    object::{Object, Owner},
+    object::Object,
     transaction::{
         CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
         VerifiedCertificate,
@@ -768,8 +769,8 @@ async fn test_authority_txn_signing_pushback() {
     // First, create a transaction to transfer `gas_object1` to `recipient1`.
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx = make_transfer_object_transaction(
-        gas_object1.compute_object_reference(),
-        gas_object2.compute_object_reference(),
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
         sender,
         &sender_key,
         recipient1,
@@ -787,7 +788,7 @@ async fn test_authority_txn_signing_pushback() {
 
     // Check that the input object should be locked by the above transaction.
     let lock_tx = authority_state
-        .get_transaction_lock(&gas_object1.compute_object_reference(), &epoch_store)
+        .get_transaction_lock(&gas_object1.object_ref(), &epoch_store)
         .await
         .unwrap()
         .unwrap();
@@ -809,8 +810,8 @@ async fn test_authority_txn_signing_pushback() {
     // Transaction signing should failed with ObjectLockConflict error, since the
     // object is already locked by the previous transaction.
     let tx2 = make_transfer_object_transaction(
-        gas_object1.compute_object_reference(),
-        gas_object2.compute_object_reference(),
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
         sender,
         &sender_key,
         recipient2,
@@ -899,8 +900,8 @@ async fn test_authority_txn_execution_pushback() {
     // Create a transaction to transfer `gas_object1` to `recipient`.
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx = make_transfer_object_transaction(
-        gas_object1.compute_object_reference(),
-        gas_object2.compute_object_reference(),
+        gas_object1.object_ref(),
+        gas_object2.object_ref(),
         sender,
         &sender_key,
         recipient,

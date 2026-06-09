@@ -27,6 +27,7 @@ use futures::StreamExt;
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
+use iota_sdk_types::TransactionKind;
 use iota_types::{
     base_types::{TransactionDigest, TransactionEffectsDigest},
     crypto::RandomnessRound,
@@ -35,7 +36,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
-    transaction::{TransactionDataAPI, TransactionKey, TransactionKind, VerifiedTransaction},
+    transaction::{TransactionDataAPI, TransactionKey, VerifiedTransaction},
 };
 use parking_lot::Mutex;
 use tap::{TapFallible, TapOptional};

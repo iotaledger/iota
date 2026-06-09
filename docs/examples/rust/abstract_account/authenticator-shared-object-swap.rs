@@ -22,15 +22,13 @@ use iota_sdk::{
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
         crypto::SignatureScheme::ED25519,
-        programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{Argument, Transaction},
+        programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
-use iota_sdk_types::{Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{Argument, Identifier, ObjectId, Owner, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::PublicKey,
-    object::Owner,
     signature::GenericSignature,
     transaction::{CallArg, SharedObjectRef},
     utils::MoveAuthenticator,

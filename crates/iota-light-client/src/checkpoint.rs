@@ -523,9 +523,9 @@ impl ObjectStore for CheckpointSummaryFileStore {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::gas::GasCostSummary;
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
-        gas::GasCostSummary,
         message_envelope::Envelope,
         messages_checkpoint::{CheckpointContents, CheckpointSummary},
         supported_protocol_versions::ProtocolConfig,

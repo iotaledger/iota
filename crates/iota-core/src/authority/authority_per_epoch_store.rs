@@ -30,7 +30,9 @@ use iota_metrics::monitored_scope;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    CancelledTransaction, CheckpointTimestamp, ObjectId, TransactionKind, VersionAssignment,
+};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{
@@ -52,16 +54,15 @@ use iota_types::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
-        AuthorityCapabilitiesV1, CancelledTransaction, ConsensusTransaction,
-        ConsensusTransactionKey, ConsensusTransactionKind, SignedAuthorityCapabilitiesV1,
-        TimestampMs, VerifiedAuthorityCapabilitiesV1, VersionAssignment, VersionedDkgConfirmation,
+        AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, VerifiedAuthorityCapabilitiesV1,
+        VersionedDkgConfirmation,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKey, TransactionKind, VerifiedCertificate, VerifiedSignedTransaction,
-        VerifiedTransaction,
+        TransactionKey, VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
 use itertools::izip;
@@ -825,9 +826,18 @@ pub struct AuthorityEpochTables {
     /// a new dkg::Confirmation via consensus.
     pub(crate) dkg_confirmations: DBMap<PartyId, VersionedDkgConfirmation>,
 
-    /// Records the final output of DKG after completion, including the public
-    /// VSS key and any local private shares.
+    /// Legacy DKG output table superseded by `dkg_output_v2`. Kept read-only
+    /// for backward compatibility with epoch stores written before the
+    /// introduction of `dkg_output_v2`; the current code never writes to it.
+    /// Only successful DKG outputs were stored here; terminal-failure verdicts
+    /// are stored in `dkg_output_v2`.
     pub(crate) dkg_output: DBMap<u64, dkg_v1::Output<PkG, EncG>>,
+    /// Successor of `dkg_output`. Wraps the output in an `Option` so the
+    /// terminal-failure verdict is persistable: `Some(out)` = success,
+    /// `None` = DKG failed (terminal), table-absent = still pending.
+    /// `RandomnessManager::try_new` loads this table first and falls back to
+    /// `dkg_output` for backward compatibility with existing epoch stores.
+    pub(crate) dkg_output_v2: DBMap<u64, Option<dkg_v1::Output<PkG, EncG>>>,
 
     /// Holds the value of the next RandomnessRound to be generated.
     pub(crate) randomness_next_round: DBMap<u64, RandomnessRound>,
@@ -2699,7 +2709,9 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    pub(crate) fn get_randomness_last_round_timestamp(&self) -> IotaResult<Option<TimestampMs>> {
+    pub(crate) fn get_randomness_last_round_timestamp(
+        &self,
+    ) -> IotaResult<Option<CheckpointTimestamp>> {
         if let Some(ts) = self
             .consensus_quarantine
             .read()
@@ -3879,7 +3891,24 @@ impl AuthorityPerEpochStore {
             );
         }
 
-        if randomness_state_updated {
+        // Advance the DKG state machine on every commit while it is still
+        // pending, even when no new messages or confirmations arrived this
+        // commit, so it can resolve from already-persisted state -- completing,
+        // or failing once the timeout round passes. Without this, advance_dkg
+        // only runs on commits carrying fresh DKG traffic, so a validator that
+        // sees no new inbound traffic (e.g. one that restarted) can stay Pending
+        // forever -- deferring all randomness-using transactions and blocking
+        // epoch close.
+        //
+        // This changes when `advance_dkg` runs relative to consensus, so it is
+        // gated behind a protocol flag: every validator must flip the behavior
+        // at the same protocol-upgrade boundary, otherwise a mixed-version
+        // network could resolve DKG on different commits and diverge.
+        let dkg_pending = self.protocol_config.always_advance_dkg_to_resolution()
+            && randomness_manager
+                .as_ref()
+                .is_some_and(|rm| rm.dkg_status() == DkgStatus::Pending);
+        if randomness_state_updated || dkg_pending {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager
                     .advance_dkg(output, consensus_commit_info.round)

@@ -223,18 +223,21 @@ pub(crate) fn check_commit_version_matches_flags(
     protocol_config: &iota_protocol_config::ProtocolConfig,
 ) -> ConsensusResult<()> {
     let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
+    let starfish_speed = protocol_config.consensus_starfish_speed();
     let variant_matches_flags = matches!(
-        (commit, fast_commit_sync),
-        (Commit::V1(_), false) | (Commit::V2(_), true)
+        (commit, fast_commit_sync, starfish_speed),
+        (Commit::V1(_), false, false) | (Commit::V2(_), true, false) | (Commit::V3(_), true, true)
     );
     if !variant_matches_flags {
         let actual = match commit {
             Commit::V1(_) => "V1",
             Commit::V2(_) => "V2",
+            Commit::V3(_) => "V3",
         };
         return Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
             fast_commit_sync,
+            starfish_speed,
         });
     }
     Ok(())
@@ -809,18 +812,25 @@ mod tests {
     use super::*;
     use crate::{
         block_verifier::NoopBlockVerifier,
-        commit::{CommitV1, CommitV2},
+        commit::{CommitV1, CommitV2, CommitV3},
     };
 
     /// Builds a single-commit byte stream from `commit` and runs it through
-    /// `verify_commits` with `consensus_fast_commit_sync` set to
-    /// `fast_commit_sync_on`. The version check fires before the index
-    /// check, so the default commit index of 0 is fine here.
-    fn run_verify(commit: Commit, fast_commit_sync_on: bool) -> ConsensusResult<()> {
+    /// `verify_commits` with the two protocol flags set as specified. The
+    /// version check fires before the index check, so the default commit
+    /// index of 0 is fine here.
+    fn run_verify(
+        commit: Commit,
+        fast_commit_sync_on: bool,
+        starfish_speed_on: bool,
+    ) -> ConsensusResult<()> {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
             .set_consensus_fast_commit_sync_for_testing(fast_commit_sync_on);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed_on);
         let context = Arc::new(context);
         let misbehavior_store = MisbehaviorStore::new(&context);
         let serialized = commit.serialize().unwrap();
@@ -837,27 +847,31 @@ mod tests {
         .map(|_| ())
     }
 
+    #[rstest::rstest]
+    #[case::v1_with_fast_on(Commit::V1(CommitV1::default()), true, false, "V1")]
+    #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, true, "V1")]
+    #[case::v2_with_fast_off(Commit::V2(CommitV2::default()), false, false, "V2")]
+    #[case::v2_with_starfish_on(Commit::V2(CommitV2::default()), true, true, "V2")]
+    #[case::v3_with_fast_off(Commit::V3(CommitV3::default()), false, false, "V3")]
+    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), true, false, "V3")]
     #[tokio::test]
-    async fn verify_commits_rejects_v2_commit_when_fast_commit_sync_disabled() {
-        let result = run_verify(Commit::V2(CommitV2::default()), false);
-        assert!(matches!(
-            result,
-            Err(ConsensusError::WrongCommitVersionForFlags {
-                actual: "V2",
-                fast_commit_sync: false,
-            })
-        ));
-    }
-
-    #[tokio::test]
-    async fn verify_commits_rejects_v1_commit_when_fast_commit_sync_enabled() {
-        let result = run_verify(Commit::V1(CommitV1::default()), true);
-        assert!(matches!(
-            result,
-            Err(ConsensusError::WrongCommitVersionForFlags {
-                actual: "V1",
-                fast_commit_sync: true,
-            })
-        ));
+    async fn verify_commits_rejects_wrong_version(
+        #[case] commit: Commit,
+        #[case] fast_commit_sync_on: bool,
+        #[case] starfish_speed_on: bool,
+        #[case] expected_variant: &'static str,
+    ) {
+        let result = run_verify(commit, fast_commit_sync_on, starfish_speed_on);
+        let Err(ConsensusError::WrongCommitVersionForFlags {
+            actual,
+            fast_commit_sync,
+            starfish_speed,
+        }) = result
+        else {
+            panic!("expected WrongCommitVersionForFlags, got {result:?}");
+        };
+        assert_eq!(actual, expected_variant);
+        assert_eq!(fast_commit_sync, fast_commit_sync_on);
+        assert_eq!(starfish_speed, starfish_speed_on);
     }
 }

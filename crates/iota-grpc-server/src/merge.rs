@@ -318,7 +318,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
                 let mut ref_builder = ObjectReference::default();
 
                 if reference_mask.contains(ObjectReference::OBJECT_ID_FIELD.name) {
-                    ref_builder = ref_builder.with_object_id(source.object_id());
+                    ref_builder = ref_builder.with_object_id(source.id());
                 }
 
                 if reference_mask.contains(ObjectReference::VERSION_FIELD.name) {
@@ -333,7 +333,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
             } else {
                 // If no subtree, include all reference fields
                 ObjectReference::default()
-                    .with_object_id(source.object_id())
+                    .with_object_id(source.id())
                     .with_version(source.version().as_u64())
                     .with_digest(source.digest())
             };

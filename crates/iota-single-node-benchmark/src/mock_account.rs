@@ -40,10 +40,7 @@ pub async fn batch_create_account_and_gas(
     let mut genesis_gas_objects = vec![];
     for task in tasks {
         let (sender, keypair, gas_objects) = task.await.unwrap();
-        let gas_object_refs: Vec<_> = gas_objects
-            .iter()
-            .map(|o| o.compute_object_reference())
-            .collect();
+        let gas_object_refs: Vec<_> = gas_objects.iter().map(|o| o.object_ref()).collect();
         accounts.insert(
             sender,
             Account {

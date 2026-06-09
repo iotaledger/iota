@@ -66,7 +66,7 @@ mod sim_only_tests {
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
-    use iota_sdk_types::{Command, Identifier, MoveCall, ObjectId};
+    use iota_sdk_types::{Command, Identifier, MoveCall, ObjectId, Owner, TransactionKind};
     use iota_types::{
         base_types::{ConciseableName, IotaAddress, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
@@ -77,12 +77,12 @@ mod sim_only_tests {
             IOTA_SYSTEM_STATE_SIM_TEST_V1, IotaSystemState, IotaSystemStateTrait,
             epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
         },
-        object::{Object, Owner},
+        object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
             CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData,
-            TransactionDataAPI, TransactionKind,
+            TransactionDataAPI,
         },
     };
     use move_binary_format::CompiledModule;

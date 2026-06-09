@@ -2,13 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionExpiration, TransactionKind};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
-    transaction::{
-        GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
-    },
+    transaction::{GasData, TransactionData, TransactionDataV1},
 };
 use move_core_types::account_address::AccountAddress;
 use proptest::{arbitrary::*, collection::vec, prelude::*};

@@ -18,19 +18,18 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Identifier, ObjectId, StructTag,
+    Identifier, ObjectId, Owner, StructTag, TransactionKind,
     crypto::{Intent, UserSignature},
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, ProgrammableTransaction, SharedObjectRef, Transaction,
-        TransactionData, TransactionDataAPI, TransactionKind, TransactionKindExt,
+        TransactionData, TransactionDataAPI, TransactionKindExt,
     },
 };
 

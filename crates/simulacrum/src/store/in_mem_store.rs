@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_config::genesis;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
     base_types::{
         AuthorityName, IotaAddress, ObjectRef, SequenceNumber, address_from_iota_pub_key,
@@ -22,7 +22,7 @@ use iota_types::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
-    object::{Object, Owner},
+    object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
         get_module, load_package_object_from_object_store,

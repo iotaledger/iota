@@ -4,13 +4,11 @@
 
 use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{Command, ObjectId};
+use iota_sdk_types::{Command, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
     base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointTransaction,
-    object::Owner,
     transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
@@ -32,22 +30,20 @@ pub enum TransactionKind {
     RandomnessStateUpdate = 6,
 }
 
-impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
-    fn from(kind: &iota_types::transaction::TransactionKind) -> Self {
+impl From<&iota_sdk_types::TransactionKind> for TransactionKind {
+    fn from(kind: &iota_sdk_types::TransactionKind) -> Self {
         match kind {
-            iota_types::transaction::TransactionKind::Programmable(_) => {
-                TransactionKind::Programmable
-            }
-            iota_types::transaction::TransactionKind::Genesis(_) => TransactionKind::Genesis,
-            iota_types::transaction::TransactionKind::ConsensusCommitPrologueV1(_) => {
+            iota_sdk_types::TransactionKind::Programmable(_) => TransactionKind::Programmable,
+            iota_sdk_types::TransactionKind::Genesis(_) => TransactionKind::Genesis,
+            iota_sdk_types::TransactionKind::ConsensusCommitPrologueV1(_) => {
                 TransactionKind::ConsensusCommitPrologueV1
             }
             #[allow(deprecated)]
-            iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
+            iota_sdk_types::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 TransactionKind::System
             }
-            iota_types::transaction::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
-            iota_types::transaction::TransactionKind::RandomnessStateUpdate(_) => {
+            iota_sdk_types::TransactionKind::EndOfEpoch(_) => TransactionKind::EndOfEpoch,
+            iota_sdk_types::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
             _ => unimplemented!(
@@ -367,7 +363,7 @@ impl TransactionFilter {
                 .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
-                iota_types::transaction::TransactionKind::Programmable(pt) => {
+                iota_sdk_types::TransactionKind::Programmable(pt) => {
                     cmd_filter.matches_commands(&pt.commands)
                 }
                 _ => false,
@@ -480,8 +476,7 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Command, Identifier};
-    use iota_types::transaction::Argument;
+    use iota_sdk_types::{Argument, Command, Identifier};
 
     use super::*;
 
@@ -822,7 +817,7 @@ mod tests {
 
         assert!(filter.matches_status(&ExecutionStatus::Success));
         assert!(!filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::InsufficientGas,
+            error: iota_sdk_types::ExecutionError::InsufficientGas,
             command: None,
         }));
     }
@@ -835,13 +830,13 @@ mod tests {
 
         // Regular failure
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::InsufficientGas,
+            error: iota_sdk_types::ExecutionError::InsufficientGas,
             command: None,
         }));
 
         // Cancelled due to congestion
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+            error: iota_sdk_types::ExecutionError::ExecutionCancelledDueToSharedObjectCongestion {
                 congested_objects: vec![],
             },
             command: None,
@@ -849,7 +844,7 @@ mod tests {
 
         // Cancelled due to randomness
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToRandomnessUnavailable,
+            error: iota_sdk_types::ExecutionError::ExecutionCancelledDueToRandomnessUnavailable,
             command: None,
         }));
     }

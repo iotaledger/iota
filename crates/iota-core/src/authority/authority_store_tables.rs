@@ -285,9 +285,7 @@ impl AuthorityPerpetualTables {
         store_object: StoreObjectWrapper,
     ) -> Result<ObjectRef, IotaError> {
         let obj_ref = match store_object.migrate().into_inner() {
-            StoreObject::Value(object) => self
-                .construct_object(object_key, *object)?
-                .compute_object_reference(),
+            StoreObject::Value(object) => self.construct_object(object_key, *object)?.object_ref(),
             StoreObject::Deleted => {
                 ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
             }
@@ -493,7 +491,7 @@ impl AuthorityPerpetualTables {
     }
 
     pub fn insert_object_test_only(&self, object: Object) -> IotaResult {
-        let object_reference = object.compute_object_reference();
+        let object_reference = object.object_ref();
         let wrapper = get_store_object(object);
         let mut wb = self.objects.batch();
         wb.insert_batch(
@@ -570,7 +568,7 @@ impl LiveObject {
 
     pub fn object_reference(&self) -> ObjectRef {
         match self {
-            LiveObject::Normal(obj) => obj.compute_object_reference(),
+            LiveObject::Normal(obj) => obj.object_ref(),
             LiveObject::Wrapped(key) => ObjectRef::new(key.0, key.1, ObjectDigest::OBJECT_WRAPPED),
         }
     }

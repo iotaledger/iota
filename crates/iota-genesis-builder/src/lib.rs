@@ -31,7 +31,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Command, Identifier, ObjectId, StructTag,
+    Command, GenesisObject, Identifier, ObjectId, Owner, StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -58,16 +58,14 @@ use iota_types::{
         CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
-    object::{MoveObjectExt, Object, Owner},
+    object::{MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
         timelocked_staked_iota::TimelockedStakedIota,
     },
-    transaction::{
-        CallArg, CheckedInputObjects, GenesisObject, InputObjectKind, ObjectReadResult, Transaction,
-    },
+    transaction::{CallArg, CheckedInputObjects, InputObjectKind, ObjectReadResult, Transaction},
 };
 use move_binary_format::CompiledModule;
 use serde::{Deserialize, Serialize};

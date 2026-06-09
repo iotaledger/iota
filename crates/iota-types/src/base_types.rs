@@ -12,8 +12,10 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
-pub use iota_sdk_types::{MoveObjectType, ObjectReference as ObjectRef, Version as SequenceNumber};
+pub use iota_sdk_types::{
+    Address as IotaAddress, MoveObjectType, ObjectReference as ObjectRef, Version as SequenceNumber,
+};
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -34,7 +36,7 @@ use crate::{
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
-    object::{Object, Owner},
+    object::Object,
     parse_iota_struct_tag,
     signature::GenericSignature,
     transaction::{Transaction, VerifiedTransaction},
@@ -214,8 +216,6 @@ impl From<&ObjectInfo> for ObjectRef {
 }
 
 pub const IOTA_ADDRESS_LENGTH: usize = ObjectId::LENGTH;
-
-pub use iota_sdk_types::Address as IotaAddress;
 
 pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> IotaAddress {
     let mut hasher = DefaultHash::default();

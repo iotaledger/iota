@@ -9,7 +9,8 @@ use tracing::instrument;
 use crate::{
     Transaction,
     block_header::{
-        BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, genesis_block_headers,
+        BlockHeader, BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader,
+        genesis_block_headers,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -88,6 +89,33 @@ impl SignedBlockVerifier {
     }
 }
 
+/// Rejects a deserialized `BlockHeader` whose variant does not match the local
+/// `consensus_starfish_speed` configuration. The flag is uniform across the
+/// network within an epoch, so any mismatch implies either a malicious peer
+/// or a misconfigured upgrade path. V2 is gated by `consensus_starfish_speed`;
+/// V1 is the only legal variant when the flag is off.
+pub(crate) fn check_block_header_version_matches_flag(
+    header: &BlockHeader,
+    protocol_config: &iota_protocol_config::ProtocolConfig,
+) -> ConsensusResult<()> {
+    let starfish_speed = protocol_config.consensus_starfish_speed();
+    let variant_matches_flag = matches!(
+        (header, starfish_speed),
+        (BlockHeader::V1(_), false) | (BlockHeader::V2(_), true)
+    );
+    if !variant_matches_flag {
+        let actual = match header {
+            BlockHeader::V1(_) => "V1",
+            BlockHeader::V2(_) => "V2",
+        };
+        return Err(ConsensusError::WrongBlockHeaderVersionForFlag {
+            actual,
+            starfish_speed,
+        });
+    }
+    Ok(())
+}
+
 // All block verification logic are implemented below.
 impl BlockVerifier for SignedBlockVerifier {
     #[instrument(level = "trace", skip_all)]
@@ -105,6 +133,10 @@ impl BlockVerifier for SignedBlockVerifier {
             return Err(ConsensusError::UnexpectedGenesisHeader);
         }
         ConsensusError::quick_validation_authority_indices(&[block.author()], committee)?;
+
+        // Reject blocks whose header variant does not match the local
+        // `consensus_starfish_speed` configuration.
+        check_block_header_version_matches_flag(block, &self.context.protocol_config)?;
 
         // Verify the block's signature.
         block.verify_signature(&self.context)?;
@@ -226,6 +258,41 @@ impl BlockVerifier for SignedBlockVerifier {
                 quorum: committee.quorum_threshold(),
             });
         }
+
+        // Validate strong_vote field. Reachable only on V2 headers, which the
+        // version-flag check above already gated on `consensus_starfish_speed`.
+        if let Some(strong_vote) = block.strong_vote() {
+            if !committee.is_valid_index(strong_vote.leader_authority) {
+                return Err(ConsensusError::InvalidStrongVoteAuthority {
+                    index: strong_vote.leader_authority,
+                    max: committee.size(),
+                });
+            }
+            for authority_index in strong_vote.missing.iter() {
+                if !committee.is_valid_index(authority_index) {
+                    return Err(ConsensusError::InvalidStrongVoteAuthority {
+                        index: authority_index,
+                        max: committee.size(),
+                    });
+                }
+            }
+            // Self-consistency: the pinned leader must appear in the block's
+            // ancestors at round-1.
+            let leader_round = block.round().saturating_sub(1);
+            if leader_round != GENESIS_ROUND {
+                let leader_seen = block
+                    .ancestors()
+                    .iter()
+                    .any(|r| r.round == leader_round && r.author == strong_vote.leader_authority);
+                if !leader_seen {
+                    return Err(ConsensusError::StrongVoteLeaderNotInAncestors {
+                        block_round: block.round(),
+                        leader_round,
+                        leader_authority: strong_vote.leader_authority,
+                    });
+                }
+            }
+        }
         Ok(())
     }
 
@@ -258,7 +325,8 @@ pub(crate) mod test {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader},
+        authority_set::AuthoritySet,
+        block_header::{BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader},
         context::Context,
         transaction::{TransactionVerifier, ValidationError},
     };
@@ -626,6 +694,158 @@ pub(crate) mod test {
                 .build();
             let signed_block = SignedBlockHeader::new(block, authority_2_protocol_keypair).unwrap();
             verifier.verify(&signed_block).unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_block_version_flag() {
+        use crate::block_header::BlockHeader;
+
+        let ancestors = vec![
+            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+        ];
+
+        // V1 block reaching a flag-on receiver -> WrongBlockHeaderVersionForFlag.
+        {
+            let (mut context, keypairs) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context
+                .protocol_config
+                .set_consensus_starfish_speed_for_testing(true);
+            let context = Arc::new(context);
+            let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
+
+            let block = TestBlockHeader::new(10, 2)
+                .set_ancestors(ancestors.clone())
+                .build();
+            let signed_block = SignedBlockHeader::new(block, &keypairs[2].1).unwrap();
+            assert!(matches!(
+                verifier.verify(&signed_block),
+                Err(ConsensusError::WrongBlockHeaderVersionForFlag {
+                    actual: "V1",
+                    starfish_speed: true,
+                })
+            ));
+        }
+
+        // V2 block reaching a flag-off receiver -> WrongBlockHeaderVersionForFlag.
+        {
+            let (context, keypairs) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
+
+            let v2 = crate::block_header::BlockHeaderV2::new(
+                0,
+                10,
+                AuthorityIndex::new_for_test(2),
+                0,
+                ancestors,
+                vec![],
+                vec![],
+                crate::block_header::TransactionsCommitment::DEFAULT_FOR_TEST,
+                None,
+            );
+            let signed_block = SignedBlockHeader::new(BlockHeader::V2(v2), &keypairs[2].1).unwrap();
+            assert!(matches!(
+                verifier.verify(&signed_block),
+                Err(ConsensusError::WrongBlockHeaderVersionForFlag {
+                    actual: "V2",
+                    starfish_speed: false,
+                })
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_block_strong_vote() {
+        let (mut context_on, keypairs) = Context::new_for_test(4);
+        context_on
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let context_on = Arc::new(context_on);
+
+        let keypair = &keypairs[2].1;
+        let leader_authority = AuthorityIndex::new_for_test(0);
+        let verifier_on = SignedBlockVerifier::new(context_on, Arc::new(TxnSizeVerifier {}));
+
+        let base = TestBlockHeader::new(10, 2).set_ancestors(vec![
+            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+            BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
+            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+        ]);
+        let well_formed = StrongVote {
+            leader_authority,
+            missing: AuthoritySet::new(),
+        };
+
+        // Flag on + missing contains an index >= committee.size() ->
+        // InvalidStrongVoteAuthority.
+        {
+            let mut missing = AuthoritySet::new();
+            missing.insert(AuthorityIndex::new_for_test(99));
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority,
+                    missing,
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::InvalidStrongVoteAuthority { .. })
+            ));
+        }
+
+        // Flag on + leader_authority >= committee.size() ->
+        // InvalidStrongVoteAuthority. Trips the leader_authority bound check
+        // before the leader-in-ancestors check below.
+        {
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority: AuthorityIndex::new_for_test(99),
+                    missing: AuthoritySet::new(),
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::InvalidStrongVoteAuthority { .. })
+            ));
+        }
+
+        // Flag on + valid leader_authority but pinned leader not in ancestors
+        // at round-1 -> StrongVoteLeaderNotInAncestors. Authority 3 is in the
+        // base block's ancestors only at round 7, not at round 9
+        // (= leader_round).
+        {
+            let block = base
+                .clone()
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority: AuthorityIndex::new_for_test(3),
+                    missing: AuthoritySet::new(),
+                }))
+                .build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            assert!(matches!(
+                verifier_on.verify(&signed_block),
+                Err(ConsensusError::StrongVoteLeaderNotInAncestors { .. })
+            ));
+        }
+
+        // Flag on + well-formed strong_vote (empty missing, leader at R-1 in
+        // ancestors) -> Ok.
+        {
+            let block = base.set_strong_vote(Some(well_formed)).build();
+            let signed_block = SignedBlockHeader::new(block, keypair).unwrap();
+            verifier_on.verify(&signed_block).unwrap();
         }
     }
 }

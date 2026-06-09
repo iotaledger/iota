@@ -4,7 +4,8 @@
 
 use diesel::prelude::*;
 use iota_json_rpc_types::Checkpoint as RpcCheckpoint;
-use iota_types::{base_types::TransactionDigest, digests::CheckpointDigest, gas::GasCostSummary};
+use iota_sdk_types::gas::GasCostSummary;
+use iota_types::{base_types::TransactionDigest, digests::CheckpointDigest};
 
 use crate::{
     errors::IndexerError,

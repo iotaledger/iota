@@ -7,13 +7,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, VersionAssignment};
 use iota_types::{
     base_types::{AuthorityName, SequenceNumber, TransactionDigest},
     crypto::RandomnessRound,
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
-    messages_consensus::{TimestampMs, VersionAssignment, VersionedDkgConfirmation},
+    messages_consensus::VersionedDkgConfirmation,
     signature::GenericSignature,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
@@ -71,7 +71,11 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
-    dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
+    // DKG state, the inner Option value persisted to `dkg_output_v2`:
+    // - `Some(Some(out))` -- DKG success
+    // - `Some(None)` -- terminal DKG failure
+    // - `None` -- DKG pending (default value)
+    dkg_output: Option<Option<dkg_v1::Output<PkG, EncG>>>,
 
     // misbehavior report state — per-authority post-merge snapshot captured
     // at `process_report` time. The on-disk row for commit N is exactly the
@@ -93,7 +97,7 @@ impl ConsensusCommitOutput {
         self.deleted_deferred_txns.iter().cloned()
     }
 
-    fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
+    fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
         self.next_randomness_round.as_ref().map(|(_, ts)| *ts)
     }
 
@@ -203,7 +207,7 @@ impl ConsensusCommitOutput {
         self.dkg_used_message = Some(used_messages);
     }
 
-    pub fn set_dkg_output(&mut self, output: dkg_v1::Output<PkG, EncG>) {
+    pub fn set_dkg_output(&mut self, output: Option<dkg_v1::Output<PkG, EncG>>) {
         self.dkg_output = Some(output);
     }
 
@@ -300,7 +304,7 @@ impl ConsensusCommitOutput {
                 .map(|used_msgs| (SINGLETON_KEY, used_msgs)),
         )?;
         if let Some(output) = self.dkg_output {
-            batch.insert_batch(&tables.dkg_output, [(SINGLETON_KEY, output)])?;
+            batch.insert_batch(&tables.dkg_output_v2, [(SINGLETON_KEY, output)])?;
         }
 
         batch.insert_batch(
@@ -880,7 +884,7 @@ impl ConsensusOutputQuarantine {
             .any(|output| output.pending_checkpoint_exists(index))
     }
 
-    pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
+    pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
         self.output_queue
             .iter()
             .rev()

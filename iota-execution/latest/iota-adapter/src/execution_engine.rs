@@ -17,7 +17,9 @@ mod checked {
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
-        ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command, Identifier, ObjectId,
+        Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+        ExecutionStatus, GenesisTransaction, Identifier, ObjectId, TransactionKind,
+        gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -35,8 +37,7 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
-        execution_status::ExecutionStatus,
-        gas::{GasCostSummary, IotaGasStatus, IotaGasStatusAPI},
+        gas::{IotaGasStatus, IotaGasStatusAPI},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
@@ -48,9 +49,9 @@ mod checked {
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, CallArg, CheckedInputObjects, EndOfEpochTransactionKind, GasData,
-            GenesisTransaction, InputObjects, ProgrammableTransaction, RandomnessStateUpdate,
-            SharedObjectRef, SystemPackage, TransactionKind, TransactionKindExt,
+            CallArg, CheckedInputObjects, EndOfEpochTransactionKind, GasData, InputObjects,
+            ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef, SystemPackage,
+            TransactionKindExt,
         },
     };
     use move_binary_format::CompiledModule;
@@ -1846,10 +1847,7 @@ mod checked {
                     tx_ctx.borrow().digest(),
                 );
 
-                info!(
-                    "upgraded system package {:?}",
-                    new_package.compute_object_reference()
-                );
+                info!("upgraded system package {:?}", new_package.object_ref());
 
                 // Decrement the version before writing the package so that the store can record
                 // the version growing by one in the effects.

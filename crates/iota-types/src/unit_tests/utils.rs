@@ -10,7 +10,7 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    ObjectId, SimpleSignature,
+    ObjectId, SimpleSignature, TransactionKind,
     crypto::{Intent, IntentMessage},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -29,7 +29,7 @@ use crate::{
     signature::GenericSignature,
     transaction::{
         SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        TransactionDataAPI,
     },
 };
 
@@ -76,7 +76,7 @@ pub fn create_fake_transaction() -> Transaction {
     };
     let data = TransactionData::new_programmable(
         sender,
-        vec![object.compute_object_reference()],
+        vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,
@@ -94,7 +94,7 @@ pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
     };
     TransactionData::new_programmable(
         sender,
-        vec![object.compute_object_reference()],
+        vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,

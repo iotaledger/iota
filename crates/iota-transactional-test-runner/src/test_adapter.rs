@@ -25,7 +25,6 @@ use fastcrypto::{
 };
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
-use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
@@ -33,7 +32,10 @@ use iota_json_rpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Command, Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{
+    Argument, Command, ExecutionStatus, Identifier, ObjectId, TransactionKind, TypeTag,
+    gas::GasCostSummary, move_package::MovePackage,
+};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -45,23 +47,19 @@ use iota_types::{
     digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
-    execution_status::ExecutionStatus,
-    gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
     move_authenticator::MoveAuthenticator,
-    move_package::{
-        IotaAttribute, MovePackage, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
-    },
+    move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
     object::{self, GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     storage::{ObjectStore, ReadStore},
     transaction::{
-        Argument, CallArg, ProgrammableTransaction, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, VerifiedTransaction,
+        CallArg, ProgrammableTransaction, Transaction, TransactionData, TransactionDataAPI,
+        VerifiedTransaction,
     },
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
@@ -136,7 +134,6 @@ const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 // TODO: the configs are still tied to the indexer crate, eventually we'd like a
 // new command that is more agnostic
 pub struct OffChainConfig {
-    pub snapshot_config: SnapshotLagConfig,
     pub epochs_to_keep: Option<u64>,
     /// Dir for simulacrum to write checkpoint files to. To be passed to the
     /// offchain indexer if it uses file-based ingestion.
@@ -210,7 +207,6 @@ impl AdapterInitConfig {
             reference_gas_price,
             default_gas_price,
             move_auth,
-            snapshot_config,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -250,7 +246,6 @@ impl AdapterInitConfig {
 
         let offchain_config = if simulator {
             Some(OffChainConfig {
-                snapshot_config,
                 epochs_to_keep,
                 data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().keep()),
                 grpc_api_url,
@@ -1692,11 +1687,7 @@ impl IotaTestAdapter {
 
         payments
             .into_iter()
-            .map(|payment| {
-                self.get_object(&payment, None)
-                    .unwrap()
-                    .compute_object_reference()
-            })
+            .map(|payment| self.get_object(&payment, None).unwrap().object_ref())
             .collect()
     }
 
@@ -2288,9 +2279,7 @@ impl IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                object
-                    .as_coin_maybe()
-                    .map(|_| object.compute_object_reference())
+                object.as_coin_maybe().map(|_| object.object_ref())
             })
             .expect("Abstract account creation must have a gas coin");
 

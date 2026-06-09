@@ -51,8 +51,10 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Identifier, ObjectId, TypeTag,
+    Identifier, ObjectId, Owner, TransactionKind, TypeTag,
     crypto::{Intent, IntentMessage},
+    gas::GasCostSummary,
+    move_package::MovePackage,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
@@ -64,20 +66,19 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
     error::IotaError,
-    gas::{GasCostSummary, get_gas_balance},
+    gas::get_gas_balance,
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_authenticator::MoveAuthenticator,
-    move_package::{MovePackage, UpgradeCap},
-    object::Owner,
+    move_package::UpgradeCap,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind, TransactionKindExt,
+        TransactionDataAPI, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;

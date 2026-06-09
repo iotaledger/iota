@@ -106,7 +106,7 @@ async fn test_regulated_coin_v1_types() {
                 deny_list_object_init_version,
                 true,
             )),
-            CallArg::ImmutableOrOwned(deny_cap_object.compute_object_reference()),
+            CallArg::ImmutableOrOwned(deny_cap_object.object_ref()),
             CallArg::pure(&deny_address),
         ],
     )
@@ -219,11 +219,7 @@ struct TestEnv {
 
 impl TestEnv {
     async fn get_latest_object_ref(&self, id: &ObjectId) -> ObjectRef {
-        self.authority
-            .get_object(id)
-            .await
-            .unwrap()
-            .compute_object_reference()
+        self.authority.get_object(id).await.unwrap().object_ref()
     }
 }
 

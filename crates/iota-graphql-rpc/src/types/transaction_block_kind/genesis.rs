@@ -6,10 +6,8 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_types::{
-    digests::TransactionDigest, object::Object as NativeObject,
-    transaction::GenesisTransaction as NativeGenesisTransaction,
-};
+use iota_sdk_types::GenesisTransaction as NativeGenesisTransaction;
+use iota_types::{digests::TransactionDigest, object::Object as NativeObject};
 
 use crate::{
     consistency::ConsistentIndexCursor,

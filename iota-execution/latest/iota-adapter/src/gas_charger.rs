@@ -9,13 +9,13 @@ pub use checked::*;
 pub mod checked {
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{ObjectId, gas::GasCostSummary};
     use iota_types::{
         base_types::ObjectRef,
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         digests::TransactionDigest,
         error::ExecutionError,
-        gas::{GasCostSummary, IotaGasStatus, deduct_gas},
+        gas::{IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
         object::{Data, MoveObjectExt},
     };

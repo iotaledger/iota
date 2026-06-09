@@ -10,7 +10,7 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
     committee::{Committee, EpochId},
     digests::TransactionDigest,
@@ -24,7 +24,7 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, MoveObjectExt, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object},
     transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
@@ -211,7 +211,7 @@ impl EpochState {
                 Owner::Address(transaction.gas_data().owner),
                 TransactionDigest::GENESIS_MARKER,
             );
-            let mock_gas_object_ref = mock_gas_object.compute_object_reference();
+            let mock_gas_object_ref = mock_gas_object.object_ref();
             transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
             Some(mock_gas_object.id())

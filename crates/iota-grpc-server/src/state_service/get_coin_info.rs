@@ -14,6 +14,7 @@ use iota_grpc_types::{
         state_service::{GetCoinInfoRequest, GetCoinInfoResponse},
     },
 };
+use iota_sdk_types::Owner;
 
 use crate::{error::RpcError, types::GrpcReader, validation::object_id_proto};
 
@@ -87,10 +88,8 @@ pub(crate) fn get_coin_info(
             // Immutable or owned by 0x0 means the TreasuryCap can never be used
             // to mint, so supply is fixed.
             let supply_state = match &object.owner {
-                iota_types::object::Owner::Immutable => SupplyState::Fixed,
-                iota_types::object::Owner::Address(addr)
-                    if *addr == iota_types::base_types::IotaAddress::ZERO =>
-                {
+                Owner::Immutable => SupplyState::Fixed,
+                Owner::Address(addr) if *addr == iota_types::base_types::IotaAddress::ZERO => {
                     SupplyState::Fixed
                 }
                 _ => SupplyState::Unknown,

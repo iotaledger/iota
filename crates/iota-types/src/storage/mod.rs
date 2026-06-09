@@ -16,7 +16,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::{Identifier, ObjectId, move_package::MovePackage};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
@@ -38,7 +38,6 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
-    move_package::MovePackage,
     object::Object,
     storage::error::Error as StorageError,
     transaction::{SenderSignedData, TransactionDataAPI},
@@ -515,7 +514,7 @@ pub enum ObjectOrTombstone {
 impl ObjectOrTombstone {
     pub fn as_objref(&self) -> ObjectRef {
         match self {
-            ObjectOrTombstone::Object(obj) => obj.compute_object_reference(),
+            ObjectOrTombstone::Object(obj) => obj.object_ref(),
             ObjectOrTombstone::Tombstone(obref) => *obref,
         }
     }

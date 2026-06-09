@@ -404,7 +404,7 @@ mod tests {
 
             let objects: Vec<_> = vec![s.object(1), s.object(2)]
                 .into_iter()
-                .map(|o| o.compute_object_reference())
+                .map(|o| o.object_ref())
                 .collect();
 
             s.with_mutated(&[1, 2]);

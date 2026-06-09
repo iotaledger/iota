@@ -12,16 +12,18 @@ use iota_json::{
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::{MovePackage, MovePackageExt},
-    object::{Object, Owner},
+    move_package::MovePackageExt,
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedObjectRef},
+    transaction::{CallArg, SharedObjectRef},
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
@@ -111,7 +113,7 @@ impl TransactionBuilder {
             .await?;
 
         let obj: Object = response.into_object()?.try_into()?;
-        let obj_ref = obj.compute_object_reference();
+        let obj_ref = obj.object_ref();
         let owner = obj.owner;
         if is_receiving_argument(view, arg_type) {
             return Ok(CallArg::Receiving(obj_ref));

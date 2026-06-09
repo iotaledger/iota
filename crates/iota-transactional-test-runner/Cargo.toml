@@ -33,7 +33,6 @@ iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-framework.workspace = true
-iota-graphql-rpc.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
