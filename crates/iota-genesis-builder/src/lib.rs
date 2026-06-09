@@ -36,6 +36,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{ExecutionDigests, ObjectRef, SequenceNumber, TransactionDigest, TxContext},
+    claim_registry::CLAIM_REGISTRY_CREATE_FUNCTION_NAME,
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -540,6 +541,12 @@ impl Builder {
         assert!(unsigned_genesis.has_randomness_state_object());
 
         assert!(unsigned_genesis.has_coin_deny_list_object());
+
+        let protocol_config = get_genesis_protocol_config(protocol_version.into());
+        assert_eq!(
+            protocol_config.enable_claim_registry(),
+            unsigned_genesis.has_claim_registry_object()
+        );
 
         assert_eq!(
             self.validators.len(),
@@ -1500,6 +1507,18 @@ pub fn generate_genesis_system_object(
             vec![],
             vec![],
         )?;
+
+        // Create the claim registry (only for new networks; existing networks
+        // receive it via a ClaimRegistryCreate end-of-epoch transaction).
+        if protocol_config.enable_claim_registry() {
+            builder.move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::CLAIM_REGISTRY_MODULE,
+                CLAIM_REGISTRY_CREATE_FUNCTION_NAME,
+                vec![],
+                vec![],
+            )?;
+        }
 
         // Create the deny list
         builder.move_call(

@@ -315,6 +315,8 @@ EndOfEpochTransactionKind:
       ChangeEpochV4:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
+    4:
+      ClaimRegistryCreate: UNIT
 Event:
   STRUCT:
     - package_id:

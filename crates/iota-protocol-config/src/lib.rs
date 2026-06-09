@@ -167,6 +167,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
 //             Enable built-in Move authenticators in devnet.
+//             Add ClaimRegistry singleton for claiming addresses from public
+// keys.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -538,6 +540,11 @@ struct FeatureFlags {
     // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
+
+    // If true, the ClaimRegistry singleton is created (or already exists).
+    // Used to gate genesis creation and epoch-change creation for existing networks.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_claim_registry: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1435,6 +1442,10 @@ impl ProtocolConfig {
 
     pub fn consensus_transaction_ordering(&self) -> ConsensusTransactionOrdering {
         self.feature_flags.consensus_transaction_ordering
+    }
+
+    pub fn enable_claim_registry(&self) -> bool {
+        self.feature_flags.enable_claim_registry
     }
 
     pub fn dkg_version(&self) -> u64 {
@@ -2970,6 +2981,8 @@ impl ProtocolConfig {
                     cfg.feature_flags.consensus_block_restrictions = true;
 
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable claim registry in devnet only.
+                        cfg.feature_flags.enable_claim_registry = true;
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
                         // Set the cost for built-in Move authenticators to 0 for now.

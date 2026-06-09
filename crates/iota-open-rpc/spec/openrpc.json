@@ -1323,6 +1323,7 @@
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
                 "enable_builtin_move_authenticators": false,
+                "enable_claim_registry": false,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": false,
                 "enable_move_authentication_for_sponsor": false,
@@ -7897,6 +7898,12 @@
       },
       "IotaEndOfEpochTransactionKind": {
         "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "ClaimRegistryCreate"
+            ]
+          },
           {
             "type": "object",
             "required": [
