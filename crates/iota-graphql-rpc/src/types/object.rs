@@ -654,7 +654,7 @@ impl ObjectImpl<'_> {
                 let parent = Object::query(
                     ctx,
                     address.into(),
-                    Object::latest_at(self.0.checkpoint_viewed_at),
+                    Object::under_parent(self.0.root_version, self.0.checkpoint_viewed_at),
                 )
                 .await
                 .ok()

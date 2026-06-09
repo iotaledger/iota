@@ -64,9 +64,15 @@ Response: {
               "owner": {
                 "parent": {
                   "address": "0xef56dc60514d77afc263f46f4585053c475cb58c017724a54dc8b4ec42d18bfd",
-                  "asMoveObject": null,
-                  "status": "WRAPPED_OR_DELETED",
-                  "version": 6
+                  "asMoveObject": {
+                    "contents": {
+                      "type": {
+                        "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_object_field::Wrapper<u64>,0x0000000000000000000000000000000000000000000000000000000000000002::object::ID>"
+                      }
+                    }
+                  },
+                  "status": "INDEXED",
+                  "version": 4
                 }
               },
               "version": 4
@@ -97,9 +103,15 @@ Response: {
               "owner": {
                 "parent": {
                   "address": "0xef56dc60514d77afc263f46f4585053c475cb58c017724a54dc8b4ec42d18bfd",
-                  "asMoveObject": null,
-                  "status": "WRAPPED_OR_DELETED",
-                  "version": 6
+                  "asMoveObject": {
+                    "contents": {
+                      "type": {
+                        "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_object_field::Wrapper<u64>,0x0000000000000000000000000000000000000000000000000000000000000002::object::ID>"
+                      }
+                    }
+                  },
+                  "status": "INDEXED",
+                  "version": 4
                 }
               },
               "version": 4
@@ -129,9 +141,15 @@ Response: {
       "owner": {
         "parent": {
           "address": "0xef56dc60514d77afc263f46f4585053c475cb58c017724a54dc8b4ec42d18bfd",
-          "asMoveObject": null,
-          "status": "WRAPPED_OR_DELETED",
-          "version": 6
+          "asMoveObject": {
+            "contents": {
+              "type": {
+                "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_object_field::Wrapper<u64>,0x0000000000000000000000000000000000000000000000000000000000000002::object::ID>"
+              }
+            }
+          },
+          "status": "INDEXED",
+          "version": 4
         }
       }
     }
