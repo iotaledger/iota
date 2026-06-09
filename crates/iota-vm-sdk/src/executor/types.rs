@@ -7,10 +7,11 @@
 //! [`SignatureStatus`] outputs.
 
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{Address as IotaAddress, Identifier, ObjectId, StructTag};
+use iota_sdk_types::{
+    Address as IotaAddress, Identifier, ObjectId, StructTag, gas::GasCostSummary,
+};
 use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
-    gas::GasCostSummary,
     object::Object,
 };
 use move_core_types::annotated_value::MoveValue;

@@ -11,7 +11,7 @@
 
 use std::collections::HashSet;
 
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{Event, ObjectId, Owner};
 use iota_types::{
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
@@ -22,7 +22,6 @@ use iota_types::{
     digests::TransactionDigest,
     dynamic_field::{self, Field},
     effects::TransactionEffectsAPI,
-    event::Event,
     gas::IotaGasStatus,
     gas_coin::NANOS_PER_IOTA,
     layout_resolver::LayoutResolver,
@@ -107,7 +106,7 @@ pub(super) fn prepare_transaction(
 
     let deny_config = iota_config::transaction_deny_config::TransactionDenyConfig::default();
     let receiving_object_refs = transaction.receiving_objects();
-    iota_transaction_checks::deny::check_transaction_for_signing(
+    iota_transaction_checks::deny::check_transaction_for_validation(
         &transaction,
         &[],
         &input_object_kinds,
