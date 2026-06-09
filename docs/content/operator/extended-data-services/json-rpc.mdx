@@ -1,9 +1,126 @@
 ---
 title: JSON-RPC
-description: The JSON-RPC reader service backed by the IOTA Indexer database — its scope, components, system requirements, configuration, and how to run it.
+description: The JSON-RPC reader service backed by the IOTA Indexer database — its scope, dependencies, system requirements, configuration, and how to run it.
 tags:
   - reference
   - extended-data-services
 teams:
   - iotaledger/infrastructure
 ---
+
+The JSON-RPC reader is started by the `iota-indexer` binary with the `json-rpc-service` subcommand and serves JSON-RPC queries backed by the IOTA Indexer database. See the [Extended Data Services overview](./overview) for how it fits together with the indexer and the GraphQL service.
+
+## Scope
+
+The JSON-RPC service answers JSON-RPC requests by reading data from the IOTA Indexer database. It exposes reads of checkpoints, transactions, events, objects, coins, balances, governance state, and Move utilities.
+
+The full list of methods is in the [IOTA JSON-RPC API reference](/iota-api-ref).
+
+Two operations are not served from the database: `iota_executeTransactionBlock` and `iota_dryRunTransactionBlock`. Both are forwarded to a fullnode over gRPC.
+
+A transaction executed via `iota_executeTransactionBlock` is visible immediately on point-lookup endpoints — `iota_getTransactionBlock`, `iota_getEvents`, and current-version object reads such as `iota_getObject` — because the write path stages its data into the indexer database before the call returns. Query-style endpoints (`iotax_queryTransactionBlocks`, `iotax_queryEvents`) and historical-version object reads (`iota_tryGetPastObject`) only see the new transaction once the indexer writer has processed the checkpoint that contains it, typically a few hundred milliseconds later.
+
+The JSON-RPC service holds no state of its own. Multiple instances can run in parallel against the same database.
+
+Paginated reads are not consistent across pages: the underlying tables can be updated by the indexer between requests, so a page may include or skip rows that a previous page would have. Clients that need consistent pagination should use the [GraphQL service](./graphql) instead.
+
+## Dependencies
+
+- An indexer Postgres database. The database must already be migrated to at least the schema version compiled into the `iota-indexer` binary; otherwise the service refuses to start. A database with additional applied migrations beyond what the binary knows is tolerated, so a newer writer can be paired with an older JSON-RPC reader during rolling deployments as long as migrations are run first. For the `iota_executeTransactionBlock` method to work properly the indexer writer should be running and synced with the tip of the network. See [IOTA Indexer](./iota-indexer) for details on running the indexer writer.
+- A fullnode gRPC endpoint. Required at start-up — the server fails to start if `--rpc-client-url` is not set, even when no client issues an execute or dry-run request.
+- An optional REST KV store for historic fallback. When configured, it lets the JSON-RPC reader serve point lookups for data already pruned by the indexer writer. Currently experimental. See [Historic fallback](#historic-fallback) below and [Pruning](./iota-indexer#pruning) for the indexer-side retention model.
+
+## Hardware requirements
+
+- CPU: 2 cores per instance
+- Memory: 4 GB per instance
+
+Scale up the number of instances when client request load grows.
+
+## Running the JSON-RPC service
+
+A minimal start command:
+
+```sh
+iota-indexer \
+  --db-url postgres://<user>:<password>@<host>:5432/<db> \
+  json-rpc-service \
+  --rpc-client-url http://<fullnode>:<grpc-port>
+```
+
+## Configuration
+
+The JSON-RPC reader takes all configuration from CLI flags on the `iota-indexer` and `json-rpc-service` subcommand. There is no config file. The most important settings are covered in subsections below. All settings are listed in the [reference tables](#all-settings) at the bottom of the page.
+
+### Database connection
+
+`--db-url` sets the Postgres connection URL (e.g. `postgres://<user>:<password>@<host>:5432/<db>`); see the [Postgres docs](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) for the full URI syntax. `--pool-size` sets the connection pool size — raise it for higher concurrency, but stay within the Postgres `max_connections` setting and account for other clients of the same database. `--connection-timeout` caps how long a request waits for a free database connection before failing. `--statement-timeout` caps how long a single SQL query may run before it's cancelled.
+
+### Fullnode endpoint
+
+`--rpc-client-url` is the gRPC URL of a fullnode that the JSON-RPC reader forwards `iota_executeTransactionBlock` and `iota_dryRunTransactionBlock` to. It is required at start-up.
+
+### RPC endpoint
+
+`--rpc-address` sets the address the JSON-RPC endpoint binds to (default `0.0.0.0:9000`).
+
+### Prometheus metrics
+
+The Prometheus endpoint exposes histograms and counters covering request rate, latency, errors, and database pool utilisation.
+
+`--metrics-address` sets the address the Prometheus metrics endpoint binds to (default `0.0.0.0:9184`).
+
+### Historic fallback
+
+:::warning Experimental
+
+The historic fallback depends on the `iota-rest-kv` API which is still being finalised. Treat the flags below as experimental — they may change or be replaced.
+
+:::
+
+The historic fallback lets the JSON-RPC reader answer requests for data that the indexer writer has already pruned, by querying a separate REST KV store. When `--fallback-kv-url` is unset (the default), no fallback is performed and pruned data is unreachable via JSON-RPC.
+
+The following methods consult the fallback when the indexer database has no matching data:
+
+- `iota_getCheckpoint`, `iota_getCheckpoints`
+- `iota_getTransactionBlock`
+- `iota_getEvents`
+- `iota_tryGetPastObject`, `iota_tryGetObjectBeforeVersion`, `iota_tryMultiGetPastObjects`
+- `iotax_queryTransactionBlocks` with filter `Checkpoint` or `FromOrToAddress`
+- `iotax_queryEvents` with filter `Transaction`
+
+The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache.
+
+### IOTA Names resolution
+
+The `--iota-names-*` CLI flags configure the on-chain name registry the service resolves names against. The defaults match mainnet — override the package address and registry IDs when running against a different network.
+
+These settings are only used by the IOTA Names methods: `iotax_iotaNamesLookup`, `iotax_iotaNamesReverseLookup`, and `iotax_iotaNamesFindAllRegistrationNFTs`.
+
+## All settings
+
+### Top-level `iota-indexer` flags
+
+| Flag                     | Env var                  | Default          | Description                                                       |
+| ------------------------ | ------------------------ | ---------------- | ----------------------------------------------------------------- |
+| `--db-url`               | —                        | _(required)_     | Postgres connection URL. Also accepted as `--database-url`.       |
+| `--pool-size`            | `DB_POOL_SIZE`           | `100`            | Number of Postgres connections held in the pool.                  |
+| `--connection-timeout`   | `DB_CONNECTION_TIMEOUT`  | `30` (seconds)   | How long a request waits for a free database connection before failing. |
+| `--statement-timeout`    | `DB_STATEMENT_TIMEOUT`   | `3600` (seconds) | Cap on how long a single SQL query may run before it's cancelled.  |
+| `--metrics-address`      | —                        | `0.0.0.0:9184`   | Address the Prometheus metrics endpoint binds to.                 |
+
+### `json-rpc-service` subcommand flags
+
+| Flag                                    | Env var                                | Default        | Description                                                                                  |
+| --------------------------------------- | -------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `--rpc-address`                         | —                                      | `0.0.0.0:9000` | Address the JSON-RPC endpoint binds to.                                                      |
+| `--rpc-client-url`                      | —                                      | _(required)_   | Fullnode gRPC URL used for `iota_executeTransactionBlock` and `iota_dryRunTransactionBlock`. |
+| `--fallback-kv-url`                     | —                                      | _(unset)_      | Experimental. REST KV store URL for historic fallback. Disabled when unset.                  |
+| `--fallback-kv-multi-fetch-batch-size`  | `FALLBACK_KV_MULTI_FETCH_BATCH_SIZE`   | `100`          | Experimental. Maximum number of keys per batch request to the fallback KV store.             |
+| `--fallback-kv-concurrent-fetches`      | `FALLBACK_KV_CONCURRENT_FETCHES`       | `10`           | Experimental. Maximum number of concurrent batch requests to the fallback KV store.          |
+| `--fallback-kv-cache-size`              | `FALLBACK_KV_CACHE_SIZE`               | `100000`       | Experimental. In-memory cache size for historic fallback.                                    |
+| `--iota-names-package-address`          | —                                      | mainnet ID     | Address of the `iota_names` package.                                                         |
+| `--iota-names-object-id`                | —                                      | mainnet ID     | ID of the `IotaNames` object.                                                                |
+| `--iota-names-payments-package-address` | —                                      | mainnet ID     | Address of the `payments` package.                                                           |
+| `--iota-names-registry-id`              | —                                      | mainnet ID     | ID of the registry table.                                                                    |
+| `--iota-names-reverse-registry-id`      | —                                      | mainnet ID     | ID of the reverse registry table.                                                            |
