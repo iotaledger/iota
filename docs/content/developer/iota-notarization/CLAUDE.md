@@ -181,10 +181,11 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 </Tabs>
 </div>
 ```
+
 **Note**: The pattern above works for Single Notarization as it uses the `v0.1` tag in its git repository references.
 Use the `trails-v0.1` tag to reference code samples related to Audit Trails (i.e. `https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/example_name.rs#L20-L32`).
 
-**Note**: As an interim solution the Single Notarization examples are contained directly in the `examples` folder 
+**Note**: As an interim solution the Single Notarization examples are contained directly in the `examples` folder
 of the notarization.git repository (in a future development step the Single Notarization examples will be moved into a `single-notarization` folder).
 This also applies to the `examples/real-world` folder, containing real-world examples for Single Notarization.
 
