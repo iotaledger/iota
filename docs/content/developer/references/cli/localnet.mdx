@@ -77,7 +77,7 @@ When built with the `indexer` feature, additional options are available:
 
 #### Indexer pruning config file
 
-This config controls retention of the **indexer** database only; it does not affect node/object pruning. It is a TOML file with a required `epochs_to_keep` default and optional per-table `[overrides]`:
+Controls retention of the **indexer** database only (not node/object pruning). A TOML file with a required `epochs_to_keep` default and optional per-table `[overrides]`:
 
 ```toml
 epochs_to_keep = 10
@@ -86,7 +86,7 @@ epochs_to_keep = 10
 transactions = 5
 ```
 
-For the full list of prunable tables, default behavior, and pruning timing, see [Pruning](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/README.md#pruning) in the `iota-indexer` crate. The format and behavior are identical to the `iota-indexer indexer --pruning-config-path` command.
+See [Pruning](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/README.md#pruning) in the `iota-indexer` crate for the prunable tables, defaults, and timing.
 
 
 ### Examples
