@@ -70,10 +70,28 @@ When built with the `indexer` feature, additional options are available:
 | `--pg-db-name <NAME>` | Postgres database name (default: `iota_indexer`). |
 | `--pg-user <USER>` | Postgres username (default: `postgres`). |
 | `--pg-password <PASS>` | Postgres password (default: `postgrespw`). |
-| `--pruning-config-path <PATH>` | Path to a TOML retention config for the indexer writer. Without it the indexer keeps all data and its database grows without bound. |
+| `--pruning-config-path <PATH>` | Path to a TOML retention config for the indexer writer (see [Pruning config file](#pruning-config-file) below). Without it the indexer keeps all data and its database grows without bound. |
 | `--data-ingestion-dir <DIR>` | Directory for dumping executed checkpoints. Defaults to a temp dir when `--with-indexer` is set. |
 
 :::
+
+#### Pruning config file
+
+The file passed to `--pruning-config-path` is a TOML document with a required `epochs_to_keep` default (in epochs, must be greater than 0) and an optional `[overrides]` table for per-table retention. Override keys are the prunable table names in `snake_case`:
+
+```toml
+# Default retention for all prunable tables, in epochs.
+epochs_to_keep = 10
+
+# Optional per-table overrides (must be greater than 0).
+[overrides]
+objects_history = 2
+transactions = 5
+events = 5
+```
+
+Tables not listed under `[overrides]` use `epochs_to_keep`, except `objects_history`, which defaults to 2 epochs. Data deletion is delayed by 2 hours after each epoch boundary to protect in-flight reads, so the effect on database size is not immediate. This is the same format and behavior as the `iota-indexer indexer --pruning-config-path` command.
+
 
 ### Examples
 
