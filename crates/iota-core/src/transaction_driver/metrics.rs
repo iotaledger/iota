@@ -33,6 +33,8 @@ pub struct TransactionDriverMetrics {
     pub(crate) validator_selections: IntCounterVec,
     pub(crate) submit_amplification_factor: Histogram,
     pub(crate) latency_check_runs: IntCounter,
+    pub(crate) skip_cert_corroborated_rejections: IntCounter,
+    pub(crate) skip_cert_corroboration_unreachable: IntCounter,
 }
 
 impl TransactionDriverMetrics {
@@ -156,6 +158,18 @@ impl TransactionDriverMetrics {
             latency_check_runs: register_int_counter_with_registry!(
                 "transaction_driver_latency_check_runs",
                 "Number of times the latency check runs",
+                registry,
+            )
+            .unwrap(),
+            skip_cert_corroborated_rejections: register_int_counter_with_registry!(
+                "transaction_driver_skip_cert_corroborated_rejections",
+                "Number of times skip-certification corroboration confirmed a single-validator rejection with f+1 stake",
+                registry,
+            )
+            .unwrap(),
+            skip_cert_corroboration_unreachable: register_int_counter_with_registry!(
+                "transaction_driver_skip_cert_corroboration_unreachable",
+                "Number of times skip-certification corroboration concluded the f+1 rejection threshold was unreachable and triggered a retriable error",
                 registry,
             )
             .unwrap(),
