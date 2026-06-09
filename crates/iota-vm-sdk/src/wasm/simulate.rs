@@ -1,0 +1,196 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//! The [`simulate`] entry point: run a transaction through the local Move VM
+//! and surface a JS-friendly result.
+
+use base64::Engine;
+use fastcrypto::traits::ToFromBytes;
+use iota_protocol_config::{Chain, ProtocolVersion};
+use iota_sdk_types::Owner;
+use iota_types::{
+    base_types::ObjectRef,
+    effects::TransactionEffectsAPI,
+    object::Object,
+    signature::GenericSignature,
+    transaction::{SenderSignedData, TransactionData},
+};
+use wasm_bindgen::prelude::*;
+
+use super::{
+    b64_decode, err_to_js,
+    types::{
+        ChangedObject, CommandResultOut, DeletedObject, EventOut, MoveCallValue, OwnerInfo,
+        SimulateRequest, SimulateResult,
+    },
+};
+use crate::{ChainContext, ExecuteOptions, LocalVm, wasm_store::CallbackStore};
+
+/// Run a [`SimulateRequest`] through the local Move VM and return a
+/// [`SimulateResult`].
+///
+/// Objects are resolved on demand: `fetch_object(id_hex: string) -> string |
+/// null` is called for any object the VM needs that isn't already cached, and
+/// must return the object's base-64 BCS (synchronously, since the VM is
+/// synchronous). `req.objects` may pre-seed the cache but can be empty. The
+/// transaction is run in dry-run or dev-inspect mode, verifying any signatures.
+#[wasm_bindgen]
+pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue, JsError> {
+    let req: SimulateRequest =
+        serde_wasm_bindgen::from_value(req).map_err(|e| JsError::new(&e.to_string()))?;
+
+    let tx_bytes = b64_decode(&req.tx_b64)?;
+    let tx: TransactionData =
+        bcs::from_bytes(&tx_bytes).map_err(|e| JsError::new(&format!("bcs decode tx: {e}")))?;
+
+    let store = CallbackStore::new(fetch_object);
+    let mut seed = Vec::with_capacity(req.objects.len());
+    for (i, o) in req.objects.iter().enumerate() {
+        let bytes =
+            b64_decode(&o.bcs_b64).map_err(|_| JsError::new(&format!("object[{i}] base64")))?;
+        let obj: Object =
+            bcs::from_bytes(&bytes).map_err(|e| JsError::new(&format!("object[{i}] bcs: {e}")))?;
+        seed.push(obj);
+    }
+    store.seed(seed);
+
+    let ctx = ChainContext {
+        protocol_version: ProtocolVersion::new(req.protocol_version),
+        reference_gas_price: req.reference_gas_price,
+        epoch_id: req.epoch_id,
+        epoch_timestamp_ms: req.epoch_timestamp_ms,
+        chain: Chain::Unknown,
+    };
+    let mut vm = LocalVm::new(ctx, store).map_err(err_to_js)?;
+
+    let opts = if req.strict {
+        ExecuteOptions::dry_run()
+    } else {
+        ExecuteOptions::dev_inspect()
+    };
+
+    let signed = !req.signatures.is_empty();
+    let result = if signed {
+        let mut sigs: Vec<GenericSignature> = Vec::with_capacity(req.signatures.len());
+        for (i, s) in req.signatures.iter().enumerate() {
+            let bytes =
+                b64_decode(s).map_err(|_| JsError::new(&format!("signature[{i}] base64")))?;
+            let sig = GenericSignature::from_bytes(&bytes)
+                .map_err(|e| JsError::new(&format!("signature[{i}] decode: {e}")))?;
+            sigs.push(sig);
+        }
+        let signed_data = SenderSignedData::new(tx, sigs);
+        vm.execute_signed(signed_data, opts).map_err(err_to_js)?
+    } else {
+        vm.execute(tx, opts).map_err(err_to_js)?
+    };
+
+    let status = result.effects.status();
+    let success = status.is_success();
+    let gas = &result.gas_summary;
+    let signature_verified =
+        signed && matches!(result.signature_status, crate::SignatureStatus::Verified);
+
+    fn changed((obj, owner): (ObjectRef, Owner)) -> ChangedObject {
+        ChangedObject {
+            object_id: obj.object_id().to_string(),
+            version: obj.version().as_u64(),
+            digest: obj.digest().to_string(),
+            owner: OwnerInfo::from(&owner),
+        }
+    }
+    let mutated: Vec<ChangedObject> = result.effects.mutated().into_iter().map(changed).collect();
+    let created: Vec<ChangedObject> = result.effects.created().into_iter().map(changed).collect();
+    let deleted: Vec<DeletedObject> = result
+        .effects
+        .deleted()
+        .into_iter()
+        .map(|obj| DeletedObject {
+            object_id: obj.object_id().to_string(),
+            version: obj.version().as_u64(),
+            digest: obj.digest().to_string(),
+        })
+        .collect();
+
+    // Decode each event against the loaded objects; keep going on a per-event
+    // failure so one undecodable event doesn't drop the rest.
+    let events: Vec<EventOut> = match &result.events {
+        Some(evs) => vm
+            .decode_events(evs)
+            .into_iter()
+            .map(|dec| match dec {
+                Ok(d) => EventOut {
+                    package_id: d.package_id.to_string(),
+                    module: d.module.to_string(),
+                    name: d.name.to_string(),
+                    type_tag: d.type_tag.to_string(),
+                    value: serde_json::to_value(&d.value).ok(),
+                    decode_error: None,
+                },
+                Err(e) => EventOut {
+                    package_id: String::new(),
+                    module: String::new(),
+                    name: String::new(),
+                    type_tag: String::new(),
+                    value: None,
+                    decode_error: Some(e.to_string()),
+                },
+            })
+            .collect(),
+        None => Vec::new(),
+    };
+
+    // Decode the per-command dev-inspect values (return values and mutable
+    // reference outputs), each a raw `(bytes, type)` pair, against the store.
+    let decode_call_value = |bytes: &[u8], type_tag: &iota_sdk_types::TypeTag| {
+        let (value, decode_error) = match vm.decode_value(bytes, type_tag) {
+            Ok(v) => (serde_json::to_value(&v).ok(), None),
+            Err(e) => (None, Some(e.to_string())),
+        };
+        MoveCallValue {
+            type_tag: type_tag.to_string(),
+            bcs: base64::engine::general_purpose::STANDARD.encode(bytes),
+            value,
+            decode_error,
+        }
+    };
+    let command_results: Vec<CommandResultOut> = result
+        .command_results
+        .iter()
+        .map(|(mut_refs, returns)| CommandResultOut {
+            return_values: returns
+                .iter()
+                .map(|(bytes, tt)| decode_call_value(bytes, tt))
+                .collect(),
+            mutable_reference_outputs: mut_refs
+                .iter()
+                .map(|(_arg, bytes, tt)| decode_call_value(bytes, tt))
+                .collect(),
+        })
+        .collect();
+
+    let out = SimulateResult {
+        success,
+        status: format!("{status:?}"),
+        gas_used: gas.gas_used(),
+        computation_cost: gas.computation_cost,
+        storage_cost: gas.storage_cost,
+        storage_rebate: gas.storage_rebate,
+        non_refundable_storage_fee: gas.non_refundable_storage_fee,
+        mutated,
+        created,
+        deleted,
+        events,
+        command_results,
+        error: status.error().map(|e| format!("{e:?}")),
+        signature_verified,
+    };
+    // Round-trip through a JSON string rather than `serde_wasm_bindgen`: the
+    // decoded event payloads are `serde_json::Value`s, and `serde_json` renders
+    // its own maps and (arbitrary-precision) numbers faithfully, whereas
+    // `serde_wasm_bindgen` would turn maps into JS `Map`s (stringifying to
+    // `{}`) and leak serde_json's number token. `JSON.parse` then yields a
+    // plain JS object.
+    let json = serde_json::to_string(&out).map_err(|e| JsError::new(&e.to_string()))?;
+    js_sys::JSON::parse(&json).map_err(|e| JsError::new(&format!("{e:?}")))
+}
