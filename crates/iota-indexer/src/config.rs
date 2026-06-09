@@ -394,16 +394,6 @@ impl RetentionConfig {
         }
     }
 
-    pub fn new_with_default_retention_only_for_testing(epochs_to_keep: u64) -> Self {
-        let mut overrides = HashMap::new();
-        overrides.insert(
-            PrunableTable::ObjectsHistory,
-            OBJECTS_HISTORY_EPOCHS_TO_KEEP,
-        );
-
-        Self::new(epochs_to_keep, HashMap::new())
-    }
-
     /// Consumes the struct and produces a mapping of every prunable table
     /// and its retention policy.
     ///

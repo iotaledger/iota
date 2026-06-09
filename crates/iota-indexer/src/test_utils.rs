@@ -77,10 +77,10 @@ impl IndexerTypeConfig {
 
     pub fn writer_mode(pruning_options: Option<PruningOptions>) -> Self {
         Self::Writer {
-            retention_config: pruning_options.as_ref().and_then(|pruning_options| {
+            retention_config: pruning_options.and_then(|pruning_options| {
                 pruning_options
-                    .epochs_to_keep
-                    .map(RetentionConfig::new_with_default_retention_only_for_testing)
+                    .load_from_file()
+                    .expect("failed to load the indexer retention configuration")
             }),
         }
     }
