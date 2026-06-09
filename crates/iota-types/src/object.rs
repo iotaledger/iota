@@ -10,8 +10,10 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    MoveObjectType, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+};
 pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner, ObjectData as Data};
-use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
@@ -20,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::deterministic_random_account_key,
     error::{

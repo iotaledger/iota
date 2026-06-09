@@ -13,16 +13,15 @@ use iota_sdk_crypto::{
 use iota_sdk_types::{
     Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
-    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, ObjectId, Owner,
-    PackageUpgradeError, RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration,
-    TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
+    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
+    ObjectId, Owner, PackageUpgradeError, RandomnessStateUpdate, SimpleSignature, StructTag,
+    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
     base_types::{
-        self, ExecutionData, IotaAddress, MoveObjectType, ObjectDigest, TransactionDigest,
-        TransactionEffectsDigest,
+        self, ExecutionData, IotaAddress, ObjectDigest, TransactionDigest, TransactionEffectsDigest,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
