@@ -160,7 +160,7 @@ const notarization = [
                             {
                                 type: 'link',
                                 label: 'Rust',
-                                href: 'https://iotaledger.github.io/notarization/audit_trail/index.html',
+                                href: 'https://iotaledger.github.io/notarization/audit_trails/index.html',
                             },
                             {
                                 type: 'category',

@@ -167,20 +167,26 @@ Always provide **Rust** and **TypeScript (Node.js)** tabs using this pattern:
 <TabItem value="rust" label="Rust">
 
 \`\`\`rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/example_name.rs#L20-L32
+https://github.com/iotaledger/notarization/tree/v0.1/examples/example_name.rs#L20-L32
 \`\`\`
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 \`\`\`ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/example_name.ts#L20-L32
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/example_name.ts#L20-L32
 \`\`\`
 
 </TabItem>
 </Tabs>
 </div>
 ```
+**Note**: The pattern above works for Single Notarization as it uses the `v0.1` tag in its git repository references.
+Use the `trails-v0.1` tag to reference code samples related to Audit Trails (i.e. `https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/example_name.rs#L20-L32`).
+
+**Note**: As an interim solution the Single Notarization examples are contained directly in the `examples` folder 
+of the notarization.git repository (in a future development step the Single Notarization examples will be moved into a `single-notarization` folder).
+This also applies to the `examples/real-world` folder, containing real-world examples for Single Notarization.
 
 Key rules:
 
@@ -234,10 +240,10 @@ When example code in that repository changes, those anchors go stale. The script
 
 ### When to run it
 
-Run the script after any commit in `iotaledger/notarization` that modifies files under:
+Run the script after any commit in the `iotaledger/notarization` repository that modifies files under:
 
 - `examples/audit-trail/` (Rust examples for Audit Trails)
-- `examples/notarization/` (Rust examples for Single Notarization)
+- `examples/` + `examples/real-world` (Rust examples for Single Notarization)
 - `bindings/wasm/audit_trail_wasm/examples/` (TypeScript examples for Audit Trails)
 - `bindings/wasm/notarization_wasm/examples/` (TypeScript examples for Single Notarization)
 - `examples/utils/utils.rs`

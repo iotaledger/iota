@@ -139,14 +139,14 @@ Always use this exact structure for code tabs within implementation steps:
 <TabItem value="rust" label="Rust">
 
 \`\`\`rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/<filename>.rs#L<start>-L<end>
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/<filename>.rs#L<start>-L<end>
 \`\`\`
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 \`\`\`ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/<filename>.ts#L<start>-L<end>
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/<filename>.ts#L<start>-L<end>
 \`\`\`
 
 </TabItem>
@@ -198,14 +198,14 @@ Always include this section with the link to the local network setup guide.
 <TabItem value="rust" label="Rust">
 
 \`\`\`rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/real-world/<filename>.rs
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/real-world/<filename>.rs
 \`\`\`
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 \`\`\`ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/real-world/<filename>.ts
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/real-world/<filename>.ts
 \`\`\`
 
 </TabItem>
