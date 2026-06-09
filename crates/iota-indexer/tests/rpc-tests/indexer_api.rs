@@ -1713,9 +1713,8 @@ async fn assert_paginated_events_ascending(
     Ok(())
 }
 
-/// Split a coin into equal parts with the external SDK `TransactionBuilder`,
-/// driven by the node's gRPC client. Returns the `TransactionData` ready to be
-/// signed. The JSON-RPC client is only used to read the coin's balance.
+/// Split a coin into equal parts, returning the `TransactionData` ready to be
+/// signed.
 async fn split_coin_equal_tx(
     iota_client: &iota_sdk::IotaClient,
     grpc_client: &iota_grpc_client::Client,

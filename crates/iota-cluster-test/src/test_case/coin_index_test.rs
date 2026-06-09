@@ -695,9 +695,7 @@ impl From<IotaAddress> for MoveCallArg {
     }
 }
 
-/// Build a `managed` Move-call transaction with the external SDK
-/// `TransactionBuilder`, driven by the node's gRPC client. The JSON-RPC client
-/// is only used to pick a single explicit gas coin.
+/// Build a `managed` Move-call transaction ready to be signed.
 async fn build_move_call_tx(
     iota_client: &iota_sdk::IotaClient,
     grpc_url: &str,

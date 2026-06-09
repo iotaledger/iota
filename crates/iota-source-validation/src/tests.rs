@@ -895,7 +895,6 @@ pub async fn upgrade_package_with_wallet(
 ) -> (ObjectRef, TransactionDigest) {
     let sender = context.get_addresses()[0];
     let gas_price = context.get_reference_gas_price().await.unwrap();
-    // Drive the external SDK `TransactionBuilder` with the node's gRPC client.
     let grpc_client = iota_grpc_client::Client::new(grpc_url).unwrap();
     let transaction = {
         let package_data = MovePackageData::new(all_module_bytes, dep_ids);
