@@ -18,10 +18,10 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tokio-stream.workspace = true
 tracing.workspace = true
-iota-sdk-types.workspace = true
 
 # internal dependencies
 iota-indexer.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 
 [lints]
