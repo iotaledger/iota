@@ -34,6 +34,7 @@ mod checked {
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
         base_types::{IotaAddress, SequenceNumber, TransactionDigest, TxContext},
+        claim_registry::CLAIM_REGISTRY_CREATE_FUNCTION_NAME,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,
@@ -666,18 +667,18 @@ mod checked {
                     unreachable!("Only programmable transactions are allowed");
                 };
                 AuthContext::new_from_components(
-                authenticator.digest(),
-                auth_context_data.sender_auth_digest,
-                auth_context_data.sponsor_auth_digest,
-                auth_context_data
-                    .sender_authenticator_function_ref
-                    .and_then(Into::into),
-                auth_context_data
-                    .sponsor_authenticator_function_ref
-                    .and_then(Into::into),
-                ptb,
-                auth_context_data.transaction_data_bytes,
-            )
+                    authenticator.digest(),
+                    auth_context_data.sender_auth_digest,
+                    auth_context_data.sponsor_auth_digest,
+                    auth_context_data
+                        .sender_authenticator_function_ref
+                        .and_then(Into::into),
+                    auth_context_data
+                        .sponsor_authenticator_function_ref
+                        .and_then(Into::into),
+                    ptb,
+                    auth_context_data.transaction_data_bytes,
+                )
             };
             let auth_ctx = Rc::new(RefCell::new(auth_ctx));
 
@@ -1288,10 +1289,10 @@ mod checked {
                 )
             }
             TransactionKind::EndOfEpoch(txns) => {
-                let builder = ProgrammableTransactionBuilder::new();
+                let mut builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
 
-                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
+                for (i, tx) in txns.into_iter().enumerate() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
@@ -1352,6 +1353,10 @@ mod checked {
                                 trace_builder_opt,
                             )?;
                             return Ok(Mode::empty_results());
+                        }
+                        EndOfEpochTransactionKind::ClaimRegistryCreate(_) => {
+                            assert!(protocol_config.enable_claim_registry());
+                            builder = setup_claim_registry_create(builder);
                         }
                         _ => unimplemented!(
                             "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
@@ -1945,6 +1950,24 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+    }
+
+    /// Adds a Move call to `iota::claim_registry::create`, creating the
+    /// `ClaimRegistry` singleton during an epoch-change transaction for
+    /// networks that were deployed before the ClaimRegistry was introduced.
+    fn setup_claim_registry_create(
+        mut builder: ProgrammableTransactionBuilder,
+    ) -> ProgrammableTransactionBuilder {
+        builder
+            .move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::CLAIM_REGISTRY_MODULE,
+                CLAIM_REGISTRY_CREATE_FUNCTION_NAME,
+                vec![],
+                vec![],
+            )
+            .expect("Unable to generate claim_registry_create transaction!");
+        builder
     }
 
     /// The function constructs a transaction that invokes

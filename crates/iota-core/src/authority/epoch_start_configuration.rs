@@ -8,6 +8,7 @@ use enum_dispatch::enum_dispatch;
 use iota_config::NodeConfig;
 use iota_types::{
     base_types::SequenceNumber,
+    claim_registry::get_claim_registry_obj_initial_shared_version,
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
     error::IotaResult,
@@ -27,6 +28,7 @@ pub trait EpochStartConfigTrait {
     fn flags(&self) -> &[EpochFlag];
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
+    fn claim_registry_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
 }
 
 // IMPORTANT: Assign explicit values to each variant to ensure that the values
@@ -103,6 +105,7 @@ impl fmt::Display for EpochFlag {
 pub enum EpochStartConfiguration {
     V1(EpochStartConfigurationV1),
     V2(EpochStartConfigurationV2),
+    V3(EpochStartConfigurationV3),
 }
 
 impl EpochStartConfiguration {
@@ -116,7 +119,9 @@ impl EpochStartConfiguration {
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
             get_deny_list_obj_initial_shared_version(object_store);
-        Ok(Self::V2(EpochStartConfigurationV2 {
+        let claim_registry_obj_initial_shared_version =
+            get_claim_registry_obj_initial_shared_version(object_store)?;
+        Ok(Self::V3(EpochStartConfigurationV3 {
             system_state,
             epoch_digest,
             flags: initial_epoch_flags,
@@ -125,6 +130,7 @@ impl EpochStartConfiguration {
             authenticator_obj_initial_shared_version: None,
             randomness_obj_initial_shared_version,
             coin_deny_list_obj_initial_shared_version,
+            claim_registry_obj_initial_shared_version,
         }))
     }
 
@@ -154,6 +160,18 @@ impl EpochStartConfiguration {
                 randomness_obj_initial_shared_version: config.randomness_obj_initial_shared_version,
                 coin_deny_list_obj_initial_shared_version: config
                     .coin_deny_list_obj_initial_shared_version,
+            }),
+            Self::V3(config) => Self::V3(EpochStartConfigurationV3 {
+                system_state: config.system_state.new_at_next_epoch_for_testing(),
+                epoch_digest: config.epoch_digest,
+                flags: config.flags.clone(),
+                authenticator_obj_initial_shared_version: config
+                    .authenticator_obj_initial_shared_version,
+                randomness_obj_initial_shared_version: config.randomness_obj_initial_shared_version,
+                coin_deny_list_obj_initial_shared_version: config
+                    .coin_deny_list_obj_initial_shared_version,
+                claim_registry_obj_initial_shared_version: config
+                    .claim_registry_obj_initial_shared_version,
             }),
             _ => panic!(
                 "This function is only implemented for the latest version of EpochStartConfiguration"
@@ -207,6 +225,11 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
         self.coin_deny_list_obj_initial_shared_version
     }
+
+    fn claim_registry_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
+        // V1 predates ClaimRegistry — treat as not yet created.
+        None
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -239,5 +262,48 @@ impl EpochStartConfigTrait for EpochStartConfigurationV2 {
 
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
         self.coin_deny_list_obj_initial_shared_version
+    }
+
+    fn claim_registry_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
+        // V2 predates ClaimRegistry — treat as not yet created.
+        None
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+pub struct EpochStartConfigurationV3 {
+    system_state: EpochStartSystemState,
+    epoch_digest: CheckpointDigest,
+    flags: Vec<EpochFlag>,
+    /// Do the state objects exist at the beginning of the epoch?
+    authenticator_obj_initial_shared_version: Option<SequenceNumber>,
+    randomness_obj_initial_shared_version: SequenceNumber,
+    coin_deny_list_obj_initial_shared_version: SequenceNumber,
+    claim_registry_obj_initial_shared_version: Option<SequenceNumber>,
+}
+
+impl EpochStartConfigTrait for EpochStartConfigurationV3 {
+    fn epoch_digest(&self) -> CheckpointDigest {
+        self.epoch_digest
+    }
+
+    fn epoch_start_state(&self) -> &EpochStartSystemState {
+        &self.system_state
+    }
+
+    fn flags(&self) -> &[EpochFlag] {
+        &self.flags
+    }
+
+    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
+        self.randomness_obj_initial_shared_version
+    }
+
+    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
+        self.coin_deny_list_obj_initial_shared_version
+    }
+
+    fn claim_registry_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
+        self.claim_registry_obj_initial_shared_version
     }
 }

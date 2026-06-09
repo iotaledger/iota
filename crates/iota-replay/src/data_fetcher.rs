@@ -549,7 +549,7 @@ impl DataFetcher for RemoteFetcher {
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         if let TransactionKind::EndOfEpoch(kinds) = tx_kind_orig {
-            if let Some(kind) = kinds.iter().next() {
+            for kind in kinds.iter() {
                 let (epoch_start_timestamp_ms, reference_gas_price) = match kind {
                     EndOfEpochTransactionKind::ChangeEpoch(change) => {
                         let rgp = if let serde_json::Value::Object(ref w) = event.parsed_json {
@@ -588,6 +588,9 @@ impl DataFetcher for RemoteFetcher {
                             .await?
                             .base_gas_price(),
                     ),
+                    // ClaimRegistryCreate has no epoch timestamp; skip it and
+                    // look for the ChangeEpoch* kind later in the list.
+                    EndOfEpochTransactionKind::ClaimRegistryCreate(_) => continue,
                     _ => unimplemented!(
                         "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                     ),
