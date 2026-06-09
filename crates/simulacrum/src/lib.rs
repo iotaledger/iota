@@ -31,7 +31,7 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{ObjectId, StructTag, TransactionKind};
+use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
@@ -57,10 +57,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfo, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{
-        EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionDataAPI,
-        VerifiedTransaction,
-    },
+    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 

@@ -45,8 +45,8 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Event, ExecutionStatus, ObjectId, Owner, RandomnessRound, StructTag, TransactionExpiration,
-    TransactionKind, TypeTag,
+    EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, Owner, RandomnessRound, StructTag,
+    TransactionExpiration, TransactionKind, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
