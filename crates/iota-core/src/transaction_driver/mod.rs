@@ -18,7 +18,7 @@ use arc_swap::ArcSwap;
 use effects_certifier::*;
 /// Exports
 pub use error::{AggregatedRequestErrors, TransactionDriverError};
-use iota_common::backoff::ExponentialBackoff;
+use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
 use iota_types::{committee::EpochId, messages_grpc::TxStatusUpdate, transaction::Transaction};
 pub use metrics::*;
@@ -147,6 +147,7 @@ where
         transaction: Option<Transaction>,
         options: SubmitTransactionOptions,
         timeout_duration: Option<Duration>,
+        skip_certification: bool,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
         const MAX_DRIVE_TRANSACTION_RETRY_DELAY: Duration = Duration::from_secs(10);
 
@@ -170,7 +171,12 @@ where
         let retry_loop = async {
             loop {
                 match self
-                    .drive_transaction_once(amplification_factor, transaction.clone(), &options)
+                    .drive_transaction_once(
+                        amplification_factor,
+                        transaction.clone(),
+                        &options,
+                        skip_certification,
+                    )
                     .await
                 {
                     Ok(resp) => {
@@ -268,6 +274,7 @@ where
         amplification_factor: u64,
         transaction: Option<Transaction>,
         options: &SubmitTransactionOptions,
+        skip_certification: bool,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
         let auth_agg = self.authority_aggregator.load();
         let auth_agg = auth_agg.as_ref();
@@ -287,36 +294,49 @@ where
                 options,
             )
             .await?;
+        // `submit_transaction` is contracted to convert `Rejected`/`Expired`
+        // into `Err` before returning; reaching them here means that
+        // contract was broken upstream. Surface loudly in debug/test, hide
+        // the implementation detail from the client.
         match &submit_txn_result {
-            TxStatusUpdate::Rejected { error } => {
+            TxStatusUpdate::Rejected { .. } | TxStatusUpdate::Expired { .. } => {
+                debug_fatal!(
+                    "submit_transaction returned non-actionable status: {submit_txn_result:?}"
+                );
                 return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "TxStatusUpdate::Rejected should have been returned as an error in submit_transaction(): {error:?}",
-                    ),
-                });
-            }
-            TxStatusUpdate::Expired { epoch } => {
-                return Err(TransactionDriverError::ClientInternal {
-                    error: format!(
-                        "TxStatusUpdate::Expired should have been returned as an error in submit_transaction() (epoch {epoch})",
-                    ),
+                    error: "internal driver error".to_string(),
                 });
             }
             _ => {}
         }
 
-        // Wait for quorum effects using EffectsCertifier
-        let result = self
-            .certifier
-            .get_certified_finalized_effects(
-                auth_agg,
-                client_monitor,
-                tx_digest,
-                name,
-                submit_txn_result,
-                options,
-            )
-            .await;
+        // When the caller plans to wait for local checkpoint execution, the 2f+1
+        // effects certification broadcast is redundant — finality comes from the
+        // certified checkpoint. In that case fetch effects from the submitting
+        // validator only. Otherwise run the full certification flow.
+        let result = if skip_certification {
+            self.certifier
+                .get_effects_without_certification(
+                    auth_agg,
+                    &self.client_monitor,
+                    tx_digest,
+                    name,
+                    submit_txn_result,
+                    options,
+                )
+                .await
+        } else {
+            self.certifier
+                .get_certified_finalized_effects(
+                    auth_agg,
+                    client_monitor,
+                    tx_digest,
+                    name,
+                    submit_txn_result,
+                    options,
+                )
+                .await
+        };
 
         // This operation feedback may be imprecise since submit_transaction
         // queries multiple validators and may return the name of a malicious validator.
@@ -395,6 +415,7 @@ where
                             ..Default::default()
                         },
                         Some(ping_timeout),
+                        false,
                     )
                     .await
                 {
