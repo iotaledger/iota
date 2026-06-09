@@ -30,7 +30,7 @@ use iota_types::{
     },
     digests::ConsensusCommitDigest,
     effects::{
-        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExt,
+        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
         TransactionEvents, UnchangedSharedKind,
     },
     event::Event,
@@ -579,19 +579,7 @@ fn get_registry() -> Result<Registry> {
     // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
     // via trace_value (they transitively contain TypeTag).
     let sample_transaction = Transaction::new(sender_data.clone());
-    let sample_effects = TransactionEffects::new_from_execution_v1(
-        ExecutionStatus::Success,
-        0,
-        Default::default(),
-        vec![],
-        Default::default(),
-        TransactionDigest::default(),
-        Default::default(),
-        Default::default(),
-        None,
-        None,
-        vec![],
-    );
+    let sample_effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
     let sample_exec_data = ExecutionData {
         transaction: sample_transaction.clone(),
         effects: sample_effects.clone(),
