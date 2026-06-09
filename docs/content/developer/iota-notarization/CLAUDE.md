@@ -234,67 +234,6 @@ Do not manually author reference pages — they are generated from the source re
 When comparing Audit Trails to Single Notarization, link to the sibling docs with relative paths:
 `../../single-notarization/explanations/dynamic-notarization.mdx`. Do not duplicate notarization content — summarize the distinction and link out.
 
-## Keeping example-code line references up to date
-
-How-to guides embed snippets from the [notarization repository](https://github.com/iotaledger/notarization) using `#L<start>-L<end>` anchors.
-When example code in that repository changes, those anchors go stale. The script `scripts/update_doc_refs.py` automates the remapping.
-
-### When to run it
-
-Run the script after any commit in the `iotaledger/notarization` repository that modifies files under:
-
-- `examples/audit-trail/` (Rust examples for Audit Trails)
-- `examples/` + `examples/real-world` (Rust examples for Single Notarization)
-- `bindings/wasm/audit_trail_wasm/examples/` (TypeScript examples for Audit Trails)
-- `bindings/wasm/notarization_wasm/examples/` (TypeScript examples for Single Notarization)
-- `examples/utils/utils.rs`
-
-### Prerequisites
-
-- Python 3.10+
-- A local clone of `https://github.com/iotaledger/notarization` with the relevant branch fetched.
-
-### Usage
-
-```sh
-python3 docs/content/developer/iota-notarization/scripts/update_doc_refs.py \
-    --notarization-repo /path/to/notarization/repo-clone  \
-    --old-ref <commit-or-ref-the-docs-currently-target> \
-    --new-ref <commit-or-branch-to-update-to>
-```
-
-All flags can also be set via environment variables, which is convenient for CI or repeated use:
-
-| Flag                  | Env var             | Description                                              |
-| --------------------- | ------------------- | -------------------------------------------------------- |
-| `--notarization-repo` | `NOTARIZATION_REPO` | Path to the local notarization repo clone                |
-| `--docs-dir`          | `DOCS_DIR`          | Path to the `how-tos/` folder (auto-detected by default) |
-| `--old-ref`           | `OLD_REF`           | Git ref the docs currently reference                     |
-| `--new-ref`           | `NEW_REF`           | Git ref to update the docs to                            |
-| `--dry-run`           | —                   | Print changes without writing any files                  |
-
-### Example workflow
-
-1. Identify the commit that changed the example files — for instance `b704131` on branch `feat/audit-trails-dev`.
-2. Find the last commit the docs were synchronized to (the parent of that commit, or the tag/ref recorded in the previous update PR).
-3. Run the script in dry-run mode first to review the changes:
-
-   ```sh
-   python3 docs/content/developer/iota-notarization/audit-trail/scripts/update_doc_refs.py \
-       --notarization-repo ~/code/notarization \
-       --old-ref 34190c6 \
-       --new-ref origin/feat/audit-trails-dev \
-       --dry-run
-   ```
-
-4. Remove `--dry-run` to apply the changes, then commit the updated MDX files.
-
-### How it works
-
-The script uses Python's `difflib.SequenceMatcher` to diff each example file between the two refs and builds a line-number mapping.
-For each `#L<start>-L<end>` anchor found in the MDX files, it looks up both boundary lines in that mapping and replaces the anchor with the new range.
-Lines unchanged between the two refs map exactly; replaced or moved lines map to their best counterpart in the new file.
-
 ## Checklist for new pages
 
 Before considering a page complete:
