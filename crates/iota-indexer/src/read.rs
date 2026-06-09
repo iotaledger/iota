@@ -1182,7 +1182,7 @@ impl IndexerReader {
 
     /// Fetches a paginated list of transactions that affect a given address,
     /// using the fallback storage if the database is pruned.
-    async fn query_transactions_either_sender_or_recipient_address_with_fallback(
+    async fn query_transactions_by_affected_addresses_with_fallback(
         &self,
         address: IotaAddress,
         cursor: Option<TransactionDigest>,
