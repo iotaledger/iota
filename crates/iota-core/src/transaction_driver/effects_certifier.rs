@@ -70,8 +70,8 @@ impl EffectsCertifier {
     #[instrument(level = "error", skip_all, err(level = "debug"))]
     pub(crate) async fn get_certified_finalized_effects<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         tx_digest: Option<TransactionDigest>,
         // This keeps track of the current target for getting full effects.
         mut current_target: AuthorityName,
@@ -81,7 +81,7 @@ impl EffectsCertifier {
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         // Skip the first attempt to get full effects if it is already provided.
         let full_effects = match submit_txn_result {
@@ -106,8 +106,7 @@ impl EffectsCertifier {
             }
         };
 
-        let mut retrier = RequestRetrier::new(authority_aggregator, client_monitor, vec![], vec![]);
-        let ping_type = tx_digest.is_none();
+        let mut retrier = RequestRetrier::new(authority_aggregator, client_monitor, &[], &[]);
 
         // Channel for wait_for_acknowledgments to notify which validators have acked.
         // These validators are known to have executed the transaction, making them good
@@ -163,6 +162,8 @@ impl EffectsCertifier {
         // or all targets have been attempted.
         loop {
             let display_name = authority_aggregator.get_display_name(&current_target);
+            let feedback_builder =
+                OperationFeedback::builder(current_target, display_name, OperationType::Effects);
             match full_effects_result {
                 Ok((effects_digest, executed_data)) => {
                     if effects_digest != certified_digest {
@@ -174,23 +175,12 @@ impl EffectsCertifier {
                         );
                         // This validator is byzantine, record the error and try to get full effects
                         // from another validator.
-                        client_monitor.record_interaction_result(OperationFeedback {
-                            authority_name: current_target,
-                            display_name,
-                            operation: OperationType::Effects,
-                            ping: ping_type,
-                            result: Err(()),
-                        });
+                        client_monitor.record_interaction_result(feedback_builder.err_now());
                     } else {
                         if let Some(start_time) = full_effects_start_time {
                             let latency = start_time.elapsed();
-                            client_monitor.record_interaction_result(OperationFeedback {
-                                authority_name: current_target,
-                                display_name,
-                                operation: OperationType::Effects,
-                                ping: ping_type,
-                                result: Ok(latency),
-                            });
+                            client_monitor
+                                .record_interaction_result(feedback_builder.ok_now(latency));
                         }
                         return Ok(
                             self.get_quorum_transaction_response(effects_digest, *executed_data)
@@ -199,13 +189,7 @@ impl EffectsCertifier {
                 }
                 Err(e) => {
                     tracing::debug!(?current_target, "Failed to get full effects: {e}");
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: current_target,
-                        display_name,
-                        operation: OperationType::Effects,
-                        ping: ping_type,
-                        result: Err(()),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.err_now());
                     // This emits an error when retrier gathers enough (f+1) non-retriable effects
                     // errors, but the error should not happen after effects
                     // certification unless there are software bugs
@@ -235,7 +219,7 @@ impl EffectsCertifier {
         options: &SubmitTransactionOptions,
     ) -> FullEffectsResult
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let request = if let Some(digest) = tx_digest {
             GetTxStatusRequest {
@@ -309,7 +293,7 @@ impl EffectsCertifier {
     ))]
     async fn get_full_effects_with_fallback<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
+        authority_aggregator: &AuthorityAggregator<A>,
         initial_client: Arc<SafeClient<A>>,
         initial_target: AuthorityName,
         tx_digest: Option<TransactionDigest>,
@@ -317,7 +301,7 @@ impl EffectsCertifier {
         mut acked_validators_rx: Receiver<AuthorityName>,
     ) -> (FullEffectsResult, AuthorityName)
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let mut pending_requests: FuturesUnordered<
             BoxFuture<'_, (AuthorityName, FullEffectsResult)>,
@@ -379,22 +363,17 @@ impl EffectsCertifier {
     #[instrument(level = "debug", skip_all, err(level = "debug"), ret)]
     async fn wait_for_acknowledgments<A>(
         &self,
-        authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        authority_aggregator: &AuthorityAggregator<A>,
+        client_monitor: &ValidatorClientMonitor,
         tx_digest: Option<TransactionDigest>,
         options: &SubmitTransactionOptions,
         _submitted_tx_to_validator: AuthorityName,
         acked_validators_tx: Sender<AuthorityName>,
     ) -> Result<TransactionEffectsDigest, TransactionDriverError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
-        let ping_type = tx_digest.is_none();
-        let ping_label = ping_type.to_string();
-        self.metrics
-            .certified_effects_ack_attempts
-            .with_label_values(&[ping_label.as_str()])
-            .inc();
+        self.metrics.certified_effects_ack_attempts.inc();
         let timer = tokio::time::Instant::now();
         let clients = authority_aggregator
             .authority_clients
@@ -436,13 +415,10 @@ impl EffectsCertifier {
                 {
                     Ok(result) => (name, result),
                     Err(_) => {
-                        client_monitor.record_interaction_result(OperationFeedback {
-                            authority_name: name,
-                            display_name,
-                            operation: OperationType::Effects,
-                            ping: ping_type,
-                            result: Err(()),
-                        });
+                        let feedback =
+                            OperationFeedback::builder(name, display_name, OperationType::Effects)
+                                .err_now();
+                        client_monitor.record_interaction_result(feedback);
                         (name, Err(IotaError::Timeout))
                     }
                 }
@@ -502,13 +478,9 @@ impl EffectsCertifier {
                             }
                         }
                         // Record success and latency
-                        self.metrics
-                            .certified_effects_ack_successes
-                            .with_label_values(&[ping_label.as_str()])
-                            .inc();
+                        self.metrics.certified_effects_ack_successes.inc();
                         self.metrics
                             .certified_effects_ack_latency
-                            .with_label_values(&[ping_label.as_str()])
                             .observe(timer.elapsed().as_secs_f64());
 
                         return Ok(effects_digest);
@@ -522,19 +494,13 @@ impl EffectsCertifier {
                     } else {
                         non_retriable_errors_aggregator.insert(name, error);
                     }
-                    self.metrics
-                        .rejection_acks
-                        .with_label_values(&[ping_label.as_str()])
-                        .inc();
+                    self.metrics.rejection_acks.inc();
                 }
                 Ok(Some((_, TxStatusUpdate::Expired { epoch }))) => {
                     let error = TransactionRequestError::StatusExpired(epoch);
                     // Expired status is submission retriable.
                     retriable_errors_aggregator.insert(name, error);
-                    self.metrics
-                        .expiration_acks
-                        .with_label_values(&[ping_label.as_str()])
-                        .inc();
+                    self.metrics.expiration_acks.inc();
                 }
                 Ok(Some((_, TxStatusUpdate::Submitted))) => {
                     // Still pending — treat as retriable.
@@ -676,42 +642,31 @@ impl EffectsCertifier {
         name: AuthorityName,
         display_name: String,
         client: &Arc<SafeClient<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        client_monitor: &ValidatorClientMonitor,
         request: GetTxStatusRequest,
         options: &SubmitTransactionOptions,
     ) -> IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let effects_start = Instant::now();
         let backoff =
             ExponentialBackoff::new(Duration::from_millis(100), MAX_WAIT_FOR_EFFECTS_RETRY_DELAY);
-        let is_ping = request.queries.is_empty();
         // This loop should only retry errors that are retriable without new submission.
         for (attempt, delay) in backoff.enumerate() {
             let result = client
                 .get_tx_status(request.clone(), options.forwarded_client_addr)
                 .await;
+            let feedback_builder =
+                OperationFeedback::builder(name, display_name.clone(), OperationType::Effects);
             match result {
                 Ok(response) => {
                     let latency = effects_start.elapsed();
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: name,
-                        display_name: display_name.clone(),
-                        operation: OperationType::Effects,
-                        ping: is_ping,
-                        result: Ok(latency),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.ok_now(latency));
                     return Ok(response);
                 }
                 Err(e) => {
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: name,
-                        display_name: display_name.clone(),
-                        operation: OperationType::Effects,
-                        ping: is_ping,
-                        result: Err(()),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.err_now());
                     if !matches!(e, IotaError::Rpc(_, _)) {
                         return Err(e);
                     }

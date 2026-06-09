@@ -45,7 +45,7 @@ pub use reconfig_observer::ReconfigObserver;
 /// Trait for components that can update their AuthorityAggregator during
 /// reconfiguration. Used by ReconfigObserver to notify components of epoch
 /// changes.
-pub trait AuthorityAggregatorUpdatable<A: Clone>: Send + Sync + 'static {
+pub trait AuthorityAggregatorUpdatable<A>: Send + Sync + 'static {
     fn epoch(&self) -> EpochId;
     fn authority_aggregator(&self) -> Arc<AuthorityAggregator<A>>;
     fn update_authority_aggregator(&self, new_authorities: Arc<AuthorityAggregator<A>>);
@@ -83,18 +83,18 @@ pub struct QuorumTransactionResponse {
     pub auxiliary_data: Option<Vec<u8>>,
 }
 
-pub struct TransactionDriver<A: Clone> {
+pub struct TransactionDriver<A> {
     authority_aggregator: Arc<ArcSwap<AuthorityAggregator<A>>>,
     state: Mutex<State>,
     metrics: Arc<TransactionDriverMetrics>,
     submitter: TransactionSubmitter,
     certifier: EffectsCertifier,
-    client_monitor: Arc<ValidatorClientMonitor<A>>,
+    client_monitor: Arc<ValidatorClientMonitor>,
 }
 
 impl<A> TransactionDriver<A>
 where
-    A: AuthorityAPI + Send + Sync + 'static + Clone,
+    A: AuthorityAPI + Send + Sync + 'static,
 {
     pub fn new(
         authority_aggregator: Arc<AuthorityAggregator<A>>,
@@ -109,8 +109,8 @@ where
         let monitor_config = node_config
             .and_then(|nc| nc.validator_client_monitor_config.clone())
             .unwrap_or_default();
-        let client_monitor =
-            ValidatorClientMonitor::new(monitor_config, client_metrics, shared_swap.clone());
+        let client_monitor = Arc::new(ValidatorClientMonitor::new(monitor_config, client_metrics));
+        client_monitor.spawn_health_checks(&shared_swap);
 
         let driver = Arc::new(Self {
             authority_aggregator: shared_swap,
@@ -141,7 +141,7 @@ where
     /// - The transaction is finalized.
     /// - The transaction observes a non-retriable error.
     /// - Timeout is reached.
-    #[instrument(level = "error", skip_all, fields(tx_digest = ?transaction.as_ref().map(|t| *t.digest()), ping = %transaction.is_none()))]
+    #[instrument(level = "error", skip_all, fields(tx_digest = ?transaction.as_ref().map(|t| *t.digest())))]
     pub async fn drive_transaction(
         &self,
         transaction: Option<Transaction>,
@@ -156,18 +156,9 @@ where
         // / reference_gas_price.
         let amplification_factor: u64 = 1;
 
-        let ping_label = if transaction.is_none() {
-            "true"
-        } else {
-            "false"
-        };
-
         let timer = Instant::now();
 
-        self.metrics
-            .total_transactions_submitted
-            .with_label_values(&[ping_label])
-            .inc();
+        self.metrics.total_transactions_submitted.inc();
 
         let mut backoff = ExponentialBackoff::new(
             Duration::from_millis(100),
@@ -186,12 +177,11 @@ where
                         let settlement_finality_latency = timer.elapsed().as_secs_f64();
                         self.metrics
                             .settlement_finality_latency
-                            .with_label_values(&[ping_label])
                             .observe(settlement_finality_latency);
                         // Record the number of retries for successful transaction
                         self.metrics
                             .transaction_retries
-                            .with_label_values(&["success", ping_label])
+                            .with_label_values(&["success"])
                             .observe(attempts as f64);
                         return Ok(resp);
                     }
@@ -199,13 +189,13 @@ where
                         let error_category: &str = e.categorize().into();
                         self.metrics
                             .drive_transaction_errors
-                            .with_label_values(&[error_category, ping_label])
+                            .with_label_values(&[error_category])
                             .inc();
                         if !e.is_submission_retriable() {
                             // Record the number of retries for failed transaction
                             self.metrics
                                 .transaction_retries
-                                .with_label_values(&["failure", ping_label])
+                                .with_label_values(&["failure"])
                                 .observe(attempts as f64);
                             if transaction.is_some() {
                                 tracing::info!(
@@ -280,17 +270,18 @@ where
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
         let auth_agg = self.authority_aggregator.load();
+        let auth_agg = auth_agg.as_ref();
+        let client_monitor = self.client_monitor.as_ref();
         let amplification_factor =
             amplification_factor.min(auth_agg.committee.num_members() as u64);
         let start_time = Instant::now();
         let tx_digest = transaction.as_ref().map(|t| *t.digest());
-        let is_ping = transaction.is_none();
 
         let (name, submit_txn_result) = self
             .submitter
             .submit_transaction(
-                &auth_agg,
-                &self.client_monitor,
+                auth_agg,
+                client_monitor,
                 amplification_factor,
                 transaction,
                 options,
@@ -318,8 +309,8 @@ where
         let result = self
             .certifier
             .get_certified_finalized_effects(
-                &auth_agg,
-                &self.client_monitor,
+                auth_agg,
+                client_monitor,
                 tx_digest,
                 name,
                 submit_txn_result,
@@ -327,15 +318,21 @@ where
             )
             .await;
 
+        // This operation feedback may be imprecise since submit_transaction
+        // queries multiple validators and may return the name of a malicious validator.
+        // Also, consensus operation results depend on the quorum of validators.
+        // Randomized validator selection by ValidatorClientMonitor should minimize
+        // negative effects.
+        let feedback_builder = OperationFeedback::builder(
+            name,
+            auth_agg.get_display_name(&name),
+            OperationType::Consensus,
+        );
         if result.is_ok() {
-            self.client_monitor
-                .record_interaction_result(OperationFeedback {
-                    authority_name: name,
-                    display_name: auth_agg.get_display_name(&name),
-                    operation: OperationType::Consensus,
-                    ping: is_ping,
-                    result: Ok(start_time.elapsed()),
-                });
+            let latency = start_time.elapsed();
+            client_monitor.record_interaction_result(feedback_builder.ok_now(latency));
+        } else {
+            client_monitor.record_interaction_result(feedback_builder.err_now());
         }
         result
     }
@@ -436,7 +433,7 @@ where
 
 impl<A> AuthorityAggregatorUpdatable<A> for TransactionDriver<A>
 where
-    A: AuthorityAPI + Send + Sync + 'static + Clone,
+    A: AuthorityAPI + Send + Sync + 'static,
 {
     fn epoch(&self) -> EpochId {
         self.authority_aggregator.load().committee.epoch
