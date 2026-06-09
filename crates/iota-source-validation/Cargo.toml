@@ -47,7 +47,7 @@ tracing.workspace = true
 # internal dependencies
 iota-common.workspace = true
 iota-grpc-client.workspace = true
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "40dc3aa007a6703853058be2d501c712edbc0345" }
+iota-sdk-transaction-builder.workspace = true
 iota-test-transaction-builder.workspace = true
 test-cluster.workspace = true
 

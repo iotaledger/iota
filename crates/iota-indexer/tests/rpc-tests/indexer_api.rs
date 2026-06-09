@@ -567,18 +567,19 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
             .await;
         indexer_wait_for_object(client, coin_to_split.object_id, coin_to_split.version).await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
+        let grpc_client = iota_grpc_client::Client::new(cluster.grpc_url()).unwrap();
 
         for _ in 0..5 {
-            let tx_data = iota_client
-                .transaction_builder()
-                .split_coin_equal(
-                    address,
-                    coin_to_split.object_id,
-                    2,
-                    Some(gas_ref.object_id),
-                    10_000_000,
-                )
-                .await?;
+            let tx_data = split_coin_equal_tx(
+                &iota_client,
+                &grpc_client,
+                address,
+                coin_to_split.object_id,
+                2,
+                Some(gas_ref.object_id),
+                10_000_000,
+            )
+            .await;
 
             let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
 
@@ -682,19 +683,20 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
         .await;
     indexer_wait_for_object(client, coin_to_split.object_id, coin_to_split.version).await;
     let iota_client = cluster.wallet.get_client().await.unwrap();
+    let grpc_client = iota_grpc_client::Client::new(cluster.grpc_url()).unwrap();
     let mut expected_tx_digests = vec![];
 
     for _ in 0..5 {
-        let tx_data = iota_client
-            .transaction_builder()
-            .split_coin_equal(
-                address,
-                coin_to_split.object_id,
-                2,
-                Some(gas_ref.object_id),
-                10_000_000,
-            )
-            .await?;
+        let tx_data = split_coin_equal_tx(
+            &iota_client,
+            &grpc_client,
+            address,
+            coin_to_split.object_id,
+            2,
+            Some(gas_ref.object_id),
+            10_000_000,
+        )
+        .await;
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
         let res = client
@@ -712,16 +714,16 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
     wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
 
     for _ in 0..5 {
-        let tx_data = iota_client
-            .transaction_builder()
-            .split_coin_equal(
-                address,
-                coin_to_split.object_id,
-                2,
-                Some(gas_ref.object_id),
-                10_000_000,
-            )
-            .await?;
+        let tx_data = split_coin_equal_tx(
+            &iota_client,
+            &grpc_client,
+            address,
+            coin_to_split.object_id,
+            2,
+            Some(gas_ref.object_id),
+            10_000_000,
+        )
+        .await;
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
         let res = client
@@ -1709,6 +1711,50 @@ async fn assert_paginated_events_ascending(
     }
 
     Ok(())
+}
+
+/// Split a coin into equal parts with the external SDK `TransactionBuilder`,
+/// driven by the node's gRPC client. Returns the `TransactionData` ready to be
+/// signed. The JSON-RPC client is only used to read the coin's balance.
+async fn split_coin_equal_tx(
+    iota_client: &iota_sdk::IotaClient,
+    grpc_client: &iota_grpc_client::Client,
+    sender: IotaAddress,
+    coin_to_split: ObjectId,
+    num_coins: u64,
+    gas_coin: Option<ObjectId>,
+    gas_budget: u64,
+) -> TransactionData {
+    let coin_balance = iota_client
+        .coin_read_api()
+        .get_coins(sender, None, None, None)
+        .await
+        .expect("failed to get coins")
+        .data
+        .into_iter()
+        .find(|c| c.coin_object_id == coin_to_split)
+        .expect("coin not found")
+        .balance;
+
+    // Create `num_coins - 1` new coins of equal value; the original keeps the
+    // remainder.
+    let amount_per_split = coin_balance / num_coins;
+    let split_amounts: Vec<u64> = vec![amount_per_split; (num_coins - 1) as usize];
+
+    let mut builder =
+        iota_sdk_transaction_builder::TransactionBuilder::new(sender).with_client(grpc_client);
+
+    builder.split_coins(coin_to_split, split_amounts);
+
+    if let Some(gas) = gas_coin {
+        builder.gas([gas]);
+    }
+    builder.gas_budget(gas_budget);
+
+    builder
+        .finish()
+        .await
+        .expect("failed to construct split coin transaction")
 }
 
 async fn assert_paginated_events_descending(
