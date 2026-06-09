@@ -4,7 +4,7 @@
 //! Verify the last checkpoint of an epoch against the committee of that epoch.
 //!
 //! The committee of an epoch is recorded only in the last checkpoint of the
-//! previous epoch, as [`EndOfEpochData::next_epoch_committee`]. Verifying the
+//! previous epoch, as `EndOfEpochData::next_epoch_committee`. Verifying the
 //! last checkpoint of epoch `N` therefore requires the committee taken from the
 //! last checkpoint of epoch `N - 1`, which must itself be verified the same
 //! way going all the way back to the genesis committee.
