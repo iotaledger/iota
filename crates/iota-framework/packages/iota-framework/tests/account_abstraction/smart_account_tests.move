@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iota::builtin_account_tests;
+module iota::smart_account_tests;
 
 use iota::authenticator_function;
-use iota::builtin_account::{Self, Account};
 use iota::claim_registry;
 use iota::public_key;
 use iota::signature_scheme;
+use iota::smart_account::{Self, SmartAccount};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use std::ascii;
@@ -20,10 +20,10 @@ fun builder_v1_builds_mutable_account() {
     let mut scenario = test_scenario::begin(@0x0);
 
     let authenticator = test_authenticator();
-    let addr = builtin_account::builder_v1(authenticator, scenario.ctx()).build_v1();
+    let addr = smart_account::builder_v1(authenticator, scenario.ctx()).build_v1();
 
     scenario.next_tx(@0x0);
-    let account = scenario.take_shared<Account>();
+    let account = scenario.take_shared<SmartAccount>();
 
     assert_eq(account.account_address(), addr);
     assert_ref_eq(account.borrow_auth_function_ref_v1(), &authenticator);
@@ -37,10 +37,10 @@ fun builder_v1_builds_immutable_account() {
     let mut scenario = test_scenario::begin(@0x0);
 
     let authenticator = test_authenticator();
-    let addr = builtin_account::builder_v1(authenticator, scenario.ctx()).build_immutable_v1();
+    let addr = smart_account::builder_v1(authenticator, scenario.ctx()).build_immutable_v1();
 
     scenario.next_tx(@0x0);
-    let account = scenario.take_immutable<Account>();
+    let account = scenario.take_immutable<SmartAccount>();
 
     assert_eq(account.account_address(), addr);
     assert_ref_eq(account.borrow_auth_function_ref_v1(), &authenticator);
@@ -70,7 +70,7 @@ fun claim_builder_v1_account_address_matches_sender() {
     let sender = public_key.to_iota_address();
 
     claim_account_test!(sender, |registry, scenario| {
-        let addr = builtin_account::claim_builder_v1(
+        let addr = smart_account::claim_builder_v1(
             registry,
             public_key,
             scenario.ctx(),
@@ -85,7 +85,7 @@ fun claim_builder_v1_aborts_on_address_mismatch() {
     let public_key = ed25519_public_key();
 
     claim_account_test!(@0x1, |registry, scenario| {
-        builtin_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
+        smart_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
     });
 }
 
@@ -96,8 +96,8 @@ fun claim_builder_v1_aborts_on_double_claim() {
     let sender = public_key.to_iota_address();
 
     claim_account_test!(sender, |registry, scenario| {
-        builtin_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
-        builtin_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
+        smart_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
+        smart_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
     });
 }
 
@@ -107,12 +107,12 @@ fun claim_builder_v1_aborts_on_double_claim() {
 fun with_field_is_accessible_after_build() {
     let mut scenario = test_scenario::begin(@0x0);
 
-    builtin_account::builder_v1(test_authenticator(), scenario.ctx())
+    smart_account::builder_v1(test_authenticator(), scenario.ctx())
         .with_field(b"answer", 42u64)
         .build_v1();
 
     scenario.next_tx(@0x0);
-    let account = scenario.take_shared<Account>();
+    let account = scenario.take_shared<SmartAccount>();
 
     assert_eq(account.has_field(b"answer"), true);
     assert_ref_eq(account.borrow_field<_, u64>(b"answer"), &42u64);
@@ -126,7 +126,7 @@ fun with_field_is_accessible_after_build() {
 fun with_field_aborts_on_duplicate_name() {
     let mut scenario = test_scenario::begin(@0x0);
 
-    builtin_account::builder_v1(test_authenticator(), scenario.ctx())
+    smart_account::builder_v1(test_authenticator(), scenario.ctx())
         .with_field(b"key", 1u64)
         .with_field(b"key", 2u64)
         .build_v1();
@@ -148,10 +148,10 @@ fun borrow_field_aborts_if_missing() {
 #[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
 fun borrow_builtin_auth_public_key_aborts_if_missing() {
     let mut scenario = test_scenario::begin(@0x0);
-    builtin_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
+    smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
 
     scenario.next_tx(@0x0);
-    let account = scenario.take_shared<Account>();
+    let account = scenario.take_shared<SmartAccount>();
 
     account.borrow_builtin_auth_public_key();
 
@@ -176,7 +176,7 @@ fun add_remove_field_lifecycle() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun add_field_aborts_if_sender_not_account() {
     account_test_wrong_sender!(|account, scenario| {
         account.add_field(b"key", 0u64, scenario.ctx());
@@ -184,18 +184,18 @@ fun add_field_aborts_if_sender_not_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun remove_field_aborts_if_sender_not_account() {
     let mut scenario = test_scenario::begin(@0x0);
     let addr = make_account(&mut scenario);
 
     scenario.next_tx(addr);
-    let mut account = scenario.take_shared<Account>();
+    let mut account = scenario.take_shared<SmartAccount>();
     account.add_field(b"key", 0u64, scenario.ctx());
     test_scenario::return_shared(account);
 
     scenario.next_tx(@0x1);
-    let mut account = scenario.take_shared<Account>();
+    let mut account = scenario.take_shared<SmartAccount>();
     account.remove_field<_, u64>(b"key", scenario.ctx());
 
     test_scenario::return_shared(account);
@@ -222,7 +222,7 @@ fun borrow_field_mut_allows_mutation() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun borrow_field_mut_aborts_if_sender_not_account() {
     account_test_wrong_sender!(|account, scenario| {
         account.borrow_field_mut<_, u64>(b"key", scenario.ctx());
@@ -250,7 +250,7 @@ fun rotate_field_returns_old_and_stores_new() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun rotate_field_aborts_if_sender_not_account() {
     account_test_wrong_sender!(|account, scenario| {
         account.rotate_field<_, u64>(b"key", 0u64, scenario.ctx());
@@ -284,7 +284,7 @@ fun attach_borrow_detach_builtin_auth_public_key_lifecycle() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun attach_builtin_auth_public_key_aborts_if_sender_not_account() {
     account_test_wrong_sender!(|account, scenario| {
         account.attach_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
@@ -300,7 +300,7 @@ fun attach_builtin_auth_public_key_aborts_if_already_attached() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun detach_builtin_auth_public_key_aborts_if_sender_not_account() {
     account_test_wrong_sender!(|account, scenario| {
         account.detach_builtin_auth_public_key(scenario.ctx());
@@ -311,10 +311,10 @@ fun detach_builtin_auth_public_key_aborts_if_sender_not_account() {
 #[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
 fun detach_builtin_auth_public_key_aborts_if_missing() {
     let mut scenario = test_scenario::begin(@0x0);
-    let addr = builtin_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
+    let addr = smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
 
     scenario.next_tx(addr);
-    let mut account = scenario.take_shared<Account>();
+    let mut account = scenario.take_shared<SmartAccount>();
 
     account.detach_builtin_auth_public_key(scenario.ctx());
 
@@ -333,7 +333,7 @@ fun rotate_builtin_auth_public_key_returns_old_and_stores_new() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun rotate_builtin_auth_public_key_aborts_if_sender_not_account() {
     account_test_wrong_sender!(|account, scenario| {
         account.rotate_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
@@ -344,10 +344,10 @@ fun rotate_builtin_auth_public_key_aborts_if_sender_not_account() {
 #[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
 fun rotate_builtin_auth_public_key_aborts_if_missing() {
     let mut scenario = test_scenario::begin(@0x0);
-    let addr = builtin_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
+    let addr = smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
 
     scenario.next_tx(addr);
-    let mut account = scenario.take_shared<Account>();
+    let mut account = scenario.take_shared<SmartAccount>();
 
     account.rotate_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
 
@@ -371,7 +371,7 @@ fun rotate_auth_function_ref_v1_returns_old_and_stores_new() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
 fun rotate_auth_function_ref_v1_aborts_if_sender_not_account() {
     account_test_wrong_sender!(|account, scenario| {
         account.rotate_auth_function_ref_v1(test_authenticator(), scenario.ctx());
@@ -380,9 +380,9 @@ fun rotate_auth_function_ref_v1_aborts_if_sender_not_account() {
 
 // === Helpers ===
 
-/// Creates a mutable shared `Account` backed by an ed25519 key and returns its address.
+/// Creates a mutable shared `SmartAccount` backed by an ed25519 key and returns its address.
 fun make_account(scenario: &mut Scenario): address {
-    builtin_account::builtin_auth_builder_v1(ed25519_public_key(), scenario.ctx()).build_v1()
+    smart_account::builtin_auth_builder_v1(ed25519_public_key(), scenario.ctx()).build_v1()
 }
 
 fun ed25519_public_key(): public_key::PublicKey {
@@ -400,7 +400,7 @@ fun secp256k1_public_key(): public_key::PublicKey {
     )
 }
 
-fun test_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<Account> {
+fun test_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<SmartAccount> {
     authenticator_function::create_auth_function_ref_v1_for_testing(
         @0xABC,
         ascii::string(b"module"),
@@ -408,14 +408,14 @@ fun test_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<Acc
     )
 }
 
-/// Runs `$f` with an immutable reference to a shared `Account` (any sender).
-macro fun account_test($f: |&Account|) {
+/// Runs `$f` with an immutable reference to a shared `SmartAccount` (any sender).
+macro fun account_test($f: |&SmartAccount|) {
     let mut scenario = test_scenario::begin(@0x0);
 
     let addr = make_account(&mut scenario);
 
     scenario.next_tx(addr);
-    let account = scenario.take_shared<Account>();
+    let account = scenario.take_shared<SmartAccount>();
 
     $f(&account);
 
@@ -423,15 +423,15 @@ macro fun account_test($f: |&Account|) {
     scenario.end();
 }
 
-/// Runs `$f` with a mutable reference to a shared `Account` where the sender is
+/// Runs `$f` with a mutable reference to a shared `SmartAccount` where the sender is
 /// the account itself — satisfying the admin-function sender check.
-macro fun account_test_mut($f: |&mut Account, &mut Scenario|) {
+macro fun account_test_mut($f: |&mut SmartAccount, &mut Scenario|) {
     let mut scenario = test_scenario::begin(@0x0);
 
     let addr = make_account(&mut scenario);
 
     scenario.next_tx(addr);
-    let mut account = scenario.take_shared<Account>();
+    let mut account = scenario.take_shared<SmartAccount>();
 
     $f(&mut account, &mut scenario);
 
@@ -439,16 +439,16 @@ macro fun account_test_mut($f: |&mut Account, &mut Scenario|) {
     scenario.end();
 }
 
-/// Runs `$f` with a mutable reference to a shared `Account` where the sender is
+/// Runs `$f` with a mutable reference to a shared `SmartAccount` where the sender is
 /// `@0x1` — a different address from the account, triggering the admin-function
 /// sender check to abort.
-macro fun account_test_wrong_sender($f: |&mut Account, &mut Scenario|) {
+macro fun account_test_wrong_sender($f: |&mut SmartAccount, &mut Scenario|) {
     let mut scenario = test_scenario::begin(@0x0);
 
     make_account(&mut scenario);
 
     scenario.next_tx(@0x1);
-    let mut account = scenario.take_shared<Account>();
+    let mut account = scenario.take_shared<SmartAccount>();
 
     $f(&mut account, &mut scenario);
 
