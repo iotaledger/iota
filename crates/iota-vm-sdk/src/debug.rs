@@ -62,7 +62,8 @@ pub enum ProfileSink {
     /// can't be written, the run yields no profile rather than an error.
     Path(PathBuf),
     /// Write the profile to a temporary location and read its bytes back into
-    /// [`ProfileOutput::Json`] after execution.
+    /// [`ProfileOutput::Json`] after execution. (Native only — on wasm32 the
+    /// filesystem is unavailable and this behaves as a no-op.)
     Capture,
 }
 

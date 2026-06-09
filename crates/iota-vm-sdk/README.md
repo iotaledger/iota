@@ -13,7 +13,8 @@ It is built around a three-part surface:
   plus optional gas-profile and instruction-trace debug artifacts.
 
 Typical uses: simulating a transaction before signing, estimating gas,
-debugging a Move call, or verifying a `MoveAuthenticator` — in a CLI or a test.
+debugging a Move call, or verifying a `MoveAuthenticator` — in a CLI, a test, or
+a browser.
 
 Signed runs report a `SignatureStatus` next to the execution status: standard
 schemes are verified cryptographically up front, a `MoveAuthenticator` by
@@ -26,9 +27,13 @@ version or digest that a node would reject at signing time is not detected.
 Networked stores fetch dynamic-field children at "latest" too, so historical
 replay against a pinned older version may report such a child as missing.
 
-## Features
+## Targets and features
 
-All features are off by default:
+Builds for native and `wasm32-unknown-unknown`. All features are off by default:
 
 - `grpc` — resolve objects on demand from a node over gRPC.
 - `graphql` — resolve objects on demand from an indexer over GraphQL.
+- `wasm-bindgen` — a JavaScript-facing surface for the browser.
+
+The networked stores and their dependencies are native-only, so the wasm bundle
+stays minimal.

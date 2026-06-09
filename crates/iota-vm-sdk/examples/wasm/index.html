@@ -1,0 +1,386 @@
+<!doctype html>
+<!-- Copyright (c) 2026 IOTA Stiftung -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iota-vm-sdk wasm example</title>
+    <style>
+      :root {
+        --bg: #0c1018;
+        --panel: rgba(31, 38, 48, 0.55);
+        --border: rgba(120, 135, 155, 0.18);
+        --text: #eef2f7;
+        --muted: #98a4b3;
+        --accent: #2dd4bf;
+        --ok: #3fb950;
+        --bad: #f85149;
+        --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
+          0 10px 30px -12px rgba(0, 0, 0, 0.6);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 56rem;
+        margin: 0 auto;
+        padding: clamp(2.5rem, 8vw, 5rem) 1.25rem 4rem;
+        color: var(--text);
+        line-height: 1.6;
+        background-color: #090c12;
+        background-image: radial-gradient(
+            55% 45% at 50% -8%,
+            rgba(45, 212, 191, 0.13),
+            transparent 62%
+          ),
+          radial-gradient(
+            45% 55% at 0% 28%,
+            rgba(99, 102, 241, 0.1),
+            transparent 58%
+          ),
+          radial-gradient(
+            50% 55% at 100% 72%,
+            rgba(45, 212, 191, 0.07),
+            transparent 58%
+          );
+        background-attachment: fixed;
+        -webkit-font-smoothing: antialiased;
+      }
+      .eyebrow {
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 0 0 0.75rem;
+      }
+      h1 {
+        font-size: clamp(1.8rem, 5vw, 2.6rem);
+        line-height: 1.1;
+        margin: 0 0 0.6rem;
+        letter-spacing: -0.02em;
+        background: linear-gradient(180deg, #ffffff, #b9c4d2);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      p.lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: 44rem;
+      }
+      p.lead code {
+        color: #c7d0db;
+        font-size: 0.85em;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 2.25rem 0 1.5rem;
+      }
+      button {
+        position: relative;
+        font: inherit;
+        font-weight: 500;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.6rem 1.1rem 0.6rem 1.9rem;
+        cursor: pointer;
+        backdrop-filter: blur(8px);
+        box-shadow: var(--shadow);
+        transition: transform 0.12s ease, border-color 0.18s ease,
+          box-shadow 0.18s ease;
+      }
+      button::before {
+        content: "";
+        position: absolute;
+        left: 0.95rem;
+        top: 50%;
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--dot, var(--accent));
+        box-shadow: 0 0 8px var(--dot, var(--accent));
+        transform: translateY(-50%);
+      }
+      button:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--dot, var(--accent)) 60%, transparent);
+        box-shadow: var(--shadow),
+          0 0 0 1px color-mix(in srgb, var(--dot, var(--accent)) 25%, transparent),
+          0 8px 24px -10px color-mix(in srgb, var(--dot, var(--accent)) 70%, transparent);
+        transform: translateY(-1px);
+      }
+      button:active:not(:disabled) {
+        transform: translateY(0);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: progress;
+      }
+      .hint {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      textarea {
+        width: 100%;
+        resize: vertical;
+        background: rgba(9, 12, 18, 0.55);
+        color: #c7d0db;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.6rem 0.7rem;
+        font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+        font-size: 0.78rem;
+        line-height: 1.5;
+      }
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+      }
+      .custom-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        padding: 1rem 1.25rem 1.2rem;
+      }
+      .custom-body button {
+        align-self: flex-start;
+        --dot: #818cf8;
+        margin-top: 0.5rem;
+      }
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: linear-gradient(
+          180deg,
+          rgba(31, 38, 48, 0.6),
+          rgba(20, 25, 33, 0.6)
+        );
+        backdrop-filter: blur(10px);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .panel + .panel {
+        margin-top: 1rem;
+      }
+      .panel[hidden] {
+        display: none;
+      }
+      #status {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 0;
+        padding: 0.85rem 1.2rem;
+        color: var(--muted);
+        border-bottom: 1px solid transparent;
+      }
+      #status:not(:empty) {
+        border-bottom-color: var(--border);
+      }
+      #status::before {
+        content: "";
+        display: inline-block;
+        width: 0.6rem;
+        height: 0.6rem;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 10px currentColor;
+        flex: none;
+      }
+      #status:empty {
+        display: none;
+      }
+      #status.ok {
+        color: var(--ok);
+      }
+      #status.bad {
+        color: var(--bad);
+      }
+      #status.busy {
+        color: var(--accent);
+      }
+      #timing {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem 1.4rem;
+        padding: 0.6rem 1.2rem;
+        font-size: 0.78rem;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+        font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+      }
+      #timing:empty {
+        display: none;
+      }
+      #timing b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .cap {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 0.7rem 1.2rem;
+        border-bottom: 1px solid var(--border);
+      }
+      #tx-desc {
+        margin: 0;
+        padding: 0.85rem 1.25rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+      }
+      #tx-desc:empty {
+        display: none;
+      }
+      #tx,
+      #output,
+      #log {
+        margin: 0;
+        padding: 1.1rem 1.25rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.82rem;
+        line-height: 1.6;
+        color: #c7d0db;
+        font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+      }
+      #log {
+        max-height: 18rem;
+        overflow: auto;
+        white-space: pre;
+        word-break: normal;
+      }
+      #log .obj {
+        color: #7dcfff;
+      }
+      #log .miss {
+        color: var(--bad);
+      }
+      #log .info {
+        color: var(--muted);
+      }
+      /* Collapsible JSON tree (built in jsonNode; native <details>). */
+      .jrow {
+        padding-left: 1.15em;
+      }
+      details.jnode > summary {
+        list-style: none;
+        cursor: pointer;
+      }
+      details.jnode > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.jnode > summary::before {
+        content: "▸";
+        display: inline-block;
+        width: 1.15em;
+        color: var(--muted);
+        transition: transform 0.12s ease;
+      }
+      details.jnode[open] > summary::before {
+        transform: rotate(90deg);
+      }
+      details.jnode > .jkids {
+        padding-left: 1.15em;
+      }
+      details.jnode[open] > summary > .jcount,
+      details.jnode[open] > summary > .jclosed {
+        display: none;
+      }
+      .jbrace {
+        padding-left: 1.15em;
+      }
+      summary:hover .jkey {
+        color: #aee4ff;
+      }
+      .jkey {
+        color: #7dcfff;
+      }
+      .jstr {
+        color: #9ece6a;
+      }
+      .jnum {
+        color: #ff9e64;
+      }
+      .jbool,
+      .jnull {
+        color: #bb9af7;
+      }
+      .jpunct,
+      .jcount {
+        color: var(--muted);
+      }
+      .jcount {
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <p class="eyebrow">Move VM · WebAssembly · Testnet</p>
+    <h1>iota-vm-sdk in the browser</h1>
+    <p class="lead">
+      Builds a real <code>0x3::iota_system::request_add_stake</code> transaction
+      with the IOTA TypeScript SDK against testnet, then simulates it in the
+      local Move VM compiled to wasm. The VM resolves the objects it touches
+      <em>on demand</em>: every object it reads — inputs and the dynamic-field
+      children staking walks — is fetched from testnet GraphQL the moment the VM
+      asks for it. Nothing is executed on a node.
+    </p>
+
+    <div class="actions">
+      <button id="run" disabled>Simulate stake on testnet</button>
+      <span class="hint" id="hint">Loading wasm…</span>
+    </div>
+
+    <div class="panel" id="custom-card">
+      <div class="cap">Or simulate your own transaction · dev-inspect</div>
+      <div class="custom-body">
+        <label for="tx-bytes">Transaction bytes (base64)</label>
+        <textarea id="tx-bytes" rows="4" spellcheck="false">AAABAAkIaXQgd29ya3MAIiK0ZqJDmevPXsDwSCCBKuIP6hA3xzbP7GCHU6o4tSIBGa9Eqf1/6tvSdh+wiOzmncFvNbDVKhrwnG2+mod0if4TzX0gAAAAACARcIr3JBZ9MAK/Qi9/al1VcgIgRZTdeSNusJKWu30/2yIitGaiQ5nrz17A8EgggSriD+oQN8c2z+xgh1OqOLUi6AMAAAAAAAAwei0AAAAAAAA=</textarea>
+        <label for="sigs">
+          Signatures (base64, one per line — optional; e.g. sender + sponsor)
+        </label>
+        <textarea id="sigs" rows="3" spellcheck="false">ALQ1xVlJf+35eDX3pbVAS1zC4g6yBJfEZVRN7vLoIjwEP9X1dOQad0Ll4QLyAzZ+hd9XNlf5XLx/qnC/g/fCYA1g1IR8PPJ7k5nBCTcxUC6JZ/5NvLj60T4Y+Yd4PO8vQg==</textarea>
+        <button id="run-custom" disabled>Simulate custom transaction</button>
+      </div>
+    </div>
+
+    <div class="panel" id="tx-panel" hidden>
+      <div class="cap">Transaction</div>
+      <p id="tx-desc"></p>
+      <div id="tx"></div>
+    </div>
+
+    <div class="panel" id="result-panel" hidden>
+      <div class="cap">Result</div>
+      <p id="status"></p>
+      <div id="timing"></div>
+      <div id="output"></div>
+    </div>
+
+    <div class="panel" id="log-panel" hidden>
+      <div class="cap">Objects fetched on demand</div>
+      <div id="log"></div>
+    </div>
+
+    <script type="module" src="./app.bundle.js"></script>
+  </body>
+</html>
