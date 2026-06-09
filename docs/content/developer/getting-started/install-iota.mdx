@@ -37,11 +37,35 @@ IOTA supports the following operating systems:
 
 ## Install Using a Package Manager
 
-You can use [Homebrew](https://brew.sh/) on macOS, Linux, or Windows Subsystem for Linux to install `iota`:
+<Tabs groupId="operating-systems">
+<TabItem value="linux" label="Linux">
+
+You can use [Homebrew](https://brew.sh/) on Linux or Windows Subsystem for Linux to install `iota`:
 
 ```bash
 brew install iotaledger/tap/iota
 ```
+
+</TabItem>
+<TabItem value="macos" label="macOS">
+
+You can use [Homebrew](https://brew.sh/) on macOS to install `iota`:
+
+```bash
+brew install iotaledger/tap/iota
+```
+
+</TabItem>
+<TabItem value="windows" label="Windows">
+
+You can use [Chocolatey](https://chocolatey.org/) on Windows to install `iota`:
+
+```bash
+choco install iota
+```
+
+</TabItem>
+</Tabs>
 
 ## Install From Binaries
 
@@ -66,7 +90,7 @@ the latest stable release for the network you are working on.
     1. Start a new terminal session or type `source ~/.bashrc` to load the new `PATH` value.
 
 </TabItem>
-<TabItem value="mac" label="macOS">
+<TabItem value="macos" label="macOS">
 
     1. Go to https://github.com/iotaledger/iota/releases.
         ![IOTA releases in GitHub](./images/releases.png)
@@ -83,7 +107,7 @@ the latest stable release for the network you are working on.
     1. If running the binaries for the first time, you might receive an error from MacOS that prevents the binaries from running. If you receive this error, close the dialog and type `xattr -d com.apple.quarantine ~/iota/*` in your terminal and press Enter (be sure to adjust the path if different). 
 
 </TabItem>
-<TabItem value="win" label="Windows">
+<TabItem value="windows" label="Windows">
 
     1. Go to https://github.com/iotaledger/iota/releases.
         ![IOTA releases in GitHub](./images/releases.png)
@@ -283,7 +307,7 @@ sudo apt-get install build-essential
 
 </TabItem>
 
-<TabItem value="mac" label="macOS">
+<TabItem value="macos" label="macOS">
 
 The prerequisites needed for the macOS operating system include:
 
@@ -348,7 +372,7 @@ After installing Git, download and install the [Git command line interface](http
 
 </TabItem>
 
-<TabItem value="win" label="Windows">
+<TabItem value="windows" label="Windows">
 
 The prerequisites needed for the Windows 11 operating system include:
 
@@ -444,7 +468,7 @@ sudo apt-get install -y libpq-dev
 
 </TabItem>
 
-<TabItem value="mac" label="macOS">
+<TabItem value="macos" label="macOS">
 
 ```bash
 brew install libpq
@@ -452,7 +476,7 @@ brew install libpq
 
 </TabItem>
 
-<TabItem value="win" label="Windows">
+<TabItem value="windows" label="Windows">
 
 You can use Chocolatey to install PostgreSQL:
 
