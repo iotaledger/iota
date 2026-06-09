@@ -26,7 +26,9 @@ use iota_types::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
     },
-    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsExt, TransactionEvents},
+    effects::{
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents,
+    },
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
@@ -345,7 +347,7 @@ fn reference_gas_price(authorities: &AuthorityAggregator<LocalAuthorityClient>) 
 }
 
 fn effects_with_tx(digest: TransactionDigest) -> TransactionEffects {
-    TransactionEffects::new_empty_v1(digest)
+    TransactionEffects::new_empty_v1_for_testing(digest)
 }
 
 /// The intent of this is to test whether client side timeouts

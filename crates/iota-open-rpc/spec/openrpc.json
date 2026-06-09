@@ -1327,6 +1327,7 @@
                 "enable_move_authentication_for_sponsor": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
+                "enable_white_flag_flow": false,
                 "hardened_otw_check": true,
                 "metadata_in_module_bytes": false,
                 "minimize_child_object_mutations": false,

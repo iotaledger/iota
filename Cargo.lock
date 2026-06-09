@@ -3382,9 +3382,9 @@ dependencies = [
 
 [[package]]
 name = "diesel"
-version = "2.3.9"
+version = "2.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9940fb8467a0a06312218ed384185cb8536aa10d8ec017d0ce7fad2c1bd882d5"
+checksum = "29fe29a87fb84c631ffb3ba21798c4b1f3a964701ba78f0dce4bf8668562ec88"
 dependencies = [
  "bitflags 2.10.0",
  "byteorder",
@@ -5658,6 +5658,7 @@ dependencies = [
  "fastcrypto-tbls",
  "fs_extra",
  "futures",
+ "http 1.4.0",
  "iota-archival",
  "iota-authority-aggregation",
  "iota-common",
@@ -5727,6 +5728,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tonic 0.14.2",
  "tower 0.4.13",
  "tracing",
  "twox-hash 1.6.3",
@@ -6246,6 +6248,7 @@ dependencies = [
  "futures",
  "http 1.4.0",
  "iota-config",
+ "iota-core",
  "iota-metrics",
  "iota-node-storage",
  "iota-protocol-config",
@@ -6941,6 +6944,7 @@ dependencies = [
  "iota-swarm-config",
  "iota-types",
  "prometheus",
+ "prost 0.14.3",
  "rand 0.8.6",
  "serde",
  "tap",
@@ -6949,6 +6953,8 @@ dependencies = [
  "tokio",
  "tonic 0.14.2",
  "tonic-build",
+ "tonic-prost",
+ "tonic-prost-build",
  "tower 0.4.13",
  "tracing",
 ]

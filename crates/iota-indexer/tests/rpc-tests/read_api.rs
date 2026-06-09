@@ -277,7 +277,8 @@ async fn wait_for_objects_history(
     pg_store: &PgIndexerStore,
     indexer_client: &HttpClient,
 ) {
-    // we need tx to be checkpointed so that changes to objects_history are written
+    // we need tx to be checkpointed so that changes to objects_backward_history are
+    // written
     indexer_wait_for_transaction(tx_digest, pg_store, indexer_client).await
 }
 

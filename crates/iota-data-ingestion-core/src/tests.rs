@@ -20,7 +20,7 @@ use iota_types::{
     committee::EpochId,
     crypto::KeypairTraits,
     digests::ObjectDigest,
-    effects::{TransactionEffects, TransactionEffectsExt},
+    effects::{TransactionEffects, TransactionEffectsExtForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
@@ -449,7 +449,7 @@ async fn basic_flow_with_custom_callback() {
     );
 
     let transaction = Transaction::from_data(tx_data, vec![]);
-    let effects = TransactionEffects::new_empty_v1(*transaction.digest());
+    let effects = TransactionEffects::new_empty_v1_for_testing(*transaction.digest());
     let ch_tx = CheckpointTransaction {
         transaction,
         effects,

@@ -55,6 +55,7 @@ impl IotaTxValidator {
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
         let mut authority_cap_batch = Vec::new();
+        let mut user_tx_v1_count: u64 = 0;
 
         for tx in txs.iter() {
             match tx {
@@ -99,6 +100,26 @@ impl IotaTxValidator {
                         error: "NewJWKFetched (zkLogin) is deprecated and not supported".into(),
                     });
                 }
+
+                ConsensusTransactionKind::UserTransactionV1(transaction) => {
+                    if !self.epoch_store.protocol_config().enable_white_flag_flow() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "UserTransactionV1 not supported at current protocol version"
+                                .into(),
+                        });
+                    }
+                    // TODO: Batch signature verification for UserTransactionV1.
+                    //  For now verify individually, but this should be batched for performance
+                    //  similar to how certificates are batch-verified above.
+                    self.epoch_store
+                        .signature_verifier
+                        .verify_tx(transaction.data())
+                        .tap_err(|e| {
+                            warn!("UserTransactionV1 signature verification failed: {}", e)
+                        })?;
+                    user_tx_v1_count += 1;
+                }
+
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }
@@ -130,6 +151,9 @@ impl IotaTxValidator {
         self.metrics
             .authority_capabilities_verified
             .inc_by(authority_cap_count as u64);
+        self.metrics
+            .user_transaction_signatures_verified
+            .inc_by(user_tx_v1_count);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -175,6 +199,7 @@ pub struct IotaTxValidatorMetrics {
     certificate_signatures_verified: IntCounter,
     checkpoint_signatures_verified: IntCounter,
     authority_capabilities_verified: IntCounter,
+    user_transaction_signatures_verified: IntCounter,
 }
 
 impl IotaTxValidatorMetrics {
@@ -198,6 +223,12 @@ impl IotaTxValidatorMetrics {
                 registry
             )
             .unwrap(),
+            user_transaction_signatures_verified: register_int_counter_with_registry!(
+                "user_transaction_signatures_verified",
+                "Number of UserTransactionV1 signatures verified in consensus validator",
+                registry
+            )
+            .unwrap(),
         })
     }
 }
@@ -208,6 +239,7 @@ mod tests {
 
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
         crypto::Ed25519IotaSignature,
         error::IotaError,
@@ -302,19 +334,41 @@ mod tests {
     ///
     /// The exhaustive match forces a compile error when new variants are added,
     /// so the developer must explicitly map each variant to its gating flag.
+    ///
+    /// NOTE: This test is primarily useful for variants that are under
+    /// development or not yet fully rolled out on all networks. Once all
+    /// feature-gated variants are enabled on every network, this test can be
+    /// ignored — its value lies in catching missing gates during the upgrade
+    /// window between code deployment and protocol activation.
     #[sim_test]
     async fn validate_transactions_feature_gating() {
         use iota_protocol_config::ProtocolConfig;
-        use iota_types::crypto::AuthorityPublicKeyBytes;
+        use iota_types::crypto::{
+            AccountKeyPair, AuthorityPublicKeyBytes, deterministic_random_account_key,
+        };
+
+        use crate::test_utils::make_transfer_iota_transaction;
+
+        let (sender, sender_key): (_, AccountKeyPair) = deterministic_random_account_key();
+        let gas_object_id = ObjectId::random();
+        let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
 
         let network_config =
-            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(vec![gas_object.clone()])
+                .build();
 
         let state = TestAuthorityBuilder::new()
             .with_network_config(&network_config, 0)
             .with_chain_override(Chain::Mainnet)
             .build()
             .await;
+
+        let rgp = state.epoch_store_for_testing().reference_gas_price();
+        let gas_ref = state.get_object(&gas_object_id).await.unwrap().object_ref();
+        let recipient = iota_types::crypto::get_key_pair::<AccountKeyPair>().0;
+        let signed_tx =
+            make_transfer_iota_transaction(gas_ref, recipient, None, sender, &sender_key, rgp);
 
         let metrics = IotaTxValidatorMetrics::new(&Default::default());
         let validator = IotaTxValidator::new(
@@ -345,6 +399,11 @@ mod tests {
                 | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
+                // Gated behind `enable_white_flag_flow`.
+                ConsensusTransactionKind::UserTransactionV1(_) => {
+                    Some(config.enable_white_flag_flow())
+                }
+
                 // Gated behind `calculate_validator_scores`.
                 ConsensusTransactionKind::MisbehaviorReport(_) => {
                     Some(config.calculate_validator_scores())
@@ -357,7 +416,8 @@ mod tests {
             }
         }
 
-        // Variants that can be validated without signature verification setup.
+        // Variants that can be validated without signature verification setup
+        // (or that carry a valid signature, like UserTransactionV1).
         // CertifiedTransaction, CheckpointSignature, and
         // SignedCapabilityNotificationV1 are excluded because they require valid
         // cryptographic signatures and would fail before reaching the feature
@@ -403,6 +463,10 @@ mod tests {
                         equivocations: vec![],
                     },
                 )),
+            ),
+            (
+                "UserTransactionV1",
+                ConsensusTransactionKind::UserTransactionV1(Box::new(signed_tx)),
             ),
         ];
 
