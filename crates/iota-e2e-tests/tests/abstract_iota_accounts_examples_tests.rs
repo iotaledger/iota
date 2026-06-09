@@ -11,12 +11,9 @@
 //! observed outcomes are compared against the matrix in
 //! [`expected_outcome`].
 //!
-//! Two test entry points are exposed:
-//! - [`test_abstract_iota_accounts_examples_across_all_max_auth_gas_budgets`]:
-//!   exercises every variant of [`MaxAuthGas`] (full sweep).
-//! - [`test_abstract_iota_accounts_examples_across_network_max_auth_gas_budgets`]:
-//!   exercises only the budgets that match live IOTA networks
-//!   (Devnet / Testnet), reading them from the protocol config at runtime.
+//! The single entry point
+//! [`test_abstract_iota_accounts_examples_across_all_max_auth_gas_budgets`]
+//! exercises every variant of [`MaxAuthGas`] (full sweep).
 //!
 //! The dials a developer typically wants to tweak live near the top of the
 //! file under "Tunable test parameters": the [`MaxAuthGas`] enum, the
@@ -73,32 +70,19 @@ enum MaxAuthGas {
     G40k,
     /// 50_000 — small but more comfortable.
     G50k,
-    /// 250_000 — fixed numeric budget. Today it coincides with the Devnet
-    /// production default but is held as its own variant so the test still
-    /// exercises this absolute value if Devnet's setting later diverges.
+    /// 250_000 — fixed numeric budget.
     G250k,
     /// 1_000_000 — generous; heavy authenticators that don't rely on Groth16
     /// should fit here.
     G1m,
-    /// Whatever `iota-protocol-config` currently sets as `max_auth_gas` for
-    /// Devnet (i.e. `chain != Testnet && chain != Mainnet`). Resolved at
-    /// runtime via [`MaxAuthGas::as_u64`] so the test tracks the production
-    /// Devnet value automatically as the protocol evolves.
-    Devnet,
-    /// Whatever `iota-protocol-config` currently sets as `max_auth_gas` for
-    /// Testnet. Resolved at runtime via [`MaxAuthGas::as_u64`].
-    Testnet,
 }
 
 impl MaxAuthGas {
-    /// Subset of [`MaxAuthGas::ALL`] that tracks live network budgets
-    /// resolved from the protocol config at runtime.
-    const NETWORKS: &'static [MaxAuthGas] = &[MaxAuthGas::Devnet, MaxAuthGas::Testnet];
+    /// Budgets currently used our live networks.
+    const NETWORKS: &'static [MaxAuthGas] = &[MaxAuthGas::G20k, MaxAuthGas::G250k];
 
-    /// Subset of [`MaxAuthGas::ALL`] that excludes the live network budgets, so
-    /// the test exercises a range of fixed numeric budgets even if the network
-    /// budgets later diverge or grow.
-    const ALL_BUT_NETWORKS: &'static [MaxAuthGas] = &[
+    /// Every fixed numeric budget the test sweeps over.
+    const ALL: &'static [MaxAuthGas] = &[
         MaxAuthGas::G10k,
         MaxAuthGas::G20k,
         MaxAuthGas::G30k,
@@ -109,17 +93,6 @@ impl MaxAuthGas {
     ];
 
     /// Resolve the numeric `max_auth_gas` budget for this variant.
-    ///
-    /// For [`MaxAuthGas::Devnet`] this calls
-    /// `ProtocolConfig::get_for_version(MAX, Chain::Unknown).max_auth_gas()`
-    /// — `Chain::Unknown` is the catch-all used for any non-mainnet,
-    /// non-testnet chain, which is where the Devnet-specific overrides in
-    /// `iota-protocol-config` live (`if chain != Chain::Testnet && chain
-    /// != Chain::Mainnet { … }`).
-    ///
-    /// IMPORTANT: must be called while no `apply_overrides_for_testing`
-    /// guard is in scope — otherwise `get_for_version` would recurse into
-    /// the override closure that itself depends on this method.
     fn as_u64(self) -> u64 {
         match self {
             MaxAuthGas::G10k => 10_000,
@@ -129,16 +102,6 @@ impl MaxAuthGas {
             MaxAuthGas::G50k => 50_000,
             MaxAuthGas::G250k => 250_000,
             MaxAuthGas::G1m => 1_000_000,
-            MaxAuthGas::Devnet => iota_protocol_config::ProtocolConfig::get_for_version(
-                iota_protocol_config::ProtocolVersion::MAX,
-                iota_protocol_config::Chain::Unknown,
-            )
-            .max_auth_gas(),
-            MaxAuthGas::Testnet => iota_protocol_config::ProtocolConfig::get_for_version(
-                iota_protocol_config::ProtocolVersion::MAX,
-                iota_protocol_config::Chain::Testnet,
-            )
-            .max_auth_gas(),
         }
     }
 }
@@ -317,12 +280,10 @@ fn expected_super_heavy(cycles: u64, budget: MaxAuthGas) -> Outcome {
     let max_cycles: u64 = match budget {
         G10k => 3,
         G20k => 7,
-        // Interpolated placeholders for the new budgets — refine from the
-        // test report's per-budget table once it's measured.
         G30k => 10,
         G40k => 14,
         G50k => 17,
-        G250k | Devnet | Testnet => 89,
+        G250k => 89,
         G1m => 209,
     };
     if cycles <= max_cycles { Pass } else { Fail }
@@ -371,7 +332,7 @@ fn outcome_str(o: Outcome) -> &'static str {
 #[sim_test]
 async fn test_abstract_iota_accounts_examples_across_all_max_auth_gas_budgets()
 -> Result<(), anyhow::Error> {
-    run_across_max_auth_gas_budgets(MaxAuthGas::ALL_BUT_NETWORKS).await
+    run_across_max_auth_gas_budgets(MaxAuthGas::ALL).await
 }
 
 #[ignore]
@@ -393,10 +354,6 @@ async fn run_across_max_auth_gas_budgets(budgets: &[MaxAuthGas]) -> Result<(), a
     let mut groups: Vec<(MaxAuthGas, Vec<PackageResult>)> = Vec::new();
 
     for &budget in budgets {
-        // Resolve the numeric budget BEFORE installing the override closure.
-        // For [`MaxAuthGas::Devnet`] this reads it from the un-overridden
-        // protocol config — doing it inside the closure would re-enter
-        // `CONFIG_OVERRIDE` and panic.
         let budget_value = budget.as_u64();
 
         // Apply the `max_auth_gas` override for this budget. The guard restores
@@ -1659,9 +1616,9 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
 ///
 /// - **sender** — bound to `ed25519_authenticator`. Signs over `ctx.digest()`.
 /// - **sponsor** — bound to `sponsorship_ed25519_authenticator`. Signs over
-///   `ctx.digest() || auth_ctx.sender_auth_digest() || bcs(auth_ctx.sender_authenticator_function_info_v1())`,
-///   matching the helper
-///   [`public_key_authentication::authenticate_ed25519_for_sponsorship`].
+///   `ctx.digest() || auth_ctx.sender_auth_digest() ||
+///   bcs(auth_ctx.sender_authenticator_function_info_v1())`, matching the
+///   helper [`public_key_authentication::authenticate_ed25519_for_sponsorship`].
 ///
 /// The test reconstructs that exact byte sequence off-chain (the sender
 /// `MoveAuthenticator`'s digest, plus the BCS encoding of the sender's
@@ -1762,8 +1719,9 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     );
 
     // Reconstruct the byte sequence `authenticate_ed25519_for_sponsorship`
-    // verifies against. For a non-AA sender, `sender_authenticator_function_info_v1()`
-    // is `None`, so the Move helper skips the third segment entirely:
+    // verifies against. For a non-AA sender,
+    // `sender_authenticator_function_info_v1()` is `None`, so the Move helper
+    // skips the third segment entirely:
     //
     //   msg = ctx.digest()                  // 32 bytes
     //      || auth_ctx.sender_auth_digest() // 32 bytes — Blake2b256(sender_sig.as_ref())
