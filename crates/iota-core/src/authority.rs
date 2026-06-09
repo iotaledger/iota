@@ -5777,10 +5777,8 @@ impl AuthorityState {
     ) -> IotaResult<()> {
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
             self.read_objects_for_validation(transaction, epoch)?;
-        let per_authenticator_input_objects: Vec<&InputObjects> = per_authenticator_inputs
-            .iter()
-            .map(|(io, _)| io)
-            .collect();
+        let per_authenticator_input_objects: Vec<&InputObjects> =
+            per_authenticator_inputs.iter().map(|(io, _)| io).collect();
         check_coin_deny_list_v1(
             transaction.data().transaction_data().sender(),
             &tx_input_objects,

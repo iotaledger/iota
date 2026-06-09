@@ -547,6 +547,13 @@ pub enum IotaError {
     AttestationCostBelowMinimum { actual: u64, minimum: u64 },
 
     #[error(
+        "Attestation reports estimated_computation_cost = {actual} gas units, \
+         above the user's budget ceiling of {ceiling} (`gas_budget / gas_price`); \
+         an honest dry-run cannot exceed what the tx can pay for"
+    )]
+    AttestationCostAboveBudget { actual: u64, ceiling: u64 },
+
+    #[error(
         "Attestor {attestor:?} stamped a `UserTransactionV2` whose user \
          signature does not verify against `sender`."
     )]

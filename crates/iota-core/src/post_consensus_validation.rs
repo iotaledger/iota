@@ -45,7 +45,7 @@ use iota_types::{
     base_types::{ObjectRef, TransactionDigest},
     error::{IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
-    transaction::{InputObjectKind, VerifiedTransaction},
+    transaction::{InputObjectKind, TransactionDataAPI, VerifiedTransaction},
 };
 use tracing::{debug, warn};
 
@@ -171,6 +171,11 @@ pub async fn validate_and_resolve_conflicts(
                 starfish_config::AuthorityIndex::from(tx.0.certificate_author_index as u8);
             let min_attested_cost = epoch_store.protocol_config().base_tx_cost_fixed();
             let attested_cost = attestation.estimated_computation_cost();
+            let tx_data = transaction.data().transaction_data();
+            let max_attested_cost = tx_data
+                .gas_budget()
+                .checked_div(tx_data.gas_price())
+                .unwrap_or(u64::MAX);
             let error = match attestation {
                 Attestation::Validator { attestor_index, .. } => {
                     if *attestor_index != block_author {
@@ -182,6 +187,11 @@ pub async fn validate_and_resolve_conflicts(
                         Some(IotaError::AttestationCostBelowMinimum {
                             actual: attested_cost,
                             minimum: min_attested_cost,
+                        })
+                    } else if attested_cost > max_attested_cost {
+                        Some(IotaError::AttestationCostAboveBudget {
+                            actual: attested_cost,
+                            ceiling: max_attested_cost,
                         })
                     } else {
                         None
