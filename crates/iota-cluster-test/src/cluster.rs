@@ -60,6 +60,10 @@ pub trait Cluster {
         Self: Sized;
 
     fn fullnode_url(&self) -> &str;
+
+    /// gRPC endpoint of the fullnode, when one is available (local clusters).
+    fn grpc_url(&self) -> Option<&str>;
+
     fn user_key(&self) -> AccountKeyPair;
     fn indexer_url(&self) -> &Option<String>;
 
@@ -120,6 +124,10 @@ impl Cluster for RemoteRunningCluster {
         &self.fullnode_url
     }
 
+    fn grpc_url(&self) -> Option<&str> {
+        None
+    }
+
     fn indexer_url(&self) -> &Option<String> {
         &None
     }
@@ -145,6 +153,7 @@ impl Cluster for RemoteRunningCluster {
 pub struct LocalNewCluster {
     test_cluster: TestCluster,
     fullnode_url: String,
+    grpc_url: String,
     indexer_url: Option<String>,
     faucet_key: AccountKeyPair,
     config_directory: tempfile::TempDir,
@@ -239,6 +248,7 @@ impl Cluster for LocalNewCluster {
 
         // This cluster has fullnode handle, safe to unwrap
         let fullnode_url = test_cluster.fullnode_handle.rpc_url.clone();
+        let grpc_url = test_cluster.grpc_url();
 
         if let (Some(pg_address), Some(indexer_address)) =
             (options.pg_address.clone(), indexer_address)
@@ -298,6 +308,7 @@ impl Cluster for LocalNewCluster {
         Ok(Self {
             test_cluster,
             fullnode_url,
+            grpc_url,
             faucet_key,
             config_directory: tempfile::tempdir()?,
             indexer_url: options.indexer_address.clone(),
@@ -306,6 +317,10 @@ impl Cluster for LocalNewCluster {
 
     fn fullnode_url(&self) -> &str {
         &self.fullnode_url
+    }
+
+    fn grpc_url(&self) -> Option<&str> {
+        Some(&self.grpc_url)
     }
 
     fn indexer_url(&self) -> &Option<String> {
@@ -339,6 +354,9 @@ impl Cluster for Box<dyn Cluster + Send + Sync> {
     }
     fn fullnode_url(&self) -> &str {
         (**self).fullnode_url()
+    }
+    fn grpc_url(&self) -> Option<&str> {
+        (**self).grpc_url()
     }
     fn indexer_url(&self) -> &Option<String> {
         (**self).indexer_url()

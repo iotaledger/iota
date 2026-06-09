@@ -5610,6 +5610,8 @@ dependencies = [
  "iota-keys",
  "iota-move-build",
  "iota-sdk",
+ "iota-sdk-grpc-client",
+ "iota-sdk-transaction-builder",
  "iota-sdk-types",
  "iota-swarm",
  "iota-swarm-config",
