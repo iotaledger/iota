@@ -62,6 +62,9 @@ pub const BRIDGE_ADDR_NAME: Symbol = symbol!("bridge");
 pub const BRIDGE_MODULE_NAME: Symbol = symbol!("bridge");
 pub const BRIDGE_TYPE_NAME: Symbol = symbol!("Bridge");
 pub const BRIDGE_CREATE: Symbol = symbol!("create");
+pub const CLAIM_REGISTRY_MODULE_NAME: Symbol = symbol!("claim_registry");
+pub const CLAIM_REGISTRY_CLAIM: Symbol = symbol!("claim");
+pub const CLAIM_REGISTRY_CREATE: Symbol = symbol!("create");
 
 pub const EVENT_MODULE_NAME: Symbol = symbol!("event");
 pub const EVENT_FUNCTION_NAME: Symbol = symbol!("emit");

@@ -17,6 +17,7 @@ use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
 use iota_types::{
     GENESIS_BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    claim_registry::CLAIM_REGISTRY_MODULE_NAME,
     clock::CLOCK_MODULE_NAME,
     deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
@@ -103,7 +104,22 @@ const IOTA_BRIDGE_CREATE: FunctionIdent = (
     ident_str!("bridge"),
     ident_str!("create"),
 );
-const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, TS_NEW_OBJECT];
+const IOTA_CLAIM_REGISTRY_CREATE: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
+    CLAIM_REGISTRY_MODULE_NAME,
+    ident_str!("create"),
+);
+const CLAIM_REGISTRY_CLAIM: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
+    CLAIM_REGISTRY_MODULE_NAME,
+    ident_str!("claim"),
+);
+const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[
+    OBJECT_NEW,
+    OBJECT_NEW_UID_FROM_HASH,
+    TS_NEW_OBJECT,
+    CLAIM_REGISTRY_CLAIM,
+];
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_SYSTEM_CREATE,
     IOTA_CLOCK_CREATE,
@@ -111,6 +127,7 @@ const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_RANDOMNESS_STATE_CREATE,
     IOTA_DENY_LIST_CREATE,
     IOTA_BRIDGE_CREATE,
+    IOTA_CLAIM_REGISTRY_CREATE,
 ];
 
 impl AbstractValue {

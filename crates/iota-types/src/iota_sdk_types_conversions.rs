@@ -702,6 +702,11 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                     adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
             }
+            crate::transaction::EndOfEpochTransactionKind::ClaimRegistryCreate => {
+                // ClaimRegistryCreate is not yet present in iota-sdk-types.
+                // TODO: add the variant to iota-rust-sdk.
+                todo!("ClaimRegistryCreate is not yet supported in iota-sdk-types")
+            }
         }
     }
 }

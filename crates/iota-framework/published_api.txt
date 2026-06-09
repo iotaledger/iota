@@ -1264,6 +1264,9 @@ randomness_state
 iota_deny_list_object_id
 	public(package) fun
 	0x2::object
+claim_registry
+	public(package) fun
+	0x2::object
 uid_as_inner
 	public fun
 	0x2::object
@@ -2266,11 +2269,17 @@ multisig
 passkey
 	public fun
 	0x2::signature_scheme
+from_flag
+	public fun
+	0x2::signature_scheme
 flag
 	public fun
 	0x2::signature_scheme
 PublicKey
 	public struct
+	0x2::public_key
+from_prefixed_bytes
+	public fun
 	0x2::public_key
 create
 	public fun
@@ -2280,6 +2289,12 @@ scheme
 	0x2::public_key
 raw_bytes
 	public fun
+	0x2::public_key
+to_iota_address
+	public fun
+	0x2::public_key
+multisig_to_hash_input
+	fun
 	0x2::public_key
 validate_public_key
 	fun
@@ -2371,6 +2386,18 @@ transfer_impl
 receive_impl
 	fun
 	0x2::transfer
+ClaimRegistry
+	public struct
+	0x2::claim_registry
+create
+	fun
+	0x2::claim_registry
+claim
+	public(package) fun
+	0x2::claim_registry
+is_claimed
+	public fun
+	0x2::claim_registry
 Clock
 	public struct
 	0x2::clock

@@ -5005,6 +5005,23 @@ impl AuthorityState {
         total_weight
     }
 
+    #[instrument(level = "debug", skip_all)]
+    fn create_claim_registry_tx(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Option<EndOfEpochTransactionKind> {
+        if !epoch_store.protocol_config().enable_claim_registry() {
+            info!("ClaimRegistry is not enabled");
+            return None;
+        }
+        if epoch_store.claim_registry_exists() {
+            info!("ClaimRegistry already exists");
+            return None;
+        }
+        info!("Creating ClaimRegistryCreate tx");
+        Some(EndOfEpochTransactionKind::new_claim_registry_create())
+    }
+
     /// Creates and execute the advance epoch transaction to effects without
     /// committing it to the database. The effects of the change epoch tx
     /// are only written to the database after a certified checkpoint has been
@@ -5031,6 +5048,10 @@ impl AuthorityState {
         TransactionEffects,
     )> {
         let mut txns = Vec::new();
+
+        if let Some(tx) = self.create_claim_registry_tx(epoch_store) {
+            txns.push(tx);
+        }
 
         let next_epoch = epoch_store.epoch() + 1;
 

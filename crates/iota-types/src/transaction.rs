@@ -372,8 +372,11 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpochV2(ChangeEpochV2),
     ChangeEpochV3(ChangeEpochV3),
     ChangeEpochV4(ChangeEpochV4),
+    ClaimRegistryCreate,
     // IMPORTANT: new enum variants should be added at the end to preserve serialization
     // compatibility. DO NOT CHANGE THE ORDER OF EXISTING ENTRIES!
+    // ClaimRegistryCreate can be left at the end as long as `enable_claim_registry` is not
+    // enabled in the protocol config.
 }
 
 impl EndOfEpochTransactionKind {
@@ -479,6 +482,10 @@ impl EndOfEpochTransactionKind {
         })
     }
 
+    pub fn new_claim_registry_create() -> Self {
+        Self::ClaimRegistryCreate
+    }
+
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             Self::ChangeEpoch(_) => {
@@ -509,6 +516,7 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
+            Self::ClaimRegistryCreate => vec![],
         }
     }
 
@@ -518,6 +526,7 @@ impl EndOfEpochTransactionKind {
             | Self::ChangeEpochV2(_)
             | Self::ChangeEpochV3(_)
             | Self::ChangeEpochV4(_) => vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter(),
+            Self::ClaimRegistryCreate => vec![].into_iter(),
         }
     }
 
@@ -603,6 +612,13 @@ impl EndOfEpochTransactionKind {
                 if !config.pass_validator_scores_to_advance_epoch() {
                     return Err(UserInputError::Unsupported(
                         "passing of validator scores required".to_string(),
+                    ));
+                }
+            }
+            Self::ClaimRegistryCreate => {
+                if !config.enable_claim_registry() {
+                    return Err(UserInputError::Unsupported(
+                        "claim registry not enabled".to_string(),
                     ));
                 }
             }
@@ -1387,6 +1403,7 @@ impl TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
+                    EndOfEpochTransactionKind::ClaimRegistryCreate => None,
                 }
             }
             _ => None,

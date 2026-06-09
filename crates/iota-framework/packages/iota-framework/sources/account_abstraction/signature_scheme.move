@@ -13,6 +13,9 @@ module iota::signature_scheme;
 
 // === Errors ===
 
+#[error(code = 0)]
+const EUnknownScheme: vector<u8> = b"Unknown signature scheme flag.";
+
 // === Constants ===
 
 const ED25519: u8 = 0x00;
@@ -54,6 +57,19 @@ public fun multisig(): SignatureScheme {
 /// Returns the `SignatureScheme` for the WebAuthn Passkey (P-256 / ES256) scheme (`0x06`).
 public fun passkey(): SignatureScheme {
     SignatureScheme { flag: PASSKEY }
+}
+
+/// Constructs a `SignatureScheme` from its raw flag byte.
+///
+/// Aborts with `EUnknownScheme` if `flag` is not one of the recognized values
+/// (0x00 Ed25519, 0x01 Secp256k1, 0x02 Secp256r1, 0x03 MultiSig, 0x06 Passkey).
+public fun from_flag(flag: u8): SignatureScheme {
+    assert!(
+        flag == ED25519 || flag == SECP256K1 || flag == SECP256R1
+            || flag == MULTISIG || flag == PASSKEY,
+        EUnknownScheme,
+    );
+    SignatureScheme { flag }
 }
 
 // === View Functions ===

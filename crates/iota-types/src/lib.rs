@@ -35,6 +35,7 @@ pub mod account_abstraction;
 pub mod auth_context;
 pub mod balance;
 pub mod base_types;
+pub mod claim_registry;
 pub mod clock;
 pub mod coin;
 pub mod coin_manager;
@@ -135,6 +136,7 @@ built_in_ids! {
     IOTA_AUTHENTICATOR_STATE_ADDRESS / IOTA_AUTHENTICATOR_STATE_OBJECT_ID = 0x7;
     IOTA_RANDOMNESS_STATE_ADDRESS / IOTA_RANDOMNESS_STATE_OBJECT_ID = 0x8;
     GENESIS_IOTA_BRIDGE_ADDRESS / GENESIS_IOTA_BRIDGE_OBJECT_ID = 0x9;
+    IOTA_CLAIM_REGISTRY_ADDRESS / IOTA_CLAIM_REGISTRY_OBJECT_ID = 0x10;
     IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
 }
 

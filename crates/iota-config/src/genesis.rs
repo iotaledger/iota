@@ -15,7 +15,7 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_types::{
-    GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_CLAIM_REGISTRY_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
@@ -341,6 +341,12 @@ impl UnsignedGenesis {
 
     pub fn has_coin_deny_list_object(&self) -> bool {
         get_deny_list_root_object(&self.objects()).is_some()
+    }
+
+    pub fn has_claim_registry_object(&self) -> bool {
+        self.objects()
+            .get_object(&IOTA_CLAIM_REGISTRY_OBJECT_ID)
+            .is_some()
     }
 }
 

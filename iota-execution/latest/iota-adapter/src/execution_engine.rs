@@ -34,6 +34,7 @@ mod checked {
             BALANCE_MODULE_NAME,
         },
         base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext},
+        claim_registry::{CLAIM_REGISTRY_CREATE_FUNCTION_NAME, CLAIM_REGISTRY_MODULE_NAME},
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
         effects::TransactionEffects,
@@ -1285,10 +1286,10 @@ mod checked {
                 )
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
-                let builder = ProgrammableTransactionBuilder::new();
+                let mut builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
 
-                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
+                for (i, tx) in txns.into_iter().enumerate() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
@@ -1349,6 +1350,10 @@ mod checked {
                                 trace_builder_opt,
                             )?;
                             return Ok(Mode::empty_results());
+                        }
+                        EndOfEpochTransactionKind::ClaimRegistryCreate => {
+                            assert!(protocol_config.enable_claim_registry());
+                            builder = setup_claim_registry_create(builder);
                         }
                     }
                 }
@@ -1935,6 +1940,24 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+    }
+
+    /// Adds a Move call to `iota::claim_registry::create`, creating the
+    /// `ClaimRegistry` singleton during an epoch-change transaction for
+    /// networks that were deployed before the ClaimRegistry was introduced.
+    fn setup_claim_registry_create(
+        mut builder: ProgrammableTransactionBuilder,
+    ) -> ProgrammableTransactionBuilder {
+        builder
+            .move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                CLAIM_REGISTRY_MODULE_NAME.to_owned(),
+                CLAIM_REGISTRY_CREATE_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![],
+            )
+            .expect("Unable to generate claim_registry_create transaction!");
+        builder
     }
 
     /// The function constructs a transaction that invokes
