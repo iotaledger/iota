@@ -242,6 +242,7 @@ impl ValidatorService {
                         // arithmetic panic in Move VM dry-run) surfaces here
                         // as a `JoinError`. Convert to a rejection rather
                         // than re-panicking on the per-tx task.
+                        tracing::error!(?tx_digest, "attest_transaction task failed: {join_err}");
                         let err = IotaError::GenericAuthority {
                             error: format!("attest_transaction task failed: {join_err}"),
                         };
