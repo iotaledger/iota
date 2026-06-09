@@ -6,12 +6,9 @@
 use std::{collections::BTreeMap, ops::RangeBounds, time::Duration};
 
 use bytes::Bytes;
-use iota_storage::object_store::{
-    ObjectStoreGetExt, ObjectStorePutExt,
-    util::{exists, get, put},
-};
+use iota_storage::object_store::{ObjectStoreGetExt, util::get};
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
-use object_store::path::Path;
+use object_store::{ObjectStore, PutMode, path::Path};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -104,17 +101,12 @@ impl EpochBoundaries {
 
 /// Reads the epoch boundaries from the store.
 ///
-/// If the remote file is not found, this returns an empty collection.
-///
 /// # Errors
 ///
-/// Fails if the file fails to decode.
-pub async fn read_epoch_boundaries_or_default<S: ObjectStoreGetExt>(
+/// Fails if the file cannot be fetched, of if it fails to decode.
+pub async fn read_epoch_boundaries<S: ObjectStoreGetExt>(
     remote_store: S,
 ) -> Result<EpochBoundaries> {
-    if !exists(&remote_store, &EpochBoundaries::file_path()).await {
-        return Ok(Default::default());
-    }
     let bytes = tokio::time::timeout(
         Duration::from_secs(GET_TIMEOUT_SECS),
         get(&remote_store, &EpochBoundaries::file_path()),
@@ -140,17 +132,23 @@ pub fn finalize_epoch_boundaries(boundaries: &EpochBoundaries) -> Result<Bytes> 
     finalize_magic_blob(boundaries, EPOCH_BOUNDARIES_FILE_MAGIC)
 }
 
-/// Writes the epoch boundaries to the store.
+/// Writes the epoch boundaries to the store atomically.
+///
+///
 ///
 /// # Errors
 ///
-/// Fails if encoding or the upload fails.
-pub async fn write_epoch_boundaries<S: ObjectStorePutExt>(
+/// Fails if the encoding fails, if the [`PutMode`] invariants are not upheld,
+/// or for any other reason the upload might fail.
+pub async fn write_epoch_boundaries<S: ObjectStore>(
     boundaries: &EpochBoundaries,
     remote_store: S,
+    put_mode: PutMode,
 ) -> Result<()> {
     let bytes = finalize_epoch_boundaries(boundaries)?;
-    put(&remote_store, &EpochBoundaries::file_path(), bytes).await?;
+    remote_store
+        .put_opts(&EpochBoundaries::file_path(), bytes.into(), put_mode.into())
+        .await?;
     Ok(())
 }
 

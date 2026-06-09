@@ -26,7 +26,7 @@ use crate::{
     errors::IngestionResult as Result,
     history::{
         CHECKPOINT_FILE_MAGIC,
-        epoch_boundaries::{EpochBoundaries, read_epoch_boundaries_or_default},
+        epoch_boundaries::{EpochBoundaries, read_epoch_boundaries},
         manifest::{FileMetadata, Manifest, read_manifest},
     },
 };
@@ -234,9 +234,10 @@ impl HistoricalReader {
     ///
     /// # Errors
     ///
-    /// Fails if the epoch boundaries file cannot be read.
+    /// Fails if the epoch boundaries file cannot be read or if it fails to
+    /// decode.
     pub async fn epoch_boundaries(&self) -> Result<EpochBoundaries> {
-        read_epoch_boundaries_or_default(self.remote_object_store.clone()).await
+        read_epoch_boundaries(self.remote_object_store.clone()).await
     }
 
     /// Syncs the Manifest from remote store.
