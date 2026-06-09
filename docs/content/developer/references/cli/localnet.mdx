@@ -70,14 +70,14 @@ When built with the `indexer` feature, additional options are available:
 | `--pg-db-name <NAME>` | Postgres database name (default: `iota_indexer`). |
 | `--pg-user <USER>` | Postgres username (default: `postgres`). |
 | `--pg-password <PASS>` | Postgres password (default: `postgrespw`). |
-| `--pruning-config-path <PATH>` | Path to a TOML retention config for the indexer writer (see [Pruning config file](#pruning-config-file) below). Without it the indexer keeps all data and its database grows without bound. |
+| `--pruning-config-path <PATH>` | Path to a TOML retention config for the indexer writer (see [Indexer pruning config file](#indexer-pruning-config-file) below). Without it the indexer keeps all data and its database grows without bound. |
 | `--data-ingestion-dir <DIR>` | Directory for dumping executed checkpoints. Defaults to a temp dir when `--with-indexer` is set. |
 
 :::
 
-#### Pruning config file
+#### Indexer pruning config file
 
-The file passed to `--pruning-config-path` is a TOML document with a required `epochs_to_keep` default (in epochs, must be greater than 0) and an optional `[overrides]` table for per-table retention. Override keys are the prunable table names in `snake_case`:
+This config controls retention of the **indexer** database only; it does not affect node/object pruning. The file passed to `--pruning-config-path` is a TOML document with a required `epochs_to_keep` default (in epochs, must be greater than 0) and an optional `[overrides]` table for per-table retention. Override keys are the prunable table names in `snake_case`:
 
 ```toml
 # Default retention for all prunable tables, in epochs.
