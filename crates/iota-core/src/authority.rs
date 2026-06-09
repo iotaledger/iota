@@ -45,7 +45,8 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    ExecutionStatus, ObjectId, Owner, StructTag, TransactionExpiration, TransactionKind, TypeTag,
+    ExecutionStatus, ObjectId, Owner, RandomnessRound, StructTag, TransactionExpiration,
+    TransactionKind, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -71,7 +72,7 @@ use iota_types::{
         SequenceNumber, VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
+    crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, Digest, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},

@@ -99,7 +99,10 @@ use iota_network::{
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    RandomnessRound,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, StorageFormat,
@@ -110,7 +113,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
-    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits, RandomnessRound},
+    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,

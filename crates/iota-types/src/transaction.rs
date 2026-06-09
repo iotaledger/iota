@@ -19,8 +19,9 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, Digest, GenesisObject, GenesisTransaction, Identifier,
-    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish, RandomnessStateUpdate,
-    SplitCoins, TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
+    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish, RandomnessRound,
+    RandomnessStateUpdate, SplitCoins, TransactionExpiration, TransactionKind, TransferObjects,
+    TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -41,7 +42,7 @@ use crate::{
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes,
+        IotaSignatureInner, Signature, Signer, ToFromBytes,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     event::Event,

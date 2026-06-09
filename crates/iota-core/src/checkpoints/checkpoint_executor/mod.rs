@@ -27,10 +27,9 @@ use futures::StreamExt;
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
-use iota_sdk_types::TransactionKind;
+use iota_sdk_types::{RandomnessRound, TransactionKind};
 use iota_types::{
     base_types::{TransactionDigest, TransactionEffectsDigest},
-    crypto::RandomnessRound,
     effects::{TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,

@@ -31,7 +31,8 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    CancelledTransaction, CheckpointTimestamp, ObjectId, TransactionKind, VersionAssignment,
+    CancelledTransaction, CheckpointTimestamp, ObjectId, RandomnessRound, TransactionKind,
+    VersionAssignment,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
@@ -40,7 +41,7 @@ use iota_types::{
         TransactionDigest,
     },
     committee::{Committee, CommitteeTrait},
-    crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo, RandomnessRound},
+    crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
     error::{IotaError, IotaResult},

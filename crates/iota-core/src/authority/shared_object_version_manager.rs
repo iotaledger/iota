@@ -273,10 +273,10 @@ fn get_or_init_versions<'a>(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
+    use iota_sdk_types::RandomnessRound;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         base_types::{IotaAddress, ObjectRef, SequenceNumber},
-        crypto::RandomnessRound,
         digests::ObjectDigest,
         effects::TestEffectsBuilder,
         executable_transaction::{

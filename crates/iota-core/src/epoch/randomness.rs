@@ -20,10 +20,11 @@ use fastcrypto_tbls::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_macros::fail_point_if;
 use iota_network::randomness;
+use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::{AuthorityName, CommitRound},
     committee::{Committee, EpochId, StakeUnit},
-    crypto::{AuthorityKeyPair, RandomnessRound},
+    crypto::AuthorityKeyPair,
     error::{IotaError, IotaResult},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation, VersionedDkgMessage},
