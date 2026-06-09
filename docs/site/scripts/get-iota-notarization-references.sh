@@ -13,7 +13,8 @@ cp -Rv ./notarization-docs/docs/wasm/* ../../content/developer/iota-notarization
 # Work around a malformed anchor link in the upstream-generated TypeDoc output:
 # LockMetadata.md links to "NotarizationClient.mdupdatemetadata", missing the '#'
 # before the anchor. Docusaurus (onBrokenLinks: throw) fails the build on it.
-# Remove once https://github.com/iotaledger/notarization regenerates the link correctly.
+# Tracked upstream in https://github.com/iotaledger/notarization/issues/282;
+# remove once the link is regenerated correctly and a new tarball is published.
 lock_metadata=../../content/developer/iota-notarization/references/wasm/notarization_wasm/classes/LockMetadata.md
 tmp_file=$(mktemp)
 sed 's|NotarizationClient\.mdupdatemetadata|NotarizationClient.md#updatemetadata|g' "$lock_metadata" > "$tmp_file" && mv "$tmp_file" "$lock_metadata"
