@@ -383,7 +383,7 @@ impl HttpRestKVClient {
 
         let bytes = resp.bytes().await?;
         bcs::from_bytes::<Vec<T>>(&bytes).map_err(|e| {
-            IndexerError::Serde(format!("failed to deserialize multi_get response: {e:?}"))
+            IndexerError::Serde(format!("failed to deserialize paginated response: {e:?}"))
         })
     }
 

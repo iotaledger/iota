@@ -65,7 +65,7 @@ pub(crate) struct HistoricalFallbackReader {
     /// storage through REST API interface.
     client: HttpRestKVClient,
     package_resolver: PackageResolver,
-    cache_cursor: MokaCache<TransactionDigest, TransactionSequenceNumber>,
+    cursor_cache: MokaCache<TransactionDigest, TransactionSequenceNumber>,
 }
 
 impl HistoricalFallbackReader {
@@ -85,14 +85,14 @@ impl HistoricalFallbackReader {
             HistoricalFallbackClientMetrics::new(registry),
         )?;
 
-        let cache_cursor = MokaCacheBuilder::new(cache_size)
+        let cursor_cache = MokaCacheBuilder::new(cache_size)
             .time_to_idle(CACHE_TIME_TO_IDLE)
             .build();
 
         Ok(Self {
             client,
             package_resolver,
-            cache_cursor,
+            cursor_cache,
         })
     }
 
@@ -545,7 +545,7 @@ impl HistoricalFallbackReader {
         oldest_first: bool,
     ) -> IndexerResult<Vec<TransactionDigest>> {
         let cursor = match cursor {
-            Some(digest) => match self.cache_cursor.get(&digest) {
+            Some(digest) => match self.cursor_cache.get(&digest) {
                 Some(tx_sequence_number) => Some(tx_sequence_number),
                 None => self.resolve_transaction_sequence_number(digest).await?,
             },
@@ -560,7 +560,7 @@ impl HistoricalFallbackReader {
         Ok(pairs
             .into_iter()
             .map(|(seq, digest)| {
-                self.cache_cursor.insert(digest, seq);
+                self.cursor_cache.insert(digest, seq);
                 digest
             })
             .collect())

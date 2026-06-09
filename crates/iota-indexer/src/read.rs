@@ -1192,12 +1192,7 @@ impl IndexerReader {
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
         let db_res = self
             .db()
-            .query_transactions_either_sender_or_recipient_address(
-                address,
-                cursor,
-                limit,
-                is_descending,
-            )
+            .query_transactions_by_affected_addresses(address, cursor, limit, is_descending)
             .await;
 
         // when cursor is provided we know if data was pruned.
@@ -1250,7 +1245,7 @@ impl IndexerReader {
         | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) = filter
         {
             return self
-                .query_transactions_either_sender_or_recipient_address_with_fallback(
+                .query_transactions_by_affected_addresses_with_fallback(
                     addr,
                     cursor,
                     limit,
@@ -3185,7 +3180,7 @@ impl<'a> DBReader<'a> {
 
     /// Returns a list of [`StoredTransaction`]s that have a given address as
     /// sender or recipient.
-    async fn query_transactions_either_sender_or_recipient_address(
+    async fn query_transactions_by_affected_addresses(
         &self,
         addr: IotaAddress,
         cursor: Option<TransactionDigest>,
