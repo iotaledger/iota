@@ -96,6 +96,14 @@ impl HistoricalFallbackReader {
         })
     }
 
+    /// Returns the cached sequence number for a transaction digest.
+    pub(crate) fn cached_cursor(
+        &self,
+        cursor: &TransactionDigest,
+    ) -> Option<TransactionSequenceNumber> {
+        self.cursor_cache.get(cursor)
+    }
+
     /// Resolves the input and output objects from a given transaction effects.
     pub(crate) async fn resolve_transaction_input_output_objects(
         &self,
@@ -509,30 +517,35 @@ impl HistoricalFallbackReader {
         Ok(events)
     }
 
-    /// Resolves the [`TransactionSequenceNumber`] for a given transaction
-    /// digest.
+    /// Resolves the sequence number for a given [`TransactionDigest`] by
+    /// retrieving its corresponding checkpoint data from the fallback storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IndexerError::HistoricalFallbackInput` if:
+    /// * The checkpoint data associated with the digest cannot be retrieved
+    ///   from the fallback store.
+    /// * The transaction digest is not found within the retrieved checkpoint.
     async fn resolve_transaction_sequence_number(
         &self,
         digest: TransactionDigest,
-    ) -> IndexerResult<Option<TransactionSequenceNumber>> {
+    ) -> IndexerResult<TransactionSequenceNumber> {
         let checkpoints = self.resolve_checkpoints(&[digest]).await?;
-        let (summary, contents) = checkpoints
-            .get(&digest)
-            .cloned()
-            // if transaction exists but summary is not found this indicates a bug in data
-            // consistency in the KV Store.
-            .ok_or_else(|| {
-                IndexerError::HistoricalFallbackStorageError(format!(
-                    "checkpoint summary and contents linked to transaction: {digest} not found",
-                ))
-            })?;
+        let (summary, contents) = checkpoints.get(&digest).cloned().ok_or_else(|| {
+            IndexerError::HistoricalFallbackInput(format!(
+                "checkpoint summary and contents linked to transaction: {digest} not found",
+            ))
+        })?;
 
-        let result = contents
+        let transaction_sequence_number = contents
             .enumerate_transactions(&summary)
-            .find(|(_seq, execution_digest)| execution_digest.transaction == digest)
-            .map(|(seq, _execution_digest)| seq);
+            .find_map(|(seq, ed)| (ed.transaction == digest).then_some(seq));
 
-        Ok(result)
+        transaction_sequence_number.ok_or_else(|| {
+            IndexerError::HistoricalFallbackInput(format!(
+                "transaction digest {digest} not found in fallback storage",
+            ))
+        })
     }
 
     /// Fetches a paginated list of transaction digests that affect a given
@@ -547,7 +560,7 @@ impl HistoricalFallbackReader {
         let cursor = match cursor {
             Some(digest) => match self.cursor_cache.get(&digest) {
                 Some(tx_sequence_number) => Some(tx_sequence_number),
-                None => self.resolve_transaction_sequence_number(digest).await?,
+                None => Some(self.resolve_transaction_sequence_number(digest).await?),
             },
             None => None,
         };
