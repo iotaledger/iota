@@ -903,7 +903,7 @@ mod ingestion_tests {
             s.owned_objects(sender)
                 .find(|o| o.is_gas_coin())
                 .unwrap()
-                .compute_object_reference()
+                .object_ref()
         })
     }
 
