@@ -29,7 +29,7 @@ use iota_types::{
     transaction::{Transaction, TransactionDataAPI},
 };
 use prometheus::{
-    CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGauge, Registry,
+    CounterVec, Gauge, GaugeVec, HistogramVec, IntCounter, IntCounterVec, IntGauge, Registry,
     register_counter_vec_with_registry, register_gauge_vec_with_registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_with_registry,
@@ -1125,6 +1125,55 @@ async fn run_bench_worker(
 
     let mut futures: FuturesUnordered<BoxFuture<NextOp>> = FuturesUnordered::new();
 
+    // Cache per-worker metric handles. All payloads from a worker share the
+    // same workload type (and thus the same Display label), so resolving
+    // `metrics.<name>.with_label_values(&[&payload.to_string()])` once at
+    // setup and reusing the resulting `Gauge` / `IntCounter` handle eliminates
+    // ~500ns of HashMap lookup AND a String allocation per dispatch. Across
+    // BURST × num_barriers dispatches per iter × 384 workers, this saves
+    // hundreds of ms of cumulative CPU work — keeping the fire loop in the
+    // microseconds range where the synchronized-burst race window can fire.
+    let (worker_inflight_gauge, worker_submitted_counter): (Gauge, IntCounter) = {
+        // Use the first payload's label if present; otherwise an empty
+        // string (no dispatches will happen with an empty pool anyway).
+        let label = free_pool.front().map(|p| p.to_string()).unwrap_or_default();
+        (
+            metrics_cloned.num_in_flight.with_label_values(&[&label]),
+            metrics_cloned.num_submitted.with_label_values(&[&label]),
+        )
+    };
+
+    // Pre-built (payload, tx) pairs ready for dispatch at the next barrier
+    // tick. `payload.make_transaction()` is the expensive part of dispatch
+    // (Ed25519 signing ~50-200us per call) and traditionally happens INSIDE
+    // the burst-fire loop — which serializes burst dispatch by the build
+    // cost (BURST=1800 × 100us ≈ 180ms per worker per burst). That smears
+    // the supposedly-synchronized barrier burst across ~200ms, dramatically
+    // narrowing the validator-side race-window.
+    //
+    // The fix: pre-build the batch BETWEEN barriers, fire it as a tight
+    // dispatch loop AT the barrier. Build happens during the worker's idle
+    // time (INTERVAL - build_duration); fire becomes microseconds of
+    // `futures.push` / `tokio::spawn`. Across 384 workers, this concentrates
+    // the synchronized arrival at the validator gate into ~1ms instead of
+    // ~200ms.
+    //
+    // Each pre-built tx has a UNIQUE digest (built from a distinct payload),
+    // so the validator's per-digest duplicate-detection path doesn't
+    // serialize them — the race condition stays functional.
+    let mut prebuilt_batch: Vec<(Box<dyn Payload>, Transaction)> =
+        Vec::with_capacity(burst_size as usize);
+
+    // Initial pre-build: fill the batch ahead of the first barrier so the
+    // first tick fires from buffer, not from on-the-fly building.
+    while prebuilt_batch.len() < burst_size as usize {
+        let Some(mut payload) = free_pool.pop_front() else {
+            break;
+        };
+        let tx = payload.make_transaction();
+        prebuilt_batch.push((payload, tx));
+    }
+
     // Initial burst: pre-fill the validator's in-flight queue BEFORE the
     // main pacing loop begins. Works in both OL and CL modes:
     //   OL: each tx fires as a detached `tokio::spawn` task subject to the
@@ -1178,14 +1227,8 @@ async fn run_bench_worker(
                 // CL submission path so per-tx accounting is identical.
                 num_in_flight += 1;
                 num_submitted += 1;
-                metrics_cloned
-                    .num_in_flight
-                    .with_label_values(&[&payload.to_string()])
-                    .inc();
-                metrics_cloned
-                    .num_submitted
-                    .with_label_values(&[&payload.to_string()])
-                    .inc();
+                worker_inflight_gauge.inc();
+                worker_submitted_counter.inc();
                 let start = Arc::new(Instant::now());
                 let committee = worker.proxy.clone_committee();
                 let res =
@@ -1294,9 +1337,9 @@ async fn run_bench_worker(
                             None => num_error_txes += 1,
                         }
                         num_submitted += 1;
-                        metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
+                        worker_submitted_counter.inc();
                         num_in_flight += 1;
-                        metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).inc();
+                        worker_inflight_gauge.inc();
                         // TODO: clone committee for each request is not ideal.
                         let committee = worker.proxy.clone_committee();
                         let start = Arc::new(Instant::now());
@@ -1309,8 +1352,10 @@ async fn run_bench_worker(
                         continue;
                     }
 
-                    // Otherwise send a fresh request
-                    if free_pool.is_empty() {
+                    // Otherwise dispatch from the pre-built batch (built
+                    // between barriers, so this fire-loop is essentially
+                    // free — just `futures.push` / `tokio::spawn`).
+                    if prebuilt_batch.is_empty() {
                         num_no_gas += 1;
                     } else if aimd_enabled && !worker.open_loop && num_in_flight >= aimd_cwnd {
                         // AIMD gate (closed-loop only): cwnd is the
@@ -1319,12 +1364,15 @@ async fn run_bench_worker(
                         // tick (cwnd may have grown in the meantime, or
                         // a response may have decremented num_in_flight).
                     } else {
-                        let mut payload = free_pool.pop_front().unwrap();
+                        // `pop()` from the end (Vec semantics — O(1)).
+                        // Each entry holds a payload + pre-built tx.
+                        let (payload, tx) = prebuilt_batch.pop().unwrap();
                         num_in_flight += 1;
                         num_submitted += 1;
-                        metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).inc();
-                        metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
-                        let tx = payload.make_transaction();
+                        // Use cached per-worker metric handles — see comment
+                        // at `worker_inflight_gauge` declaration.
+                        worker_inflight_gauge.inc();
+                        worker_submitted_counter.inc();
                         let start = Arc::new(Instant::now());
                         // TODO: clone committee for each request is not ideal.
                         let committee = worker.proxy.clone_committee();
@@ -1420,6 +1468,21 @@ async fn run_bench_worker(
                             futures.push(Box::pin(res));
                         }
                     }
+                }
+
+                // Refill `prebuilt_batch` for the NEXT barrier tick. This
+                // happens AFTER fire so the synchronized burst dispatch is
+                // bottleneck-free, and BEFORE the worker yields to wait for
+                // the next deadline — so the build work fills idle time.
+                // Build cost per tx: ~50-200us (Ed25519 sign). At BURST=1000
+                // that's ~100-200ms of CPU per worker per refill, well
+                // within INTERVAL=500ms slack.
+                while prebuilt_batch.len() < burst_size as usize {
+                    let Some(mut payload) = free_pool.pop_front() else {
+                        break;
+                    };
+                    let tx = payload.make_transaction();
+                    prebuilt_batch.push((payload, tx));
                 }
             }
             Some(op) = futures.next() => {
