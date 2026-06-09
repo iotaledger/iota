@@ -13,7 +13,18 @@ use crate::{
 /// Model types related to tables that support efficient execution of queries
 /// on the `objects` and related object tables.
 
-#[derive(Queryable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
+#[derive(
+    Queryable,
+    Insertable,
+    Debug,
+    Identifiable,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    QueryableByName,
+)]
 #[diesel(table_name = objects_version, primary_key(object_id, object_version))]
 pub struct StoredObjectVersion {
     pub object_id: Vec<u8>,

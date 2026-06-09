@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod backward_history;
+pub mod object_versions;
 
 use std::{
     net::SocketAddr,
