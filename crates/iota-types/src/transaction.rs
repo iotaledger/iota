@@ -19,14 +19,14 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, Digest, GenesisObject, GenesisTransaction, Identifier,
-    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish, SplitCoins,
-    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
+    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish, RandomnessStateUpdate,
+    SplitCoins, TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
     EndOfEpochTransactionKind, GasPayment as GasData, ProgrammableTransaction,
-    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
-    Transaction as TransactionData, TransactionV1 as TransactionDataV1,
+    SharedObjectReference as SharedObjectRef, SystemPackage, Transaction as TransactionData,
+    TransactionV1 as TransactionDataV1,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
