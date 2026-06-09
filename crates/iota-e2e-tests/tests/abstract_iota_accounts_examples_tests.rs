@@ -35,22 +35,20 @@ use fastcrypto::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, TypeTag};
+use iota_sdk_types::{Argument, Identifier, ObjectId, Owner, TypeTag, crypto::Intent};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_sdk_types::crypto::Intent;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     crypto::SignatureScheme,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     move_authenticator::MoveAuthenticator,
     move_package,
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        Argument, CallArg, ProgrammableTransaction, SharedObjectRef,
+        CallArg, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
         TransactionDataAPI, auth_digest_for_sig,
     },
@@ -2047,7 +2045,7 @@ impl TestEnvironment {
         &self,
         name: &str,
     ) -> anyhow::Result<(
-        ObjectID,
+        ObjectId,
         ObjectRef,
         iota_json_rpc_types::IotaTransactionBlockResponse,
     )> {
@@ -2078,7 +2076,7 @@ impl TestEnvironment {
             .test_cluster
             .get_object_from_fullnode_store(&metadata_id)
             .await
-            .map(|obj| obj.compute_object_reference())
+            .map(|obj| obj.object_ref())
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "package {name} has no PackageMetadataV1 — missing #[authenticator]?"
@@ -2160,7 +2158,7 @@ fn first_created_shared(effects: &TransactionEffects) -> anyhow::Result<ObjectRe
 }
 
 /// Format `pkg::module::Type` as a `TypeTag`.
-fn type_tag(package: &ObjectID, module: &str, type_name: &str) -> TypeTag {
+fn type_tag(package: &ObjectId, module: &str, type_name: &str) -> TypeTag {
     TypeTag::from_str(&format!("{package}::{module}::{type_name}")).unwrap()
 }
 
@@ -2265,7 +2263,7 @@ impl AuthCallArgs {
 async fn run_simple_auth_ed25519(
     env: &TestEnvironment,
     account_ref: ObjectRef,
-    _pkg_id: ObjectID,
+    _pkg_id: ObjectId,
     args: AuthCallArgs,
 ) -> anyhow::Result<(Outcome, Option<String>)> {
     let aa_sender: IotaAddress = account_ref.object_id.into();
