@@ -380,7 +380,7 @@ where
                 .collect();
 
             for object in input_objects {
-                let object_ref = object.compute_object_reference();
+                let object_ref = object.object_ref();
                 if expected
                     .get(&object_ref.object_id)
                     .is_none_or(|expect| &object_ref != expect)
@@ -403,7 +403,7 @@ where
                 .collect();
 
             for object in output_objects {
-                let object_ref = object.compute_object_reference();
+                let object_ref = object.object_ref();
                 if expected
                     .get(&object_ref.object_id)
                     .is_none_or(|expect| &object_ref != expect)

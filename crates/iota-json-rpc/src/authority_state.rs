@@ -19,7 +19,7 @@ use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
 };
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TransactionKind, TypeTag};
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
@@ -41,7 +41,7 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
-    transaction::{Transaction, TransactionData, TransactionKind},
+    transaction::{Transaction, TransactionData},
 };
 #[cfg(test)]
 use mockall::automock;

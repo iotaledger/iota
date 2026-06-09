@@ -12,6 +12,7 @@ iota-adapter-latest = { path = "latest/iota-adapter" }
 # iota-adapter-$CUT = { path = "$CUT/iota-adapter" }
 iota-move-natives-latest = { path = "latest/iota-move-natives" }
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 # iota-move-natives-$CUT = { path = "$CUT/iota-move-natives" }
 iota-verifier-latest = { path = "latest/iota-verifier" }

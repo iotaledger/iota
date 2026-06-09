@@ -13,13 +13,13 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
@@ -65,7 +65,7 @@ fn generate_random_gas_data(
         let gas_balance = rng.gen_range(0..=remaining_gas_balance);
         let gas_object = new_gas_coin_with_balance_and_owner(gas_balance, *owner);
         remaining_gas_balance -= gas_balance;
-        object_refs.push(gas_object.compute_object_reference());
+        object_refs.push(gas_object.object_ref());
         gas_objects.push(gas_object);
     }
     // Put the remaining balance in the last gas object.
@@ -73,7 +73,7 @@ fn generate_random_gas_data(
         remaining_gas_balance,
         gas_coin_owners[num_gas_objects - 1],
     );
-    object_refs.push(last_gas_object.compute_object_reference());
+    object_refs.push(last_gas_object.object_ref());
     gas_objects.push(last_gas_object);
 
     assert_eq!(gas_objects.len(), num_gas_objects);

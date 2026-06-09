@@ -134,7 +134,7 @@ impl std::fmt::Debug for ObjectEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectEntry::Object(o) => {
-                write!(f, "ObjectEntry::Object({:?})", o.compute_object_reference())
+                write!(f, "ObjectEntry::Object({:?})", o.object_ref())
             }
             ObjectEntry::Deleted => write!(f, "ObjectEntry::Deleted"),
             ObjectEntry::Wrapped => write!(f, "ObjectEntry::Wrapped"),
@@ -919,7 +919,7 @@ impl WritebackCache {
             if !object.is_child_object() {
                 self.write_object_entry(object_id, object.version(), object.clone().into());
                 if object.is_package() {
-                    debug!("caching package: {:?}", object.compute_object_reference());
+                    debug!("caching package: {:?}", object.object_ref());
                     self.packages
                         .insert(*object_id, PackageObject::new(object.clone()));
                 }
@@ -1391,10 +1391,7 @@ impl ObjectCacheRead for WritebackCache {
         if let Some(p) = self.get_object_impl("package", package_id)? {
             if p.is_package() {
                 let p = PackageObject::new(p);
-                tracing::trace!(
-                    "caching package: {:?}",
-                    p.object().compute_object_reference()
-                );
+                tracing::trace!("caching package: {:?}", p.object().object_ref());
                 self.metrics.record_cache_write("package");
                 self.packages.insert(*package_id, p.clone());
                 Ok(Some(p))
@@ -1498,7 +1495,7 @@ impl ObjectCacheRead for WritebackCache {
     ) -> IotaResult<Option<ObjectRef>> {
         match self.get_object_entry_by_id_cache_only("latest_objref_or_tombstone", &object_id) {
             CacheResult::Hit((version, entry)) => Ok(Some(match entry {
-                ObjectEntry::Object(object) => object.compute_object_reference(),
+                ObjectEntry::Object(object) => object.object_ref(),
                 ObjectEntry::Deleted => {
                     ObjectRef::new(object_id, version, ObjectDigest::OBJECT_DELETED)
                 }
@@ -1764,7 +1761,7 @@ impl ObjectCacheRead for WritebackCache {
     ) -> IotaLockResult {
         match self.get_object_by_id_cache_only("lock", &obj_ref.object_id) {
             CacheResult::Hit((_, obj)) => {
-                let actual_objref = obj.compute_object_reference();
+                let actual_objref = obj.object_ref();
                 if obj_ref != actual_objref {
                     Ok(ObjectLockStatus::LockedAtDifferentVersion {
                         locked_ref: actual_objref,
@@ -1803,7 +1800,7 @@ impl ObjectCacheRead for WritebackCache {
                 version: None,
             },
         )?;
-        Ok(obj.compute_object_reference())
+        Ok(obj.object_ref())
     }
 
     fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
@@ -1811,7 +1808,7 @@ impl ObjectCacheRead for WritebackCache {
             owned_object_refs,
             |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.object_id) {
                 CacheResult::Hit((version, obj)) => {
-                    if obj.compute_object_reference() != *obj_ref {
+                    if obj.object_ref() != *obj_ref {
                         Err(UserInputError::ObjectVersionUnavailableForConsumption {
                             provided_obj_ref: *obj_ref,
                             current_version: version,

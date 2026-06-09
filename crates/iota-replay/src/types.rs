@@ -7,13 +7,13 @@ use std::fmt::Debug;
 use iota_json_rpc_types::{IotaEvent, IotaObjectResponseError, IotaTransactionBlockEffects};
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::error::Error as IotaRpcError;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionKind};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
     digests::{ObjectDigest, TransactionDigest},
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
-    transaction::{InputObjectKind, SenderSignedData, TransactionKind},
+    transaction::{InputObjectKind, SenderSignedData},
 };
 use jsonrpsee::core::ClientError as JsonRpseeError;
 use move_binary_format::CompiledModule;

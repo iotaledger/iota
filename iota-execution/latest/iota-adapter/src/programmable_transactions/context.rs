@@ -18,7 +18,10 @@ mod checked {
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+    use iota_sdk_types::{
+        Argument, CommandArgumentError, Identifier, ObjectId, Owner, StructTag, TypeTag,
+        move_package::MovePackage,
+    };
     use iota_types::{
         balance::Balance,
         base_types::{IotaAddress, TxContext},
@@ -26,13 +29,12 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
         execution::{ExecutionResults, ExecutionResultsV1},
-        execution_status::CommandArgumentError,
         iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
-        move_package::{MovePackage, MovePackageExt, derive_package_metadata_id},
-        object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, Owner},
+        move_package::{MovePackageExt, derive_package_metadata_id},
+        object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
-        transaction::{Argument, CallArg, SharedObjectRef},
+        transaction::{CallArg, SharedObjectRef},
     };
     use move_binary_format::{
         CompiledModule,
@@ -976,7 +978,7 @@ mod checked {
 
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
-            use iota_types::execution_status::TypeArgumentError;
+            use iota_sdk_types::TypeArgumentError;
             use move_core_types::vm_status::StatusCode;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {

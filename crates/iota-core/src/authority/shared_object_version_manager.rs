@@ -4,13 +4,12 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, VersionAssignment};
 use iota_types::{
     base_types::{SequenceNumber, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
-    messages_consensus::VersionAssignment,
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },

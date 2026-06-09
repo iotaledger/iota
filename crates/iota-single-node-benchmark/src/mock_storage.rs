@@ -8,13 +8,13 @@ use std::{
 };
 
 use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     base_types::{EpochId, SequenceNumber, VersionNumber},
     error::{IotaError, IotaResult},
     inner_temporary_store::InnerTemporaryStore,
-    object::{Object, Owner},
+    object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module_by_id,
     },

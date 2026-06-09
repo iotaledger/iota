@@ -11,8 +11,10 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command, Identifier, MoveCall,
-    ObjectId, TransferObjects, TypeTag,
+    Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
+    Command, ConsensusDeterminedVersionAssignments, ExecutionError as ExecutionFailureStatus,
+    ExecutionStatus, GenesisObject, Identifier, MoveCall, ObjectId, Owner, TransactionKind,
+    TransferObjects, TypeTag, VersionAssignment, gas::GasCostSummary,
 };
 use iota_types::{
     base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
@@ -21,24 +23,18 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::BigInt,
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
-    messages_consensus::{
-        CancelledTransaction, ConsensusDeterminedVersionAssignments, VersionAssignment,
-    },
-    object::{Owner, bounded_visitor::BoundedVisitor},
+    object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, EndOfEpochTransactionKind, GenesisObject, InputObjectKind,
-        ProgrammableTransaction, SenderSignedData, SharedObjectRef, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        CallArg, EndOfEpochTransactionKind, InputObjectKind, ProgrammableTransaction,
+        SenderSignedData, SharedObjectRef, TransactionData, TransactionDataAPI,
     },
 };
 use move_binary_format::CompiledModule;
@@ -62,7 +58,7 @@ use crate::{
     iota_owner::OwnerSchema,
     iota_primitives::{
         Base58 as Base58Schema, Base64 as Base64Schema, GenericSignature as GenericSignatureSchema,
-        IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema,
         SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
     },
@@ -270,6 +266,7 @@ impl IotaTransactionBlockResponseOptions {
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, Default)]
 #[serde(rename_all = "camelCase", rename = "TransactionBlockResponse")]
 pub struct IotaTransactionBlockResponse {
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: TransactionDigest,
     /// Transaction input data
@@ -798,7 +795,8 @@ pub trait IotaTransactionBlockEffectsAPI {
     rename_all = "camelCase"
 )]
 pub struct IotaTransactionBlockEffectsModifiedAtVersions {
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     object_id: ObjectId,
     #[schemars(with = "SequenceNumberStringSchema")]
     #[serde_as(as = "SequenceNumberStringSchema")]
@@ -830,6 +828,7 @@ pub struct IotaTransactionBlockEffectsV1 {
     #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub shared_objects: Vec<ObjectRef>,
     /// The transaction digest
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub transaction_digest: TransactionDigest,
     /// ObjectRef and owner of new objects created.
@@ -865,10 +864,12 @@ pub struct IotaTransactionBlockEffectsV1 {
     /// The digest of the events emitted during execution,
     /// can be None if the transaction does not emit any event.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde_as(as = "Option<Base58Schema>")]
     #[schemars(with = "Option<Base58Schema>")]
     pub events_digest: Option<TransactionEventsDigest>,
     /// The set of transaction digests this transaction depends on.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde_as(as = "Vec<Base58Schema>")]
     #[schemars(with = "Vec<Base58Schema>")]
     pub dependencies: Vec<TransactionDigest>,
 }
@@ -1268,6 +1269,7 @@ impl Display for IotaTransactionBlockEvents {
 pub struct DevInspectArgs {
     /// The sponsor of the gas for the transaction, might be different from the
     /// sender.
+    #[serde_as(as = "Option<IotaAddressSchema>")]
     #[schemars(with = "Option<IotaAddressSchema>")]
     pub gas_sponsor: Option<IotaAddress>,
     /// The gas budget for the transaction.
@@ -1617,6 +1619,7 @@ pub struct IotaGasData {
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub payment: Vec<ObjectRef>,
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub owner: IotaAddress,
     #[schemars(with = "String")]
@@ -1663,6 +1666,7 @@ pub trait IotaTransactionBlockDataAPI {
 #[serde(rename = "TransactionBlockDataV1", rename_all = "camelCase")]
 pub struct IotaTransactionBlockDataV1 {
     pub transaction: IotaTransactionBlockKind,
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub sender: IotaAddress,
     pub gas_data: IotaGasData,
@@ -1763,10 +1767,12 @@ impl Display for IotaTransactionBlockData {
     }
 }
 
+#[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, PartialEq, Eq)]
 #[serde(rename = "TransactionBlock", rename_all = "camelCase")]
 pub struct IotaTransactionBlock {
     pub data: IotaTransactionBlockData,
+    #[serde_as(as = "Vec<GenericSignatureSchema>")]
     #[schemars(with = "Vec<GenericSignatureSchema>")]
     pub tx_signatures: Vec<GenericSignature>,
 }
@@ -1840,7 +1846,8 @@ impl Display for IotaTransactionBlock {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaGenesisTransaction {
-    #[schemars(with = "Vec<ObjectIDSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    #[schemars(with = "Vec<ObjectIdSchema>")]
     pub objects: Vec<ObjectId>,
     #[schemars(with = "Vec<IotaEventID>")]
     pub events: Vec<EventID>,
@@ -1861,6 +1868,7 @@ pub struct IotaConsensusCommitPrologueV1 {
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub commit_timestamp_ms: u64,
+    #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub consensus_commit_digest: ConsensusCommitDigest,
     pub consensus_determined_version_assignments: IotaConsensusDeterminedVersionAssignments,
@@ -1868,12 +1876,14 @@ pub struct IotaConsensusCommitPrologueV1 {
 
 /// Uses an enum to allow for future expansion of the
 /// ConsensusDeterminedVersionAssignments.
+#[serde_as]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "ConsensusDeterminedVersionAssignments")]
 pub enum IotaConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
     CancelledTransactions(
-        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIDSchema, SequenceNumberU64Schema)>)>")]
+        #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64Schema)>)>")]
+        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64Schema)>)>")]
         Vec<(TransactionDigest, Vec<(ObjectId, SequenceNumber)>)>,
     ),
 }
@@ -1964,7 +1974,11 @@ pub enum IotaEndOfEpochTransactionKind {
 #[serde(rename = "InputObjectKind")]
 pub enum IotaInputObjectKind {
     // A Move package, must be immutable.
-    MovePackage(#[schemars(with = "ObjectIDSchema")] ObjectId),
+    MovePackage(
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
+    ),
     // A Move object, either immutable, or owned mutable.
     ImmOrOwnedMoveObject(
         #[schemars(with = "ObjectRefSchema")]
@@ -1973,7 +1987,8 @@ pub enum IotaInputObjectKind {
     ),
     // A Move object that's shared and mutable.
     SharedMoveObject {
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
@@ -2144,11 +2159,19 @@ pub enum IotaCommand {
     MergeCoins(IotaArgument, Vec<IotaArgument>),
     /// Publishes a Move package. It takes the package bytes and a list of the
     /// package's transitive dependencies to link against on-chain.
-    Publish(#[schemars(with = "Vec<ObjectIDSchema>")] Vec<ObjectId>),
+    Publish(
+        #[serde_as(as = "Vec<ObjectIdSchema>")]
+        #[schemars(with = "Vec<ObjectIdSchema>")]
+        Vec<ObjectId>,
+    ),
     /// Upgrades a Move package
     Upgrade(
-        #[schemars(with = "Vec<ObjectIDSchema>")] Vec<ObjectId>,
-        #[schemars(with = "ObjectIDSchema")] ObjectId,
+        #[serde_as(as = "Vec<ObjectIdSchema>")]
+        #[schemars(with = "Vec<ObjectIdSchema>")]
+        Vec<ObjectId>,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
         IotaArgument,
     ),
     /// `forall T: Vec<T> -> vector<T>`
@@ -2292,7 +2315,8 @@ pub enum PtbInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaProgrammableMoveCall {
     /// The package containing the module and function.
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub package: ObjectId,
     /// The specific module in the package containing the function.
     pub module: String,
@@ -2423,9 +2447,11 @@ pub enum RPCTransactionRequestParams {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferObjectParams {
+    #[serde_as(as = "IotaAddressSchema")]
     #[schemars(with = "IotaAddressSchema")]
     pub recipient: IotaAddress,
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub object_id: ObjectId,
 }
 
@@ -2433,7 +2459,8 @@ pub struct TransferObjectParams {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MoveCallParams {
-    #[schemars(with = "ObjectIDSchema")]
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
     pub package_object_id: ObjectId,
     pub module: String,
     pub function: String,
@@ -2587,11 +2614,13 @@ pub enum IotaObjectArg {
     // A Move object, either immutable, or owned mutable.
     #[serde(rename_all = "camelCase")]
     ImmOrOwnedObject {
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
+        #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
@@ -2600,7 +2629,8 @@ pub enum IotaObjectArg {
     // object.
     #[serde(rename_all = "camelCase")]
     SharedObject {
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
@@ -2610,11 +2640,13 @@ pub enum IotaObjectArg {
     // A reference to a Move object that's going to be received in the transaction.
     #[serde(rename_all = "camelCase")]
     Receiving {
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
         version: SequenceNumber,
+        #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
@@ -2643,29 +2675,49 @@ pub enum TransactionFilter {
     ),
     /// Query by move function.
     MoveFunction {
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         package: ObjectId,
         module: Option<String>,
         function: Option<String>,
     },
     /// Query by input object.
-    InputObject(#[schemars(with = "ObjectIDSchema")] ObjectId),
+    InputObject(
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
+    ),
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
-    ChangedObject(#[schemars(with = "ObjectIDSchema")] ObjectId),
+    ChangedObject(
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
+    ),
     /// Query by sender address.
-    FromAddress(#[schemars(with = "IotaAddressSchema")] IotaAddress),
+    FromAddress(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     /// Query by recipient address.
-    ToAddress(#[schemars(with = "IotaAddressSchema")] IotaAddress),
+    ToAddress(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     /// Query by sender and recipient address.
     FromAndToAddress {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         from: IotaAddress,
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         to: IotaAddress,
     },
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         addr: IotaAddress,
     },
@@ -2772,33 +2824,57 @@ pub enum TransactionFilterV2 {
     ),
     /// Query by move function.
     MoveFunction {
-        #[schemars(with = "ObjectIDSchema")]
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
         package: ObjectId,
         module: Option<String>,
         function: Option<String>,
     },
     /// Query by input object.
-    InputObject(#[schemars(with = "ObjectIDSchema")] ObjectId),
+    InputObject(
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
+    ),
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
-    ChangedObject(#[schemars(with = "ObjectIDSchema")] ObjectId),
+    ChangedObject(
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
+    ),
     /// Query transactions that wrapped or deleted the specified object.
     /// Includes transactions that either created and immediately wrapped
     /// the object or unwrapped and immediately deleted it.
-    WrappedOrDeletedObject(#[schemars(with = "ObjectIDSchema")] ObjectId),
+    WrappedOrDeletedObject(
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        ObjectId,
+    ),
     /// Query by sender address.
-    FromAddress(#[schemars(with = "IotaAddressSchema")] IotaAddress),
+    FromAddress(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     /// Query by recipient address.
-    ToAddress(#[schemars(with = "IotaAddressSchema")] IotaAddress),
+    ToAddress(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     /// Query by sender and recipient address.
     FromAndToAddress {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         from: IotaAddress,
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         to: IotaAddress,
     },
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress {
+        #[serde_as(as = "IotaAddressSchema")]
         #[schemars(with = "IotaAddressSchema")]
         addr: IotaAddress,
     },

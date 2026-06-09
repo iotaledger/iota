@@ -22,7 +22,7 @@ use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::GasCostSummary;
+use iota_sdk_types::{GasCostSummary, TransactionKind};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
     committee::StakeUnit,
@@ -45,7 +45,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
-    transaction::{TransactionDataAPI, TransactionKey, TransactionKind},
+    transaction::{TransactionDataAPI, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
@@ -2695,7 +2695,7 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
-    use iota_sdk_types::{Identifier, ObjectId};
+    use iota_sdk_types::{GenesisObject, Identifier, ObjectId, Owner, move_package::MovePackage};
     use iota_types::{
         base_types::{SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
@@ -2704,9 +2704,8 @@ mod tests {
             TransactionEvents,
         },
         messages_checkpoint::SignedCheckpointSummary,
-        move_package::MovePackage,
         object,
-        transaction::{GenesisObject, VerifiedTransaction},
+        transaction::VerifiedTransaction,
     };
     use tokio::sync::mpsc;
 
@@ -2743,7 +2742,7 @@ mod tests {
                     )
                     .unwrap(),
                 ),
-                object::Owner::Immutable,
+                Owner::Immutable,
             )],
             vec![],
         );

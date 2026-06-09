@@ -10,11 +10,10 @@ use iota_core::{
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
@@ -42,7 +41,7 @@ fn build_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
 pub fn assert_is_acceptable_result(result: &ExecutionResult) {
     if let Ok(
         e @ ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InvariantViolation,
+            error: ExecutionError::InvariantViolation,
             command: _,
         },
     ) = result
@@ -118,11 +117,11 @@ impl Executor {
     ) -> TransactionEffects {
         let (_, modules) = build_test_modules(package_name);
         // let gas_obj_ref =
-        // account.current_coins.last().unwrap().compute_object_reference();
+        // account.current_coins.last().unwrap().object_ref();
         let gas_object = account.new_gas_object(self);
         let data = TransactionData::new_module(
             account.initial_data.account.address,
-            gas_object.compute_object_reference(),
+            gas_object.object_ref(),
             modules,
             dep_ids,
             PUBLISH_BUDGET,

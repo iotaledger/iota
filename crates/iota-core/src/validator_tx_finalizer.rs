@@ -677,11 +677,7 @@ mod tests {
         keypair: &AccountKeyPair,
         gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
-        let gas_object_ref = state
-            .get_object(&gas_object_id)
-            .await
-            .unwrap()
-            .compute_object_reference();
+        let gas_object_ref = state.get_object(&gas_object_id).await.unwrap().object_ref();
         let tx_data = TestTransactionBuilder::new(
             sender,
             gas_object_ref,

@@ -5,7 +5,8 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
-use iota_types::{base_types::ObjectInfo, object::Owner};
+use iota_sdk_types::Owner;
+use iota_types::base_types::ObjectInfo;
 use tracing::info;
 use typed_store::traits::Map;
 
@@ -35,7 +36,7 @@ pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>
 
         // Owner Index Calculation
         let owner_index_key = (owner, object.id());
-        let object_info = ObjectInfo::new(&object.compute_object_reference(), &object);
+        let object_info = ObjectInfo::new(&object.object_ref(), &object);
 
         owner_index.insert(owner_index_key, object_info);
 

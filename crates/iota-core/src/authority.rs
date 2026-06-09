@@ -45,8 +45,9 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    ObjectId, StructTag, TypeTag,
+    ExecutionStatus, ObjectId, Owner, StructTag, TransactionExpiration, TransactionKind, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+    gas::GasCostSummary,
 };
 use iota_storage::{
     key_value_store::{
@@ -82,9 +83,8 @@ use iota_types::{
     event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
-    execution_status::ExecutionStatus,
     fp_ensure,
-    gas::{GasCostSummary, IotaGasStatus},
+    gas::IotaGasStatus,
     gas_coin::NANOS_PER_IOTA,
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
@@ -112,7 +112,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     object::{
-        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{
@@ -2027,7 +2027,7 @@ impl AuthorityState {
                 Owner::Address(sender),
                 TransactionDigest::GENESIS_MARKER,
             );
-            let gas_object_ref = gas_object.compute_object_reference();
+            let gas_object_ref = gas_object.object_ref();
             // Add gas object to transaction gas payment
             transaction.gas_data_mut().objects = vec![gas_object_ref];
             (
@@ -2227,7 +2227,7 @@ impl AuthorityState {
                 Owner::Address(transaction.gas_data().owner),
                 TransactionDigest::GENESIS_MARKER,
             );
-            let mock_gas_object_ref = mock_gas_object.compute_object_reference();
+            let mock_gas_object_ref = mock_gas_object.object_ref();
             transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
             Some(mock_gas_object.id())
@@ -2411,7 +2411,7 @@ impl AuthorityState {
                     SIMULATION_GAS_COIN_VALUE,
                     transaction.gas_owner(),
                 );
-                let gas_object_ref = dummy_gas_object.compute_object_reference();
+                let gas_object_ref = dummy_gas_object.object_ref();
                 transaction.gas_data_mut().objects = vec![gas_object_ref];
                 input_objects.push(ObjectReadResult::new(
                     InputObjectKind::ImmOrOwnedMoveObject(gas_object_ref),
@@ -2442,7 +2442,7 @@ impl AuthorityState {
                     SIMULATION_GAS_COIN_VALUE,
                     transaction.gas_owner(),
                 );
-                let gas_object_ref = dummy_gas_object.compute_object_reference();
+                let gas_object_ref = dummy_gas_object.object_ref();
                 transaction.gas_data_mut().objects = vec![gas_object_ref];
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -3044,7 +3044,7 @@ impl AuthorityState {
             // Only address owned objects have locks.
             None
         } else {
-            self.get_transaction_lock(&object.compute_object_reference(), &epoch_store)
+            self.get_transaction_lock(&object.object_ref(), &epoch_store)
                 .await?
                 .map(|s| s.into_inner())
         };
@@ -3363,10 +3363,9 @@ impl AuthorityState {
             .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()));
         for o in genesis_objects.iter() {
             match o.owner {
-                Owner::Address(addr) => new_owners.push((
-                    (addr, o.id()),
-                    ObjectInfo::new(&o.compute_object_reference(), o),
-                )),
+                Owner::Address(addr) => {
+                    new_owners.push(((addr, o.id()), ObjectInfo::new(&o.object_ref(), o)))
+                }
                 Owner::Object(object_id) => {
                     let id = o.id();
                     let info = match self.try_create_dynamic_field_info(
@@ -3765,7 +3764,7 @@ impl AuthorityState {
             .try_get_object(&ObjectId::SYSTEM)
             .await?
             .expect("system package should always exist")
-            .compute_object_reference())
+            .object_ref())
     }
 
     // This function is only used for testing.
@@ -3846,7 +3845,7 @@ impl AuthorityState {
             {
                 Some((_, ObjectOrTombstone::Object(object))) => {
                     let layout = self.get_object_layout(&object)?;
-                    ObjectRead::Exists(object.compute_object_reference(), object, layout)
+                    ObjectRead::Exists(object.object_ref(), object, layout)
                 }
                 Some((_, ObjectOrTombstone::Tombstone(objref))) => ObjectRead::Deleted(objref),
                 None => ObjectRead::NotExists(*object_id),
@@ -3909,7 +3908,7 @@ impl AuthorityState {
             // Read past objects
             return Ok(match self.read_object_at_version(object_id, version)? {
                 Some((object, layout)) => {
-                    let obj_ref = object.compute_object_reference();
+                    let obj_ref = object.object_ref();
                     PastObjectRead::VersionFound(obj_ref, object, layout)
                 }
 
@@ -4904,7 +4903,7 @@ impl AuthorityState {
         let mut res = Vec::with_capacity(system_packages.len());
         for (system_package_ref, object) in system_packages.into_iter().zip(objects.iter()) {
             let prev_transaction = match object {
-                Some(cur_object) if cur_object.compute_object_reference() == system_package_ref => {
+                Some(cur_object) if cur_object.object_ref() == system_package_ref => {
                     // Skip this one because it doesn't need to be upgraded.
                     info!(
                         "Framework {} does not need updating",
@@ -4949,7 +4948,7 @@ impl AuthorityState {
                 prev_transaction,
             );
 
-            let new_ref = new_object.compute_object_reference();
+            let new_ref = new_object.object_ref();
             if new_ref != system_package_ref {
                 error!(
                     "Framework mismatch -- binary: {new_ref:?}\n  upgrade: {system_package_ref:?}"
@@ -5586,7 +5585,7 @@ impl AuthorityState {
 
             Ok(AuthenticatorFunctionRefForExecution::new_v1(
                 field.value,
-                authenticator_function_ref_field_obj.compute_object_reference(),
+                authenticator_function_ref_field_obj.object_ref(),
                 authenticator_function_ref_field_obj.owner,
                 authenticator_function_ref_field_obj.storage_rebate,
                 authenticator_function_ref_field_obj.previous_transaction,
@@ -6130,7 +6129,7 @@ pub struct ObjDumpFormat {
 
 impl ObjDumpFormat {
     fn new(object: Object) -> Self {
-        let oref = object.compute_object_reference();
+        let oref = object.object_ref();
         Self {
             id: oref.object_id,
             version: oref.version,

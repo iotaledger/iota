@@ -5,8 +5,7 @@
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_move_build::test_utils::compile_basics_package;
-use iota_sdk_types::ObjectId;
-use iota_types::object::Owner;
+use iota_sdk_types::{ObjectId, Owner};
 use jsonrpsee::rpc_params;
 
 use crate::{TestCaseImpl, TestContext};

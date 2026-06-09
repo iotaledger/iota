@@ -101,7 +101,6 @@ async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
             ),
             internal_data_port,
             adapter.read_replica.as_ref().unwrap().clone(),
-            Some(offchain_config.snapshot_config.clone()),
             offchain_config.epochs_to_keep,
             offchain_config.data_ingestion_path.clone(),
         )

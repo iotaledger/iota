@@ -83,8 +83,8 @@ use crate::{
     pruning::watermark_task::WatermarkCache,
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
-        objects, objects_snapshot, objects_version, optimistic_transactions, packages,
-        pruner_cp_watermark, transactions, tx_digests, tx_global_order,
+        objects, objects_version, optimistic_transactions, packages, pruner_cp_watermark,
+        transactions, tx_digests, tx_global_order,
     },
     store::{
         diesel_macro::{mark_in_blocking_pool, *},
@@ -2497,29 +2497,6 @@ impl IndexerReader {
         };
 
         Ok(maybe_obj.map(T::try_from).transpose()?)
-    }
-
-    pub fn get_consistent_read_range(&self) -> Result<(i64, i64), IndexerError> {
-        let latest_checkpoint_sequence = run_query!(&self.pool, |conn| {
-            checkpoints::table
-                .select(checkpoints::sequence_number)
-                .order(checkpoints::sequence_number.desc())
-                .first::<i64>(conn)
-                .optional()
-        })?
-        .unwrap_or_default();
-        let latest_object_snapshot_checkpoint_sequence = run_query!(&self.pool, |conn| {
-            objects_snapshot::table
-                .select(objects_snapshot::checkpoint_sequence_number)
-                .order(objects_snapshot::checkpoint_sequence_number.desc())
-                .first::<i64>(conn)
-                .optional()
-        })?
-        .unwrap_or_default();
-        Ok((
-            latest_object_snapshot_checkpoint_sequence,
-            latest_checkpoint_sequence,
-        ))
     }
 
     pub fn package_resolver(&self) -> &PackageResolver {

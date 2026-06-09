@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.25.0-alpha"
+    "version": "1.26.0-alpha"
   },
   "methods": [
     {
@@ -1294,13 +1294,14 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "28",
+              "maxSupportedProtocolVersion": "29",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "additional_borrow_checks": false,
                 "additional_multisig_checks": false,
                 "adjust_rewards_by_score": false,
+                "always_advance_dkg_to_resolution": false,
                 "calculate_validator_scores": false,
                 "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
@@ -1315,6 +1316,7 @@
                 "consensus_round_prober": false,
                 "consensus_round_prober_probe_accepted_rounds": false,
                 "consensus_smart_ancestor_selection": false,
+                "consensus_starfish_speed": false,
                 "consensus_zstd_compression": false,
                 "convert_type_argument_error": true,
                 "dependency_linkage_error": false,
@@ -3408,7 +3410,7 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIDSchema>",
+        "name": "Page<Coin,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
@@ -3683,7 +3685,7 @@
         }
       ],
       "result": {
-        "name": "Page<Coin,ObjectIDSchema>",
+        "name": "Page<Coin,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
@@ -3976,7 +3978,7 @@
         }
       ],
       "result": {
-        "name": "Page<IotaDynamicFieldInfo,ObjectIDSchema>",
+        "name": "Page<IotaDynamicFieldInfo,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_DynamicFieldInfo_and_ObjectID"
@@ -4269,7 +4271,7 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIDSchema>",
+        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
@@ -4761,7 +4763,7 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIDSchema>",
+        "name": "Page<IotaObjectResponse,ObjectIdSchema>",
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
@@ -6507,6 +6509,7 @@
           },
           "gasSponsor": {
             "description": "The sponsor of the gas for the transaction, might be different from the sender.",
+            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -7869,6 +7872,7 @@
           },
           "id": {
             "description": "Object id for the CoinMetadata object",
+            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
@@ -8350,6 +8354,7 @@
           },
           "targetAddress": {
             "description": "The target address that this name points to",
+            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -9399,6 +9404,7 @@
             "$ref": "#/components/schemas/Base64"
           },
           "nextEpochAuthorityPubkeyBytes": {
+            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Base64"
@@ -9421,6 +9427,7 @@
             ]
           },
           "nextEpochNetworkPubkeyBytes": {
+            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Base64"
@@ -9443,6 +9450,7 @@
             ]
           },
           "nextEpochProofOfPossession": {
+            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Base64"
@@ -9453,6 +9461,7 @@
             ]
           },
           "nextEpochProtocolPubkeyBytes": {
+            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Base64"
@@ -10031,7 +10040,7 @@
                 "$ref": "#/components/schemas/ObjectID"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"

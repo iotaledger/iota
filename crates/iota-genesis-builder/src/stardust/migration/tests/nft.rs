@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use iota_sdk_types::{Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::{
     address::{AliasAddress, Bech32Address, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
     output::{
@@ -29,7 +29,7 @@ use iota_types::{
     collection_types::VecMap,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
-    object::{Object, Owner},
+    object::Object,
     stardust::{
         coin_type::CoinType,
         output::{

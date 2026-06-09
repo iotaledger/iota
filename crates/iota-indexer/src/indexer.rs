@@ -9,20 +9,15 @@ use iota_data_ingestion_core::ReaderOptions;
 use iota_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     build_json_rpc_server,
-    config::{
-        HistoricFallbackOptions, IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig,
-    },
+    config::{HistoricFallbackOptions, IngestionConfig, JsonRpcConfig, RetentionConfig},
     db::ConnectionPool,
     errors::IndexerError,
     historical_fallback::reader::HistoricalFallbackReader,
-    ingestion::{
-        common::connection::resolve_remote_url, primary::orchestration::PrimaryPipeline,
-        snapshot::orchestration::SnapshotPipelineBuilder,
-    },
+    ingestion::{common::connection::resolve_remote_url, primary::orchestration::PrimaryPipeline},
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
     pruning::{
@@ -44,7 +39,6 @@ impl Indexer {
         config: &IngestionConfig,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
-        snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
@@ -78,71 +72,31 @@ impl Indexer {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
 
-        let mut primary_pipeline = PrimaryPipeline::setup(
+        let primary_pipeline = PrimaryPipeline::setup(
             store.clone(),
             metrics.clone(),
             config.checkpoint_download_queue_size,
             cancel.clone(),
         )
         .await?;
-
-        let snapshot_pipeline_builder = SnapshotPipelineBuilder::new(
-            store.clone(),
-            metrics.clone(),
-            snapshot_config,
-            config.checkpoint_download_queue_size,
-            cancel.clone(),
-        )
-        .await?;
-
-        // data_ingestion_path can only feed data to one executor,
-        // but if we have remote_store_url we can use many executors
-        let use_separate_executors = remote_store_url.is_some();
-        let snapshot_pipeline = if use_separate_executors {
-            snapshot_pipeline_builder
-                .finalize_with_dedicated_executor()
-                .await?
-        } else {
-            warn!(
-                "Sharing the same executor between Primary and Snapshot pipelines due to not \
-                 provided --remote-store-url argument. Limited possibilities for Snapshot lag \
-                 config. This may be deprecated in the future."
-            );
-            snapshot_pipeline_builder
-                .finalize_with_shared_executor(&mut primary_pipeline.executor)
-                .await?
-        };
 
         info!("Starting data ingestion executor...");
-        let mut primary_pipeline_handle = primary_pipeline
+        let primary_pipeline_handle = primary_pipeline
             .run(
                 config.sources.data_ingestion_path.clone(),
-                remote_store_url.clone(),
-                extra_reader_options.clone(),
+                remote_store_url,
+                extra_reader_options,
             )
             .await;
 
-        let mut snapshot_pipeline_handle = snapshot_pipeline
-            .run(remote_store_url, extra_reader_options)
-            .await;
-
-        let mut primary_pipeline_done = false;
-        let mut snapshot_pipeline_done = false;
-        while !primary_pipeline_done || !snapshot_pipeline_done {
-            tokio::select! {
-                result = &mut primary_pipeline_handle, if !primary_pipeline_done => {
-                    result.context("failed to join primary pipeline")?.context("primary pipeline failed")?;
-                    info!("Primary pipeline finished successfully");
-                    primary_pipeline_done = true;
-                },
-                result = &mut snapshot_pipeline_handle, if !snapshot_pipeline_done => {
-                    result.context("failed to join snapshot pipeline")?.context("snapshot pipeline failed")?;
-                    info!("Snapshot pipeline finished successfully");
-                    snapshot_pipeline_done = true;
-                },
-            }
-            cancel.cancel();
-        }
+        let result = primary_pipeline_handle
+            .await
+            .context("failed to join primary pipeline")?
+            .context("primary pipeline failed");
+        info!("Primary pipeline finished");
+        // Tell other tasks (e.g. the pruner) to stop.
+        cancel.cancel();
+        result?;
 
         Ok(())
     }
