@@ -2998,12 +2998,6 @@ impl CheckedInputObjects {
         Self(input_objects)
     }
 
-    // Only called by post-consensus coin deny-list re-checks for attested
-    // transactions.
-    pub fn new_for_deny_list_check_only(input_objects: InputObjects) -> Self {
-        Self(input_objects)
-    }
-
     pub fn inner(&self) -> &InputObjects {
         &self.0
     }

@@ -5736,16 +5736,19 @@ impl AuthorityState {
                 per_authenticator_inputs.clone(),
             )?;
 
-        // Step 5: coin deny list.
-        let per_authenticator_checked_input_objects: Vec<&_> = per_authenticator_checked_inputs
+        // Step 5: coin deny list. Pass raw `&InputObjects` (the deny-list
+        // check only reads coin types and does not need the
+        // `CheckedInputObjects` type-state — which is still enforced fresh
+        // at `check_certificate_input` in `prepare_certificate`).
+        let per_authenticator_input_objects: Vec<&InputObjects> = per_authenticator_checked_inputs
             .iter()
-            .map(|i| &i.0)
+            .map(|i| i.0.inner())
             .collect();
         check_coin_deny_list_v1(
             tx_data.sender(),
-            &tx_checked_input_objects,
+            tx_checked_input_objects.inner(),
             &tx_receiving_objects,
-            &per_authenticator_checked_input_objects,
+            &per_authenticator_input_objects,
             &self.get_object_store(),
         )?;
 
@@ -5774,18 +5777,15 @@ impl AuthorityState {
     ) -> IotaResult<()> {
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
             self.read_objects_for_validation(transaction, epoch)?;
-        let tx_checked = CheckedInputObjects::new_for_deny_list_check_only(tx_input_objects);
-        let per_authenticator_checked: Vec<CheckedInputObjects> = per_authenticator_inputs
-            .into_iter()
-            .map(|(io, _)| CheckedInputObjects::new_for_deny_list_check_only(io))
+        let per_authenticator_input_objects: Vec<&InputObjects> = per_authenticator_inputs
+            .iter()
+            .map(|(io, _)| io)
             .collect();
-        let per_authenticator_refs: Vec<&CheckedInputObjects> =
-            per_authenticator_checked.iter().collect();
         check_coin_deny_list_v1(
             transaction.data().transaction_data().sender(),
-            &tx_checked,
+            &tx_input_objects,
             &tx_receiving_objects,
-            &per_authenticator_refs,
+            &per_authenticator_input_objects,
             &self.get_object_store(),
         )?;
         Ok(())
