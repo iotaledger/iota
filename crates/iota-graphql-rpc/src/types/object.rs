@@ -1690,7 +1690,7 @@ impl Loader<OptimisticKey> for Db {
             }
         }
 
-        // For missing keys, fallback to using the objects_history table
+        // For missing keys, fallback to the backward-history loader
         if !missing_keys.is_empty() {
             let historical_keys: Vec<HistoricalKey> = missing_keys
                 .iter()

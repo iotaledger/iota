@@ -91,6 +91,38 @@ To bring up 10 validators and faucet:
 > - Update IP address assignments in the docker-compose.yaml for the additional validators
 > - **(Optional)** Adjust the stake distribution in the chosen `genesis-template-<N>.yaml` if you want different validator stakes.
 
+### Optional: Benchmark Mode
+
+To run stress benchmarks against the private network, bootstrap with the `-b` flag. This adds deterministic gas accounts (from `GenesisConfig::benchmark_gas_keys()`) to the genesis and generates a `benchmark.keystore` file with the matching private keys.
+
+```bash
+./bootstrap.sh -b
+./run.sh faucet
+```
+
+Then run the stress tool from the **repo root**:
+
+```bash
+RUST_LOG=info cargo run --release -p iota-benchmark --bin stress -- \
+  --local false \
+  --fullnode-rpc-addresses http://127.0.0.1:9000 \
+  --use-fullnode-for-execution true \
+  --use-fullnode-for-reconfig true \
+  --genesis-blob-path dev-tools/iota-private-network/configs/genesis/genesis.blob \
+  --keystore-path dev-tools/iota-private-network/configs/genesis/benchmark.keystore \
+  --primary-gas-owner-id 0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681 \
+  --num-client-threads 4 --num-transfer-accounts 10 --run-duration 120s \
+  bench --target-qps 500 --in-flight-ratio 5 --num-workers 12 \
+  --transfer-object 100 --shared-counter 0
+```
+
+Replace `--transfer-object 100 --shared-counter 0` with different ratios to test other workloads:
+
+- **Shared-object only:** `--transfer-object 0 --shared-counter 100 --shared-counter-hotness-factor 50`
+- **Mixed (50/50):** `--transfer-object 50 --shared-counter 50`
+
+Use `--benchmark-stats-path /tmp/bench_results.json` to save results, and `--compare-with /tmp/bench_baseline.json` to compare runs.
+
 ### Ports
 
 - fullnode-1:

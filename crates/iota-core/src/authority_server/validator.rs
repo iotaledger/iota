@@ -3,26 +3,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    io,
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-    time::SystemTime,
-};
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use fastcrypto::traits::KeyPair;
-use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
 use iota_metrics::spawn_monitored_task;
-use iota_network::{
-    api::{Validator, ValidatorServer},
-    tonic,
-};
-use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
+use iota_network::api::Validator;
 use iota_types::{
     effects::TransactionEffectsAPI,
-    error::*,
+    error::{IotaError, UserInputError},
     fp_ensure,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
@@ -35,376 +24,24 @@ use iota_types::{
         SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
         TransactionInfoResponse,
     },
-    multiaddr::Multiaddr,
     traffic_control::{ClientIdSource, Weight},
     transaction::*,
 };
 use nonempty::{NonEmpty, nonempty};
-use prometheus::{
-    Gauge, Histogram, IntCounter, IntCounterVec, Registry, register_gauge_with_registry,
-    register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry,
-};
 use tap::TapFallible;
-use tonic::transport::server::TcpConnectInfo;
-use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
+use tracing::{Instrument, debug, error_span, info, trace_span, warn};
 
 use crate::{
-    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
-    checkpoints::CheckpointStore,
-    consensus_adapter::{
-        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
-    },
-    starfish_adapter::LazyStarfishClient,
-    traffic_controller::{
-        ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
-    },
+    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    authority_server::{ValidatorService, WrappedServiceResponse, make_tonic_request_for_testing},
+    handle_with_decoration,
 };
 
 #[cfg(test)]
-#[path = "unit_tests/server_tests.rs"]
+#[path = "../unit_tests/server_tests.rs"]
 mod server_tests;
 
-/// A handle to the authority server.
-pub struct AuthorityServerHandle {
-    server_handle: iota_network_stack::server::Server,
-}
-
-impl AuthorityServerHandle {
-    /// Waits for the server to complete.
-    pub async fn join(self) -> Result<(), io::Error> {
-        self.server_handle.handle().wait_for_shutdown().await;
-        Ok(())
-    }
-
-    /// Kills the server.
-    pub async fn kill(self) -> Result<(), io::Error> {
-        self.server_handle.handle().shutdown().await;
-        Ok(())
-    }
-
-    /// Returns the address of the server.
-    pub fn address(&self) -> &Multiaddr {
-        self.server_handle.local_addr()
-    }
-}
-
-/// An authority server that is used for testing.
-pub struct AuthorityServer {
-    address: Multiaddr,
-    pub state: Arc<AuthorityState>,
-    consensus_adapter: Arc<ConsensusAdapter>,
-    pub metrics: Arc<ValidatorServiceMetrics>,
-}
-
-impl AuthorityServer {
-    /// Creates a new `AuthorityServer` for testing with a consensus adapter.
-    pub fn new_for_test_with_consensus_adapter(
-        state: Arc<AuthorityState>,
-        consensus_adapter: Arc<ConsensusAdapter>,
-    ) -> Self {
-        let address = new_local_tcp_address_for_testing();
-        let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
-
-        Self {
-            address,
-            state,
-            consensus_adapter,
-            metrics,
-        }
-    }
-
-    /// Creates a new `AuthorityServer` for testing.
-    pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
-        let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyStarfishClient::new()),
-            CheckpointStore::new_for_tests(),
-            state.name,
-            Arc::new(ConnectionMonitorStatusForTests {}),
-            100_000,
-            100_000,
-            None,
-            None,
-            ConsensusAdapterMetrics::new_test(),
-        ));
-        Self::new_for_test_with_consensus_adapter(state, consensus_adapter)
-    }
-
-    /// Spawns the server.
-    pub async fn spawn_for_test(self) -> Result<AuthorityServerHandle, io::Error> {
-        let address = self.address.clone();
-        self.spawn_with_bind_address_for_test(address).await
-    }
-
-    /// Spawns the server with a bind address.
-    pub async fn spawn_with_bind_address_for_test(
-        self,
-        address: Multiaddr,
-    ) -> Result<AuthorityServerHandle, io::Error> {
-        let tls_config = iota_tls::create_rustls_server_config(
-            self.state.config.network_key_pair().copy().private(),
-            IOTA_TLS_SERVER_NAME.to_string(),
-        );
-        let server = iota_network_stack::config::Config::new()
-            .server_builder()
-            .add_service(ValidatorServer::new(ValidatorService::new_for_tests(
-                self.state,
-                self.consensus_adapter,
-                self.metrics,
-            )))
-            .bind(&address, Some(tls_config))
-            .await
-            .unwrap();
-        let local_addr = server.local_addr().to_owned();
-        info!("Listening to traffic on {local_addr}");
-        let handle = AuthorityServerHandle {
-            server_handle: server,
-        };
-        Ok(handle)
-    }
-}
-
-/// Metrics for the validator service.
-pub struct ValidatorServiceMetrics {
-    pub signature_errors: IntCounter,
-    pub tx_verification_latency: Histogram,
-    pub cert_verification_latency: Histogram,
-    pub consensus_latency: Histogram,
-    pub handle_transaction_latency: Histogram,
-    pub submit_certificate_consensus_latency: Histogram,
-    pub handle_certificate_consensus_latency: Histogram,
-    pub handle_certificate_non_consensus_latency: Histogram,
-    pub handle_soft_bundle_certificates_consensus_latency: Histogram,
-    pub handle_soft_bundle_certificates_count: Histogram,
-    pub handle_soft_bundle_certificates_size_bytes: Histogram,
-    pub handle_capability_notification_latency: Histogram,
-
-    num_rejected_tx_in_epoch_boundary: IntCounter,
-    num_rejected_cert_in_epoch_boundary: IntCounter,
-    num_rejected_tx_during_overload: IntCounterVec,
-    num_rejected_cert_during_overload: IntCounterVec,
-    num_rejected_capability_notifications_during_overload: IntCounterVec,
-    connection_ip_not_found: IntCounter,
-    forwarded_header_parse_error: IntCounter,
-    forwarded_header_invalid: IntCounter,
-    forwarded_header_not_included: IntCounter,
-    client_id_source_config_mismatch: IntCounter,
-    x_forwarded_for_num_hops: Gauge,
-}
-
-impl ValidatorServiceMetrics {
-    /// Creates a new `ValidatorServiceMetrics` with Prometheus registry.
-    pub fn new(registry: &Registry) -> Self {
-        Self {
-            signature_errors: register_int_counter_with_registry!(
-                "total_signature_errors",
-                "Number of transaction signature errors",
-                registry,
-            )
-            .unwrap(),
-            tx_verification_latency: register_histogram_with_registry!(
-                "validator_service_tx_verification_latency",
-                "Latency of verifying a transaction",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            cert_verification_latency: register_histogram_with_registry!(
-                "validator_service_cert_verification_latency",
-                "Latency of verifying a certificate",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            consensus_latency: register_histogram_with_registry!(
-                "validator_service_consensus_latency",
-                "Time spent between submitting a shared obj txn to consensus and getting result",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            handle_transaction_latency: register_histogram_with_registry!(
-                "validator_service_handle_transaction_latency",
-                "Latency of handling a transaction",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            handle_certificate_consensus_latency: register_histogram_with_registry!(
-                "validator_service_handle_certificate_consensus_latency",
-                "Latency of handling a consensus transaction certificate",
-                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            submit_certificate_consensus_latency: register_histogram_with_registry!(
-                "validator_service_submit_certificate_consensus_latency",
-                "Latency of submit_certificate RPC handler",
-                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            handle_certificate_non_consensus_latency: register_histogram_with_registry!(
-                "validator_service_handle_certificate_non_consensus_latency",
-                "Latency of handling a non-consensus transaction certificate",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            handle_soft_bundle_certificates_consensus_latency: register_histogram_with_registry!(
-                "validator_service_handle_soft_bundle_certificates_consensus_latency",
-                "Latency of handling a consensus soft bundle",
-                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            handle_soft_bundle_certificates_count: register_histogram_with_registry!(
-                "validator_service_handle_soft_bundle_certificates_count",
-                "The number of certificates included in a soft bundle",
-                iota_metrics::COUNT_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            handle_soft_bundle_certificates_size_bytes: register_histogram_with_registry!(
-                "validator_service_handle_soft_bundle_certificates_size_bytes",
-                "The size of soft bundle in bytes",
-                iota_metrics::BYTES_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            handle_capability_notification_latency: register_histogram_with_registry!(
-                "validator_service_handle_capability_notification_latency",
-                "Latency of handling a capability notification",
-                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
-            num_rejected_tx_in_epoch_boundary: register_int_counter_with_registry!(
-                "validator_service_num_rejected_tx_in_epoch_boundary",
-                "Number of rejected transaction during epoch transitioning",
-                registry,
-            )
-            .unwrap(),
-            num_rejected_cert_in_epoch_boundary: register_int_counter_with_registry!(
-                "validator_service_num_rejected_cert_in_epoch_boundary",
-                "Number of rejected transaction certificate during epoch transitioning",
-                registry,
-            )
-            .unwrap(),
-            num_rejected_tx_during_overload: register_int_counter_vec_with_registry!(
-                "validator_service_num_rejected_tx_during_overload",
-                "Number of rejected transaction due to system overload",
-                &["error_type"],
-                registry,
-            )
-            .unwrap(),
-            num_rejected_cert_during_overload: register_int_counter_vec_with_registry!(
-                "validator_service_num_rejected_cert_during_overload",
-                "Number of rejected transaction certificate due to system overload",
-                &["error_type"],
-                registry,
-            )
-            .unwrap(),
-            num_rejected_capability_notifications_during_overload: register_int_counter_vec_with_registry!(
-                "num_rejected_capability_notifications_during_overload",
-                "Number of rejected capability notifications from non-committee active validators due to system overload",
-                &["error_type"],
-                registry,
-            )
-            .unwrap(),
-            connection_ip_not_found: register_int_counter_with_registry!(
-                "validator_service_connection_ip_not_found",
-                "Number of times connection IP was not extractable from request",
-                registry,
-            )
-            .unwrap(),
-            forwarded_header_parse_error: register_int_counter_with_registry!(
-                "validator_service_forwarded_header_parse_error",
-                "Number of times x-forwarded-for header could not be parsed",
-                registry,
-            )
-            .unwrap(),
-            forwarded_header_invalid: register_int_counter_with_registry!(
-                "validator_service_forwarded_header_invalid",
-                "Number of times x-forwarded-for header was invalid",
-                registry,
-            )
-            .unwrap(),
-            forwarded_header_not_included: register_int_counter_with_registry!(
-                "validator_service_forwarded_header_not_included",
-                "Number of times x-forwarded-for header was (unexpectedly) not included in request",
-                registry,
-            )
-            .unwrap(),
-            client_id_source_config_mismatch: register_int_counter_with_registry!(
-                "validator_service_client_id_source_config_mismatch",
-                "Number of times detected that client id source config doesn't agree with x-forwarded-for header",
-                registry,
-            )
-            .unwrap(),
-            x_forwarded_for_num_hops: register_gauge_with_registry!(
-                "validator_service_x_forwarded_for_num_hops",
-                "Number of hops in x-forwarded-for header",
-                registry,
-            )
-            .unwrap(),
-        }
-    }
-
-    /// Creates a new `ValidatorServiceMetrics` for testing.
-    pub fn new_for_tests() -> Self {
-        let registry = Registry::new();
-        Self::new(&registry)
-    }
-}
-
-/// The validator service.
-#[derive(Clone)]
-pub struct ValidatorService {
-    state: Arc<AuthorityState>,
-    consensus_adapter: Arc<ConsensusAdapter>,
-    metrics: Arc<ValidatorServiceMetrics>,
-    traffic_controller: Option<Arc<TrafficController>>,
-    client_id_source: Option<ClientIdSource>,
-}
-
 impl ValidatorService {
-    /// Creates a new `ValidatorService`.
-    pub fn new(
-        state: Arc<AuthorityState>,
-        consensus_adapter: Arc<ConsensusAdapter>,
-        validator_metrics: Arc<ValidatorServiceMetrics>,
-        client_id_source: Option<ClientIdSource>,
-    ) -> Self {
-        let traffic_controller = state.traffic_controller.clone();
-        Self {
-            state,
-            consensus_adapter,
-            metrics: validator_metrics,
-            traffic_controller,
-            client_id_source,
-        }
-    }
-
-    pub fn new_for_tests(
-        state: Arc<AuthorityState>,
-        consensus_adapter: Arc<ConsensusAdapter>,
-        metrics: Arc<ValidatorServiceMetrics>,
-    ) -> Self {
-        Self {
-            state,
-            consensus_adapter,
-            metrics,
-            traffic_controller: None,
-            client_id_source: None,
-        }
-    }
-
-    /// Returns the validator state.
-    pub fn validator_state(&self) -> &Arc<AuthorityState> {
-        &self.state
-    }
-
     /// Executes a `CertifiedTransaction` for testing.
     pub async fn execute_certificate_for_testing(
         &self,
@@ -437,6 +74,16 @@ impl ValidatorService {
         } = self.clone();
         let transaction = request.into_inner();
         let epoch_store = state.load_epoch_store_one_call_per_task();
+
+        // Reject if white flag flow is enabled - transactions should use
+        // submit_transaction instead
+        fp_ensure!(
+            !epoch_store.protocol_config().enable_white_flag_flow(),
+            IotaError::UnsupportedFeature {
+                error: "handle_transaction is disabled when white flag flow is enabled. Use submit_transaction instead.".to_string()
+            }
+            .into()
+        );
 
         transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
@@ -733,11 +380,7 @@ impl ValidatorService {
 
         Ok((Some(responses), Weight::zero()))
     }
-}
 
-type WrappedServiceResponse<T> = Result<(tonic::Response<T>, Weight), tonic::Status>;
-
-impl ValidatorService {
     async fn transaction_impl(
         &self,
         request: tonic::Request<Transaction>,
@@ -752,6 +395,17 @@ impl ValidatorService {
         request: tonic::Request<CertifiedTransaction>,
     ) -> WrappedServiceResponse<SubmitCertificateResponse> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        // Reject if white flag flow is enabled - certificates are not used in white
+        // flag flow
+        fp_ensure!(
+            !epoch_store.protocol_config().enable_white_flag_flow(),
+            IotaError::UnsupportedFeature {
+                error: "handle_certificate_v1 is disabled when white flag flow is enabled. Transactions go directly to consensus.".to_string()
+            }
+            .into()
+        );
+
         let certificate = request.into_inner();
         certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
@@ -782,6 +436,17 @@ impl ValidatorService {
         request: tonic::Request<HandleCertificateRequestV1>,
     ) -> WrappedServiceResponse<HandleCertificateResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        // Reject if white flag flow is enabled - certificates are not used in white
+        // flag flow
+        fp_ensure!(
+            !epoch_store.protocol_config().enable_white_flag_flow(),
+            IotaError::UnsupportedFeature {
+                error: "handle_certificate_v1 is disabled when white flag flow is enabled. Transactions go directly to consensus.".to_string()
+            }
+            .into()
+        );
+
         let request = request.into_inner();
         request
             .certificate
@@ -909,6 +574,17 @@ impl ValidatorService {
         request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
     ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        // Reject if white flag flow is enabled - certificates are not used in white
+        // flag flow
+        fp_ensure!(
+            !epoch_store.protocol_config().enable_white_flag_flow(),
+            IotaError::UnsupportedFeature {
+                error: "handle_soft_bundle_certificates_v1 is disabled when white flag flow is enabled. Use batch submission via submit_transaction instead.".to_string()
+            }
+            .into()
+        );
+
         let client_addr = if let Some(client_id_source) = &self.client_id_source {
             self.get_client_ip_addr(&request, client_id_source)
         } else {
@@ -1013,122 +689,6 @@ impl ValidatorService {
         Ok((tonic::Response::new(response), Weight::one()))
     }
 
-    fn get_client_ip_addr<T>(
-        &self,
-        request: &tonic::Request<T>,
-        source: &ClientIdSource,
-    ) -> Option<IpAddr> {
-        // Observability gauge: track the hop depth even when we're not using
-        // x-forwarded-for as the source, to detect misconfigured proxies.
-        if let Some(header) = request.metadata().get_all("x-forwarded-for").iter().next() {
-            let num_hops = header
-                .to_str()
-                .map(|h| h.split(',').count().saturating_sub(1))
-                .unwrap_or(0);
-            self.metrics.x_forwarded_for_num_hops.set(num_hops as f64);
-        }
-
-        match get_client_ip(request.metadata().as_ref(), request.remote_addr(), source) {
-            ClientIpStatus::Ok(ip) => Some(ip),
-            ClientIpStatus::SocketAddrMissing => {
-                // We will hit this case if the IO type used does not
-                // implement Connected or when using a unix domain socket.
-                // TODO: once we have confirmed that no legitimate traffic
-                // is hitting this case, we should reject such requests that
-                // hit this case.
-                // issue: https://github.com/iotaledger/iota/issues/11756
-                if cfg!(msim) {
-                    // Ignore the error from simtests.
-                } else if cfg!(test) {
-                    panic!("Failed to get remote address from request");
-                } else {
-                    self.metrics.connection_ip_not_found.inc();
-                    error!("Failed to get remote address from request");
-                }
-                None
-            }
-            ClientIpStatus::XForwardedForHeaderMissing => {
-                self.metrics.forwarded_header_not_included.inc();
-                error!(
-                    "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
-                );
-                None
-            }
-            ClientIpStatus::XForwardedForInvalidUtf8 => {
-                // TODO: once we have confirmed that no legitimate traffic
-                // is hitting this case, we should reject such requests that
-                // hit this case.
-                // issue: https://github.com/iotaledger/iota/issues/11756
-                self.metrics.forwarded_header_invalid.inc();
-                error!("Invalid UTF-8 in x-forwarded-for header");
-                None
-            }
-            ClientIpStatus::XForwardedForZeroHops => {
-                error!(
-                    "x-forwarded-for: 0 specified. Please assign nonzero value for number of hops here, or use \
-                    `socket-addr` client-id-source type if requests are not being proxied to this node. \
-                    Skipping traffic controller request handling."
-                );
-                None
-            }
-            ClientIpStatus::XForwardedForConfigMismatch { expected, actual } => {
-                error!(
-                    "x-forwarded-for header contains {actual} values, but {expected} hops were specified. \
-                    Please correctly set the `x-forwarded-for` value under `client-id-source` in the node config."
-                );
-                self.metrics.client_id_source_config_mismatch.inc();
-                None
-            }
-            ClientIpStatus::XForwardedForUnparsable => {
-                self.metrics.forwarded_header_parse_error.inc();
-                None
-            }
-        }
-    }
-
-    async fn handle_traffic_req(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
-        if let Some(traffic_controller) = &self.traffic_controller {
-            if !traffic_controller.check(&client, &None).await {
-                // Entity in blocklist
-                Err(tonic::Status::from_error(IotaError::TooManyRequests.into()))
-            } else {
-                Ok(())
-            }
-        } else {
-            Ok(())
-        }
-    }
-
-    fn handle_traffic_resp<T>(
-        &self,
-        client: Option<IpAddr>,
-        wrapped_response: WrappedServiceResponse<T>,
-    ) -> Result<tonic::Response<T>, tonic::Status> {
-        let (error, spam_weight, unwrapped_response) = match wrapped_response {
-            Ok((result, spam_weight)) => (None, spam_weight, Ok(result)),
-            Err(status) => (
-                Some(IotaError::from(status.clone())),
-                Weight::zero(),
-                Err(status),
-            ),
-        };
-
-        if let Some(traffic_controller) = self.traffic_controller.clone() {
-            traffic_controller.tally(TrafficTally {
-                direct: client,
-                through_fullnode: None,
-                error_info: error.map(|e| {
-                    let error_type = String::from(e.as_ref());
-                    let error_weight = normalize(e);
-                    (error_weight, error_type)
-                }),
-                spam_weight,
-                timestamp: SystemTime::now(),
-            })
-        }
-        unwrapped_response
-    }
-
     async fn handle_capability_notification_v1_impl(
         &self,
         request: tonic::Request<HandleCapabilityNotificationRequestV1>,
@@ -1145,8 +705,8 @@ impl ValidatorService {
             }
             .into()
         );
-        // Validate if cert can be executed
-        // Fullnode does not serve handle_certificate call.
+        // Validate if the capability notification can be handled.
+        // Fullnode does not serve capability notification requests.
         fp_ensure!(
             !self.state.is_fullnode(&epoch_store),
             IotaError::FullNodeCantHandleAuthorityCapabilities.into()
@@ -1221,55 +781,6 @@ impl ValidatorService {
     }
 }
 
-fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
-    // simulate a TCP connection, which would have added extensions to
-    // the request object that would be used downstream
-    let mut request = tonic::Request::new(message);
-    let tcp_connect_info = TcpConnectInfo {
-        local_addr: None,
-        remote_addr: Some(SocketAddr::new([127, 0, 0, 1].into(), 0)),
-    };
-    request.extensions_mut().insert(tcp_connect_info);
-    request
-}
-
-// TODO: refine error matching here
-fn normalize(err: IotaError) -> Weight {
-    match err {
-        IotaError::UserInput {
-            error: UserInputError::IncorrectUserSignature { .. },
-        } => Weight::one(),
-        IotaError::InvalidSignature { .. }
-        | IotaError::SignerSignatureAbsent { .. }
-        | IotaError::SignerSignatureNumberMismatch { .. }
-        | IotaError::IncorrectSigner { .. }
-        | IotaError::UnknownSigner { .. }
-        | IotaError::WrongEpoch { .. } => Weight::one(),
-        _ => Weight::zero(),
-    }
-}
-
-/// Implements generic pre- and post-processing. Since this is on the critical
-/// path, any heavy lifting should be done in a separate non-blocking task
-/// unless it is necessary to override the return value.
-#[macro_export]
-macro_rules! handle_with_decoration {
-    ($self:ident, $func_name:ident, $request:ident) => {{
-        if $self.client_id_source.is_none() {
-            return $self.$func_name($request).await.map(|(result, _)| result);
-        }
-
-        let client = $self.get_client_ip_addr(&$request, $self.client_id_source.as_ref().unwrap());
-
-        // check if either IP is blocked, in which case return early
-        $self.handle_traffic_req(client.clone()).await?;
-
-        // handle traffic tallying
-        let wrapped_response = $self.$func_name($request).await;
-        $self.handle_traffic_resp(client, wrapped_response)
-    }};
-}
-
 #[async_trait]
 impl Validator for ValidatorService {
     /// Handles a `Transaction` request.
@@ -1292,6 +803,20 @@ impl Validator for ValidatorService {
         .unwrap()
     }
 
+    async fn handle_certificate_v1(
+        &self,
+        request: tonic::Request<HandleCertificateRequestV1>,
+    ) -> Result<tonic::Response<HandleCertificateResponseV1>, tonic::Status> {
+        handle_with_decoration!(self, handle_certificate_v1_impl, request)
+    }
+
+    async fn handle_soft_bundle_certificates_v1(
+        &self,
+        request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
+    ) -> Result<tonic::Response<HandleSoftBundleCertificatesResponseV1>, tonic::Status> {
+        handle_with_decoration!(self, handle_soft_bundle_certificates_v1_impl, request)
+    }
+
     /// Submits a `CertifiedTransaction` request.
     async fn submit_certificate(
         &self,
@@ -1310,20 +835,6 @@ impl Validator for ValidatorService {
         })
         .await
         .unwrap()
-    }
-
-    async fn handle_certificate_v1(
-        &self,
-        request: tonic::Request<HandleCertificateRequestV1>,
-    ) -> Result<tonic::Response<HandleCertificateResponseV1>, tonic::Status> {
-        handle_with_decoration!(self, handle_certificate_v1_impl, request)
-    }
-
-    async fn handle_soft_bundle_certificates_v1(
-        &self,
-        request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
-    ) -> Result<tonic::Response<HandleSoftBundleCertificatesResponseV1>, tonic::Status> {
-        handle_with_decoration!(self, handle_soft_bundle_certificates_v1_impl, request)
     }
 
     /// Handles an `ObjectInfoRequest` request.

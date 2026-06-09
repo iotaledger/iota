@@ -20,11 +20,13 @@ fastcrypto-tbls.workspace = true
 futures.workspace = true
 governor = "0.6.0"
 prometheus.workspace = true
+prost.workspace = true
 rand.workspace = true
 serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
 tonic.workspace = true
+tonic-prost.workspace = true
 tower.workspace = true
 tracing.workspace = true
 
@@ -41,6 +43,7 @@ iota-types.workspace = true
 [build-dependencies]
 anemo-build.workspace = true
 tonic-build.workspace = true
+tonic-prost-build = "0.14"
 
 [dev-dependencies]
 # external dependencies

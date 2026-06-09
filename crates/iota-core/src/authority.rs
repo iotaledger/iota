@@ -72,7 +72,7 @@ use iota_types::{
     },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
-    deny_list_v1::check_coin_deny_list_v1_during_signing,
+    deny_list_v1::check_coin_deny_list_v1,
     digests::{ChainIdentifier, Digest, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
@@ -240,6 +240,7 @@ pub mod transaction_deferral;
 
 pub(crate) mod authority_store;
 pub mod backpressure;
+pub(crate) mod dropped_tx_status_cache;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 pub struct AuthorityMetrics {
@@ -308,6 +309,7 @@ pub struct AuthorityMetrics {
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
+    pub consensus_handler_validation_dropped_transactions: IntCounter,
     pub consensus_handler_max_object_costs: IntGaugeVec,
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
@@ -392,75 +394,75 @@ impl AuthorityMetrics {
                 "Total number of transaction orders",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             total_certs: register_int_counter_with_registry!(
                 "total_transaction_certificates",
                 "Total number of transaction certificates handled",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             total_cert_attempts: register_int_counter_with_registry!(
                 "total_handle_certificate_attempts",
                 "Number of calls to handle_certificate",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             // total_effects == total transactions finished
             total_effects: register_int_counter_with_registry!(
                 "total_transaction_effects",
                 "Total number of transaction effects produced",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
 
             shared_obj_tx: register_int_counter_with_registry!(
                 "num_shared_obj_tx",
                 "Number of transactions involving shared objects",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
 
             sponsored_tx: register_int_counter_with_registry!(
                 "num_sponsored_tx",
                 "Number of sponsored transactions",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
 
             tx_already_processed: register_int_counter_with_registry!(
                 "num_tx_already_processed",
                 "Number of transaction orders already processed previously",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             num_input_objs: register_histogram_with_registry!(
                 "num_input_objects",
                 "Distribution of number of input TX objects per TX",
                 POSITIVE_INT_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             num_shared_objects: register_histogram_with_registry!(
                 "num_shared_objects",
                 "Number of shared input objects per TX",
                 POSITIVE_INT_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             batch_size: register_histogram_with_registry!(
                 "batch_size",
                 "Distribution of size of transaction batch",
                 POSITIVE_INT_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             authority_state_handle_transaction_latency: register_histogram_with_registry!(
                 "authority_state_handle_transaction_latency",
                 "Latency of handling transactions",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             execute_certificate_latency_single_writer,
             execute_certificate_latency_shared_object,
             internal_execution_latency: register_histogram_with_registry!(
@@ -469,28 +471,28 @@ impl AuthorityMetrics {
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             execution_load_input_objects_latency: register_histogram_with_registry!(
                 "authority_state_execution_load_input_objects_latency",
                 "Latency of loading input objects for execution",
                 LOW_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             prepare_certificate_latency: register_histogram_with_registry!(
                 "authority_state_prepare_certificate_latency",
                 "Latency of executing certificates, before committing the results",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             commit_certificate_latency: register_histogram_with_registry!(
                 "authority_state_commit_certificate_latency",
                 "Latency of committing certificate execution results",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             db_checkpoint_latency: register_histogram_with_registry!(
                 "db_checkpoint_latency",
                 "Latency of checkpointing dbs",
@@ -503,171 +505,171 @@ impl AuthorityMetrics {
                 &["result"],
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_num_missing_objects: register_int_gauge_with_registry!(
                 "transaction_manager_num_missing_objects",
                 "Current number of missing objects in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_num_pending_certificates: register_int_gauge_with_registry!(
                 "transaction_manager_num_pending_certificates",
                 "Number of certificates pending in TransactionManager, with at least 1 missing input object",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_num_executing_certificates: register_int_gauge_with_registry!(
                 "transaction_manager_num_executing_certificates",
                 "Number of executing certificates, including queued and actually running certificates",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_num_ready: register_int_gauge_with_registry!(
                 "transaction_manager_num_ready",
                 "Number of ready transactions in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_object_cache_size: register_int_gauge_with_registry!(
                 "transaction_manager_object_cache_size",
                 "Current size of object-availability cache in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_object_cache_hits: register_int_counter_with_registry!(
                 "transaction_manager_object_cache_hits",
                 "Number of object-availability cache hits in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             authority_overload_status: register_int_gauge_with_registry!(
                 "authority_overload_status",
                 "Whether authority is current experiencing overload and enters load shedding mode.",
                 registry)
-            .unwrap(),
+                .unwrap(),
             authority_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
                 "The percentage of transactions is shed when the authority is in load shedding mode.",
                 registry)
-            .unwrap(),
+                .unwrap(),
             transaction_manager_object_cache_misses: register_int_counter_with_registry!(
                 "transaction_manager_object_cache_misses",
                 "Number of object-availability cache misses in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_object_cache_evictions: register_int_counter_with_registry!(
                 "transaction_manager_object_cache_evictions",
                 "Number of object-availability cache evictions in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_package_cache_size: register_int_gauge_with_registry!(
                 "transaction_manager_package_cache_size",
                 "Current size of package-availability cache in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_package_cache_hits: register_int_counter_with_registry!(
                 "transaction_manager_package_cache_hits",
                 "Number of package-availability cache hits in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_package_cache_misses: register_int_counter_with_registry!(
                 "transaction_manager_package_cache_misses",
                 "Number of package-availability cache misses in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_package_cache_evictions: register_int_counter_with_registry!(
                 "transaction_manager_package_cache_evictions",
                 "Number of package-availability cache evictions in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_transaction_queue_age_s: register_histogram_with_registry!(
                 "transaction_manager_transaction_queue_age_s",
                 "Time spent in waiting for transaction in the queue",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_overload_sources: register_int_counter_vec_with_registry!(
                 "transaction_overload_sources",
                 "Number of times each source indicates transaction overload.",
                 &["source"],
                 registry)
-            .unwrap(),
+                .unwrap(),
             execution_driver_executed_transactions: register_int_counter_with_registry!(
                 "execution_driver_executed_transactions",
                 "Cumulative number of transaction executed by execution driver",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             execution_driver_dispatch_queue: register_int_gauge_with_registry!(
                 "execution_driver_dispatch_queue",
                 "Number of transaction pending in execution driver dispatch queue",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             execution_queueing_delay_s: register_histogram_with_registry!(
                 "execution_queueing_delay_s",
                 "Queueing delay between a transaction is ready for execution until it starts executing.",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry
             )
-            .unwrap(),
+                .unwrap(),
             prepare_cert_gas_latency_ratio: register_histogram_with_registry!(
                 "prepare_cert_gas_latency_ratio",
                 "The ratio of computation gas divided by VM execution latency.",
                 GAS_LATENCY_RATIO_BUCKETS.to_vec(),
                 registry
             )
-            .unwrap(),
+                .unwrap(),
             execution_gas_latency_ratio: register_histogram_with_registry!(
                 "execution_gas_latency_ratio",
                 "The ratio of computation gas divided by certificate execution latency, include committing certificate.",
                 GAS_LATENCY_RATIO_BUCKETS.to_vec(),
                 registry
             )
-            .unwrap(),
+                .unwrap(),
             skipped_consensus_txns: register_int_counter_with_registry!(
                 "skipped_consensus_txns",
                 "Total number of consensus transactions skipped",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             skipped_consensus_txns_cache_hit: register_int_counter_with_registry!(
                 "skipped_consensus_txns_cache_hit",
                 "Total number of consensus transactions skipped because of local cache hit",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             post_processing_total_events_emitted: register_int_counter_with_registry!(
                 "post_processing_total_events_emitted",
                 "Total number of events emitted in post processing",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             post_processing_total_tx_indexed: register_int_counter_with_registry!(
                 "post_processing_total_tx_indexed",
                 "Total number of txes indexed in post processing",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             post_processing_total_tx_had_event_processed: register_int_counter_with_registry!(
                 "post_processing_total_tx_had_event_processed",
                 "Total number of txes finished event processing in post processing",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             post_processing_total_failures: register_int_counter_with_registry!(
                 "post_processing_total_failures",
                 "Total number of failure in post processing",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             consensus_handler_processed: register_int_counter_vec_with_registry!(
                 "consensus_handler_processed",
                 "Number of transactions processed by consensus handler",
@@ -719,6 +721,11 @@ impl AuthorityMetrics {
                 "Number of transactions cancelled by consensus handler",
                 registry,
             ).unwrap(),
+            consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
+                "consensus_handler_validation_dropped_transactions",
+                "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                registry,
+            ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(
                 "consensus_handler_max_congestion_control_object_costs",
                 "Max object costs for congestion control in the current consensus commit",
@@ -755,7 +762,7 @@ impl AuthorityMetrics {
                 "Count of multisig signatures",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             consensus_calculated_throughput: register_int_gauge_with_registry!(
                 "consensus_calculated_throughput",
                 "The calculated throughput from consensus output. Result is calculated based on unique transactions.",
@@ -895,18 +902,15 @@ impl AuthorityState {
         self.checkpoint_store.get_epoch_state_commitments(epoch)
     }
 
-    /// This is a private method and should be kept that way. It doesn't check
-    /// whether the provided transaction is a system transaction, and hence
-    /// can only be called internally.
+    /// Runs deny list, input object validation, gas checks, coin deny list, and
+    /// MoveAuthenticator checks. Returns the owned object refs for optional
+    /// version validation. Does NOT acquire locks or sign the transaction.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
-    async fn handle_transaction_impl(
+    pub(crate) async fn handle_transaction_validation_checks(
         &self,
-        transaction: VerifiedTransaction,
+        transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<VerifiedSignedTransaction> {
-        // Ensure that validator cannot reconfigure while we are signing the tx
-        let _execution_lock = self.execution_lock_for_signing()?;
-
+    ) -> IotaResult<Vec<ObjectRef>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
 
@@ -917,7 +921,7 @@ impl AuthorityState {
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
         // - the loads are cached anyway
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             tx_data,
             transaction.tx_signatures(),
             &transaction.input_objects()?,
@@ -931,7 +935,7 @@ impl AuthorityState {
         // reference — missing object, wrong version, inaccessible object — causes a
         // pre-consensus rejection.
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            self.read_objects_for_signing(&transaction, epoch)?;
+            self.read_objects_for_validation(transaction, epoch)?;
 
         let move_authenticators = transaction.move_authenticators();
 
@@ -941,7 +945,7 @@ impl AuthorityState {
         // It is also checked if there is enough gas to execute the transaction and its
         // authenticators.
         let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
-            .check_transaction_inputs_for_signing(
+            .check_transaction_inputs_for_validation(
                 protocol_config,
                 reference_gas_price,
                 tx_data,
@@ -961,7 +965,7 @@ impl AuthorityState {
         // Check if any of the sender, the transaction input objects, the receiving
         // objects and the authenticator input objects are in the coin deny
         // list, which would prevent the transaction from being signed.
-        check_coin_deny_list_v1_during_signing(
+        check_coin_deny_list_v1(
             tx_data.sender(),
             &tx_checked_input_objects,
             &tx_receiving_objects,
@@ -987,7 +991,7 @@ impl AuthorityState {
         // that all MoveAuthenticator input objects are covered by that check regardless
         // of deferral.
         let pre_consensus_move_authenticators =
-            pre_consensus_move_authenticators(&transaction, protocol_config);
+            pre_consensus_move_authenticators(transaction, protocol_config);
         let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
             move_authenticators
                 .into_iter()
@@ -1076,8 +1080,25 @@ impl AuthorityState {
             }
         }
 
-        let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
+        Ok(tx_checked_input_objects.inner().filter_owned_objects())
+    }
 
+    /// This is a private method and should be kept that way. It doesn't check
+    /// whether the provided transaction is a system transaction, and hence
+    /// can only be called internally.
+    async fn handle_transaction_impl(
+        &self,
+        transaction: VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<VerifiedSignedTransaction> {
+        // Ensure that validator cannot reconfigure while we are signing the tx
+        let _execution_lock = self.execution_lock_for_signing()?;
+
+        let owned_objects = self
+            .handle_transaction_validation_checks(&transaction, epoch_store)
+            .await?;
+
+        let epoch = epoch_store.epoch();
         let signed_transaction =
             VerifiedSignedTransaction::new(epoch, transaction, self.name, &*self.secret);
 
@@ -1095,7 +1116,8 @@ impl AuthorityState {
     }
 
     /// Initiate a new transaction.
-    #[instrument(name = "handle_transaction", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = transaction.data().transaction_data().gas_owner().to_string()))]
+    #[instrument(name = "handle_transaction", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = transaction.data().transaction_data().gas_owner().to_string()
+    ))]
     pub async fn handle_transaction(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1423,7 +1445,8 @@ impl AuthorityState {
         .map_err(|e| IotaError::FileIO(e.to_string()))
     }
 
-    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?certificate.digest(), sender = ?certificate.data().transaction_data().gas_owner().to_string()))]
+    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?certificate.digest(), sender = ?certificate.data().transaction_data().gas_owner().to_string()
+    ))]
     pub(crate) fn process_certificate(
         &self,
         tx_guard: CertTxGuard,
@@ -1995,7 +2018,7 @@ impl AuthorityState {
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             &transaction,
             &[],
             &input_object_kinds,
@@ -2198,7 +2221,7 @@ impl AuthorityState {
 
         // Since we need to simulate a validator signing the transaction, the first step
         // is to check if some transaction elements are denied.
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             &transaction,
             &[],
             &input_object_kinds,
@@ -2383,7 +2406,7 @@ impl AuthorityState {
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             &transaction,
             &[],
             &input_object_kinds,
@@ -2657,7 +2680,7 @@ impl AuthorityState {
             // When we process the index, the latest object hasn't been written yet so
             // the old object must be present.
             match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
+                |e| panic!("tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {} at version {old_version:?}. Err: {e:?}", object_ref.object_id)
             ) {
                 Owner::Address(addr) => deleted_owners.push((addr, object_ref.object_id)),
                 Owner::Object(object_id) => {
@@ -2755,11 +2778,11 @@ impl AuthorityState {
                             error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
                             None
                         }
-                    )
-                        else {
-                            // Skip indexing for non dynamic field objects.
-                            continue;
-                        };
+                        )
+                    else {
+                        // Skip indexing for non dynamic field objects.
+                        continue;
+                    };
                     new_dynamic_fields.push(((owner, *id), df_info))
                 }
                 _ => {}
@@ -5418,32 +5441,42 @@ impl AuthorityState {
                 // epoch change locally, but 2f+1 nodes already concluded the
                 // epoch.
                 //
-                // This lock is essentially a barrier for
+                // This lock is essentially a barrier (in the certificate mode only) for
                 // `epoch_store.pending_consensus_certificates` table we are reading on the line
                 // after this block
                 epoch_store.close_user_certs(state);
             }
             // lock is dropped here
         }
-        let pending_certificates = epoch_store.pending_consensus_certificates();
-        info!(
-            "Reverting {} locally executed transactions that was not included in the epoch: {:?}",
-            pending_certificates.len(),
-            pending_certificates,
-        );
-        for digest in pending_certificates {
-            if epoch_store.is_transaction_executed_in_checkpoint(&digest)? {
-                info!(
-                    "Not reverting pending consensus transaction {:?} - it was included in checkpoint",
-                    digest
-                );
-                continue;
+
+        // In the certificate-less mode, the list of pending consensus certificates is
+        // always empty, so the reverting below is only for the certificate mode.
+        if !epoch_store.protocol_config().enable_white_flag_flow() {
+            let pending_certificates = epoch_store.pending_consensus_certificates();
+            info!(
+                "Reverting {} locally executed transactions that was not included in the epoch: \
+                    {:?}",
+                pending_certificates.len(),
+                pending_certificates,
+            );
+            for digest in pending_certificates {
+                if epoch_store.is_transaction_executed_in_checkpoint(&digest)? {
+                    info!(
+                        "Not reverting pending consensus transaction {:?} - it was included in \
+                            checkpoint",
+                        digest
+                    );
+                    continue;
+                }
+                info!("Reverting {:?} at the end of epoch", digest);
+                epoch_store.revert_executed_transaction(&digest)?;
+                self.get_reconfig_api().try_revert_state_update(&digest)?;
             }
-            info!("Reverting {:?} at the end of epoch", digest);
-            epoch_store.revert_executed_transaction(&digest)?;
-            self.get_reconfig_api().try_revert_state_update(&digest)?;
+            info!("All uncommitted local transactions reverted");
+        } else {
+            info!("Certificate-less mode: skipping revert of uncommitted epoch transactions");
         }
-        info!("All uncommitted local transactions reverted");
+
         Ok(())
     }
 
@@ -5601,7 +5634,7 @@ impl AuthorityState {
     }
 
     #[allow(clippy::type_complexity)]
-    fn read_objects_for_signing(
+    fn read_objects_for_validation(
         &self,
         transaction: &VerifiedTransaction,
         epoch: u64,
@@ -5629,7 +5662,7 @@ impl AuthorityState {
     }
 
     #[allow(clippy::type_complexity)]
-    fn check_transaction_inputs_for_signing(
+    fn check_transaction_inputs_for_validation(
         &self,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -5685,7 +5718,7 @@ impl AuthorityState {
 
                     // Check the MoveAuthenticator input objects.
                     let authenticator_checked_input_objects =
-                        iota_transaction_checks::check_move_authenticator_input_for_signing(
+                        iota_transaction_checks::check_move_authenticator_input_for_validation(
                             authenticator_input_objects,
                         )?;
 

@@ -95,7 +95,10 @@ use iota_metrics::{
 };
 use iota_names::config::IotaNamesConfig;
 use iota_network::{
-    api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
+    api::{ValidatorPeerServer, ValidatorServer, ValidatorV2Server},
+    discovery,
+    discovery::TrustedPeerChangeEvent,
+    randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
@@ -679,6 +682,7 @@ impl IotaNode {
                 end_of_epoch_receiver,
                 &config.db_path(),
                 &prometheus_registry,
+                Some(&config),
             )))
         } else {
             None
@@ -1419,7 +1423,9 @@ impl IotaNode {
         server_conf.load_shed = config.grpc_load_shed;
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
-                .add_service(ValidatorServer::new(validator_service));
+                .add_service(ValidatorServer::new(validator_service.clone()))
+                .add_service(ValidatorV2Server::new(validator_service.clone()))
+                .add_service(ValidatorPeerServer::new(validator_service));
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
@@ -1469,8 +1475,15 @@ impl IotaNode {
 
         for tx in epoch_store.get_all_pending_consensus_transactions() {
             match tx.kind {
-                // Shared object txns cannot be re-executed at this point, because we must wait for
-                // consensus replay to assign shared object versions.
+                // TODO: what to do with UserTransactionV1 here? It seems like this only applies to
+                //  optimistically executed owned-object transactions that possibly didn't go
+                //  through  consensus before the node restarted. UserTransactionsV1
+                //  always needs to go  through consensus, so it will be replayed
+                //  there, just like shared object  transactions.
+                //
+                // Shared object txns
+                // cannot be re-executed at this  point, because we must wait for
+                // consensus replay to assign shared  object versions.
                 ConsensusTransactionKind::CertifiedTransaction(tx)
                     if !tx.contains_shared_object() =>
                 {

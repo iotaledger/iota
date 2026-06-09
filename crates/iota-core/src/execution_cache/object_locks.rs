@@ -195,6 +195,23 @@ impl ObjectLocks {
         Ok(result)
     }
 
+    /// Validates that all owned input objects exist and their versions/digests
+    /// match the live objects. Does not acquire any locks.
+    pub(crate) fn validate_owned_object_versions(
+        cache: &WritebackCache,
+        owned_input_objects: &[ObjectRef],
+    ) -> IotaResult {
+        if owned_input_objects.is_empty() {
+            return Ok(());
+        }
+        let object_ids: Vec<_> = owned_input_objects.iter().map(|o| o.object_id).collect();
+        let live_objects = Self::multi_get_objects_must_exist(cache, &object_ids)?;
+        for (obj_ref, live_object) in owned_input_objects.iter().zip(live_objects.iter()) {
+            Self::verify_live_object(obj_ref, live_object)?;
+        }
+        Ok(())
+    }
+
     #[instrument(level = "debug", skip_all)]
     pub(crate) fn acquire_transaction_locks(
         &self,

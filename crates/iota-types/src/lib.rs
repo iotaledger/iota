@@ -99,6 +99,7 @@ pub mod test_checkpoint_data_builder;
 pub mod timelock;
 pub mod traffic_control;
 pub mod transaction;
+pub mod transaction_driver_types;
 pub mod transaction_executor;
 pub mod transfer;
 pub mod versioned;

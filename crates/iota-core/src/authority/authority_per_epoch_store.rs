@@ -44,7 +44,9 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
-    executable_transaction::VerifiedExecutableTransaction,
+    executable_transaction::{
+        CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
+    },
     global_state_hash::GlobalStateHash,
     iota_system_state::epoch_start_iota_system_state::{
         EpochStartSystemState, EpochStartSystemStateTrait,
@@ -94,7 +96,7 @@ use super::{
 };
 use crate::{
     authority::{
-        AuthorityMetrics, ResolverWrapper,
+        AuthorityMetrics, AuthorityState, ResolverWrapper,
         authority_per_epoch_store::{
             misbehavior::MisbehaviorReportVersion, misbehavior_monitor::MisbehaviorMonitor,
             report_aggregator::ReportAggregator,
@@ -126,6 +128,7 @@ use crate::{
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     post_consensus_tx_reorder::PostConsensusTxReorder,
+    post_consensus_validation,
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
 };
@@ -394,18 +397,53 @@ pub(crate) enum SchedulingResult {
     Defer(DeferralKey, DeferralReason),
 }
 
-pub enum CancelConsensusCertificateReason {
+/// The reason a consensus transaction was cancelled rather than successfully
+/// executed.
+///
+/// Cancelled transactions still pass through the execution engine to unlock
+/// owned objects, but they are not executed as normally. The reason is used by
+/// `SharedObjVerManager` when assigning shared object versions to determine
+/// the appropriate cancellation behavior (e.g., whether to include a suggested
+/// gas price in the cancellation error).
+///
+/// The legacy name (in the certificate era) was
+/// `CancelConsensusCertificateReason`. It is renamed to
+/// `CancelConsensusTransactionReason` because this type now (in the
+/// certificate-less era) covers more consensus transaction kinds, not just
+/// certificates. The renaming is safe and backward-compatible since this is a
+/// fully internal type.
+pub enum CancelConsensusTransactionReason {
+    /// Transaction was cancelled due to shared-object congestion.
     CongestionOnObjects {
+        /// List of IDs of congested shared objects.
         congested_objects: Vec<ObjectId>,
+
+        /// Optional suggested gas price from the gas price feedback
+        /// mechanism.
         suggested_gas_price: Option<u64>,
     },
+
+    /// Transaction was cancelled due to randomness unavailable.
     DkgFailed,
 }
 
-pub enum ConsensusCertificateResult {
+/// The outcome of processing a single consensus transaction.
+///
+/// This is returned by `process_consensus_transaction()` and
+/// `process_consensus_system_transaction()` to tell the consensus commit
+/// handler how to handle each transaction: schedule it for execution,
+/// defer it to a future commit, cancel it, or ignore it.
+///
+/// The legacy name (in the certificate era) was `ConsensusCertificateResult`.
+/// It is renamed to `ConsensusTransactionResult` because this type now (in
+/// the certificate-less era) covers all consensus transaction kinds, not just
+/// certificates. The renaming is safe and backward-compatible since this is a
+/// fully internal type.
+pub enum ConsensusTransactionResult {
     /// The consensus message was ignored (e.g. because it has already been
     /// processed).
     Ignored,
+
     /// The transaction is scheduled for execution (can be a user tx or a
     /// system tx) with start_time. The start_time is an ExecutionTime assigned
     /// by the SharedObjectCongestionTracker and it implies its
@@ -419,32 +457,37 @@ pub enum ConsensusCertificateResult {
         transaction: VerifiedExecutableTransaction,
         start_time: ExecutionTime,
     },
+
     /// The transaction should be re-processed at a future commit, specified by
     /// `deferral_key`. If the gas price feedback is enabled,
     /// `suggested_gas_price` is `Some(...)` and indicates a gas price that
-    /// the certificate would need to pay to be scheduled in a consensus
+    /// the transaction would need to pay to be scheduled in a consensus
     /// commit. If the feedback mechanism is not enabled and for
-    /// certificates deferred due to "randomness not available",
+    /// transactions deferred due to "randomness not available",
     /// the `suggested_gas_price` price field will be set to `None`.
     Deferred {
         deferral_key: DeferralKey,
         suggested_gas_price: Option<u64>,
     },
+
     /// A message was processed which updates randomness state.
     RandomnessConsensusMessage,
+
     /// Everything else, e.g. AuthorityCapabilities, CheckpointSignatures, etc.
     ConsensusMessage,
+
     /// A system message in consensus was ignored (e.g. because of end of
     /// epoch).
     IgnoredSystem,
+
     /// A will-be-cancelled transaction. It'll still go through execution engine
     /// (but not be executed), unlock any owned objects, and return
     /// corresponding cancellation error according to
-    /// `CancelConsensusCertificateReason`.
+    /// `CancelConsensusTransactionReason`.
     Cancelled(
         (
             VerifiedExecutableTransaction,
-            CancelConsensusCertificateReason,
+            CancelConsensusTransactionReason,
         ),
     ),
 }
@@ -634,6 +677,11 @@ pub struct AuthorityPerEpochStore {
     /// Cancellation token used to signal epoch termination to all in-flight
     /// tasks.
     epoch_alive_token: CancellationToken,
+
+    /// In-memory bounded cache for transactions dropped by white-flag conflict
+    /// resolution. Allows `wait_for_effects` to return immediately with a
+    /// `Rejected` response instead of waiting for the gRPC deadline.
+    dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
     /// Used to notify all epoch specific tasks that user certs are closed.
     user_certs_closed_notify: NotifyOnce,
@@ -1016,7 +1064,8 @@ impl AuthorityEpochTables {
 pub(crate) const MUTEX_TABLE_SIZE: usize = 1024;
 
 impl AuthorityPerEpochStore {
-    #[instrument(name = "AuthorityPerEpochStore::new", level = "error", skip_all, fields(epoch = committee.epoch))]
+    #[instrument(name = "AuthorityPerEpochStore::new", level = "error", skip_all, fields(epoch = committee.epoch
+    ))]
     pub fn new(
         name: AuthorityName,
         committee: Arc<Committee>,
@@ -1055,19 +1104,9 @@ impl AuthorityPerEpochStore {
         }
 
         let epoch_alive_token = CancellationToken::new();
+        // NOTE: `pending_consensus_certificates` will be built after `protocol_config`
+        // is available below.
         let pending_consensus_transactions = tables.get_all_pending_consensus_transactions()?;
-        let pending_consensus_certificates: HashSet<_> = pending_consensus_transactions
-            .iter()
-            .filter_map(|transaction| {
-                if let ConsensusTransactionKind::CertifiedTransaction(certificate) =
-                    &transaction.kind
-                {
-                    Some(*certificate.digest())
-                } else {
-                    None
-                }
-            })
-            .collect();
         assert_eq!(
             epoch_start_configuration.epoch_start_state().epoch(),
             epoch_id
@@ -1092,6 +1131,24 @@ impl AuthorityPerEpochStore {
         );
 
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, chain.1);
+
+        let pending_consensus_certificates: HashSet<_> = if protocol_config.enable_white_flag_flow()
+        {
+            HashSet::new() // no certificates in certificate-less mode
+        } else {
+            pending_consensus_transactions
+                .iter()
+                .filter_map(|transaction| {
+                    if let ConsensusTransactionKind::CertifiedTransaction(certificate) =
+                        &transaction.kind
+                    {
+                        Some(*certificate.digest())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
 
         let execution_component = ExecutionComponents::new(
             &protocol_config,
@@ -1163,6 +1220,7 @@ impl AuthorityPerEpochStore {
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
             signed_effects_digests_cache,
+            dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1707,6 +1765,16 @@ impl AuthorityPerEpochStore {
             .await
     }
 
+    /// Wait for a transaction to be dropped by white-flag conflict resolution.
+    /// Returns the `IotaError` describing why it was dropped.
+    /// Callers should race this against `notify_read_executed_effects_digests`
+    /// to determine whether the transaction was executed or dropped.
+    pub async fn notify_read_dropped_digests(&self, digest: TransactionDigest) -> IotaError {
+        self.dropped_tx_status_cache
+            .notify_read_dropped(digest)
+            .await
+    }
+
     pub async fn notify_read_running_root(
         &self,
         checkpoint: CheckpointSequenceNumber,
@@ -2001,6 +2069,9 @@ impl AuthorityPerEpochStore {
                         SequencedConsensusTransactionKey::External(
                             ConsensusTransactionKey::Certificate(digest),
                         ) => (digest, (*deferral_key, tx.suggested_gas_price)),
+                        SequencedConsensusTransactionKey::External(
+                            ConsensusTransactionKey::UserTransaction(digest),
+                        ) => (digest, (*deferral_key, tx.suggested_gas_price)),
                         _ => {
                             panic!(
                                 "deferred randomness transaction was not a user certificate: {tx:?}"
@@ -2157,7 +2228,8 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
+    #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty
+    ))]
     fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,
@@ -2244,8 +2316,13 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// When submitting a certificate caller **must** provide a ReconfigState
-    /// lock guard and verify that it allows new user certificates
+    /// Insert transactions that will be submitted to consensus into
+    /// the persistent `pending_consensus_transactions` table.
+    ///
+    /// Additionally, in the certificate mode, insert certified transactions
+    /// into the in-memory `pending_consensus_certificates` set. When
+    /// submitting a certificate caller **must** provide a `ReconfigState`
+    /// lock guard and verify that it allows new user certificates.
     pub fn insert_pending_consensus_transactions(
         &self,
         transactions: &[ConsensusTransaction],
@@ -2256,23 +2333,38 @@ impl AuthorityPerEpochStore {
             .pending_consensus_transactions
             .multi_insert(key_value_pairs)?;
 
-        // TODO: lock once for all insert() calls.
-        for transaction in transactions {
-            if let ConsensusTransactionKind::CertifiedTransaction(cert) = &transaction.kind {
-                let state = lock.expect("Must pass reconfiguration lock when storing certificate");
-                // Caller is responsible for performing graceful check
-                assert!(
-                    state.should_accept_user_certs(),
-                    "Reconfiguration state should allow accepting user transactions"
-                );
-                self.pending_consensus_certificates
-                    .write()
-                    .insert(*cert.digest());
+        // NOTE: If the white flag flow is enabled (certificate-less mode), we do not
+        // insert `UserTransactionV1` into the pending set because there is no
+        // pre-consensus "promise" (a certificate) that `UserTransactionV1` will be
+        // executed before the end of epoch. Thus, the below insertion is only for
+        // certificates, i.e., when the white flag flow is disabled.
+        if !self.protocol_config.enable_white_flag_flow() {
+            // TODO: lock once for all insert() calls.
+            for transaction in transactions {
+                if let ConsensusTransactionKind::CertifiedTransaction(cert) = &transaction.kind {
+                    let state =
+                        lock.expect("Must pass reconfiguration lock when storing certificate");
+                    // Caller is responsible for performing graceful check
+                    assert!(
+                        state.should_accept_user_certs(),
+                        "Reconfiguration state should allow accepting user transactions"
+                    );
+                    self.pending_consensus_certificates
+                        .write()
+                        .insert(*cert.digest());
+                }
             }
         }
+
         Ok(())
     }
 
+    /// Remove processed by consensus transactions from the persistent
+    /// `pending_consensus_transactions` table.
+    ///
+    /// Additionally, in the certificate mode, remove certified transactions
+    /// that were processed by consensus from the in-memory
+    /// `pending_consensus_certificates` set.
     pub fn remove_pending_consensus_transactions(
         &self,
         keys: &[ConsensusTransactionKey],
@@ -2280,12 +2372,20 @@ impl AuthorityPerEpochStore {
         self.tables()?
             .pending_consensus_transactions
             .multi_remove(keys)?;
-        // TODO: lock once for all remove() calls.
-        for key in keys {
-            if let ConsensusTransactionKey::Certificate(cert) = key {
-                self.pending_consensus_certificates.write().remove(cert);
+
+        // NOTE: If the white flag flow is enabled, there are no certificates,
+        // so there is nothing to remove from `pending_consensus_certificates`.
+        // Thus, the below removal is only for certificates, i.e., when the white
+        // flag flow is disabled.
+        if !self.protocol_config.enable_white_flag_flow() {
+            // TODO: lock once for all remove() calls.
+            for key in keys {
+                if let ConsensusTransactionKey::Certificate(cert) = key {
+                    self.pending_consensus_certificates.write().remove(cert);
+                }
             }
         }
+
         Ok(())
     }
 
@@ -2709,6 +2809,12 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
+    pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+        self.consensus_quarantine
+            .read()
+            .get_owned_object_lock(obj_ref)
+    }
+
     pub(crate) fn get_randomness_last_round_timestamp(
         &self,
     ) -> IotaResult<Option<CheckpointTimestamp>> {
@@ -2899,6 +3005,13 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(_transaction),
+                ..
+            }) => {
+                // TODO: make sure that UserTransactionV1 blocks don't pass
+                //  validation if the protocol feature flag is not set
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(data),
                 ..
             }) => {
@@ -3040,7 +3153,7 @@ impl AuthorityPerEpochStore {
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
     >(
-        &self,
+        self: &Arc<Self>,
         transactions: Vec<SequencedConsensusTransaction>,
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
@@ -3048,6 +3161,7 @@ impl AuthorityPerEpochStore {
         tx_reader: &dyn TransactionCacheRead,
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
+        authority_state: &AuthorityState,
     ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
         // Split transactions into different types for processing.
         let verified_transactions: Vec<_> = transactions
@@ -3065,12 +3179,13 @@ impl AuthorityPerEpochStore {
         let mut current_commit_sequenced_randomness_transactions =
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
+        let enable_white_flag = self.protocol_config.enable_white_flag_flow();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
-            } else if tx.0.is_user_tx_with_randomness() {
+            } else if !enable_white_flag && tx.0.is_user_tx_with_randomness() {
                 current_commit_sequenced_randomness_transactions.push(tx);
             } else {
                 current_commit_sequenced_consensus_transactions.push(tx);
@@ -3095,22 +3210,33 @@ impl AuthorityPerEpochStore {
                         SequencedConsensusTransactionKey::External(
                             ConsensusTransactionKey::Certificate(digest),
                         ) => (digest, (*deferral_key, tx.suggested_gas_price)),
-                        _ => panic!("deferred transaction was not a user certificate: {tx:?}"),
+                        SequencedConsensusTransactionKey::External(
+                            ConsensusTransactionKey::UserTransaction(digest),
+                        ) => (digest, (*deferral_key, tx.suggested_gas_price)),
+                        _ => panic!("deferred transaction was not a user transaction or a certificate: {tx:?}"),
                     })
             })
             .collect();
 
-        // Sequenced_transactions and sequenced_randomness_transactions store all
+        // sequenced_transactions and sequenced_randomness_transactions store all
         // transactions that will be sent to process_consensus_transactions. We
         // put deferred transactions at the beginning of the list before
         // PostConsensusTxReorder::reorder, so that for transactions with the same gas
         // price, deferred transactions will be placed earlier in the execution
         // queue.
+        //
+        // White-flag flow: when enabled, the categorization loop above puts ALL
+        // user transactions (including randomness) into
+        // current_commit_sequenced_consensus_transactions to preserve consensus
+        // DAG ordering during conflict resolution. The deferred-loading paths
+        // below do the same. After validate_and_resolve_conflicts runs on the
+        // combined list, we partition back into regular/randomness for downstream
+        // processing (separate reordering and congestion tracking).
+        let total_user_tx_count = current_commit_sequenced_consensus_transactions.len()
+            + current_commit_sequenced_randomness_transactions.len()
+            + previously_deferred_tx_digests.len();
         let mut sequenced_transactions: Vec<VerifiedSequencedConsensusTransaction> =
-            Vec::with_capacity(
-                current_commit_sequenced_consensus_transactions.len()
-                    + previously_deferred_tx_digests.len(),
-            );
+            Vec::with_capacity(total_user_tx_count);
         let mut sequenced_randomness_transactions: Vec<VerifiedSequencedConsensusTransaction> =
             Vec::with_capacity(
                 current_commit_sequenced_randomness_transactions.len()
@@ -3159,7 +3285,11 @@ impl AuthorityPerEpochStore {
             self.load_and_process_deferred_transactions_for_randomness(
                 &mut output,
                 &mut previously_deferred_tx_digests,
-                &mut sequenced_randomness_transactions,
+                if enable_white_flag {
+                    &mut sequenced_transactions
+                } else {
+                    &mut sequenced_randomness_transactions
+                },
             )?;
         }
 
@@ -3168,7 +3298,7 @@ impl AuthorityPerEpochStore {
             .into_iter()
             .flat_map(|(_, txs)| txs.into_iter())
         {
-            if tx.transaction.0.is_user_tx_with_randomness() {
+            if !enable_white_flag && tx.transaction.0.is_user_tx_with_randomness() {
                 sequenced_randomness_transactions.push(tx.transaction);
             } else {
                 sequenced_transactions.push(tx.transaction);
@@ -3176,6 +3306,37 @@ impl AuthorityPerEpochStore {
         }
         sequenced_transactions.extend(current_commit_sequenced_consensus_transactions);
         sequenced_randomness_transactions.extend(current_commit_sequenced_randomness_transactions);
+
+        // Post-consensus validation and owned-object conflict resolution in a
+        // single pass: validates UserTransactionV1 transactions and resolves
+        // lock conflicts before reordering. Deferred txs from previous commits
+        // already have persistent locks, giving them natural precedence.
+        if enable_white_flag {
+            let (dropped, owned_object_locks) =
+                post_consensus_validation::validate_and_resolve_conflicts(
+                    authority_state,
+                    self,
+                    &mut sequenced_transactions,
+                )
+                .await?;
+            output.set_owned_object_locks(owned_object_locks);
+            // TODO: possibly record dropped digests in ConsensusCommitPrologue for
+            //  consistent view
+            if !dropped.is_empty() {
+                self.dropped_tx_status_cache.insert_and_notify(&dropped);
+                authority_metrics
+                    .consensus_handler_validation_dropped_transactions
+                    .inc_by(dropped.len() as u64);
+            }
+
+            // Split back for downstream processing (separate reordering
+            // and congestion tracking).
+            let (regular, randomness): (Vec<_>, Vec<_>) = sequenced_transactions
+                .into_iter()
+                .partition(|tx| !tx.0.is_user_tx_with_randomness());
+            sequenced_transactions = regular;
+            sequenced_randomness_transactions = randomness;
+        }
 
         // Save roots for checkpoint generation. One set for most tx, one for randomness
         // tx.
@@ -3441,7 +3602,7 @@ impl AuthorityPerEpochStore {
         output: &mut ConsensusCommitOutput,
         transactions: &mut VecDeque<VerifiedExecutableTransaction>,
         consensus_commit_info: &ConsensusCommitInfo,
-        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
+        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
     ) -> IotaResult<Option<TransactionKey>> {
         {
             if consensus_commit_info.skip_consensus_commit_prologue_in_test() {
@@ -3454,8 +3615,8 @@ impl AuthorityPerEpochStore {
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
             match cancelled_txns.get(txn.digest()) {
-                Some(CancelConsensusCertificateReason::CongestionOnObjects { .. })
-                | Some(CancelConsensusCertificateReason::DkgFailed) => {
+                Some(CancelConsensusTransactionReason::CongestionOnObjects { .. })
+                | Some(CancelConsensusTransactionReason::DkgFailed) => {
                     let version_assignments = SharedObjVerManager::assign_versions_for_certificate(
                         txn,
                         &mut shared_input_next_version,
@@ -3484,16 +3645,16 @@ impl AuthorityPerEpochStore {
         let consensus_commit_prologue_root = match self
             .process_consensus_system_transaction(&transaction)
         {
-            ConsensusCertificateResult::Scheduled {
+            ConsensusTransactionResult::Scheduled {
                 transaction,
                 start_time: _,
             } => {
                 transactions.push_front(transaction.clone());
                 Some(transaction.key())
             }
-            ConsensusCertificateResult::IgnoredSystem => None,
+            ConsensusTransactionResult::IgnoredSystem => None,
             _ => unreachable!(
-                "process_consensus_system_transaction returned unexpected ConsensusCertificateResult."
+                "process_consensus_system_transaction returned unexpected ConsensusTransactionResult."
             ),
         };
 
@@ -3513,7 +3674,7 @@ impl AuthorityPerEpochStore {
         non_randomness_transactions: &[VerifiedExecutableTransaction],
         randomness_transactions: &[VerifiedExecutableTransaction],
         randomness_round: Option<RandomnessRound>,
-        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
+        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         output: &mut ConsensusCommitOutput,
     ) -> IotaResult {
         // If randomness_round is set, we know that eventually there will be a
@@ -3576,6 +3737,7 @@ impl AuthorityPerEpochStore {
         tx_reader: &dyn TransactionCacheRead,
         authority_metrics: &Arc<AuthorityMetrics>,
         skip_consensus_commit_prologue_in_test: bool,
+        authority_state: &AuthorityState,
     ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
         self.process_consensus_transactions_and_commit_boundary(
             transactions,
@@ -3589,6 +3751,7 @@ impl AuthorityPerEpochStore {
                 skip_consensus_commit_prologue_in_test,
             ),
             authority_metrics,
+            authority_state,
         )
         .await
     }
@@ -3669,7 +3832,7 @@ impl AuthorityPerEpochStore {
             Vec::with_capacity(non_randomness_transactions.len() + randomness_transactions.len());
 
         let mut deferred_txns: BTreeMap<DeferralKey, Vec<DeferredTransaction>> = BTreeMap::new();
-        let mut cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> =
+        let mut cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> =
             BTreeMap::new();
 
         fail_point_arg!(
@@ -3756,14 +3919,14 @@ impl AuthorityPerEpochStore {
                 )
                 .await?
             {
-                ConsensusCertificateResult::Scheduled {
+                ConsensusTransactionResult::Scheduled {
                     transaction,
                     start_time,
                 } => {
                     notifications.push(key.clone());
                     sequenced_txns.push((transaction, start_time));
                 }
-                ConsensusCertificateResult::Deferred {
+                ConsensusTransactionResult::Deferred {
                     deferral_key,
                     suggested_gas_price,
                 } => {
@@ -3780,22 +3943,22 @@ impl AuthorityPerEpochStore {
                         notifications.push(key.clone());
                     }
                 }
-                ConsensusCertificateResult::Cancelled((cert, reason)) => {
+                ConsensusTransactionResult::Cancelled((cert, reason)) => {
                     notifications.push(key.clone());
                     assert!(cancelled_txns.insert(*cert.digest(), reason).is_none());
                     sequenced_txns.push((cert, congestion_tracker.max_occupied_slot_end_time()));
                 }
-                ConsensusCertificateResult::RandomnessConsensusMessage => {
+                ConsensusTransactionResult::RandomnessConsensusMessage => {
                     randomness_state_updated = true;
                     notifications.push(key.clone());
                 }
-                ConsensusCertificateResult::ConsensusMessage => notifications.push(key.clone()),
-                ConsensusCertificateResult::IgnoredSystem => {
+                ConsensusTransactionResult::ConsensusMessage => notifications.push(key.clone()),
+                ConsensusTransactionResult::IgnoredSystem => {
                     filter_roots = true;
                 }
                 // Note: ignored external transactions must not be recorded as processed. Otherwise
                 // they may not get reverted after restart during epoch change.
-                ConsensusCertificateResult::Ignored => {
+                ConsensusTransactionResult::Ignored => {
                     ignored = true;
                     filter_roots = true;
                 }
@@ -4076,7 +4239,7 @@ impl AuthorityPerEpochStore {
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
         authority_metrics: &Arc<AuthorityMetrics>,
-    ) -> IotaResult<ConsensusCertificateResult> {
+    ) -> IotaResult<ConsensusTransactionResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
         let VerifiedSequencedConsensusTransaction(SequencedConsensusTransaction {
             certificate_author_index: _,
@@ -4098,7 +4261,7 @@ impl AuthorityPerEpochStore {
                         certificate.epoch(),
                         self.epoch()
                     );
-                    return Ok(ConsensusCertificateResult::Ignored);
+                    return Ok(ConsensusTransactionResult::Ignored);
                 }
                 if self.has_sent_end_of_publish(certificate_author)?
                     && !previously_deferred_tx_digests.contains_key(certificate.digest())
@@ -4116,7 +4279,7 @@ impl AuthorityPerEpochStore {
                         certificate_author.concise(),
                         certificate.digest()
                     );
-                    return Ok(ConsensusCertificateResult::Ignored);
+                    return Ok(ConsensusTransactionResult::Ignored);
                 }
                 // Safe because signatures are verified when consensus called into
                 // IotaTxValidator::validate_batch.
@@ -4138,7 +4301,7 @@ impl AuthorityPerEpochStore {
                         "Ignoring consensus certificate for transaction {:?} because of end of epoch",
                         certificate.digest()
                     );
-                    return Ok(ConsensusCertificateResult::Ignored);
+                    return Ok(ConsensusTransactionResult::Ignored);
                 }
 
                 let scheduling_result = self.try_schedule(
@@ -4150,132 +4313,15 @@ impl AuthorityPerEpochStore {
                     shared_object_congestion_tracker,
                 );
 
-                match scheduling_result {
-                    SchedulingResult::Defer(deferral_key, deferral_reason) => {
-                        debug!(
-                            "Deferring consensus certificate for transaction {:?} until {:?}",
-                            certificate.digest(),
-                            deferral_key
-                        );
-
-                        let deferral_result = match deferral_reason {
-                            DeferralReason::RandomnessNotReady => {
-                                // Always defer transaction due to randomness not ready.
-                                ConsensusCertificateResult::Deferred {
-                                    deferral_key,
-                                    suggested_gas_price: None,
-                                }
-                            }
-                            DeferralReason::SharedObjectCongestion(congested_objects) => {
-                                authority_metrics
-                                    .consensus_handler_congested_transactions
-                                    .inc();
-
-                                let suggested_gas_price = if self
-                                    .protocol_config
-                                    .congestion_control_gas_price_feedback_mechanism()
-                                {
-                                    let current_commit_suggested_gas_price =
-                                        suggested_gas_price_calculator
-                                            .calculate_suggested_gas_price(&certificate);
-
-                                    let suggested_gas_price = previously_deferred_tx_digests
-                                        .get(certificate.digest())
-                                        .map_or_else(
-                                            || current_commit_suggested_gas_price,
-                                            |deferral_key_suggested_gas_price_pair| {
-                                                deferral_key_suggested_gas_price_pair
-                                                    .1
-                                                    // If None, this could mean the certificate was
-                                                    // deferred due to randomness unavailable in
-                                                    // the previous round, but in the current
-                                                    // round, it gets deferred due to congestion.
-                                                    // Since this is the first round the
-                                                    // certificate is deferred due to congestion,
-                                                    // we return the suggested gas price from the
-                                                    // current round.
-                                                    .unwrap_or(current_commit_suggested_gas_price)
-                                                    .min(current_commit_suggested_gas_price)
-                                            },
-                                        );
-
-                                    Some(suggested_gas_price)
-                                } else {
-                                    None
-                                };
-
-                                if transaction_deferral_within_limit(
-                                    &deferral_key,
-                                    self.protocol_config()
-                                        .max_deferral_rounds_for_congestion_control(),
-                                ) {
-                                    ConsensusCertificateResult::Deferred {
-                                        deferral_key,
-                                        suggested_gas_price,
-                                    }
-                                } else {
-                                    // Cancel the transaction that has been deferred for too long.
-
-                                    debug!(
-                                        "Cancelling consensus certificate for transaction {:?} \
-                                            with deferral key {deferral_key:?} due to congestion \
-                                            on objects {congested_objects:?}: actual gas price: \
-                                            {}, suggested gas price: {suggested_gas_price:?}",
-                                        certificate.digest(),
-                                        certificate.transaction_data().gas_price(),
-                                    );
-
-                                    ConsensusCertificateResult::Cancelled((
-                                        certificate,
-                                        CancelConsensusCertificateReason::CongestionOnObjects {
-                                            congested_objects,
-                                            suggested_gas_price,
-                                        },
-                                    ))
-                                }
-                            }
-                        };
-
-                        Ok(deferral_result)
-                    }
-                    SchedulingResult::Schedule(start_time) => {
-                        if dkg_failed && certificate.uses_randomness() {
-                            debug!(
-                                "Canceling randomness-using certificate for transaction {:?} because DKG failed",
-                                certificate.digest(),
-                            );
-
-                            return Ok(ConsensusCertificateResult::Cancelled((
-                                certificate,
-                                CancelConsensusCertificateReason::DkgFailed,
-                            )));
-                        }
-
-                        // This certificate will be scheduled. If it contains shared object(s),
-                        // we have to update the following:
-                        // - shared object execution slots (for congestion tracker);
-                        // - shared object congestion info (for suggested gas price calculator).
-                        if certificate.contains_shared_object()
-                            && shared_object_congestion_tracker
-                                .congestion_control_parameters()
-                                .is_congestion_control_enabled()
-                        {
-                            // We only need to do this if shared-object congestion control is
-                            // enabled, since otherwise this bumping will panic as object
-                            // execution slots are only initialized if
-                            // `max_execution_duration_per_commit` is not `None`.
-                            let bump_result = shared_object_congestion_tracker
-                                .bump_object_execution_slots(&certificate, start_time);
-
-                            suggested_gas_price_calculator.update_congestion_info(bump_result);
-                        }
-
-                        Ok(ConsensusCertificateResult::Scheduled {
-                            transaction: certificate,
-                            start_time,
-                        })
-                    }
-                }
+                self.handle_scheduling_result(
+                    scheduling_result,
+                    certificate,
+                    previously_deferred_tx_digests,
+                    dkg_failed,
+                    shared_object_congestion_tracker,
+                    suggested_gas_price_calculator,
+                    authority_metrics,
+                )
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(info),
@@ -4285,7 +4331,7 @@ impl AuthorityPerEpochStore {
                 // can be skipped when a batch is already part of a certificate,
                 // so we must also notify here.
                 checkpoint_service.notify_checkpoint_signature(self, info)?;
-                Ok(ConsensusCertificateResult::ConsensusMessage)
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::EndOfPublish(_),
@@ -4303,7 +4349,7 @@ impl AuthorityPerEpochStore {
                         "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
                         report.authority.concise()
                     );
-                    return Ok(ConsensusCertificateResult::ConsensusMessage);
+                    return Ok(ConsensusTransactionResult::ConsensusMessage);
                 }
                 if !self
                     .get_reconfig_state_read_lock_guard()
@@ -4313,7 +4359,7 @@ impl AuthorityPerEpochStore {
                         "Ignoring misbehavior report from {:?} because of end of epoch",
                         report.authority.concise()
                     );
-                    return Ok(ConsensusCertificateResult::ConsensusMessage);
+                    return Ok(ConsensusTransactionResult::ConsensusMessage);
                 }
 
                 // Safe: verify_consensus_transaction already validated the
@@ -4329,7 +4375,7 @@ impl AuthorityPerEpochStore {
                     .process_report(authority_index, report);
                 output.record_report_state_snapshot(authority_index, snapshot);
 
-                Ok(ConsensusCertificateResult::ConsensusMessage)
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CapabilityNotificationV1(capabilities),
@@ -4352,7 +4398,7 @@ impl AuthorityPerEpochStore {
                         authority.concise()
                     );
                 }
-                Ok(ConsensusCertificateResult::ConsensusMessage)
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
@@ -4377,7 +4423,7 @@ impl AuthorityPerEpochStore {
                         authority.concise()
                     );
                 }
-                Ok(ConsensusCertificateResult::ConsensusMessage)
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             #[allow(deprecated)]
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
@@ -4388,7 +4434,7 @@ impl AuthorityPerEpochStore {
                 // was never enabled. These consensus transaction kinds are retained
                 // only for BCS enum variant compatibility.
                 debug!("Ignoring NewJWKFetchedDeprecated transaction");
-                Ok(ConsensusCertificateResult::ConsensusMessage)
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, bytes),
@@ -4421,7 +4467,7 @@ impl AuthorityPerEpochStore {
                         authority.concise()
                     );
                 }
-                Ok(ConsensusCertificateResult::RandomnessConsensusMessage)
+                Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgConfirmation(authority, bytes),
@@ -4456,7 +4502,75 @@ impl AuthorityPerEpochStore {
                         authority.concise()
                     );
                 }
-                Ok(ConsensusCertificateResult::RandomnessConsensusMessage)
+                Ok(ConsensusTransactionResult::RandomnessConsensusMessage)
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                ..
+            }) => {
+                if transaction.is_system_tx() {
+                    warn!("UserTransactionV1 contains system transaction, ignoring");
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+                if self.has_sent_end_of_publish(certificate_author)?
+                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
+                {
+                    // A validator that has sent EndOfPublish must not inject new user
+                    // transactions. Previously-deferred transactions are excluded because
+                    // consensus may replay them and they should still be processed.
+                    warn!(
+                        "[Byzantine authority] Authority {:?} sent a new UserTransactionV1 \
+                         {:?} after it sent EndOfPublish message to consensus",
+                        certificate_author.concise(),
+                        transaction.digest()
+                    );
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+                // TODO: re-think the epoch-switching flow
+                if !self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
+                {
+                    debug!(
+                        "Ignoring white flag transaction {:?} because of end of epoch",
+                        transaction.digest()
+                    );
+                    return Ok(ConsensusTransactionResult::Ignored);
+                }
+                // TODO: verify that all the same validation actions are performed as for a
+                // Certificate. Possibly extract common code to a separate
+                // function to avoid code duplication.
+
+                // Create `VerifiedExecutableTransaction` with `ConsensusOrdered` proof.
+                // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
+                // pre-consensus signatures), the `ConsensusOrdered` certificate proof
+                // is authorized by consensus ordering post owned-object conflict resolution.
+                let executable_tx = VerifiedExecutableTransaction::new_unchecked(
+                    ExecutableTransaction::new_from_data_and_sig(
+                        transaction.data().clone(),
+                        CertificateProof::ConsensusOrdered(self.epoch()),
+                    ),
+                );
+
+                let scheduling_result = self.try_schedule(
+                    &executable_tx,
+                    commit_round,
+                    dkg_failed,
+                    generating_randomness,
+                    previously_deferred_tx_digests,
+                    shared_object_congestion_tracker,
+                );
+
+                self.handle_scheduling_result(
+                    scheduling_result,
+                    executable_tx,
+                    previously_deferred_tx_digests,
+                    dkg_failed,
+                    shared_object_congestion_tracker,
+                    suggested_gas_price_calculator,
+                    authority_metrics,
+                )
             }
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))
@@ -4464,21 +4578,160 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Handles `SchedulingResult`, i.e., the output of the
+    /// `self.try_schedule()` function, for the given
+    /// `VerifiedExecutableTransaction`.
+    fn handle_scheduling_result(
+        &self,
+        scheduling_result: SchedulingResult,
+        verified_executable_tx: VerifiedExecutableTransaction,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
+        dkg_failed: bool,
+        shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
+        authority_metrics: &Arc<AuthorityMetrics>,
+    ) -> IotaResult<ConsensusTransactionResult> {
+        match scheduling_result {
+            SchedulingResult::Defer(deferral_key, deferral_reason) => {
+                debug!(
+                    "Deferring verified executable transaction {:?} until {deferral_key:?}",
+                    verified_executable_tx.digest(),
+                );
+
+                let deferral_result = match deferral_reason {
+                    DeferralReason::RandomnessNotReady => {
+                        // Always defer transaction due to randomness not ready.
+                        ConsensusTransactionResult::Deferred {
+                            deferral_key,
+                            suggested_gas_price: None,
+                        }
+                    }
+                    DeferralReason::SharedObjectCongestion(congested_objects) => {
+                        authority_metrics
+                            .consensus_handler_congested_transactions
+                            .inc();
+
+                        let suggested_gas_price = if self
+                            .protocol_config
+                            .congestion_control_gas_price_feedback_mechanism()
+                        {
+                            let current_commit_suggested_gas_price = suggested_gas_price_calculator
+                                .calculate_suggested_gas_price(&verified_executable_tx);
+
+                            let suggested_gas_price = previously_deferred_tx_digests
+                                .get(verified_executable_tx.digest())
+                                .map_or_else(
+                                    || current_commit_suggested_gas_price,
+                                    |deferral_key_suggested_gas_price_pair| {
+                                        deferral_key_suggested_gas_price_pair
+                                            .1
+                                            // If None, this could mean the transaction was
+                                            // deferred due to randomness unavailable in
+                                            // the previous round, but in the current
+                                            // round, it gets deferred due to congestion.
+                                            // Since this is the first round the
+                                            // transaction is deferred due to congestion,
+                                            // we return the suggested gas price from the
+                                            // current round.
+                                            .unwrap_or(current_commit_suggested_gas_price)
+                                            .min(current_commit_suggested_gas_price)
+                                    },
+                                );
+
+                            Some(suggested_gas_price)
+                        } else {
+                            None
+                        };
+
+                        if transaction_deferral_within_limit(
+                            &deferral_key,
+                            self.protocol_config()
+                                .max_deferral_rounds_for_congestion_control(),
+                        ) {
+                            ConsensusTransactionResult::Deferred {
+                                deferral_key,
+                                suggested_gas_price,
+                            }
+                        } else {
+                            // Cancel the transaction that has been deferred for too long.
+                            debug!(
+                                "Cancelling verified executable transaction {:?} with deferral \
+                                    key {deferral_key:?} due to congestion on objects \
+                                    {congested_objects:?}: actual gas price: {}, suggested gas \
+                                    price: {suggested_gas_price:?}",
+                                verified_executable_tx.digest(),
+                                verified_executable_tx.transaction_data().gas_price(),
+                            );
+
+                            ConsensusTransactionResult::Cancelled((
+                                verified_executable_tx,
+                                CancelConsensusTransactionReason::CongestionOnObjects {
+                                    congested_objects,
+                                    suggested_gas_price,
+                                },
+                            ))
+                        }
+                    }
+                };
+
+                Ok(deferral_result)
+            }
+            SchedulingResult::Schedule(start_time) => {
+                if dkg_failed && verified_executable_tx.uses_randomness() {
+                    debug!(
+                        "Canceling randomness-using verified executable transaction {:?} because \
+                            DKG failed",
+                        verified_executable_tx.digest(),
+                    );
+
+                    return Ok(ConsensusTransactionResult::Cancelled((
+                        verified_executable_tx,
+                        CancelConsensusTransactionReason::DkgFailed,
+                    )));
+                }
+
+                // This transaction will be scheduled. If it contains shared object(s),
+                // we have to update the following:
+                // - shared object execution slots (for congestion tracker);
+                // - shared object congestion info (for suggested gas price calculator).
+                if verified_executable_tx.contains_shared_object()
+                    && shared_object_congestion_tracker
+                        .congestion_control_parameters()
+                        .is_congestion_control_enabled()
+                {
+                    // We only need to do this if shared-object congestion control is
+                    // enabled, since otherwise this bumping will panic as object
+                    // execution slots are only initialized if
+                    // `max_execution_duration_per_commit` is not `None`.
+                    let bump_result = shared_object_congestion_tracker
+                        .bump_object_execution_slots(&verified_executable_tx, start_time);
+
+                    suggested_gas_price_calculator.update_congestion_info(bump_result);
+                }
+
+                Ok(ConsensusTransactionResult::Scheduled {
+                    transaction: verified_executable_tx,
+                    start_time,
+                })
+            }
+        }
+    }
+
     fn process_consensus_system_transaction(
         &self,
         system_transaction: &VerifiedExecutableTransaction,
-    ) -> ConsensusCertificateResult {
+    ) -> ConsensusTransactionResult {
         if !self.get_reconfig_state_read_lock_guard().should_accept_tx() {
             debug!(
                 "Ignoring system transaction {:?} because of end of epoch",
                 system_transaction.digest()
             );
-            return ConsensusCertificateResult::IgnoredSystem;
+            return ConsensusTransactionResult::IgnoredSystem;
         }
 
         // If needed we can support owned object system transactions as well...
         assert!(system_transaction.contains_shared_object());
-        ConsensusCertificateResult::Scheduled {
+        ConsensusTransactionResult::Scheduled {
             transaction: system_transaction.clone(),
             start_time: 0,
         }
@@ -4799,6 +5052,14 @@ impl AuthorityPerEpochStore {
         self.consensus_quarantine
             .read()
             .load_stored_object_debts_for_testing(for_randomness, object_ids)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert_dropped_digests_for_testing(
+        &self,
+        dropped: &[(TransactionDigest, IotaError)],
+    ) {
+        self.dropped_tx_status_cache.insert_and_notify(dropped);
     }
 }
 
