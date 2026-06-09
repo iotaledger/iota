@@ -3,7 +3,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{
     gas_algebra::{InternalGas, InternalGasPerByte, NumBytes},
@@ -17,22 +18,22 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
     pop_arg,
-    values::{values_impl::Reference, Value},
+    values::{Value, values_impl::Reference},
 };
 use smallvec::smallvec;
-use std::{collections::VecDeque, sync::Arc};
+
+use crate::helpers::make_module_natives;
 /// ****************************************************************************
-/// ********************* native fun to_bytes
+/// native fun to_bytes
 ///
 ///   gas cost: size_of(val_type) * input_unit_cost +        | get type layout
 ///             size_of(val) * input_unit_cost +             | serialize value
 ///             max(size_of(output), 1) * output_unit_cost
 ///
-///             If any of the first two steps fails, a partial cost + an
-/// additional failure_cost             will be charged.
+/// If any of the first two steps fails, a partial cost + an
+/// additional failure_cost will be charged.
 ///
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct ToBytesGasParameters {
     pub per_byte_serialized: InternalGasPerByte,
@@ -109,9 +110,8 @@ pub fn make_native_to_bytes(gas_params: ToBytesGasParameters) -> NativeFunction 
 }
 
 /// ****************************************************************************
-/// ********************* module
+/// module
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub to_bytes: ToBytesGasParameters,

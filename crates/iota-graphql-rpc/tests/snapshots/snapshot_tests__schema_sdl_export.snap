@@ -2,67 +2,6 @@
 source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
 expression: sdl
 ---
-type ActiveJwk {
-	"""
-	The string (Issuing Authority) that identifies the OIDC provider.
-	"""
-	iss: String!
-	"""
-	The string (Key ID) that identifies the JWK among a set of JWKs, (RFC
-	7517, Section 4.5).
-	"""
-	kid: String!
-	"""
-	The JWK key type parameter, (RFC 7517, Section 4.1).
-	"""
-	kty: String!
-	"""
-	The JWK RSA public exponent, (RFC 7517, Section 9.3).
-	"""
-	e: String!
-	"""
-	The JWK RSA modulus, (RFC 7517, Section 9.3).
-	"""
-	n: String!
-	"""
-	The JWK algorithm parameter, (RFC 7517, Section 4.4).
-	"""
-	alg: String!
-	"""
-	The most recent epoch in which the JWK was validated.
-	"""
-	epoch: Epoch
-}
-
-type ActiveJwkConnection {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [ActiveJwkEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [ActiveJwk!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ActiveJwkEdge {
-	"""
-	The item at the end of the edge
-	"""
-	node: ActiveJwk!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
 """
 The 32-byte address that is an account address (corresponding to a public
 key).
@@ -106,7 +45,7 @@ type Address implements IOwner {
 	"""
 	Similar behavior to the `transactionBlocks` in Query but supporting the
 	additional `AddressTransactionBlockRelationship` filter, which
-	defaults to `SIGN`.
+	defaults to `SENT`.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply
@@ -175,61 +114,17 @@ type AddressOwner {
 }
 
 """
-The possible relationship types for a transaction block: sign, sent,
-received, or paid.
+The possible relationship types for a transaction block: sent or received.
 """
 enum AddressTransactionBlockRelationship {
 	"""
-	Transactions this address has signed either as a sender or as a sponsor.
+	Transactions this address has sent.
 	"""
-	SIGN
+	SENT
 	"""
 	Transactions that sent objects to this address.
 	"""
 	RECV
-}
-
-"""
-System transaction for creating the on-chain state used by zkLogin.
-"""
-type AuthenticatorStateCreateTransaction {
-	"""
-	A workaround to define an empty variant of a GraphQL union.
-	"""
-	_: Boolean
-}
-
-type AuthenticatorStateExpireTransaction {
-	"""
-	Expire JWKs that have a lower epoch than this.
-	"""
-	minEpoch: Epoch
-	"""
-	The initial version that the AuthenticatorStateUpdateV1 was shared at.
-	"""
-	authenticatorObjInitialSharedVersion: UInt53!
-}
-
-"""
-System transaction for updating the on-chain state used by zkLogin.
-"""
-type AuthenticatorStateUpdateTransaction {
-	"""
-	Epoch of the authenticator state update transaction.
-	"""
-	epoch: Epoch
-	"""
-	Consensus round of the authenticator state update.
-	"""
-	round: UInt53!
-	"""
-	Newly active JWKs (JSON Web Keys).
-	"""
-	newActiveJwks(first: Int, after: String, last: Int, before: String): ActiveJwkConnection!
-	"""
-	The initial version of the authenticator object that it was shared at.
-	"""
-	authenticatorObjInitialSharedVersion: UInt53!
 }
 
 """
@@ -444,6 +339,15 @@ type ChangeEpochTransactionV2 {
 	Validators write these packages out when running the transaction.
 	"""
 	systemPackages(first: Int, after: String, last: Int, before: String): MovePackageConnection!
+	"""
+	The list of active validators eligible for committee selection for the
+	next epoch.
+	"""
+	eligibleActiveValidators: [BigInt!]
+	"""
+	The validator scores at the end of the epoch.
+	"""
+	scores: [BigInt!]
 }
 
 """
@@ -602,14 +506,13 @@ type Coin implements IMoveObject & IObject & IOwner {
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
-	possible states are: NOT_INDEXED, the object is loaded from
-	serialized data, such as the contents of a genesis or system package
-	upgrade transaction. LIVE, the version returned is the most recent for
-	the object, and it is not deleted or wrapped at that version.
-	HISTORICAL, the object was referenced at a specific version or
-	checkpoint, so is fetched from historical tables and may not be the
-	latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-	or wrapped and only partial information can be loaded."
+	possible states are:
+	- NOT_INDEXED: The object is loaded from serialized data, such as the
+	contents of a genesis or system package upgrade transaction.
+	- INDEXED: The object is retrieved from the off-chain index and
+	represents the most recent or historical state of the object.
+	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -779,14 +682,13 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
-	possible states are: NOT_INDEXED, the object is loaded from
-	serialized data, such as the contents of a genesis or system package
-	upgrade transaction. LIVE, the version returned is the most recent for
-	the object, and it is not deleted or wrapped at that version.
-	HISTORICAL, the object was referenced at a specific version or
-	checkpoint, so is fetched from historical tables and may not be the
-	latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-	or wrapped and only partial information can be loaded."
+	possible states are:
+	- NOT_INDEXED: The object is loaded from serialized data, such as the
+	contents of a genesis or system package upgrade transaction.
+	- INDEXED: The object is retrieved from the off-chain index and
+	represents the most recent or historical state of the object.
+	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -1106,7 +1008,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2 | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction
+union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2
 
 type EndOfEpochTransactionKindConnection {
 	"""
@@ -1233,7 +1135,7 @@ type Epoch {
 	"""
 	The total IOTA supply.
 	"""
-	iotaTotalSupply: Int
+	iotaTotalSupply: BigInt
 	"""
 	The treasury-cap id.
 	"""
@@ -1281,6 +1183,15 @@ type Epoch {
 }
 
 type Event {
+	"""
+	The transaction block that emitted this event. This information is only
+	available for events from transactions included in a checkpoint.
+	
+	For simulated transactions (e.g. dry run), or transactions that have
+	been just executed but not yet included in a checkpoint this returns
+	null.
+	"""
+	transactionBlock: TransactionBlock
 	"""
 	The Move module containing some function that when called by
 	a programmable transaction block (PTB) emitted this event.
@@ -1356,8 +1267,18 @@ type EventEdge {
 	cursor: String!
 }
 
+"""
+Represents optional available filters for events.
+"""
 input EventFilter {
+	"""
+	Filter down to events from transactions sent by this address.
+	"""
 	sender: IotaAddress
+	"""
+	Filter down to the events from this transaction (given by its
+	transaction digest).
+	"""
 	transactionDigest: String
 	"""
 	Events emitted by a particular module. An event is emitted by a
@@ -1382,6 +1303,16 @@ input EventFilter {
 	"""
 	eventType: String
 }
+
+"""
+Possible responses from a subscription.
+
+It could be one of the following:
+- A successful payload from the subscription stream.
+- A notice that the subscription has been lagged behind the network with the
+number of lost payloads.
+"""
+union EventSubscriptionPayload = Event | Lagged
 
 """
 The result of an execution, including errors that occurred during said
@@ -1599,7 +1530,16 @@ referred to as its address). This includes Move objects and packages.
 interface IObject {
 	version: UInt53!
 	"""
-	The current status of the object as read from the off-chain store. The possible states are: NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or system package upgrade transaction. LIVE, the version returned is the most recent for the object, and it is not deleted or wrapped at that version. HISTORICAL, the object was referenced at a specific version or checkpoint, so is fetched from historical tables and may not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or wrapped and only partial information can be loaded.
+	
+	            The current status of the object as read from the off-chain store. The
+	            possible states are:
+	            - NOT_INDEXED: The object is loaded from serialized data, such as the
+	            contents of a genesis or system package upgrade transaction.
+	            - INDEXED: The object is retrieved from the off-chain index and
+	            represents the most recent or historical state of the object.
+	            - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+	            information can be loaded.
+	        
 	"""
 	status: ObjectKind!
 	"""
@@ -1698,6 +1638,17 @@ scalar IotaAddress
 Arbitrary JSON data.
 """
 scalar JSON
+
+"""
+Notifies that the subscription consumer has fallen behind the live
+subscription stream and missed one or more payloads.
+"""
+type Lagged {
+	"""
+	Number of missed payloads since the previous emitted one.
+	"""
+	count: Int!
+}
 
 """
 Information used by a package to link to a specific version of its
@@ -2114,7 +2065,7 @@ type MoveModuleEdge {
 
 """
 The representation of an object as a Move Object, which exposes additional
-information (content, module that governs it, version, is transferrable,
+information (content, module that governs it, version, is transferable,
 etc.) about this object.
 """
 type MoveObject implements IMoveObject & IObject & IOwner {
@@ -2156,14 +2107,13 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
-	possible states are: NOT_INDEXED, the object is loaded from
-	serialized data, such as the contents of a genesis or system package
-	upgrade transaction. LIVE, the version returned is the most recent for
-	the object, and it is not deleted or wrapped at that version.
-	HISTORICAL, the object was referenced at a specific version or
-	checkpoint, so is fetched from historical tables and may not be the
-	latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-	or wrapped and only partial information can be loaded."
+	possible states are:
+	- NOT_INDEXED: The object is loaded from serialized data, such as the
+	contents of a genesis or system package upgrade transaction.
+	- INDEXED: The object is retrieved from the off-chain index and
+	represents the most recent or historical state of the object.
+	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -2363,14 +2313,13 @@ type MovePackage implements IObject & IOwner {
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
-	possible states are: NOT_INDEXED, the object is loaded from
-	serialized data, such as the contents of a genesis or system package
-	upgrade transaction. LIVE, the version returned is the most recent for
-	the object, and it is not deleted or wrapped at that version.
-	HISTORICAL, the object was referenced at a specific version or
-	checkpoint, so is fetched from historical tables and may not be the
-	latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-	or wrapped and only partial information can be loaded."
+	possible states are:
+	- NOT_INDEXED: The object is loaded from serialized data, such as the
+	contents of a genesis or system package upgrade transaction.
+	- INDEXED: The object is retrieved from the off-chain index and
+	represents the most recent or historical state of the object.
+	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -2463,6 +2412,10 @@ type MovePackage implements IObject & IOwner {
 	The (previous) versions of this package that introduced its types.
 	"""
 	typeOrigins: [TypeOrigin!]
+	"""
+	BCS representation of the package itself, as a MovePackage.
+	"""
+	packageBcs: Base64
 	"""
 	BCS representation of the package's modules.  Modules appear as a
 	sequence of pairs (module name, followed by module bytes), in
@@ -2699,6 +2652,26 @@ type MoveValue {
 }
 
 """
+The result of a move-view function call.
+
+Execution errors are captured in the `error` field, in which
+case the `results` field will be `None`.
+
+On success, the `results` field will contain the return values of the
+move view function, and the `error` field will be `None`.
+"""
+type MoveViewResult {
+	"""
+	Execution error from executing the move view call.
+	"""
+	error: String
+	"""
+	The return values of the move view function.
+	"""
+	results: [JSON!]
+}
+
+"""
 The visibility modifier describes which modules can access this module
 member. By default, a module member can be called only within the same
 module.
@@ -2737,13 +2710,13 @@ type Mutation {
 	that was not possible. A transaction is final when its effects are
 	guaranteed on chain (it cannot be revoked).
 	
-	There may be a delay between transaction finality and when GraphQL
-	requests (including the request that issued the transaction) reflect
-	its effects. As a result, queries that depend on indexing the state
-	of the chain (e.g. contents of output objects, address-level balance
-	information at the time of the transaction), must wait for indexing to
-	catch up by polling for the transaction digest using
-	`Query.transactionBlock`.
+	Transaction effects are now available immediately after execution
+	through `Query.transactionBlock`. However, other queries that depend
+	on the chain’s indexed state (e.g., address-level balance updates)
+	may still lag until the transaction has been checkpointed.
+	To confirm that a transaction has been included in a checkpoint, query
+	`Query.transactionBlock` and check whether the `effects.checkpoint`
+	field is set (or `null` if not yet checkpointed).
 	"""
 	executeTransactionBlock(txBytes: String!, signatures: [String!]!): ExecutionResult!
 }
@@ -2792,14 +2765,13 @@ type NameRegistration implements IMoveObject & IOwner {
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
-	possible states are: NOT_INDEXED, the object is loaded from
-	serialized data, such as the contents of a genesis or system package
-	upgrade transaction. LIVE, the version returned is the most recent for
-	the object, and it is not deleted or wrapped at that version.
-	HISTORICAL, the object was referenced at a specific version or
-	checkpoint, so is fetched from historical tables and may not be the
-	latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-	or wrapped and only partial information can be loaded."
+	possible states are:
+	- NOT_INDEXED: The object is loaded from serialized data, such as the
+	contents of a genesis or system package upgrade transaction.
+	- INDEXED: The object is retrieved from the off-chain index and
+	represents the most recent or historical state of the object.
+	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -2979,14 +2951,13 @@ type Object implements IObject & IOwner {
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
-	possible states are: NOT_INDEXED, the object is loaded from
-	serialized data, such as the contents of a genesis or system package
-	upgrade transaction. LIVE, the version returned is the most recent for
-	the object, and it is not deleted or wrapped at that version.
-	HISTORICAL, the object was referenced at a specific version or
-	checkpoint, so is fetched from historical tables and may not be the
-	latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-	or wrapped and only partial information can be loaded."
+	possible states are:
+	- NOT_INDEXED: The object is loaded from serialized data, such as the
+	contents of a genesis or system package upgrade transaction.
+	- INDEXED: The object is retrieved from the off-chain index and
+	represents the most recent or historical state of the object.
+	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -3179,11 +3150,8 @@ resulting set of objects are ones whose
 """
 input ObjectFilter {
 	"""
-	This field is used to specify the type of objects that should be
-	included in the query results.
-	
-	Objects can be filtered by their type's package, package::module, or
-	their fully qualified type name.
+	Filter objects by their type's `package`, `package::module`, or their
+	fully qualified type name.
 	
 	Generic types can be queried by either the generic type name, e.g.
 	`0x2::coin::Coin`, or by the full type name, such as
@@ -3224,7 +3192,7 @@ enum ObjectKind {
 	The object is deleted or wrapped and only partial information can be
 	loaded from the indexer.
 	"""
-	WRAPPED_OR_DELETED
+	WRAPPED_OR_DELETED @deprecated(reason: "will be removed with v1.26, as such objects can be considered non-existent")
 }
 
 """
@@ -3559,6 +3527,7 @@ type Query {
 	Configuration for this RPC service
 	"""
 	serviceConfig: ServiceConfig!
+	moveViewCall(functionName: String!, typeArgs: [String!], arguments: [JSON!]): MoveViewResult!
 	"""
 	Simulate running a transaction to inspect its effects without
 	committing to them on-chain.
@@ -3579,6 +3548,10 @@ type Query {
 	non-entry functions, and some other checks.  Defaults to false.
 	"""
 	dryRunTransactionBlock(txBytes: String!, txMeta: TransactionMetadata, skipChecks: Boolean): DryRunResult!
+	"""
+	Check if a transaction is indexed on the fullnode.
+	"""
+	isTransactionIndexedOnNode(digest: String!): Boolean!
 	"""
 	Look up an Owner by its IotaAddress.
 	
@@ -3653,6 +3626,11 @@ type Query {
 	"""
 	transactionBlock(digest: String!): TransactionBlock
 	"""
+	Fetch multiple transaction blocks by their digests.
+	This includes all transactions, even if they are not checkpointed yet.
+	"""
+	transactionBlocksByDigests(digests: [String!]!): [TransactionBlock]!
+	"""
 	The coin objects that exist in the network.
 	
 	The type field is a string of the inner type of the coin by which to
@@ -3686,10 +3664,11 @@ type Query {
 	direction of pagination, and so on until all transactions in the
 	scanning range have been visited.
 	
-	By default, the scanning range includes all transactions known to
-	GraphQL, but it can be restricted by the `after` and `before`
+	By default, the scanning range includes all checkpointed transactions
+	known to GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-	`atCheckpoint` filters.
+	`atCheckpoint` filters. Transactions that don't have a checkpoint yet
+	are always omitted.
 	"""
 	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
 	"""
@@ -3733,23 +3712,6 @@ type Query {
 	The coin metadata associated with the given coin type.
 	"""
 	coinMetadata(coinType: String!): CoinMetadata
-	"""
-	Verify a zkLogin signature based on the provided transaction or personal
-	message based on current epoch, chain id, and latest JWKs fetched
-	on-chain. If the signature is valid, the function returns a
-	`ZkLoginVerifyResult` with success as true and an empty list of
-	errors. If the signature is invalid, the function returns
-	a `ZkLoginVerifyResult` with success as false with a list of errors.
-	
-	- `bytes` is either the personal message in raw bytes or transaction
-	data bytes in BCS-encoded and then Base64-encoded.
-	- `signature` is a serialized zkLogin signature that is Base64-encoded.
-	- `intentScope` is an enum that specifies the intent scope to be used to
-	parse bytes.
-	- `author` is the address of the signer of the transaction or personal
-	msg.
-	"""
-	verifyZkloginSignature(bytes: Base64!, signature: Base64!, intentScope: ZkLoginIntentScope!, author: IotaAddress!): ZkLoginVerifyResult!
 }
 
 """
@@ -3900,7 +3862,22 @@ type ServiceConfig {
 	"""
 	requestTimeoutMs: Int!
 	"""
-	Maximum length of a query payload string.
+	The maximum bytes allowed for transactions in queries.
+	
+	This corresponds to the `txBytes` and `signatures` fields of the GraphQL
+	mutation `executeTransactionBlock` node, or the `txBytes` of a
+	`dryRunTransactionBlock`.
+	
+	By default, this is set to the value of the maximum transaction bytes
+	(including the signatures) allowed by the protocol, plus the Base64
+	overhead (roughly 1/3 of the original string).
+	"""
+	maxTransactionPayloadSize: Int!
+	"""
+	The maximum bytes allowed for the read part of GraphQL queries.
+	
+	In case of mutations or `dryRunTransactionBlocks` the `txBytes` and
+	`signatures` are not included in this limit.
 	"""
 	maxQueryPayloadSize: Int!
 	"""
@@ -3949,7 +3926,7 @@ A Move object that's shared.
 type SharedInput {
 	address: IotaAddress!
 	"""
-	The version that this this object was shared at.
+	The version at which this object was shared.​
 	"""
 	initialSharedVersion: UInt53!
 	"""
@@ -4099,14 +4076,13 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
-	possible states are: NOT_INDEXED, the object is loaded from
-	serialized data, such as the contents of a genesis or system package
-	upgrade transaction. LIVE, the version returned is the most recent for
-	the object, and it is not deleted or wrapped at that version.
-	HISTORICAL, the object was referenced at a specific version or
-	checkpoint, so is fetched from historical tables and may not be the
-	latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-	or wrapped and only partial information can be loaded."
+	possible states are:
+	- NOT_INDEXED: The object is loaded from serialized data, such as the
+	contents of a genesis or system package upgrade transaction.
+	- INDEXED: The object is retrieved from the off-chain index and
+	represents the most recent or historical state of the object.
+	- WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+	information can be loaded.
 	"""
 	status: ObjectKind!
 	"""
@@ -4277,10 +4253,86 @@ type StorageFund {
 	storage rebates.
 	
 	The system maintains an invariant that the sum of all storage fees into
-	the storage fund is equal to the sum of of all storage rebates out,
+	the storage fund is equal to the sum of all storage rebates out,
 	the total storage rebates remaining, and the non-refundable balance.
 	"""
 	nonRefundableBalance: BigInt
+}
+
+type Subscription {
+	"""
+	Subscribe to incoming transactions from the IOTA network.
+	
+	If no filter is provided, all transactions will be returned.
+	
+	# Stream recovery
+	
+	When `start_after` is provided with the digest of the last transaction
+	the client received, the stream resumes from the transaction
+	immediately after it. The identified transaction itself is not
+	emitted.
+	"""
+	transactions(startAfter: String, filter: SubscriptionTransactionFilter): TransactionBlockSubscriptionPayload!
+	"""
+	Subscribe to incoming events from the IOTA network.
+	
+	If no filter is provided, all events will be returned.
+	
+	# Stream recovery
+	
+	Events are streamed in transaction order, all events from a single
+	transaction arrive contiguously before any events from the next one.
+	
+	When `start_after` is provided with a transaction digest, the stream
+	resumes from the transaction immediately after it.
+	
+	Because a single transaction can emit multiple events, a disconnection
+	may leave the client with only a partial set of events from the
+	transaction it was last receiving. A transaction is considered fully
+	received only once the client has seen an event from the following
+	transaction (a digest change signals the previous transaction is
+	complete).
+	
+	On reconnect, clients should pass the digest of the last fully
+	received transaction as `start_after`. The stream resumes from the
+	next transaction, so no partial transaction is ever observed.
+	"""
+	events(startAfter: String, filter: SubscriptionEventFilter): EventSubscriptionPayload!
+}
+
+"""
+Filter incoming events in a subscription.
+"""
+input SubscriptionEventFilter @oneOf {
+	"""
+	Filter incoming events by emitting module.
+	
+	- Filter by package: "0x02"
+	- Filter by module: "0x02::coin"
+	"""
+	emittingModule: String
+}
+
+"""
+Filter incoming transactions in a subscription.
+"""
+input SubscriptionTransactionFilter @oneOf {
+	"""
+	Filter incoming transactions by kind.
+	"""
+	kind: TransactionBlockKindInput
+	"""
+	Filter incoming transactions by signing address.
+	"""
+	signingAddress: IotaAddress
+	"""
+	Filter incoming transactions by package, module, or function name.
+	
+	- Filter by package: "0x03"
+	- Filter by module: "0x03::iota_system"
+	- Filter by function: "0x03::iota_system::request_add_stake"
+	"""
+	function: String
 }
 
 """
@@ -4375,6 +4427,21 @@ type TransactionBlock {
 	and Base64 encoded.
 	"""
 	bcs: Base64
+	"""
+	Returns whether the transaction has been indexed on the fullnode.
+	
+	This makes a request to the fullnode if the transaction is not part of
+	a checkpoint to resolve the index status on the node.
+	
+	However, as this relies on the transaction data being already
+	constructed or fetched from the backing database, it only makes
+	sense to be used with `Mutation.executeTransactionBlock` on the
+	resulting effects.
+	
+	Otherwise, it is recommended that you use
+	`Query.isTransactionIndexedOnNode` for optimal performance.
+	"""
+	indexedOnNode: Boolean
 }
 
 type TransactionBlockConnection {
@@ -4463,11 +4530,12 @@ type TransactionBlockEffects {
 	"""
 	timestamp: DateTime
 	"""
-	The epoch this transaction was finalized in.
+	The epoch this transaction was executed in.
 	"""
 	epoch: Epoch
 	"""
-	The checkpoint this transaction was finalized in.
+	The checkpoint this transaction was finalized in, if it is within the
+	available range.
 	"""
 	checkpoint: Checkpoint
 	"""
@@ -4476,21 +4544,57 @@ type TransactionBlockEffects {
 	bcs: Base64!
 }
 
+"""
+Represents optional available filters for transaction blocks.
+"""
 input TransactionBlockFilter {
+	"""
+	Filter transactions by move function called.
+	
+	Calls can be filtered by the `package`, `package::module`, or the
+	`package::module::name` of their function.
+	"""
 	function: String
 	"""
 	An input filter selecting for either system or programmable
 	transactions.
 	"""
 	kind: TransactionBlockKindInput
+	"""
+	Limit to transactions that occurred strictly after the given checkpoint.
+	"""
 	afterCheckpoint: UInt53
+	"""
+	Limit to transactions in the given checkpoint.
+	"""
 	atCheckpoint: UInt53
+	"""
+	Limit to transaction that occurred strictly before the given checkpoint.
+	"""
 	beforeCheckpoint: UInt53
-	signAddress: IotaAddress
+	"""
+	Limit to transactions that were sent by the given address.
+	"""
+	sentAddress: IotaAddress
+	"""
+	Limit to transactions that sent an object to the given address.
+	"""
 	recvAddress: IotaAddress
+	"""
+	Limit to transactions that accepted the given object as an input.
+	"""
 	inputObject: IotaAddress
+	"""
+	Limit to transactions that output a version of this object.
+	"""
 	changedObject: IotaAddress
+	"""
+	Limit to transactions that wrapped or deleted the given object.
+	"""
 	wrappedOrDeletedObject: IotaAddress
+	"""
+	Select transactions by their digest.
+	"""
 	transactionIds: [String!]
 }
 
@@ -4498,7 +4602,7 @@ input TransactionBlockFilter {
 The kind of transaction block, either a programmable transaction or a system
 transaction.
 """
-union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | AuthenticatorStateUpdateTransaction | RandomnessStateUpdateTransaction | EndOfEpochTransaction
+union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction
 
 """
 An input filter selecting for either system or programmable transactions.
@@ -4522,10 +4626,6 @@ enum TransactionBlockKindInput {
 	"""
 	CONSENSUS_COMMIT_PROLOGUE_V1
 	"""
-	The authenticator state update transaction block.
-	"""
-	AUTHENTICATOR_STATE_UPDATE_V1
-	"""
 	The randomness state update transaction block.
 	"""
 	RANDOMNESS_STATE_UPDATE
@@ -4534,6 +4634,16 @@ enum TransactionBlockKindInput {
 	"""
 	END_OF_EPOCH_TX
 }
+
+"""
+Possible responses from a subscription.
+
+It could be one of the following:
+- A successful payload from the subscription stream.
+- A notice that the subscription has been lagged behind the network with the
+number of lost payloads.
+"""
+union TransactionBlockSubscriptionPayload = TransactionBlock | Lagged
 
 union TransactionInput = OwnedOrImmutable | SharedInput | Receiving | Pure
 
@@ -4785,9 +4895,16 @@ type Validator {
 	"""
 	gasPrice: BigInt
 	"""
-	The fee charged by the validator for staking services.
+	The fee set by the validator for providing staking services.
 	"""
 	commissionRate: Int
+	"""
+	The effective fee charged by the validator for staking services.
+	
+	This is evaluated according to [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md)
+	for epochs with protocol version >= 20.
+	"""
+	effectiveCommissionRate: Int
 	"""
 	The total number of IOTA tokens in this pool plus
 	the pending stake amount for this epoch.
@@ -4920,35 +5037,6 @@ type ValidatorSet {
 }
 
 """
-An enum that specifies the intent scope to be used to parse the bytes for
-signature verification.
-"""
-enum ZkLoginIntentScope {
-	"""
-	Indicates that the bytes are to be parsed as transaction data bytes.
-	"""
-	TRANSACTION_DATA
-	"""
-	Indicates that the bytes are to be parsed as a personal message.
-	"""
-	PERSONAL_MESSAGE
-}
-
-"""
-The result of the zkLogin signature verification.
-"""
-type ZkLoginVerifyResult {
-	"""
-	The boolean result of the verification. If true, errors should be empty.
-	"""
-	success: Boolean!
-	"""
-	The errors field captures any verification error
-	"""
-	errors: [String!]!
-}
-
-"""
 Marks an element of a GraphQL schema as no longer supported.
 """
 directive @deprecated(reason: String = "No longer supported") on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | ENUM_VALUE
@@ -4957,10 +5045,15 @@ Directs the executor to include this field or fragment only when the `if` argume
 """
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 """
+Indicates that an Input Object is a OneOf Input Object (and thus requires exactly one of its field be provided)
+"""
+directive @oneOf on INPUT_OBJECT
+"""
 Directs the executor to skip this field or fragment when the `if` argument is true.
 """
 directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {
 	query: Query
 	mutation: Mutation
+	subscription: Subscription
 }

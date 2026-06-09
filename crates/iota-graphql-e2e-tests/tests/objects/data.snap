@@ -10,7 +10,7 @@ task 1, lines 7-40:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7615200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7615200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 42-44:
 //# programmable --inputs @A
@@ -18,7 +18,7 @@ task 2, lines 42-44:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2895600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2895600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 46:
 //# create-checkpoint
@@ -38,9 +38,6 @@ Response: {
                   "outputState": {
                     "asMoveObject": {
                       "contents": {
-                        "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-                        },
                         "data": {
                           "Struct": [
                             {
@@ -98,10 +95,13 @@ Response: {
                           ]
                         },
                         "json": {
-                          "id": "0x74184610eb1be53832d93b5c035b6b2fc3ed188eb9cebfb6a66d3f60ab5e4cd6",
                           "balance": {
                             "value": "299999988469600"
-                          }
+                          },
+                          "id": "0x74184610eb1be53832d93b5c035b6b2fc3ed188eb9cebfb6a66d3f60ab5e4cd6"
+                        },
+                        "type": {
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         }
                       }
                     }
@@ -111,9 +111,6 @@ Response: {
                   "outputState": {
                     "asMoveObject": {
                       "contents": {
-                        "type": {
-                          "repr": "0xc8d463f11158f26ceba794706b7b717132b6f5a39a32e740d74da188d4cabd42::m::Foo"
-                        },
                         "data": {
                           "Struct": [
                             {
@@ -278,7 +275,6 @@ Response: {
                           ]
                         },
                         "json": {
-                          "id": "0xfc127ed678edff6e7baf7e54487f7f63a57bf7a37c5673b1f213233a98f33422",
                           "f0": "0xfc127ed678edff6e7baf7e54487f7f63a57bf7a37c5673b1f213233a98f33422",
                           "f1": true,
                           "f2": 42,
@@ -288,7 +284,11 @@ Response: {
                           "f6": [
                             "0xfc127ed678edff6e7baf7e54487f7f63a57bf7a37c5673b1f213233a98f33422"
                           ],
-                          "f7": 44
+                          "f7": 44,
+                          "id": "0xfc127ed678edff6e7baf7e54487f7f63a57bf7a37c5673b1f213233a98f33422"
+                        },
+                        "type": {
+                          "repr": "0xc8d463f11158f26ceba794706b7b717132b6f5a39a32e740d74da188d4cabd42::m::Foo"
                         }
                       }
                     }

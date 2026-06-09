@@ -6,12 +6,12 @@
 use std::{
     borrow::Borrow,
     cell::RefCell,
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     fmt::Debug,
     sync::{Arc, RwLock},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use move_binary_format::CompiledModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 

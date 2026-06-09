@@ -109,7 +109,7 @@ However, the fact that the validators are running on unique simulator nodes mean
 Swarm assumes a level of encapsulation that reflects what client code would actually experience in production.
 In other words, the only way to communicate with the validators when using Swarm is via the network.
 However, we have many tests that create validators and manipulate them more directly.
-https://github.com/iotaledger/iota/blob/develop/crates/iota/tests/checkpoints_tests.rs is a good example of this.
+https://github.com/iotaledger/iota/blob/develop/crates/iota-e2e-tests/tests/checkpoint_tests.rs is a good example of this.
 
 In these tests, the test code is able to break the simulator abstraction and directly manipulate the state of remote validators.
 Yet, the validators are still running on simulated nodes.
@@ -192,8 +192,6 @@ For instance, you might do:
 Documentation of network configuration is not finished yet, but reading the code for the [NetworkConfig](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/config.rs#L221) should be very instructive.
 
 There is a small but growing library of functions for building network configs in [iota_simulator::configs](https://github.com/iotaledger/iota/blob/develop/crates/iota-simulator/src/lib.rs).
-
-There are also some examples of network configuration at https://github.com/iotaledger/iota/blob/develop/crates/iota-benchmark/tests/simtest.rs#L52.
 
 ### The `nondeterministic!` macro
 

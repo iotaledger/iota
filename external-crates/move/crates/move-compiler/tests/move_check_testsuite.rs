@@ -16,13 +16,13 @@ use move_command_line_common::{
     testing::{InstaOptions, OUT_EXT},
 };
 use move_compiler::{
+    Compiler, PASS_PARSER,
     command_line::compiler::move_check_for_errors,
-    diagnostics::warning_filters::WarningFiltersBuilder,
-    diagnostics::*,
+    diagnostics::{warning_filters::WarningFiltersBuilder, *},
     editions::{Edition, Flavor},
+    iota_mode,
     linters::{self, LintLevel},
     shared::{Flags, NumericalAddress, PackageConfig, PackagePaths},
-    iota_mode, Compiler, PASS_PARSER,
 };
 use serde::{Deserialize, Serialize};
 

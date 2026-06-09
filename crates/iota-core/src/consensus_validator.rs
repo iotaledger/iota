@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use consensus_core;
 use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
@@ -15,7 +14,7 @@ use iota_types::{
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use starfish_core;
 use tap::TapFallible;
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
@@ -50,10 +49,13 @@ impl IotaTxValidator {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn validate_transactions(&self, txs: Vec<ConsensusTransactionKind>) -> Result<(), IotaError> {
         let mut cert_batch = Vec::new();
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
+        let mut authority_cap_batch = Vec::new();
+
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
@@ -75,9 +77,29 @@ impl IotaTxValidator {
                         return Err(IotaError::InvalidDkgMessageSize);
                     }
                 }
+                ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_cap) => {
+                    authority_cap_batch.push(signed_cap);
+                }
 
+                ConsensusTransactionKind::MisbehaviorReport(_) => {
+                    if !self
+                        .epoch_store
+                        .protocol_config()
+                        .calculate_validator_scores()
+                    {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "MisbehaviorReport not supported at current protocol version"
+                                .into(),
+                        });
+                    }
+                }
+                #[allow(deprecated)]
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => {
+                    return Err(IotaError::UnsupportedFeature {
+                        error: "NewJWKFetched (zkLogin) is deprecated and not supported".into(),
+                    });
+                }
                 ConsensusTransactionKind::EndOfPublish(_)
-                | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }
         }
@@ -85,10 +107,11 @@ impl IotaTxValidator {
         // verify the certificate signatures as a batch
         let cert_count = cert_batch.len();
         let ckpt_count = ckpt_batch.len();
+        let authority_cap_count = authority_cap_batch.len();
 
         self.epoch_store
             .signature_verifier
-            .verify_certs_and_checkpoints(cert_batch, ckpt_batch)
+            .verify_certs_and_checkpoints(cert_batch, ckpt_batch, authority_cap_batch)
             .tap_err(|e| warn!("batch verification error: {}", e))?;
 
         // All checkpoint sigs have been verified, forward them to the checkpoint
@@ -104,6 +127,9 @@ impl IotaTxValidator {
         self.metrics
             .checkpoint_signatures_verified
             .inc_by(ckpt_count as u64);
+        self.metrics
+            .authority_capabilities_verified
+            .inc_by(authority_cap_count as u64);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -123,49 +149,32 @@ fn tx_from_bytes(tx: &[u8]) -> Result<ConsensusTransaction, eyre::Report> {
         .wrap_err("Malformed transaction (failed to deserialize)")
 }
 
-macro_rules! impl_tx_verifier_for {
-    (
-        // The type to implement the trait for
-        type = $impl_ty:path,
-        // The trait to implement
-        trait = $trait_path:path,
-        // The error type to use in the trait method
-        error = $err_path:path,
-    ) => {
-        impl $trait_path for $impl_ty {
-            fn verify_batch(&self, batch: &[&[u8]]) -> core::result::Result<(), $err_path> {
-                let _scope = monitored_scope("ValidateBatch");
+impl starfish_core::TransactionVerifier for IotaTxValidator {
+    #[instrument(level = "trace", skip_all)]
+    fn verify_batch(
+        &self,
+        batch: &[&[u8]],
+    ) -> core::result::Result<(), starfish_core::ValidationError> {
+        let _scope = monitored_scope("ValidateBatch");
 
-                let txs = batch
-                    .iter()
-                    .map(|tx| {
-                        tx_from_bytes(tx)
-                            .map(|tx| tx.kind)
-                            .map_err(|e| <$err_path>::InvalidTransaction(e.to_string()))
-                    })
-                    .collect::<core::result::Result<Vec<_>, _>>()?;
+        let txs = batch
+            .iter()
+            .map(|tx| {
+                tx_from_bytes(tx)
+                    .map(|tx| tx.kind)
+                    .map_err(|e| starfish_core::ValidationError::InvalidTransaction(e.to_string()))
+            })
+            .collect::<core::result::Result<Vec<_>, _>>()?;
 
-                self.validate_transactions(txs)
-                    .map_err(|e| <$err_path>::InvalidTransaction(e.to_string()))
-            }
-        }
-    };
+        self.validate_transactions(txs)
+            .map_err(|e| starfish_core::ValidationError::InvalidTransaction(e.to_string()))
+    }
 }
-// Use it for both traits:
-impl_tx_verifier_for!(
-    type = IotaTxValidator,
-    trait = consensus_core::TransactionVerifier,
-    error = consensus_core::ValidationError,
-);
-impl_tx_verifier_for!(
-    type = IotaTxValidator,
-    trait = starfish_core::TransactionVerifier,
-    error = starfish_core::ValidationError,
-);
 
 pub struct IotaTxValidatorMetrics {
     certificate_signatures_verified: IntCounter,
     checkpoint_signatures_verified: IntCounter,
+    authority_capabilities_verified: IntCounter,
 }
 
 impl IotaTxValidatorMetrics {
@@ -183,6 +192,12 @@ impl IotaTxValidatorMetrics {
                 registry
             )
             .unwrap(),
+            authority_capabilities_verified: register_int_counter_with_registry!(
+                "authority_capabilities_verified",
+                "Number of signed authority capabilities verified in consensus batch verifier",
+                registry
+            )
+            .unwrap(),
         })
     }
 }
@@ -191,12 +206,19 @@ impl IotaTxValidatorMetrics {
 mod tests {
     use std::sync::Arc;
 
-    use consensus_core::TransactionVerifier as _;
     use iota_macros::sim_test;
+    use iota_protocol_config::Chain;
     use iota_types::{
-        crypto::Ed25519IotaSignature, messages_consensus::ConsensusTransaction, object::Object,
+        crypto::Ed25519IotaSignature,
+        error::IotaError,
+        messages_consensus::{
+            ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
+            VersionedMisbehaviorReport,
+        },
+        object::Object,
         signature::GenericSignature,
     };
+    use starfish_core::TransactionVerifier as _;
 
     use crate::{
         authority::test_authority_builder::TestAuthorityBuilder,
@@ -272,5 +294,140 @@ mod tests {
             .collect();
         let res_batch = validator.verify_batch(&batch);
         assert!(res_batch.is_err());
+    }
+
+    /// Verifies that `validate_transactions` correctly gates every
+    /// `ConsensusTransactionKind` variant against the current protocol config's
+    /// feature flags.
+    ///
+    /// The exhaustive match forces a compile error when new variants are added,
+    /// so the developer must explicitly map each variant to its gating flag.
+    #[sim_test]
+    async fn validate_transactions_feature_gating() {
+        use iota_protocol_config::ProtocolConfig;
+        use iota_types::crypto::AuthorityPublicKeyBytes;
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .with_chain_override(Chain::Mainnet)
+            .build()
+            .await;
+
+        let metrics = IotaTxValidatorMetrics::new(&Default::default());
+        let validator = IotaTxValidator::new(
+            state.epoch_store_for_testing().clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.transaction_manager().clone(),
+            metrics,
+        );
+
+        let protocol_config = validator.epoch_store.protocol_config();
+        let authority = AuthorityPublicKeyBytes::default();
+
+        // Returns the feature flag value that gates a variant, or `None` if the
+        // variant is always allowed. The exhaustive match ensures this function
+        // must be updated when new variants are added to ConsensusTransactionKind.
+        #[allow(deprecated)]
+        fn is_feature_gated(
+            kind: &ConsensusTransactionKind,
+            config: &ProtocolConfig,
+        ) -> Option<bool> {
+            match kind {
+                // Always allowed (no feature flag gating).
+                ConsensusTransactionKind::CertifiedTransaction(_)
+                | ConsensusTransactionKind::CheckpointSignature(_)
+                | ConsensusTransactionKind::EndOfPublish(_)
+                | ConsensusTransactionKind::CapabilityNotificationV1(_)
+                | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
+                | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
+                | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
+
+                // Gated behind `calculate_validator_scores`.
+                ConsensusTransactionKind::MisbehaviorReport(_) => {
+                    Some(config.calculate_validator_scores())
+                }
+
+                // Always rejected: zkLogin JWK support was never enabled on
+                // IOTA and the variant is retained only for serialization
+                // compatibility.
+                ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
+            }
+        }
+
+        // Variants that can be validated without signature verification setup.
+        // CertifiedTransaction, CheckpointSignature, and
+        // SignedCapabilityNotificationV1 are excluded because they require valid
+        // cryptographic signatures and would fail before reaching the feature
+        // gate check; their gating is verified by the exhaustive match above.
+        #[allow(deprecated)]
+        let testable_variants: Vec<(&str, ConsensusTransactionKind)> = vec![
+            (
+                "EndOfPublish",
+                ConsensusTransactionKind::EndOfPublish(authority),
+            ),
+            (
+                "NewJWKFetchedDeprecated",
+                ConsensusTransactionKind::NewJWKFetchedDeprecated,
+            ),
+            (
+                "CapabilityNotificationV1",
+                ConsensusTransactionKind::CapabilityNotificationV1(
+                    iota_types::messages_consensus::AuthorityCapabilitiesV1::new(
+                        authority,
+                        Chain::Mainnet,
+                        iota_types::supported_protocol_versions::SupportedProtocolVersions::SYSTEM_DEFAULT,
+                        vec![],
+                    ),
+                ),
+            ),
+            (
+                "RandomnessDkgMessage",
+                ConsensusTransactionKind::RandomnessDkgMessage(authority, vec![]),
+            ),
+            (
+                "RandomnessDkgConfirmation",
+                ConsensusTransactionKind::RandomnessDkgConfirmation(authority, vec![]),
+            ),
+            (
+                "MisbehaviorReport",
+                ConsensusTransactionKind::MisbehaviorReport(VersionedMisbehaviorReport::new_v1(
+                    authority,
+                    0,
+                    MisbehaviorObservationsV1 {
+                        faulty_blocks_provable: vec![],
+                        faulty_blocks_unprovable: vec![],
+                        missing_proposals: vec![],
+                        equivocations: vec![],
+                    },
+                )),
+            ),
+        ];
+
+        for (name, kind) in testable_variants {
+            let gated = is_feature_gated(&kind, protocol_config);
+            let result = validator.validate_transactions(vec![kind]);
+
+            match gated {
+                Some(false) => {
+                    // Feature flag is disabled: must be rejected.
+                    assert!(
+                        matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+                        "{name}: feature flag is disabled, expected UnsupportedFeature, \
+                         got {result:?}",
+                    );
+                }
+                Some(true) | None => {
+                    // Feature flag is enabled or variant is ungated: must not
+                    // be rejected as unsupported.
+                    assert!(
+                        !matches!(&result, Err(IotaError::UnsupportedFeature { .. })),
+                        "{name}: should not be rejected as UnsupportedFeature, got {result:?}",
+                    );
+                }
+            }
+        }
     }
 }

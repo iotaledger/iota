@@ -8,13 +8,19 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::{IotaNode, metrics};
+use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
-    committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
-    supported_protocol_versions::SupportedProtocolVersions,
+    committee::EpochId, crypto::KeypairTraits, messages_checkpoint::CheckpointSequenceNumber,
+    multiaddr::Multiaddr, supported_protocol_versions::SupportedProtocolVersions,
 };
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
+use telemetry_subscribers::flamegraph::CounterAlloc;
 use tokio::sync::broadcast;
 use tracing::{error, info};
+
+#[cfg(all(feature = "flamegraph-alloc", nightly))]
+#[global_allocator]
+static GLOBAL: CounterAlloc<std::alloc::System> = CounterAlloc::new(std::alloc::System);
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
@@ -73,9 +79,10 @@ fn main() {
     let prometheus_registry = registry_service.default_registry();
 
     // Initialize logging
-    let (_guard, filter_handle) = telemetry_subscribers::TelemetryConfig::new()
+    let (_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)
+        .with_disable_span_latency(true)
         .init();
 
     drop(metrics_rt);
@@ -93,7 +100,16 @@ fn main() {
 
     {
         let _enter = runtimes.metrics.enter();
-        metrics::start_metrics_push_task(&config, registry_service.clone());
+        if let Some(metrics_config) = &config.metrics {
+            if let Some(push_url) = &metrics_config.push_url {
+                iota_metrics_push_client::start_metrics_push_task(
+                    metrics_config.push_interval_seconds,
+                    push_url.clone(),
+                    config.network_key_pair().copy(),
+                    registry_service.clone(),
+                );
+            }
+        }
     }
 
     if let Some(listen_address) = args.listen_address {
@@ -106,13 +122,13 @@ fn main() {
     // work if it deadlocks.
     let node_once_cell = Arc::new(AsyncOnceCell::<Arc<IotaNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
-    let rpc_runtime = runtimes.json_rpc.handle().clone();
 
     // let iota-node signal main to shutdown runtimes
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
 
     runtimes.iota_node.spawn(async move {
-        match IotaNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
+        let server_version = ServerVersion::new(env!("CARGO_BIN_NAME"), VERSION);
+        match IotaNode::start_async(config, registry_service, server_version).await {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),
@@ -142,7 +158,7 @@ fn main() {
     runtimes.metrics.spawn(async move {
         let node = node_once_cell.get().await;
 
-        iota_node::admin::run_admin_server(node, admin_interface_address, filter_handle).await
+        iota_node::admin::run_admin_server(node, admin_interface_address, tracing_handle).await
     });
 
     // wait for SIGINT on the main thread

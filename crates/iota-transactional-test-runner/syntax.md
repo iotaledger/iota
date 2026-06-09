@@ -27,6 +27,9 @@
   - [`view-checkpoint`](#view-checkpoint)
   - [`run-graphql`](#run-graphql)
   - [`bench`](#bench)
+  - [`abstract`](#abstract)
+  - [`init-abstract-account`](#init-abstract-account)
+  - [`publish-dependencies`](#publish-dependencies)
 - [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
   - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
   - [Execution Process in `run_tasks_with_adapter`](#execution-process-in-run_tasks_with_adapter)
@@ -210,7 +213,7 @@ A: object(0,0)
 task 1 'programmable'. lines 3-5:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1976000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'view-object'. lines 7-7:
 Owner: Account Address ( A )
@@ -223,7 +226,7 @@ Checkpoint created: 1
 task 4 'programmable'. lines 11-12:
 mutated: object(0,0)
 deleted: object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 1976000, non_refundable_storage_fee: 0
 ```
 
 Explanation:
@@ -448,7 +451,7 @@ module test::transfer {
 +task 1 'publish'. lines 3-17:
 +created: object(1,0), object(1,1)
 +mutated: object(0,0)
-+gas summary: computation_cost: 1000000, storage_cost: 7083200,  storage_rebate: 0, non_refundable_storage_fee: 0
++gas summary: computation_cost: 1000000, storage_cost: 7083200, storage_rebate: 0, non_refundable_storage_fee: 0
 ```
 
 #### Options
@@ -533,12 +536,12 @@ acc1: object(0,0), acc2: object(0,1)
 task 1 'publish'. lines 3-18:
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5449200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5449200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'run'. lines 20-20:
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 500000, storage_cost: 2363600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 500000, storage_cost: 2363600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3 'view-object'. lines 22-22:
 Owner: Account Address ( acc2 )
@@ -615,7 +618,7 @@ The `transfer-object` subcommand (`TransferObject` in Rust) is used to transfer 
 ```
 task 3 'transfer-object'. lines 20-20:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2371200,  storage_rebate: 2371200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2371200, storage_rebate: 2371200, non_refundable_storage_fee: 0
 ```
 
 ### `consensus-commit-prologue`
@@ -654,7 +657,7 @@ acc1: object(0,0), acc2: object(0,1)
 
 task 1 'consensus-commit-prologue'. lines 3-3:
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000006
-gas summary: computation_cost: 0, storage_cost: 0,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0
 ```
 
 ### `programmable`
@@ -713,12 +716,12 @@ acc1: object(0,0), acc2: object(0,1)
 task 1 'publish'. lines 3-14:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5069200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5069200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'programmable'. lines 16-18:
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2371200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2371200, storage_rebate: 988000, non_refundable_storage_fee: 0
 ```
 
 The `programmable` subcommand is constructed using the same input, result and command components of a Programmable Transaction Block (PTB).
@@ -809,12 +812,12 @@ acc1: object(0,0)
 task 1 'publish'. lines 3-9:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5958400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5958400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'upgrade'. lines 11-19:
 created: object(2,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 6171200,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 6171200, storage_rebate: 2622000, non_refundable_storage_fee: 0
 ```
 
 ### `stage-package`
@@ -941,7 +944,7 @@ A: object(0,0)
 task 3 'programmable'. lines 23-28:
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 8876800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 8876800, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4 'view-object'. lines 30-30:
 3,3::m
@@ -951,16 +954,16 @@ task 5 'view-object'. lines 32-32:
 
 task 8 'programmable'. lines 38-40:
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 9 'publish'. lines 42-47:
 created: object(9,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5221200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5221200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 10 'run'. lines 49-49:
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 988000, non_refundable_storage_fee: 0
 ```
 
 ### `create-checkpoint`
@@ -1413,7 +1416,244 @@ acc1: object(0,0)
 task 1 'publish'. lines 3-15:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 7220000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 7220000, storage_rebate: 0, non_refundable_storage_fee: 0
+```
+
+### `abstract`
+
+The `abstract` subcommand (`AbstractTransaction` in Rust) extends the capabilities of programmable transactions by allowing them to be executed through an Abstract Account (AA) authentication by a Move-based authenticator (`MoveAuthenticator`).
+Unlike programmable, where the sender directly signs the transaction with a system signature, abstract enables account abstraction — the sender is represented by a Abstract Account object itself.
+Doesn't support simulator mode.
+
+#### Syntax
+
+```
+//# abstract [OPTIONS]
+```
+
+#### Options
+
+```
+--account <ACCOUNT>: the sender of the abstract transaction. Must be an Abstract Account (AA) shared object.
+--sponsor <SPONSOR> (optional): account that pays for gas.
+--gas-budget <GAS_BUDGET> (optional): maximum gas units for execution.
+--gas-price <GAS_PRICE> (optional): gas price per unit.
+--gas-payment <OBJECT_ID>: coin object used to pay gas.
+--ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
+--auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator(for instance - signature, public key etc).
+```
+
+#### Example
+
+```move
+//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
+
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
+
+//# publish --sender A --dependencies simple_abstract_account
+module test::authenticate;
+
+use simple_abstract_account::abstract_account::AbstractAccount;
+use std::ascii;
+
+#[authenticator]
+public fun authenticate_hello_world(
+    _account: &AbstractAccount,
+    msg: ascii::String,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {
+    assert!(msg == ascii::string(b"HelloWorld"), 0);
+}
+
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+
+//# view-object 4,2
+
+//# abstract --account immshared(4,2) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> 1: TransferObjects([Result(0)], Input(1));
+
+//# view-object 6,0
+```
+
+In this section we have:
+
+```move
+//# abstract --account immshared(4,0) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> 1: TransferObjects([Result(0)], Input(1));
+```
+
+- Account (--account)
+  The immutable shared object that represents Abstract Account - `immshared(4,2)`.
+- Auth Inputs (--auth-inputs)
+  These are the inputs used for the authenticator arguments. They should reflect the parameters of the function marked with `#[authenticator]`.
+- PTB Inputs (--ptb-inputs)
+  These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
+  The PTB commands (//> ...) operate as in the programmable command.
+
+- object(3,1)
+  The `PackageMetadata` object carries information about function annotations, such as function attributes.
+
+`.snap` output:
+
+```
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 7 tasks
+
+init:
+A: object(0,0)
+
+task 1, line 8:
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 10-24:
+//# publish --sender A --dependencies simple_abstract_account
+created: object(3,0), object(3,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 26:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+events: Event { package_id: simple_abstract_account, transaction_module: Identifier("abstract_account"), sender: A, type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: simple_abstract_account, module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [118, 148, 168, 179, 49, 8, 198, 92, 21, 125, 6, 180, 227, 97, 246, 20, 241, 88, 51, 186, 200, 202, 42, 84, 230, 84, 167, 107, 231, 146, 174, 230, 57, 11, 82, 234, 228, 162, 3, 155, 237, 197, 142, 43, 85, 213, 106, 74, 73, 1, 24, 171, 0, 12, 137, 124, 25, 149, 48, 40, 186, 221, 194, 209, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 24, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 95, 104, 101, 108, 108, 111, 95, 119, 111, 114, 108, 100] }
+created: object(4,0), object(4,1), object(4,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6938800, storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 28:
+//# view-object 4,2
+Owner: Shared( 3 )
+Version: 3
+Contents: simple_abstract_account::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(4,2),
+        },
+    },
+}
+
+task 5, lines 30-32:
+//# abstract --account immshared(4,2) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+created: object(6,0)
+mutated: object(4,0)
+unchanged_shared: object(4,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 6, line 34:
+//# view-object 6,0
+Owner: Account Address ( A )
+Version: 4
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 100u64,
+    },
+}
+```
+
+### `init-abstract-account`
+
+The `init-abstract-account` subcommand (`InitAbstractAccount` in Rust) creates and registers an Abstract Account (AA) in the transactional test environment.
+
+#### Syntax
+
+```
+//# init-abstract-account [OPTIONS]
+```
+
+#### Options
+
+```
+--sender <SENDER>: Named account that submits and pays for the initialization transaction.
+    Defaults to the adapter’s default account if omitted.
+
+--package-metadata <PACKAGE_METADATA>: Reference to the `PackageMetadata` object associated with the AA package,
+    typically created during `publish`. For example: `object(3,1)`.
+    This value is passed as the first argument to the AA `create` function.
+
+--inputs <INPUTS>: Additional arguments passed to the AA `create` function after
+    `package_metadata`. These must match the function’s parameter list
+    (e.g. key material, configuration values, initial settings).
+
+--create-function <CREATE-FUNCTION>: Fully qualified path to the Abstract Account creation function in the AA.
+    Move module: <named-address>::<module>::<function>
+
+    Example: `aa::abstract_account::create`.
+
+    The `named-address` part must already be bound to the AA package address
+    via `publish` / `publish-deps` and the named address mapping.
+
+--account-type <ACCOUNT-TYPE>: The name of the Abstract Account struct type that is expected to be created
+    by the `create` function. Example: `AbstractAccount`.
+    The adapter uses this type name to locate the newly created AA object in
+    the transaction’s `created` set and register it as an abstract account.
+```
+
+#### Example
+
+```move
+// Initialize Abstract Account and register it in the adapter
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function aa::abstract_account::create --account-type AbstractAccount
+```
+
+- --package-metadata `object(3,1)`
+  `object(3,1)` is a `PackageMetadata` object produced by the publish step for the AA package.
+  It carries metadata about module functions (including authenticator attributes) and is passed as the first argument to aa::abstract_account::create.
+- --inputs "authenticate" "authenticate_hello_world"
+  These values are passed as additional arguments to the create function (after package_metadata).
+  They must correspond to the function parameters defined in `simple_abstract_account::abstract_account::create` (e.g. the module name and authenticator function name to register).
+- --create-function `simple_abstract_account::abstract_account::create`
+  This string is split into three parts:
+  - simple_abstract_account - named address (resolved via the named address mapping to the AA package ID),
+  - abstract_account - module name,
+  - create - function name.
+- --account-type `simple_abstract_account::abstract_account::AbstractAccount`
+  After the transaction is executed, the adapter scans the created objects and finds the one whose struct tag name equals AbstractAccount.
+  - simple_abstract_account - named address (resolved via the named address mapping to the AA package ID),
+  - abstract_account - module name,
+  - AbstractAccount - type name.
+    That object ID becomes the logical address of the Abstract Account.
+
+### `publish-dependencies`
+
+The `publish-dependencies` subcommand (`PublishDeps` in Rust) is a lightweight helper for transactional tests that need to publish prepared dependency modules (e.g., Account Abstraction implementations) in order to avoid duplication/complex relations.
+It compiles and publishes Move source files provided by path and then stores the published modules in the adapter’s compiled state. As a result, the newly published package becomes available for subsequent commands and can be used as a proper dependency within built-in Move code.
+The package name of the dependency must be initialized to `0x0` with the init command, e.g., `simple_abstract_account=0x0`.
+
+#### Syntax
+
+```move
+//# publish-deps [OPTIONS]
+```
+
+#### Options
+
+```
+--paths <PATHS>...: one or more Move source file paths to compile and publish.
+  Each path may be relative to the IOTA root or absolute.
+```
+
+#### Example
+
+```move
+//# publish --sender A --dependencies dep1
+```
+
+Output:
+
+```
+Output for './dep1.move':
 ```
 
 ## How `run_test` Compares a Move File With the Corresponding `.snap` File
@@ -1536,7 +1776,7 @@ the snapshot. If needed the `InstaOptions` struct can be used directly by specif
 After running the test, the `.snap` files can be updated in two ways:
 
 1. By using `cargo insta review`, which will open an interactive UI to review the changes.
-2. Running the tests with the environment variable `INSTA_UPDATE=alawys`
+2. Running the tests with the environment variable `INSTA_UPDATE=always`
 
 ### Structure of the `.move` File.
 
@@ -1592,7 +1832,7 @@ A: object(0,0)
 task 1 'programmable'. lines 8-10:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1976000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'create-checkpoint'. lines 12-12:
 Checkpoint created: 1

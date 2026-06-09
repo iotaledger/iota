@@ -8,7 +8,7 @@ use iota_analytics_indexer::{
     AnalyticsIndexerConfig, analytics_metrics::AnalyticsMetrics, errors::AnalyticsIndexerError,
     make_analytics_processor,
 };
-use iota_data_ingestion_core::{ReaderOptions, setup_single_workflow};
+use iota_data_ingestion_core::{ReaderOptions, reader::v2::RemoteUrl, setup_single_workflow};
 use prometheus::Registry;
 use tokio::signal;
 use tracing::info;
@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
     };
     let (executor, token) = setup_single_workflow(
         processor,
-        remote_store_url,
+        RemoteUrl::Fullnode(remote_store_url),
         watermark,
         1,
         Some(reader_options),
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         signal::ctrl_c()
             .await
-            .expect("Failed to install Ctrl+C handler");
+            .expect("failed to install Ctrl+C handler");
         token.cancel();
     });
     executor.await?;

@@ -18,34 +18,46 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_types::{ObjectId, Owner, StructTag, TransactionKind};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    account_abstraction::{
+        account::AuthenticatorFunctionRefV1Key,
+        authenticator_function::{
+            AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
+        },
+    },
+    auth_context::AuthContextData,
+    base_types::{ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
+    dynamic_field::{self, Field},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
+    execution::SharedInput,
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
-    object::{Data, Object, Owner},
+    move_authenticator::MoveAuthenticator,
+    object::{Data, Object},
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
         get_module_by_id,
     },
     transaction::{
-        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
-        TransactionKind::ProgrammableTransaction, VerifiedTransaction,
+        CheckedInputObjects, GasData, InputObjectKind, InputObjects, ObjectReadResult,
+        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI,
+        VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
+    language_storage::ModuleId,
     resolver::{ModuleResolver, ResourceResolver},
 };
 use prometheus::Registry;
@@ -144,14 +156,14 @@ pub struct Storage {
     /// They might not be the latest object currently but they are the latest
     /// objects for the TX at the time it was run
     /// This store cannot be shared between runners
-    pub live_objects_store: Arc<Mutex<BTreeMap<ObjectID, Object>>>,
+    pub live_objects_store: Arc<Mutex<BTreeMap<ObjectId, Object>>>,
 
     /// Package cache and object version cache can be shared between runners
     /// Non system packages are immutable so we can cache these
-    pub package_cache: Arc<Mutex<BTreeMap<ObjectID, Object>>>,
+    pub package_cache: Arc<Mutex<BTreeMap<ObjectId, Object>>>,
     /// Object contents are frozen at their versions so we can cache these
     /// We must place system packages here as well
-    pub object_version_cache: Arc<Mutex<BTreeMap<(ObjectID, SequenceNumber), Object>>>,
+    pub object_version_cache: Arc<Mutex<BTreeMap<(ObjectId, SequenceNumber), Object>>>,
 }
 
 impl std::fmt::Display for Storage {
@@ -163,11 +175,11 @@ impl std::fmt::Display for Storage {
             .expect("Unable to lock")
             .iter()
         {
-            writeln!(f, "{}: {:?}", id, obj.compute_object_reference())?;
+            writeln!(f, "{}: {:?}", id, obj.object_ref())?;
         }
         writeln!(f, "Package cache")?;
         for (id, obj) in self.package_cache.lock().expect("Unable to lock").iter() {
-            writeln!(f, "{}: {:?}", id, obj.compute_object_reference())?;
+            writeln!(f, "{}: {:?}", id, obj.object_ref())?;
         }
         writeln!(f, "Object version cache")?;
         for (id, _) in self
@@ -223,7 +235,7 @@ pub struct LocalExec {
     // at this protocol version.
     pub protocol_version_epoch_table: BTreeMap<u64, ProtocolVersionSummary>,
     // For a given protocol version, the mapping valid sequence numbers for each framework package
-    pub protocol_version_system_package_table: BTreeMap<u64, BTreeMap<ObjectID, SequenceNumber>>,
+    pub protocol_version_system_package_table: BTreeMap<u64, BTreeMap<ObjectId, SequenceNumber>>,
     // The current protocol version for this execution
     pub current_protocol_version: u64,
     // All state is contained here
@@ -245,7 +257,7 @@ pub struct LocalExec {
     // Whether or not to enable the gas profiler, the PathBuf contains either a user specified
     // filepath or the default current directory and name format for the profile output
     pub enable_profiler: Option<PathBuf>,
-    pub config_and_versions: Option<Vec<(ObjectID, SequenceNumber)>>,
+    pub config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
     // Retry policies due to RPC errors
     pub num_retries_for_timeout: u32,
     pub sleep_period_for_timeout: std::time::Duration,
@@ -256,7 +268,7 @@ impl LocalExec {
     /// Such as fetching from local DB from snapshot
     pub async fn multi_download(
         &self,
-        objs: &[(ObjectID, SequenceNumber)],
+        objs: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut num_retries_for_timeout = self.num_retries_for_timeout as i64;
         while num_retries_for_timeout >= 0 {
@@ -280,7 +292,7 @@ impl LocalExec {
     /// Such as fetching from local DB from snapshot
     pub async fn multi_download_latest(
         &self,
-        objs: &[ObjectID],
+        objs: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut num_retries_for_timeout = self.num_retries_for_timeout as i64;
         while num_retries_for_timeout >= 0 {
@@ -304,7 +316,7 @@ impl LocalExec {
     pub async fn fetch_loaded_child_refs(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         // Get the child objects loaded
         self.fetcher.get_loaded_child_objects(tx_digest).await
     }
@@ -329,7 +341,7 @@ impl LocalExec {
         executor_version: Option<i64>,
         protocol_version: Option<i64>,
         enable_profiler: Option<PathBuf>,
-        config_and_versions: Option<Vec<(ObjectID, SequenceNumber)>>,
+        config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         info!("Using RPC URL: {}", rpc_url);
         LocalExec::new_from_fn_url(&rpc_url)
@@ -442,29 +454,29 @@ impl LocalExec {
 
     pub async fn multi_download_and_store(
         &mut self,
-        objs: &[(ObjectID, SequenceNumber)],
+        objs: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let objs = self.multi_download(objs).await?;
 
         // Backfill the store
         for obj in objs.iter() {
-            let o_ref = obj.compute_object_reference();
+            let o_ref = obj.object_ref();
             self.storage
                 .live_objects_store
                 .lock()
                 .expect("Can't lock")
-                .insert(o_ref.0, obj.clone());
+                .insert(o_ref.object_id, obj.clone());
             self.storage
                 .object_version_cache
                 .lock()
                 .expect("Cannot lock")
-                .insert((o_ref.0, o_ref.1), obj.clone());
+                .insert((o_ref.object_id, o_ref.version), obj.clone());
             if obj.is_package() {
                 self.storage
                     .package_cache
                     .lock()
                     .expect("Cannot lock")
-                    .insert(o_ref.0, obj.clone());
+                    .insert(o_ref.object_id, obj.clone());
             }
         }
         tokio::task::yield_now().await;
@@ -473,7 +485,7 @@ impl LocalExec {
 
     pub async fn multi_download_relevant_packages_and_store(
         &mut self,
-        objs: Vec<ObjectID>,
+        objs: Vec<ObjectId>,
         protocol_version: u64,
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let syst_packages_objs = if self.protocol_version.is_some_and(|i| i < 0) {
@@ -494,23 +506,23 @@ impl LocalExec {
             .multi_download_latest(&non_system_package_objs)
             .await?
             .into_iter()
-            .chain(syst_packages_objs.into_iter());
+            .chain(syst_packages_objs);
 
         for obj in objs.clone() {
-            let o_ref = obj.compute_object_reference();
+            let o_ref = obj.object_ref();
             // We dont always want the latest in store
-            // self.storage.store.insert(o_ref.0, obj.clone());
+            // self.storage.store.insert(o_ref.object_id, obj.clone());
             self.storage
                 .object_version_cache
                 .lock()
                 .expect("Cannot lock")
-                .insert((o_ref.0, o_ref.1), obj.clone());
+                .insert((o_ref.object_id, o_ref.version), obj.clone());
             if obj.is_package() {
                 self.storage
                     .package_cache
                     .lock()
                     .expect("Cannot lock")
-                    .insert(o_ref.0, obj.clone());
+                    .insert(o_ref.object_id, obj.clone());
             }
         }
         Ok(objs.collect())
@@ -520,7 +532,7 @@ impl LocalExec {
     #[expect(clippy::disallowed_methods)]
     pub fn download_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: SequenceNumber,
     ) -> Result<Object, ReplayEngineError> {
         if self
@@ -552,12 +564,12 @@ impl LocalExec {
             })
         })?;
 
-        let o_ref = o.compute_object_reference();
+        let o_ref = o.object_ref();
         self.storage
             .object_version_cache
             .lock()
             .expect("Cannot lock")
-            .insert((o_ref.0, o_ref.1), o.clone());
+            .insert((o_ref.object_id, o_ref.version), o.clone());
         Ok(o)
     }
 
@@ -565,7 +577,7 @@ impl LocalExec {
     #[expect(clippy::disallowed_methods)]
     pub fn download_latest_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, ReplayEngineError> {
         let resp = block_on({
             // info!("Downloading latest object {object_id}");
@@ -601,7 +613,7 @@ impl LocalExec {
     #[expect(clippy::disallowed_methods)]
     pub fn download_object_by_upper_bound(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version_upper_bound: VersionNumber,
     ) -> Result<Option<Object>, ReplayEngineError> {
         let local_object = self
@@ -620,7 +632,7 @@ impl LocalExec {
         });
         match response {
             Ok(object) => {
-                let obj_ref = object.compute_object_reference();
+                let obj_ref = object.object_ref();
                 self.storage
                     .live_objects_store
                     .lock()
@@ -630,7 +642,7 @@ impl LocalExec {
                     .object_version_cache
                     .lock()
                     .expect("Can't lock")
-                    .insert((obj_ref.0, obj_ref.1), object.clone());
+                    .insert((obj_ref.object_id, obj_ref.version), object.clone());
                 Ok(Some(object))
             }
             Err(ReplayEngineError::ObjectNotExist { id }) => {
@@ -725,9 +737,18 @@ impl LocalExec {
         // Initialize the state necessary for execution
         // Get the input objects
         let input_objects = self.initialize_execution_env_state(tx_info).await?;
+        let unique_shared_object_ids: HashSet<_> = input_objects
+            .filter_shared_objects()
+            .iter()
+            .map(|s| match s {
+                SharedInput::Existing(obj_ref) => obj_ref.object_id,
+                SharedInput::Deleted((id, _, _, _)) => *id,
+                SharedInput::Cancelled((id, _)) => *id,
+            })
+            .collect();
         assert_eq!(
-            &input_objects.filter_shared_objects().len(),
-            &tx_info.shared_object_refs.len()
+            unique_shared_object_ids.len(),
+            tx_info.shared_object_refs.len()
         );
         // At this point we have all the objects needed for replay
 
@@ -752,7 +773,7 @@ impl LocalExec {
         let expensive_checks = true;
         let transaction_kind = override_transaction_kind.unwrap_or(tx_info.kind.clone());
         let certificate_deny_set = HashSet::new();
-        let gas_status = if tx_info.kind.is_system_tx() {
+        let gas_status = if tx_info.kind.is_system() {
             IotaGasStatus::new_unmetered()
         } else {
             IotaGasStatus::new(
@@ -763,22 +784,127 @@ impl LocalExec {
             )
             .expect("Failed to create gas status")
         };
-        let (inner_store, gas_status, effects, result) = executor.execute_transaction_to_effects(
-            &self,
-            protocol_config,
-            metrics.clone(),
-            expensive_checks,
-            &certificate_deny_set,
-            &tx_info.executed_epoch,
-            tx_info.epoch_start_timestamp,
-            CheckedInputObjects::new_for_replay(input_objects.clone()),
-            tx_info.gas.clone(),
-            gas_status,
-            transaction_kind.clone(),
-            tx_info.sender,
-            *tx_digest,
-            &mut None,
-        );
+        let gas_data = GasData {
+            objects: tx_info.gas.clone(),
+            owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
+            price: tx_info.gas_price,
+            budget: tx_info.gas_budget,
+        };
+
+        let move_authenticators = tx_info.sender_signed_data.move_authenticators();
+
+        let (inner_store, gas_status, effects, result) = if move_authenticators.is_empty() {
+            // Standard path: no MoveAuthenticator
+            executor.execute_transaction_to_effects(
+                &self,
+                protocol_config,
+                metrics.clone(),
+                expensive_checks,
+                &certificate_deny_set,
+                &tx_info.executed_epoch,
+                tx_info.epoch_start_timestamp,
+                CheckedInputObjects::new_for_replay(input_objects.clone()),
+                gas_data,
+                gas_status,
+                transaction_kind.clone(),
+                tx_info.sender,
+                *tx_digest,
+                &mut None,
+            )
+        } else {
+            // MoveAuthenticator path: split input objects and run authentication
+            // before PTB execution, matching the production flow.
+            let (_, per_authenticator_inputs) = tx_info
+                .sender_signed_data
+                .split_input_objects_into_groups_for_reading(input_objects.clone())
+                .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_inputs.len(),
+                "Move authenticators amount must match the number of authenticator inputs"
+            );
+
+            let move_authenticators = move_authenticators
+                .into_iter()
+                .zip(per_authenticator_inputs)
+                .map(
+                    |(move_authenticator, (authenticator_inputs, account_object))| {
+                        let account_version = match &account_object.object {
+                            ObjectReadResultKind::Object(obj) => obj.version(),
+                            _ => {
+                                return Err(ReplayEngineError::GeneralError {
+                                    err: format!(
+                                        "Account object {} is not available",
+                                        account_object.id()
+                                    ),
+                                });
+                            }
+                        };
+
+                        let authenticator_function_ref = load_authenticator_function_ref(
+                            move_authenticator,
+                            account_version,
+                            |id| {
+                                self.storage
+                                    .live_objects_store
+                                    .lock()
+                                    .expect("Can't lock")
+                                    .get(id)
+                                    .cloned()
+                            },
+                        )?;
+
+                        Ok((
+                            move_authenticator.to_owned(),
+                            authenticator_function_ref,
+                            CheckedInputObjects::new_for_replay(authenticator_inputs),
+                        ))
+                    },
+                )
+                .collect::<Result<Vec<_>, ReplayEngineError>>()?;
+
+            let (sender_auth_digest, sponsor_auth_digest) =
+                tx_info.sender_signed_data.compute_auth_digests()?;
+
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
+                    move_authenticators
+                        .iter()
+                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: bcs::to_bytes(
+                    tx_info.sender_signed_data.transaction_data(),
+                )
+                .expect("TransactionData serialization cannot fail"),
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
+            executor.authenticate_then_execute_transaction_to_effects(
+                &self,
+                protocol_config,
+                metrics.clone(),
+                expensive_checks,
+                &certificate_deny_set,
+                &tx_info.executed_epoch,
+                tx_info.epoch_start_timestamp,
+                gas_data,
+                gas_status,
+                move_authenticators,
+                CheckedInputObjects::new_for_replay(input_objects.clone()),
+                transaction_kind.clone(),
+                tx_info.sender,
+                *tx_digest,
+                auth_context_data,
+                &mut None,
+            )
+        };
 
         if let Err(err) = self.pretty_print_for_tracing(
             &gas_status,
@@ -788,7 +914,7 @@ impl LocalExec {
             protocol_config,
             metrics,
             expensive_checks,
-            input_objects.clone(),
+            input_objects,
         ) {
             error!("Failed to pretty print for tracing: {:?}", err);
         }
@@ -821,7 +947,13 @@ impl LocalExec {
         trace!(target: "replay_gas_info", "{}", Pretty(gas_status));
 
         let skip_checks = true;
-        if let ProgrammableTransaction(pt) = transaction_kind {
+        let gas_data = GasData {
+            objects: tx_info.gas.clone(),
+            owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
+            price: tx_info.gas_price,
+            budget: tx_info.gas_budget,
+        };
+        if let TransactionKind::Programmable(pt) = transaction_kind {
             trace!(
                 target: "replay_ptb_info",
                 "{}",
@@ -839,7 +971,7 @@ impl LocalExec {
                             &tx_info.executed_epoch,
                             tx_info.epoch_start_timestamp,
                             CheckedInputObjects::new_for_replay(input_objects),
-                            tx_info.gas.clone(),
+                            gas_data,
                             IotaGasStatus::new(
                                 tx_info.gas_budget,
                                 tx_info.gas_price,
@@ -911,36 +1043,182 @@ impl LocalExec {
         // replicated in several places. We should introduce a few traits and
         // make them shared so that we don't have to fix one by one when we have major
         // execution layer changes.
-        let input_objects = store.read_input_objects_for_transaction(&transaction);
         let executable = VerifiedExecutableTransaction::new_from_quorum_execution(
             VerifiedTransaction::new_unchecked(transaction),
             executed_epoch,
         );
-        let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
-            &executable,
-            input_objects,
-            &protocol_config,
-            reference_gas_price,
-        )
-        .unwrap();
-        let (kind, signer, gas) = executable.transaction_data().execution_parts();
+        let sender_signed_data = &pre_run_sandbox.transaction_info.sender_signed_data;
         let executor = iota_execution::executor(&protocol_config, true, None).unwrap();
-        let (_, _, effects, exec_res) = executor.execute_transaction_to_effects(
-            &store,
-            &protocol_config,
-            Arc::new(LimitsMetrics::new(&Registry::new())),
-            true,
-            &HashSet::new(),
-            &executed_epoch,
-            epoch_start_timestamp,
-            input_objects,
-            gas,
-            gas_status,
-            kind,
-            signer,
-            *executable.digest(),
-            &mut None,
-        );
+
+        let move_authenticators = sender_signed_data.move_authenticators();
+
+        let (_, _, effects, exec_res) = if move_authenticators.is_empty() {
+            // Standard path: no MoveAuthenticator
+            let input_objects = store
+                .read_input_objects_for_transaction(&Transaction::new(sender_signed_data.clone()));
+            let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
+                &executable,
+                input_objects,
+                &protocol_config,
+                reference_gas_price,
+            )
+            .unwrap();
+            let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
+            executor.execute_transaction_to_effects(
+                &store,
+                &protocol_config,
+                Arc::new(LimitsMetrics::new(&Registry::new())),
+                true,
+                &HashSet::new(),
+                &executed_epoch,
+                epoch_start_timestamp,
+                input_objects,
+                gas_data,
+                gas_status,
+                kind,
+                signer,
+                *executable.digest(),
+                &mut None,
+            )
+        } else {
+            // MoveAuthenticator path: read all objects (tx + auth), split, and
+            // run authentication before PTB execution.
+            let all_input_object_kinds = sender_signed_data
+                .collect_all_input_object_kind_for_reading()
+                .unwrap();
+            let all_input_objects: InputObjects = all_input_object_kinds
+                .into_iter()
+                .map(|kind| {
+                    let id = kind.object_id();
+                    let obj = store
+                        .get_object(&id)
+                        .expect("Object must be in store")
+                        .clone();
+                    ObjectReadResult::new(kind, obj.into())
+                })
+                .collect::<Vec<_>>()
+                .into();
+
+            let (tx_input_objects, per_authenticator_inputs) = sender_signed_data
+                .split_input_objects_into_groups_for_reading(all_input_objects)
+                .unwrap();
+
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_inputs.len(),
+                "Move authenticators amount must match the number of authenticator inputs"
+            );
+
+            let per_authenticator_inputs = move_authenticators
+                .iter()
+                .zip(per_authenticator_inputs)
+                .map(
+                    |(move_authenticator, (authenticator_inputs, account_object))| {
+                        let account_version = match &account_object.object {
+                            ObjectReadResultKind::Object(obj) => obj.version(),
+                            _ => {
+                                return Err(ReplayEngineError::GeneralError {
+                                    err: format!(
+                                        "Account object {} is not available",
+                                        account_object.id()
+                                    ),
+                                });
+                            }
+                        };
+
+                        let authenticator_function_ref = load_authenticator_function_ref(
+                            move_authenticator,
+                            account_version,
+                            |id| store.get_object(id).cloned(),
+                        )
+                        .unwrap();
+
+                        Ok((authenticator_inputs, authenticator_function_ref))
+                    },
+                )
+                .collect::<Result<Vec<_>, ReplayEngineError>>()?;
+
+            let per_authenticator_input_objects = per_authenticator_inputs
+                .iter()
+                .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
+                .collect::<Vec<_>>();
+
+            let authenticator_gas_budget = protocol_config.max_auth_gas();
+            let (gas_status, per_authenticator_checked_input_objects, union_checked_input_objects) =
+                iota_transaction_checks::check_certificate_and_move_authenticator_input(
+                    &executable,
+                    tx_input_objects,
+                    per_authenticator_input_objects,
+                    authenticator_gas_budget,
+                    &protocol_config,
+                    reference_gas_price,
+                )
+                .unwrap();
+
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_checked_input_objects.len(),
+                "Move authenticators amount must match the number of checked authenticator inputs"
+            );
+
+            let move_authenticators = move_authenticators
+                .into_iter()
+                .zip(per_authenticator_inputs)
+                .zip(per_authenticator_checked_input_objects)
+                .map(
+                    |(
+                        (move_authenticator, (_, authenticator_function_ref_for_execution)),
+                        authenticator_checked_input_objects,
+                    )| {
+                        (
+                            move_authenticator.to_owned(),
+                            authenticator_function_ref_for_execution,
+                            authenticator_checked_input_objects,
+                        )
+                    },
+                )
+                .collect::<Vec<_>>();
+
+            let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
+            let (sender_auth_digest, sponsor_auth_digest) =
+                sender_signed_data.compute_auth_digests()?;
+
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                    move_authenticators
+                        .iter()
+                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: bcs::to_bytes(sender_signed_data.transaction_data())
+                    .expect("TransactionData serialization cannot fail"),
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
+            executor.authenticate_then_execute_transaction_to_effects(
+                &store,
+                &protocol_config,
+                Arc::new(LimitsMetrics::new(&Registry::new())),
+                true,
+                &HashSet::new(),
+                &executed_epoch,
+                epoch_start_timestamp,
+                gas_data,
+                gas_status,
+                move_authenticators,
+                union_checked_input_objects,
+                kind,
+                signer,
+                *executable.digest(),
+                auth_context_data,
+                &mut None,
+            )
+        };
 
         let effects =
             IotaTransactionBlockEffects::try_from(effects).map_err(ReplayEngineError::from)?;
@@ -1010,7 +1288,7 @@ impl LocalExec {
         executor_version: Option<i64>,
         protocol_version: Option<i64>,
         enable_profiler: Option<PathBuf>,
-        config_and_versions: Option<Vec<(ObjectID, SequenceNumber)>>,
+        config_and_versions: Option<Vec<(ObjectId, SequenceNumber)>>,
     ) -> Result<ExecutionSandboxState, ReplayEngineError> {
         self.executor_version = executor_version;
         self.protocol_version = protocol_version;
@@ -1024,14 +1302,14 @@ impl LocalExec {
                 .await
         }
     }
-    fn system_package_ids(_protocol_version: u64) -> Vec<ObjectID> {
+    fn system_package_ids(_protocol_version: u64) -> Vec<ObjectId> {
         BuiltInFramework::all_package_ids()
     }
 
     /// This is the only function which accesses the network during execution
     pub fn get_or_download_object(
         &self,
-        obj_id: &ObjectID,
+        obj_id: &ObjectId,
         package_expected: bool,
     ) -> Result<Option<Object>, ReplayEngineError> {
         if package_expected {
@@ -1076,12 +1354,12 @@ impl LocalExec {
                 .expect("Cannot lock")
                 .insert(*obj_id, o.clone());
         }
-        let o_ref = o.compute_object_reference();
+        let o_ref = o.object_ref();
         self.storage
             .object_version_cache
             .lock()
             .expect("Cannot lock")
-            .insert((o_ref.0, o_ref.1), o.clone());
+            .insert((o_ref.object_id, o_ref.version), o.clone());
         Ok(Some(o))
     }
 
@@ -1093,7 +1371,7 @@ impl LocalExec {
     pub fn system_package_versions_for_protocol_version(
         &self,
         protocol_version: u64,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         match &self.fetcher {
             Fetchers::Remote(_) => Ok(self
                 .protocol_version_system_package_table
@@ -1260,7 +1538,7 @@ impl LocalExec {
 
     pub async fn system_package_versions(
         &self,
-    ) -> Result<BTreeMap<ObjectID, Vec<(SequenceNumber, TransactionDigest)>>, ReplayEngineError>
+    ) -> Result<BTreeMap<ObjectId, Vec<(SequenceNumber, TransactionDigest)>>, ReplayEngineError>
     {
         let system_package_ids = Self::system_package_ids(
             *self
@@ -1280,11 +1558,14 @@ impl LocalExec {
             // or created it
             let previous_txs: Vec<_> = system_package_objs
                 .iter()
-                .map(|o| (o.compute_object_reference(), o.previous_transaction))
+                .map(|o| (o.object_ref(), o.previous_transaction))
                 .collect();
 
-            previous_txs.iter().for_each(|((id, ver, _), tx)| {
-                mapping.entry(*id).or_insert(vec![]).push((*ver, *tx));
+            previous_txs.iter().for_each(|(object_ref, tx)| {
+                mapping
+                    .entry(object_ref.object_id)
+                    .or_insert(vec![])
+                    .push((object_ref.version, *tx));
             });
 
             // Next round
@@ -1292,11 +1573,11 @@ impl LocalExec {
             let previous_ver_refs: Vec<_> = previous_txs
                 .iter()
                 .filter_map(|(q, _)| {
-                    let prev_ver = u64::from(q.1) - 1;
+                    let prev_ver = q.version - 1;
                     if prev_ver == 0 {
                         None
                     } else {
-                        Some((q.0, SequenceNumber::from(prev_ver)))
+                        Some((q.object_id, prev_ver))
                     }
                 })
                 .collect();
@@ -1446,7 +1727,7 @@ impl LocalExec {
     fn add_config_objects_if_needed(
         &self,
         status: &IotaExecutionStatus,
-    ) -> Vec<(ObjectID, SequenceNumber)> {
+    ) -> Vec<(ObjectId, SequenceNumber)> {
         match parse_effect_error_for_denied_coins(status) {
             Some(coin_type) => {
                 let Some(mut config_id_and_version) = self.config_and_versions.clone() else {
@@ -1489,40 +1770,40 @@ impl LocalExec {
         let raw_tx_bytes = tx_info.clone().raw_transaction;
         let orig_tx: SenderSignedData = bcs::from_bytes(&raw_tx_bytes).unwrap();
         let input_objs = orig_tx
-            .transaction_data()
-            .input_objects()
-            .map_err(|e| ReplayEngineError::UserInputError { err: e })?;
+            .collect_all_input_object_kind_for_reading()
+            .map_err(|e| match e {
+                IotaError::UserInput { error } => ReplayEngineError::UserInputError { err: error },
+                other => ReplayEngineError::GeneralError {
+                    err: other.to_string(),
+                },
+            })?;
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         // Download the objects at the version right before the execution of this TX
-        let modified_at_versions: Vec<(ObjectID, SequenceNumber)> = effects.modified_at_versions();
+        let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
 
         let shared_object_refs: Vec<ObjectRef> = effects
             .shared_objects()
             .iter()
             .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
+                if so_ref.digest == ObjectDigest::OBJECT_DELETED {
                     unimplemented!(
                         "Replay of deleted shared object transactions is not supported yet"
                     );
                 } else {
-                    so_ref.to_object_ref()
+                    *so_ref
                 }
             })
             .collect();
         let gas_data = match tx_info.clone().transaction.unwrap().data {
             iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.gas_data,
         };
-        let gas_object_refs: Vec<_> = gas_data
-            .payment
-            .iter()
-            .map(|obj_ref| obj_ref.to_object_ref())
-            .collect();
+        let gas_object_refs = gas_data.payment;
         let receiving_objs = orig_tx
             .transaction_data()
             .receiving_objects()
             .into_iter()
-            .map(|(obj_id, version, _)| (obj_id, version))
+            .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect();
 
         let epoch_id = effects.executed_epoch;
@@ -1540,6 +1821,7 @@ impl LocalExec {
             input_objects: input_objs,
             shared_object_refs,
             gas: gas_object_refs,
+            gas_owner: (gas_data.owner != sender).then_some(gas_data.owner),
             gas_budget: gas_data.budget,
             gas_price: gas_data.price,
             executed_epoch: epoch_id,
@@ -1583,34 +1865,36 @@ impl LocalExec {
         // let tx_info = self.fetcher.get_transaction(tx_digest).await?;
 
         let input_objs = orig_tx
-            .transaction_data()
-            .input_objects()
-            .map_err(|e| ReplayEngineError::UserInputError { err: e })?;
+            .collect_all_input_object_kind_for_reading()
+            .map_err(|e| match e {
+                IotaError::UserInput { error } => ReplayEngineError::UserInputError { err: error },
+                other => ReplayEngineError::GeneralError {
+                    err: other.to_string(),
+                },
+            })?;
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         // Download the objects at the version right before the execution of this TX
-        let modified_at_versions: Vec<(ObjectID, SequenceNumber)> = effects.modified_at_versions();
+        let modified_at_versions: Vec<(ObjectId, SequenceNumber)> = effects.modified_at_versions();
 
         let shared_object_refs: Vec<ObjectRef> = effects
             .shared_objects()
             .iter()
             .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
+                if so_ref.digest == ObjectDigest::OBJECT_DELETED {
                     unimplemented!(
                         "Replay of deleted shared object transactions is not supported yet"
                     );
                 } else {
-                    so_ref.to_object_ref()
+                    *so_ref
                 }
             })
             .collect();
-        let gas_data = orig_tx.transaction_data().gas_data();
-        let gas_object_refs: Vec<_> = gas_data.clone().payment;
         let receiving_objs = orig_tx
             .transaction_data()
             .receiving_objects()
             .into_iter()
-            .map(|(obj_id, version, _)| (obj_id, version))
+            .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect();
 
         let epoch_id = dp.node_state_dump.executed_epoch;
@@ -1623,6 +1907,8 @@ impl LocalExec {
         let (epoch_start_timestamp, reference_gas_price) = self
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)
             .await?;
+        let gas_data = orig_tx.transaction_data().gas_data();
+        let gas_object_refs: Vec<_> = gas_data.clone().objects;
 
         Ok(OnChainTransactionInfo {
             kind: tx_kind_orig.clone(),
@@ -1631,6 +1917,7 @@ impl LocalExec {
             input_objects: input_objs,
             shared_object_refs,
             gas: gas_object_refs,
+            gas_owner: (gas_data.owner != sender).then_some(gas_data.owner),
             gas_budget: gas_data.budget,
             gas_price: gas_data.price,
             executed_epoch: epoch_id,
@@ -1664,8 +1951,9 @@ impl LocalExec {
         if !deleted_shared_objects.is_empty() {
             for tx_digest in tx_info.dependencies.iter() {
                 let tx_info = self.resolve_tx_components(tx_digest).await?;
-                for (obj_id, version, _) in tx_info.shared_object_refs.iter() {
-                    deleted_shared_info_map.insert(*obj_id, (tx_info.tx_digest, *version));
+                for obj_ref in tx_info.shared_object_refs.iter() {
+                    deleted_shared_info_map
+                        .insert(obj_ref.object_id, (tx_info.tx_digest, obj_ref.version));
                 }
             }
         }
@@ -1679,7 +1967,7 @@ impl LocalExec {
                     Ok(())
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(o_ref) => {
-                    imm_owned_inputs.push((o_ref.0, o_ref.1));
+                    imm_owned_inputs.push((o_ref.object_id, o_ref.version));
                     Ok(())
                 }
                 InputObjectKind::SharedMoveObject {
@@ -1754,7 +2042,7 @@ impl LocalExec {
                         .object_version_cache
                         .lock()
                         .expect("Cannot lock")
-                        .get(&(o_ref.0, o_ref.1))
+                        .get(&(o_ref.object_id, o_ref.version))
                         .unwrap()
                         .clone()
                         .into(),
@@ -1804,10 +2092,13 @@ impl LocalExec {
         let (shared_refs, deleted_shared_refs): (Vec<ObjectRef>, Vec<ObjectRef>) = tx_info
             .shared_object_refs
             .iter()
-            .partition(|r| r.2 != ObjectDigest::OBJECT_DIGEST_DELETED);
+            .partition(|r| r.digest != ObjectDigest::OBJECT_DELETED);
 
         // Download shared objects at the version right before the execution of this TX
-        let shared_refs: Vec<_> = shared_refs.iter().map(|r| (r.0, r.1)).collect();
+        let shared_refs: Vec<_> = shared_refs
+            .iter()
+            .map(|r| (r.object_id, r.version))
+            .collect();
         self.multi_download_and_store(&shared_refs).await?;
 
         // Download gas (although this should already be in cache from modified at
@@ -1815,7 +2106,7 @@ impl LocalExec {
         let gas_refs: Vec<_> = tx_info
             .gas
             .iter()
-            .filter_map(|w| (w.0 != ObjectID::ZERO).then_some((w.0, w.1)))
+            .filter_map(|w| (w.object_id != ObjectId::ZERO).then_some((w.object_id, w.version)))
             .collect();
         self.multi_download_and_store(&gas_refs).await?;
 
@@ -1839,8 +2130,86 @@ impl LocalExec {
         self.multi_download_and_store(&loaded_child_refs).await?;
         tokio::task::yield_now().await;
 
+        // If the transaction uses MoveAuthenticators, download the authenticator
+        // function ref dynamic field objects so they are available during execution.
+        for move_authenticator in tx_info.sender_signed_data.move_authenticators() {
+            let (account_object_id, _, _) = move_authenticator
+                .object_to_authenticate_components()
+                .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+
+            let authenticator_function_ref_field_id = dynamic_field::derive_dynamic_field_id(
+                account_object_id,
+                &AuthenticatorFunctionRefV1Key::tag().into(),
+                &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+            )
+            .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+
+            // Get account object version from the already-downloaded objects
+            let account_object_version = self
+                .storage
+                .live_objects_store
+                .lock()
+                .expect("Can't lock")
+                .get(&account_object_id)
+                .map(|obj| obj.version())
+                .expect("Account object should have been downloaded as part of input objects");
+
+            self.download_object_by_upper_bound(
+                &authenticator_function_ref_field_id,
+                account_object_version,
+            )?;
+        }
+
         Ok(input_objs)
     }
+}
+
+/// Loads the `AuthenticatorFunctionRefForExecution` from a dynamic field on the
+/// account object. This is a simplified version of `check_move_account()` in
+/// `authority.rs` — we skip validation since we trust on-chain state.
+fn load_authenticator_function_ref(
+    move_authenticator: &MoveAuthenticator,
+    account_object_version: SequenceNumber,
+    get_object: impl Fn(&ObjectId) -> Option<Object>,
+) -> Result<AuthenticatorFunctionRefForExecution, ReplayEngineError> {
+    let (account_object_id, _, _) = move_authenticator
+        .object_to_authenticate_components()
+        .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+
+    let field_id = dynamic_field::derive_dynamic_field_id(
+        account_object_id,
+        &AuthenticatorFunctionRefV1Key::tag().into(),
+        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+    )
+    .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+
+    let field_obj = get_object(&field_id).ok_or_else(|| ReplayEngineError::GeneralError {
+        err: format!(
+            "Authenticator function ref dynamic field {field_id} not found in storage \
+             for account object {account_object_id} at version {account_object_version}"
+        ),
+    })?;
+
+    let field_move_object = field_obj
+        .data
+        .as_struct_opt()
+        .expect("dynamic field should never be a package object");
+
+    let field: Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1> = field_move_object
+        .to_rust()
+        .map_err(|e| ReplayEngineError::GeneralError {
+            err: format!(
+                "Failed to deserialize AuthenticatorFunctionRefV1 field for account {account_object_id}: {e}"
+            ),
+        })?;
+
+    Ok(AuthenticatorFunctionRefForExecution::new_v1(
+        field.value,
+        field_obj.object_ref(),
+        field_obj.owner,
+        field_obj.storage_rebate,
+        field_obj.previous_transaction,
+    ))
 }
 
 // <---------------------  Implement necessary traits for LocalExec to work with
@@ -1850,8 +2219,8 @@ impl BackingPackageStore for LocalExec {
     /// In this case we might need to download a dependency package which was
     /// not present in the modified at versions list because packages are
     /// immutable
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        fn inner(self_: &LocalExec, package_id: &ObjectID) -> IotaResult<Option<Object>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        fn inner(self_: &LocalExec, package_id: &ObjectId) -> IotaResult<Option<Object>> {
             // If package not present fetch it from the network
             self_
                 .get_or_download_object(package_id, true /* we expect a Move package */)
@@ -1875,14 +2244,14 @@ impl ChildObjectResolver for LocalExec {
     /// Hence all objects must be in store already
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
+        parent: &ObjectId,
+        child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         fn inner(
             self_: &LocalExec,
-            parent: &ObjectID,
-            child: &ObjectID,
+            parent: &ObjectId,
+            child: &ObjectId,
             child_version_upper_bound: SequenceNumber,
         ) -> IotaResult<Option<Object>> {
             let child_object =
@@ -1898,7 +2267,7 @@ impl ChildObjectResolver for LocalExec {
                 )));
             }
             let parent = *parent;
-            if child_object.owner != Owner::ObjectOwner(parent.into()) {
+            if child_object.owner != Owner::Object(parent) {
                 return Err(IotaError::InvalidChildObjectAccess {
                     object: *child,
                     given_parent: parent,
@@ -1924,15 +2293,15 @@ impl ChildObjectResolver for LocalExec {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         fn inner(
             self_: &LocalExec,
-            owner: &ObjectID,
-            receiving_object_id: &ObjectID,
+            owner: &ObjectId,
+            receiving_object_id: &ObjectId,
             receive_object_at_version: SequenceNumber,
         ) -> IotaResult<Option<Object>> {
             let recv_object = match self_.try_get_object(receiving_object_id)? {
@@ -1945,7 +2314,7 @@ impl ChildObjectResolver for LocalExec {
                     {receive_object_at_version} but expected the version to be == {receive_object_at_version}"
                 )));
             }
-            if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+            if recv_object.owner != Owner::Address((*owner).into()) {
                 return Ok(None);
             }
             Ok(Some(recv_object))
@@ -1974,16 +2343,16 @@ impl ResourceResolver for LocalExec {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        typ: &StructTag,
+        type_: &move_core_types::language_storage::StructTag,
     ) -> IotaResult<Option<Vec<u8>>> {
         fn inner(
             self_: &LocalExec,
             address: &AccountAddress,
-            typ: &StructTag,
+            type_: &StructTag,
         ) -> IotaResult<Option<Vec<u8>>> {
             // If package not present fetch it from the network or some remote location
             let Some(object) = self_.get_or_download_object(
-                &ObjectID::from(*address),
+                &ObjectId::new(address.into_bytes()),
                 false, // we expect a Move obj
             )?
             else {
@@ -1991,9 +2360,9 @@ impl ResourceResolver for LocalExec {
             };
 
             match &object.data {
-                Data::Move(m) => {
+                Data::Struct(m) => {
                     assert!(
-                        m.is_type(typ),
+                        m.is_struct_tag(type_),
                         "Invariant violation: ill-typed object in storage \
                         or bad object request from caller"
                     );
@@ -2006,13 +2375,13 @@ impl ResourceResolver for LocalExec {
             }
         }
 
-        let res = inner(self, address, typ);
+        let res = inner(self, address, &struct_tag_core_to_sdk(type_));
         self.exec_store_events
             .lock()
             .expect("Unable to lock events list")
             .push(ExecutionStoreEvent::ResourceResolverGetResource {
                 address: *address,
-                typ: typ.clone(),
+                typ: type_.clone(),
                 result: res.clone(),
             });
         res
@@ -2056,7 +2425,7 @@ impl ObjectStore for LocalExec {
     /// backfill store in init We dont download if not present
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         let res = self
             .storage
@@ -2079,7 +2448,7 @@ impl ObjectStore for LocalExec {
     /// backfill store in init We dont download if not present
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         let res = self
@@ -2112,7 +2481,7 @@ impl ObjectStore for LocalExec {
 impl ObjectStore for &mut LocalExec {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
@@ -2121,7 +2490,7 @@ impl ObjectStore for &mut LocalExec {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         // Recording event here will be double-counting since its already recorded in

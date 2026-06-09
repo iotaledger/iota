@@ -6,9 +6,9 @@
 //! This module implements a checker for verifying that all of the struct's
 //! fields satisfy the abilities required by the struct's abilities
 use move_binary_format::{
-    errors::{verification_error, Location, PartialVMResult, VMResult},
-    file_format::{AbilitySet, CompiledModule, StructFieldInformation, TableIndex},
     IndexKind,
+    errors::{Location, PartialVMResult, VMResult, verification_error},
+    file_format::{AbilitySet, CompiledModule, StructFieldInformation, TableIndex},
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;

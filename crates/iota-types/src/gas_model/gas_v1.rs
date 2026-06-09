@@ -8,12 +8,13 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
     use iota_protocol_config::*;
+    use iota_sdk_types::gas::GasCostSummary;
     use move_core_types::vm_status::StatusCode;
 
     use crate::{
-        ObjectID,
+        ObjectId,
         error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
-        gas::{self, GasCostSummary, IotaGasStatusAPI},
+        gas::{self, IotaGasStatusAPI},
         gas_model::{
             gas_predicates::cost_table_for_version,
             tables::{GasStatus, ZERO_COST_SCHEDULE},
@@ -204,7 +205,7 @@ mod checked {
         /// Per Object Storage Cost and Storage Rebate, used to get accumulated
         /// values at the end of execution to determine storage charges
         /// and rebates.
-        per_object_storage: Vec<(ObjectID, PerObjectStorage)>,
+        per_object_storage: Vec<(ObjectId, PerObjectStorage)>,
         // storage rebate rate as defined in the ProtocolConfig
         rebate_rate: u64,
         /// Amount of storage rebate accumulated when we are running in
@@ -257,12 +258,7 @@ mod checked {
             config: &ProtocolConfig,
         ) -> IotaGasStatus {
             let storage_gas_price = config.storage_gas_price();
-            let max_computation_budget = config.max_gas_computation_bucket() * gas_price;
-            let computation_budget = if gas_budget > max_computation_budget {
-                max_computation_budget
-            } else {
-                gas_budget
-            };
+            let computation_budget = computation_budget(gas_budget, gas_price, config);
             let iota_cost_table = IotaCostTable::new(config, gas_price);
             let gas_rounding_step = config.gas_rounding_step_as_option();
             Self::new(
@@ -364,7 +360,7 @@ mod checked {
             self.storage_gas_units()
         }
 
-        pub fn per_object_storage(&self) -> &Vec<(ObjectID, PerObjectStorage)> {
+        pub fn per_object_storage(&self) -> &Vec<(ObjectId, PerObjectStorage)> {
             &self.per_object_storage
         }
     }
@@ -439,6 +435,14 @@ mod checked {
             self.gas_budget
         }
 
+        fn gas_price(&self) -> u64 {
+            self.gas_price
+        }
+
+        fn reference_gas_price(&self) -> u64 {
+            self.reference_gas_price
+        }
+
         fn storage_gas_units(&self) -> u64 {
             self.per_object_storage
                 .iter()
@@ -492,7 +496,7 @@ mod checked {
         /// `new_size`.
         fn track_storage_mutation(
             &mut self,
-            object_id: ObjectID,
+            object_id: ObjectId,
             new_size: usize,
             storage_rebate: u64,
         ) -> u64 {
@@ -545,6 +549,16 @@ mod checked {
         fn adjust_computation_on_out_of_gas(&mut self) {
             self.per_object_storage = Vec::new();
             self.computation_cost = self.gas_budget;
+        }
+    }
+
+    pub fn computation_budget(gas_budget: u64, gas_price: u64, config: &ProtocolConfig) -> u64 {
+        let max_computation_budget = config.max_gas_computation_bucket() * gas_price;
+
+        if gas_budget > max_computation_budget {
+            max_computation_budget
+        } else {
+            gas_budget
         }
     }
 }

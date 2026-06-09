@@ -8,7 +8,7 @@ import PropType from "./proptype";
 
 const Ref = (props) => {
   const { schema } = props;
-  const requireds =
+  const requiredSchemas =
     typeof schema.required !== "undefined" ? schema.required : [];
 
   return (
@@ -38,7 +38,7 @@ const Ref = (props) => {
                   <PropType proptype={property}></PropType>
                 </div>
                 <div className="flex items-center ml-2">
-                  {requireds.includes(property[0]) ? "Yes" : "No"}
+                  {requiredSchemas.includes(property[0]) ? "Yes" : "No"}
                 </div>
                 <div className="col-span-3 p-2 overflow-x-auto">
                   {property[1].description && (

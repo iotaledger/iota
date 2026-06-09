@@ -19,9 +19,9 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    digests::TransactionDigest,
+    base_types::IotaAddress, digests::TransactionDigest,
     messages_checkpoint::CheckpointSequenceNumber,
 };
 pub use rpc_command_processor::{
@@ -35,7 +35,7 @@ use crate::load_test::LoadTestConfig;
 pub struct SignerInfo {
     pub encoded_keypair: String,
     /// Different thread should use different gas_payment to avoid equivocation
-    pub gas_payment: Option<Vec<ObjectID>>,
+    pub gas_payment: Option<Vec<ObjectId>>,
     pub gas_budget: Option<u64>,
 }
 
@@ -123,7 +123,7 @@ impl Command {
         }
     }
 
-    pub fn new_multi_get_objects(object_ids: Vec<ObjectID>) -> Self {
+    pub fn new_multi_get_objects(object_ids: Vec<ObjectId>) -> Self {
         let multi_get_objects = MultiGetObjects { object_ids };
         Self {
             data: CommandData::MultiGetObjects(multi_get_objects),
@@ -131,7 +131,7 @@ impl Command {
         }
     }
 
-    pub fn new_get_object(object_ids: Vec<ObjectID>, chunk_size: usize) -> Self {
+    pub fn new_get_object(object_ids: Vec<ObjectId>, chunk_size: usize) -> Self {
         let get_object = GetObject {
             object_ids,
             chunk_size,
@@ -230,12 +230,12 @@ pub enum AddressQueryType {
 
 #[derive(Clone)]
 pub struct MultiGetObjects {
-    pub object_ids: Vec<ObjectID>,
+    pub object_ids: Vec<ObjectId>,
 }
 
 #[derive(Clone)]
 pub struct GetObject {
-    pub object_ids: Vec<ObjectID>,
+    pub object_ids: Vec<ObjectId>,
     pub chunk_size: usize,
 }
 

@@ -34,7 +34,7 @@ pub fn GraphQLConfig(_attr: TokenStream, input: TokenStream) -> TokenStream {
         semi_token,
     }) = data
     else {
-        panic!("GraphQL configs must be structs.");
+        panic!("graphQL configs must be structs.");
     };
 
     let Fields::Named(FieldsNamed {
@@ -42,7 +42,7 @@ pub fn GraphQLConfig(_attr: TokenStream, input: TokenStream) -> TokenStream {
         named,
     }) = fields
     else {
-        panic!("GraphQL configs must have named fields.");
+        panic!("graphQL configs must have named fields.");
     };
 
     // Figure out which derives need to be added to meet the criteria of a config

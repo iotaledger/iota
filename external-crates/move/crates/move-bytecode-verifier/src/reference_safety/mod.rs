@@ -11,27 +11,32 @@
 
 mod abstract_state;
 
-use crate::reference_safety::abstract_state::STEP_BASE_COST;
+use std::{
+    collections::{BTreeSet, HashMap},
+    num::NonZeroU64,
+};
+
 use abstract_state::{AbstractState, AbstractValue};
 use move_abstract_interpreter::absint::{AbstractInterpreter, FunctionContext, TransferFunctions};
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
+    CompiledModule,
     errors::{PartialVMError, PartialVMResult},
     file_format::{
         Bytecode, CodeOffset, FunctionDefinitionIndex, FunctionHandle, IdentifierIndex,
         SignatureIndex, SignatureToken, StructDefinition, StructFieldInformation,
         VariantDefinition,
     },
-    safe_assert, safe_unwrap, safe_unwrap_err, CompiledModule,
+    safe_assert, safe_unwrap, safe_unwrap_err,
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
-use std::{
-    collections::{BTreeSet, HashMap},
-    num::NonZeroU64,
-};
+use move_vm_config::verifier::VerifierConfig;
+
+use crate::reference_safety::abstract_state::STEP_BASE_COST;
 
 struct ReferenceSafetyAnalysis<'a> {
+    config: &'a VerifierConfig,
     module: &'a CompiledModule,
     function_context: &'a FunctionContext<'a>,
     name_def_map: &'a HashMap<IdentifierIndex, FunctionDefinitionIndex>,
@@ -40,11 +45,13 @@ struct ReferenceSafetyAnalysis<'a> {
 
 impl<'a> ReferenceSafetyAnalysis<'a> {
     fn new(
+        config: &'a VerifierConfig,
         module: &'a CompiledModule,
         function_context: &'a FunctionContext<'a>,
         name_def_map: &'a HashMap<IdentifierIndex, FunctionDefinitionIndex>,
     ) -> Self {
         Self {
+            config,
             module,
             function_context,
             name_def_map,
@@ -64,6 +71,7 @@ impl<'a> ReferenceSafetyAnalysis<'a> {
 }
 
 pub(crate) fn verify<'a>(
+    config: &'a VerifierConfig,
     module: &'a CompiledModule,
     function_context: &FunctionContext,
     name_def_map: &'a HashMap<IdentifierIndex, FunctionDefinitionIndex>,
@@ -71,7 +79,7 @@ pub(crate) fn verify<'a>(
 ) -> PartialVMResult<()> {
     let initial_state = AbstractState::new(function_context);
 
-    let mut verifier = ReferenceSafetyAnalysis::new(module, function_context, name_def_map);
+    let mut verifier = ReferenceSafetyAnalysis::new(config, module, function_context, name_def_map);
     verifier.analyze_function(initial_state, function_context, meter)
 }
 
@@ -186,7 +194,7 @@ fn execute_inner(
         Bytecode::Pop => state.release_value(safe_unwrap_err!(verifier.stack.pop()), meter)?,
 
         Bytecode::CopyLoc(local) => {
-            let value = state.copy_loc(offset, *local, meter)?;
+            let value = state.copy_loc(offset, *local, meter, verifier.config)?;
             verifier.push(value)?
         }
         Bytecode::MoveLoc(local) => {
@@ -224,11 +232,11 @@ fn execute_inner(
         }
 
         Bytecode::MutBorrowLoc(local) => {
-            let value = state.borrow_loc(offset, true, *local, meter)?;
+            let value = state.borrow_loc(offset, true, *local, meter, verifier.config)?;
             verifier.push(value)?
         }
         Bytecode::ImmBorrowLoc(local) => {
-            let value = state.borrow_loc(offset, false, *local, meter)?;
+            let value = state.borrow_loc(offset, false, *local, meter, verifier.config)?;
             verifier.push(value)?
         }
         Bytecode::MutBorrowField(field_handle_index) => {

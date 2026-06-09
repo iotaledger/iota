@@ -1,0 +1,11 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 2 tasks
+
+init:
+A: object(0,0)
+
+task 1, line 8:
+//# abstract --account immshared(2,3) --ptb-inputs 100 @A
+Error: Abstract transactions are not supported in simulator mode

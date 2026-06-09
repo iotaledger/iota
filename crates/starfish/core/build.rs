@@ -20,7 +20,7 @@ fn main() -> Result<()> {
 }
 
 fn build_tonic_services(out_dir: &Path) {
-    let codec_path = "tonic::codec::ProstCodec";
+    let codec_path = "tonic_prost::ProstCodec";
 
     let service = tonic_build::manual::Service::builder()
         .name("ConsensusService")
@@ -54,6 +54,16 @@ fn build_tonic_services(out_dir: &Path) {
                 .input_type("crate::network::tonic_network::FetchCommitsRequest")
                 .output_type("crate::network::tonic_network::FetchCommitsResponse")
                 .codec_path(codec_path)
+                .build(),
+        )
+        .method(
+            tonic_build::manual::Method::builder()
+                .name("fetch_commits_and_transactions")
+                .route_name("FetchCommitsAndTransactions")
+                .input_type("crate::network::tonic_network::FetchCommitsAndTransactionsRequest")
+                .output_type("crate::network::tonic_network::FetchCommitsAndTransactionsResponse")
+                .codec_path(codec_path)
+                .server_streaming()
                 .build(),
         )
         .method(

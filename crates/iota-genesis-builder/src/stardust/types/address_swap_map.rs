@@ -4,8 +4,11 @@
 use std::{collections::HashMap, fs::File};
 
 use iota_config::genesis::csv_reader_with_comments;
-use iota_sdk::types::block::address::Address as StardustAddress;
-use iota_types::{base_types::IotaAddress, object::Owner, stardust::stardust_to_iota_address};
+use iota_sdk_types::Owner;
+use iota_stardust_types::block::address::Address as StardustAddress;
+use iota_types::base_types::IotaAddress;
+
+use super::address::stardust_to_iota_address;
 
 type OriginAddress = IotaAddress;
 
@@ -88,7 +91,7 @@ impl AddressSwapMap {
         if let Some(addr) = self.destination_address(&address) {
             address = addr;
         }
-        Ok(Owner::AddressOwner(address))
+        Ok(Owner::Address(address))
     }
 
     /// Converts a [`StardustAddress`] to an [`Owner`] by first
@@ -105,7 +108,7 @@ impl AddressSwapMap {
         if let Some(addr) = self.swap_destination_address(&address) {
             address = addr;
         }
-        Ok(Owner::AddressOwner(address))
+        Ok(Owner::Address(address))
     }
 
     /// Converts a [`StardustAddress`] to an [`IotaAddress`] and

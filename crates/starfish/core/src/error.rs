@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoError;
-use starfish_config::{AuthorityIndex, Epoch, Stake};
+use starfish_config::{AuthorityIndex, Committee, Epoch, Stake};
 use strum_macros::IntoStaticStr;
 use thiserror::Error;
 use typed_store::TypedStoreError;
 
 use crate::{
-    block_header::{BlockRef, Round},
+    block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
 
 /// Errors that can occur when processing blocks, reading from storage, or
@@ -19,6 +20,9 @@ use crate::{
 pub(crate) enum ConsensusError {
     #[error("Error deserializing block header: {0}")]
     MalformedHeader(bcs::Error),
+
+    #[error("Error deserializing shard with proof: {0}")]
+    MalformedShard(bcs::Error),
 
     #[error("Error deserializing block transactions: {0}")]
     MalformedTransactions(bcs::Error),
@@ -50,11 +54,8 @@ pub(crate) enum ConsensusError {
     #[error("Genesis block headers should only be generated from Committee!")]
     UnexpectedGenesisHeader,
 
-    #[error("Genesis transactions should not be queried!")]
-    UnexpectedGenesisTransactionsRequested,
-
-    #[error("Genesis block headers should not be queried!")]
-    UnexpectedGenesisHeaderRequested,
+    #[error("Genesis block headers or transactions are requested from {peer}!")]
+    UnexpectedGenesisRequested { peer: AuthorityIndex },
 
     #[error(
         "Expected {requested} but received {received_headers} block headers from authority {authority}"
@@ -78,12 +79,6 @@ pub(crate) enum ConsensusError {
     )]
     TooManyFetchedTransactionsReturned(AuthorityIndex),
 
-    #[error("Too many block headers have been rteurned from authority {0}")]
-    TooManyFetchedHeadersReturned(AuthorityIndex),
-
-    #[error("Too many transaction bundles have been requested from authority {0}")]
-    TooManyFetchTransactionsRequested(AuthorityIndex),
-
     #[error("Too many authorities have been provided from authority {0}")]
     TooManyAuthoritiesProvided(AuthorityIndex),
 
@@ -94,6 +89,13 @@ pub(crate) enum ConsensusError {
 
     #[error("Invalid authority index: {index} > {max}")]
     InvalidAuthorityIndex { index: AuthorityIndex, max: usize },
+
+    #[error("Invalid authority index: {index} > {max} from peer {peer}")]
+    InvalidAuthorityIndexRequested {
+        index: AuthorityIndex,
+        max: usize,
+        peer: AuthorityIndex,
+    },
 
     #[error("Failed to deserialize signature: {0}")]
     MalformedSignature(FastCryptoError),
@@ -107,6 +109,11 @@ pub(crate) enum ConsensusError {
         author: AuthorityIndex,
         peer: AuthorityIndex,
     },
+    #[error(
+        "After reconstruction, the transaction commitment does not match the commitment in transaction ref {}",
+        transaction_ref
+    )]
+    TransactionCommitmentMismatch { transaction_ref: TransactionRef },
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
@@ -135,6 +142,66 @@ pub(crate) enum ConsensusError {
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
 
+    #[error("Too many acknowledgments in the block: {count} > {max}")]
+    TooManyAcknowledgments { count: usize, max: usize },
+
+    #[error("Too many commit votes in the block: {count} > {max}")]
+    TooManyCommitVotes { count: usize, max: usize },
+
+    #[error(
+        "Acknowledgment's round ({acknowledgment}) should be lower than the block's round ({block})"
+    )]
+    InvalidAcknowledgmentRound { acknowledgment: Round, block: Round },
+
+    #[error(
+        "Acknowledgment is older than gc_depth: block {block}, acknowledgment {acknowledgment}, gc_depth {gc_depth}"
+    )]
+    AcknowledgmentRoundTooOld {
+        acknowledgment: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
+    #[error(
+        "Ancestor is older than gc_depth: block {block}, ancestor {ancestor}, gc_depth {gc_depth}"
+    )]
+    AncestorRoundTooOld {
+        ancestor: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
+    #[error("Merkle tree has no root (empty shard list)")]
+    EmptyMerkleTree,
+
+    #[error("Missing block header for {block_ref}")]
+    MissingBlockHeader { block_ref: BlockRef },
+
+    #[error(
+        "Invalid overlap indices: overlap_start={overlap_start}, overlap_end={overlap_end}, references_len={references_len}"
+    )]
+    InvalidOverlapIndices {
+        overlap_start: u8,
+        overlap_end: u8,
+        references_len: usize,
+    },
+
+    #[error(
+        "Commit range exceeded limit after scanning during {sync_type} sync: {count} > {limit}"
+    )]
+    CommitRangeExceededAfterScanning {
+        count: CommitIndex,
+        limit: CommitIndex,
+        sync_type: &'static str,
+    },
+
+    #[error("Peer {peer} sent too many commits: {count} > {limit}")]
+    TooManyCommitsFromPeer {
+        peer: AuthorityIndex,
+        count: CommitIndex,
+        limit: CommitIndex,
+    },
+
     #[error("Ancestors from the same authority {0}")]
     DuplicatedAncestorsAuthority(AuthorityIndex),
 
@@ -143,12 +210,6 @@ pub(crate) enum ConsensusError {
 
     #[error("Invalid transaction: {0}")]
     InvalidTransaction(String),
-
-    #[error("Ancestors max timestamp {max_timestamp_ms} > block timestamp {block_timestamp_ms}")]
-    InvalidBlockTimestamp {
-        max_timestamp_ms: u64,
-        block_timestamp_ms: u64,
-    },
 
     #[error("Received no commit from peer {peer}")]
     NoCommitReceived { peer: AuthorityIndex },
@@ -178,11 +239,26 @@ pub(crate) enum ConsensusError {
         commit: Box<Commit>,
     },
 
-    #[error("Received unexpected block from peer {peer}: {requested:?} vs {received:?}")]
-    UnexpectedBlockForCommit {
+    #[error("Received unexpected block header from peer {peer}: {requested:?} vs {received:?}")]
+    UnexpectedBlockHeaderForCommit {
         peer: AuthorityIndex,
         requested: BlockRef,
         received: BlockRef,
+    },
+
+    #[error("Received unexpected transaction from peer {peer}: {received:?}")]
+    UnexpectedTransactionForCommit {
+        peer: AuthorityIndex,
+        received: GenericTransactionRef,
+    },
+
+    #[error(
+        "Fetched transactions from peer {peer} do not match committed transaction refs. Expected {expected} transactions, but received {received} transactions"
+    )]
+    FetchedTransactionsMismatch {
+        peer: AuthorityIndex,
+        expected: usize,
+        received: usize,
     },
 
     #[error("RocksDB failure: {0}")]
@@ -199,6 +275,9 @@ pub(crate) enum ConsensusError {
 
     #[error("Request timeout: {0:?}")]
     NetworkRequestTimeout(String),
+
+    #[error("Accumulator sender has shut down!")]
+    AccumulatorSenderClosed,
 
     #[error("Consensus has shut down!")]
     Shutdown,
@@ -223,9 +302,6 @@ pub(crate) enum ConsensusError {
     #[error("Vector of shards is too small: {0} bytes found, at least {1} bytes needed")]
     ShardsVecIsTooSmall(usize, usize),
 
-    #[error("Block bundle contains too many additional headers: {count} > {limit}")]
-    TooManyHeadersInABundle { count: usize, limit: usize },
-
     #[error(
         "Round of the header in a bundle is greater or equal to the block round: {header_round} >= {block_round}"
     )]
@@ -233,13 +309,144 @@ pub(crate) enum ConsensusError {
         header_round: Round,
         block_round: Round,
     },
+
+    #[error("Block bundle from {peer} contains shard from round {round} with incorrect proof")]
+    IncorrectShardProof { peer: AuthorityIndex, round: Round },
+
+    #[error(
+        "Round of the shard in a bundle is greater or equal to the block round: {shard_round} >= {block_round}"
+    )]
+    TooBigShardRoundInABundle {
+        shard_round: Round,
+        block_round: Round,
+    },
+
+    #[error(
+        "All GenericTransactionRef elements must have the same variant (BlockRef, TransactionRef, etc.) for batch operations."
+    )]
+    InconsistentTransactionRefVariants,
+
+    #[error(
+        "Transaction reference variant is inconsistent with protocol flag consensus_fast_commit_sync={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
+    )]
+    TransactionRefVariantMismatch {
+        protocol_flag_enabled: bool,
+        expected_variant: &'static str,
+        received_variant: &'static str,
+    },
+
+    #[error("Failed to fetch {num_requested} block headers from any peer")]
+    FailedToFetchBlockHeaders { num_requested: usize },
+
+    #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
+    MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
+
+    // TODO: This error can be removed once consensus_fast_commit_sync is enabled on all networks.
+    // It's currently used to gate fast commit sync endpoints and features during the gradual
+    // rollout phase.
+    #[error("Fast commit sync is not enabled in the current protocol version")]
+    FastCommitSyncNotEnabled,
+
+    #[error(
+        "ShardWithProof variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
+    )]
+    WrongShardVersionForFlags {
+        actual: &'static str,
+        fast_commit_sync: bool,
+    },
+
+    #[error(
+        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync}, consensus_starfish_speed={starfish_speed})"
+    )]
+    WrongCommitVersionForFlags {
+        actual: &'static str,
+        fast_commit_sync: bool,
+        starfish_speed: bool,
+    },
+
+    #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
+    InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
+
+    #[error(
+        "Block at round {block_round} carries strong_vote pinned to leader \
+         authority {leader_authority} but does not reference that leader at round {leader_round}"
+    )]
+    StrongVoteLeaderNotInAncestors {
+        block_round: Round,
+        leader_round: Round,
+        leader_authority: AuthorityIndex,
+    },
+
+    #[error(
+        "BlockHeader variant {actual} does not match protocol flag (consensus_starfish_speed={starfish_speed})"
+    )]
+    WrongBlockHeaderVersionForFlag {
+        actual: &'static str,
+        starfish_speed: bool,
+    },
 }
 
 impl ConsensusError {
-    /// Returns the error name - only the enun name without any parameters - as
+    /// Returns the error name - only the enum name without any parameters - as
     /// a static string.
     pub fn name(&self) -> &'static str {
         self.into()
+    }
+
+    pub fn quick_validation_requested_block_refs(
+        block_refs: &[BlockRef],
+        peer: AuthorityIndex,
+        committee: &Committee,
+    ) -> ConsensusResult<()> {
+        for block in block_refs {
+            if !committee.is_valid_index(block.author) {
+                return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                    index: block.author,
+                    max: committee.size(),
+                    peer,
+                });
+            }
+            if block.round == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+            }
+        }
+        Ok(())
+    }
+
+    pub fn quick_validation_requested_tx_refs(
+        gen_tx_refs: &[GenericTransactionRef],
+        peer: AuthorityIndex,
+        committee: &Committee,
+    ) -> ConsensusResult<()> {
+        for gen_tx_ref in gen_tx_refs {
+            if !committee.is_valid_index(gen_tx_ref.author()) {
+                return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                    index: gen_tx_ref.author(),
+                    max: committee.size(),
+                    peer,
+                });
+            }
+            if gen_tx_ref.round() == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+            }
+        }
+        Ok(())
+    }
+
+    pub fn quick_validation_authority_indices(
+        authorities: &[AuthorityIndex],
+        committee: &Committee,
+    ) -> ConsensusResult<()> {
+        // Ensure that those are valid authorities
+        for authority in authorities {
+            if !committee.is_valid_index(*authority) {
+                return Err(ConsensusError::InvalidAuthorityIndex {
+                    index: *authority,
+                    max: committee.size(),
+                });
+            }
+        }
+        Ok(())
     }
 }
 

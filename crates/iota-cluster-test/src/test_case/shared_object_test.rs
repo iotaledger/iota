@@ -5,8 +5,8 @@
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_types::Owner;
 use iota_test_transaction_builder::{increment_counter, publish_basics_package_and_make_counter};
-use iota_types::object::Owner;
 use tracing::info;
 
 use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
@@ -31,21 +31,21 @@ impl TestCaseImpl for SharedCounterTest {
 
         let wallet_context: &WalletContext = ctx.get_wallet();
         let address = ctx.get_wallet_address();
-        let (package_ref, (counter_id, initial_counter_version, _)) =
+        let (package_ref, counter_ref) =
             publish_basics_package_and_make_counter(wallet_context).await;
         let response = increment_counter(
             wallet_context,
             address,
             None,
-            package_ref.0,
-            counter_id,
-            initial_counter_version,
+            package_ref.object_id,
+            counter_ref.object_id,
+            counter_ref.version,
         )
         .await;
         assert_eq!(
             *response.effects.as_ref().unwrap().status(),
             IotaExecutionStatus::Success,
-            "Increment counter txn failed: {:?}",
+            "increment counter txn failed: {:?}",
             *response.effects.as_ref().unwrap().status()
         );
 
@@ -55,8 +55,8 @@ impl TestCaseImpl for SharedCounterTest {
             .unwrap()
             .shared_objects()
             .iter()
-            .find(|o| o.object_id == counter_id)
-            .unwrap_or_else(|| panic!("Expect obj {counter_id} in shared_objects"));
+            .find(|o| o.object_id == counter_ref.object_id)
+            .unwrap_or_else(|| panic!("expect obj {} in shared_objects", counter_ref.object_id));
 
         let counter_version = response
             .effects
@@ -65,36 +65,24 @@ impl TestCaseImpl for SharedCounterTest {
             .mutated()
             .iter()
             .find_map(|obj| {
-                let Owner::Shared {
-                    initial_shared_version,
-                } = obj.owner
-                else {
-                    return None;
-                };
-
-                if obj.reference.object_id == counter_id
-                    && initial_shared_version == initial_counter_version
-                {
-                    Some(obj.reference.version)
-                } else {
-                    None
-                }
+                let initial_shared_version = obj.owner.as_shared_opt()?;
+                (obj.reference.object_id == counter_ref.object_id
+                    && *initial_shared_version == counter_ref.version)
+                    .then_some(obj.reference.version)
             })
-            .unwrap_or_else(|| panic!("Expect obj {counter_id} in mutated"));
+            .unwrap_or_else(|| panic!("expect obj {} in mutated", counter_ref.object_id));
 
         // Verify fullnode observes the txn
         ctx.let_fullnode_sync(vec![response.digest], 5).await;
 
-        let counter_object = ObjectChecker::new(counter_id)
-            .owner(Owner::Shared {
-                initial_shared_version: initial_counter_version,
-            })
+        let counter_object = ObjectChecker::new(counter_ref.object_id)
+            .owner(Owner::Shared(counter_ref.version))
             .check_into_object(ctx.get_fullnode_client())
             .await;
 
         assert_eq!(
             counter_object.version, counter_version,
-            "Expect sequence number to be 2"
+            "expect sequence number to be 2"
         );
 
         Ok(())

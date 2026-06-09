@@ -22,10 +22,7 @@ impl Worker for CustomWorker {
 
     async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> Result<Self::Message> {
         // custom processing logic
-        println!(
-            "Processing Local checkpoint: {}",
-            checkpoint.checkpoint_summary.to_string()
-        );
+        println!("Processing checkpoint: {}", *checkpoint.checkpoint_summary);
         Ok(())
     }
 }

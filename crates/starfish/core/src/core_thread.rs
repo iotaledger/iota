@@ -5,10 +5,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    sync::{
-        Arc,
-        atomic::{AtomicU32, Ordering},
-    },
+    sync::Arc,
 };
 
 use async_trait::async_trait;
@@ -16,21 +13,22 @@ use iota_metrics::{
     monitored_mpsc::{Receiver, Sender, WeakSender, channel},
     monitored_scope, spawn_logged_monitored_task,
 };
-use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{
-    BlockHeaderAPI as _, VerifiedBlockHeader,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedTransactions},
+    VerifiedBlockHeader,
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
     commit::CertifiedCommits,
+    commit_syncer::fast::FastSyncOutput,
     context::Context,
-    core::Core,
+    core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
-    dag_state::DagState,
+    dag_state::DataSource,
     error::{ConsensusError, ConsensusResult},
+    transaction_ref::GenericTransactionRef,
 };
 
 const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
@@ -39,17 +37,19 @@ enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
     AddBlocks(
         Vec<VerifiedBlock>,
+        DataSource,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         )>,
     ),
     /// Add block headers to be processed and accepted
     AddBlockHeaders(
         Vec<VerifiedBlockHeader>,
+        DataSource,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         )>,
     ),
     /// Add committed sub dag blocks for processing and acceptance.
@@ -57,7 +57,7 @@ enum CoreThreadCommand {
         CertifiedCommits,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         )>,
     ),
     /// Called when the min round has passed or the leader timeout occurred and
@@ -67,16 +67,33 @@ enum CoreThreadCommand {
     /// be found on the `Core` component.
     NewBlock(
         Round,
-        oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
-        bool,
+        oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
+        ReasonToCreateBlock,
     ),
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
     /// Add transactions to be processed and accepted
-    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>),
+    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>, DataSource),
+    /// Add shards to the dag_state
+    AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
-    GetMissingTransactionData(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
+    GetMissingTransactionData(
+        oneshot::Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
+    ),
+    AddSubdagFromFastSync(FastSyncOutput, oneshot::Sender<()>),
+    /// Reinitialize consensus components after fast sync completes.
+    /// Stores the block headers on disk (for the cached_rounds window)
+    /// and reinitializes DagState, BlockManager, CommitObserver, etc.
+    /// After this, regular syncer can take over.
+    ///
+    /// Block headers are for blocks from commits in the cached_rounds window
+    /// (~500 rounds). Commits and transactions are already stored during
+    /// fast sync via handle_committed_sub_dags.
+    ReinitializeComponents {
+        block_headers: Vec<VerifiedBlockHeader>,
+        sender: oneshot::Sender<()>,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -92,10 +109,11 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(
         &self,
         blocks: Vec<VerifiedBlock>,
+        source: DataSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     >;
@@ -103,10 +121,11 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_block_headers(
         &self,
         blocks: Vec<VerifiedBlockHeader>,
+        source: DataSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     >;
@@ -114,11 +133,14 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
+        source: DataSource,
     ) -> Result<(), CoreError>;
+
+    async fn add_shards(&self, shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError>;
 
     async fn get_missing_transaction_data(
         &self,
-    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
+    ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn add_certified_commits(
         &self,
@@ -126,16 +148,26 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     >;
 
+    async fn add_subdags_from_fast_sync(&self, output: FastSyncOutput) -> Result<(), CoreError>;
+
+    /// Reinitialize consensus components after fast sync completes.
+    /// Stores block headers and reinitializes DagState, BlockManager,
+    /// CommitObserver, etc.
+    async fn reinitialize_components(
+        &self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> Result<(), CoreError>;
+
     async fn new_block(
         &self,
         round: Round,
-        force: bool,
-    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
+        reason: ReasonToCreateBlock,
+    ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn get_missing_block_headers(
         &self,
@@ -147,9 +179,6 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     fn set_quorum_subscribers_exists(&self, exists: bool) -> Result<(), CoreError>;
 
     fn set_last_known_proposed_round(&self, round: Round) -> Result<(), CoreError>;
-
-    /// Returns the highest round received for each authority by Core.
-    fn highest_received_rounds(&self) -> Vec<Round>;
 }
 
 pub(crate) struct CoreThreadHandle {
@@ -172,12 +201,17 @@ struct CoreThread {
     rx_quorum_subscribers_exists: watch::Receiver<bool>,
     rx_last_known_proposed_round: watch::Receiver<Round>,
     context: Arc<Context>,
+    /// True if fast sync was/is ongoing
+    fast_sync_ongoing: bool,
 }
 
 impl CoreThread {
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     pub async fn run(mut self) -> ConsensusResult<()> {
-        tracing::debug!("Started core thread");
+        tracing::debug!(
+            "Started core thread, fast_sync_ongoing={}",
+            self.fast_sync_ongoing
+        );
 
         loop {
             tokio::select! {
@@ -186,15 +220,51 @@ impl CoreThread {
                         break;
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
+
+                    // During fast sync, ignore all commands except AddSubdagFromFastSync and ReinitializeComponents
+                    if self.fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
+                        match command {
+                            CoreThreadCommand::AddBlocks(_, _, sender) |
+                            CoreThreadCommand::AddBlockHeaders(_, _, sender) |
+                            CoreThreadCommand::AddCertifiedCommits(_, sender) => {
+                                sender.send((Default::default(), Default::default())).ok();
+                            }
+                            CoreThreadCommand::NewBlock(_, sender, _) => {
+                                sender.send(Default::default()).ok();
+                            }
+                            CoreThreadCommand::GetMissingBlocks(sender) => {
+                                sender.send(Default::default()).ok();
+                            }
+                            CoreThreadCommand::AddTransactions(_, sender, _) |
+                            CoreThreadCommand::AddShards(_, sender) => {
+                                sender.send(()).ok();
+                            }
+                            CoreThreadCommand::GetMissingTransactionData(sender) => {
+                                sender.send(Default::default()).ok();
+                            }
+                            CoreThreadCommand::AddSubdagFromFastSync(..) |
+                            CoreThreadCommand::ReinitializeComponents { .. } => unreachable!(),
+                        }
+                        continue;
+                    }
+
                     match command {
-                        CoreThreadCommand::AddBlocks(blocks, sender) => {
+                        CoreThreadCommand::AddSubdagFromFastSync(output, sender) => {
+                            info!("Adding subdags from fast sync, entering fast sync mode; {} index_start and {} index_end", output.committed_subdags.first().map(|sd| sd.base.leader.round).unwrap_or(0), output.committed_subdags.last().map(|sd| sd.base.leader.round).unwrap_or(0));
+                            self.fast_sync_ongoing = true;
+                            let _scope = monitored_scope("CoreThread::loop::add_subdags_from_fast_sync");
+                            self.core.handle_committed_sub_dags_from_fast_sync(output)?;
+                            sender.send(()).ok();
+                        }
+                        CoreThreadCommand::AddBlocks(blocks, source, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
-                            let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks)?;
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks, source)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
-                        CoreThreadCommand::AddBlockHeaders(block_headers, sender) => {
+                        CoreThreadCommand::AddBlockHeaders(block_headers, source, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_block_headers");
-                            let (missing_block_refs, missing_committed_txns) = self.core.add_block_headers(block_headers)?;
+                            let (missing_block_refs, missing_committed_txns) =
+                                self.core.add_block_headers(block_headers, source)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
@@ -202,23 +272,38 @@ impl CoreThread {
                             let (missing_block_refs, missing_committed_txns) = self.core.add_certified_commits(commits)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
-                        CoreThreadCommand::NewBlock(round, sender, force) => {
+                        CoreThreadCommand::NewBlock(round, sender, reason) => {
                             let _scope = monitored_scope("CoreThread::loop::new_block");
-                            let (_new_block_opt, missing_committed_txns) = self.core.new_block(round, force)?;
+                            let (_new_block_opt, missing_committed_txns) = self.core.new_block(round, reason)?;
                             sender.send(missing_committed_txns).ok();
                         }
                         CoreThreadCommand::GetMissingBlocks(sender) => {
                             let _scope = monitored_scope("CoreThread::loop::get_missing_blocks");
                             sender.send(self.core.get_missing_blocks()).ok();
                         }
-                        CoreThreadCommand::AddTransactions(transactions, sender) => {
+                        CoreThreadCommand::AddTransactions(transactions, sender, source) => {
                             let _scope = monitored_scope("CoreThread::loop::add_transactions");
-                            self.core.add_transactions(transactions)?;
+                            self.core.add_transactions(transactions, source)?;
+                            sender.send(()).ok();
+                        }
+                        CoreThreadCommand::AddShards(serialized_shards, sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::add_shards");
+                            self.core.add_shards(serialized_shards)?;
                             sender.send(()).ok();
                         }
                         CoreThreadCommand::GetMissingTransactionData(sender) => {
                             let _scope = monitored_scope("CoreThread::loop::get_missing_transaction_data");
                             sender.send(self.core.get_missing_transaction_data()).ok();
+                        }
+                        CoreThreadCommand::ReinitializeComponents { block_headers, sender } => {
+                            let _scope = monitored_scope("CoreThread::loop::reinitialize_components");
+                            info!(
+                                "Reinitializing components with {} block headers, exiting fast sync mode",
+                                block_headers.len()
+                            );
+                            self.core.reinitialize_components(block_headers)?;
+                            self.fast_sync_ongoing = false;
+                            sender.send(()).ok();
                         }
                     }
                 }
@@ -226,17 +311,19 @@ impl CoreThread {
                     let _scope = monitored_scope("CoreThread::loop::set_last_known_proposed_round");
                     let round = *self.rx_last_known_proposed_round.borrow();
                     self.core.set_last_known_proposed_round(round);
-                    self.core.new_block(round + 1, true)?;
+                    if !self.fast_sync_ongoing {
+                        self.core.new_block(round + 1, ReasonToCreateBlock::KnownLastBlock)?;
+                    }
                 }
                 _ = self.rx_quorum_subscribers_exists.changed() => {
                     let _scope = monitored_scope("CoreThread::loop::set_quorum_subscribers_exists");
                     let should_propose_before = self.core.should_propose();
                     let exists = *self.rx_quorum_subscribers_exists.borrow();
                     self.core.set_quorum_subscribers_exists(exists);
-                    if !should_propose_before && self.core.should_propose() {
+                    if !should_propose_before && self.core.should_propose() && !self.fast_sync_ongoing {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.
-                        self.core.new_block(Round::MAX, true)?;
+                        self.core.new_block(Round::MAX, ReasonToCreateBlock::QuorumSubscribersExist)?;
                     }
                 }
             }
@@ -252,7 +339,6 @@ pub(crate) struct ChannelCoreThreadDispatcher {
     sender: WeakSender<CoreThreadCommand>,
     tx_quorum_subscribers_exists: Arc<watch::Sender<bool>>,
     tx_last_known_proposed_round: Arc<watch::Sender<Round>>,
-    highest_received_rounds: Arc<Vec<AtomicU32>>,
 }
 
 impl ChannelCoreThreadDispatcher {
@@ -260,22 +346,9 @@ impl ChannelCoreThreadDispatcher {
     /// dispatcher and handle for managing the core thread.
     pub(crate) fn start(
         context: Arc<Context>,
-        dag_state: &RwLock<DagState>,
         core: Core,
+        fast_sync_ongoing: bool,
     ) -> (Self, CoreThreadHandle) {
-        // Initialize highest received rounds.
-        let highest_received_rounds = {
-            let dag_state = dag_state.read();
-            let highest_received_rounds = context
-                .committee
-                .authorities()
-                .map(|(index, _)| {
-                    AtomicU32::new(dag_state.get_last_block_header_for_authority(index).round())
-                })
-                .collect();
-
-            highest_received_rounds
-        };
         let (sender, receiver) =
             channel("consensus_core_commands", CORE_THREAD_COMMANDS_CHANNEL_SIZE);
         let (tx_quorum_subscribers_exists, mut rx_quorum_subscribers_exists) =
@@ -289,6 +362,7 @@ impl ChannelCoreThreadDispatcher {
             rx_quorum_subscribers_exists,
             rx_last_known_proposed_round,
             context: context.clone(),
+            fast_sync_ongoing,
         };
 
         let join_handle = spawn_logged_monitored_task!(
@@ -310,7 +384,6 @@ impl ChannelCoreThreadDispatcher {
             sender: sender.downgrade(),
             tx_quorum_subscribers_exists: Arc::new(tx_quorum_subscribers_exists),
             tx_last_known_proposed_round: Arc::new(tx_last_known_proposed_round),
-            highest_received_rounds: Arc::new(highest_received_rounds),
         };
         let handle = CoreThreadHandle {
             join_handle,
@@ -337,18 +410,16 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_blocks(
         &self,
         blocks: Vec<VerifiedBlock>,
+        source: DataSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     > {
-        for block in &blocks {
-            self.highest_received_rounds[block.author()].fetch_max(block.round(), Ordering::AcqRel);
-        }
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddBlocks(blocks, sender))
+        self.send(CoreThreadCommand::AddBlocks(blocks, source, sender))
             .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
@@ -356,32 +427,49 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_block_headers(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
+        source: DataSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     > {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddBlockHeaders(block_headers, sender))
-            .await;
+        self.send(CoreThreadCommand::AddBlockHeaders(
+            block_headers,
+            source,
+            sender,
+        ))
+        .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
+        source: DataSource,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddTransactions(transactions, sender))
+        self.send(CoreThreadCommand::AddTransactions(
+            transactions,
+            sender,
+            source,
+        ))
+        .await;
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
+    }
+
+    async fn add_shards(&self, shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::AddShards(shards, sender))
             .await;
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
     async fn get_missing_transaction_data(
         &self,
-    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+    ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::GetMissingTransactionData(sender))
             .await;
@@ -394,29 +482,43 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     ) -> Result<
         (
             BTreeSet<BlockRef>,
-            BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ),
         CoreError,
     > {
-        for commit in commits.commits() {
-            for block in commit.blocks() {
-                self.highest_received_rounds[block.author()]
-                    .fetch_max(block.round(), Ordering::AcqRel);
-            }
-        }
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddCertifiedCommits(commits, sender))
             .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
+    async fn add_subdags_from_fast_sync(&self, output: FastSyncOutput) -> Result<(), CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::AddSubdagFromFastSync(output, sender))
+            .await;
+        Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
+    }
+
+    async fn reinitialize_components(
+        &self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> Result<(), CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::ReinitializeComponents {
+            block_headers,
+            sender,
+        })
+        .await;
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
+    }
+
     async fn new_block(
         &self,
         round: Round,
-        force: bool,
-    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        reason: ReasonToCreateBlock,
+    ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::NewBlock(round, sender, force))
+        self.send(CoreThreadCommand::NewBlock(round, sender, reason))
             .await;
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
@@ -440,13 +542,6 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
             .send(round)
             .map_err(|e| Shutdown(e.to_string()))
     }
-
-    fn highest_received_rounds(&self) -> Vec<Round> {
-        self.highest_received_rounds
-            .iter()
-            .map(|round| round.load(Ordering::Relaxed))
-            .collect()
-    }
 }
 
 #[cfg(test)]
@@ -460,6 +555,7 @@ pub(crate) mod tests {
         CommitConsumer, VerifiedBlockHeader,
         block_manager::BlockManager,
         commit_observer::CommitObserver,
+        commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core::CoreSignals,
         dag_state::DagState,
@@ -475,7 +571,7 @@ pub(crate) mod tests {
         block_headers: Mutex<Vec<VerifiedBlockHeader>>,
         missing_block_headers: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         last_known_proposed_round: Mutex<Vec<Round>>,
-        new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
+        new_block_calls: Arc<Mutex<Vec<(Round, ReasonToCreateBlock, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
     }
 
@@ -510,7 +606,9 @@ pub(crate) mod tests {
             last_known_proposed_round.clone()
         }
 
-        pub(crate) async fn get_new_block_calls(&self) -> Vec<(Round, bool, Instant)> {
+        pub(crate) async fn get_new_block_calls(
+            &self,
+        ) -> Vec<(Round, ReasonToCreateBlock, Instant)> {
             let mut binding = self.new_block_calls.lock();
             let all_calls = binding.drain(0..);
             all_calls.into_iter().collect()
@@ -522,50 +620,54 @@ pub(crate) mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
-            let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
-            Ok((block_refs, BTreeMap::new()))
+            Ok((BTreeSet::default(), BTreeMap::new()))
         }
 
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
-            let block_refs = block_headers
-                .iter()
-                .map(|b| b.reference())
-                .collect::<BTreeSet<_>>();
-            self.block_headers.lock().extend(block_headers);
             let mut missing_block_headers = self.missing_block_headers.lock();
-            for block_ref in &block_refs {
-                missing_block_headers.remove(block_ref);
+            for header in &block_headers {
+                missing_block_headers.remove(&header.reference());
             }
-            Ok((block_refs, BTreeMap::new()))
+
+            self.block_headers.lock().extend(block_headers);
+
+            Ok((BTreeSet::default(), BTreeMap::new()))
         }
 
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }
 
+        async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(BTreeMap::new())
         }
 
@@ -575,21 +677,35 @@ pub(crate) mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
             unimplemented!()
         }
 
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _output: FastSyncOutput,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn reinitialize_components(
+            &self,
+            _block_headers: Vec<VerifiedBlockHeader>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
         async fn new_block(
             &self,
             round: Round,
-            force: bool,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            reason: ReasonToCreateBlock,
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             self.new_block_calls
                 .lock()
-                .push((round, force, Instant::now()));
+                .push((round, reason, Instant::now()));
             Ok(BTreeMap::new())
         }
 
@@ -609,10 +725,6 @@ pub(crate) mod tests {
         fn set_last_known_proposed_round(&self, round: Round) -> Result<(), CoreError> {
             self.last_known_proposed_round.lock().push(round);
             Ok(())
-        }
-
-        fn highest_received_rounds(&self) -> Vec<Round> {
-            unimplemented!()
         }
     }
 
@@ -655,29 +767,69 @@ pub(crate) mod tests {
             key_pairs.remove(context.own_index.value()).1,
             dag_state.clone(),
             false,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
         );
 
-        let (core_dispatcher, handle) =
-            ChannelCoreThreadDispatcher::start(context, &dag_state, core);
+        let (core_dispatcher, handle) = ChannelCoreThreadDispatcher::start(context, core, false);
 
         // Now create some clones of the dispatcher
         let dispatcher_1 = core_dispatcher.clone();
         let dispatcher_2 = core_dispatcher.clone();
 
         // Try to send some commands
-        assert!(dispatcher_1.add_blocks(vec![]).await.is_ok());
-        assert!(dispatcher_2.add_blocks(vec![]).await.is_ok());
+        assert!(
+            dispatcher_1
+                .add_blocks(vec![], DataSource::Test)
+                .await
+                .is_ok()
+        );
+        assert!(
+            dispatcher_2
+                .add_blocks(vec![], DataSource::Test)
+                .await
+                .is_ok()
+        );
 
-        assert!(dispatcher_1.add_block_headers(vec![]).await.is_ok());
-        assert!(dispatcher_2.add_block_headers(vec![]).await.is_ok());
+        assert!(
+            dispatcher_1
+                .add_block_headers(vec![], DataSource::Test)
+                .await
+                .is_ok()
+        );
+        assert!(
+            dispatcher_2
+                .add_block_headers(vec![], DataSource::Test)
+                .await
+                .is_ok()
+        );
 
         // Now shutdown the dispatcher
         handle.stop().await;
 
         // Try to send some commands
-        assert!(dispatcher_1.add_blocks(vec![]).await.is_err());
-        assert!(dispatcher_2.add_blocks(vec![]).await.is_err());
-        assert!(dispatcher_1.add_block_headers(vec![]).await.is_err());
-        assert!(dispatcher_2.add_block_headers(vec![]).await.is_err());
+        assert!(
+            dispatcher_1
+                .add_blocks(vec![], DataSource::Test)
+                .await
+                .is_err()
+        );
+        assert!(
+            dispatcher_2
+                .add_blocks(vec![], DataSource::Test)
+                .await
+                .is_err()
+        );
+        assert!(
+            dispatcher_1
+                .add_block_headers(vec![], DataSource::Test)
+                .await
+                .is_err()
+        );
+        assert!(
+            dispatcher_2
+                .add_block_headers(vec![], DataSource::Test)
+                .await
+                .is_err()
+        );
     }
 }

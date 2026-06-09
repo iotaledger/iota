@@ -28,6 +28,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
+        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
@@ -35,20 +36,21 @@ use iota_types::{
         TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
-    traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
+    traffic_control::{ClientIdSource, Weight},
     transaction::*,
 };
 use nonempty::{NonEmpty, nonempty};
 use prometheus::{
-    Histogram, IntCounter, IntCounterVec, Registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    Gauge, Histogram, IntCounter, IntCounterVec, Registry, register_gauge_with_registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry,
 };
 use tap::TapFallible;
 use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::server::TcpConnectInfo,
 };
-use tracing::{Instrument, error, error_span, info};
+use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -56,10 +58,8 @@ use crate::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
-    mysticeti_adapter::LazyMysticetiClient,
-    traffic_controller::{
-        TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
-    },
+    starfish_adapter::LazyStarfishClient,
+    traffic_controller::{TrafficController, parse_ip, policies::TrafficTally},
 };
 
 #[cfg(test)]
@@ -118,7 +118,7 @@ impl AuthorityServer {
     /// Creates a new `AuthorityServer` for testing.
     pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
         let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyMysticetiClient::new()),
+            Arc::new(LazyStarfishClient::new()),
             CheckpointStore::new_for_tests(),
             state.name,
             Arc::new(ConnectionMonitorStatusForTests {}),
@@ -178,16 +178,19 @@ pub struct ValidatorServiceMetrics {
     pub handle_soft_bundle_certificates_consensus_latency: Histogram,
     pub handle_soft_bundle_certificates_count: Histogram,
     pub handle_soft_bundle_certificates_size_bytes: Histogram,
+    pub handle_capability_notification_latency: Histogram,
 
     num_rejected_tx_in_epoch_boundary: IntCounter,
     num_rejected_cert_in_epoch_boundary: IntCounter,
     num_rejected_tx_during_overload: IntCounterVec,
     num_rejected_cert_during_overload: IntCounterVec,
+    num_rejected_capability_notifications_during_overload: IntCounterVec,
     connection_ip_not_found: IntCounter,
     forwarded_header_parse_error: IntCounter,
     forwarded_header_invalid: IntCounter,
     forwarded_header_not_included: IntCounter,
     client_id_source_config_mismatch: IntCounter,
+    x_forwarded_for_num_hops: Gauge,
 }
 
 impl ValidatorServiceMetrics {
@@ -270,6 +273,13 @@ impl ValidatorServiceMetrics {
                 registry,
             )
             .unwrap(),
+            handle_capability_notification_latency: register_histogram_with_registry!(
+                "validator_service_handle_capability_notification_latency",
+                "Latency of handling a capability notification",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
             num_rejected_tx_in_epoch_boundary: register_int_counter_with_registry!(
                 "validator_service_num_rejected_tx_in_epoch_boundary",
                 "Number of rejected transaction during epoch transitioning",
@@ -292,6 +302,13 @@ impl ValidatorServiceMetrics {
             num_rejected_cert_during_overload: register_int_counter_vec_with_registry!(
                 "validator_service_num_rejected_cert_during_overload",
                 "Number of rejected transaction certificate due to system overload",
+                &["error_type"],
+                registry,
+            )
+            .unwrap(),
+            num_rejected_capability_notifications_during_overload: register_int_counter_vec_with_registry!(
+                "num_rejected_capability_notifications_during_overload",
+                "Number of rejected capability notifications from non-committee active validators due to system overload",
                 &["error_type"],
                 registry,
             )
@@ -326,6 +343,12 @@ impl ValidatorServiceMetrics {
                 registry,
             )
             .unwrap(),
+            x_forwarded_for_num_hops: register_gauge_with_registry!(
+                "validator_service_x_forwarded_for_num_hops",
+                "Number of hops in x-forwarded-for header",
+                registry,
+            )
+            .unwrap(),
         }
     }
 
@@ -352,22 +375,15 @@ impl ValidatorService {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         validator_metrics: Arc<ValidatorServiceMetrics>,
-        traffic_controller_metrics: TrafficControllerMetrics,
-        policy_config: Option<PolicyConfig>,
-        firewall_config: Option<RemoteFirewallConfig>,
+        client_id_source: Option<ClientIdSource>,
     ) -> Self {
+        let traffic_controller = state.traffic_controller.clone();
         Self {
             state,
             consensus_adapter,
             metrics: validator_metrics,
-            traffic_controller: policy_config.clone().map(|policy| {
-                Arc::new(TrafficController::init(
-                    policy,
-                    traffic_controller_metrics,
-                    firewall_config,
-                ))
-            }),
-            client_id_source: policy_config.map(|policy| policy.client_id_source),
+            traffic_controller,
+            client_id_source,
         }
     }
 
@@ -543,8 +559,11 @@ impl ValidatorService {
                 .get_signed_effects_and_maybe_resign(&tx_digest, epoch_store)?
             {
                 let events = if include_events {
-                    if let Some(digest) = signed_effects.events_digest() {
-                        Some(self.state.get_transaction_events(digest)?)
+                    if signed_effects.events_digest().is_some() {
+                        Some(
+                            self.state
+                                .get_transaction_events(signed_effects.transaction_digest())?,
+                        )
                     } else {
                         None
                     }
@@ -587,6 +606,7 @@ impl ValidatorService {
             epoch_store
                 .signature_verifier
                 .multi_verify_certs(certificates.into())
+                .instrument(trace_span!("SignatureVerifier::multi_verify_certs"))
                 .await
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?
@@ -660,8 +680,11 @@ impl ValidatorService {
                     .execute_certificate(&certificate, epoch_store)
                     .await?;
                 let events = if include_events {
-                    if let Some(digest) = effects.events_digest() {
-                        Some(self.state.get_transaction_events(digest)?)
+                    if effects.events_digest().is_some() {
+                        Some(
+                            self.state
+                                .get_transaction_events(effects.transaction_digest())?,
+                        )
                     } else {
                         None
                     }
@@ -671,11 +694,29 @@ impl ValidatorService {
 
                 let input_objects = include_input_objects
                     .then(|| self.state.get_transaction_input_objects(&effects))
-                    .and_then(Result::ok);
+                    .and_then(|res| {
+                        res.map_err(|e| {
+                            warn!(
+                                tx_digest = ?effects.transaction_digest(),
+                                error = ?e,
+                                "Failed to load transaction input objects requested by client",
+                            )
+                        })
+                        .ok()
+                    });
 
                 let output_objects = include_output_objects
                     .then(|| self.state.get_transaction_output_objects(&effects))
-                    .and_then(Result::ok);
+                    .and_then(|res| {
+                        res.map_err(|e| {
+                            warn!(
+                                tx_digest = ?effects.transaction_digest(),
+                                error = ?e,
+                                "Failed to load transaction output objects requested by client",
+                            )
+                        })
+                        .ok()
+                    });
 
                 let signed_effects = self.state.sign_effects(effects, epoch_store)?;
                 epoch_store.insert_tx_cert_sig(certificate.digest(), certificate.auth_sig())?;
@@ -702,7 +743,9 @@ impl ValidatorService {
         &self,
         request: tonic::Request<Transaction>,
     ) -> WrappedServiceResponse<HandleTransactionResponse> {
-        self.handle_transaction(request).await
+        self.handle_transaction(request)
+            .instrument(trace_span!("ValidatorService::handle_transaction"))
+            .await
     }
 
     async fn submit_certificate_impl(
@@ -867,11 +910,12 @@ impl ValidatorService {
         request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
     ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
-        let client_addr = if self.client_id_source.is_none() {
-            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
+        let client_addr = if let Some(client_id_source) = &self.client_id_source {
+            self.get_client_ip_addr(&request, client_id_source)
         } else {
-            self.get_client_ip_addr(&request, self.client_id_source.as_ref().unwrap())
+            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
         };
+
         let request = request.into_inner();
 
         let certificates =
@@ -975,6 +1019,17 @@ impl ValidatorService {
         request: &tonic::Request<T>,
         source: &ClientIdSource,
     ) -> Option<IpAddr> {
+        let forwarded_header = request.metadata().get_all("x-forwarded-for").iter().next();
+
+        if let Some(header) = forwarded_header {
+            let num_hops = header
+                .to_str()
+                .map(|h| h.split(',').count().saturating_sub(1))
+                .unwrap_or(0);
+
+            self.metrics.x_forwarded_for_num_hops.set(num_hops as f64);
+        }
+
         match source {
             ClientIdSource::SocketAddr => {
                 let socket_addr: Option<SocketAddr> = request.remote_addr();
@@ -1082,11 +1137,11 @@ impl ValidatorService {
         wrapped_response: WrappedServiceResponse<T>,
     ) -> Result<tonic::Response<T>, tonic::Status> {
         let (error, spam_weight, unwrapped_response) = match wrapped_response {
-            Ok((result, spam_weight)) => (None, spam_weight.clone(), Ok(result)),
+            Ok((result, spam_weight)) => (None, spam_weight, Ok(result)),
             Err(status) => (
                 Some(IotaError::from(status.clone())),
                 Weight::zero(),
-                Err(status.clone()),
+                Err(status),
             ),
         };
 
@@ -1095,7 +1150,7 @@ impl ValidatorService {
                 direct: client,
                 through_fullnode: None,
                 error_info: error.map(|e| {
-                    let error_type = String::from(e.clone().as_ref());
+                    let error_type = String::from(e.as_ref());
                     let error_weight = normalize(e);
                     (error_weight, error_type)
                 }),
@@ -1104,6 +1159,97 @@ impl ValidatorService {
             })
         }
         unwrapped_response
+    }
+
+    async fn handle_capability_notification_v1_impl(
+        &self,
+        request: tonic::Request<HandleCapabilityNotificationRequestV1>,
+    ) -> WrappedServiceResponse<HandleCapabilityNotificationResponseV1> {
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        let request = request.into_inner();
+        fp_ensure!(
+            epoch_store
+                .protocol_config()
+                .track_non_committee_eligible_validators(),
+            IotaError::UnsupportedFeature {
+                error: "capability notification endpoint is not supported in this Protocol Version"
+                    .to_string()
+            }
+            .into()
+        );
+        // Validate if cert can be executed
+        // Fullnode does not serve handle_certificate call.
+        fp_ensure!(
+            !self.state.is_fullnode(&epoch_store),
+            IotaError::FullNodeCantHandleAuthorityCapabilities.into()
+        );
+
+        // Check if the capabilities notification has already been processed
+        let existing_capabilities = epoch_store.get_capabilities_v1()?;
+        let incoming_capability = request.message.data();
+
+        info!(
+            "Received capability notification: {:?}",
+            incoming_capability
+        );
+
+        if let Some(existing) = existing_capabilities
+            .iter()
+            .find(|cap| cap.authority == incoming_capability.authority)
+        {
+            if incoming_capability.generation <= existing.generation {
+                // Return successfully if generation is lower or equal - already processed
+                return Ok((
+                    tonic::Response::new(HandleCapabilityNotificationResponseV1 { _unused: false }),
+                    Weight::one(),
+                ));
+            }
+        }
+        if let Err(error) = self.consensus_adapter.check_consensus_overload() {
+            self.metrics
+                .num_rejected_capability_notifications_during_overload
+                .with_label_values(&[error.as_ref()])
+                .inc();
+            return Err(error.into());
+        }
+
+        let _handle_tx_metrics_guard = self
+            .metrics
+            .handle_capability_notification_latency
+            .start_timer();
+
+        let signed_authority_capabilities = request.message;
+        // Verify the message signature
+        let verified_authority_capabilities = epoch_store
+            .verify_authority_capabilities(signed_authority_capabilities)
+            .inspect_err(|_e| {
+                self.metrics.signature_errors.inc();
+            })?;
+
+        let authority_name = verified_authority_capabilities.authority;
+        // Process the verified capabilities
+        debug!("Verified capability notification for authority {authority_name:?}");
+
+        // Submit the signed capability notification to consensus instead of processing
+        // directly
+        let signed_authority_capabilities_transaction =
+            ConsensusTransaction::new_signed_capability_notification_v1(
+                verified_authority_capabilities.into_inner(),
+            );
+
+        // Submit to consensus - similar to how certificates are handled
+        self.consensus_adapter.submit(
+            signed_authority_capabilities_transaction,
+            None,
+            &epoch_store,
+        )?;
+
+        debug!("Submitted capability notification to consensus for authority {authority_name:?}");
+
+        Ok((
+            tonic::Response::new(HandleCapabilityNotificationResponseV1 { _unused: false }),
+            Weight::one(),
+        ))
     }
 }
 
@@ -1242,5 +1388,12 @@ impl Validator for ValidatorService {
         request: tonic::Request<SystemStateRequest>,
     ) -> Result<tonic::Response<IotaSystemState>, tonic::Status> {
         handle_with_decoration!(self, get_system_state_object_impl, request)
+    }
+
+    async fn handle_capability_notification_v1(
+        &self,
+        request: tonic::Request<HandleCapabilityNotificationRequestV1>,
+    ) -> Result<tonic::Response<HandleCapabilityNotificationResponseV1>, tonic::Status> {
+        handle_with_decoration!(self, handle_capability_notification_v1_impl, request)
     }
 }

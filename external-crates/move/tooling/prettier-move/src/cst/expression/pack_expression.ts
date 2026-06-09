@@ -11,11 +11,11 @@ const {} = doc.builders;
 export const NODE_TYPE = 'pack_expression';
 
 export default function (path: AstPath<Node>): treeFn | null {
-	if (path.node.type === NODE_TYPE) {
-		return printPackExpression;
-	}
+    if (path.node.type === NODE_TYPE) {
+        return printPackExpression;
+    }
 
-	return null;
+    return null;
 }
 
 /**
@@ -26,5 +26,5 @@ export default function (path: AstPath<Node>): treeFn | null {
  * - `field_initialize_list`
  */
 function printPackExpression(path: AstPath<Node>, options: MoveOptions, print: printFn): Doc {
-	return path.map(print, 'nonFormattingChildren');
+    return path.map(print, 'nonFormattingChildren');
 }

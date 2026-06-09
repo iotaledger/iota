@@ -4,12 +4,14 @@
 
 pub mod verifier;
 
+pub mod authenticator_verifier;
 pub mod entry_points_verifier;
 pub mod global_storage_access_verifier;
 pub mod id_leak_verifier;
 pub mod meter;
 pub mod one_time_witness_verifier;
 pub mod private_generics;
+pub mod runtime_module_metadata;
 pub mod struct_with_key_verifier;
 
 use iota_types::error::{ExecutionError, ExecutionErrorKind};
@@ -34,6 +36,9 @@ pub fn check_for_verifier_timeout(major_status_code: &StatusCode) -> bool {
         StatusCode::PROGRAM_TOO_COMPLEX,
         // Do we want to make this a substatus of `PROGRAM_TOO_COMPLEX`?
         StatusCode::TOO_MANY_BACK_EDGES,
+        StatusCode::REFERENCE_SAFETY_INCONSISTENT,
+        StatusCode::BORROWLOC_EXISTS_BORROW_ERROR,
+        StatusCode::COPYLOC_EXISTS_BORROW_ERROR,
     ]
     .contains(major_status_code)
 }

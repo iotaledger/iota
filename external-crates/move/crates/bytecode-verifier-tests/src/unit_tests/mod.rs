@@ -5,8 +5,8 @@
 
 use move_binary_format::file_format_common::VERSION_MAX;
 use move_vm_config::verifier::{
-    MeterConfig, VerifierConfig, DEFAULT_MAX_CONSTANT_VECTOR_LEN, DEFAULT_MAX_IDENTIFIER_LENGTH,
-    DEFAULT_MAX_VARIANTS,
+    DEFAULT_MAX_CONSTANT_VECTOR_LEN, DEFAULT_MAX_IDENTIFIER_LENGTH, DEFAULT_MAX_VARIANTS,
+    MeterConfig, VerifierConfig,
 };
 
 pub mod binary_samples;
@@ -51,6 +51,8 @@ pub(crate) fn production_config() -> (VerifierConfig, MeterConfig) {
             max_identifier_len: Some(DEFAULT_MAX_IDENTIFIER_LENGTH),
             bytecode_version: VERSION_MAX,
             max_variants_in_enum: Some(DEFAULT_MAX_VARIANTS),
+            additional_borrow_checks: true,
+            sanity_check_with_regex_reference_safety: Some(2_200_000),
         },
         MeterConfig::old_default(),
     )

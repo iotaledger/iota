@@ -5,10 +5,7 @@
 use std::io::{BufReader, Read};
 
 use anyhow::Result;
-use iota_sdk::types::block::{
-    output::Output, payload::milestone::MilestoneOption, protocol::ProtocolParameters,
-};
-use iota_types::stardust::error::StardustError;
+use iota_stardust_types::block::{MilestoneOption, ProtocolParameters, output::Output};
 use packable::{
     Packable,
     unpacker::{IoUnpacker, Unpacker},
@@ -35,12 +32,10 @@ impl<R: Read> HornetSnapshotParser<R> {
 
     /// Provide an iterator over the Stardust UTXOs recorded in the snapshot.
     pub fn outputs(&mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> + '_ {
-        let protocol_params = self.protocol_parameters().unwrap_or_default();
-
         (0..self.header.output_count()).map(move |_| {
             Ok((
                 OutputHeader::unpack::<_, true>(&mut self.reader, &())?,
-                Output::unpack::<_, true>(&mut self.reader, &protocol_params)?,
+                Output::unpack::<_, true>(&mut self.reader, &())?,
             ))
         })
     }
@@ -76,15 +71,12 @@ impl<R: Read> HornetSnapshotParser<R> {
 
     /// Get the protocol parameters.
     pub fn protocol_parameters(&self) -> Result<ProtocolParameters> {
-        if let MilestoneOption::Parameters(params) = self.header.parameters_milestone_option() {
-            Ok(
-                <ProtocolParameters as packable::PackableExt>::unpack_unverified(
-                    params.binary_parameters(),
-                )
-                .expect("invalid protocol params"),
+        let MilestoneOption::Parameters(params) = self.header.parameters_milestone_option();
+        Ok(
+            <ProtocolParameters as packable::PackableExt>::unpack_unverified(
+                params.binary_parameters(),
             )
-        } else {
-            Err(StardustError::HornetSnapshotParametersNotFound.into())
-        }
+            .expect("invalid protocol params"),
+        )
     }
 }

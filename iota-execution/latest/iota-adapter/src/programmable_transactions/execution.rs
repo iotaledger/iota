@@ -7,51 +7,60 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
     use std::{
+        cell::RefCell,
         collections::{BTreeMap, BTreeSet},
         fmt,
+        rc::Rc,
         sync::Arc,
     };
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{
+        Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError, StructTag,
+        TypeTag, move_package::MovePackage,
+    };
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS,
+        auth_context,
         base_types::{
-            IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
-            RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
-            TxContextKind,
+            IotaAddress, MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
-        execution_status::{CommandArgumentError, PackageUpgradeError},
         id::RESOLVED_IOTA_ID,
+        iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            IotaAttribute, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
+            RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules,
         },
+        object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
-        transaction::{Command, ProgrammableMoveCall, ProgrammableTransaction},
+        transaction::ProgrammableTransaction,
         transfer::RESOLVED_RECEIVING_STRUCT,
-        type_input::TypeInput,
     };
     use iota_verifier::{
         INIT_FN_NAME,
-        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
+        private_generics::{
+            ACCOUNT_MODULE, EVENT_MODULE, PRIVATE_ACCOUNT_FUNCTIONS, PRIVATE_TRANSFER_FUNCTIONS,
+            TRANSFER_MODULE,
+        },
     };
     use move_binary_format::{
         CompiledModule,
         compatibility::{Compatibility, InclusionCheck},
         errors::{Location, PartialVMResult, VMResult},
-        file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
-        file_format_common::VERSION_6,
+        file_format::{
+            AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, SignatureToken, Visibility,
+        },
+        file_format_common::{IOTA_METADATA_KEY, VERSION_6},
         normalized,
     };
     use move_core_types::{
-        account_address::AccountAddress,
-        identifier::{IdentStr, Identifier},
-        language_storage::{ModuleId, TypeTag},
+        account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
         u256::U256,
     };
     use move_trace_format::format::MoveTraceBuilder;
@@ -86,7 +95,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         vm: &MoveVM,
         state_view: &mut dyn ExecutionState,
-        tx_context: &mut TxContext,
+        tx_context: Rc<RefCell<TxContext>>,
         gas_charger: &mut GasCharger,
         pt: ProgrammableTransaction,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -114,7 +123,7 @@ mod checked {
                 // modified
                 drop(context);
                 state_view.save_loaded_runtime_objects(loaded_runtime_objects);
-                return Err(err.with_command_index(idx));
+                return Err(err.with_command_index(idx as u64));
             };
         }
 
@@ -134,6 +143,7 @@ mod checked {
         state_view.save_loaded_runtime_objects(loaded_runtime_objects);
         state_view.save_wrapped_object_containers(wrapped_object_containers);
         state_view.record_execution_results(finished?);
+
         Ok(mode_results)
     }
 
@@ -147,13 +157,12 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let mut argument_updates = Mode::empty_arguments();
         let results = match command {
-            Command::MakeMoveVec(tag_opt, args) if args.is_empty() => {
-                let Some(tag) = tag_opt else {
+            Command::MakeMoveVector(cmd) if cmd.elements.is_empty() => {
+                let Some(tag) = cmd.type_ else {
                     invariant_violation!(
-                        "input checker ensures if args are empty, there is a type specified"
+                        "input checker ensures if elements are empty, there is a type specified"
                     );
                 };
-                let tag = to_type_tag(context, tag)?;
 
                 let elem_ty = context.load_type(&tag).map_err(|e| {
                     if context.protocol_config.convert_type_argument_error() {
@@ -179,14 +188,13 @@ mod checked {
                     bytes,
                 )]
             }
-            Command::MakeMoveVec(tag_opt, args) => {
-                let args = context.splat_args(0, args)?;
+            Command::MakeMoveVector(cmd) => {
+                let args = context.splat_args(0, cmd.elements)?;
                 let mut res = vec![];
                 leb128::write::unsigned(&mut res, args.len() as u64).unwrap();
                 let mut arg_iter = args.into_iter().enumerate();
-                let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
+                let (mut used_in_non_entry_move_call, elem_ty) = match cmd.type_ {
                     Some(tag) => {
-                        let tag = to_type_tag(context, tag)?;
                         let elem_ty = context.load_type(&tag).map_err(|e| {
                             if context.protocol_config.convert_type_argument_error() {
                                 context.convert_type_argument_error(0, e)
@@ -234,10 +242,10 @@ mod checked {
                     res,
                 )]
             }
-            Command::TransferObjects(objs, addr_arg) => {
-                let unsplat_objs_len = objs.len();
-                let objs = context.splat_args(0, objs)?;
-                let addr_arg = context.one_arg(unsplat_objs_len, addr_arg)?;
+            Command::TransferObjects(cmd) => {
+                let unsplat_objs_len = cmd.objects.len();
+                let objs = context.splat_args(0, cmd.objects)?;
+                let addr_arg = context.one_arg(unsplat_objs_len, cmd.address)?;
                 let objs: Vec<ObjectValue> = objs
                     .into_iter()
                     .enumerate()
@@ -251,9 +259,9 @@ mod checked {
                 }
                 vec![]
             }
-            Command::SplitCoins(coin_arg, amount_args) => {
-                let coin_arg = context.one_arg(0, coin_arg)?;
-                let amount_args = context.splat_args(1, amount_args)?;
+            Command::SplitCoins(cmd) => {
+                let coin_arg = context.one_arg(0, cmd.coin)?;
+                let amount_args = context.splat_args(1, cmd.amounts)?;
                 let mut obj: ObjectValue = context.borrow_arg_mut(0, coin_arg)?;
                 let ObjectContents::Coin(coin) = &mut obj.contents else {
                     let e = ExecutionErrorKind::command_argument_error(
@@ -281,9 +289,9 @@ mod checked {
                 context.restore_arg::<Mode>(&mut argument_updates, coin_arg, Value::Object(obj))?;
                 split_coins
             }
-            Command::MergeCoins(target_arg, coin_args) => {
-                let target_arg = context.one_arg(0, target_arg)?;
-                let coin_args = context.splat_args(1, coin_args)?;
+            Command::MergeCoins(cmd) => {
+                let target_arg = context.one_arg(0, cmd.coin)?;
+                let coin_args = context.splat_args(1, cmd.coins_to_merge)?;
                 let mut target: ObjectValue = context.borrow_arg_mut(0, target_arg)?;
                 let ObjectContents::Coin(target_coin) = &mut target.contents else {
                     let e = ExecutionErrorKind::command_argument_error(
@@ -323,31 +331,26 @@ mod checked {
                 )?;
                 vec![]
             }
-            Command::MoveCall(move_call) => {
-                let ProgrammableMoveCall {
-                    package,
-                    module,
-                    function,
-                    type_arguments,
-                    arguments,
-                } = *move_call;
-                let arguments = context.splat_args(0, arguments)?;
+            Command::MoveCall(cmd) => {
+                let arguments = context.splat_args(0, cmd.arguments)?;
 
-                let module = to_identifier(context, module)?;
-                let function = to_identifier(context, function)?;
+                let module = validate_identifier(context, cmd.module.to_string())?;
+                let function = validate_identifier(context, cmd.function.to_string())?;
 
                 // Convert type arguments to `Type`s
-                let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
-                for (ix, type_arg) in type_arguments.into_iter().enumerate() {
-                    let type_arg = to_type_tag(context, type_arg)?;
+                let mut loaded_type_arguments = Vec::with_capacity(cmd.type_arguments.len());
+                for (ix, type_arg) in cmd.type_arguments.into_iter().enumerate() {
                     let ty = context
                         .load_type(&type_arg)
                         .map_err(|e| context.convert_type_argument_error(ix, e))?;
                     loaded_type_arguments.push(ty);
                 }
 
-                let original_address = context.set_link_context(package)?;
-                let storage_id = ModuleId::new(*package, module.clone());
+                let original_address = context.set_link_context(cmd.package)?;
+                let storage_id = ModuleId::new(
+                    AccountAddress::new(cmd.package.into_bytes()),
+                    module.clone(),
+                );
                 let runtime_id = ModuleId::new(original_address, module);
                 let return_values = execute_move_call::<Mode>(
                     context,
@@ -365,23 +368,24 @@ mod checked {
                 context.linkage_view.reset_linkage();
                 return_values?
             }
-            Command::Publish(modules, dep_ids) => execute_move_publish::<Mode>(
+            Command::Publish(cmd) => execute_move_publish::<Mode>(
                 context,
                 &mut argument_updates,
-                modules,
-                dep_ids,
+                cmd.modules,
+                cmd.dependencies,
                 trace_builder_opt,
             )?,
-            Command::Upgrade(modules, dep_ids, current_package_id, upgrade_ticket) => {
-                let upgrade_ticket = context.one_arg(0, upgrade_ticket)?;
+            Command::Upgrade(cmd) => {
+                let ticket = context.one_arg(0, cmd.ticket)?;
                 execute_move_upgrade::<Mode>(
                     context,
-                    modules,
-                    dep_ids,
-                    current_package_id,
-                    upgrade_ticket,
+                    cmd.modules,
+                    cmd.dependencies,
+                    cmd.package,
+                    ticket,
                 )?
             }
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
 
         Mode::finish_command(context, mode_results, argument_updates, &results)?;
@@ -417,7 +421,7 @@ mod checked {
             is_init,
         )?;
         // build the arguments, storing meta data about by-mut-ref args
-        let (tx_context_kind, by_mut_ref, serialized_arguments) =
+        let (tx_context_kind, has_auth_context, by_mut_ref, serialized_arguments) =
             build_move_args::<Mode>(context, runtime_id, function, kind, &signature, &arguments)?;
         // invoke the VM
         let SerializedReturnValues {
@@ -429,6 +433,7 @@ mod checked {
             function,
             type_arguments,
             tx_context_kind,
+            has_auth_context,
             serialized_arguments,
             trace_builder_opt,
         )?;
@@ -537,7 +542,7 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
         module_bytes: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
@@ -555,9 +560,9 @@ mod checked {
         // since Move objects and Move packages cannot interact
         let runtime_id = if Mode::packages_are_predefined() {
             // do not calculate or substitute id for predefined packages
-            (*modules[0].self_id().address()).into()
+            ObjectId::new(modules[0].self_id().address().into_bytes())
         } else {
-            let id = context.tx_context.fresh_id();
+            let id = context.tx_context.borrow_mut().fresh_id();
             substitute_package_id(&mut modules, id)?;
             id
         };
@@ -589,9 +594,21 @@ mod checked {
             // no upgrade cap for genesis modules
             vec![]
         } else {
+            // Package metadata creation
+            if context.protocol_config.publish_package_metadata() {
+                create_and_freeze_package_metadata_if_present(
+                    context,
+                    &modules,
+                    storage_id,
+                    runtime_id,
+                    OBJECT_START_VERSION.as_u64(),
+                )?;
+            }
+
+            // Upgrade cap creation
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
-                UpgradeCap::type_().into(),
+                StructTag::new_upgrade_cap(),
                 // used_in_non_entry_move_call
                 false,
                 &bcs::to_bytes(cap).unwrap(),
@@ -605,8 +622,8 @@ mod checked {
     fn execute_move_upgrade<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        current_package_id: ObjectID,
+        dep_ids: Vec<ObjectId>,
+        current_package_id: ObjectId,
         upgrade_ticket_arg: Arg,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
@@ -618,10 +635,10 @@ mod checked {
             .charge_upgrade_package(module_bytes.iter().map(|v| v.len()).sum())?;
 
         let upgrade_ticket_type = context
-            .load_type_from_struct(&UpgradeTicket::type_())
+            .load_type_from_struct(&StructTag::new_upgrade_ticket())
             .map_err(|e| context.convert_vm_error(e))?;
         let upgrade_receipt_type = context
-            .load_type_from_struct(&UpgradeReceipt::type_())
+            .load_type_from_struct(&StructTag::new_upgrade_receipt())
             .map_err(|e| context.convert_vm_error(e))?;
 
         let upgrade_ticket: UpgradeTicket = {
@@ -635,8 +652,8 @@ mod checked {
             )?;
             bcs::from_bytes(&ticket_bytes).map_err(|_| {
                 ExecutionError::from_kind(ExecutionErrorKind::CommandArgumentError {
-                    arg_idx: 0,
-                    kind: CommandArgumentError::InvalidBCSBytes,
+                    argument: 0,
+                    kind: CommandArgumentError::InvalidBcsBytes,
                 })
             })?
         };
@@ -646,7 +663,7 @@ mod checked {
         if current_package_id != upgrade_ticket.package.bytes {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::PackageIDDoesNotMatch {
+                    kind: PackageUpgradeError::PackageIdDoesNotMatch {
                         package_id: current_package_id,
                         ticket_id: upgrade_ticket.package.bytes,
                     },
@@ -656,11 +673,11 @@ mod checked {
 
         // Check digest.
         let computed_digest =
-            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids).into();
+            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids);
         if computed_digest != upgrade_ticket.digest {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::DigestDoesNotMatch {
+                    kind: PackageUpgradeError::DigestDoesNotMatch {
                         digest: computed_digest,
                     },
                 },
@@ -677,7 +694,7 @@ mod checked {
 
         // Upgraded packages share their predecessor's runtime ID but get a new storage
         // ID.
-        let storage_id = context.tx_context.fresh_id();
+        let storage_id = context.tx_context.borrow_mut().fresh_id();
 
         let dependencies = fetch_packages(context, &dep_ids)?;
         let package = context.upgrade_package(
@@ -699,7 +716,21 @@ mod checked {
             upgrade_ticket.policy,
         )?;
 
+        let package_version = package.version().as_u64();
+
         context.write_package(package);
+
+        // Package metadata creation
+        if context.protocol_config.publish_package_metadata() {
+            create_and_freeze_package_metadata_if_present(
+                context,
+                &modules,
+                storage_id,
+                runtime_id,
+                package_version,
+            )?;
+        }
+
         Ok(vec![Value::Raw(
             RawValueType::Loaded {
                 ty: upgrade_receipt_type,
@@ -725,13 +756,19 @@ mod checked {
         let Ok(policy) = UpgradePolicy::try_from(policy) else {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::UnknownUpgradePolicy { policy },
+                    kind: PackageUpgradeError::UnknownUpgradePolicy { policy },
                 },
             ));
         };
 
+        let pool = &mut normalized::RcPool::new();
         let binary_config = to_binary_config(context.protocol_config);
-        let Ok(current_normalized) = existing_package.normalize(&binary_config) else {
+        let Ok(current_normalized) = existing_package.normalize(
+            pool,
+            &binary_config,
+            // include code
+            true,
+        ) else {
             invariant_violation!("Tried to normalize modules in existing package but failed")
         };
 
@@ -744,7 +781,7 @@ mod checked {
         if disallow_new_modules && existing_modules_len != upgrading_modules_len {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                    kind: PackageUpgradeError::IncompatibleUpgrade,
                 },
                 format!(
                     "Existing package has {existing_modules_len} modules, but new package has \
@@ -752,13 +789,16 @@ mod checked {
                 ),
             ));
         }
-        let mut new_normalized = normalize_deserialized_modules(upgrading_modules.iter());
-
+        let mut new_normalized = normalize_deserialized_modules(
+            pool,
+            upgrading_modules.iter(),
+            true, // include code
+        );
         for (name, cur_module) in current_normalized {
             let Some(new_module) = new_normalized.remove(&name) else {
                 return Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::PackageUpgradeError {
-                        upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                        kind: PackageUpgradeError::IncompatibleUpgrade,
                     },
                     format!("Existing module {name} not found in next version of package"),
                 ));
@@ -781,8 +821,8 @@ mod checked {
     /// layout, public function linking, and struct type parameters.
     fn check_module_compatibility(
         policy: &UpgradePolicy,
-        cur_module: &normalized::Module,
-        new_module: &normalized::Module,
+        cur_module: &move_binary_format::compatibility::Module,
+        new_module: &move_binary_format::compatibility::Module,
     ) -> Result<(), ExecutionError> {
         match policy {
             UpgradePolicy::Additive => InclusionCheck::Subset.check(cur_module, new_module),
@@ -796,7 +836,7 @@ mod checked {
         .map_err(|e| {
             ExecutionError::new_with_source(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                    kind: PackageUpgradeError::IncompatibleUpgrade,
                 },
                 e,
             )
@@ -809,7 +849,7 @@ mod checked {
     /// does not match the expected count.
     fn fetch_package(
         context: &ExecutionContext<'_, '_, '_>,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
     ) -> Result<PackageObject, ExecutionError> {
         let mut fetched_packages = fetch_packages(context, vec![package_id])?;
         assert_invariant!(
@@ -829,7 +869,7 @@ mod checked {
     /// and attempts to retrieve the corresponding packages from the state view.
     fn fetch_packages<'ctx, 'vm, 'state, 'a>(
         context: &'ctx ExecutionContext<'vm, 'state, 'a>,
-        package_ids: impl IntoIterator<Item = &'ctx ObjectID>,
+        package_ids: impl IntoIterator<Item = &'ctx ObjectId>,
     ) -> Result<Vec<PackageObject>, ExecutionError> {
         let package_ids: BTreeSet<_> = package_ids.into_iter().collect();
         match get_package_objects(&context.state_view, package_ids) {
@@ -855,6 +895,139 @@ mod checked {
         }
     }
 
+    /// Creates package metadata for a Move package by extracting module
+    /// metadata and wrapping it in a `PackageMetadata`. The function iterates
+    /// through the provided modules, collecting metadata associated with
+    /// the IOTA_METADATA_KEY key. It then constructs the package metadata
+    /// wrapper using the collected module metadata, storage ID, runtime ID,
+    /// and package version and finally freezes it. If no relevant metadata
+    /// is found, the function exits without creating any package metadata.
+    fn create_and_freeze_package_metadata_if_present(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        modules: &[CompiledModule],
+        storage_id: ObjectId,
+        runtime_id: ObjectId,
+        package_version: u64,
+    ) -> Result<(), ExecutionError> {
+        let mut modules_metadata_map = BTreeMap::new();
+        // Extract metadata for each module
+        for module in modules {
+            if let Some(md) = module
+                .metadata
+                .iter()
+                .find(|md| md.key == IOTA_METADATA_KEY.to_vec())
+            {
+                // At this point, if the metadata is present, it should have been already
+                // validated by the iota-verifier during package verification (in
+                // `publish_and_verify_modules`).
+                let runtime_module_metadata: RuntimeModuleMetadata =
+                    bcs::from_bytes::<RuntimeModuleMetadataWrapper>(&md.value)
+                        .map_err(|_| {
+                            ExecutionError::from_kind(
+                                ExecutionErrorKind::VmVerificationOrDeserializationError,
+                            )
+                        })?
+                        .try_into()
+                        .map_err(|_| {
+                            ExecutionError::from_kind(
+                                ExecutionErrorKind::VmVerificationOrDeserializationError,
+                            )
+                        })?;
+
+                // PackageMetadataV1 specific:
+                // - Process functions for each module in order to create function metadata:
+                //    - Authenticator attributes, if present, are extracted to create
+                //      AuthenticatorMetadata to insert into the PackageMetadata
+                let mut module_metadata_map = BTreeMap::new();
+                for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
+                    // Check attributes
+                    for attribute in fn_attributes {
+                        match attribute {
+                            IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
+                                let contains = module_metadata_map.insert(
+                                    fn_name.to_string(),
+                                    get_authenticator_first_param_type_tag(module, &fn_name)?,
+                                );
+                                debug_assert!(
+                                    contains.is_none(),
+                                    "Duplicate function metadata for authenticator"
+                                );
+                            }
+                            _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
+                        }
+                    }
+                }
+                // Fill the package metadata with a module handle (and its related function
+                // metadata) only if there is at least one function with
+                // relevant metadata
+                if !module_metadata_map.is_empty() {
+                    modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
+                }
+                // End of PackageMetadataV1 specific
+            }
+        }
+
+        // Only publish package metadata if there is at least one module with
+        // relevant metadata
+        if !modules_metadata_map.is_empty() {
+            // Create the package metadata "special" object UID
+            let metadata_uid = context.package_derived_metadata_id(storage_id)?;
+            // Create the package metadata object content
+            let metadata = PackageMetadata::new_v1(
+                metadata_uid,
+                storage_id,
+                runtime_id,
+                package_version,
+                modules_metadata_map,
+            );
+            // Turn the content into an object
+            let package_metadata = context.make_object_value(
+                metadata.type_(),
+                // used_in_non_entry_move_call
+                false,
+                &metadata.to_bcs_bytes(),
+            )?;
+            // Freeze the package metadata object
+            context.freeze_object(package_metadata)?
+        }
+        Ok(())
+    }
+
+    fn get_authenticator_first_param_type_tag(
+        module: &CompiledModule,
+        authenticate_fn_name: &impl AsRef<str>,
+    ) -> Result<TypeTag, ExecutionError> {
+        // Entering into this function, the verifier must have already been run,
+        // so we can assume the function exists and has the correct signature.
+        let Some((_, fn_definition)) = module.find_function_def_by_name(authenticate_fn_name)
+        else {
+            return Err(ExecutionError::from_kind(
+                ExecutionErrorKind::VmInvariantViolation,
+            ));
+        };
+        let fn_handle = module.function_handle_at(fn_definition.function);
+        let fn_signature = module.signature_at(fn_handle.parameters);
+        // We need the first parameter to be a reference type so we can extract the
+        // inner as the type tag.
+        match &fn_signature.0[0] {
+            SignatureToken::Reference(ref_param) => {
+                let pool = &mut normalized::RcPool::new();
+                if let Some(type_tag) =
+                    normalized::Type::new(pool, module, ref_param).to_type_tag(pool)
+                {
+                    Ok(type_tag_core_to_sdk(&type_tag))
+                } else {
+                    Err(ExecutionError::from_kind(
+                        ExecutionErrorKind::VmVerificationOrDeserializationError,
+                    ))
+                }
+            }
+            _ => Err(ExecutionError::from_kind(
+                ExecutionErrorKind::VmVerificationOrDeserializationError,
+            )),
+        }
+    }
+
     // ************************************************************************
     // **** ********************* Move execution
     // ************************************************************************
@@ -871,13 +1044,22 @@ mod checked {
         function: &IdentStr,
         type_arguments: Vec<Type>,
         tx_context_kind: TxContextKind,
+        has_auth_context: bool,
         mut serialized_arguments: Vec<Vec<u8>>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<SerializedReturnValues, ExecutionError> {
+        if has_auth_context {
+            let auth_context = context.state_view.read_auth_context();
+            assert_invariant!(
+                auth_context.is_some(),
+                "The `iota::auth_context::AuthContext` value is expected to be read from the storage"
+            );
+            serialized_arguments.push(auth_context.unwrap().borrow().to_move_bcs_bytes());
+        }
         match tx_context_kind {
             TxContextKind::None => (),
             TxContextKind::Mutable | TxContextKind::Immutable => {
-                serialized_arguments.push(context.tx_context.to_vec());
+                serialized_arguments.push(context.tx_context.borrow().to_bcs_legacy_context());
             }
         }
         // script visibility checked manually for entry points
@@ -902,12 +1084,12 @@ mod checked {
             let Some((_, ctx_bytes, _)) = result.mutable_reference_outputs.pop() else {
                 invariant_violation!("Missing TxContext in reference outputs");
             };
-            let updated_ctx: TxContext = bcs::from_bytes(&ctx_bytes).map_err(|e| {
+            let updated_ctx: MoveLegacyTxContext = bcs::from_bytes(&ctx_bytes).map_err(|e| {
                 ExecutionError::invariant_violation(format!(
                     "Unable to deserialize TxContext bytes. {e}"
                 ))
             })?;
-            context.tx_context.update_state(updated_ctx)?;
+            context.tx_context.borrow_mut().update_state(updated_ctx)?;
         }
         Ok(result)
     }
@@ -946,7 +1128,7 @@ mod checked {
     /// verifier has passed.
     fn publish_and_verify_modules(
         context: &mut ExecutionContext<'_, '_, '_>,
-        package_id: ObjectID,
+        package_id: ObjectId,
         modules: &[CompiledModule],
     ) -> Result<(), ExecutionError> {
         // TODO(https://github.com/iotaledger/iota/issues/69): avoid this redundant serialization by exposing VM API that allows us to run the linker directly on `Vec<CompiledModule>`
@@ -965,7 +1147,10 @@ mod checked {
             })
             .collect();
         context
-            .publish_module_bundle(new_module_bytes, AccountAddress::from(package_id))
+            .publish_module_bundle(
+                new_module_bytes,
+                AccountAddress::new(package_id.into_bytes()),
+            )
             .map_err(|e| context.convert_vm_error(e))?;
 
         // run the IOTA verifier
@@ -1043,7 +1228,7 @@ mod checked {
     /// Used to remember type information about a type when resolving the
     /// signature
     enum ValueKind {
-        Object { type_: MoveObjectType },
+        Object { type_: StructTag },
         Raw(Type, AbilitySet),
     }
 
@@ -1091,7 +1276,10 @@ mod checked {
             .iter()
             .enumerate()
             .find(|(_index, fdef)| {
-                module.identifier_at(module.function_handle_at(fdef.function).name) == function
+                module
+                    .identifier_at(module.function_handle_at(fdef.function).name)
+                    .as_str()
+                    == function.as_str()
             })
         else {
             return Err(ExecutionError::new_with_source(
@@ -1213,7 +1401,9 @@ mod checked {
                     }
                     Type::Reference(_) | Type::MutableReference(_) => {
                         return Err(ExecutionError::from_kind(
-                            ExecutionErrorKind::InvalidPublicFunctionReturnType { idx: idx as u16 },
+                            ExecutionErrorKind::InvalidPublicFunctionReturnType {
+                                index: idx as u16,
+                            },
                         ));
                     }
                     t => t,
@@ -1234,12 +1424,11 @@ mod checked {
                             .get_runtime()
                             .get_type_tag(return_type)
                             .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(&type_tag);
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
-                        ValueKind::Object {
-                            type_: MoveObjectType::from(*struct_tag),
-                        }
+                        ValueKind::Object { type_: *struct_tag }
                     }
                     Type::Datatype(_)
                     | Type::DatatypeInstantiation(_)
@@ -1268,15 +1457,18 @@ mod checked {
         function: &IdentStr,
         _type_arguments: &[Type],
     ) -> Result<(), ExecutionError> {
-        let module_ident = (module_id.address(), module_id.name());
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+        let module_addr = module_id.address();
+        let module_name = module_id.name();
+        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes() && module_name == EVENT_MODULE
+        {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE)
+        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_name == TRANSFER_MODULE
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
             let msg = format!(
@@ -1289,11 +1481,23 @@ mod checked {
             ));
         }
 
+        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_name == ACCOUNT_MODULE
+            && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
+        {
+            let msg = format!("Cannot directly call iota::{ACCOUNT_MODULE}::{function}.");
+            return Err(ExecutionError::new_with_source(
+                ExecutionErrorKind::NonEntryFunctionInvoked,
+                msg,
+            ));
+        }
+
         Ok(())
     }
 
     type ArgInfo = (
         TxContextKind,
+        bool,
         // mut ref
         Vec<(LocalIndex, ValueKind)>,
         Vec<Vec<u8>>,
@@ -1315,13 +1519,37 @@ mod checked {
             Some(t) => is_tx_context(context, t)?,
             None => TxContextKind::None,
         };
+        // Check if the second last parameter is an auth context.
+        // According to the current design, authenticators must contain `TxContext` as
+        // the last parameter and `AuthContext` as the second last.
+        let has_auth_context = match parameters.iter().rev().nth(1) {
+            Some(t) => is_auth_context(context, t)?,
+            None => false,
+        };
+        if has_auth_context {
+            if !context.protocol_config.enable_move_authentication() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VmInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_authentication` feature is disabled",
+                ));
+            }
+            if !Mode::allow_auth_context() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VmInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode",
+                ));
+            }
+        }
         // an init function can have one or two arguments, with the last one always
         // being of type &mut TxContext and the additional (first) one
         // representing a one time witness type (see one_time_witness verifier
         // pass for additional explanation)
         let has_one_time_witness = function_kind == FunctionKind::Init && parameters.len() == 2;
         let has_tx_context = tx_ctx_kind != TxContextKind::None;
-        let num_args = args.len() + (has_one_time_witness as usize) + (has_tx_context as usize);
+        let num_args = args.len()
+            + (has_one_time_witness as usize)
+            + (has_auth_context as usize)
+            + (has_tx_context as usize);
         if num_args != parameters.len() {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::ArityMismatch,
@@ -1339,7 +1567,7 @@ mod checked {
         let mut by_mut_ref = vec![];
         let mut serialized_args = Vec::with_capacity(num_args);
         let command_kind = CommandKind::MoveCall {
-            package: (*module_id.address()).into(),
+            package: ObjectId::new(module_id.address().into_bytes()),
             module: module_id.name(),
             function,
         };
@@ -1363,11 +1591,11 @@ mod checked {
                             .get_runtime()
                             .get_type_tag(type_)
                             .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(&type_tag);
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
-                        let type_ = (*struct_tag).into();
-                        ValueKind::Object { type_ }
+                        ValueKind::Object { type_: *struct_tag }
                     } else {
                         let abilities = context
                             .vm
@@ -1403,7 +1631,7 @@ mod checked {
             };
             serialized_args.push(bytes);
         }
-        Ok((tx_ctx_kind, by_mut_ref, serialized_args))
+        Ok((tx_ctx_kind, has_auth_context, by_mut_ref, serialized_args))
     }
 
     /// checks that the value is compatible with the specified type
@@ -1434,7 +1662,7 @@ mod checked {
                     );
                     return Err(ExecutionError::new_with_source(
                         ExecutionErrorKind::command_argument_error(
-                            CommandArgumentError::InvalidUsageOfPureArg,
+                            CommandArgumentError::InvalidUsageOfPureArgument,
                             idx as u16,
                         ),
                         msg,
@@ -1500,38 +1728,20 @@ mod checked {
         Ok(())
     }
 
-    fn to_identifier(
+    fn validate_identifier(
         context: &mut ExecutionContext<'_, '_, '_>,
         ident: String,
-    ) -> Result<Identifier, ExecutionError> {
+    ) -> Result<move_core_types::identifier::Identifier, ExecutionError> {
         if context.protocol_config.validate_identifier_inputs() {
-            Identifier::new(ident).map_err(|e| {
+            move_core_types::identifier::Identifier::new(ident).map_err(|e| {
                 ExecutionError::new_with_source(
-                    ExecutionErrorKind::VMInvariantViolation,
+                    ExecutionErrorKind::VmInvariantViolation,
                     e.to_string(),
                 )
             })
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization.
-            Ok(unsafe { Identifier::new_unchecked(ident) })
-        }
-    }
-
-    fn to_type_tag(
-        context: &mut ExecutionContext<'_, '_, '_>,
-        type_input: TypeInput,
-    ) -> Result<TypeTag, ExecutionError> {
-        if context.protocol_config.validate_identifier_inputs() {
-            type_input.into_type_tag().map_err(|e| {
-                ExecutionError::new_with_source(
-                    ExecutionErrorKind::VMInvariantViolation,
-                    e.to_string(),
-                )
-            })
-        } else {
-            // SAFETY: Preserving existing behaviour for identifier deserialization within
-            // type tags and inputs.
-            Ok(unsafe { type_input.into_type_tag_unchecked() })
+            Ok(unsafe { move_core_types::identifier::Identifier::new_unchecked(ident) })
         }
     }
 
@@ -1564,9 +1774,9 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr == &IOTA_FRAMEWORK_ADDRESS
-            && module_name == TX_CONTEXT_MODULE_NAME
-            && struct_name == TX_CONTEXT_STRUCT_NAME;
+        let is_tx_context_type = module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
+            && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
         Ok(if is_tx_context_type {
             if is_mut {
                 TxContextKind::Mutable
@@ -1576,6 +1786,35 @@ mod checked {
         } else {
             TxContextKind::None
         })
+    }
+
+    // Returns `true` if the type is a Datatype with identifier matching
+    // `AuthContext`.
+    // Returns `false` for all other types or identifiers not matching.
+    pub fn is_auth_context(
+        context: &ExecutionContext<'_, '_, '_>,
+        t: &Type,
+    ) -> Result<bool, ExecutionError> {
+        let inner = match t {
+            Type::Reference(inner) => inner,
+            _ => return Ok(false),
+        };
+
+        let Type::Datatype(idx) = &**inner else {
+            return Ok(false);
+        };
+
+        let Some(s) = context.vm.get_runtime().get_type(*idx) else {
+            invariant_violation!("Loaded struct not found")
+        };
+
+        let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
+
+        Ok(auth_context::is_auth_context(
+            module_addr,
+            module_name,
+            struct_name,
+        ))
     }
 
     /// Returns Some(layout) iff it is a primitive, an ID, a String, or an
@@ -1747,7 +1986,7 @@ mod checked {
         bcs::from_bytes_seed(&layout, bytes).map_err(|_| {
             ExecutionError::new_with_source(
                 ExecutionErrorKind::command_argument_error(
-                    CommandArgumentError::InvalidBCSBytes,
+                    CommandArgumentError::InvalidBcsBytes,
                     idx,
                 ),
                 format!("Function expects {layout} but provided argument's value does not match",),

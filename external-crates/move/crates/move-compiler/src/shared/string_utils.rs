@@ -32,11 +32,12 @@ pub fn make_ascii_titlecase(in_s: &str) -> String {
     s
 }
 
-/// Formats a string into an oxford list as: `format_oxford_list("or", "{}", vs);`. Calls `iter()`
-/// and `len()` on `vs`. If you already have an iter, you can pass `ITER` as a first parameter.
+/// Formats a string into an oxford list as: `format_oxford_list("or", "{}",
+/// vs);`. Calls `iter()` and `len()` on `vs`. If you already have an iter, you
+/// can pass `ITER` as a first parameter.
 ///
-/// This will use `or` as the separator for the last two elements, interspersing commas as
-/// appropriate:
+/// This will use `or` as the separator for the last two elements, interspersing
+/// commas as appropriate:
 ///
 /// ```text
 /// format_oxford_list!("or", "{}", [1]);
@@ -50,7 +51,7 @@ pub fn make_ascii_titlecase(in_s: &str) -> String {
 ///
 /// format_oxford_list!(ITER, "or", "{}", [1, 2, 3].iter());
 /// ==> "1, 2, or 3"
-///```
+/// ```
 #[macro_export]
 macro_rules! format_oxford_list {
     ($sep:expr, $format_str:expr, $e:expr) => {{
@@ -125,9 +126,10 @@ pub(crate) use debug_print_format;
 /// Print formatter for debugging. Allows a few different forms:
 ///
 /// `(msg `s`)`                        as println!(s);
-/// `(name => val [; fmt])`            as "name: " + debug_fprint_ormat!(vall fmt)
-/// `(opt name => val [; fmt])`        as "name: " + "Some " debug_print_format!(val; fmt) or "None"
-/// `(lines name => val [; fmt]) ` as "name: " + for n in val { debug_print_format!(n; fmt) }
+/// `(name => val [; fmt])`            as "name: " + debug_fprint_ormat!(vall
+/// fmt) `(opt name => val [; fmt])`        as "name: " + "Some "
+/// debug_print_format!(val; fmt) or "None" `(lines name => val [; fmt]) ` as
+/// "name: " + for n in val { debug_print_format!(n; fmt) }
 ///
 /// See `debug_print_format` for different `fmt` options.
 #[allow(unused_macros)]
@@ -175,7 +177,8 @@ macro_rules! debug_print_internal {
 #[allow(unused_imports)]
 pub(crate) use debug_print_internal;
 
-/// Macro for a small DSL for compactling printing debug information based on the provided flag.
+/// Macro for a small DSL for compactling printing debug information based on
+/// the provided flag.
 ///
 ///  ```text
 ///  debug_print!(

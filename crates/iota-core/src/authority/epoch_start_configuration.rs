@@ -5,9 +5,8 @@
 use std::fmt;
 
 use enum_dispatch::enum_dispatch;
-use iota_config::{ExecutionCacheType, NodeConfig};
+use iota_config::NodeConfig;
 use iota_types::{
-    authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
@@ -26,22 +25,8 @@ pub trait EpochStartConfigTrait {
     fn epoch_digest(&self) -> CheckpointDigest;
     fn epoch_start_state(&self) -> &EpochStartSystemState;
     fn flags(&self) -> &[EpochFlag];
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber>;
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber;
     fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber;
-
-    fn execution_cache_type(&self) -> ExecutionCacheType {
-        if self.flags().contains(&EpochFlag::WritebackCacheEnabled) {
-            ExecutionCacheType::WritebackCache
-        } else {
-            ExecutionCacheType::PassthroughCache
-        }
-    }
-
-    fn is_data_quarantine_active_from_beginning_of_epoch(&self) -> bool {
-        self.flags()
-            .contains(&EpochFlag::DataQuarantineFromBeginningOfEpoch)
-    }
 }
 
 // IMPORTANT: Assign explicit values to each variant to ensure that the values
@@ -52,39 +37,44 @@ pub trait EpochStartConfigTrait {
 // is a collision in the value of some variant, the branch which has been
 // released should take precedence. In this case, the picked-from branch is
 // inconsistent with the released branch, and must be fixed.
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
 pub enum EpochFlag {
-    // When switching between different cache types mid-epoch, partial checkpoint transactions
-    // might already be on disk. During lock initialization, we check if there is any existing
-    // lock or not, depending on the used implementation. That's why we should not switch
-    // mid-epoch.
-    WritebackCacheEnabled = 0,
+    // The deprecated flags have all been in production for long enough that
+    // we have deleted the old code paths they were guarding.
+    // We retain them here in order not to break deserialization.
+    _WritebackCacheEnabledDeprecated = 0,
+    _DataQuarantineFromBeginningOfEpochDeprecated = 1,
 
-    // This flag indicates whether data quarantining has been enabled from the
-    // beginning of the epoch.
-    DataQuarantineFromBeginningOfEpoch = 1,
+    // Used for `test_epoch_flag_upgrade`.
+    #[cfg(msim)]
+    DummyFlag = 2,
 }
 
 impl EpochFlag {
-    pub fn default_flags_for_new_epoch(config: &NodeConfig) -> Vec<Self> {
-        Self::default_flags_impl(config.execution_cache)
+    pub fn default_flags_for_new_epoch(_config: &NodeConfig) -> Vec<Self> {
+        // NodeConfig arg is not currently used, but we keep it here for future
+        // flags that might depend on the config.
+        Self::default_flags_impl()
+    }
+
+    // Return flags that are mandatory for the current version of the code. This is
+    // used so that `test_epoch_flag_upgrade` can still work correctly even when
+    // there are no optional flags.
+    pub fn mandatory_flags() -> Vec<Self> {
+        vec![]
     }
 
     /// For situations in which there is no config available (e.g. setting up a
     /// downloaded snapshot).
     pub fn default_for_no_config() -> Vec<Self> {
-        Self::default_flags_impl(Default::default())
+        Self::default_flags_impl()
     }
 
-    fn default_flags_impl(cache_type: ExecutionCacheType) -> Vec<Self> {
-        let mut new_flags = vec![EpochFlag::DataQuarantineFromBeginningOfEpoch];
-
-        // Load cache type from env
-        if matches!(cache_type.cache_type(), ExecutionCacheType::WritebackCache) {
-            new_flags.push(EpochFlag::WritebackCacheEnabled);
-        }
-
-        new_flags
+    fn default_flags_impl() -> Vec<Self> {
+        vec![
+            #[cfg(msim)]
+            EpochFlag::DummyFlag,
+        ]
     }
 }
 
@@ -93,9 +83,15 @@ impl fmt::Display for EpochFlag {
         // Important - implementation should return low cardinality values because this
         // is used as metric key
         match self {
-            EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
-            EpochFlag::DataQuarantineFromBeginningOfEpoch => {
-                write!(f, "DataQuarantineFromBeginningOfEpoch")
+            EpochFlag::_WritebackCacheEnabledDeprecated => {
+                write!(f, "WritebackCacheEnabled (DEPRECATED)")
+            }
+            EpochFlag::_DataQuarantineFromBeginningOfEpochDeprecated => {
+                write!(f, "DataQuarantineFromBeginningOfEpoch (DEPRECATED)")
+            }
+            #[cfg(msim)]
+            EpochFlag::DummyFlag => {
+                write!(f, "DummyFlag")
             }
         }
     }
@@ -116,8 +112,6 @@ impl EpochStartConfiguration {
         object_store: &dyn ObjectStore,
         initial_epoch_flags: Vec<EpochFlag>,
     ) -> IotaResult<Self> {
-        let authenticator_obj_initial_shared_version =
-            get_authenticator_state_obj_initial_shared_version(object_store)?;
         let randomness_obj_initial_shared_version =
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
@@ -126,7 +120,9 @@ impl EpochStartConfiguration {
             system_state,
             epoch_digest,
             flags: initial_epoch_flags,
-            authenticator_obj_initial_shared_version,
+            // Field retained for serialization compatibility; always None because
+            // authenticator state (JWK/zkLogin) was never enabled on IOTA.
+            authenticator_obj_initial_shared_version: None,
             randomness_obj_initial_shared_version,
             coin_deny_list_obj_initial_shared_version,
         }))
@@ -204,10 +200,6 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
         &self.flags
     }
 
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
-    }
-
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
         self.randomness_obj_initial_shared_version
     }
@@ -239,10 +231,6 @@ impl EpochStartConfigTrait for EpochStartConfigurationV2 {
 
     fn flags(&self) -> &[EpochFlag] {
         &self.flags
-    }
-
-    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
-        self.authenticator_obj_initial_shared_version
     }
 
     fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {

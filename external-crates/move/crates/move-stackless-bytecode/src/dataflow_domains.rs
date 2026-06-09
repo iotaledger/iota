@@ -13,7 +13,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use im::{ordmap, ordset, OrdMap, OrdSet};
+use im::{OrdMap, OrdSet, ordmap, ordset};
 use itertools::Itertools;
 
 // ================================================================================================

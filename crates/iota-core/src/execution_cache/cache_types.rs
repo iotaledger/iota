@@ -11,7 +11,7 @@ use std::{
 
 use iota_common::debug_fatal;
 use iota_types::base_types::SequenceNumber;
-use moka::sync::Cache as MokaCache;
+use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
 
 pub enum CacheResult<T> {
@@ -107,43 +107,6 @@ impl<V> CachedVersionMap<V> {
     }
 }
 
-// an iterator adapter that asserts that the wrapped iterator yields elements in
-// order
-pub(super) struct AssertOrdered<I: Iterator> {
-    iter: I,
-    last: Option<I::Item>,
-}
-
-impl<I: Iterator> AssertOrdered<I> {
-    fn new(iter: I) -> Self {
-        Self { iter, last: None }
-    }
-}
-
-impl<I: IntoIterator> From<I> for AssertOrdered<I::IntoIter> {
-    fn from(iter: I) -> Self {
-        Self::new(iter.into_iter())
-    }
-}
-
-impl<I: Iterator> Iterator for AssertOrdered<I>
-where
-    I::Item: Ord + Copy,
-{
-    type Item = I::Item;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.iter.next();
-        if let Some(next) = next {
-            if let Some(last) = &self.last {
-                assert!(*last < next, "iterator must yield elements in order");
-            }
-            self.last = Some(next);
-        }
-        next
-    }
-}
-
 // Could just use the Ord trait but I think it would be confusing to overload it
 // in that way.
 pub trait IsNewer {
@@ -188,12 +151,12 @@ pub(crate) fn key_generation_hash<K: Hash>(key: &K) -> usize {
 
 impl<K, V> MonotonicCache<K, V>
 where
-    K: Hash + Eq + Send + Sync + Copy + 'static,
+    K: Hash + Eq + Send + Sync + Copy + std::fmt::Debug + 'static,
     V: IsNewer + Clone + Send + Sync + 'static,
 {
     pub fn new(cache_size: u64) -> Self {
         Self {
-            cache: MokaCache::builder().max_capacity(cache_size).build(),
+            cache: MokaCache::builder(8).max_capacity(cache_size).build(),
             key_generation: (0..KEY_GENERATION_SIZE)
                 .map(|_| AtomicU64::new(0))
                 .collect(),
@@ -307,7 +270,7 @@ where
             // Note: value and entry versions can be equal, which is allowed for genesis
             // initialization
             if entry.is_newer_than(&value) {
-                debug_fatal!("entry is newer than value");
+                debug_fatal!("entry is newer than value {key:?}");
             } else {
                 *entry = value;
             }
@@ -462,19 +425,5 @@ mod tests {
     fn get_last_on_empty_map() {
         let map: CachedVersionMap<&str> = CachedVersionMap::default();
         assert!(map.get_highest().is_none());
-    }
-
-    #[test]
-    fn test_assert_order() {
-        let iter = AssertOrdered::from(1..=10);
-        let result: Vec<_> = iter.collect();
-        assert_eq!(result, (1..=10).collect::<Vec<_>>());
-    }
-
-    #[test]
-    #[should_panic(expected = "iterator must yield elements in order")]
-    fn test_assert_order_panics() {
-        let iter = AssertOrdered::from(vec![1, 3, 2]);
-        let _ = iter.collect::<Vec<_>>();
     }
 }

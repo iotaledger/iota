@@ -12,17 +12,17 @@ use std::{
 };
 
 use ethnum::U256 as EthnumU256;
-use num::{bigint::Sign, BigInt};
+use num::{BigInt, bigint::Sign};
 // This U256 impl was chosen for now but we are open to changing it as needed
 use primitive_types::U256 as PrimitiveU256;
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::strategy::BoxedStrategy;
 use rand::{
-    distributions::{
-        uniform::{SampleUniform, UniformSampler},
-        Distribution, Standard,
-    },
     Rng,
+    distributions::{
+        Distribution, Standard,
+        uniform::{SampleUniform, UniformSampler},
+    },
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uint::FromStrRadixErr;

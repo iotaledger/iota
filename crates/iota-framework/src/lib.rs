@@ -4,16 +4,16 @@
 
 use std::{fmt::Formatter, sync::LazyLock};
 
+use iota_sdk_types::{ObjectId, move_package::MovePackage};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
-    base_types::{ObjectID, ObjectRef},
+    base_types::ObjectRef,
     digests::TransactionDigest,
-    move_package::MovePackage,
+    move_package::MovePackageExt,
     object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,
 };
 use move_binary_format::{
-    CompiledModule, binary_config::BinaryConfig, compatibility::Compatibility,
+    CompiledModule, binary_config::BinaryConfig, compatibility::Compatibility, normalized,
 };
 use move_core_types::gas_algebra::InternalGas;
 use serde::{Deserialize, Serialize};
@@ -34,18 +34,18 @@ pub struct SystemPackageMetadata {
 /// id or compiled bytecode).
 #[derive(Clone, Serialize, PartialEq, Eq, Deserialize)]
 pub struct SystemPackage {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub bytes: Vec<Vec<u8>>,
-    pub dependencies: Vec<ObjectID>,
+    pub dependencies: Vec<ObjectId>,
 }
 
 impl SystemPackageMetadata {
     pub fn new(
         name: impl ToString,
         path: impl ToString,
-        id: ObjectID,
+        id: ObjectId,
         raw_bytes: &'static [u8],
-        dependencies: &[ObjectID],
+        dependencies: &[ObjectId],
     ) -> Self {
         SystemPackageMetadata {
             name: name.to_string(),
@@ -56,7 +56,7 @@ impl SystemPackageMetadata {
 }
 
 impl SystemPackage {
-    pub fn new(id: ObjectID, raw_bytes: &'static [u8], dependencies: &[ObjectID]) -> Self {
+    pub fn new(id: ObjectId, raw_bytes: &'static [u8], dependencies: &[ObjectId]) -> Self {
         let bytes: Vec<Vec<u8>> = bcs::from_bytes(raw_bytes).unwrap();
         Self {
             id,
@@ -85,7 +85,7 @@ impl SystemPackage {
             &self.modules(),
             OBJECT_START_VERSION,
             self.dependencies.to_vec(),
-            TransactionDigest::genesis_marker(),
+            TransactionDigest::GENESIS_MARKER,
         )
     }
 }
@@ -124,34 +124,34 @@ impl BuiltInFramework {
         // TODO: Is it possible to derive dependencies from the bytecode instead of
         // manually specifying them?
         define_system_package_metadata!([
-            (MOVE_STDLIB_PACKAGE_ID, "MoveStdlib", "move-stdlib", []),
+            (ObjectId::STD, "MoveStdlib", "move-stdlib", []),
             (
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectId::FRAMEWORK,
                 "Iota",
                 "iota-framework",
-                [MOVE_STDLIB_PACKAGE_ID]
+                [ObjectId::STD]
             ),
             (
-                IOTA_SYSTEM_PACKAGE_ID,
+                ObjectId::SYSTEM,
                 "IotaSystem",
                 "iota-system",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                [ObjectId::STD, ObjectId::FRAMEWORK]
             ),
             (
-                STARDUST_PACKAGE_ID,
+                ObjectId::STARDUST,
                 "Stardust",
                 "stardust",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                [ObjectId::STD, ObjectId::FRAMEWORK]
             ),
         ])
         .iter()
     }
 
-    pub fn all_package_ids() -> Vec<ObjectID> {
+    pub fn all_package_ids() -> Vec<ObjectId> {
         Self::iter_system_packages().map(|p| p.id).collect()
     }
 
-    pub fn get_package_by_id(id: &ObjectID) -> &'static SystemPackage {
+    pub fn get_package_by_id(id: &ObjectId) -> &'static SystemPackage {
         Self::iter_system_packages().find(|s| &s.id == id).unwrap()
     }
 
@@ -188,9 +188,9 @@ pub fn legacy_test_cost() -> InternalGas {
 ///   (indicates support for a protocol upgrade with a framework upgrade).
 pub async fn compare_system_package<S: ObjectStore>(
     object_store: &S,
-    id: &ObjectID,
+    id: &ObjectId,
     modules: &[CompiledModule],
-    dependencies: Vec<ObjectID>,
+    dependencies: Vec<ObjectId>,
     binary_config: &BinaryConfig,
 ) -> Option<ObjectRef> {
     let cur_object = match object_store.try_get_object(id) {
@@ -209,9 +209,9 @@ pub async fn compare_system_package<S: ObjectStore>(
                     // Genesis is fine here, we only use it to calculate an object ref that we can
                     // use for all validators to commit to the same bytes in
                     // the update
-                    TransactionDigest::genesis_marker(),
+                    TransactionDigest::GENESIS_MARKER,
                 )
-                .compute_object_reference(),
+                .object_ref(),
             );
         }
 
@@ -221,10 +221,10 @@ pub async fn compare_system_package<S: ObjectStore>(
         }
     };
 
-    let cur_ref = cur_object.compute_object_reference();
+    let cur_ref = cur_object.object_ref();
     let cur_pkg = cur_object
         .data
-        .try_as_package()
+        .as_package_opt()
         .expect("Framework not package");
 
     let mut new_object = Object::new_system_package(
@@ -236,7 +236,7 @@ pub async fn compare_system_package<S: ObjectStore>(
         cur_object.previous_transaction,
     );
 
-    if cur_ref == new_object.compute_object_reference() {
+    if cur_ref == new_object.object_ref() {
         return Some(cur_ref);
     }
 
@@ -244,17 +244,20 @@ pub async fn compare_system_package<S: ObjectStore>(
 
     let new_pkg = new_object
         .data
-        .try_as_package_mut()
+        .as_package_mut_opt()
         .expect("Created as package");
 
-    let cur_normalized = match cur_pkg.normalize(binary_config) {
+    let pool = &mut normalized::RcPool::new();
+    let cur_normalized = match cur_pkg.normalize(pool, binary_config, /* include code */ false) {
         Ok(v) => v,
         Err(e) => {
             error!("Could not normalize existing package: {e:?}");
             return None;
         }
     };
-    let mut new_normalized = new_pkg.normalize(binary_config).ok()?;
+    let mut new_normalized = new_pkg
+        .normalize(pool, binary_config, /* include code */ false)
+        .ok()?;
 
     for (name, cur_module) in cur_normalized {
         let new_module = new_normalized.remove(&name)?;
@@ -265,6 +268,9 @@ pub async fn compare_system_package<S: ObjectStore>(
         }
     }
 
-    new_pkg.increment_version();
-    Some(new_object.compute_object_reference())
+    new_pkg
+        .increment_version()
+        .expect("package version should never overflow");
+
+    Some(new_object.object_ref())
 }

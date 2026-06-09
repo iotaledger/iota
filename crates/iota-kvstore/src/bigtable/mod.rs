@@ -4,8 +4,6 @@
 
 /// Implementation of key-value store reader and writer traits for the BigTable
 /// client.
-pub(crate) mod client;
+pub mod client;
 /// Data ingestion core `Worker` implementation.
 pub(crate) mod worker;
-
-pub use iota_bigtable::BigTableClient;

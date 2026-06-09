@@ -5,20 +5,21 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
-use iota_types::{base_types::ObjectInfo, object::Owner};
+use iota_sdk_types::Owner;
+use iota_types::base_types::ObjectInfo;
 use tracing::info;
 use typed_store::traits::Map;
 
 use crate::{
     authority::authority_store_tables::LiveObject,
+    global_state_hasher::GlobalStateHashStore,
     jsonrpc_index::{CoinInfo, IndexStore},
-    state_accumulator::AccumulatorStore,
 };
 
 /// This is a very expensive function that verifies some of the secondary
 /// indexes. This is done by iterating through the live object set and
-/// recalculating these secodary indexes.
-pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) -> Result<()> {
+/// recalculating these secondary indexes.
+pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>) -> Result<()> {
     info!("Begin running index verification checks");
 
     let mut owner_index = BTreeMap::new();
@@ -29,18 +30,18 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
         let LiveObject::Normal(object) = object else {
             continue;
         };
-        let Owner::AddressOwner(owner) = object.owner else {
+        let Owner::Address(owner) = object.owner else {
             continue;
         };
 
         // Owner Index Calculation
         let owner_index_key = (owner, object.id());
-        let object_info = ObjectInfo::new(&object.compute_object_reference(), &object);
+        let object_info = ObjectInfo::new(&object.object_ref(), &object);
 
         owner_index.insert(owner_index_key, object_info);
 
         // Coin Index Calculation
-        if let Some(type_tag) = object.coin_type_maybe() {
+        if let Some(type_tag) = object.coin_type_opt() {
             let info =
                 CoinInfo::from_object(&object).expect("already checked that this is a coin type");
             let key = (owner, type_tag.to_string(), object.id());
@@ -52,7 +53,8 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
     tracing::info!("Live objects set is prepared, about to verify indexes");
 
     // Verify Owner Index
-    for (key, info) in indexes.tables().owner_index().unbounded_iter() {
+    for item in indexes.tables().owner_index().safe_iter() {
+        let (key, info) = item?;
         let calculated_info = owner_index.remove(&key).ok_or_else(|| {
             anyhow!(
                 "owner_index: found extra, unexpected entry {:?}",
@@ -73,7 +75,8 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
     tracing::info!("Owner index is good");
 
     // Verify Coin Index
-    for (key, info) in indexes.tables().coin_index().unbounded_iter() {
+    for item in indexes.tables().coin_index().safe_iter() {
+        let (key, info) = item?;
         let calculated_info = coin_index.remove(&key).ok_or_else(|| {
             anyhow!(
                 "coin_index: found extra, unexpected entry {:?}",

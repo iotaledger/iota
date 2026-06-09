@@ -1,0 +1,36 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: iota
+  edition: legacy
+  lint: false
+---
+error[E10003]: invalid attribute value
+  ┌─ tests/iota_mode/authenticator_attribute/assigned/version_literals.move:8:21
+  │
+8 │   #[authenticator = 3u16]
+  │                     ^^^^ Only unannotated or u8 literal `version` values are supported.
+
+error[E10003]: invalid attribute value
+   ┌─ tests/iota_mode/authenticator_attribute/assigned/version_literals.move:11:21
+   │
+11 │   #[authenticator = 3u32]
+   │                     ^^^^ Only unannotated or u8 literal `version` values are supported.
+
+error[E10003]: invalid attribute value
+   ┌─ tests/iota_mode/authenticator_attribute/assigned/version_literals.move:14:21
+   │
+14 │   #[authenticator = 3u64]
+   │                     ^^^^ Only unannotated or u8 literal `version` values are supported.
+
+error[E10003]: invalid attribute value
+   ┌─ tests/iota_mode/authenticator_attribute/assigned/version_literals.move:17:21
+   │
+17 │   #[authenticator = 3u128]
+   │                     ^^^^^ Only unannotated or u8 literal `version` values are supported.
+
+error[E10003]: invalid attribute value
+   ┌─ tests/iota_mode/authenticator_attribute/assigned/version_literals.move:20:21
+   │
+20 │   #[authenticator = 3u256]
+   │                     ^^^^^ Only unannotated or u8 literal `version` values are supported.

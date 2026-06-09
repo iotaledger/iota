@@ -5,16 +5,14 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
-    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaResult, UserInputError},
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
     object::Object,
     storage::{BackingStore, ChildObjectResolver},
     transaction::{
@@ -25,7 +23,10 @@ use iota_types::{
 pub mod in_mem_store;
 
 pub trait SimulatorStore:
-    iota_types::storage::BackingPackageStore + iota_types::storage::ObjectStore + ChildObjectResolver
+    iota_types::storage::BackingPackageStore
+    + iota_types::storage::ObjectStore
+    + ChildObjectResolver
+    + iota_types::storage::ReadStore
 {
     fn init_with_genesis(&mut self, genesis: &genesis::Genesis) {
         self.insert_checkpoint(genesis.checkpoint());
@@ -50,41 +51,22 @@ pub trait SimulatorStore:
         );
     }
 
-    fn get_checkpoint_by_sequence_number(
-        &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> Option<VerifiedCheckpoint>;
-
-    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint>;
-
     fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint>;
 
-    fn get_checkpoint_contents(
-        &self,
-        digest: &CheckpointContentsDigest,
-    ) -> Option<CheckpointContents>;
+    fn get_object(&self, id: &ObjectId) -> Option<Object>;
 
-    fn get_committee_by_epoch(&self, epoch: EpochId) -> Option<Committee>;
-
-    fn get_transaction(&self, digest: &TransactionDigest) -> Option<VerifiedTransaction>;
-
-    fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects>;
-
-    fn get_transaction_events(&self, digest: &TransactionEventsDigest)
-    -> Option<TransactionEvents>;
-
-    fn get_transaction_events_by_tx_digest(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Option<TransactionEvents>;
-
-    fn get_object(&self, id: &ObjectID) -> Option<Object>;
-
-    fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object>;
+    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object>;
 
     fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState;
 
     fn get_clock(&self) -> iota_types::clock::Clock;
+
+    fn get_last_checkpoint_of_epoch(&self, epoch: EpochId) -> Option<CheckpointSequenceNumber>;
+
+    fn get_system_state_by_epoch(
+        &self,
+        epoch: EpochId,
+    ) -> Option<&iota_types::iota_system_state::IotaSystemState>;
 
     fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_>;
 
@@ -99,7 +81,7 @@ pub trait SimulatorStore:
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     );
 
     fn insert_transaction(&mut self, transaction: VerifiedTransaction);
@@ -110,11 +92,17 @@ pub trait SimulatorStore:
 
     fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        written_objects: BTreeMap<ObjectId, Object>,
+        deleted_objects: Vec<ObjectRef>,
     );
 
     fn backing_store(&self) -> &dyn BackingStore;
+
+    fn update_last_checkpoint_of_epoch(
+        &mut self,
+        epoch: EpochId,
+        last_checkpoint: CheckpointSequenceNumber,
+    );
 
     // TODO: This function is now out-of-sync with read_objects_for_execution from
     // transaction_input_loader.rs. For instance, it does not support the use of
@@ -134,7 +122,7 @@ pub trait SimulatorStore:
                     crate::store::SimulatorStore::get_object(self, id)
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.try_get_object_by_key(&objref.0, objref.1)?
+                    self.try_get_object_by_key(&objref.object_id, objref.version)?
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {
@@ -151,10 +139,11 @@ pub trait SimulatorStore:
         let mut receiving_objects = Vec::new();
         for objref in receiving_object_refs {
             // no need for marker table check in simulacrum
-            let Some(obj) = crate::store::SimulatorStore::get_object(self, &objref.0) else {
+            let Some(obj) = crate::store::SimulatorStore::get_object(self, &objref.object_id)
+            else {
                 return Err(UserInputError::ObjectNotFound {
-                    object_id: objref.0,
-                    version: Some(objref.1),
+                    object_id: objref.object_id,
+                    version: Some(objref.version),
                 }
                 .into());
             };

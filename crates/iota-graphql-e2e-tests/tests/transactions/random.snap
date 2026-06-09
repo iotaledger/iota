@@ -13,21 +13,21 @@ Response: {
   "data": {
     "object": {
       "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
-      "version": 1,
       "asMoveObject": {
         "contents": {
-          "type": {
-            "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::random::Random"
-          },
           "json": {
             "id": "0x0000000000000000000000000000000000000000000000000000000000000008",
             "inner": {
               "id": "0x641bd86e87be3f0ce633439e72d2e9281f536d2a14dc6d6a32b6eb477a0082ab",
               "version": "1"
             }
+          },
+          "type": {
+            "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::random::Random"
           }
         }
-      }
+      },
+      "version": 1
     },
     "transactionBlocks": {
       "nodes": [
@@ -57,9 +57,9 @@ Response: {
             "epoch": {
               "epochId": 0
             },
-            "randomnessRound": 0,
             "randomBytes": "SGVsbG8gU3Vp",
-            "randomnessObjInitialSharedVersion": 2
+            "randomnessObjInitialSharedVersion": 2,
+            "randomnessRound": 0
           }
         }
       ]

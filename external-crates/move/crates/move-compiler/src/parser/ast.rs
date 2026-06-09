@@ -3,19 +3,21 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fmt, hash::Hash};
+
+use move_command_line_common::files::FileHash;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+
 use crate::{
     diag,
     diagnostics::Diagnostic,
     ice,
     shared::{
-        ast_debug::*, format_comma, Identifier, Name, NamedAddressMap, NamedAddressMapIndex,
-        NamedAddressMaps, NumericalAddress, TName,
+        Identifier, Name, NamedAddressMap, NamedAddressMapIndex, NamedAddressMaps,
+        NumericalAddress, TName, ast_debug::*, format_comma,
     },
 };
-use move_command_line_common::files::FileHash;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{fmt, hash::Hash};
 
 macro_rules! new_name {
     ($n:ident) => {
@@ -82,8 +84,9 @@ pub enum ExternalTargetKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Specifies a source target or dependency
 pub enum TargetKind {
-    /// A source module. If is_root_package is false, some warnings might be suppressed.
-    /// Bytecode/CompiledModules will be generated for any Source target
+    /// A source module. If is_root_package is false, some warnings might be
+    /// suppressed. Bytecode/CompiledModules will be generated for any
+    /// Source target
     Source { is_root_package: bool },
     /// A dependency only used for linking.
     /// No bytecode or CompiledModules are generated

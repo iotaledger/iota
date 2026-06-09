@@ -1,14 +1,12 @@
 ---
-description: 'Learn about the role of in oracles in blockchain,their role in providing external data to smart contracts and the available oracles in IOTA EVM.'
+description: "Learn about the role of in oracles in blockchain,their role in providing external data to smart contracts and the available oracles in IOTA EVM."
 image: /img/logo/WASP_logo_dark.png
 tags:
-- evm
+  - evm
 teams:
   - iotaledger/l2-smart-contract
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
 import OraclesContractData from '../_partials/_oracles_contract_data.mdx'
 
 # Introduction to Oracles in Blockchain
@@ -61,7 +59,7 @@ prices, forex, equities, and even Web3 data from other blockchains. Its feed get
 
 :::tip
 
-You can learn more about Supra Oracles in their [official documentation](https://supraoracles.com/docs/overview).
+You can learn more about Supra Oracles in their [official documentation](https://docs.supra.com/oracles).
 
 :::
 

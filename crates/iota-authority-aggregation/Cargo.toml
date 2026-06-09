@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 futures.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 
 # internal dependencies
@@ -20,3 +20,6 @@ iota-types.workspace = true
 ignored = [
   "tracing", # imported through a declarative macro
 ]
+
+[lints]
+workspace = true

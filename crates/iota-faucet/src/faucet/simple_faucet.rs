@@ -20,16 +20,15 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_types::{ObjectId, Owner, crypto::Intent};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{IotaAddress, TransactionDigest},
     gas_coin::GasCoin,
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use prometheus::Registry;
-use shared_crypto::intent::Intent;
 use tap::tap::TapFallible;
 use tokio::{
     sync::{
@@ -53,10 +52,10 @@ use crate::{
 pub struct SimpleFaucet {
     wallet: WalletContext,
     active_address: IotaAddress,
-    producer: Mutex<Sender<ObjectID>>,
-    consumer: Mutex<Receiver<ObjectID>>,
-    batch_producer: Mutex<Sender<ObjectID>>,
-    batch_consumer: Mutex<Receiver<ObjectID>>,
+    producer: Mutex<Sender<ObjectId>>,
+    consumer: Mutex<Receiver<ObjectId>>,
+    batch_producer: Mutex<Sender<ObjectId>>,
+    batch_consumer: Mutex<Receiver<ObjectId>>,
     pub metrics: FaucetMetrics,
     pub wal: Mutex<WriteAheadLog>,
     request_producer: Sender<(Uuid, IotaAddress, Vec<u64>)>,
@@ -90,11 +89,11 @@ impl fmt::Debug for SimpleFaucet {
 }
 
 enum GasCoinResponse {
-    GasCoinWithInsufficientBalance(ObjectID),
-    InvalidGasCoin(ObjectID),
+    GasCoinWithInsufficientBalance(ObjectId),
+    InvalidGasCoin(ObjectId),
     NoGasCoinAvailable,
-    UnknownGasCoin(ObjectID),
-    ValidGasCoin(ObjectID),
+    UnknownGasCoin(ObjectId),
+    ValidGasCoin(ObjectId),
 }
 
 // TODO: replace this with dryrun at the SDK level
@@ -177,7 +176,7 @@ impl SimpleFaucet {
                         info!(?coin_id, "Adding coin to gas pool");
                         metrics.total_available_coins.inc();
                     })
-                    .tap_err(|e| error!(?coin_id, "Failed to add coin to gas pools: {e:?}"))
+                    .tap_err(|e| error!(?coin_id, "failed to add coin to gas pools: {e:?}"))
                     .unwrap();
             } else {
                 batch_producer
@@ -187,7 +186,7 @@ impl SimpleFaucet {
                         info!(?coin_id, "Adding coin to batch gas pool");
                         metrics.total_available_coins.inc();
                     })
-                    .tap_err(|e| error!(?coin_id, "Failed to add coin to batch gas pools: {e:?}"))
+                    .tap_err(|e| error!(?coin_id, "failed to add coin to batch gas pools: {e:?}"))
                     .unwrap();
             }
         }
@@ -234,14 +233,11 @@ impl SimpleFaucet {
                         if response == TransactionDigest::ZERO {
                             info!("Batch transfer incomplete due to faucet shutting down.");
                         } else {
-                            info!(
-                                "Batch transfer completed with transaction digest: {:?}",
-                                response
-                            );
+                            info!("Batch transfer completed with transaction digest: {response:?}");
                         }
                     }
                     Err(err) => {
-                        error!("{:?}", err);
+                        error!("{err:?}");
                     }
                 }
             }
@@ -259,20 +255,20 @@ impl SimpleFaucet {
 
     /// Take the consumer lock and pull a Coin ID from the queue, without
     /// checking whether it is valid or not.
-    async fn pop_gas_coin(&self, uuid: Uuid) -> Option<ObjectID> {
+    async fn pop_gas_coin(&self, uuid: Uuid) -> Option<ObjectId> {
         // If the gas candidate queue is exhausted, the request will be suspended
         // indefinitely until a producer puts in more candidate gas objects. At
         // the same time, other requests will be blocked by the lock acquisition
         // as well.
         let Ok(mut consumer) = tokio::time::timeout(LOCK_TIMEOUT, self.consumer.lock()).await
         else {
-            error!(?uuid, "Timeout when getting consumer lock");
+            error!(?uuid, "timeout when getting consumer lock");
             return None;
         };
 
         info!(?uuid, "Got consumer lock, pulling coins.");
         let Ok(coin) = tokio::time::timeout(RECV_TIMEOUT, consumer.recv()).await else {
-            error!(?uuid, "Timeout when getting gas coin from the queue");
+            error!(?uuid, "timeout when getting gas coin from the queue");
             return None;
         };
 
@@ -286,7 +282,7 @@ impl SimpleFaucet {
 
     /// Take the consumer lock and pull a Coin ID from the queue, without
     /// checking whether it is valid or not.
-    async fn pop_gas_coin_for_batch(&self, uuid: Uuid) -> Option<ObjectID> {
+    async fn pop_gas_coin_for_batch(&self, uuid: Uuid) -> Option<ObjectId> {
         // If the gas candidate queue is exhausted, the request will be suspended
         // indefinitely until a producer puts in more candidate gas objects. At
         // the same time, other requests will be blocked by the lock acquisition
@@ -294,13 +290,13 @@ impl SimpleFaucet {
         let Ok(mut batch_consumer) =
             tokio::time::timeout(LOCK_TIMEOUT, self.batch_consumer.lock()).await
         else {
-            error!(?uuid, "Timeout when getting batch consumer lock");
+            error!(?uuid, "timeout when getting batch consumer lock");
             return None;
         };
 
         info!(?uuid, "Got consumer lock, pulling coins.");
         let Ok(coin) = tokio::time::timeout(RECV_TIMEOUT, batch_consumer.recv()).await else {
-            error!(?uuid, "Timeout when getting gas coin from the queue");
+            error!(?uuid, "timeout when getting gas coin from the queue");
             return None;
         };
 
@@ -327,7 +323,7 @@ impl SimpleFaucet {
         };
 
         let Some(coin_id) = coin_id else {
-            warn!("Failed getting gas coin, try later!");
+            warn!("failed getting gas coin, try later!");
             return GasCoinResponse::NoGasCoinAvailable;
         };
 
@@ -348,7 +344,7 @@ impl SimpleFaucet {
             }
 
             Err(e) => {
-                error!(?uuid, ?coin_id, "Fullnode read error: {e:?}");
+                error!(?uuid, ?coin_id, "fullnode read error: {e:?}");
                 GasCoinResponse::UnknownGasCoin(coin_id)
             }
         }
@@ -363,7 +359,7 @@ impl SimpleFaucet {
     /// If the fullnode returns an unexpected error, returns Err(e)
     async fn get_coin(
         &self,
-        coin_id: ObjectID,
+        coin_id: ObjectId,
     ) -> anyhow::Result<Option<(Option<Owner>, GasCoin)>> {
         let client = self.wallet.get_client().await?;
         let gas_obj = client
@@ -389,14 +385,12 @@ impl SimpleFaucet {
     /// returns None
     async fn get_gas_coin_and_check_faucet_owner(
         &self,
-        coin_id: ObjectID,
+        coin_id: ObjectId,
     ) -> anyhow::Result<Option<GasCoin>> {
         let gas_obj = self.get_coin(coin_id).await?;
-        info!(?coin_id, "Reading gas coin object: {:?}", gas_obj);
+        info!(?coin_id, "Reading gas coin object: {gas_obj:?}");
         Ok(gas_obj.and_then(|(owner_opt, coin)| match owner_opt {
-            Some(Owner::AddressOwner(owner_addr)) if owner_addr == self.active_address => {
-                Some(coin)
-            }
+            Some(Owner::Address(owner_addr)) if owner_addr == self.active_address => Some(coin),
             _ => None,
         }))
     }
@@ -441,7 +435,7 @@ impl SimpleFaucet {
         &self,
         uuid: Uuid,
         recipient: IotaAddress,
-        coin_id: ObjectID,
+        coin_id: ObjectId,
         tx_data: TransactionData,
         for_batch: bool,
     ) -> Result<IotaTransactionBlockResponse, FaucetError> {
@@ -472,7 +466,7 @@ impl SimpleFaucet {
                     ?recipient,
                     ?coin_id,
                     ?uuid,
-                    "Failed to execute PayIota transactions in faucet after {elapsed}. Coin will \
+                    "failed to execute PayIota transactions in faucet after {elapsed}. Coin will \
                      not be reused."
                 );
 
@@ -484,7 +478,7 @@ impl SimpleFaucet {
                         ?recipient,
                         ?coin_id,
                         ?uuid,
-                        "Failed to set coin in flight status in WAL: {:?}",
+                        "failed to set coin in flight status in WAL: {:?}",
                         err
                     );
                 }
@@ -506,7 +500,7 @@ impl SimpleFaucet {
                 // to the coin -- the worst that can happen is that the WAL
                 // contains a stale entry.
                 if self.wal.lock().await.commit(coin_id).is_err() {
-                    error!(?coin_id, "Failed to remove coin from WAL");
+                    error!(?coin_id, "failed to remove coin from WAL");
                 }
                 if for_batch {
                     self.recycle_gas_coin_for_batch(coin_id, uuid).await;
@@ -524,7 +518,7 @@ impl SimpleFaucet {
         amounts: &[u64],
         recipient: IotaAddress,
         uuid: Uuid,
-    ) -> Result<(TransactionDigest, Vec<ObjectID>), FaucetError> {
+    ) -> Result<(TransactionDigest, Vec<ObjectId>), FaucetError> {
         let number_of_coins = amounts.len();
         let total_amount: u64 = amounts.iter().sum();
         let gas_cost = self.get_gas_cost().await?;
@@ -558,19 +552,19 @@ impl SimpleFaucet {
             GasCoinResponse::UnknownGasCoin(coin_id) => {
                 self.recycle_gas_coin(coin_id, uuid).await;
                 Err(FaucetError::FullnodeReading(format!(
-                    "unknown gas coin {coin_id:?}"
+                    "unknown gas coin {coin_id}"
                 )))
             }
 
             GasCoinResponse::GasCoinWithInsufficientBalance(coin_id) => {
-                warn!(?uuid, ?coin_id, "Insufficient balance, removing from pool");
+                warn!(?uuid, ?coin_id, "insufficient balance, removing from pool");
                 self.metrics.total_discarded_coins.inc();
                 self.transfer_gases(amounts, recipient, uuid).await
             }
 
             GasCoinResponse::InvalidGasCoin(coin_id) => {
                 // The coin does not exist, or does not belong to the current active address.
-                warn!(?uuid, ?coin_id, "Invalid, removing from pool");
+                warn!(?uuid, ?coin_id, "invalid, removing from pool");
                 self.metrics.total_discarded_coins.inc();
                 self.transfer_gases(amounts, recipient, uuid).await
             }
@@ -579,7 +573,7 @@ impl SimpleFaucet {
         }
     }
 
-    async fn recycle_gas_coin(&self, coin_id: ObjectID, uuid: Uuid) {
+    async fn recycle_gas_coin(&self, coin_id: ObjectId, uuid: Uuid) {
         // Once transactions are done, in despite of success or failure,
         // we put back the coins. The producer should never wait indefinitely,
         // in that the channel is initialized with big enough capacity.
@@ -592,7 +586,7 @@ impl SimpleFaucet {
         info!(?uuid, ?coin_id, "Recycled coin");
     }
 
-    async fn recycle_gas_coin_for_batch(&self, coin_id: ObjectID, uuid: Uuid) {
+    async fn recycle_gas_coin_for_batch(&self, coin_id: ObjectId, uuid: Uuid) {
         // Once transactions are done, in despite of success or failure,
         // we put back the coins. The producer should never wait indefinitely,
         // in that the channel is initialized with big enough capacity.
@@ -608,7 +602,7 @@ impl SimpleFaucet {
     async fn execute_pay_iota_txn_with_retries(
         &self,
         tx: &Transaction,
-        coin_id: ObjectID,
+        coin_id: ObjectId,
         recipient: IotaAddress,
         uuid: Uuid,
     ) -> IotaTransactionBlockResponse {
@@ -640,7 +634,7 @@ impl SimpleFaucet {
     async fn execute_pay_iota_txn(
         &self,
         tx: &Transaction,
-        coin_id: ObjectID,
+        coin_id: ObjectId,
         recipient: IotaAddress,
         uuid: Uuid,
     ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
@@ -665,8 +659,7 @@ impl SimpleFaucet {
                     ?recipient,
                     ?coin_id,
                     ?uuid,
-                    "Transfer Transaction failed: {:?}",
-                    e
+                    "transfer Transaction failed: {e:?}"
                 )
             })?)
     }
@@ -691,7 +684,7 @@ impl SimpleFaucet {
 
     async fn build_pay_iota_txn(
         &self,
-        coin_id: ObjectID,
+        coin_id: ObjectId,
         signer: IotaAddress,
         recipient: IotaAddress,
         amounts: &[u64],
@@ -705,9 +698,7 @@ impl SimpleFaucet {
             .await
             .map_err(|e| {
                 anyhow::anyhow!(
-                    "Failed to build PayIota transaction for coin {:?}, with err {:?}",
-                    coin_id,
-                    e
+                    "failed to build PayIota transaction for coin {coin_id}, with err {e}"
                 )
             })
     }
@@ -717,7 +708,7 @@ impl SimpleFaucet {
         res: IotaTransactionBlockResponse,
         number_of_coins: usize,
         recipient: IotaAddress,
-    ) -> Result<(TransactionDigest, Vec<ObjectID>), FaucetError> {
+    ) -> Result<(TransactionDigest, Vec<ObjectId>), FaucetError> {
         let created = res
             .effects
             .ok_or_else(|| {
@@ -738,7 +729,7 @@ impl SimpleFaucet {
                 .iter()
                 .all(|created_coin_owner_ref| created_coin_owner_ref.owner == recipient)
         );
-        let coin_ids: Vec<ObjectID> = created
+        let coin_ids: Vec<ObjectId> = created
             .iter()
             .map(|created_coin_owner_ref| created_coin_owner_ref.reference.object_id)
             .collect();
@@ -747,7 +738,7 @@ impl SimpleFaucet {
 
     async fn build_batch_pay_iota_txn(
         &self,
-        coin_id: ObjectID,
+        coin_id: ObjectId,
         batch_requests: Vec<(Uuid, IotaAddress, Vec<u64>)>,
         signer: IotaAddress,
         budget: u64,
@@ -799,7 +790,7 @@ impl SimpleFaucet {
 
             // Insert the coins into the map based on the destination address
             address_coins_map
-                .entry(owner.get_owner_address().unwrap())
+                .entry(*owner.address_or_object().unwrap())
                 .or_default()
                 .push(coin_obj_ref);
         });
@@ -880,7 +871,7 @@ impl SimpleFaucet {
     }
 
     #[cfg(test)]
-    async fn drain_gas_queue(&mut self, expected_gas_count: usize) -> HashSet<ObjectID> {
+    async fn drain_gas_queue(&mut self, expected_gas_count: usize) -> HashSet<ObjectId> {
         use tokio::sync::mpsc::error::TryRecvError;
         let mut consumer = self.consumer.lock().await;
         let mut candidates = HashSet::new();
@@ -888,7 +879,7 @@ impl SimpleFaucet {
         loop {
             let coin_id = consumer
                 .try_recv()
-                .unwrap_or_else(|e| panic!("Expect the {i}th candidate but got {e}"));
+                .unwrap_or_else(|e| panic!("expect the {i}th candidate but got {e}"));
             candidates.insert(coin_id);
             i += 1;
             if i == expected_gas_count {
@@ -980,8 +971,7 @@ impl Faucet for SimpleFaucet {
                     ?recipient,
                     ?coin_id,
                     uuid = ?id,
-                    "Could not find coin after successful transaction, error: {:?}",
-                    &res,
+                    "Could not find coin after successful transaction, error: {res:?}"
                 );
                 0
             };
@@ -1053,7 +1043,7 @@ pub async fn batch_gather(
     // Gather the rest of the batch after the first item has been taken.
     for _ in 1..batch_request_size {
         let Some(req) = request_consumer.recv().await else {
-            error!("Request consumer queue closed");
+            error!("request consumer queue closed");
             return Err(FaucetError::ChannelClosed);
         };
 
@@ -1166,7 +1156,7 @@ pub async fn batch_transfer_gases(
             }
 
             GasCoinResponse::GasCoinWithInsufficientBalance(coin_id) => {
-                warn!(?uuid, ?coin_id, "Insufficient balance, removing from pool");
+                warn!(?uuid, ?coin_id, "insufficient balance, removing from pool");
                 faucet.metrics.total_discarded_coins.inc();
                 // Continue the loop to retry preparing the gas coin
                 continue;
@@ -1174,7 +1164,7 @@ pub async fn batch_transfer_gases(
 
             GasCoinResponse::InvalidGasCoin(coin_id) => {
                 // The coin does not exist, or does not belong to the current active address.
-                warn!(?uuid, ?coin_id, "Invalid, removing from pool");
+                warn!(?uuid, ?coin_id, "invalid, removing from pool");
                 faucet.metrics.total_discarded_coins.inc();
                 // Continue the loop to retry preparing the gas coin
                 continue;
@@ -1190,8 +1180,8 @@ mod tests {
     use anyhow::*;
     use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
     use iota_sdk::wallet_context::WalletContext;
+    use iota_sdk_types::crypto::Intent;
     use iota_types::transaction::{SenderSignedData, TransactionDataAPI};
-    use shared_crypto::intent::Intent;
     use test_cluster::TestClusterBuilder;
 
     use super::*;
@@ -1208,16 +1198,16 @@ mod tests {
         let sender_signed_data = SenderSignedData::new_from_sender_signature(tx_data, signature);
         let transaction = Transaction::new(sender_signed_data);
         let response = ctx.execute_transaction_may_fail(transaction).await?;
-        let result_effects = response.clone().effects;
+        let result_effects = response.effects;
 
         if let Some(effects) = result_effects {
             if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {
-                bail!("Error executing transaction: {:#?}", effects.status());
+                bail!("error executing transaction: {:#?}", effects.status());
             } else {
                 Ok(effects)
             }
         } else {
-            bail!("Effects from IotaTransactionBlockResult should not be empty");
+            bail!("effects from IotaTransactionBlockResult should not be empty");
         }
     }
 
@@ -1225,7 +1215,7 @@ mod tests {
     async fn simple_faucet_basic_interface_should_work() {
         telemetry_subscribers::init_for_testing();
         let test_cluster = TestClusterBuilder::new().build().await;
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
 
@@ -1238,7 +1228,7 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, None, Some(10))
+            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
             .await
             .unwrap();
         let gas_budget = 50_000_000;
@@ -1254,7 +1244,7 @@ mod tests {
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1282,15 +1272,15 @@ mod tests {
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
+        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.object_id));
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1317,15 +1307,15 @@ mod tests {
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
+        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.object_id));
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1333,13 +1323,10 @@ mod tests {
 
         let number_of_coins = gas_coins.len();
         let amounts = &vec![1; number_of_coins];
-        let _ = futures::future::join_all((0..number_of_coins).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                amounts,
-            )
-        }))
+        let _ = futures::future::join_all(
+            (0..number_of_coins)
+                .map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+        )
         .await
         .into_iter()
         .map(|res| res.unwrap())
@@ -1368,7 +1355,7 @@ mod tests {
         };
         let coin_amount = config.amount;
         let prom_registry = Registry::new();
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
         let gas_coins = context
@@ -1378,7 +1365,7 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, None, Some(10))
+            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
             .await
             .unwrap();
         let gas_budget = 50_000_000;
@@ -1394,7 +1381,7 @@ mod tests {
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1403,9 +1390,7 @@ mod tests {
         let amounts = &[coin_amount];
 
         // Create a vector containing five randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..5)
-            .map(|_| IotaAddress::random_for_testing_only())
-            .collect();
+        let target_addresses: Vec<IotaAddress> = (0..5).map(|_| IotaAddress::random()).collect();
 
         let response = futures::future::join_all(
             target_addresses
@@ -1471,11 +1456,11 @@ mod tests {
             ..Default::default()
         };
         let prom_registry = Registry::new();
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1483,9 +1468,7 @@ mod tests {
 
         let amounts = &[1; 1];
         // Create a vector containing five randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..5)
-            .map(|_| IotaAddress::random_for_testing_only())
-            .collect();
+        let target_addresses: Vec<IotaAddress> = (0..5).map(|_| IotaAddress::random()).collect();
 
         let response = futures::future::join_all(
             target_addresses
@@ -1522,9 +1505,9 @@ mod tests {
             .unwrap();
 
         let bad_gas = gas_coins.swap_remove(0);
-        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
+        let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.object_id));
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
 
@@ -1532,7 +1515,7 @@ mod tests {
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1546,8 +1529,8 @@ mod tests {
             .transaction_builder()
             .pay_all_iota(
                 address,
-                vec![bad_gas.0],
-                IotaAddress::random_for_testing_only(),
+                vec![bad_gas.object_id],
+                IotaAddress::random(),
                 gas_budget,
             )
             .await
@@ -1558,13 +1541,9 @@ mod tests {
         let amounts = &vec![1; number_of_coins];
         // We traverse the list twice, which must trigger the transferred gas to be
         // kicked out
-        futures::future::join_all((0..2).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                amounts,
-            )
-        }))
+        futures::future::join_all(
+            (0..2).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+        )
         .await;
 
         // Verify that the bad gas is no longer in the queue.
@@ -1585,13 +1564,13 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let test_cluster = TestClusterBuilder::new().build().await;
         let context = test_cluster.wallet;
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1600,7 +1579,7 @@ mod tests {
         let original_available = faucet.metrics.total_available_coins.get();
         let original_discarded = faucet.metrics.total_discarded_coins.get();
 
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let faucet_address = faucet.active_address;
         let uuid = Uuid::new_v4();
 
@@ -1632,7 +1611,7 @@ mod tests {
 
         // Set in flight to false so WAL will clear
         wal.set_in_flight(coin_id, false)
-            .expect("Unable to set in flight status to false.");
+            .expect("unable to set in flight status to false.");
         drop(wal);
 
         faucet.retry_wal_coins().await.ok();
@@ -1664,7 +1643,11 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, Some(vec![tiny_value]), None)
+            .split_coin_tx_kind(
+                gas_coins.first().unwrap().object_id,
+                Some(vec![tiny_value]),
+                None,
+            )
             .await
             .unwrap();
         let gas_budget = 50_000_000;
@@ -1689,15 +1672,15 @@ mod tests {
             .0;
         assert_eq!(tiny_amount, tiny_value);
 
-        let gas_coins: HashSet<ObjectID> =
+        let gas_coins: HashSet<ObjectId> =
             HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.1.object_id));
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1711,13 +1694,9 @@ mod tests {
         let amounts = &vec![tiny_value + 1; number_of_coins];
         // We traverse the list ten times, which must trigger the tiny gas to be
         // examined and then discarded
-        futures::future::join_all((0..10).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                amounts,
-            )
-        }))
+        futures::future::join_all(
+            (0..10).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+        )
         .await;
         info!(
             ?number_of_coins,
@@ -1730,7 +1709,7 @@ mod tests {
         tokio::task::yield_now().await;
         let discarded = faucet.metrics.total_discarded_coins.get();
 
-        info!("discarded: {:?}", discarded);
+        info!("discarded: {discarded:?}");
         let candidates = faucet.drain_gas_queue(gas_coins.len() - 1).await;
 
         assert_eq!(discarded, 1);
@@ -1755,7 +1734,7 @@ mod tests {
         let tx_kind = client
             .transaction_builder()
             .split_coin_tx_kind(
-                gas_coins.first().unwrap().0,
+                gas_coins.first().unwrap().object_id,
                 Some(vec![reasonable_value]),
                 None,
             )
@@ -1770,12 +1749,18 @@ mod tests {
             .unwrap();
         execute_tx(&mut context, tx_data).await.unwrap();
 
-        let destination_address = IotaAddress::random_for_testing_only();
+        let destination_address = IotaAddress::random();
         // Transfer all valid gases away except for 1
         for gas in gas_coins.iter().take(gas_coins.len() - 1) {
             let tx_data = client
                 .transaction_builder()
-                .transfer_iota(address, gas.0, gas_budget, destination_address, None)
+                .transfer_iota(
+                    address,
+                    gas.object_id,
+                    gas_budget,
+                    destination_address,
+                    None,
+                )
                 .await
                 .unwrap();
             execute_tx(&mut context, tx_data).await.unwrap();
@@ -1789,26 +1774,22 @@ mod tests {
             .unwrap();
         assert!(!gas_coins.is_empty());
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
         .unwrap();
 
         // We traverse the list twice, which must trigger the split gas to be kicked out
-        futures::future::join_all((0..2).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                &[30000000000],
-            )
-        }))
+        futures::future::join_all(
+            (0..2).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), &[30000000000])),
+        )
         .await;
 
         // Check that the gas was discarded for being too small
@@ -1835,7 +1816,11 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, Some(vec![tiny_value]), None)
+            .split_coin_tx_kind(
+                gas_coins.first().unwrap().object_id,
+                Some(vec![tiny_value]),
+                None,
+            )
             .await
             .unwrap();
 
@@ -1850,13 +1835,19 @@ mod tests {
 
         execute_tx(&mut context, tx_data).await.unwrap();
 
-        let destination_address = IotaAddress::random_for_testing_only();
+        let destination_address = IotaAddress::random();
 
         // Transfer all valid gases away
         for gas in gas_coins {
             let tx_data = client
                 .transaction_builder()
-                .transfer_iota(address, gas.0, gas_budget, destination_address, None)
+                .transfer_iota(
+                    address,
+                    gas.object_id,
+                    gas_budget,
+                    destination_address,
+                    None,
+                )
                 .await
                 .unwrap();
             execute_tx(&mut context, tx_data).await.unwrap();
@@ -1870,18 +1861,18 @@ mod tests {
             .unwrap();
         assert!(!gas_coins.is_empty());
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
         .unwrap();
 
-        let destination_address = IotaAddress::random_for_testing_only();
+        let destination_address = IotaAddress::random();
         // Assert that faucet will discard and also terminate
         let res = faucet
             .send(Uuid::new_v4(), destination_address, &[30000000000])
@@ -1895,20 +1886,20 @@ mod tests {
     async fn test_faucet_restart_clears_wal() {
         let test_cluster = TestClusterBuilder::new().build().await;
         let context = test_cluster.wallet;
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
 
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
         .unwrap();
 
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let faucet_address = faucet.active_address;
         let uuid = Uuid::new_v4();
 
@@ -1939,7 +1930,7 @@ mod tests {
 
         // Set in flight to false so WAL will clear
         wal.set_in_flight(coin_id, false)
-            .expect("Unable to set in flight status to false.");
+            .expect("unable to set in flight status to false.");
         drop(wal);
         faucet.shutdown_batch_send_task();
 
@@ -1953,7 +1944,7 @@ mod tests {
         let faucet_restarted = SimpleFaucet::new(
             kept_context,
             &prom_registry_new,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             FaucetConfig::default(),
         )
         .await
@@ -1979,7 +1970,7 @@ mod tests {
         let client = context.get_client().await.unwrap();
         let tx_kind = client
             .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().0, None, Some(10))
+            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
             .await
             .unwrap();
         let gas_budget = 50_000_000;
@@ -1992,22 +1983,20 @@ mod tests {
         execute_tx(&mut context, tx_data).await.unwrap();
 
         let prom_registry = Registry::new();
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let amount_to_send = config.amount;
 
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
         .unwrap();
 
         // Create a vector containing two randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..2)
-            .map(|_| IotaAddress::random_for_testing_only())
-            .collect();
+        let target_addresses: Vec<IotaAddress> = (0..2).map(|_| IotaAddress::random()).collect();
 
         // Send 2 coins of 1 iota each. We
         let coins_sent = 2;
@@ -2058,7 +2047,7 @@ mod tests {
     }
 
     async fn test_send_interface_has_success_status(faucet: &impl Faucet) {
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let amounts = vec![1, 2, 3];
         let uuid_test = Uuid::new_v4();
 
@@ -2079,7 +2068,7 @@ mod tests {
     }
 
     async fn test_basic_interface(faucet: &impl Faucet) {
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let amounts = vec![1, 2, 3];
 
         let FaucetReceipt { sent } = faucet

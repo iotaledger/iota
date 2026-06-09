@@ -36,21 +36,53 @@ function L1(props: NetworkProps) {
         </tr>
         <tr>
           <th>JSON RPC URL</th>
-            <td>
-              <CodeBlock>{props.rpc.json.core}</CodeBlock>
-              <CodeBlock>{props.rpc.json.monochain}</CodeBlock>
-              <tr>
-                <th>Websocket</th>
-                <td>
-                  <CodeBlock>{props.rpc.json.websocket}</CodeBlock>
-                </td>
-              </tr>
-              <tr>
-                <th>Indexer</th>
-                <td>
-                  <CodeBlock>{props.rpc.json.indexer}</CodeBlock>
-                </td>
-              </tr>
+          <td>
+            <CodeBlock>{props.rpc.json.official.core}</CodeBlock>
+            <table>
+              <tbody>
+                <tr>
+                  <th>Websocket</th>
+                  <td>
+                    <CodeBlock>{props.rpc.json.official.websocket}</CodeBlock>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Indexer</th>
+                  <td>
+                    <CodeBlock>{props.rpc.json.official.indexer}</CodeBlock>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {props.rpc.json.thirdParty && props.rpc.json.thirdParty.length > 0 && (
+              <Admonition type='info' title='Third Party Providers'>
+                The following is a list of high quality third party RPC providers supporting IOTA
+              </Admonition>
+            )}
+
+            {props.rpc.json.thirdParty?.map((provider, index) => (
+              <React.Fragment key={index}>
+                {provider.core && (
+                  <>
+                    <div><strong>{provider.provider}</strong></div>
+                    <CodeBlock>{provider.core}</CodeBlock>
+                  </>
+                )}
+                {provider.websocket && (
+                  <>
+                    <div><strong>{provider.provider} Websocket</strong></div>
+                    <CodeBlock>{provider.websocket}</CodeBlock>
+                  </>
+                )}
+                {provider.indexer && (
+                  <>
+                    <div><strong>{provider.provider} Indexer</strong></div>
+                    <CodeBlock>{provider.indexer}</CodeBlock>
+                  </>
+                )}
+              </React.Fragment>
+            ))}
           </td>
         </tr>
         <tr>
@@ -59,6 +91,14 @@ function L1(props: NetworkProps) {
             <CodeBlock>{props.rpc.graphql}</CodeBlock>
           </td>
         </tr>
+        {props.rpc.grpc && (
+          <tr>
+            <th>gRPC URL</th>
+            <td>
+              <CodeBlock>{props.rpc.grpc}</CodeBlock>
+            </td>
+          </tr>
+        )}
         {props.faucet && (
           <tr>
             <th>Faucet</th>

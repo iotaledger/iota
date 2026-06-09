@@ -3,8 +3,9 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     collection_types::VecMap,
     dynamic_field::Field,
     id::ID,
@@ -17,7 +18,7 @@ use crate::{constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, error::IotaNamesErr
 /// Rust version of the Move `iota::table::Table` type.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Table {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub size: u64,
 }
 
@@ -33,14 +34,14 @@ pub struct Registry {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegistryEntry {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub name: Name,
     pub name_record: NameRecord,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReverseRegistryEntry {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub address: IotaAddress,
     pub name: Name,
 }
@@ -71,7 +72,7 @@ impl TryFrom<Object> for NameRecord {
         object
             .to_rust::<Field<Name, Self>>()
             .map(|record| record.value)
-            .ok_or_else(|| IotaNamesError::MalformedObject(object.id()))
+            .map_err(|_| IotaNamesError::MalformedObject(object.id()))
     }
 }
 
@@ -82,7 +83,7 @@ impl TryFrom<MoveObject> for NameRecord {
         object
             .to_rust::<Field<Name, Self>>()
             .map(|record| record.value)
-            .ok_or_else(|| IotaNamesError::MalformedObject(object.id()))
+            .map_err(|_| IotaNamesError::MalformedObject(object.id()))
     }
 }
 
@@ -121,9 +122,9 @@ mod tests {
         let system_time: u64 = 100;
 
         let mut name = NameRecord {
-            nft_id: iota_types::id::ID::new(ObjectID::random()),
+            nft_id: iota_types::id::ID::new(ObjectId::random()),
             data: VecMap { contents: vec![] },
-            target_address: Some(IotaAddress::random_for_testing_only()),
+            target_address: Some(IotaAddress::random()),
             expiration_timestamp_ms: system_time + 10,
         };
 

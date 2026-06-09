@@ -32,7 +32,7 @@ pub use code_unit_verifier::CodeUnitVerifier;
 pub use data_defs::RecursiveDataDefChecker;
 pub use instruction_consistency::InstructionConsistency;
 pub use script_signature::{
-    legacy_script_signature_checks, no_additional_script_signature_checks, FnCheckScriptSignature,
+    FnCheckScriptSignature, legacy_script_signature_checks, no_additional_script_signature_checks,
 };
 pub use signature::SignatureChecker;
 pub use verifier::{
@@ -43,6 +43,7 @@ pub use verifier::{
 mod acquires_list_verifier;
 mod locals_safety;
 mod reference_safety;
+mod regex_reference_safety;
 mod regression_tests;
 mod stack_usage_verifier;
 mod type_safety;

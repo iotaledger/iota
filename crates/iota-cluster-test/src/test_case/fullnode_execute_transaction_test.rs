@@ -23,7 +23,7 @@ impl FullNodeExecuteTransactionTest {
             .get_transaction_with_options(tx_digest, IotaTransactionBlockResponseOptions::new())
             .await
             .unwrap_or_else(|e| {
-                panic!("Failed get transaction {tx_digest:?} from fullnode: {e:?}")
+                panic!("failed get transaction {tx_digest:?} from fullnode: {e:?}")
             });
     }
 }
@@ -45,8 +45,7 @@ impl TestCaseImpl for FullNodeExecuteTransactionTest {
         let mut txns = ctx.make_transactions(txn_count).await;
         assert!(
             txns.len() >= txn_count,
-            "Expect at least {} txns, but only got {}. Do we generate enough gas objects during genesis?",
-            txn_count,
+            "expect at least {} txns, but only got {txn_count}. Do we generate enough gas objects during genesis?",
             txns.len(),
         );
 
@@ -70,8 +69,7 @@ impl TestCaseImpl for FullNodeExecuteTransactionTest {
         let effects = response.effects.unwrap();
         if !matches!(effects.status(), IotaExecutionStatus::Success) {
             panic!(
-                "Failed to execute transfer transaction {:?}: {:?}",
-                txn_digest,
+                "failed to execute transfer transaction {txn_digest:?}: {:?}",
                 effects.status()
             )
         }
@@ -96,8 +94,7 @@ impl TestCaseImpl for FullNodeExecuteTransactionTest {
         let effects = response.effects.unwrap();
         if !matches!(effects.status(), IotaExecutionStatus::Success) {
             panic!(
-                "Failed to execute transfer transaction {:?}: {:?}",
-                txn_digest,
+                "failed to execute transfer transaction {txn_digest:?}: {:?}",
                 effects.status()
             )
         }

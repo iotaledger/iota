@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use move_binary_format::file_format::{
     Ability, AbilitySet, CompiledModule, DatatypeHandleIndex, DatatypeTyParameter,
     FunctionDefinition, ModuleHandle, SignatureToken, StructDefinition, StructFieldInformation,

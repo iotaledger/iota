@@ -1,0 +1,13 @@
+[package]
+name = "spending_limit"
+edition = "2024"
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+public_key_authentication = { local = "../public_key_authentication" }
+
+[addresses]
+spending_limit = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]

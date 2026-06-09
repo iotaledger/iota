@@ -7,7 +7,10 @@ use std::{ops::Range, path::PathBuf, sync::Arc};
 use anyhow::{Result, anyhow, bail};
 use arrow_array::Int32Array;
 use clap::*;
-use gcp_bigquery_client::{Client, model::query_request::QueryRequest};
+use gcp_bigquery_client::{
+    Client,
+    model::{query_request::QueryRequest, query_response::ResultSet},
+};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
 use iota_storage::object_store::util::{
@@ -71,7 +74,7 @@ const WRAPPED_OBJECT_PREFIX: &str = "wrapped_object";
 pub struct AnalyticsIndexerConfig {
     /// The url of the checkpoint client to connect to.
     #[arg(long)]
-    pub rest_url: String,
+    pub grpc_url: String,
     /// The url of the metrics client to connect to.
     #[arg(long, default_value = "127.0.0.1", global = true)]
     pub client_metric_host: String,
@@ -185,7 +188,7 @@ impl SnowflakeMaxCheckpointReader {
             Some(role),
             passwd,
         )
-        .expect("Failed to build sf api client");
+        .expect("failed to build sf api client");
         Ok(SnowflakeMaxCheckpointReader {
             query: format!("SELECT max({col_id}) from {table_id}"),
             api,
@@ -204,14 +207,14 @@ impl MaxCheckpointReader for SnowflakeMaxCheckpointReader {
                     let col_array = col
                         .as_any()
                         .downcast_ref::<Int32Array>()
-                        .expect("Failed to downcast arrow column");
+                        .expect("failed to downcast arrow column");
                     Ok(col_array.value(0) as i64)
                 } else {
                     Ok(-1)
                 }
             }
-            QueryResult::Json(_j) => bail!("Unexpected query result"),
-            QueryResult::Empty => bail!("Unexpected query result"),
+            QueryResult::Json(_j) => bail!("unexpected query result"),
+            QueryResult::Empty => bail!("unexpected query result"),
         }
     }
 }
@@ -241,13 +244,14 @@ impl BQMaxCheckpointReader {
 #[async_trait::async_trait]
 impl MaxCheckpointReader for BQMaxCheckpointReader {
     async fn max_checkpoint(&self) -> Result<i64> {
-        let mut result = self
+        let query_response = self
             .client
             .job()
             .query(&self.project_id, QueryRequest::new(&self.query))
             .await?;
+        let mut result = ResultSet::new_from_query_response(query_response);
         if result.next_row() {
-            let max_checkpoint = result.get_i64(0)?.ok_or(anyhow!("No rows returned"))?;
+            let max_checkpoint = result.get_i64(0)?.ok_or(anyhow!("no rows returned"))?;
             Ok(max_checkpoint)
         } else {
             Ok(-1)
@@ -537,7 +541,7 @@ pub async fn read_store_for_checkpoint(
     let remote_store_is_empty = remote_object_store
         .list_with_delimiter(None)
         .await
-        .expect("Failed to read remote analytics store")
+        .expect("failed to read remote analytics store")
         .common_prefixes
         .is_empty();
     info!("Remote store is empty: {remote_store_is_empty}");
@@ -565,23 +569,23 @@ pub async fn make_max_checkpoint_reader(
                 config
                     .bq_service_account_key_file
                     .as_ref()
-                    .ok_or(anyhow!("Missing gcp key file"))?,
+                    .ok_or(anyhow!("missing gcp key file"))?,
                 config
                     .bq_project_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing big query project id"))?,
+                    .ok_or(anyhow!("missing big query project id"))?,
                 config
                     .bq_dataset_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing big query dataset id"))?,
+                    .ok_or(anyhow!("missing big query dataset id"))?,
                 config
                     .bq_table_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing big query table id"))?,
+                    .ok_or(anyhow!("missing big query table id"))?,
                 config
                     .bq_checkpoint_col_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing big query checkpoint col id"))?,
+                    .ok_or(anyhow!("missing big query checkpoint col id"))?,
             )
             .await?,
         )
@@ -591,36 +595,36 @@ pub async fn make_max_checkpoint_reader(
                 config
                     .sf_account_identifier
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf account identifier"))?,
+                    .ok_or(anyhow!("missing sf account identifier"))?,
                 config
                     .sf_warehouse
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf warehouse"))?,
+                    .ok_or(anyhow!("missing sf warehouse"))?,
                 config
                     .sf_database
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf database"))?,
+                    .ok_or(anyhow!("missing sf database"))?,
                 config
                     .sf_schema
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf schema"))?,
+                    .ok_or(anyhow!("missing sf schema"))?,
                 config
                     .sf_username
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf username"))?,
-                config.sf_role.as_ref().ok_or(anyhow!("Missing sf role"))?,
+                    .ok_or(anyhow!("missing sf username"))?,
+                config.sf_role.as_ref().ok_or(anyhow!("missing sf role"))?,
                 config
                     .sf_password
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf password"))?,
+                    .ok_or(anyhow!("missing sf password"))?,
                 config
                     .sf_table_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf table id"))?,
+                    .ok_or(anyhow!("missing sf table id"))?,
                 config
                     .sf_checkpoint_col_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf checkpoint col id"))?,
+                    .ok_or(anyhow!("missing sf checkpoint col id"))?,
             )
             .await?,
         )
@@ -682,10 +686,9 @@ pub async fn make_object_processor(
     config: AnalyticsIndexerConfig,
     metrics: AnalyticsMetrics,
 ) -> Result<Processor> {
-    let handler: Box<dyn AnalyticsHandler<ObjectEntry>> = Box::new(ObjectHandler::new(
-        &config.package_cache_path,
-        &config.rest_url,
-    ));
+    let grpc_client = iota_grpc_client::Client::new(&config.grpc_url)?;
+    let handler: Box<dyn AnalyticsHandler<ObjectEntry>> =
+        Box::new(ObjectHandler::new(&config.package_cache_path, grpc_client));
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::Object).await?;
     let writer = make_writer::<ObjectEntry>(
@@ -709,10 +712,9 @@ pub async fn make_event_processor(
     config: AnalyticsIndexerConfig,
     metrics: AnalyticsMetrics,
 ) -> Result<Processor> {
-    let handler: Box<dyn AnalyticsHandler<EventEntry>> = Box::new(EventHandler::new(
-        &config.package_cache_path,
-        &config.rest_url,
-    ));
+    let grpc_client = iota_grpc_client::Client::new(&config.grpc_url)?;
+    let handler: Box<dyn AnalyticsHandler<EventEntry>> =
+        Box::new(EventHandler::new(&config.package_cache_path, grpc_client));
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::Event).await?;
     let writer =
@@ -807,9 +809,10 @@ pub async fn make_dynamic_field_processor(
 ) -> Result<Processor> {
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::DynamicField).await?;
+    let grpc_client = iota_grpc_client::Client::new(&config.grpc_url)?;
     let handler: Box<dyn AnalyticsHandler<DynamicFieldEntry>> = Box::new(DynamicFieldHandler::new(
         &config.package_cache_path,
-        &config.rest_url,
+        grpc_client,
     ));
     let writer = make_writer::<DynamicFieldEntry>(
         config.clone(),
@@ -834,8 +837,9 @@ pub async fn make_wrapped_object_processor(
 ) -> Result<Processor> {
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::WrappedObject).await?;
+    let grpc_client = iota_grpc_client::Client::new(&config.grpc_url)?;
     let handler: Box<dyn AnalyticsHandler<WrappedObjectEntry>> = Box::new(
-        WrappedObjectHandler::new(&config.package_cache_path, &config.rest_url),
+        WrappedObjectHandler::new(&config.package_cache_path, grpc_client),
     );
     let writer = make_writer::<WrappedObjectEntry>(
         config.clone(),
@@ -909,7 +913,7 @@ pub async fn make_analytics_processor(
 
 pub fn join_paths(base: Option<Path>, child: &Path) -> Path {
     base.map(|p| {
-        let mut out_path = p.clone();
+        let mut out_path = p;
         for part in child.parts() {
             out_path = out_path.child(part)
         }

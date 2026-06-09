@@ -14,7 +14,7 @@ use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction},
 };
-use shared_crypto::intent::Intent;
+use iota_sdk_types::crypto::Intent;
 use utils::setup_for_write;
 
 #[tokio::main]

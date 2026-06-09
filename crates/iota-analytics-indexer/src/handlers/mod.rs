@@ -7,16 +7,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
+use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
 use iota_types::{
-    base_types::ObjectID,
-    effects::{TransactionEffects, TransactionEffectsAPI},
-    object::{Object, Owner, bounded_visitor::BoundedVisitor},
-    transaction::{TransactionData, TransactionDataAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    object::{Object, bounded_visitor::BoundedVisitor},
+    transaction::{SenderSignedData, TransactionDataAPI},
 };
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveTypeLayout, MoveValue},
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
 
 use crate::{
     FileType,
@@ -54,29 +52,23 @@ pub trait AnalyticsHandler<S>: Worker<Message = (), Error = anyhow::Error> {
 
 fn initial_shared_version(object: &Object) -> Option<u64> {
     match object.owner {
-        Owner::Shared {
-            initial_shared_version,
-        } => Some(initial_shared_version.value()),
+        Owner::Shared(initial_shared_version) => Some(initial_shared_version.as_u64()),
         _ => None,
     }
 }
 
 fn get_owner_type(object: &Object) -> OwnerType {
     match object.owner {
-        Owner::AddressOwner(_) => OwnerType::AddressOwner,
-        Owner::ObjectOwner(_) => OwnerType::ObjectOwner,
-        Owner::Shared { .. } => OwnerType::Shared,
+        Owner::Address(_) => OwnerType::AddressOwner,
+        Owner::Object(_) => OwnerType::ObjectOwner,
+        Owner::Shared(_) => OwnerType::Shared,
         Owner::Immutable => OwnerType::Immutable,
+        _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
     }
 }
 
 fn get_owner_address(object: &Object) -> Option<String> {
-    match object.owner {
-        Owner::AddressOwner(address) => Some(address.to_string()),
-        Owner::ObjectOwner(address) => Some(address.to_string()),
-        Owner::Shared { .. } => None,
-        Owner::Immutable => None,
-    }
+    object.owner.address_or_object().map(ToString::to_string)
 }
 
 // Helper class to track input object kind.
@@ -84,23 +76,30 @@ fn get_owner_address(object: &Object) -> Option<String> {
 // defined in the transaction data.
 // Input objects include coins and shared.
 struct InputObjectTracker {
-    shared: BTreeSet<ObjectID>,
-    coins: BTreeSet<ObjectID>,
-    input: BTreeSet<ObjectID>,
+    shared: BTreeSet<ObjectId>,
+    coins: BTreeSet<ObjectId>,
+    input: BTreeSet<ObjectId>,
 }
 
 impl InputObjectTracker {
-    fn new(txn_data: &TransactionData) -> Self {
-        let shared: BTreeSet<ObjectID> = txn_data
+    fn new(txn: &SenderSignedData) -> Self {
+        let shared: BTreeSet<ObjectId> = txn
             .shared_input_objects()
-            .iter()
-            .map(|shared_io| shared_io.id())
+            .into_iter()
+            .map(|shared_io| shared_io.object_id)
             .collect();
-        let coins: BTreeSet<ObjectID> = txn_data.gas().iter().map(|obj_ref| obj_ref.0).collect();
-        let input: BTreeSet<ObjectID> = txn_data
-            .input_objects()
-            .expect("Input objects must be valid")
+        let tx_data = txn.transaction_data();
+        let coins: BTreeSet<ObjectId> = tx_data
+            .gas()
             .iter()
+            .map(|obj_ref| obj_ref.object_id)
+            .collect();
+        // All input objects (transaction + authenticators) are collected here, just
+        // like the shared objects previously.
+        let input: BTreeSet<ObjectId> = txn
+            .input_objects()
+            .expect("input objects must be valid")
+            .into_iter()
             .map(|io_kind| io_kind.object_id())
             .collect();
         Self {
@@ -110,7 +109,7 @@ impl InputObjectTracker {
         }
     }
 
-    fn get_input_object_kind(&self, object_id: &ObjectID) -> Option<InputObjectKind> {
+    fn get_input_object_kind(&self, object_id: &ObjectId) -> Option<InputObjectKind> {
         if self.coins.contains(object_id) {
             Some(InputObjectKind::GasCoin)
         } else if self.shared.contains(object_id) {
@@ -127,25 +126,25 @@ impl InputObjectTracker {
 // Build sets of object ids for created, mutated and deleted objects as reported
 // in the transaction effects.
 struct ObjectStatusTracker {
-    created: BTreeSet<ObjectID>,
-    mutated: BTreeSet<ObjectID>,
-    deleted: BTreeSet<ObjectID>,
+    created: BTreeSet<ObjectId>,
+    mutated: BTreeSet<ObjectId>,
+    deleted: BTreeSet<ObjectId>,
 }
 
 impl ObjectStatusTracker {
     fn new(effects: &TransactionEffects) -> Self {
-        let created: BTreeSet<ObjectID> = effects
+        let created: BTreeSet<ObjectId> = effects
             .created()
             .iter()
-            .map(|(obj_ref, _)| obj_ref.0)
+            .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
-        let mutated: BTreeSet<ObjectID> = effects
+        let mutated: BTreeSet<ObjectId> = effects
             .mutated()
             .iter()
             .chain(effects.unwrapped().iter())
-            .map(|(obj_ref, _)| obj_ref.0)
+            .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
-        let deleted: BTreeSet<ObjectID> = effects
+        let deleted: BTreeSet<ObjectId> = effects
             .all_tombstones()
             .into_iter()
             .map(|(id, _)| id)
@@ -157,7 +156,7 @@ impl ObjectStatusTracker {
         }
     }
 
-    fn get_object_status(&self, object_id: &ObjectID) -> Option<ObjectStatus> {
+    fn get_object_status(&self, object_id: &ObjectId) -> Option<ObjectStatus> {
         if self.mutated.contains(object_id) {
             Some(ObjectStatus::Mutated)
         } else if self.deleted.contains(object_id) {
@@ -182,14 +181,14 @@ async fn get_move_struct<T: PackageStore>(
         MoveTypeLayout::Struct(move_struct_layout) => {
             BoundedVisitor::deserialize_struct(contents, &move_struct_layout)
         }
-        _ => bail!("Object is not a move struct"),
+        _ => bail!("object is not a move struct"),
     }?;
     Ok(move_struct)
 }
 
 #[derive(Debug, Default)]
 pub struct WrappedStruct {
-    object_id: Option<ObjectID>,
+    object_id: Option<ObjectId>,
     struct_tag: Option<StructTag>,
 }
 
@@ -199,16 +198,11 @@ fn parse_struct(
     all_structs: &mut BTreeMap<String, WrappedStruct>,
 ) {
     let mut wrapped_struct = WrappedStruct {
-        struct_tag: Some(move_struct.type_),
+        struct_tag: Some(struct_tag_core_to_sdk(&move_struct.type_)),
         ..Default::default()
     };
     for (k, v) in move_struct.fields {
-        parse_struct_field(
-            &format!("{}.{}", path, &k),
-            v,
-            &mut wrapped_struct,
-            all_structs,
-        );
+        parse_struct_field(&format!("{path}.{k}"), v, &mut wrapped_struct, all_structs);
     }
     all_structs.insert(path.to_string(), wrapped_struct);
 }
@@ -242,7 +236,7 @@ fn parse_struct_field(
                     if let Some(MoveValue::Address(address) | MoveValue::Signer(address)) =
                         id_values.get("bytes").cloned()
                     {
-                        curr_struct.object_id = Some(ObjectID::from_address(*address))
+                        curr_struct.object_id = Some(ObjectId::new(address.into_bytes()))
                     }
                 }
             } else if "0x1::option::Option" == struct_name {
@@ -275,7 +269,7 @@ fn parse_struct_field(
         MoveValue::Vector(fields) => {
             for (index, field) in fields.iter().enumerate() {
                 parse_struct_field(
-                    &format!("{}[{}]", path, &index),
+                    &format!("{path}[{index}]"),
                     field.clone(),
                     curr_struct,
                     all_structs,
@@ -290,12 +284,12 @@ fn parse_struct_field(
 mod tests {
     use std::{collections::BTreeMap, str::FromStr};
 
-    use iota_types::base_types::ObjectID;
+    use iota_sdk_types::{ObjectId, StructTag};
     use move_core_types::{
         account_address::AccountAddress,
         annotated_value::{MoveStruct, MoveValue, MoveVariant},
         identifier::Identifier,
-        language_storage::StructTag,
+        language_storage::StructTag as MoveStructTag,
     };
 
     use crate::handlers::parse_struct;
@@ -303,11 +297,11 @@ mod tests {
     #[tokio::test]
     async fn test_wrapped_object_parsing() -> anyhow::Result<()> {
         let uid_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::object::UID")?,
+            type_: MoveStructTag::from_str("0x2::object::UID")?,
             fields: vec![(
                 Identifier::from_str("id")?,
                 MoveValue::Struct(MoveStruct {
-                    type_: StructTag::from_str("0x2::object::ID")?,
+                    type_: MoveStructTag::from_str("0x2::object::ID")?,
                     fields: vec![(
                         Identifier::from_str("bytes")?,
                         MoveValue::Signer(AccountAddress::from_hex_literal("0x300")?),
@@ -316,11 +310,11 @@ mod tests {
             )],
         });
         let balance_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::balance::Balance")?,
+            type_: MoveStructTag::from_str("0x2::balance::Balance")?,
             fields: vec![(Identifier::from_str("value")?, MoveValue::U32(10))],
         });
         let move_struct = MoveStruct {
-            type_: StructTag::from_str("0x2::test::Test")?,
+            type_: MoveStructTag::from_str("0x2::test::Test")?,
             fields: vec![
                 (Identifier::from_str("id")?, uid_field),
                 (Identifier::from_str("principal")?, balance_field),
@@ -330,7 +324,7 @@ mod tests {
         parse_struct("$", move_struct, &mut all_structs);
         assert_eq!(
             all_structs.get("$").unwrap().object_id,
-            Some(ObjectID::from_hex_literal("0x300")?)
+            Some(ObjectId::from_short_hex("0x300")?)
         );
         assert_eq!(
             all_structs.get("$.principal").unwrap().struct_tag,
@@ -342,11 +336,11 @@ mod tests {
     #[tokio::test]
     async fn test_wrapped_object_parsing_within_enum() -> anyhow::Result<()> {
         let uid_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::object::UID")?,
+            type_: MoveStructTag::from_str("0x2::object::UID")?,
             fields: vec![(
                 Identifier::from_str("id")?,
                 MoveValue::Struct(MoveStruct {
-                    type_: StructTag::from_str("0x2::object::ID")?,
+                    type_: MoveStructTag::from_str("0x2::object::ID")?,
                     fields: vec![(
                         Identifier::from_str("bytes")?,
                         MoveValue::Signer(AccountAddress::from_hex_literal("0x300")?),
@@ -355,11 +349,11 @@ mod tests {
             )],
         });
         let balance_field = MoveValue::Struct(MoveStruct {
-            type_: StructTag::from_str("0x2::balance::Balance")?,
+            type_: MoveStructTag::from_str("0x2::balance::Balance")?,
             fields: vec![(Identifier::from_str("value")?, MoveValue::U32(10))],
         });
         let move_enum = MoveVariant {
-            type_: StructTag::from_str("0x2::test::TestEnum")?,
+            type_: MoveStructTag::from_str("0x2::test::TestEnum")?,
             variant_name: Identifier::from_str("TestVariant")?,
             tag: 0,
             fields: vec![
@@ -368,7 +362,7 @@ mod tests {
             ],
         };
         let move_struct = MoveStruct {
-            type_: StructTag::from_str("0x2::test::Test")?,
+            type_: MoveStructTag::from_str("0x2::test::Test")?,
             fields: vec![
                 (Identifier::from_str("id")?, uid_field),
                 (
@@ -381,7 +375,7 @@ mod tests {
         parse_struct("$", move_struct, &mut all_structs);
         assert_eq!(
             all_structs.get("$").unwrap().object_id,
-            Some(ObjectID::from_hex_literal("0x300")?)
+            Some(ObjectId::from_short_hex("0x300")?)
         );
         assert_eq!(
             all_structs

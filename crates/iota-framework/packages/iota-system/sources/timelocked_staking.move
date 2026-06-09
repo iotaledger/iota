@@ -219,7 +219,10 @@ public fun unlock(self: TimelockedStakedIota, ctx: &TxContext): StakedIota {
     let (staked, expiration_timestamp_ms, _) = unpack(self);
 
     // Check if the lock has expired.
-    assert!(expiration_timestamp_ms <= ctx.epoch_timestamp_ms(), ETimelockedStakedIotaShouldBeExpired);
+    assert!(
+        expiration_timestamp_ms <= ctx.epoch_timestamp_ms(),
+        ETimelockedStakedIotaShouldBeExpired,
+    );
 
     staked
 }

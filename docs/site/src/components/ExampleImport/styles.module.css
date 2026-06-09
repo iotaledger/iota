@@ -1,5 +1,5 @@
 .lineNumbers {
-    color: #aaa;
+    color: var(--iota-example-import);
     font-size: 10px;
     vertical-align: middle;
 }
@@ -9,5 +9,5 @@
 }
 
 .token-line .highlighted {
-    background-color: #fff000;
+    background-color: var(--iota-warning);
 }

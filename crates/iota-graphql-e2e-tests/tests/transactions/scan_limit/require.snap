@@ -10,7 +10,7 @@ task 1, lines 7-28:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5791200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5791200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 30:
 //# create-checkpoint
@@ -20,31 +20,31 @@ task 3, line 32:
 //# run Test::M1::create --args 0 @B --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4, line 34:
 //# run Test::M1::create --args 1 @B --sender A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 36:
 //# run Test::M1::create --args 2 @B --sender A
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 38:
 //# run Test::M1::create --args 3 @B --sender A
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 40:
 //# run Test::M1::create --args 4 @B --sender A
 created: object(7,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 8, line 42:
 //# create-checkpoint
@@ -54,31 +54,31 @@ task 9, line 44:
 //# run Test::M1::create --args 100 @B --sender A
 created: object(9,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 10, line 46:
 //# run Test::M1::create --args 101 @B --sender A
 created: object(10,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 11, line 48:
 //# run Test::M1::create --args 102 @B --sender A
 created: object(11,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 12, line 50:
 //# run Test::M1::create --args 103 @B --sender A
 created: object(12,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 13, line 52:
 //# run Test::M1::create --args 104 @B --sender A
 created: object(13,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 14, line 54:
 //# create-checkpoint
@@ -89,12 +89,6 @@ task 15, lines 56-75:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
-      },
       "nodes": [
         {
           "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
@@ -176,7 +170,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
+      }
     }
   }
 }
@@ -186,12 +186,6 @@ task 16, lines 77-96:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
-      },
       "nodes": [
         {
           "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
@@ -273,7 +267,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
+      }
     }
   }
 }
@@ -306,12 +306,6 @@ task 18, lines 119-138:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
-      },
       "nodes": [
         {
           "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
@@ -393,7 +387,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -426,12 +426,6 @@ task 20, lines 161-180:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
-      },
       "nodes": [
         {
           "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
@@ -513,7 +507,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -546,13 +546,13 @@ task 22, lines 203-222:
 Response: {
   "data": {
     "transactionBlocks": {
+      "nodes": [],
       "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
         "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
-      },
-      "nodes": []
+      }
     }
   }
 }
@@ -585,12 +585,6 @@ task 24, lines 246-270:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": false,
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
@@ -603,7 +597,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }

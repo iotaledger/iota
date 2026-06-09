@@ -7,11 +7,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI,
 };
 use iota_macros::sim_test;
+use iota_sdk_types::{Owner, TransactionKind};
 use iota_simulator::fastcrypto::encoding::Base64;
-use iota_types::{
-    object::Owner, programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionKind,
-};
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -49,7 +47,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
         builder.transfer_object(other_address, obj).unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
 
     let devinspect_response = http_client
         .dev_inspect_transaction_block(
@@ -69,16 +67,16 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
         .effects
         .mutated()
         .iter()
-        .find(|o| o.reference.object_id == obj.0)
+        .find(|o| o.reference.object_id == obj.object_id)
         .unwrap();
     assert_eq!(
         tx_effect_obj_reassigned.owner,
-        Owner::AddressOwner(other_address)
+        Owner::Address(other_address)
     );
 
     let actual_object_info = http_client
         .get_object(
-            obj.0,
+            obj.object_id,
             Some(IotaObjectDataOptions {
                 show_owner: true,
                 ..Default::default()
@@ -89,7 +87,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
 
     assert_eq!(
         actual_object_info.data.unwrap().owner.unwrap(),
-        Owner::AddressOwner(address)
+        Owner::Address(address)
     );
 
     Ok(())

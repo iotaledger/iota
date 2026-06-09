@@ -8,14 +8,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use move_binary_format::{
-    errors::{verification_error, Location, PartialVMError, PartialVMResult, VMResult},
+    IndexKind,
+    errors::{Location, PartialVMError, PartialVMResult, VMResult, verification_error},
     file_format::{
         AbilitySet, Bytecode, CodeOffset, CompiledModule, DatatypeHandleIndex, DatatypeTyParameter,
         FunctionDefinitionIndex, FunctionHandleIndex, ModuleHandleIndex, SignatureToken,
         TableIndex, Visibility,
     },
     file_format_common::VERSION_5,
-    safe_unwrap, IndexKind,
+    safe_unwrap,
 };
 use move_core_types::{identifier::Identifier, language_storage::ModuleId, vm_status::StatusCode};
 

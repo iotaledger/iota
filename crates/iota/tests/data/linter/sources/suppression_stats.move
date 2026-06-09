@@ -7,10 +7,6 @@
 
 #[allow(lint(custom_state_change))]
 module linter::suppression_stats {
-    use iota::object::UID;
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
-
     #[allow(unused_field)]
     public struct S1 has key, store {
         id: UID

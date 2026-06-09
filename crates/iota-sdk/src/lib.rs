@@ -97,7 +97,7 @@ use std::{
 
 use async_trait::async_trait;
 use base64::Engine;
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 pub use iota_json as json;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
@@ -106,16 +106,16 @@ pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
 };
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
-use iota_types::base_types::{IotaAddress, ObjectID, ObjectInfo};
+use iota_types::base_types::IotaAddress;
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
     rpc_params,
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
-use move_core_types::language_storage::StructTag;
 use reqwest::header::HeaderName;
 use rustls::crypto::{CryptoProvider, ring};
 use serde_json::Value;
@@ -635,31 +635,23 @@ impl DataReader for ReadApi {
         &self,
         address: IotaAddress,
         object_type: StructTag,
-    ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
+        cursor: Option<ObjectId>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
         let query = Some(IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(object_type)),
-            options: Some(
-                IotaObjectDataOptions::new()
-                    .with_previous_transaction()
-                    .with_type()
-                    .with_owner(),
-            ),
+            options: Some(options),
         });
 
-        let result = PagedFn::stream(async |cursor| {
-            self.get_owned_objects(address, query.clone(), cursor, None)
-                .await
-        })
-        .map(|v| v?.try_into())
-        .try_collect::<Vec<_>>()
-        .await?;
-
-        Ok(result)
+        Ok(self
+            .get_owned_objects(address, query, cursor, limit)
+            .await?)
     }
 
     async fn get_object_with_options(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: IotaObjectDataOptions,
     ) -> Result<IotaObjectResponse, anyhow::Error> {
         Ok(self.get_object_with_options(object_id, options).await?)
@@ -766,6 +758,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use futures::StreamExt;
     use iota_json_rpc_types::Page;
 
     use super::*;

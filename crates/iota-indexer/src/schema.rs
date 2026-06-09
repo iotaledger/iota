@@ -41,6 +41,26 @@ diesel::table! {
 }
 
 diesel::table! {
+    checkpointed_objects (object_id) {
+        object_id -> Bytea,
+        object_version -> Int8,
+        object_status -> Int2,
+        object_digest -> Nullable<Bytea>,
+        checkpoint_sequence_number -> Int8,
+        owner_type -> Nullable<Int2>,
+        owner_id -> Nullable<Bytea>,
+        object_type -> Nullable<Text>,
+        object_type_package -> Nullable<Bytea>,
+        object_type_module -> Nullable<Text>,
+        object_type_name -> Nullable<Text>,
+        serialized_object -> Nullable<Bytea>,
+        coin_type -> Nullable<Text>,
+        coin_balance -> Nullable<Int8>,
+        df_kind -> Nullable<Int2>,
+    }
+}
+
+diesel::table! {
     checkpoints (sequence_number) {
         sequence_number -> Int8,
         checkpoint_digest -> Bytea,
@@ -230,6 +250,27 @@ diesel::table! {
         object_type_module -> Nullable<Text>,
         object_type_name -> Nullable<Text>,
         serialized_object -> Bytea,
+        coin_type -> Nullable<Text>,
+        coin_balance -> Nullable<Int8>,
+        df_kind -> Nullable<Int2>,
+        finalized_in_cp -> Nullable<Int8>,
+    }
+}
+
+diesel::table! {
+    objects_backward_history (superseded_at_checkpoint, object_id, object_version) {
+        object_id -> Bytea,
+        object_version -> Int8,
+        object_status -> Int2,
+        object_digest -> Nullable<Bytea>,
+        superseded_at_checkpoint -> Int8,
+        owner_type -> Nullable<Int2>,
+        owner_id -> Nullable<Bytea>,
+        object_type -> Nullable<Text>,
+        object_type_package -> Nullable<Bytea>,
+        object_type_module -> Nullable<Text>,
+        object_type_name -> Nullable<Text>,
+        serialized_object -> Nullable<Bytea>,
         coin_type -> Nullable<Text>,
         coin_balance -> Nullable<Int8>,
         df_kind -> Nullable<Int2>,
@@ -441,6 +482,20 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    watermarks (entity) {
+        entity -> Text,
+        current_epoch -> Int8,
+        max_committed_cp -> Int8,
+        max_committed_tx -> Int8,
+        min_available_epoch -> Int8,
+        min_bounds_updated_at_timestamp_ms -> Int8,
+        lowest_unpruned_key -> Int8,
+        min_available_tx -> Int8,
+        min_available_cp -> Int8,
+    }
+}
+
 #[macro_export]
 macro_rules! for_all_tables {
     ($action:path) => {
@@ -449,6 +504,7 @@ macro_rules! for_all_tables {
             address_metrics,
             addresses,
             chain_identifier,
+            checkpointed_objects,
             checkpoints,
             display,
             epoch_peak_tps,
@@ -465,6 +521,7 @@ macro_rules! for_all_tables {
             move_call_metrics,
             move_calls,
             objects,
+            objects_backward_history,
             objects_history,
             objects_snapshot,
             objects_version,
@@ -484,7 +541,8 @@ macro_rules! for_all_tables {
             tx_kinds,
             tx_recipients,
             tx_senders,
-            tx_wrapped_or_deleted_objects
+            tx_wrapped_or_deleted_objects,
+            watermarks
         );
     };
 }

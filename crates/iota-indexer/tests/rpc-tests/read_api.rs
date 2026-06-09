@@ -1,46 +1,51 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc, time::Duration};
+use std::{fs::File, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
+    config::PruningOptions,
     models::transactions::StoredTransaction,
-    store::package_resolver::IndexerStorePackageResolver,
+    store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
     test_utils::{TestDatabase, db_url},
 };
-use iota_json::{call_args, type_args};
+use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
-    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
+    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, TransactionFilterV2,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
+    TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    crypto::{AccountKeyPair, get_key_pair},
+    base_types::{ObjectRef, SequenceNumber},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
-    error::IotaObjectResponseError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, ObjectArg},
+    transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
-use move_core_types::identifier::Identifier;
+use jsonrpsee::http_client::HttpClient;
+use rand::{SeedableRng, rngs::StdRng};
 use serde_json::Value;
 
 use crate::{
+    coin_api::execute_move_call,
     common::{
-        ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
-        indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
-        rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+        ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer_checkpoint,
+        indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
+        indexer_wait_for_transaction, publish_test_move_package, rpc_call_error_msg_matches,
+        start_test_cluster_with_read_write_indexer,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -157,7 +162,7 @@ fn multi_get_objects_with_options(options: IotaObjectDataOptions) {
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
-            .collect::<Vec<ObjectID>>();
+            .collect::<Vec<ObjectId>>();
 
         let indexer_objects = client
             .multi_get_objects(object_ids, Some(options))
@@ -267,10 +272,13 @@ fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockRespon
     });
 }
 
-async fn wait_for_objects_history() {
-    // Objects history is not filled by optimistic indexing, this method waits a few
-    // seconds so that checkpoint indexing has a chance to kick in
-    tokio::time::sleep(Duration::from_secs(3)).await;
+async fn wait_for_objects_history(
+    tx_digest: TransactionDigest,
+    pg_store: &PgIndexerStore,
+    indexer_client: &HttpClient,
+) {
+    // we need tx to be checkpointed so that changes to objects_history are written
+    indexer_wait_for_transaction(tx_digest, pg_store, indexer_client).await
 }
 
 #[test]
@@ -366,7 +374,7 @@ fn get_checkpoint_by_digest_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(CheckpointDigest(11111111111111111111111111111111)) not found`"}"#,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(Digest(\"11111111111111111111111111111111\")) not found`"}"#,
         ));
     });
 }
@@ -571,7 +579,6 @@ fn get_checkpoints_by_cursor_and_limit_descending() {
             .unwrap();
 
         assert_eq!(
-            // vec![2, 1, 5],
             vec![2, 1, 0],
             indexer_checkpoint
                 .data
@@ -644,7 +651,7 @@ fn get_object_not_found() {
 
         let indexer_obj = client
             .get_object(
-                ObjectID::from_str(
+                ObjectId::from_str(
                     "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
                 )
                 .unwrap(),
@@ -757,11 +764,11 @@ fn multi_get_objects_not_found() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let object_ids = vec![
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
             )
             .unwrap(),
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
             )
             .unwrap(),
@@ -817,14 +824,14 @@ fn multi_get_objects_found_and_not_found() {
             .data
             .iter()
             .map(|iota_object| iota_object.object_id().unwrap())
-            .collect::<Vec<ObjectID>>();
+            .collect::<Vec<ObjectId>>();
 
         object_ids.extend_from_slice(&[
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
             )
             .unwrap(),
-            ObjectID::from_str(
+            ObjectId::from_str(
                 "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82",
             )
             .unwrap(),
@@ -941,7 +948,7 @@ fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
         let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
@@ -1031,7 +1038,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
         let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
@@ -1115,7 +1122,7 @@ fn get_events_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Indexer failed to read PostgresDB with error: `Record not found`"}"#,
+            r#"{"code":-32603,"message":"Missing data due to pruning: `requested events not available`"}"#,
         ))
     });
 }
@@ -1478,18 +1485,18 @@ fn try_get_past_object_object_not_exists() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let object_id = ObjectID::random();
-        let version = SequenceNumber::new();
+        let object_id = ObjectId::random();
+        let version = SequenceNumber::default();
 
         let result = client
             .try_get_past_object(object_id, version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
             IotaPastObjectResponse::ObjectNotExists(object_id),
-            "Mismatch in ObjectNotExists response"
+            "mismatch in ObjectNotExists response"
         );
     });
 }
@@ -1508,30 +1515,30 @@ fn try_get_past_object_version_found() {
 
         let (sender, _): (_, AccountKeyPair) = get_key_pair();
 
-        let gas_ref = cluster
-            .fund_address_and_return_gas(
+        let (gas_ref, tx_digest) = cluster
+            .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
 
-        wait_for_objects_history().await;
+        wait_for_objects_history(tx_digest, store, client).await;
 
         let result = client
-            .try_get_past_object(gas_ref.0, gas_ref.1, None)
+            .try_get_past_object(gas_ref.object_id, gas_ref.version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, gas_ref.1,
-                    "Expected object version {:?} but got {:?}",
-                    gas_ref.1, data.version
+                    data.version, gas_ref.version,
+                    "expected object version {:?} but got {:?}",
+                    gas_ref.version, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {result:?}"),
+            _ => panic!("expected VersionFound response, got: {result:?}"),
         }
     });
 }
@@ -1550,27 +1557,27 @@ fn try_get_past_object_version_not_found() {
 
         let (sender, _): (_, AccountKeyPair) = get_key_pair();
 
-        let gas_ref = cluster
-            .fund_address_and_return_gas(
+        let (gas_ref, tx_digest) = cluster
+            .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
 
-        wait_for_objects_history().await;
+        wait_for_objects_history(tx_digest, store, client).await;
 
-        let missing_version = gas_ref.1.one_before().expect("Version should be > 0");
+        let missing_version = gas_ref.version.previous().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.0, missing_version, None)
+            .try_get_past_object(gas_ref.object_id, missing_version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::VersionNotFound(gas_ref.0, missing_version),
-            "Mismatch in VersionNotFound response"
+            IotaPastObjectResponse::VersionNotFound(gas_ref.object_id, missing_version),
+            "mismatch in VersionNotFound response"
         );
     });
 }
@@ -1589,32 +1596,32 @@ fn try_get_past_object_version_too_high() {
 
         let (sender, _): (_, AccountKeyPair) = get_key_pair();
 
-        let gas_ref = cluster
-            .fund_address_and_return_gas(
+        let (gas_ref, tx_digest) = cluster
+            .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
 
-        wait_for_objects_history().await;
+        wait_for_objects_history(tx_digest, store, client).await;
 
-        let latest_version = gas_ref.1;
-        let asked_version = latest_version.next();
+        let latest_version = gas_ref.version;
+        let asked_version = latest_version.next().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.0, asked_version, None)
+            .try_get_past_object(gas_ref.object_id, asked_version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
             IotaPastObjectResponse::VersionTooHigh {
-                object_id: gas_ref.0,
+                object_id: gas_ref.object_id,
                 asked_version,
                 latest_version,
             },
-            "Mismatch in VersionTooHigh response"
+            "mismatch in VersionTooHigh response"
         );
     });
 }
@@ -1641,57 +1648,57 @@ fn try_get_past_object_object_deleted() {
         let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
 
         // Delete the NFT
-        delete_nft(context, sender, package_id, nft_object_ref).await;
-        wait_for_objects_history().await;
+        let delete_nft_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
+        wait_for_objects_history(delete_nft_tx.digest, store, client).await;
 
-        let deleted_version = nft_object_ref.1.next();
+        let deleted_version = nft_object_ref.version.next().unwrap();
 
         let result = client
             .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
-                object_id: nft_object_ref.0,
-                version: deleted_version,
-                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
-            }),
-            "Mismatch in ObjectDeleted response"
+            IotaPastObjectResponse::ObjectDeleted(ObjectRef::new(
+                nft_object_ref.object_id,
+                deleted_version,
+                ObjectDigest::OBJECT_DELETED,
+            )),
+            "mismatch in ObjectDeleted response"
         );
 
         // Retrieve the deleted object at that version
         let result = client
             .try_get_past_object(nft_object_id, deleted_version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
-                object_id: nft_object_ref.0,
-                version: deleted_version,
-                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
-            }),
-            "Mismatch in ObjectDeleted response"
+            IotaPastObjectResponse::ObjectDeleted(ObjectRef::new(
+                nft_object_ref.object_id,
+                deleted_version,
+                ObjectDigest::OBJECT_DELETED,
+            )),
+            "mismatch in ObjectDeleted response"
         );
 
         // Try fetching the object before the deleted version.
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version.one_before().unwrap(), None)
+            .try_get_past_object(nft_object_id, deleted_version.previous().unwrap(), None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, nft_object_ref.1,
-                    "Expected object version {:?} but got {:?}",
-                    nft_object_ref.1, data.version
+                    data.version, nft_object_ref.version,
+                    "expected object version {:?} but got {:?}",
+                    nft_object_ref.version, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {result:?}"),
+            _ => panic!("expected VersionFound response, got: {result:?}"),
         }
     });
 }
@@ -1708,12 +1715,12 @@ fn try_multi_get_past_objects() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
-        let object_3 = ObjectID::random();
-        let version_1 = SequenceNumber::new();
-        let version_2 = SequenceNumber::new();
-        let version_3 = SequenceNumber::new();
+        let object_1 = ObjectId::random();
+        let object_2 = ObjectId::random();
+        let object_3 = ObjectId::random();
+        let version_1 = SequenceNumber::default();
+        let version_2 = SequenceNumber::default();
+        let version_3 = SequenceNumber::default();
 
         let requests = vec![
             IotaGetPastObjectRequest {
@@ -1733,9 +1740,9 @@ fn try_multi_get_past_objects() {
         let results = client
             .try_multi_get_past_objects(requests, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
-        assert_eq!(results.len(), 3, "Expected results for all objects");
+        assert_eq!(results.len(), 3, "expected results for all objects");
 
         let expected_responses = vec![
             IotaPastObjectResponse::ObjectNotExists(object_1),
@@ -1745,37 +1752,38 @@ fn try_multi_get_past_objects() {
 
         assert_eq!(
             results, expected_responses,
-            "Mismatch in multi-get response results"
+            "mismatch in multi-get response results"
         );
 
         // Create valid objects
         let (sender, _): (_, AccountKeyPair) = get_key_pair();
-        let gas_ref_1 = cluster
-            .fund_address_and_return_gas(
+        let (gas_ref_1, tx_digest_1) = cluster
+            .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
 
-        let gas_ref_2 = cluster
-            .fund_address_and_return_gas(
+        let (gas_ref_2, tx_digest_2) = cluster
+            .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
 
-        wait_for_objects_history().await;
+        wait_for_objects_history(tx_digest_1, store, client).await;
+        wait_for_objects_history(tx_digest_2, store, client).await;
 
         let requests = vec![
             IotaGetPastObjectRequest {
-                object_id: gas_ref_1.0,
-                version: gas_ref_1.1,
+                object_id: gas_ref_1.object_id,
+                version: gas_ref_1.version,
             },
             IotaGetPastObjectRequest {
-                object_id: gas_ref_2.0,
-                version: gas_ref_2.1,
+                object_id: gas_ref_2.object_id,
+                version: gas_ref_2.version,
             },
             IotaGetPastObjectRequest {
                 object_id: object_3,
@@ -1786,38 +1794,38 @@ fn try_multi_get_past_objects() {
         let results = client
             .try_multi_get_past_objects(requests, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         let past_object_response_1 = client
-            .try_get_past_object(gas_ref_1.0, gas_ref_1.1, None)
+            .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         let past_object_response_2 = client
-            .try_get_past_object(gas_ref_2.0, gas_ref_2.1, None)
+            .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         match past_object_response_1 {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, gas_ref_1.1,
-                    "Expected object version {:?} but got {:?}",
-                    gas_ref_1.1, data.version
+                    data.version, gas_ref_1.version,
+                    "expected object version {:?} but got {:?}",
+                    gas_ref_1.version, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {past_object_response_1:?}"),
+            _ => panic!("expected VersionFound response, got: {past_object_response_1:?}"),
         }
 
         match past_object_response_2 {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, gas_ref_2.1,
-                    "Expected object version {:?} but got {:?}",
-                    gas_ref_2.1, data.version
+                    data.version, gas_ref_2.version,
+                    "expected object version {:?} but got {:?}",
+                    gas_ref_2.version, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {past_object_response_2:?}"),
+            _ => panic!("expected VersionFound response, got: {past_object_response_2:?}"),
         }
 
         let expected_responses = vec![
@@ -1828,7 +1836,7 @@ fn try_multi_get_past_objects() {
 
         assert_eq!(
             results, expected_responses,
-            "Mismatch in multi-get response results after creating objects"
+            "mismatch in multi-get response results after creating objects"
         );
     });
 }
@@ -1855,7 +1863,7 @@ fn try_get_object_before_version() {
                 sender,
             )
             .await;
-        let (object_id, object_version, _) = cluster
+        let object_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
@@ -1864,46 +1872,45 @@ fn try_get_object_before_version() {
             .await;
         // we need the object to be indexed before we can
         // create a transaction that uses it as an input
-        indexer_wait_for_object(client, object_id, object_version).await;
+        indexer_wait_for_object(client, object_ref.object_id, object_ref.version).await;
 
         let tx_bytes = client
             .transfer_object(
                 sender,
-                object_id,
-                Some(gas_ref.0),
+                object_ref.object_id,
+                Some(gas_ref.object_id),
                 100_000_000.into(),
                 receiver,
             )
             .await
-            .expect("Transfer should succeed");
-        execute_tx_and_wait_for_indexer(client, store, tx_bytes, &keypair).await;
-        wait_for_objects_history().await;
+            .expect("transfer should succeed");
+        execute_tx_and_wait_for_indexer_checkpoint(client, store, tx_bytes, &keypair).await;
 
-        let (latest_object, latest_version, _) = cluster.get_latest_object_ref(&gas_ref.0).await;
+        let object_ref = cluster.get_latest_object_ref(&gas_ref.object_id).await;
 
         assert_eq!(
-            latest_object, gas_ref.0,
-            "Latest object should match gas_ref.0"
+            object_ref.object_id, gas_ref.object_id,
+            "latest object should match gas_ref.object_id"
         );
         assert!(
-            latest_version > gas_ref.1,
-            "Latest version should be greater than initial version"
+            object_ref.version > gas_ref.version,
+            "latest version should be greater than initial version"
         );
 
         let result = client
-            .try_get_object_before_version(gas_ref.0, latest_version)
+            .try_get_object_before_version(gas_ref.object_id, object_ref.version)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, gas_ref.1,
-                    "Expected object version {:?} but got {:?}",
-                    gas_ref.1, data.version
+                    data.version, gas_ref.version,
+                    "expected object version {:?} but got {:?}",
+                    gas_ref.version, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {result:?}"),
+            _ => panic!("expected VersionFound response, got: {result:?}"),
         }
     });
 }
@@ -1939,15 +1946,19 @@ async fn failed_stored_tx_into_transaction_block() {
     let failed_tx: StoredTransaction = serde_json::from_value(failed_tx).unwrap();
 
     let package_resolver = Arc::new(Resolver::new(IndexerStorePackageResolver::new(pool)));
-    assert!(
-        failed_tx
-            .try_into_iota_transaction_block_response(
-                IotaTransactionBlockResponseOptions::full_content(),
-                package_resolver
-            )
-            .await
-            .is_ok()
-    );
+
+    failed_tx
+        .try_into_iota_transaction_block_response(
+            IotaTransactionBlockResponseOptions::full_content(),
+            &package_resolver,
+        )
+        .await
+        .unwrap();
+
+    // We have to drop the package resolver before dropping the test db because it
+    // holds a reference to the db pool and the active connection will prevent the
+    // db from being dropped.
+    drop(package_resolver);
     test_db.drop_if_exists();
 }
 
@@ -1959,7 +1970,10 @@ fn get_chain_identifier_with_pruning_enabled() {
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("test_get_chain_identifier_with_pruning_enabled"),
             None,
-            Some(1),
+            Some(PruningOptions {
+                epochs_to_keep: Some(1),
+                ..Default::default()
+            }),
         )
         .await;
 
@@ -2020,8 +2034,8 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
                 address,
             )
             .await;
-        let gas_object_id = gas.0;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        let gas_object_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         // 2) Publish the `Warrior` package
         let (package_id, tx_digest) =
@@ -2036,8 +2050,8 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
             let sword = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("new_sword")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("new_sword"),
                 vec![],
                 vec![strength],
             );
@@ -2062,10 +2076,10 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .unwrap()
             .created()
             .iter()
-            .map(|sword| sword.reference.clone())
-            .collect::<Vec<IotaObjectRef>>();
+            .map(|sword| sword.reference)
+            .collect::<Vec<ObjectRef>>();
 
-        let sword_object_ref = sword_object_ref
+        let sword_object_ref = *sword_object_ref
             .first()
             .expect("expected at least one created object");
 
@@ -2074,23 +2088,21 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let sword_object_ref_arg = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    sword_object_ref.to_object_ref(),
-                )))
+                .input(CallArg::ImmutableOrOwned(sword_object_ref))
                 .expect("valid pure");
 
             let warrior = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("new_warrior")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("new_warrior"),
                 vec![],
                 vec![],
             );
 
             let _ = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("equip")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("equip"),
                 vec![],
                 vec![warrior, sword_object_ref_arg],
             );
@@ -2153,10 +2165,10 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .unwrap()
             .created()
             .iter()
-            .map(|warrior| warrior.reference.clone())
-            .collect::<Vec<IotaObjectRef>>();
+            .map(|warrior| warrior.reference)
+            .collect::<Vec<ObjectRef>>();
 
-        let warrior_object_ref = warrior_object_ref
+        let warrior_object_ref = *warrior_object_ref
             .first()
             .expect("expected at least one created object for warrior");
 
@@ -2164,23 +2176,21 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let warrior_object_ref_arg = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    warrior_object_ref.to_object_ref(),
-                )))
+                .input(CallArg::ImmutableOrOwned(warrior_object_ref))
                 .unwrap();
 
             let sword = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("unequip")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("unequip"),
                 vec![],
                 vec![warrior_object_ref_arg],
             );
 
             let _ = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("destroy_sword")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("destroy_sword"),
                 vec![],
                 vec![sword],
             );
@@ -2262,15 +2272,13 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let warrior_object_ref_arg = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    warrior_object_ref,
-                )))
+                .input(CallArg::ImmutableOrOwned(warrior_object_ref))
                 .unwrap();
 
             let _ = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("destroy_warrior")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("destroy_warrior"),
                 vec![],
                 vec![warrior_object_ref_arg],
             );
@@ -2354,8 +2362,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
                 address,
             )
             .await;
-        let gas_object_id = gas.0;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        let gas_object_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         // 2) Publish the `Warrior` package
         let (package_id, tx_digest) =
@@ -2372,8 +2380,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             // Create the Sword
             let sword = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("new_sword")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("new_sword"),
                 vec![],
                 vec![strength],
             );
@@ -2381,8 +2389,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             // Create the Warrior
             let warrior = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("new_warrior")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("new_warrior"),
                 vec![],
                 vec![],
             );
@@ -2390,8 +2398,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             // Equip the Sword
             let _ = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("equip")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("equip"),
                 vec![],
                 vec![warrior, sword],
             );
@@ -2431,16 +2439,14 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
             // Reference to the Warrior object
             let warrior_object_ref_arg = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    warrior_object_ref,
-                )))
+                .input(CallArg::ImmutableOrOwned(warrior_object_ref))
                 .expect("valid pure");
 
             // Unwrap the Sword
             let sword = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("unequip")?,
+                Identifier::from_static("example"),
+                Identifier::from_static("unequip"),
                 vec![],
                 vec![warrior_object_ref_arg],
             );
@@ -2467,8 +2473,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .unwrap()
             .unwrapped()
             .iter()
-            .map(|sword| sword.reference.clone())
-            .collect::<Vec<IotaObjectRef>>();
+            .map(|sword| sword.reference)
+            .collect::<Vec<ObjectRef>>();
 
         assert_eq!(
             sword_object_ref.len(),
@@ -2502,6 +2508,165 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             query_res.data.first().unwrap().digest,
             create_and_wrap_tx_res.digest,
             "expected create and wrap transaction to be found"
+        );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn is_transaction_not_present() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        let rng = StdRng::from_seed([1; 32]);
+        let digest = TransactionDigest::generate(rng);
+
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        assert!(!client.is_transaction_indexed_on_node(digest).await.unwrap());
+    });
+}
+
+#[test]
+fn is_transaction_present() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let address = cluster.get_address_2();
+
+        let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
+
+        let gas = owned_objects.last().unwrap().object_id().unwrap();
+
+        let object_ids = owned_objects
+            .iter()
+            .take(owned_objects.len() - 1)
+            .map(|obj| obj.object_id().unwrap())
+            .collect::<Vec<_>>();
+
+        let transaction = cluster
+            .transfer_object(address, address, object_ids[0], gas, None)
+            .await
+            .unwrap();
+
+        assert!(
+            client
+                .is_transaction_indexed_on_node(transaction.digest)
+                .await
+                .unwrap()
+        );
+    });
+}
+
+#[test]
+fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = IotaKeyPair::Ed25519(keypair);
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+        let gas_object_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
+
+        let (object_ref, publish_tx_response) =
+            publish_test_move_package(client, address, &keypair, "wrap_unwrap").await?;
+        indexer_wait_for_transaction(publish_tx_response.digest, store, client).await;
+
+        let create_wrapped_res = execute_move_call(
+            client,
+            address,
+            &keypair,
+            object_ref.object_id,
+            "wrap_unwrap".to_string(),
+            "create_and_wrap".to_string(),
+            vec![],
+            vec![],
+            Some(gas_object_id),
+        )
+        .await?;
+
+        let wrapper_object_id = create_wrapped_res
+            .effects
+            .as_ref()
+            .unwrap()
+            .created()
+            .first()
+            .expect("expected created object")
+            .reference
+            .object_id;
+
+        let unwrap_res = execute_move_call(
+            client,
+            address,
+            &keypair,
+            object_ref.object_id,
+            "wrap_unwrap".to_string(),
+            "unwrap".to_string(),
+            vec![],
+            vec![IotaJsonValue::from_object_id(wrapper_object_id)],
+            Some(gas_object_id),
+        )
+        .await?;
+        indexer_wait_for_transaction(unwrap_res.digest, store, client).await;
+
+        let options = IotaTransactionBlockResponseOptions::default().with_object_changes();
+        let fullnode_tx = cluster
+            .rpc_client()
+            .get_transaction_block(unwrap_res.digest, Some(options.clone()))
+            .await
+            .unwrap();
+        let indexer_tx = client
+            .get_transaction_block(unwrap_res.digest, Some(options.clone()))
+            .await
+            .unwrap();
+
+        assert!(
+            fullnode_tx
+                .object_changes
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|change| matches!(change, ObjectChange::Unwrapped { .. })),
+            "fullnode response should contain Unwrapped object change"
+        );
+        assert!(
+            indexer_tx
+                .object_changes
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|change| matches!(change, ObjectChange::Unwrapped { .. })),
+            "indexer response should contain Unwrapped object change"
+        );
+
+        assert_eq!(
+            fullnode_tx, indexer_tx,
+            "fullnode and indexer responses should match"
         );
 
         Ok(())

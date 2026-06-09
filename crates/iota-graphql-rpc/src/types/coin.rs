@@ -6,12 +6,14 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
-use iota_types::{TypeTag, coin::Coin as NativeCoin};
+use iota_indexer::types::OwnerType;
+use iota_sdk_types::TypeTag;
+use iota_types::coin::Coin as NativeCoin;
 
 use crate::{
+    backward_view::consistent,
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::{View, build_objects_query},
     data::{Db, QueryExecutor},
     error::Error,
     filter,
@@ -28,7 +30,9 @@ use crate::{
         iota_names_registration::{NameFormat, NameRegistration},
         move_object::{MoveObject, MoveObjectImpl},
         move_value::MoveValue,
-        object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+        object::{
+            self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus, StoredBackwardObject,
+        },
         owner::OwnerImpl,
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
@@ -164,14 +168,13 @@ impl Coin {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -229,6 +232,9 @@ impl Coin {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -344,16 +350,22 @@ impl Coin {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
+        let max_available_range = db.max_available_range;
+
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                    max_available_range,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredHistoryObject>(
+                Ok(Some(page.paginate_raw_query::<StoredBackwardObject>(
                     conn,
                     checkpoint_viewed_at,
-                    coins_query(coin_type, owner, range, &page),
+                    coins_query(coin_type, owner, checkpoint_viewed_at, &page),
                 )?))
             })
             .await?
@@ -369,8 +381,9 @@ impl Coin {
             // To maintain consistency, the returned cursor should have the same upper-bound
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let stored_history = stored.into_stored_history(checkpoint_viewed_at);
             let object =
-                Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?;
+                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?;
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
@@ -394,7 +407,7 @@ impl TryFrom<&MoveObject> for Coin {
     type Error = CoinDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.is_coin() {
+        if !move_object.native.struct_tag().is_coin() {
             return Err(CoinDowncastError::NotACoin);
         }
 
@@ -412,16 +425,12 @@ impl TryFrom<&MoveObject> for Coin {
 fn coins_query(
     coin_type: TypeTag,
     owner: Option<IotaAddress>,
-    range: AvailableRange,
+    checkpoint_viewed_at: u64,
     page: &Page<object::Cursor>,
 ) -> RawQuery {
-    build_objects_query(
-        View::Consistent,
-        range,
-        page,
-        move |query| apply_filter(query, &coin_type, owner),
-        move |newer| newer,
-    )
+    consistent::query(checkpoint_viewed_at, page, move |query| {
+        apply_filter(query, &coin_type, owner)
+    })
 }
 
 fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<IotaAddress>) -> RawQuery {
@@ -439,7 +448,7 @@ fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<IotaAddr
     query = filter!(
         query,
         "coin_type IS NOT NULL AND coin_type = {}",
-        coin_type.to_canonical_display(/* with_prefix */ true)
+        coin_type.to_canonical_string(/* with_prefix */ true)
     );
 
     query

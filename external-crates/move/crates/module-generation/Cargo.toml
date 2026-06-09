@@ -8,8 +8,10 @@ publish = false
 description = "Move binary module generation"
 
 [dependencies]
+# external dependencies
 rand.workspace = true
 
+# internal dependencies
 move-binary-format.workspace = true
 move-bytecode-verifier.workspace = true
 move-core-types.workspace = true

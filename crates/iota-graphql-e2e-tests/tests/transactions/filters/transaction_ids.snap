@@ -10,7 +10,7 @@ task 1, lines 7-20:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5168000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5168000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 22:
 //# create-checkpoint
@@ -20,7 +20,7 @@ task 3, line 24:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4, line 26:
 //# create-checkpoint
@@ -31,13 +31,13 @@ task 5, lines 28-46:
 Response: {
   "data": {
     "transactionBlocks": {
+      "nodes": [],
       "pageInfo": {
+        "endCursor": null,
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "endCursor": null,
         "startCursor": null
-      },
-      "nodes": []
+      }
     }
   }
 }
@@ -47,13 +47,13 @@ task 6, lines 48-66:
 Response: {
   "data": {
     "transactionBlocks": {
+      "nodes": [],
       "pageInfo": {
+        "endCursor": null,
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "endCursor": null,
         "startCursor": null
-      },
-      "nodes": []
+      }
     }
   }
 }
@@ -86,13 +86,13 @@ task 8, lines 88-106:
 Response: {
   "data": {
     "transactionBlocks": {
+      "nodes": [],
       "pageInfo": {
+        "endCursor": "eyJjIjoyLCJ0IjoyLCJpIjp0cnVlfQ",
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "endCursor": "eyJjIjoyLCJ0IjoyLCJpIjp0cnVlfQ",
         "startCursor": "eyJjIjoyLCJ0IjowLCJpIjp0cnVlfQ"
-      },
-      "nodes": []
+      }
     }
   }
 }

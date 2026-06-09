@@ -6,13 +6,13 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
+use iota_sdk_types::{Argument, Owner};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     move_package::UpgradePolicy,
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, ObjectArg},
+    transaction::{CallArg, SharedObjectRef},
 };
 use move_compiler::editions::Flavor;
 use move_core_types::{
@@ -70,8 +70,8 @@ pub struct IotaInitArgs {
     pub reference_gas_price: Option<u64>,
     #[arg(long)]
     pub default_gas_price: Option<u64>,
-    #[command(flatten)]
-    pub snapshot_config: SnapshotLagConfig,
+    #[clap(long = "move-auth")]
+    pub move_auth: Option<bool>,
     #[arg(long)]
     pub flavor: Option<Flavor>,
     /// The number of epochs to keep in the database. Epochs outside of this
@@ -82,10 +82,10 @@ pub struct IotaInitArgs {
     /// offchain indexer and reader.
     #[clap(long)]
     pub data_ingestion_path: Option<PathBuf>,
-    /// URL for the IOTA REST API. To be passed to the offchain indexer and
+    /// URL for the IOTA gRPC API. To be passed to the offchain indexer and
     /// reader.
     #[clap(long)]
-    pub rest_api_url: Option<String>,
+    pub grpc_api_url: Option<String>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -115,6 +115,28 @@ pub struct ConsensusCommitPrologueCommand {
 }
 
 #[derive(Debug, clap::Parser)]
+pub struct InitAbstractAccountCommand {
+    #[arg(long)]
+    pub sender: Option<String>,
+    #[arg(
+        long,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+    )]
+    pub package_metadata: ParsedValue<IotaExtraValueArgs>,
+    #[arg(
+        long,
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1..),
+        action = clap::ArgAction::Append,
+    )]
+    pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    #[arg(long)]
+    pub create_function: String,
+    #[arg(long)]
+    pub account_type: String,
+}
+
+#[derive(Debug, clap::Parser)]
 pub struct ProgrammableTransactionCommand {
     #[arg(long)]
     pub sender: Option<String>,
@@ -137,6 +159,45 @@ pub struct ProgrammableTransactionCommand {
         action = clap::ArgAction::Append,
     )]
     pub inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+}
+
+#[derive(Debug, clap::Parser)]
+pub struct AbstractTransactionCommand {
+    #[arg(
+        long = "account",
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1),
+        action = clap::ArgAction::Append,
+    )]
+    pub account: ParsedValue<IotaExtraValueArgs>,
+    #[arg(long = "sponsor")]
+    pub sponsor: Option<String>,
+    #[arg(long = "gas-budget")]
+    pub gas_budget: Option<u64>,
+    #[arg(long)]
+    pub gas_price: Option<u64>,
+    #[arg(long = "gas-payment", value_parser = parse_fake_id)]
+    pub gas_payment: Vec<FakeID>,
+    #[arg(
+        long = "ptb-inputs",
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1..),
+        action = clap::ArgAction::Append,
+    )]
+    pub ptb_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    #[arg(
+        long = "auth-inputs",
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1..),
+        action = clap::ArgAction::Append,
+    )]
+    pub authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+}
+
+#[derive(Debug, Parser)]
+pub struct PublishDepsCommand {
+    #[arg(long, num_args(1..))]
+    pub paths: Vec<String>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -232,6 +293,9 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     ViewCheckpoint,
     RunGraphql(RunGraphqlCommand),
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
+    AbstractTransaction(AbstractTransactionCommand),
+    PublishDeps(PublishDepsCommand),
+    InitAbstractAccount(InitAbstractAccountCommand),
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
@@ -252,6 +316,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             }
             Some(("programmable", matches)) => IotaSubcommand::ProgrammableTransaction(
                 ProgrammableTransactionCommand::from_arg_matches(matches)?,
+            ),
+            Some(("abstract", matches)) => IotaSubcommand::AbstractTransaction(
+                AbstractTransactionCommand::from_arg_matches(matches)?,
             ),
             Some(("upgrade", matches)) => {
                 IotaSubcommand::UpgradePackage(UpgradePackageCommand::from_arg_matches(matches)?)
@@ -282,6 +349,12 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
                 RunCommand::from_arg_matches(matches)?,
                 ExtraRunArgs::from_arg_matches(matches)?,
             ),
+            Some(("publish-dependencies", matches)) => {
+                IotaSubcommand::PublishDeps(PublishDepsCommand::from_arg_matches(matches)?)
+            }
+            Some(("init-abstract-account", matches)) => IotaSubcommand::InitAbstractAccount(
+                InitAbstractAccountCommand::from_arg_matches(matches)?,
+            ),
             _ => {
                 return Err(clap::Error::raw(
                     clap::error::ErrorKind::InvalidSubcommand,
@@ -306,6 +379,7 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(TransferObjectCommand::command().name("transfer-object"))
             .subcommand(ConsensusCommitPrologueCommand::command().name("consensus-commit-prologue"))
             .subcommand(ProgrammableTransactionCommand::command().name("programmable"))
+            .subcommand(AbstractTransactionCommand::command().name("abstract"))
             .subcommand(UpgradePackageCommand::command().name("upgrade"))
             .subcommand(StagePackageCommand::command().name("stage-package"))
             .subcommand(SetAddressCommand::command().name("set-address"))
@@ -318,6 +392,8 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(
                 RunCommand::<ExtraValueArgs>::augment_args(ExtraRunArgs::command()).name("bench"),
             )
+            .subcommand(PublishDepsCommand::command().name("publish-dependencies"))
+            .subcommand(InitAbstractAccountCommand::command().name("init-abstract-account"))
     }
 
     fn command_for_update() -> clap::Command {
@@ -465,27 +541,24 @@ impl IotaValue {
         fake_id: FakeID,
         version: Option<SequenceNumber>,
         test_adapter: &IotaTestAdapter,
-    ) -> anyhow::Result<ObjectArg> {
+    ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
-        Ok(ObjectArg::Receiving(obj.compute_object_reference()))
+        Ok(CallArg::Receiving(obj.object_ref()))
     }
 
     fn read_shared_arg(
         fake_id: FakeID,
         version: Option<SequenceNumber>,
         test_adapter: &IotaTestAdapter,
-    ) -> anyhow::Result<ObjectArg> {
+    ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
-        if let Owner::Shared {
-            initial_shared_version,
-        } = obj.owner
-        {
-            Ok(ObjectArg::SharedObject {
+        if let Owner::Shared(initial_shared_version) = obj.owner {
+            Ok(CallArg::Shared(SharedObjectRef::new(
                 id,
                 initial_shared_version,
-                mutable: false,
-            })
+                false,
+            )))
         } else {
             bail!("{fake_id} is not a shared object.")
         }
@@ -495,35 +568,34 @@ impl IotaValue {
         fake_id: FakeID,
         version: Option<SequenceNumber>,
         test_adapter: &IotaTestAdapter,
-    ) -> anyhow::Result<ObjectArg> {
+    ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => Ok(ObjectArg::SharedObject {
+            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef::new(
                 id,
                 initial_shared_version,
-                mutable: true,
-            }),
-            Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
-                let obj_ref = obj.compute_object_reference();
-                Ok(ObjectArg::ImmOrOwnedObject(obj_ref))
+                true,
+            ))),
+            Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
+                let obj_ref = obj.object_ref();
+                Ok(CallArg::ImmutableOrOwned(obj_ref))
             }
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 
     pub(crate) fn into_call_arg(self, test_adapter: &IotaTestAdapter) -> anyhow::Result<CallArg> {
         Ok(match self {
             IotaValue::Object(fake_id, version) => {
-                CallArg::Object(Self::object_arg(fake_id, version, test_adapter)?)
+                Self::object_arg(fake_id, version, test_adapter)?
             }
             IotaValue::MoveValue(v) => CallArg::Pure(v.simple_serialize().unwrap()),
             IotaValue::Receiving(fake_id, version) => {
-                CallArg::Object(Self::receiving_arg(fake_id, version, test_adapter)?)
+                Self::receiving_arg(fake_id, version, test_adapter)?
             }
             IotaValue::ImmShared(fake_id, version) => {
-                CallArg::Object(Self::read_shared_arg(fake_id, version, test_adapter)?)
+                Self::read_shared_arg(fake_id, version, test_adapter)?
             }
             IotaValue::ObjVec(_) => bail!("obj vec is not supported as an input"),
             IotaValue::Digest(pkg) => {
@@ -531,7 +603,7 @@ impl IotaValue {
                 let Some(staged) = test_adapter.staged_modules.get(&pkg) else {
                     bail!("Unbound staged package '{pkg}'")
                 };
-                CallArg::Pure(bcs::to_bytes(&staged.digest).unwrap())
+                CallArg::pure(&staged.digest)
             }
         })
     }
@@ -545,7 +617,7 @@ impl IotaValue {
             IotaValue::ObjVec(vec) => builder.make_obj_vec(
                 vec.iter()
                     .map(|(fake_id, version)| Self::object_arg(*fake_id, *version, test_adapter))
-                    .collect::<Result<Vec<ObjectArg>, _>>()?,
+                    .collect::<Result<Vec<CallArg>, _>>()?,
             ),
             value => {
                 let call_arg = value.into_call_arg(test_adapter)?;

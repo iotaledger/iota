@@ -56,22 +56,3 @@ You can browse the Solo Go API reference (updated to the `master` branch) in
 [go-docs](https://pkg.go.dev/github.com/iotaledger/wasp/packages/solo).
 
 :::
-
-### Example Contracts
-
-You will need a smart contract to test along with Solo.
-
-The following sections will present some Solo usage examples. You can find the example code in
-the [Wasp repository](https://github.com/iotaledger/wasp/tree/develop/documentation/tutorial-examples).
-
-### Run `*_test` Files
-
-You can run `*_test` files by moving to their directory and running the following command:
-
-```shell
-go test
-```
-
-If you run this command from the `/documentation/tutorial-examples` folder, you will run the
-[Tutorial Test](https://github.com/iotaledger/wasp/blob/develop/documentation/tutorial-examples/test/tutorial_test.go),
-which contains all the examples explained in the following sections.

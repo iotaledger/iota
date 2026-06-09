@@ -1,6 +1,5 @@
 [workspace]
 resolver = "2"
-
 members = [
   "crates/*",
   # "move-execution/$CUT/crates/bytecode-verifier-tests",
@@ -13,8 +12,10 @@ members = [
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
+# external dependencies
 aes-gcm = "0.8.0"
 anyhow = "1.0.52"
+append-only-vec = "0.1.7"
 arbitrary = { version = "1.1.7", features = ["derive", "derive_arbitrary"] }
 async-trait = "0.1.42"
 bcs = "0.1.4"
@@ -33,7 +34,7 @@ crossbeam-channel = "0.5.0"
 crossterm = "0.25.0"
 curve25519-dalek = { version = "0.1.0", package = "curve25519-dalek-fiat", default-features = false, features = ["std", "u64_backend"] }
 datatest-stable = "0.1.1"
-derivative = "2.2.0"
+derive-where = "1.2.7"
 digest = "0.9.0"
 dir-diff = "0.3.2"
 dirs-next = "2.0.0"
@@ -88,29 +89,32 @@ regex = "1.5.5"
 ripemd160 = "0.9.1"
 serde = { version = "1.0.124", features = ["derive"] }
 serde-name = "0.1.1"
-serde-reflection = "0.4"
+serde-reflection = "0.5"
 serde_bytes = "0.11.5"
 serde_json = "1.0.64"
+serde_spanned = { version = "0.6.9", features = ["serde"] }
 serde_with = "3.9.0"
 serde_yaml = "0.8.26"
-sha2 = "0.9.3"
-sha3 = "0.9.1"
+sha2 = "0.10.9"
+sha3 = "0.11.0"
 shell-words = "1.0.0"
 similar = "2.4.0"
 simplelog = "0.9.0"
 smallvec = "1.6.1"
 stacker = "0.1.15"
 static_assertions = "1.1.0"
+strum = { version = "0.27.1", features = ["derive"] }
+strum_macros = "0.27.1"
 syn = { version = "1.0.64", features = ["derive"] }
 tempfile = "3.2.0"
 tera = "1.16.0"
 thiserror = "1.0.24"
 tiny-keccak = { version = "2.0.2", features = ["sha3"] }
-tokio = { version = "1.46.1", features = ["full"] }
+tokio = { version = "1.49.0", features = ["full"] }
 toml = "0.5.8"
-toml_edit = { version = "0.14.3", features = ["easy"] }
-tracing = "0.1.26"
-tracing-subscriber = { version = "0.3.15", features = ["env-filter"] }
+toml_edit = { version = "0.22.24", features = ["serde", "default"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 treeline = "0.1.0"
 uint = "0.9.4"
 url = "2.2.2"
@@ -121,6 +125,7 @@ whoami = { version = "1.2.1" }
 x25519-dalek = { version = "0.1.0", package = "x25519-dalek-fiat", default-features = false, features = ["std", "u64_backend"] }
 z3tracer = "0.8.0"
 
+# internal dependencies
 bytecode-interpreter-crypto = { path = "crates/bytecode-interpreter-crypto" }
 enum-compat-util = { path = "crates/enum-compat-util" }
 invalid-mutations = { path = "crates/invalid-mutations" }
@@ -149,7 +154,9 @@ move-ir-types = { path = "crates/move-ir-types" }
 move-model = { path = "crates/move-model" }
 move-model-2 = { path = "crates/move-model-2" }
 move-package = { path = "crates/move-package" }
+move-package-alt = { path = "crates/move-package-alt" }
 move-proc-macros = { path = "crates/move-proc-macros" }
+move-regex-borrow-graph = { path = "crates/move-regex-borrow-graph" }
 move-stackless-bytecode = { path = "crates/move-stackless-bytecode" }
 move-stdlib = { path = "crates/move-stdlib" }
 move-stdlib-natives = { path = "crates/move-stdlib-natives" }
@@ -177,7 +184,7 @@ opt-level = 3
 
 # use release settings to reduce memory pressure in the linking step in CI
 [profile.ci]
-inherits = "test"
+codegen-units = 16
 debug = 0 # for saving disk space during linking
 incremental = false
-codegen-units = 16
+inherits = "test"

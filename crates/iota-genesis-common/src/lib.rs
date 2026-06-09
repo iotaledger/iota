@@ -5,6 +5,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::TransactionKind;
 use iota_types::{
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -14,7 +15,7 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI, TransactionKind},
+    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
 };
 use prometheus::Registry;
 
@@ -74,7 +75,8 @@ pub fn execute_genesis_transaction(
     let expensive_checks = false;
     let certificate_deny_set = HashSet::new();
     let transaction_data = &genesis_transaction.data().intent_message().value;
-    let (kind, signer, _) = transaction_data.execution_parts();
+    let (kind, signer, mut gas_data) = transaction_data.execution_parts();
+    gas_data.objects = vec![];
     let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
     let (inner_temp_store, _, effects, _execution_error) = executor.execute_transaction_to_effects(
         &InMemoryStorage::new(Vec::new()),
@@ -85,7 +87,7 @@ pub fn execute_genesis_transaction(
         &epoch_data.epoch_id(),
         epoch_data.epoch_start_timestamp(),
         input_objects,
-        vec![],
+        gas_data,
         IotaGasStatus::new_unmetered(),
         kind,
         signer,

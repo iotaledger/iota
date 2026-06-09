@@ -9,6 +9,7 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
+use iota_sdk_types::TypeTag;
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES, digests::TransactionDigest, effects::TransactionEvents, event::Event,
     full_checkpoint_content::CheckpointData,
@@ -67,7 +68,7 @@ impl Worker for EventHandler {
                 state
                     .resolver
                     .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                    .evict(SYSTEM_PACKAGE_ADDRESSES);
             }
         }
         Ok(())
@@ -93,8 +94,8 @@ impl AnalyticsHandler<EventEntry> for EventHandler {
 }
 
 impl EventHandler {
-    pub fn new(store_path: &Path, rest_uri: &str) -> Self {
-        let package_store = LocalDBPackageStore::new(&store_path.join("event"), rest_uri);
+    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+        let package_store = LocalDBPackageStore::new(&store_path.join("event"), client);
         let state = State {
             events: vec![],
             package_store: package_store.clone(),
@@ -113,31 +114,29 @@ impl EventHandler {
         events: &TransactionEvents,
         state: &mut State,
     ) -> Result<()> {
-        for (idx, event) in events.data.iter().enumerate() {
+        for (idx, event) in events.iter().enumerate() {
             let Event {
                 package_id,
-                transaction_module,
+                module,
                 sender,
                 type_,
                 contents,
             } = event;
             let layout = state
                 .resolver
-                .type_layout(move_core_types::language_storage::TypeTag::Struct(
-                    Box::new(type_.clone()),
-                ))
+                .type_layout(TypeTag::Struct(Box::new(type_.clone())))
                 .await?;
             let move_value = MoveValue::simple_deserialize(contents, &layout)?;
             let (_, event_json) = type_and_fields_from_move_event_data(move_value)?;
             let entry = EventEntry {
-                transaction_digest: digest.base58_encode(),
+                transaction_digest: digest.to_base58(),
                 event_index: idx as u64,
                 checkpoint,
                 epoch,
                 timestamp_ms,
                 sender: sender.to_string(),
                 package: package_id.to_string(),
-                module: transaction_module.to_string(),
+                module: module.to_string(),
                 event_type: type_.to_string(),
                 bcs: Base64::encode(contents.clone()),
                 event_json: event_json.to_string(),

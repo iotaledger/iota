@@ -4,12 +4,10 @@
 
 use std::collections::BTreeMap;
 
-use move_core_types::{
-    annotated_visitor::{self, StructDriver, Traversal, ValueDriver},
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{StructTag, TypeTag};
+use move_core_types::annotated_visitor::{self, StructDriver, Traversal, ValueDriver};
 
-use crate::balance::Balance;
+use crate::iota_sdk_types_conversions::struct_tag_core_to_sdk;
 
 /// Traversal to gather the total balances of all coin types visited.
 #[derive(Default)]
@@ -38,7 +36,8 @@ impl<'b, 'l> Traversal<'b, 'l> for BalanceTraversal {
         &mut self,
         driver: &mut StructDriver<'_, 'b, 'l>,
     ) -> Result<(), Self::Error> {
-        let Some(coin_type) = is_balance(&driver.struct_layout().type_) else {
+        let Some(coin_type) = is_balance(&struct_tag_core_to_sdk(&driver.struct_layout().type_))
+        else {
             // Not a balance, search recursively for balances among fields.
             while driver.next_field(self)?.is_some() {}
             return Ok(());
@@ -66,7 +65,7 @@ impl<'b, 'l> Traversal<'b, 'l> for Accumulator {
 /// Returns `Some(T)` if the struct is a `iota::balance::Balance<T>`, and `None`
 /// otherwise.
 fn is_balance(s: &StructTag) -> Option<TypeTag> {
-    (Balance::is_balance(s) && s.type_params.len() == 1).then(|| s.type_params[0].clone())
+    (s.is_balance() && s.type_params().len() == 1).then(|| s.type_params()[0].clone())
 }
 
 #[cfg(test)]
@@ -86,7 +85,7 @@ mod tests {
         let layout = bal_t("0x42::foo::Bar");
         let value = bal_v("0x42::foo::Bar", 42);
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -100,7 +99,7 @@ mod tests {
         let layout = coin_t("0x42::foo::Bar");
         let value = coin_v("0x42::foo::Bar", "0x101", 42);
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -137,7 +136,7 @@ mod tests {
             ],
         );
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -158,7 +157,7 @@ mod tests {
 
         let layout = T::U64;
         let value = A::MoveValue::U64(42);
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -202,7 +201,7 @@ mod tests {
             ],
         );
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -295,6 +294,6 @@ mod tests {
 
     /// BCS encode Move value.
     fn serialize(value: A::MoveValue) -> Vec<u8> {
-        value.clone().undecorate().simple_serialize().unwrap()
+        value.undecorate().simple_serialize().unwrap()
     }
 }

@@ -7,6 +7,9 @@ outputs:
   isRust:
     description: True when changes happened to the Rust code
     value: "${{ steps.diff.outputs.isRust }}"
+  isRustWorkspaceConfig:
+    description: True when changes happened to workspace-level Rust configuration files that affect all tests
+    value: "${{ steps.diff.outputs.isRustWorkspaceConfig }}"
   isRustExample:
     description: True when changes happened to the Rust example code
     value: "${{ steps.diff.outputs.isRustExample }}"
@@ -19,22 +22,24 @@ outputs:
   isMoveExampleUsedByOthers:
     description: True when changes happened to the Move examples that are used by other tests
     value: "${{ steps.diff.outputs.isMoveExampleUsedByOthers }}"
-  isRosetta:
-    description: True when changes happened to the rosetta code
-    value: "${{ steps.diff.outputs.isRosetta }}"
   isExternalCrates:
     description: True when changes happened in external crates
     value: "${{ steps.diff.outputs.isExternalCrates }}"
   isReleaseNotesEligible:
     description: True when changes happened in Release Notes eligible paths
     value: "${{ steps.diff.outputs.isReleaseNotesEligible }}"
+  isStarfishSynchronization:
+    description: True when changes happened to synchronization components (commit syncer, header synchronizer, transaction synchronizer)
+    value: "${{ steps.diff.outputs.isStarfishSynchronization }}"
 
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
     - name: Detect Changes
-      uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+      uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
       id: diff
       with:
         filters: |
@@ -52,60 +57,58 @@ runs:
             - ".github/workflows/_split_cluster.yml"
             - "scripts/cargo_sort/cargo_sort.py"
             - "scripts/ci_tests/rust_tests.sh"
+            - "scripts/ci_tests/rust_tests.py"
             - "Cargo.toml"
             - "Cargo.lock"
+            - "rust-toolchain.toml"
             - ".config/nextest.toml"
+          isRustWorkspaceConfig:
+            - "Cargo.toml"
+            - "Cargo.lock"
             - "rust-toolchain.toml"
           isRustExample:
             - "examples/custom-indexer/rust/**"
             - "examples/tic-tac-toe/cli/**"
             - "docs/examples/rust/**"
+            - "rust-toolchain.toml"
           isRpc:
-            - "crates/iota-json-rpc/**"
-            - "crates/iota-json-rpc-types/**"
-            - "crates/iota-json-rpc-api/**"
             - "crates/iota-graphql-rpc/**"
-            - "crates/iota-grpc-api/**"
-            - "crates/iota-grpc-types/**"
-            - ".github/workflows/hierarchy.yml"
-            - ".github/workflows/_e2e.yml"
-            - "Cargo.toml"
-            - "Cargo.lock"
-            - ".config/nextest.toml"
+            - "crates/iota-json-rpc/**"
+            - "crates/iota-json-rpc-api/**"
+            - "crates/iota-json-rpc-types/**"
             - "rust-toolchain.toml"
           isPgIntegration:
-            - "crates/iota-indexer/**"
+            - "crates/iota-framework/**"
             - "crates/iota-graphql-rpc/**"
             - "crates/iota-graphql-e2e-tests/**"
-            - "crates/iota-framework/**"
-            - "crates/iota-json-rpc-types/**"
+            - "crates/iota-indexer/**"
             - "crates/iota-json-rpc-api/**"
+            - "crates/iota-json-rpc-types/**"
             - ".github/workflows/hierarchy.yml"
             - ".github/workflows/_rust.yml"
             - ".github/workflows/_rust_tests.yml"
             - "Cargo.toml"
             - "Cargo.lock"
-            - ".config/nextest.toml"
             - "rust-toolchain.toml"
+            - ".config/nextest.toml"
           isDoc:
             - "docs/content/**"
             - "docs/site/**"
-            - "*.mdx"
             - ".github/workflows/_docs_lint.yml"
             - ".github/workflows/_docusaurus.yml"
           isMoveExampleUsedByOthers:
             - "examples/move/basics/**"
             - "examples/move/coin/**"
             - "examples/move/nft/**"
-            - "Cargo.toml"
             - ".github/workflows/hierarchy.yml"
             - ".github/workflows/_rust.yml"
             - ".github/workflows/_rust_tests.yml"
-          isRosetta:
-            - ".github/scripts/rosetta/**"
-            - "crates/iota-rosetta/**"
+            - "Cargo.toml"
+            - "Cargo.lock"
+            - "rust-toolchain.toml"
           isExternalCrates:
             - "external-crates/move/crates/**"
+            - "rust-toolchain.toml"
           isReleaseNotesEligible:
             - "consensus/**"
             - "crates/**"
@@ -116,5 +119,16 @@ runs:
             - "setups/**"
             - "external-crates/**"
             - "kiosk/**"
-            - "nre/**"
             - "iota-execution/**"
+          isStarfishSynchronization:
+            - "crates/starfish/core/src/header_synchronizer.rs"
+            - "crates/starfish/core/src/commit_syncer/**"
+            - "crates/starfish/core/src/transactions_synchronizer.rs"
+            - "crates/starfish/core/src/authority_service.rs"
+            - "crates/starfish/core/src/commit.rs"
+            - "crates/starfish/core/src/block_header.rs"
+            - "crates/starfish/core/src/transaction.rs"
+            - "crates/starfish/core/src/shard_reconstructor.rs"
+            - "scripts/compatibility/split-cluster-sync-check.sh"
+            - ".github/workflows/_split_cluster_sync_check.yml"
+            - ".github/workflows/hierarchy.yml"

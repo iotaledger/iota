@@ -202,13 +202,13 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 
 ## Transfer Rules Summary
 
-| Notarization Type | Transfer Lock | Can Transfer? | Notes |
-|-------------------|---------------|---------------|-------|
-| Dynamic | None | ✅ Yes | Free to transfer |
-| Dynamic | UnlockAt(future) | ❌ No | Wait until unlock time |
-| Dynamic | UnlockAt(past) | ✅ Yes | Lock has expired |
-| Dynamic | UntilDestroyed | ❌ No | Cannot transfer until destroyed |
-| Locked | Any | ❌ Never | Locked notarizations are non-transferable |
+| Notarization Type | Transfer Lock    | Can Transfer? | Notes                                      |
+|-------------------|------------------|---------------|--------------------------------------------|
+| Dynamic           | None             | ✅ Yes        | Free to transfer                          |
+| Dynamic           | UnlockAt(future) | ❌ No         | Wait until unlock time                    |
+| Dynamic           | UnlockAt(past)   | ✅ Yes        | Lock has expired                          |
+| Dynamic           | UntilDestroyed   | ❌ No         | Cannot transfer until destroyed           |
+| Locked            | UntilDestroyed   | ❌ No         | Locked notarizations are non-transferable therefore Transfer Lock is always set to UntilDestroyed |
 
 ## Error Handling
 

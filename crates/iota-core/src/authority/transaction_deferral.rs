@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::base_types::{CommitRound, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::CommitRound;
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -83,7 +84,7 @@ pub enum DeferralReason {
     RandomnessNotReady,
 
     // The list of objects are congested objects.
-    SharedObjectCongestion(Vec<ObjectID>),
+    SharedObjectCongestion(Vec<ObjectId>),
 }
 
 pub fn transaction_deferral_within_limit(
@@ -108,7 +109,6 @@ mod object_cost_tests {
     use typed_store::{
         DBMapUtils, Map,
         rocks::{DBMap, MetricConf},
-        traits::{TableSummary, TypedStoreDebug},
     };
 
     use super::*;
@@ -123,10 +123,10 @@ mod object_cost_tests {
         }
 
         // get a tempdir
-        let tempdir = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
 
         let db = TestDB::open_tables_read_write(
-            tempdir.path().to_owned(),
+            tmp_dir.path().to_owned(),
             MetricConf::new("test_db"),
             None,
             None,
@@ -141,8 +141,8 @@ mod object_cost_tests {
         }
 
         let mut previous_future_round = 0;
-        for (key, _) in db.deferred_certs.unbounded_iter() {
-            match key {
+        for item in db.deferred_certs.safe_iter() {
+            match item.unwrap().0 {
                 DeferralKey::Randomness { .. } => (),
                 DeferralKey::ConsensusRound { future_round, .. } => {
                     assert!(previous_future_round <= future_round);
@@ -164,10 +164,10 @@ mod object_cost_tests {
         }
 
         // get a tempdir
-        let tempdir = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
 
         let db = TestDB::open_tables_read_write(
-            tempdir.path().to_owned(),
+            tmp_dir.path().to_owned(),
             MetricConf::new("test_db"),
             None,
             None,

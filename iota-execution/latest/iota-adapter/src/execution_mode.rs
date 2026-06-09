@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Argument, TypeTag};
 use iota_types::{
-    error::ExecutionError, execution::ExecutionResult, transaction::Argument, transfer::Receiving,
+    error::ExecutionError, execution::ExecutionResult, invariant_violation, transfer::Receiving,
 };
-use move_core_types::language_storage::TypeTag;
 
 use crate::{
     execution_value::{RawValueType, Value},
@@ -52,6 +52,10 @@ pub trait ExecutionMode {
         argument_updates: Self::ArgumentUpdates,
         command_result: &[Value],
     ) -> Result<(), ExecutionError>;
+
+    /// Whether to allow passing in `AuthContext` as an argument to Move
+    /// functions.
+    fn allow_auth_context() -> bool;
 }
 
 #[derive(Copy, Clone)]
@@ -97,6 +101,10 @@ impl ExecutionMode for Normal {
         _command_result: &[Value],
     ) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    fn allow_auth_context() -> bool {
+        false
     }
 }
 
@@ -144,6 +152,10 @@ impl ExecutionMode for Genesis {
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
+
+    fn allow_auth_context() -> bool {
+        false
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -162,8 +174,8 @@ impl ExecutionMode for System {
     }
 
     fn allow_arbitrary_values() -> bool {
-        // For AuthenticatorStateUpdate, we need to be able to pass in a vector of
-        // JWKs, so we need to allow arbitrary values.
+        // System transactions (e.g. RandomnessStateUpdate) need to pass
+        // arbitrary pure values such as random bytes.
         true
     }
 
@@ -195,6 +207,60 @@ impl ExecutionMode for System {
         _command_result: &[Value],
     ) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    fn allow_auth_context() -> bool {
+        false
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct Authentication;
+
+impl ExecutionMode for Authentication {
+    type ArgumentUpdates = ();
+    type ExecutionResults = ();
+
+    fn allow_arbitrary_function_calls() -> bool {
+        false
+    }
+
+    fn allow_arbitrary_values() -> bool {
+        false
+    }
+
+    fn skip_conservation_checks() -> bool {
+        false
+    }
+
+    fn packages_are_predefined() -> bool {
+        false
+    }
+
+    fn empty_arguments() -> Self::ArgumentUpdates {}
+
+    fn empty_results() -> Self::ExecutionResults {}
+
+    fn add_argument_update(
+        _resolver: &impl TypeTagResolver,
+        _acc: &mut Self::ArgumentUpdates,
+        _arg: Argument,
+        _new_value: &Value,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn finish_command(
+        _resolver: &impl TypeTagResolver,
+        _acc: &mut Self::ExecutionResults,
+        _argument_updates: Self::ArgumentUpdates,
+        _command_result: &[Value],
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn allow_auth_context() -> bool {
+        true
     }
 }
 
@@ -255,6 +321,10 @@ impl<const SKIP_ALL_CHECKS: bool> ExecutionMode for DevInspect<SKIP_ALL_CHECKS> 
         acc.push((argument_updates, command_bytes));
         Ok(())
     }
+
+    fn allow_auth_context() -> bool {
+        false
+    }
 }
 
 fn value_to_bytes_and_tag(
@@ -276,10 +346,16 @@ fn value_to_bytes_and_tag(
             let tag = resolver.get_type_tag(ty)?;
             (tag, bytes.clone())
         }
-        Value::Receiving(id, seqno, _) => (
-            Receiving::type_tag(),
-            Receiving::new(*id, *seqno).to_bcs_bytes(),
-        ),
+        Value::Receiving(id, seqno, assigned_type) => {
+            let Some(ty) = assigned_type else {
+                invariant_violation!("Receiving value used before type assignment");
+            };
+            let value_type = resolver.get_type_tag(ty)?;
+            (
+                Receiving::type_tag(value_type),
+                Receiving::new(*id, *seqno).to_bcs_bytes(),
+            )
+        }
     };
     Ok((bytes, type_tag))
 }

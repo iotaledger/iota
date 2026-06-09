@@ -13,10 +13,8 @@ fn run_all(args_path: &Path) -> datatest_stable::Result<()> {
     test::run_one(
         args_path,
         &PathBuf::from(cli_exe),
-        // use_temp_dir
         use_temp_dir,
-        // track_cov
-        false,
+        false, // track_cov
     )?;
     Ok(())
 }

@@ -67,7 +67,7 @@ impl ErrorBitsetBuilder {
 }
 
 impl ErrorBitset {
-/// For testing (below)
+    /// For testing (below)
     #[cfg(test)]
     pub(crate) fn new(
         version: u8,
@@ -147,20 +147,20 @@ impl ErrorBitset {
 
 #[cfg(test)]
 mod tests {
-    use crate::error_bitset::VERSION_1;
     use proptest::{prelude::*, proptest};
 
     use super::{ErrorBitset, ErrorBitsetBuilder};
+    use crate::error_bitset::VERSION_1;
 
     proptest! {
-        #[test]
-  fn test_error_bitset(error_code in 0..u8::MAX, line_number in 0..u16::MAX, identifier_index in 0..u16::MAX, constant_index in 0..u16::MAX) {
-            let error_bitset = ErrorBitset::new(VERSION_1, error_code, line_number, identifier_index, constant_index);
-            prop_assert_eq!(error_bitset.line_number(), Some(line_number));
-            prop_assert_eq!(error_bitset.identifier_index(), Some(identifier_index));
-            prop_assert_eq!(error_bitset.constant_index(), Some(constant_index));
-        }
-    }
+          #[test]
+    fn test_error_bitset(error_code in 0..u8::MAX, line_number in 0..u16::MAX, identifier_index in 0..u16::MAX, constant_index in 0..u16::MAX) {
+              let error_bitset = ErrorBitset::new(VERSION_1, error_code, line_number, identifier_index, constant_index);
+              prop_assert_eq!(error_bitset.line_number(), Some(line_number));
+              prop_assert_eq!(error_bitset.identifier_index(), Some(identifier_index));
+              prop_assert_eq!(error_bitset.constant_index(), Some(constant_index));
+          }
+      }
 
     proptest! {
         #[test]

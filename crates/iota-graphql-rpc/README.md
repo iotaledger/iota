@@ -11,7 +11,7 @@ Its architecture can thus be visualized as follows:
 
 To learn more about the GraphQL and how it works, check out the [official documentation](https://graphql.org/learn).
 
-The GraphQL server is built with the [async-graphql](https://async-graphql.github.io/async-graphql/docs/overview) library, which generates the GraphQL schema from Rust types, which you can find [here](schema).
+The GraphQL server is built with the [async-graphql](https://async-graphql.github.io/async-graphql/en/index.html) library, which generates the GraphQL schema from Rust types, which you can find [here](schema).
 To learn more about how the schema and types in GraphQL work, see the [official documentation](https://graphql.org/learn/schema/).
 
 `Query` and `Mutation` are types that provide the main entrypoints to the queries supported by the server.
@@ -115,12 +115,12 @@ Find more example queries in the [examples](examples) directory.
 ### Launching the server with Indexer
 
 For local development, it might be useful to spin up an actual Indexer as well (not only the postgres instance) which writes data to the database, so you can query it with the GraphQL server.
-You can run it with a local network using the `iota start` subcommand or [pg-services-local](../../dev-tools/pg-services-local/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup).
+You can run it with a local network using the `iota-localnet start` subcommand or [pg-services-local](../../dev-tools/pg-services-local/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup).
 
-To run it with the `iota start` subcommand, switch to the root directory of the repository and run the following command to start the Indexer with the Sync worker:
+To run it with the `iota-localnet start` subcommand, switch to the root directory of the repository and run the following command to start the Indexer with the Sync worker:
 
 ```
-`cargo run --features indexer --bin iota start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:8000`
+`cargo run --features indexer --bin iota-localnet start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:8000`
 ```
 
 ## Running tests
@@ -146,4 +146,16 @@ In order to re-generate the GraphQL schema ([schema.graphql](schema.graphql)), r
 
 ```sh
 cargo run --bin iota-graphql-rpc generate-schema
+```
+
+If the snapshot tests are failing:
+
+```sh
+cargo nextest run -p iota-graphql-rpc -- test_schema_sdl_export
+```
+
+snapshot changes can be reviewed and accepted by running:
+
+```sh
+cargo insta review
 ```

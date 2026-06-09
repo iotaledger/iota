@@ -30,6 +30,7 @@ const users = [
                   'users/iota-wallet/how-to/import/keystone',
                   'users/iota-wallet/how-to/import/mnemonic',
                   'users/iota-wallet/how-to/import/seed',
+                  'users/iota-wallet/how-to/import/passkey',
                   'users/iota-wallet/how-to/import/balance-finder',
                   'users/iota-wallet/how-to/import/migration',
                 ],
@@ -50,7 +51,7 @@ const users = [
       {
         type: 'link',
         label: 'Cosmostation Wallet',
-        href: 'https://www.cosmostation.io/',
+        href: 'https://www.cosmostation.io/products/application',
         description: 'Cosmostation provides a browser extension and mobile app for IOTA.',
       }
     ],
@@ -73,6 +74,7 @@ const users = [
       },
     ],
   },
+  'users/legacy-migration-tool',
 ];
 
 module.exports = users;

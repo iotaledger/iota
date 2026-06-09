@@ -20,7 +20,9 @@ distributor:
     otlp:
       protocols:
         http:
+          endpoint: 0.0.0.0:4318
         grpc:
+          endpoint: 0.0.0.0:4317
     opencensus:
 
 ingester:
@@ -55,3 +57,5 @@ overrides:
   ingestion_rate_strategy: local
   ingestion_rate_limit_bytes: 1500000000
   max_bytes_per_trace: 500000000
+  metrics_generator_processors:
+    - span-metrics

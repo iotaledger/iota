@@ -14,12 +14,17 @@ use tokio::time::Instant;
 
 #[cfg(test)]
 use crate::metrics::test_metrics;
-use crate::{block_header::BlockTimestampMs, metrics::Metrics};
+use crate::{
+    block_header::{BlockTimestampMs, Round},
+    metrics::Metrics,
+};
 
 /// Context contains per-epoch configuration and metrics shared by all
 /// components of this authority.
 #[derive(Clone)]
 pub(crate) struct Context {
+    /// Timestamp of the start of the current epoch.
+    pub epoch_start_timestamp_ms: u64,
     /// Index of this authority in the committee.
     pub own_index: AuthorityIndex,
     /// Committee of the current epoch.
@@ -36,6 +41,7 @@ pub(crate) struct Context {
 
 impl Context {
     pub(crate) fn new(
+        epoch_start_timestamp_ms: u64,
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
@@ -44,6 +50,7 @@ impl Context {
         clock: Arc<Clock>,
     ) -> Self {
         Self {
+            epoch_start_timestamp_ms,
             own_index,
             committee,
             parameters,
@@ -57,6 +64,12 @@ impl Context {
         self.committee.authority(authority).hostname.as_str()
     }
 
+    /// Lower bound (inclusive) on the round of an acknowledgment or non-own
+    /// ancestor of a block at `block_round`.
+    pub(crate) fn min_ref_round(&self, block_round: Round) -> Round {
+        block_round.saturating_sub(self.protocol_config.gc_depth())
+    }
+
     /// Create a test context with a committee of given size and even stake
     #[cfg(test)]
     pub(crate) fn new_for_test(
@@ -66,9 +79,10 @@ impl Context {
             starfish_config::local_committee_and_keys(0, vec![1; committee_size]);
         let metrics = test_metrics();
         let temp_dir = TempDir::new().unwrap();
-        let clock = Arc::new(Clock::new());
+        let clock = Arc::new(Clock::default());
 
         let context = Context::new(
+            0,
             AuthorityIndex::new_for_test(0),
             committee,
             Parameters {
@@ -80,6 +94,12 @@ impl Context {
             clock,
         );
         (context, keypairs)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_epoch_start_timestamp_ms(mut self, epoch_start_timestamp_ms: u64) -> Self {
+        self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
+        self
     }
 
     #[cfg(test)]
@@ -107,22 +127,38 @@ impl Context {
 /// `[Clock]` cloneable to ensure that a single instance is shared behind an
 /// `[Arc]` wherever is needed in order to make sure that consecutive calls to
 /// receive the system timestamp will remain monotonically increasing.
-pub(crate) struct Clock {
+pub struct Clock {
     initial_instant: Instant,
     initial_system_time: SystemTime,
+    // `clock_drift` should be used only for testing
+    #[cfg(any(test, msim))]
+    clock_drift: BlockTimestampMs,
 }
 
-impl Clock {
-    pub fn new() -> Self {
+impl Default for Clock {
+    fn default() -> Self {
         Self {
             initial_instant: Instant::now(),
             initial_system_time: SystemTime::now(),
+            #[cfg(any(test, msim))]
+            clock_drift: 0,
+        }
+    }
+}
+
+impl Clock {
+    #[cfg(any(test, msim))]
+    pub fn new_for_test(clock_drift: BlockTimestampMs) -> Self {
+        Self {
+            initial_instant: Instant::now(),
+            initial_system_time: SystemTime::now(),
+            clock_drift,
         }
     }
 
-    // Returns the current time expressed as UNIX timestamp in milliseconds.
-    // Calculated with Tokio Instant to ensure monotonicity,
-    // and to allow testing with tokio clock.
+    // Returns the current time expressed as a UNIX timestamp in milliseconds.
+    // Calculated with Tokio Instant to ensure monotonicity
+    // and to allow testing with a tokio clock.
     pub(crate) fn timestamp_utc_ms(&self) -> BlockTimestampMs {
         let now: Instant = Instant::now();
         let monotonic_system_time = self
@@ -137,7 +173,7 @@ impl Clock {
                     }),
             )
             .expect("Computing system time should not overflow");
-        monotonic_system_time
+        let timestamp = monotonic_system_time
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_else(|_| {
                 panic!(
@@ -146,6 +182,17 @@ impl Clock {
                     SystemTime::UNIX_EPOCH,
                 )
             })
-            .as_millis() as BlockTimestampMs
+            .as_millis() as BlockTimestampMs;
+        // Apply clock drift only in test/msim environments to simulate clock skew
+        // between nodes. In production builds, the clock_drift field doesn't exist,
+        // and this returns the timestamp directly.
+        #[cfg(any(test, msim))]
+        {
+            timestamp + self.clock_drift
+        }
+        #[cfg(not(any(test, msim)))]
+        {
+            timestamp
+        }
     }
 }

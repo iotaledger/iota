@@ -27,43 +27,50 @@ use tokio::{
     runtime::Handle,
     sync::{Semaphore, mpsc::error::TrySendError, oneshot},
     task::{JoinError, JoinSet},
-    time::{Instant, sleep, sleep_until, timeout},
+    time::{Instant, sleep_until, timeout},
 };
 use tracing::{debug, info, warn};
 
 use crate::{
-    Transaction, VerifiedBlockHeader,
-    block_header::{BlockRef, TransactionsCommitment, VerifiedTransactions},
-    block_verifier::BlockVerifier,
+    block_header::BlockRef,
+    commit_syncer::{verify_transactions_with_headers, verify_transactions_with_transactions_refs},
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
-    network::{NetworkClient, SerializedTransactions},
+    network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
 /// The number of concurrent live transaction fetch requests
-const LIVE_FETCH_TRANSACTIONS_CONCURRENCY: usize = 1;
-const PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY: usize = 1;
+/// Set to the maximum number of rounds per second as it can be called by newly
+/// produced commits only
+const LIVE_FETCH_TRANSACTIONS_CONCURRENCY: usize = 20;
+
+/// The number of concurrent periodic transaction fetch requests
+const PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY: usize = 4;
 
 /// The maximum number of concurrent request per authority for fetching
-/// transactions Used separately for live fetches and periodic fetches.
-const MAX_CONCURRENT_REQUESTS_PER_AUTHORITY: usize = 5;
+/// transactions. It is used separately for live and periodic fetches
+const MAX_CONCURRENT_REQUESTS_PER_AUTHORITY: usize = 2;
+
+/// The maximum number of assigned peers per one call of transaction fetch
+/// It allows to globally limit the number of spawned tasks by
+/// (LIVE_FETCH_TRANSACTIONS_CONCURRENCY +
+/// PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY) *
+/// MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH
+const MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH: usize = 4;
 
 /// Timeout for the transactions synchronizer to run periodically and fetch
 /// missing transactions.
-const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(200);
+const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(500);
 
-/// Timeout to fetch transactions from a given peer.
-const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(500);
-
-/// Timeout to fetch and process transactions from all peers in one call of
-/// `fetch_and_process_transactions_from_authorities`.
-const FETCH_AND_PROCESS_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(700);
+/// Timeout that is given to fetch transactions from a given peer.
+const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2000);
 
 /// Maximum number of authorities that can concurrently fetch transactions for a
 /// given block ref.
-const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 3;
+const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 2;
 
 #[derive(Debug, Clone, Copy, Ord, Eq, PartialOrd, PartialEq)]
 enum SyncMethod {
@@ -80,48 +87,99 @@ impl SyncMethod {
     }
 }
 
-struct ActiveRequestGuard {
-    authority: AuthorityIndex,
-    sync_method: SyncMethod,
-    active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
+/// Records when the transaction synchronizer failed for the last time when
+/// fetching from peers.
+struct LastFailureByPeer {
+    inner: Mutex<Vec<Option<Instant>>>,
+    context: Context,
 }
 
-impl ActiveRequestGuard {
-    fn new(
-        authority: AuthorityIndex,
-        sync_method: SyncMethod,
-        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
-    ) -> Self {
-        {
-            let mut map = active_requests.lock();
-            *map.entry((authority, sync_method)).or_insert(0) += 1;
+impl LastFailureByPeer {
+    fn new(context: &Context) -> Arc<Self> {
+        let committee_size = context.committee.size();
+        Arc::new(Self {
+            inner: Mutex::new(vec![None; committee_size]),
+            context: context.clone(),
+        })
+    }
+    fn update_with_new_instant(self: &Arc<Self>, peer: AuthorityIndex, new_instant: Instant) {
+        let mut inner = self.inner.lock();
+        inner[peer] = Some(new_instant);
+    }
+
+    /// Determine which authorities are less reliable to fetch transactions.
+    /// Returns less than f+1 authorities by stake.
+    fn get_excluded_authorities_by_stake(self: &Arc<Self>) -> BTreeSet<AuthorityIndex> {
+        let last_round_by_peer = { self.inner.lock().clone() };
+
+        let mut indexed_rounds: Vec<(AuthorityIndex, Instant)> = last_round_by_peer
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, last_instant)| {
+                last_instant.map(|last_instant| (AuthorityIndex::from(idx as u8), last_instant))
+            })
+            .collect();
+
+        indexed_rounds.sort_by_key(|&(_, instant)| std::cmp::Reverse(instant));
+
+        let mut excluded_authorities = BTreeSet::new();
+        let mut stake = 0;
+        for (authority_index, _last_instant) in indexed_rounds {
+            stake += self.context.committee.stake(authority_index);
+            if self.context.committee.reached_validity(stake) {
+                break;
+            }
+            excluded_authorities.insert(authority_index);
         }
-        Self {
-            authority,
-            sync_method,
-            active_requests,
-        }
+
+        excluded_authorities
     }
 }
 
-impl Drop for ActiveRequestGuard {
-    fn drop(&mut self) {
-        let mut map = self.active_requests.lock();
-        if let Some(val) = map.get_mut(&(self.authority, self.sync_method)) {
+/// Tracks the number of concurrent transaction fetch requests to each peer.
+/// Counts the number of fetch requests separately for periodic and live
+/// transaction synchronizer as they serve different purposes.
+struct InflightActiveRequests {
+    inner: Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>,
+}
+
+impl InflightActiveRequests {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            inner: Mutex::new(BTreeMap::new()),
+        })
+    }
+    fn unlock_active_request(&self, peer: AuthorityIndex, sync_method: SyncMethod) {
+        let mut inner = self.inner.lock();
+        if let Some(val) = inner.get_mut(&(peer, sync_method)) {
             *val = val.saturating_sub(1);
         }
     }
 }
 
+struct ActiveRequestGuard {
+    peer: AuthorityIndex,
+    sync_method: SyncMethod,
+    active_requests: Arc<InflightActiveRequests>,
+}
+
+impl Drop for ActiveRequestGuard {
+    fn drop(&mut self) {
+        self.active_requests
+            .unlock_active_request(self.peer, self.sync_method);
+    }
+}
+
 struct TransactionsGuard {
     map: Arc<InflightTransactionsMap>,
-    block_refs: BTreeSet<BlockRef>,
+    transactions_refs: BTreeSet<GenericTransactionRef>,
     peer: AuthorityIndex,
 }
 
 impl Drop for TransactionsGuard {
     fn drop(&mut self) {
-        self.map.unlock_transactions(&self.block_refs, self.peer);
+        self.map
+            .unlock_transactions(&self.transactions_refs, self.peer);
     }
 }
 
@@ -131,7 +189,7 @@ impl Drop for TransactionsGuard {
 // The authority ids that are currently fetching a transaction are set on the
 // corresponding `BTreeSet` and basically they act as "locks".
 struct InflightTransactionsMap {
-    inner: Mutex<HashMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+    inner: Mutex<HashMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
 }
 
 impl InflightTransactionsMap {
@@ -141,49 +199,79 @@ impl InflightTransactionsMap {
         })
     }
 
-    /// Locks the transactions to be fetched for the assigned `peer_index`. We
+    /// Locks the transactions to be fetched for the assigned `peer`. We
     /// want to avoid re-fetching the missing transactions from too many
     /// authorities at the same time, thus we limit the concurrency per
-    /// transaction by attempting to lock per block. If a transaction is
-    /// already fetched by the maximum allowed number of authorities, then
-    /// the block ref will not be included in the returned set. The method
-    /// returns all the block refs that have been successfully locked and
-    /// allowed to be fetched.
-    fn lock_transactions(
+    /// transaction by attempting to lock per block_ref. In addition, we check
+    /// whether a given `peer` has many concurrent requests. If so, we will
+    /// not lock transactions. The method return optionally two guards. One for
+    /// the fetched transactions and one for active fetch request.
+    fn lock_transactions_and_active_request(
         self: &Arc<Self>,
-        missing_block_refs: BTreeSet<BlockRef>,
+        missing_block_refs: BTreeSet<GenericTransactionRef>,
         peer: AuthorityIndex,
         max_number_transactions_per_fetch: usize,
-    ) -> Option<TransactionsGuard> {
-        let mut blocks = BTreeSet::new();
-        let mut inner = self.inner.lock();
+        sync_method: SyncMethod,
+        active_requests: Arc<InflightActiveRequests>,
+    ) -> Option<(TransactionsGuard, ActiveRequestGuard)> {
+        // Lock both maps
+        let mut transaction_map = self.inner.lock();
+        let mut active_requests_locked = active_requests.inner.lock();
+
+        // Ensure we have a counter for this (peer, method)
+        let req_entry = active_requests_locked
+            .entry((peer, sync_method))
+            .or_insert(0);
+
+        // Enforce per-peer concurrent fetch cap
+        if *req_entry >= MAX_CONCURRENT_REQUESTS_PER_AUTHORITY {
+            return None;
+        }
+
+        // Now try to lock transactions
+        let mut selected_transactions_to_fetch = BTreeSet::new();
         let mut selected_block_refs_num = 0;
 
         for block_ref in missing_block_refs {
-            // check that the number of authorities that are already instructed to fetch the
-            // transaction is not higher than the allowed and the `peer_index` has not
-            // already been instructed to do that.
-            let authorities = inner.entry(block_ref).or_default();
+            let authorities = transaction_map.entry(block_ref).or_default();
+
             if authorities.len() < MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION
                 && authorities.insert(peer)
             {
-                blocks.insert(block_ref);
+                selected_transactions_to_fetch.insert(block_ref);
                 selected_block_refs_num += 1;
-            }
-            if selected_block_refs_num >= max_number_transactions_per_fetch {
-                break;
+
+                if selected_block_refs_num >= max_number_transactions_per_fetch {
+                    break;
+                }
             }
         }
 
-        if blocks.is_empty() {
-            None
-        } else {
-            Some(TransactionsGuard {
-                map: self.clone(),
-                block_refs: blocks,
-                peer,
-            })
+        // If we couldn’t lock any transactions, don’t bump the request counter
+        if selected_transactions_to_fetch.is_empty() {
+            return None;
         }
+
+        // We actually got some work → count an active request
+        *req_entry += 1;
+
+        // Drop locks before returning guards
+        drop(transaction_map);
+        drop(active_requests_locked);
+
+        let transactions_guard = TransactionsGuard {
+            map: self.clone(),
+            transactions_refs: selected_transactions_to_fetch,
+            peer,
+        };
+
+        let active_request_guard = ActiveRequestGuard {
+            peer,
+            sync_method,
+            active_requests: active_requests.clone(),
+        };
+
+        Some((transactions_guard, active_request_guard))
     }
 
     /// Unlocks the provided block references for the given `peer`. The
@@ -192,19 +280,19 @@ impl InflightTransactionsMap {
     /// has been called, it will panic.
     fn unlock_transactions(
         self: &Arc<Self>,
-        block_refs: &BTreeSet<BlockRef>,
+        tx_refs: &BTreeSet<GenericTransactionRef>,
         peer: AuthorityIndex,
     ) {
         // Now mark all the transactions as fetched from the map
         let mut transactions_to_fetch = self.inner.lock();
-        for block_ref in block_refs {
+        for tx_ref in tx_refs {
             let authorities = transactions_to_fetch
-                .get_mut(block_ref)
+                .get_mut(tx_ref)
                 .expect("We should expect a non empty map with at least one peer");
             assert!(authorities.remove(&peer), "Peer index should be present!");
             // If the last one then just clean up
             if authorities.is_empty() {
-                transactions_to_fetch.remove(block_ref);
+                transactions_to_fetch.remove(tx_ref);
             }
         }
     }
@@ -217,7 +305,7 @@ impl InflightTransactionsMap {
 
 enum Command {
     FetchTransactions {
-        missing_block_refs: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        missing_transaction_refs: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         result: oneshot::Sender<Result<(), ConsensusError>>,
     },
     KickOffScheduler,
@@ -234,12 +322,12 @@ impl TransactionsSynchronizerHandle {
     /// authority.
     pub(crate) async fn fetch_transactions(
         &self,
-        missing_block_refs: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        missing_block_refs: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     ) -> ConsensusResult<()> {
         let (sender, receiver) = oneshot::channel();
         self.commands_sender
             .send(Command::FetchTransactions {
-                missing_block_refs,
+                missing_transaction_refs: missing_block_refs,
                 result: sender,
             })
             .await
@@ -283,27 +371,21 @@ impl TransactionsSynchronizerHandle {
 ///    periodic basis or is triggered immediately after explicit fetches
 ///    described in (1), ensuring continued transaction retrieval if gaps
 ///    persist.
-pub(crate) struct TransactionsSynchronizer<
-    C: NetworkClient,
-    V: BlockVerifier,
-    D: CoreThreadDispatcher,
-> {
+pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispatcher> {
     context: Arc<Context>,
     commands_receiver: Receiver<Command>,
-    live_fetch_requests: Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+    live_fetch_requests: Sender<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     core_dispatcher: Arc<D>,
     dag_state: Arc<RwLock<DagState>>,
-    active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
+    active_requests: Arc<InflightActiveRequests>,
     fetch_transactions_scheduler_task: JoinSet<()>,
     network_client: Arc<C>,
-    block_verifier: Arc<V>,
     inflight_transactions_map: Arc<InflightTransactionsMap>,
     commands_sender: Sender<Command>,
+    last_failure_by_peer: Arc<LastFailureByPeer>,
 }
 
-impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
-    TransactionsSynchronizer<C, V, D>
-{
+impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     /// Starts the transactions synchronizer, which is responsible for fetching
     /// transactions from other authorities and managing transaction
     /// synchronization tasks.
@@ -311,7 +393,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         network_client: Arc<C>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
-        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Arc<TransactionsSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
@@ -325,7 +406,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         );
 
         let mut tasks = JoinSet::new();
-        let active_requests = Arc::new(Mutex::new(BTreeMap::new()));
+        let active_requests = InflightActiveRequests::new();
+        let last_failure_by_peer = LastFailureByPeer::new(&context);
         // Spawn the live fetcher task
         let live_fetcher_async = Self::live_fetcher(
             active_requests.clone(),
@@ -334,8 +416,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             core_dispatcher.clone(),
             dag_state.clone(),
             live_fetch_receiver,
-            block_verifier.clone(),
             inflight_transactions_map.clone(),
+            last_failure_by_peer.clone(),
         );
         tasks.spawn(monitored_future!(live_fetcher_async));
 
@@ -351,10 +433,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 fetch_transactions_scheduler_task: JoinSet::new(),
                 active_requests,
                 network_client,
-                block_verifier,
                 inflight_transactions_map,
                 commands_sender: commands_sender_clone,
                 dag_state,
+                last_failure_by_peer,
             };
             s.run().await;
         }));
@@ -366,7 +448,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
     }
 
     // The main loop to listen for the submitted commands.
-    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
+    #[cfg_attr(test, tracing::instrument(skip_all, name = "", fields(authority = %self.context.own_index
+    )))]
     async fn run(&mut self) {
         // We want the transactions synchronizer to run periodically to
         // fetch any missing transactions.
@@ -378,9 +461,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             tokio::select! {
                 Some(command) = self.commands_receiver.recv() => {
                     match command {
-                        Command::FetchTransactions{ missing_block_refs, result } => {
+                        Command::FetchTransactions{ missing_transaction_refs, result } => {
                             // Enqueue the request to the live fetcher and return immediately.
-                            let r =  self.live_fetch_requests.try_send(missing_block_refs)
+                            let r =  self.live_fetch_requests.try_send(missing_transaction_refs)
                             .map_err(|err| {
                                 match err {
                                     TrySendError::Full(_) => ConsensusError::TransactionSynchronizerSaturated,
@@ -438,14 +521,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
     // The live fetcher task that processes fetch requests from the queue
     async fn live_fetcher(
-        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
+        active_requests: Arc<InflightActiveRequests>,
         network_client: Arc<C>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
         dag_state: Arc<RwLock<DagState>>,
-        mut receiver: Receiver<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
-        block_verifier: Arc<V>,
+        mut receiver: Receiver<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
+        last_failure_by_peer: Arc<LastFailureByPeer>,
     ) {
         let semaphore = Arc::new(Semaphore::new(LIVE_FETCH_TRANSACTIONS_CONCURRENCY));
 
@@ -464,9 +547,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     let inflight_transactions_map = inflight_transactions_map.clone();
                     let network_client = network_client.clone();
                     let core_dispatcher = core_dispatcher.clone();
-                    let block_verifier = block_verifier.clone();
                     let dag_state = dag_state.clone();
-
+                    let last_failure_by_peer = last_failure_by_peer.clone();
                     tokio::spawn(async move {
                         Self::fetch_and_process_transactions_from_authorities(
                             context,
@@ -475,8 +557,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                             network_client,
                             missing_transactions_block_refs,
                             core_dispatcher,
-                            block_verifier,
                             dag_state,
+                            last_failure_by_peer,
                             SyncMethod::Live,
                         )
                         .await;
@@ -496,7 +578,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
     /// Starts a task to fetch missing transactions from other authorities.
     async fn start_fetch_missing_transactions_task(&mut self) -> ConsensusResult<()> {
-        info!("Kick in periodic synchronizer to fetch missing transactions");
         // Get missing transactions from the core
         let missing_transactions = self
             .core_dispatcher
@@ -513,7 +594,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         let accepted_round = dag_state.read().highest_accepted_round();
         let earliest_unavailable_transaction_round = missing_transactions
             .first_key_value()
-            .map(|(block_ref, _)| block_ref.round)
+            .map(|(block_ref, _)| block_ref.round())
             .unwrap_or(accepted_round);
         let gap_to_unavailable_transactions =
             accepted_round.saturating_sub(earliest_unavailable_transaction_round);
@@ -533,7 +614,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         // Update metrics for missing transactions per authority before fetching
         let mut missing_transactions_per_authority = vec![0; context.committee.size()];
         for block_ref in missing_transactions.keys() {
-            missing_transactions_per_authority[block_ref.author] += 1;
+            missing_transactions_per_authority[block_ref.author()] += 1;
         }
         for (missing, (_, authority)) in missing_transactions_per_authority
             .into_iter()
@@ -555,10 +636,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         let network_client = self.network_client.clone();
         let core_dispatcher = self.core_dispatcher.clone();
         let commands_sender = self.commands_sender.clone();
-        let block_verifier = self.block_verifier.clone();
         let dag_state = self.dag_state.clone();
         let inflight_transactions_map = self.inflight_transactions_map.clone();
         let active_requests = self.active_requests.clone();
+        let last_failure_by_round = self.last_failure_by_peer.clone();
 
         self.fetch_transactions_scheduler_task
             .spawn(monitored_future!(async move {
@@ -577,8 +658,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     network_client,
                     missing_transactions,
                     core_dispatcher,
-                    block_verifier,
                     dag_state,
+                    last_failure_by_round,
                     SyncMethod::Periodic,
                 )
                 .await;
@@ -598,24 +679,25 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
     /// Fetches missing transactions from authorities.
     async fn fetch_and_process_transactions_from_authorities(
         context: Arc<Context>,
-        active_requests: Arc<Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>>,
+        active_requests: Arc<InflightActiveRequests>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
         network_client: Arc<C>,
-        missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        missing_transactions: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         core_dispatcher: Arc<D>,
-        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
+        last_failure_by_peer: Arc<LastFailureByPeer>,
         sync_method: SyncMethod,
     ) {
         // Build a mapping from authority -> set of BlockRefs it has acknowledged
-        let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<BlockRef>> = BTreeMap::new();
-        for (block_ref, authorities) in &missing_transactions {
+        let mut blocks_by_authority: BTreeMap<AuthorityIndex, BTreeSet<GenericTransactionRef>> =
+            BTreeMap::new();
+        for (tx_ref, authorities) in &missing_transactions {
             for authority in authorities {
                 if *authority != context.own_index {
                     blocks_by_authority
                         .entry(*authority)
                         .or_default()
-                        .insert(*block_ref);
+                        .insert(*tx_ref);
                 }
             }
         }
@@ -643,59 +725,66 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         // Create an iterator over authorities with their corresponding block refs
         // This will allow us to iterate over authorities in a stable (for test) or
         // random order (for production).
-        let iter_authorities: Box<dyn Iterator<Item = (AuthorityIndex, BTreeSet<BlockRef>)>> =
-            if cfg!(test) {
-                // Stable order for tests
-                Box::new(blocks_by_authority.into_iter())
-            } else {
-                let mut vec: Vec<_> = blocks_by_authority.into_iter().collect();
-                vec.shuffle(&mut rng);
-                Box::new(vec.into_iter())
-            };
+        let iter_authorities: Box<
+            dyn Iterator<Item = (AuthorityIndex, BTreeSet<GenericTransactionRef>)>,
+        > = if cfg!(test) {
+            // Stable order for tests
+            Box::new(blocks_by_authority.into_iter())
+        } else {
+            // Get less than f+1 excluded authorities by stake
+            let excluded_authorities = last_failure_by_peer.get_excluded_authorities_by_stake();
+            // Exclude authorities with latest recorded failures
+            let mut vec: Vec<_> = blocks_by_authority
+                .into_iter()
+                .filter(|(authority, _)| !excluded_authorities.contains(authority))
+                .collect();
+            vec.shuffle(&mut rng);
+            Box::new(vec.into_iter())
+        };
 
         let mut request_futures = FuturesUnordered::new();
 
+        let mut assigned_authorities_for_transaction_fetch = 0;
+
         for (authority, authority_block_refs) in iter_authorities {
-            {
-                let count = active_requests
-                    .lock()
-                    .get(&(authority, sync_method))
-                    .copied()
-                    .unwrap_or(0);
-
-                // Skip assigning a request if the limit is reached
-                if count >= MAX_CONCURRENT_REQUESTS_PER_AUTHORITY {
-                    let peer_hostname = &context.committee.authority(authority).hostname;
-                    debug!(
-                        "Skipping fetch for authority {peer_hostname} as the maximum number of concurrent requests is reached"
-                    );
-                    continue;
-                }
-            }
-
-            // * If transactions are successfully locked, then send a request to the network
-            //   client to fetch the transactions from the authority. If the fetch is
-            //   successful, then process the transactions and send them to the core for
-            //   processing.
-            if let Some(transactions_guard) = inflight_transactions_map.lock_transactions(
-                authority_block_refs.clone(),
-                authority,
-                context.parameters.max_transactions_per_fetch,
-            ) {
-                let active_request_guard =
-                    ActiveRequestGuard::new(authority, sync_method, active_requests.clone());
-
-                request_futures.push(Self::fetch_and_process_transactions_from_authority(
+            // * If transactions are successfully locked, and we didn't make too many to
+            //   this authority, then send a request to the network client to fetch the
+            //   transactions from the authority. If the fetch is successful, then process
+            //   the transactions and send them to the core for processing.
+            if let Some((transactions_guard, active_request_guard)) = inflight_transactions_map
+                .lock_transactions_and_active_request(
+                    authority_block_refs.clone(),
                     authority,
-                    context.clone(),
-                    transactions_guard,
-                    network_client.clone(),
-                    core_dispatcher.clone(),
-                    block_verifier.clone(),
-                    dag_state.clone(),
+                    context.parameters.max_transactions_per_regular_sync_fetch,
                     sync_method,
-                    active_request_guard,
-                ));
+                    active_requests.clone(),
+                )
+            {
+                let context = context.clone();
+                let network_client = network_client.clone();
+                let core_dispatcher = core_dispatcher.clone();
+                let dag_state = dag_state.clone();
+                request_futures.push(async move {
+                    let result = Self::fetch_and_process_transactions_from_authority(
+                        authority,
+                        context,
+                        transactions_guard,
+                        network_client,
+                        core_dispatcher,
+                        dag_state,
+                        sync_method,
+                        active_request_guard,
+                    )
+                    .await;
+                    (authority, result)
+                });
+
+                assigned_authorities_for_transaction_fetch += 1;
+                if assigned_authorities_for_transaction_fetch
+                    == MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH
+                {
+                    break;
+                }
             }
         }
 
@@ -703,26 +792,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             return;
         }
 
-        // Each fetch request has its own timeout, but processing not.
-        // Using timeout, we limit the overall time spent primarily on processing
-        let timeout = sleep(FETCH_AND_PROCESS_FROM_PEERS_TIMEOUT);
-
-        tokio::pin!(timeout);
-
-        loop {
-            tokio::select! {
-                    Some(res) = request_futures.next() => {
-                        if let Err(err) = res {
-                            warn!("[{}] Error when fetching and processing transactions from authority: {err}", sync_method.get_string());
-                        }
-            },
-                    _ = &mut timeout => {
-                        warn!("[{}] Timed out while fetching and processing missing transactions", sync_method.get_string());
-                         // Drop all pending requests immediately — frees all transaction guards
-                        drop(request_futures);
-                        break;
-                    }
-                }
+        // Await all authority requests to complete
+        while let Some((peer, result)) = request_futures.next().await {
+            if let Err(err) = result {
+                last_failure_by_peer.update_with_new_instant(peer, Instant::now());
+                warn!(
+                    "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
+                    sync_method.get_string(),
+                );
+            }
         }
     }
 
@@ -733,20 +811,19 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         transactions_guard: TransactionsGuard,
         network_client: Arc<C>,
         core_dispatcher: Arc<D>,
-        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_method: SyncMethod,
         _active_guard: ActiveRequestGuard,
     ) -> ConsensusResult<()> {
         let peer_hostname = &context.committee.authority(peer).hostname;
-        let total_requested = transactions_guard.block_refs.len();
+        let total_requested = transactions_guard.transactions_refs.len();
 
         debug!(
             "[{}] Syncing {total_requested} missing committed transactions from authority {peer} {peer_hostname}",
             sync_method.get_string(),
         );
 
-        let (fetched_serialized_transactions, transactions_guard, _peer_index) =
+        let (fetched_serialized_transactions, transactions_guard, peer) =
             Self::fetch_transactions_request(
                 network_client.clone(),
                 peer,
@@ -758,6 +835,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             .await?;
 
         let total_fetched = fetched_serialized_transactions.len();
+
         debug!(
             "Transactions from {total_requested} blocks requested, fetched from {total_fetched} blocks"
         );
@@ -767,8 +845,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             peer,
             transactions_guard,
             core_dispatcher.clone(),
-            context.clone(),
-            block_verifier.clone(),
+            context,
             dag_state.clone(),
             sync_method,
         )
@@ -798,18 +875,22 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             metric: inflight_metric,
         };
 
-        let block_refs = transactions_guard
-            .block_refs
+        let requested_transactions_refs = transactions_guard
+            .transactions_refs
             .iter()
             .cloned()
-            .collect::<Vec<_>>();
+            .collect::<Vec<GenericTransactionRef>>();
 
         let peer_hostname = &context.committee.authority(peer).hostname;
         let start_time = Instant::now();
         // Fetch the transactions from the peer
         let result = timeout(
             request_timeout,
-            network_client.fetch_transactions(peer, block_refs.clone(), request_timeout),
+            network_client.fetch_transactions(
+                peer,
+                requested_transactions_refs.clone(),
+                request_timeout,
+            ),
         )
         .await;
 
@@ -837,6 +918,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                         err.name(),
                     ])
                     .inc();
+
                 Err(err) // network error
             }
             Err(err) => {
@@ -873,18 +955,24 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
     /// If no error is returned then the verified transactions are
     /// immediately sent to Core for processing.
     async fn process_fetched_transactions(
-        serialized_transactions: Vec<Bytes>,
+        serialized_transactions_vec: Vec<Bytes>,
         peer_index: AuthorityIndex,
         requested_transactions_guard: TransactionsGuard,
         core_dispatcher: Arc<D>,
         context: Arc<Context>,
-        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_method: SyncMethod,
     ) -> ConsensusResult<()> {
+        let _s = context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Synchronizer::process_fetched_transactions"])
+            .start_timer();
         // Ensure that all the returned transactions do not go over the total max
         // allowed returned transactions
-        if serialized_transactions.len() > requested_transactions_guard.block_refs.len() {
+        if serialized_transactions_vec.len() > requested_transactions_guard.transactions_refs.len()
+        {
             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                 peer_index,
             ));
@@ -895,59 +983,143 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         // Deserialize and verify the transactions
         // inside verify_transactions
-        let transactions = match Handle::current()
-            .spawn_blocking({
-                // Use the block_refs from the requested_transactions_guard
-                let block_refs: Vec<BlockRef> = requested_transactions_guard
-                    .block_refs
-                    .iter()
-                    .cloned()
-                    .collect();
-                let block_headers_vec = dag_state.read().get_block_headers(&block_refs);
-                let mut block_headers_map = BTreeMap::new();
-                for block_header_opt in block_headers_vec.into_iter() {
-                    let block_header = block_header_opt
-                        .expect("block header for requested transactions must exist");
-                    block_headers_map.insert(block_header.reference(), block_header);
-                }
+        let transactions = if !context.protocol_config.consensus_fast_commit_sync() {
+            match Handle::current()
+                .spawn_blocking({
+                    // Use the block_refs from the requested_transactions_guard
+                    let block_refs: ConsensusResult<Vec<BlockRef>> = requested_transactions_guard
+                        .transactions_refs
+                        .iter()
+                        .map(|ctr| match ctr {
+                            GenericTransactionRef::TransactionRef(_) => {
+                                Err(ConsensusError::TransactionRefVariantMismatch {
+                                    protocol_flag_enabled: false,
+                                    expected_variant: "BlockRef",
+                                    received_variant: "TransactionRef",
+                                })
+                            }
+                            GenericTransactionRef::BlockRef(block_ref) => Ok(*block_ref),
+                        })
+                        .collect();
+                    let block_refs = block_refs?;
+                    let block_headers_vec =
+                        dag_state.read().get_verified_block_headers(&block_refs);
+                    let mut block_headers_map = BTreeMap::new();
+                    for block_header_opt in block_headers_vec.into_iter() {
+                        let block_header = block_header_opt
+                            .expect("block header for requested transactions must exist");
+                        block_headers_map.insert(block_header.reference(), block_header);
+                    }
 
-                let block_verifier = block_verifier.clone();
-                move || {
-                    Self::verify_transactions(
-                        serialized_transactions,
-                        block_verifier,
-                        peer_index,
-                        block_headers_map,
-                    )
+                    let mut serialized_transactions_map: BTreeMap<GenericTransactionRef, Bytes> =
+                        BTreeMap::new();
+                    for serialized_transaction_bytes in &serialized_transactions_vec {
+                        let serialized_transactions: SerializedTransactionsV1 =
+                            bcs::from_bytes(serialized_transaction_bytes)
+                                .map_err(ConsensusError::MalformedTransactions)?;
+                        let committed_transaction_ref =
+                            GenericTransactionRef::BlockRef(serialized_transactions.block_ref);
+                        serialized_transactions_map.insert(
+                            committed_transaction_ref,
+                            serialized_transactions.serialized_transactions,
+                        );
+                    }
+                    let context_cloned = context.clone();
+
+                    move || {
+                        verify_transactions_with_headers(
+                            context_cloned,
+                            peer_index,
+                            serialized_transactions_map,
+                            block_headers_map,
+                        )
+                    }
+                })
+                .await
+                .expect("Spawn blocking should not fail")
+            {
+                Ok(transactions) => transactions,
+                Err(err) => {
+                    // Update metrics for invalid transactions.
+                    metrics
+                        .invalid_transactions
+                        .with_label_values(&[
+                            peer_hostname.as_str(),
+                            "transaction_synchronizer",
+                            err.name(),
+                        ])
+                        .inc();
+                    return Err(err);
                 }
-            })
-            .await
-            .expect("Spawn blocking should not fail")
-        {
-            Ok(transactions) => transactions,
-            Err(err) => {
-                // Update metrics for invalid transactions.
-                metrics
-                    .invalid_transactions
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "transaction_synchronizer",
-                        err.name(),
-                    ])
-                    .inc();
-                return Err(err);
             }
-        };
+        } else {
+            match Handle::current()
+                .spawn_blocking({
+                    // Validate that all refs are TransactionRef as expected when
+                    // consensus_fast_commit_sync is true
+                    for tx_ref in requested_transactions_guard.transactions_refs.iter() {
+                        if let GenericTransactionRef::BlockRef(_) = tx_ref {
+                            return Err(ConsensusError::TransactionRefVariantMismatch {
+                                protocol_flag_enabled: true,
+                                expected_variant: "TransactionRef",
+                                received_variant: "BlockRef",
+                            });
+                        }
+                    }
+
+                    let mut serialized_transactions_map: BTreeMap<GenericTransactionRef, Bytes> =
+                        BTreeMap::new();
+                    for serialized_transaction_bytes in &serialized_transactions_vec {
+                        let serialized_transactions: SerializedTransactionsV2 =
+                            bcs::from_bytes(serialized_transaction_bytes)
+                                .map_err(ConsensusError::MalformedTransactions)?;
+                        let committed_transaction_ref = GenericTransactionRef::TransactionRef(
+                            serialized_transactions.transaction_ref,
+                        );
+                        serialized_transactions_map.insert(
+                            committed_transaction_ref,
+                            serialized_transactions.serialized_transactions,
+                        );
+                    }
+                    let context_cloned = context.clone();
+
+                    move || {
+                        verify_transactions_with_transactions_refs(
+                            &context_cloned,
+                            peer_index,
+                            serialized_transactions_map,
+                        )
+                    }
+                })
+                .await
+                .expect("Spawn blocking should not fail")
+            {
+                Ok(transactions) => transactions,
+                Err(err) => {
+                    // Update metrics for invalid transactions.
+                    metrics
+                        .invalid_transactions
+                        .with_label_values(&[
+                            peer_hostname.as_str(),
+                            "transaction_synchronizer",
+                            err.name(),
+                        ])
+                        .inc();
+                    return Err(err);
+                }
+            }
+        }
+        .iter()
+        .map(|x| x.1)
+        .cloned()
+        .collect::<Vec<_>>();
 
         metrics
             .transactions_synchronizer_fetched_transactions_by_peer
             .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
             .inc_by(transactions.len() as u64);
         for transactions in &transactions {
-            let block_hostname = &context
-                .committee
-                .authority(transactions.block_ref().author)
-                .hostname;
+            let block_hostname = &context.committee.authority(transactions.author()).hostname;
             metrics
                 .transactions_synchronizer_fetched_transactions_by_authority
                 .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
@@ -960,13 +1132,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             transactions.len(),
             transactions
                 .iter()
-                .map(|b| b.block_ref().to_string())
+                .map(|b| b.transaction_ref().to_string())
                 .join(", "),
         );
 
         // Add the transactions to the core
         core_dispatcher
-            .add_transactions(transactions)
+            .add_transactions(transactions, DataSource::TransactionSynchronizer)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -975,64 +1147,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         drop(requested_transactions_guard);
 
         Ok(())
-    }
-
-    fn verify_transactions(
-        serialized_transactions_bytes: Vec<Bytes>,
-        block_verifier: Arc<V>,
-        peer_index: AuthorityIndex,
-        block_headers_map: BTreeMap<BlockRef, VerifiedBlockHeader>,
-    ) -> ConsensusResult<Vec<VerifiedTransactions>> {
-        let mut collected_verified_transactions = Vec::new();
-
-        for serialized_transaction_bytes in &serialized_transactions_bytes {
-            // Step 1: Deserialize the outer SerializedTransactions wrapper to get the block
-            // reference and the inner serialized transactions bytes. This
-            // allows us to identify which block these transactions belong to
-            // and access their commitment in the block header.
-            let serialized_transactions: SerializedTransactions =
-                bcs::from_bytes(serialized_transaction_bytes)
-                    .map_err(ConsensusError::MalformedTransactions)?;
-
-            // Step 2: Get the block header and verify that the transactions commitment
-            // matches. This ensures the transactions we received are exactly
-            // the ones that were included in the block when it was created.
-            let block_header = block_headers_map
-                .get(&serialized_transactions.block_ref)
-                .expect("header for fetched transactions must exist");
-            if block_header.transactions_commitment()
-                != TransactionsCommitment::compute_transactions_commitment(
-                    &serialized_transactions.serialized_transactions,
-                )
-                .expect("correct computation of the transactions commitment should be successful")
-            {
-                return Err(ConsensusError::TransactionCommitmentFailure {
-                    round: serialized_transactions.block_ref.round,
-                    author: serialized_transactions.block_ref.author,
-                    peer: peer_index,
-                });
-            }
-
-            // Step 3: Deserialize and verify the actual transactions vector.
-            let transactions: Vec<Transaction> =
-                bcs::from_bytes(&serialized_transactions.serialized_transactions)
-                    .map_err(ConsensusError::MalformedTransactions)?;
-
-            block_verifier.check_and_verify_transactions(&transactions)?;
-
-            // Step 4: Create a VerifiedTransactions instance containing both the verified
-            // transactions and their original serialized form for efficient re-sharing
-            let verified_transactions = VerifiedTransactions::new(
-                transactions,
-                serialized_transactions.block_ref,
-                block_header.transactions_commitment(),
-                serialized_transactions.serialized_transactions,
-            );
-
-            collected_verified_transactions.push(verified_transactions);
-        }
-
-        Ok(collected_verified_transactions)
     }
 }
 
@@ -1053,31 +1167,37 @@ mod tests {
     use async_trait::async_trait;
     use bytes::Bytes;
     use rand::{Rng, thread_rng};
+    use rstest::rstest;
     use tokio::{sync::Mutex, time::sleep};
 
     use super::*;
     use crate::{
-        Round, TestBlockHeader,
+        Round, TestBlockHeader, Transaction,
         block_header::{
             BlockHeaderDigest, BlockRef, TransactionsCommitment, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedTransactions,
+            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
-        block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         context::Context,
+        core::ReasonToCreateBlock,
         core_thread::CoreError,
-        dag_state::DagState,
-        network::{BlockBundleStream, NetworkClient, SerializedTransactions},
+        dag_state::{DagState, DataSource},
+        encoder::create_encoder,
+        network::{BlockBundleStream, NetworkClient, SerializedTransactionsV1},
         storage::mem_store::MemStore,
     };
 
+    #[rstest]
     #[tokio::test]
-    async fn successful_live_syncing() {
+    async fn successful_live_syncing(#[values(true, false)] consensus_fast_commit_sync: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1088,9 +1208,9 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 1), (2, 1), (3, 2)];
@@ -1105,8 +1225,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1117,7 +1241,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1127,17 +1256,28 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1));
             authorities.insert(AuthorityIndex::new_for_test(2));
-            missing_transactions.insert(header.reference(), authorities);
+            let gen_ref = if consensus_fast_commit_sync {
+                GenericTransactionRef::from(header.transaction_ref())
+            } else {
+                GenericTransactionRef::from(header.reference())
+            };
+            missing_transactions.insert(gen_ref, authorities);
         }
 
         // Stub the transactions in the network client
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(1))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(1),
+                    consensus_fast_commit_sync,
+                )
                 .await;
         }
 
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1160,7 +1300,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1172,9 +1312,8 @@ mod tests {
     async fn live_syncing_with_saturated_tasks() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (context, _) = Context::new_for_test(LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 3);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1185,12 +1324,12 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create block round author pairs
-        let block_round_authors = (1..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
+        let block_round_authors = (1..=LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 3)
             .map(|i| (i as Round, 1u8))
             .collect::<Vec<_>>();
 
@@ -1204,8 +1343,12 @@ mod tests {
             let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
             let serialized_vec = bcs::to_bytes(&transactions).unwrap();
             let serialized = Bytes::from(serialized_vec);
-            let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
 
             // Create a test block header with the correct commitment
             let header = VerifiedBlockHeader::new_for_test(
@@ -1216,44 +1359,54 @@ mod tests {
 
             block_headers.push(header.clone());
 
-            let verified_transaction =
-                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized);
+            let verified_transaction = VerifiedTransactions::new(
+                transactions,
+                header.transaction_ref(),
+                Some(header.digest()),
+                serialized,
+            );
 
             verified_transactions.push(verified_transaction);
         }
 
         // Create a map of block refs to authorities that have them
-        let mut missing_transactions = BTreeMap::new();
-        for header in &block_headers {
+        let mut missing_transactions = Vec::new();
+        for (index, header) in block_headers.iter().enumerate() {
             let mut authorities = BTreeSet::new();
-            authorities.insert(AuthorityIndex::new_for_test(1));
-            missing_transactions.insert(header.reference(), authorities);
+            let from_whom = AuthorityIndex::new_for_test(index as u8 + 1);
+            authorities.insert(from_whom);
+            network_client.set_timeout_peer(from_whom).await;
+            let mut missing_txs = BTreeMap::new();
+            missing_txs.insert(GenericTransactionRef::from(header.reference()), authorities);
+            missing_transactions.push(missing_txs)
         }
 
         // Delay fetch transactions response to simulate saturation deterministically.
-        network_client
-            .set_timeout_peer(AuthorityIndex::new_for_test(1))
-            .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Send many requests to saturate the tasks
         let mut results = Vec::new();
-        for _ in 0..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 3 {
+        for missing_transactions_to_request in missing_transactions
+            .iter()
+            .take(LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 3)
+        {
             results.push(
                 handle
-                    .fetch_transactions(missing_transactions.clone())
+                    .fetch_transactions(missing_transactions_to_request.clone())
                     .await,
             );
         }
 
         // THEN
-        // FETCH_TRANSACTIONS_CONCURRENCY tasks will start processing, another set of
-        // FETCH_TRANSACTIONS_CONCURRENCY tasks will be stuck in the queue, and the last
-        // FETCH_TRANSACTIONS_CONCURRENCY tasks will be returned with
-        // TransactionSynchronizerSaturated error.
+        // LIVE_FETCH_TRANSACTIONS_CONCURRENCY tasks will start processing, another set
+        // of LIVE_FETCH_TRANSACTIONS_CONCURRENCY tasks will be stuck in the
+        // queue, and the last LIVE_FETCH_TRANSACTIONS_CONCURRENCY tasks will be
+        // returned with TransactionSynchronizerSaturated error.
         // The test should be deterministic because the responses will timeout, so all
         // tasks should be sent to the queue before the first request is processed.
         let successes = results.iter().filter(|r| r.is_ok()).count();
@@ -1277,13 +1430,19 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_timeout_peer() {
+    async fn live_syncing_with_timeout_peer(
+        #[values(true, false)] consensus_fast_commit_sync: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1294,9 +1453,9 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1312,8 +1471,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1324,7 +1487,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1334,7 +1502,12 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(header.reference(), authorities);
+            let gen_ref = if consensus_fast_commit_sync {
+                GenericTransactionRef::from(header.transaction_ref())
+            } else {
+                GenericTransactionRef::from(header.reference())
+            };
+            missing_transactions.insert(gen_ref, authorities);
         }
 
         // Set peer 1 to timeout
@@ -1345,7 +1518,11 @@ mod tests {
         // Stub the transactions for peer 2
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(2),
+                    consensus_fast_commit_sync,
+                )
                 .await;
         }
 
@@ -1355,7 +1532,9 @@ mod tests {
             .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1385,7 +1564,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1393,13 +1572,17 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_error_peer() {
+    async fn live_syncing_with_error_peer(#[values(true, false)] consensus_fast_commit_sync: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1410,9 +1593,9 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1428,8 +1611,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1440,7 +1627,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1450,7 +1642,12 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return an error
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(header.reference(), authorities);
+            let gen_ref = if consensus_fast_commit_sync {
+                GenericTransactionRef::from(header.transaction_ref())
+            } else {
+                GenericTransactionRef::from(header.reference())
+            };
+            missing_transactions.insert(gen_ref, authorities);
         }
 
         // Set peer 1 to return an error
@@ -1464,12 +1661,18 @@ mod tests {
         // Stub the transactions for peer 2
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(2),
+                    consensus_fast_commit_sync,
+                )
                 .await;
         }
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1490,7 +1693,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1498,13 +1701,17 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_empty_peer() {
+    async fn live_syncing_with_empty_peer(#[values(true, false)] consensus_fast_commit_sync: bool) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1515,9 +1722,9 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1533,8 +1740,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1545,7 +1756,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1555,7 +1771,12 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return empty results
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(header.reference(), authorities);
+            let gen_ref = if consensus_fast_commit_sync {
+                GenericTransactionRef::from(header.transaction_ref())
+            } else {
+                GenericTransactionRef::from(header.reference())
+            };
+            missing_transactions.insert(gen_ref, authorities);
         }
 
         // Set peer 1 to return empty results
@@ -1566,7 +1787,11 @@ mod tests {
         // Stub the transactions for peer 2
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(2),
+                    consensus_fast_commit_sync,
+                )
                 .await;
         }
 
@@ -1576,7 +1801,9 @@ mod tests {
             .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1597,7 +1824,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1605,13 +1832,19 @@ mod tests {
         handle.stop().await.unwrap();
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn live_syncing_with_corrupted_peer() {
+    async fn live_syncing_with_corrupted_peer(
+        #[values(true, false)] consensus_fast_commit_sync: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1622,9 +1855,9 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1640,8 +1873,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1652,7 +1889,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.reference(), commitment, serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1662,7 +1904,15 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will return corrupted data
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will succeed
-            missing_transactions.insert(header.reference(), authorities);
+            if consensus_fast_commit_sync {
+                missing_transactions.insert(
+                    GenericTransactionRef::from(header.transaction_ref()),
+                    authorities,
+                );
+            } else {
+                missing_transactions
+                    .insert(GenericTransactionRef::from(header.reference()), authorities);
+            }
         }
 
         // Set peer 1 to return corrupted data
@@ -1673,7 +1923,11 @@ mod tests {
         // Stub the transactions for peer 2
         for transaction in &transactions {
             network_client
-                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .stub_fetch_transactions(
+                    vec![transaction.clone()],
+                    AuthorityIndex::new_for_test(2),
+                    consensus_fast_commit_sync,
+                )
                 .await;
         }
 
@@ -1683,7 +1937,9 @@ mod tests {
             .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1704,7 +1960,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1718,7 +1974,6 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1729,9 +1984,9 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1745,8 +2000,12 @@ mod tests {
             // Create a dummy transaction
             let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-            let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
 
             // Create a test block header with the correct commitment
             let header = VerifiedBlockHeader::new_for_test(
@@ -1764,7 +2023,8 @@ mod tests {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will return an error
-            missing_transactions.insert(header.reference(), authorities);
+            missing_transactions
+                .insert(GenericTransactionRef::from(header.reference()), authorities);
         }
 
         // Set peer 1 to timeout
@@ -1786,7 +2046,9 @@ mod tests {
             .await;
 
         // Add block headers to the dag state
-        dag_state.write().accept_block_headers(block_headers);
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
 
         // WHEN
         // Request the transactions
@@ -1807,79 +2069,157 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn inflight_transactions_map() {
+    async fn inflight_transactions_map_with_active_requests() {
         telemetry_subscribers::init_for_testing();
+
         // GIVEN
         let map = InflightTransactionsMap::new();
+        let active_requests = InflightActiveRequests::new();
+        let sync_method = SyncMethod::Periodic;
+
         let some_block_refs = [
             BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
             BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
             BlockRef::new(12, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
             BlockRef::new(15, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
         ];
-        let context = Context::new_for_test(4).0;
+        let context = Context::new_for_test(10).0;
         let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+        let missing_transactions_refs = missing_block_refs
+            .iter()
+            .map(|&br| GenericTransactionRef::from(br))
+            .collect::<BTreeSet<_>>();
+        // We keep both guards so that drops happen at the end
+        let mut all_guards: Vec<(TransactionsGuard, ActiveRequestGuard)> = Vec::new();
 
-        // Lock & unlock transactions
-        {
-            let mut all_guards = Vec::new();
+        // Try to acquire the transaction locks for authorities
+        // 0..MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION
+        for i in 0..=MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION {
+            let authority = AuthorityIndex::new_for_test(i as u8);
 
-            // Try to acquire the transaction locks for authorities 0, 1 & 2
-            for i in 0..=2 {
-                let authority = AuthorityIndex::new_for_test(i);
+            let guard = map.lock_transactions_and_active_request(
+                missing_transactions_refs.clone(),
+                authority,
+                context.parameters.max_transactions_per_regular_sync_fetch,
+                sync_method,
+                active_requests.clone(),
+            );
 
-                let guard = map.lock_transactions(
-                    missing_block_refs.clone(),
-                    authority,
-                    context.parameters.max_transactions_per_fetch,
-                );
-                let guard = guard.expect("Guard should be created");
-                assert_eq!(guard.block_refs.len(), 4);
-
-                all_guards.push(guard);
-
-                // trying to acquire any of them again will not succeed
-                let guard = map.lock_transactions(
-                    missing_block_refs.clone(),
-                    authority,
-                    context.parameters.max_transactions_per_fetch,
-                );
+            if i == MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION {
+                // Trying to acquire for authority MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION will
+                // fail - as we have maxed out the number of allowed peers for
+                // each transaction
                 assert!(guard.is_none());
+                break;
             }
+            let (tx_guard, ar_guard) = guard.expect("Guard should be created");
+            assert_eq!(tx_guard.transactions_refs.len(), 4);
 
-            // Trying to acquire for authority 3 it will fail - as we have maxed out the
-            // number of allowed peers (MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION = 3)
-            let authority_3 = AuthorityIndex::new_for_test(3);
+            all_guards.push((tx_guard, ar_guard));
 
-            let guard = map.lock_transactions(
-                missing_block_refs.clone(),
-                authority_3,
-                context.parameters.max_transactions_per_fetch,
+            // trying to acquire any of them again for the *same* authority should not
+            // succeed
+
+            let guard = map.lock_transactions_and_active_request(
+                missing_transactions_refs.clone(),
+                authority,
+                context.parameters.max_transactions_per_regular_sync_fetch,
+                sync_method,
+                active_requests.clone(),
             );
             assert!(guard.is_none());
-
-            // Explicitly drop the guard of authority 1 and try for authority 3 again - it
-            // will now succeed
-            drop(all_guards.remove(0));
-
-            let guard = map.lock_transactions(
-                missing_block_refs.clone(),
-                authority_3,
-                context.parameters.max_transactions_per_fetch,
-            );
-            let guard = guard.expect("Guard should be successfully acquired");
-
-            assert_eq!(guard.block_refs, missing_block_refs);
-
-            // Dropping all guards should unlock on the block refs
-            drop(guard);
-            drop(all_guards);
-
-            assert_eq!(map.num_of_locked_transactions(), 0);
         }
+
+        // Explicitly drop the guard of authority 1 (the first we stored) and try for
+        // authority 3 again - it will now succeed because one slot per-block
+        // got freed
+        drop(all_guards.remove(0));
+
+        let guard = map.lock_transactions_and_active_request(
+            missing_transactions_refs.clone(),
+            AuthorityIndex::new_for_test(MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION as u8),
+            context.parameters.max_transactions_per_regular_sync_fetch,
+            sync_method,
+            active_requests,
+        );
+        let (tx_guard, active_request_guard) =
+            guard.expect("Guard should be successfully acquired");
+        assert_eq!(tx_guard.transactions_refs, missing_transactions_refs);
+
+        // Dropping all guards should unlock all block refs
+        drop(tx_guard);
+        drop(active_request_guard);
+        drop(all_guards);
+
+        assert_eq!(map.num_of_locked_transactions(), 0);
     }
+
+    #[tokio::test]
+    async fn excluded_authorities_updates_and_results() {
+        telemetry_subscribers::init_for_testing();
+
+        // GIVEN a committee of 7 authorities
+        let (context, _) = Context::new_for_test(7);
+        let context = Arc::new(context);
+
+        let last_failure = LastFailureByPeer::new(&context);
+        let now = Instant::now();
+
+        // WHEN: no updates → excluded set should be empty
+        let mut excluded = last_failure.get_excluded_authorities_by_stake();
+        assert!(
+            excluded.is_empty(),
+            "Initially no authorities should be excluded"
+        );
+
+        // WHEN: authority 1 fails now
+        last_failure.update_with_new_instant(AuthorityIndex::new_for_test(1), now);
+        excluded = last_failure.get_excluded_authorities_by_stake();
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(1)),
+            "Authority 1 should be excluded after failure"
+        );
+
+        // WHEN: authority 2 fails later
+        last_failure.update_with_new_instant(
+            AuthorityIndex::new_for_test(2),
+            now + Duration::from_millis(50),
+        );
+        excluded = last_failure.get_excluded_authorities_by_stake();
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(2)),
+            "Authority 2 (latest failure) should be excluded"
+        );
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(1)),
+            "Authority 1 should remain excluded as an older failure"
+        );
+
+        // WHEN: authority 3 fails even later (newest)
+        last_failure.update_with_new_instant(
+            AuthorityIndex::new_for_test(3),
+            now + Duration::from_millis(100),
+        );
+        excluded = last_failure.get_excluded_authorities_by_stake();
+
+        // THEN: authority 3 should now be the first excluded one (most recent),
+        // but the total excluded stake must remain below the validity threshold.
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(3)),
+            "Newest failed authority (3) should be excluded"
+        );
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(2)),
+            "Newest failed authority (3) should be excluded"
+        );
+        assert!(
+            excluded.len() <= 2,
+            "Excluded authorities should be strictly less than f+1 stake limit"
+        );
+    }
+
     struct MockNetworkClient {
-        transactions: Arc<Mutex<HashMap<(AuthorityIndex, BlockRef), Bytes>>>,
+        transactions: Arc<Mutex<HashMap<(AuthorityIndex, GenericTransactionRef), Bytes>>>,
         error_peers: Arc<Mutex<HashMap<AuthorityIndex, ConsensusError>>>,
         timeout_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         empty_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
@@ -1901,20 +2241,36 @@ mod tests {
             &self,
             transactions: Vec<VerifiedTransactions>,
             peer: AuthorityIndex,
+            consensus_fast_commit_sync: bool,
         ) {
             let mut transactions_map = self.transactions.lock().await;
             for transaction in transactions {
-                let block_ref = transaction.block_ref();
+                let transaction_ref = transaction.transaction_ref();
 
-                // Create a SerializedTransactions struct
-                let serialized_transactions = SerializedTransactions {
-                    block_ref,
-                    serialized_transactions: transaction.serialized().clone(),
-                };
-
-                // Serialize the SerializedTransactions struct
-                let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
-                transactions_map.insert((peer, block_ref), serialized.into());
+                if consensus_fast_commit_sync {
+                    // Create a SerializedTransactionsV2 struct with TransactionRef
+                    let serialized_transactions = SerializedTransactionsV2 {
+                        transaction_ref,
+                        serialized_transactions: transaction.serialized().clone(),
+                    };
+                    let tx_ref = GenericTransactionRef::TransactionRef(transaction_ref);
+                    // Serialize the SerializedTransactions struct
+                    let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
+                    transactions_map.insert((peer, tx_ref), serialized.into());
+                } else {
+                    // Create a SerializedTransactionsV1 struct with BlockRef
+                    let block_ref = transaction
+                        .block_ref()
+                        .expect("block_ref must be present in non-transaction-ref path");
+                    let serialized_transactions = SerializedTransactionsV1 {
+                        block_ref,
+                        serialized_transactions: transaction.serialized().clone(),
+                    };
+                    let tx_ref = GenericTransactionRef::BlockRef(block_ref);
+                    // Serialize the SerializedTransactions struct
+                    let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
+                    transactions_map.insert((peer, tx_ref), serialized.into());
+                }
             }
         }
 
@@ -1948,7 +2304,7 @@ mod tests {
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
         transactions: Mutex<Vec<VerifiedTransactions>>,
-        missing_transactions: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        missing_transactions: Mutex<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -1966,7 +2322,7 @@ mod tests {
 
         async fn stub_missing_transactions(
             &self,
-            missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+            missing_transactions: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
         ) {
             let mut missing = self.missing_transactions.lock().await;
             *missing = missing_transactions;
@@ -1978,10 +2334,11 @@ mod tests {
         async fn add_blocks(
             &self,
             _blocks: Vec<VerifiedBlock>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -1991,10 +2348,11 @@ mod tests {
         async fn add_block_headers(
             &self,
             _block_headers: Vec<VerifiedBlockHeader>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2004,6 +2362,7 @@ mod tests {
         async fn add_transactions(
             &self,
             transactions: Vec<VerifiedTransactions>,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             let mut txns = self.transactions.lock().await;
 
@@ -2011,32 +2370,43 @@ mod tests {
             let mut seen = BTreeSet::new();
             // Populate with txns
             for transaction in txns.iter() {
-                seen.insert(transaction.block_ref());
+                seen.insert(transaction.transactions_commitment());
             }
             for transaction in transactions {
-                if !seen.contains(&transaction.block_ref()) {
-                    seen.insert(transaction.block_ref());
+                if !seen.contains(&transaction.transactions_commitment()) {
+                    seen.insert(transaction.transactions_commitment());
                     txns.push(transaction);
                 }
             }
             Ok(())
         }
 
+        async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
+        }
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             let missing = self.missing_transactions.lock().await;
 
             // Lock transactions once, outside the loop
             let transactions = self.transactions.lock().await;
 
-            let mut filtered: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> = BTreeMap::new();
+            let mut filtered: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> =
+                BTreeMap::new();
 
-            for (block_ref, authority_set) in missing.iter() {
-                let exists = transactions.iter().any(|txn| txn.block_ref() == *block_ref);
+            for (gen_tr_ref, authority_set) in missing.iter() {
+                let exists = transactions.iter().any(|txn| {
+                    let tx_ref_match =
+                        GenericTransactionRef::TransactionRef(txn.transaction_ref()) == *gen_tr_ref;
+                    let block_ref_match = txn
+                        .block_ref()
+                        .is_some_and(|br| GenericTransactionRef::BlockRef(br) == *gen_tr_ref);
+                    tx_ref_match || block_ref_match
+                });
 
                 if !exists {
-                    filtered.insert(*block_ref, authority_set.clone());
+                    filtered.insert(*gen_tr_ref, authority_set.clone());
                 }
             }
 
@@ -2049,18 +2419,32 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
             unimplemented!()
         }
 
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _output: crate::commit_syncer::fast::FastSyncOutput,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn reinitialize_components(
+            &self,
+            _block_headers: Vec<crate::block_header::VerifiedBlockHeader>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+            _reason: ReasonToCreateBlock,
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
 
@@ -2075,10 +2459,6 @@ mod tests {
         }
 
         fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
-            unimplemented!()
-        }
-
-        fn highest_received_rounds(&self) -> Vec<Round> {
             unimplemented!()
         }
     }
@@ -2098,7 +2478,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             peer: AuthorityIndex,
-            block_refs: Vec<BlockRef>,
+            block_refs: Vec<GenericTransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             // Check if this peer is set to timeout
@@ -2173,6 +2553,15 @@ mod tests {
         ) -> ConsensusResult<Vec<Bytes>> {
             // Not needed for transactions synchronizer tests
             unimplemented!("fetch_latest_block_headers not implemented in mock")
+        }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("fetch_commits_and_transactions not implemented in mock")
         }
     }
 }

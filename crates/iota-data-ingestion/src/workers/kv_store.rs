@@ -25,7 +25,7 @@ use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
 use iota_storage::http_key_value_store::{ItemType, TaggedKey};
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
-use object_store::{DynObjectStore, path::Path};
+use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
@@ -68,7 +68,13 @@ impl KVStoreWorker {
             .connect_timeout(Duration::from_secs(3))
             .build();
 
+        let http_client = aws_smithy_http_client::Builder::new()
+            .tls_provider(aws_smithy_http_client::tls::Provider::Rustls(
+                aws_smithy_http_client::tls::rustls_provider::CryptoMode::Ring,
+            ))
+            .build_https();
         let mut aws_config_loader = aws_config::defaults(BehaviorVersion::latest())
+            .http_client(http_client)
             .credentials_provider(credentials)
             .region(Region::new(config.dynamodb_config.aws_region))
             .timeout_config(timeout_config);
@@ -185,7 +191,7 @@ impl KVStoreWorker {
             .inspect_err(|err| warn!("dynamodb error: {err}"));
 
         if res.is_err() {
-            info!("attempt to store chekpoint contents on S3");
+            info!("attempt to store checkpoint contents on S3");
             let location = Path::from(base64_url::encode(&key));
             self.remote_store
                 .put(&location, Bytes::from(bcs_bytes).into())

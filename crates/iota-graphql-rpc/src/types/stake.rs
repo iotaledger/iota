@@ -4,10 +4,11 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_json_rpc_types::{Stake as RpcStakedIota, StakeStatus as RpcStakeStatus};
-use iota_types::{base_types::MoveObjectType, governance::StakedIota as NativeStakedIota};
-use move_core_types::language_storage::StructTag;
+use iota_sdk_types::StructTag;
+use iota_types::governance::StakedIota as NativeStakedIota;
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     context_data::db_data_provider::PgManager,
     data::Db,
@@ -173,14 +174,13 @@ impl StakedIota {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -238,6 +238,9 @@ impl StakedIota {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -406,7 +409,7 @@ impl StakedIota {
         owner: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, StakedIota>, Error> {
-        let type_: StructTag = MoveObjectType::staked_iota().into();
+        let type_ = StructTag::new_staked_iota();
 
         let filter = ObjectFilter {
             type_: Some(type_.into()),
@@ -446,7 +449,7 @@ impl TryFrom<&MoveObject> for StakedIota {
     type Error = StakedIotaDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.is_staked_iota() {
+        if !move_object.native.struct_tag().is_staked_iota() {
             return Err(StakedIotaDowncastError::NotAStakedIota);
         }
 

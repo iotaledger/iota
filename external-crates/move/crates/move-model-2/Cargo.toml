@@ -7,18 +7,15 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
+anyhow.workspace = true
+bcs.workspace = true
 indexmap.workspace = true
+
+# internal dependencies
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
-move-command-line-common.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true
 move-ir-types.workspace = true
 move-symbol-pool.workspace = true
-
-anyhow.workspace = true
-bcs.workspace = true
-codespan-reporting.workspace = true
-num.workspace = true
-serde.workspace = true
-vfs.workspace = true

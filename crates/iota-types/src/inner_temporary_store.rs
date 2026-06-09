@@ -7,33 +7,35 @@ use std::{
     sync::Arc,
 };
 
+use iota_sdk_types::{Identifier, ObjectId, Owner};
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 
 use crate::{
-    base_types::{ObjectID, SequenceNumber, VersionDigest},
+    base_types::{SequenceNumber, VersionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     execution::DynamicallyLoadedObjectMetadata,
-    object::{Object, Owner},
+    move_package::MovePackageExt,
+    object::Object,
     storage::{BackingPackageStore, InputKey, PackageObject},
 };
 
-pub type WrittenObjects = BTreeMap<ObjectID, Object>;
-pub type ObjectMap = BTreeMap<ObjectID, Object>;
+pub type WrittenObjects = BTreeMap<ObjectId, Object>;
+pub type ObjectMap = BTreeMap<ObjectId, Object>;
 pub type TxCoins = (ObjectMap, WrittenObjects);
 
 #[derive(Debug, Clone)]
 pub struct InnerTemporaryStore {
     pub input_objects: ObjectMap,
-    pub mutable_inputs: BTreeMap<ObjectID, (VersionDigest, Owner)>,
+    pub mutable_inputs: BTreeMap<ObjectId, (VersionDigest, Owner)>,
     // All the written objects' sequence number should have been updated to the lamport version.
     pub written: WrittenObjects,
-    pub loaded_runtime_objects: BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
+    pub loaded_runtime_objects: BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
     pub events: TransactionEvents,
     pub binary_config: BinaryConfig,
-    pub runtime_packages_loaded_from_db: BTreeMap<ObjectID, PackageObject>,
+    pub runtime_packages_loaded_from_db: BTreeMap<ObjectId, PackageObject>,
     pub lamport_version: SequenceNumber,
 }
 
@@ -57,7 +59,7 @@ impl InnerTemporaryStore {
         let deleted: HashMap<_, _> = effects
             .deleted()
             .iter()
-            .map(|oref| (oref.0, oref.1))
+            .map(|oref| (oref.object_id, oref.version))
             .collect();
 
         // add deleted shared objects to the outputkeys that then get sent to
@@ -114,11 +116,14 @@ where
     type Item = Arc<CompiledModule>;
 
     fn get_module_by_id(&self, id: &ModuleId) -> anyhow::Result<Option<Self::Item>, Self::Error> {
-        let obj = self.temp_store.written.get(&ObjectID::from(*id.address()));
+        let obj = self
+            .temp_store
+            .written
+            .get(&ObjectId::new(id.address().into_bytes()));
         if let Some(o) = obj {
-            if let Some(p) = o.data.try_as_package() {
+            if let Some(p) = o.data.as_package_opt() {
                 return Ok(Some(Arc::new(p.deserialize_module(
-                    &id.name().into(),
+                    &Identifier::new_unchecked(id.name().as_str()),
                     &self.temp_store.binary_config,
                 )?)));
             }
@@ -128,7 +133,7 @@ where
 }
 
 impl BackingPackageStore for InnerTemporaryStore {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         Ok(self
             .written
             .get(package_id)
@@ -153,7 +158,7 @@ where
     P: BackingPackageStore,
     F: BackingPackageStore,
 {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         if let Some(package) = self.primary.get_package_object(package_id)? {
             Ok(Some(package))
         } else {

@@ -1,0 +1,17 @@
+# Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+iota client --client.config config.yaml switch --env base
+
+iota client --client.config config.yaml envs
+iota client --client.config config.yaml --client.env one envs
+iota client --client.config config.yaml --client.env two envs
+
+iota client --client.config config.yaml active-env
+iota client --client.config config.yaml --client.env one active-env
+iota client --client.config config.yaml --client.env two active-env
+
+# Unknown name -- Should give you None and nothing active
+iota client --client.config config.yaml --client.env not_an_env envs
+iota client --client.config config.yaml --client.env not_an_env active-env

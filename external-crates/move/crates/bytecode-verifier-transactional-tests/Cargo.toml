@@ -7,7 +7,10 @@ license = "Apache-2.0"
 publish = false
 
 [dev-dependencies]
+# external dependencies
 datatest-stable.workspace = true
+
+# internal dependencies
 move-transactional-test-runner.workspace = true
 
 [[test]]

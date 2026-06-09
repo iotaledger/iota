@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module base_addr::base {
-    use iota::object::UID;
-
     public struct A<T> {
         f1: bool,
         f2: T

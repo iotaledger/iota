@@ -40,7 +40,7 @@ public struct Notarization<D: store + drop + copy> has key {
 A `Locked Notarization` is designed for creating a permanent, tamper-proof record that cannot be changed after its creation.
 -   **Immutable**: The state and metadata cannot be changed after creation.
 -   **Non-transferable**: It cannot be transferred to other addresses.
--   **Time-based Destruction**: It can only be destroyed after its `delete_lock` expires.
+-   **Time-based Destruction**: If `delete_lock` is used, it can only be destroyed after its `delete_lock` expires.
 
 #### Dynamic Notarization
 A `Dynamic Notarization` is designed for use cases where data evolves over time and high availability of the *latest version* is critical.
@@ -79,14 +79,15 @@ Access to critical functions like destroying or transferring a `Notarization` ob
 ```rust
 public enum TimeLock has store {
     UnlockAt(u32),      // A lock that unlocks at a specific Unix timestamp
-    UntilDestroyed,     // A permanent lock that never unlocks
+    UntilDestroyed,     // A lock that is unlocked when the notarization is destroyed
     None,               // No lock applied
 }
 ```
 
 These locks are applied as follows:
 
--   **`delete_lock`**: Used only in `Locked Notarization`, it prevents the object from being destroyed until the specified `UnlockAt` timestamp is reached. This lock cannot be set to `UntilDestroyed`.
+-   **`delete_lock`**: Used only in `Locked Notarization`, it prevents the object from being destroyed until the specified `UnlockAt` timestamp is reached.
+    This lock cannot be set to `UntilDestroyed`.
 -   **`transfer_lock`**: Used only in `Dynamic Notarization`, it prevents the object from being transferred until the lock expires.
 -   **`update_lock`**: This is permanently set to `UntilDestroyed` for all `Locked Notarization` objects, ensuring their immutability.
 ```

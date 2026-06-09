@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::bail;
-use iota_json_rpc_types::{BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions};
-use iota_sdk::IotaClient;
-use iota_types::{
-    base_types::ObjectID, error::IotaObjectResponseError, gas_coin::GasCoin, object::Owner,
-    parse_iota_type_tag,
+use iota_json_rpc_types::{
+    BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions, IotaObjectResponseError,
 };
-use move_core_types::language_storage::TypeTag;
+use iota_sdk::IotaClient;
+use iota_sdk_types::{ObjectId, Owner, TypeTag};
+use iota_types::{gas_coin::GasCoin, parse_iota_type_tag};
 use tracing::{debug, trace};
 
 /// A util struct that helps verify IOTA Object.
@@ -21,14 +20,14 @@ use tracing::{debug, trace};
 /// respectfully.
 #[derive(Debug)]
 pub struct ObjectChecker {
-    object_id: ObjectID,
+    object_id: ObjectId,
     owner: Option<Owner>,
     is_deleted: bool,
     is_iota_coin: Option<bool>,
 }
 
 impl ObjectChecker {
-    pub fn new(object_id: ObjectID) -> ObjectChecker {
+    pub fn new(object_id: ObjectId) -> ObjectChecker {
         Self {
             object_id,
             owner: None,
@@ -81,15 +80,14 @@ impl ObjectChecker {
                     .with_bcs(),
             )
             .await
-            .or_else(|err| bail!("Failed to get object info (id: {}), err: {err}", object_id))?;
+            .or_else(|err| bail!("failed to get object info (id: {object_id}), err: {err}"))?;
 
         trace!("getting object {object_id}, info :: {object_info:?}");
 
         match (object_info.data, object_info.error) {
             (None, Some(IotaObjectResponseError::NotExists { object_id })) => {
                 panic!(
-                    "Node can't find gas object {} with client {:?}",
-                    object_id,
+                    "node can't find gas object {object_id} with client {:?}",
                     client.read_api()
                 )
             }
@@ -100,8 +98,7 @@ impl ObjectChecker {
                 }),
             ) => {
                 panic!(
-                    "Node can't find dynamic field for {} with client {:?}",
-                    object_id,
+                    "node can't find dynamic field for {object_id} with client {:?}",
                     client.read_api()
                 )
             }
@@ -114,30 +111,30 @@ impl ObjectChecker {
                 }),
             ) => {
                 if !self.is_deleted {
-                    panic!("Gas object {object_id} was deleted");
+                    panic!("gas object {object_id} was deleted");
                 }
                 Ok(CheckerResultObject::new(None, None))
             }
             (Some(object), _) => {
                 if self.is_deleted {
-                    panic!("Expect Gas object {object_id} deleted, but it is not");
+                    panic!("expect gas object {object_id} deleted, but it is not");
                 }
                 if let Some(owner) = self.owner {
                     let object_owner = object
                         .owner
-                        .unwrap_or_else(|| panic!("Object {object_id} does not have owner"));
+                        .unwrap_or_else(|| panic!("object {object_id} does not have owner"));
                     assert_eq!(
                         object_owner, owner,
-                        "Gas coin {object_id} does not belong to {owner}, but {object_owner}"
+                        "gas coin {object_id} does not belong to {owner}, but {object_owner}"
                     );
                 }
                 if self.is_iota_coin == Some(true) {
                     let move_obj = object
                         .bcs
                         .as_ref()
-                        .unwrap_or_else(|| panic!("Object {object_id} does not have bcs data"))
+                        .unwrap_or_else(|| panic!("object {object_id} does not have bcs data"))
                         .try_as_move()
-                        .unwrap_or_else(|| panic!("Object {object_id} is not a move object"));
+                        .unwrap_or_else(|| panic!("object {object_id} is not a move object"));
 
                     let gas_coin = move_obj.deserialize()?;
                     return Ok(CheckerResultObject::new(Some(gas_coin), Some(object)));
@@ -145,10 +142,10 @@ impl ObjectChecker {
                 Ok(CheckerResultObject::new(None, Some(object)))
             }
             (None, Some(IotaObjectResponseError::Display { error })) => {
-                panic!("Display Error: {error:?}");
+                panic!("display error: {error:?}");
             }
             (None, None) | (None, Some(IotaObjectResponseError::Unknown)) => {
-                panic!("Unexpected response: object not found and no specific error provided");
+                panic!("unexpected response: object not found and no specific error provided");
             }
         }
     }
@@ -175,10 +172,8 @@ impl CheckerResultObject {
 macro_rules! assert_eq_if_present {
     ($left:expr, $right:expr, $($arg:tt)+) => {
         match (&$left, &$right) {
-            (Some(left_val), right_val) => {
-                 if !(&left_val == right_val) {
-                    panic!("{} does not match, left: {:?}, right: {:?}", $($arg)+, left_val, right_val);
-                }
+            (Some(left_val), right_val) if !(&left_val == right_val) => {
+                panic!("{} does not match, left: {left_val:?}, right: {right_val:?}", $($arg)+);
             }
             _ => ()
         }

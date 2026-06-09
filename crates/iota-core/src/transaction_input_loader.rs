@@ -158,7 +158,9 @@ impl TransactionInputLoader {
             match input {
                 InputObjectKind::MovePackage(id) => {
                     let package = self.cache.try_get_package_object(id)?.unwrap_or_else(|| {
-                        panic!("Executable transaction {tx_key:?} depends on non-existent package {id:?}")
+                        panic!(
+                            "Executable transaction {tx_key:?} depends on non-existent package {id}"
+                        )
                     });
 
                     results[i] = Some(ObjectReadResult {
@@ -174,9 +176,14 @@ impl TransactionInputLoader {
                 InputObjectKind::SharedMoveObject { id, .. } => {
                     let assigned_shared_versions = assigned_shared_versions_cell
                         .get_or_init(|| {
-                            epoch_store
-                                .get_assigned_shared_object_versions(tx_key)
-                                .map(|versions| versions.into_iter().collect())
+                            epoch_store.get_assigned_shared_object_versions(tx_key).map(
+                                |versions| {
+                                    versions
+                                        .into_iter()
+                                        .map(|v| (v.object_id, v.version))
+                                        .collect()
+                                },
+                            )
                         })
                         .as_ref()
                         .unwrap_or_else(|| {
@@ -191,7 +198,7 @@ impl TransactionInputLoader {
                     // If we find a set of assigned versions but an object is missing, it indicates
                     // a serious inconsistency:
                     let version = assigned_shared_versions.get(id).unwrap_or_else(|| {
-                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
+                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id}")
                     });
                     if version.is_cancelled() {
                         // Do not need to fetch shared object for cancelled transaction.
@@ -266,11 +273,13 @@ impl TransactionInputLoader {
         let mut receiving_results = Vec::with_capacity(receiving_objects.len());
         for objref in receiving_objects {
             // Note: the digest is checked later in check_transaction_input
-            let (object_id, version, _) = objref;
+            let ObjectRef {
+                object_id, version, ..
+            } = *objref;
 
             if self
                 .cache
-                .try_have_received_object_at_version(object_id, *version, epoch_id)?
+                .try_have_received_object_at_version(&object_id, version, epoch_id)?
             {
                 receiving_results.push(ReceivingObjectReadResult::new(
                     *objref,
@@ -279,10 +288,10 @@ impl TransactionInputLoader {
                 continue;
             }
 
-            let Some(object) = self.cache.try_get_object(object_id)? else {
+            let Some(object) = self.cache.try_get_object(&object_id)? else {
                 return Err(UserInputError::ObjectNotFound {
-                    object_id: *object_id,
-                    version: Some(*version),
+                    object_id,
+                    version: Some(version),
                 }
                 .into());
             };

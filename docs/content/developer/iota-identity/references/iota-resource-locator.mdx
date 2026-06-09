@@ -1,0 +1,114 @@
+---
+title: Iota Resource Locator
+sidebar_label: Iota Resource Locator
+description: The specification for a URL-like address that can be used to reference data on an IOTA network.
+image: /img/identity/icon.png
+teams:
+  - iotaledger/identity
+tags:
+  - reference
+  - identity
+---
+
+# IOTA Resource Locator (IOTA implementation of a Chain Agnostic Resource Locator)
+
+## Abstract
+
+An Iota Resource Locator (IRL) is a URL-like address that is used to reference resources on an
+IOTA Network. 
+
+## Specification
+
+An IRL is a URL-like address comprised of an [IOTA Chain ID](https://github.com/ChainAgnostic/namespaces/blob/main/iota/caip2.md)
+and a relative URL (a regular URL but limited to path, query, and fragment components), where the 
+first path segment MUST be an IOTA object ID canonically encoded as a 64 lowercase-hex characters preceded
+by the "0x" prefix.
+
+Here are some examples:
+
+```
+iota:mainnet/0x215e1425343e20fc69c8bacd5e783d3b3c81e3c86408b9b8357247860d0a376d
+iota:0e5bfb23/0x8357247860d0a376d215e1425343e20fc69c8bacd5e783d3b3c81e3c86408b9b/state/data
+```
+
+## Resolution
+
+The process of resolving an IRL - or dereferencing it - results in the JSON value whose location
+is specified by the IRL itself.
+
+To resolve an IRL one has to interact with the RPC of any of the nodes of the corresponding IOTA network.
+Once the RPC endpoint has been established, the `iota_getObject` RPC method can be invoked, passing
+the IRL's object ID as its parameter, making sure to enable the object's content in the response.
+Here is a sample JSON RPC request:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "iota_getObject",
+  "params": [
+    "0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809",
+    {
+      "showContent": true,
+    }
+  ]
+}
+```
+That yields the following response:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "data": {
+      "objectId": "0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809",
+      "version": "1",
+      "content": {
+        "dataType": "moveObject",
+        "type": "0x2::coin::Coin<0x2::iota::IOTA>",
+        "fields": {
+          "balance": "100000000",
+          "id": {
+            "id": "0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+A resolver is only interested in the `fields` object; if the IRL contains an empty path
+- besides the object ID - the resolver should return it as the resolution result.
+Otherwise, if the path is not empty, it should be split into path segments, which are
+used to traverse the `fields` object, segment by segment. When taking a step in the 
+traversal of the object, if the current segment isn't found among the object's properties
+the segment must be searched within the object's `fields` property, if any.
+Furthermore, when the entire path has been traversed, if the resulting object has a `fields`
+property its value is returned instead of the object itself.
+
+For Instance, the result of resolving `iota:mainnet/0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809`
+is the JSON object:
+
+```json
+{
+  "balance": "100000000",
+  "id": {
+    "id": "0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809"
+  }
+}
+```
+
+whereas, the result of resolving `iota:mainnet/0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809/balance`
+is: `"100000000"`.
+
+## Implementations
+
+The [`iota-caip`](https://github.com/iotaledger/iota-caip) Rust library provides,
+through the features `iota` and `resolver`, an implementation for this specification
+as well as a resolver for IRLs.
+
+
+
+
+

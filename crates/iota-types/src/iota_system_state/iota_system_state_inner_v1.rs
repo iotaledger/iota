@@ -4,20 +4,24 @@
 
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
+use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_types::ObjectId;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AdvanceEpochParams, IotaSystemStateTrait,
-    epoch_start_iota_system_state::EpochStartValidatorInfoV1,
-    get_validators_from_table_vec,
+    AdvanceEpochParams, IotaSystemStateTrait, get_validators_from_table_vec,
     iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaValidatorSummary,
     },
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::iota_system_state::epoch_start_iota_system_state::{
+    EpochStartSystemState, EpochStartValidatorInfoV1, convert_validator_to_epoch_start_info,
+};
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
@@ -27,7 +31,6 @@ use crate::{
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     multiaddr::Multiaddr,
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
@@ -153,15 +156,19 @@ impl ValidatorMetadataV1 {
             .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
 
         // Ensure p2p and primary address are both Multiaddr's and valid
-        // anemo addresses
+        // anemo addresses. The anemo check is node-only; on wasm we're
+        // inspecting already-on-chain state, which the Move verifier
+        // gated at validator creation time.
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
+        #[cfg(not(target_arch = "wasm32"))]
         p2p_address
             .to_anemo_address()
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
 
         let primary_address = Multiaddr::try_from(self.primary_address.clone())
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
+        #[cfg(not(target_arch = "wasm32"))]
         primary_address
             .to_anemo_address()
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
@@ -232,6 +239,7 @@ impl ValidatorMetadataV1 {
             Some(address) => {
                 let address =
                     Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
+                #[cfg(not(target_arch = "wasm32"))]
                 address
                     .to_anemo_address()
                     .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
@@ -245,6 +253,7 @@ impl ValidatorMetadataV1 {
             Some(address) => {
                 let address =
                     Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
+                #[cfg(not(target_arch = "wasm32"))]
                 address
                     .to_anemo_address()
                     .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
@@ -304,7 +313,15 @@ impl ValidatorV1 {
         })
     }
 
-    pub fn into_iota_validator_summary(self) -> IotaValidatorSummary {
+    /// Create the validator summary.
+    ///
+    /// The effective commission rate is evaluated based on the value of the
+    /// `protocol_version` passed. If [`None`] it resolves to the commission
+    /// rate set by the validator.
+    pub fn into_iota_validator_summary(
+        self,
+        protocol_version: Option<u64>,
+    ) -> IotaValidatorSummary {
         let Self {
             metadata:
                 ValidatorMetadataV1 {
@@ -357,6 +374,10 @@ impl ValidatorV1 {
             next_epoch_commission_rate,
             extra_fields: _,
         } = self;
+        let effective_commission_rate = Some(match protocol_version {
+            Some(version) if version >= PROTOCOL_VERSION_IIP8 => commission_rate.max(voting_power),
+            _ => commission_rate,
+        });
         IotaValidatorSummary {
             iota_address,
             authority_pubkey_bytes,
@@ -392,6 +413,7 @@ impl ValidatorV1 {
             pending_total_iota_withdraw,
             pending_pool_token_withdraw,
             commission_rate,
+            effective_commission_rate,
             next_epoch_stake,
             next_epoch_gas_price,
             next_epoch_commission_rate,
@@ -402,7 +424,7 @@ impl ValidatorV1 {
 /// Rust version of the Move iota_system::staking_pool::StakingPoolV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakingPoolV1 {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub activation_epoch: Option<u64>,
     pub deactivation_epoch: Option<u64>,
     pub iota_balance: u64,
@@ -535,36 +557,28 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             get_validators_from_table_vec(&object_store, table_id, table_size)?;
         Ok(validators
             .into_iter()
-            .map(|v| v.into_iota_validator_summary())
+            .map(|v| v.into_iota_validator_summary(Some(self.protocol_version)))
             .collect())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        EpochStartSystemState::new_v1(
+        let committee_validators: Vec<EpochStartValidatorInfoV1> = self
+            .validators
+            .active_validators
+            .iter()
+            .map(convert_validator_to_epoch_start_info)
+            .collect();
+
+        EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
             self.reference_gas_price,
             self.safe_mode,
             self.epoch_start_timestamp_ms,
             self.parameters.epoch_duration_ms,
-            self.validators
-                .active_validators
-                .iter()
-                .map(|validator| {
-                    let metadata = validator.verified_metadata();
-                    EpochStartValidatorInfoV1 {
-                        iota_address: metadata.iota_address,
-                        authority_pubkey: metadata.authority_pubkey.clone(),
-                        network_pubkey: metadata.network_pubkey.clone(),
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        iota_net_address: metadata.net_address.clone(),
-                        p2p_address: metadata.p2p_address.clone(),
-                        primary_address: metadata.primary_address.clone(),
-                        voting_power: validator.voting_power,
-                        hostname: metadata.name.clone(),
-                    }
-                })
-                .collect(),
+            committee_validators.clone(),
+            committee_validators, // V1 uses committee_validators as active_validators
         )
     }
 
@@ -655,7 +669,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             total_stake,
             active_validators: active_validators
                 .into_iter()
-                .map(|v| v.into_iota_validator_summary())
+                .map(|v| v.into_iota_validator_summary(Some(protocol_version)))
                 .collect(),
             pending_active_validators_id,
             pending_active_validators_size,
@@ -688,6 +702,6 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
 /// iota_system::validator_cap::UnverifiedValidatorOperationCap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct UnverifiedValidatorOperationCap {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub authorizer_validator_address: IotaAddress,
 }

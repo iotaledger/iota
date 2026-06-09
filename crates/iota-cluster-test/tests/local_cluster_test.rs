@@ -24,7 +24,7 @@ async fn test_iota_cluster() {
     let fullnode_rpc_port: u16 = 9020;
     let indexer_rpc_port: u16 = 9124;
     let pg_address = "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string();
-    let graphql_address = format!("127.0.0.1:{}", 8000);
+    let graphql_address = "127.0.0.1:8000";
 
     let opts = ClusterTestOpt {
         env: Env::NewLocal,
@@ -34,14 +34,14 @@ async fn test_iota_cluster() {
         indexer_address: Some(format!("127.0.0.1:{indexer_rpc_port}")),
         pg_address: Some(pg_address),
         config_dir: None,
-        graphql_address: Some(graphql_address),
+        graphql_address: Some(graphql_address.into()),
         local_migration_snapshots: Default::default(),
         remote_migration_snapshots: Default::default(),
     };
 
     let _cluster = LocalNewCluster::start(&opts).await.unwrap();
 
-    let grphql_url: String = format!("http://127.0.0.1:{}", 8000);
+    let grphql_url = "http://127.0.0.1:8000";
 
     sleep(std::time::Duration::from_secs(20)).await;
 

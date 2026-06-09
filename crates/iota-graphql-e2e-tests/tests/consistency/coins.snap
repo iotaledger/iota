@@ -1,5 +1,6 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 15 tasks
 
@@ -11,7 +12,7 @@ task 1, lines 13-40:
 created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 15618000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 15618000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 42:
 //# create-checkpoint
@@ -32,47 +33,47 @@ Response: {
     "coins": {
       "nodes": [
         {
-          "owner": {
-            "owner": {
-              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
-            }
-          },
           "contents": {
             "json": {
-              "id": "0x8465562a80b8701abde792175fbfc4ff032b68eb6e160c17931459549ea204ab",
               "balance": {
                 "value": "300"
-              }
+              },
+              "id": "0x8465562a80b8701abde792175fbfc4ff032b68eb6e160c17931459549ea204ab"
             }
-          }
-        },
-        {
+          },
           "owner": {
             "owner": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
-          },
+          }
+        },
+        {
           "contents": {
             "json": {
-              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff",
               "balance": {
                 "value": "100"
-              }
+              },
+              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff"
             }
-          }
-        },
-        {
+          },
           "owner": {
             "owner": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
-          },
+          }
+        },
+        {
           "contents": {
             "json": {
-              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1",
               "balance": {
                 "value": "200"
-              }
+              },
+              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
           }
         }
@@ -85,13 +86,13 @@ task 4, line 70:
 //# transfer-object 1,1 --sender A --recipient B
 mutated: object(0,0), object(1,1)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2295200,  storage_rebate: 2295200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2295200, storage_rebate: 2295200, non_refundable_storage_fee: 0
 
 task 5, lines 72-74:
 //# transfer-object 1,1 --sender B --recipient A
 mutated: object(0,1), object(1,1)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2295200,  storage_rebate: 1314800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2295200, storage_rebate: 1314800, non_refundable_storage_fee: 0
 
 task 6, line 76:
 //# create-checkpoint
@@ -103,7 +104,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 1
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 2
@@ -112,47 +113,47 @@ Response: {
     "coins": {
       "nodes": [
         {
-          "owner": {
-            "owner": {
-              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
-            }
-          },
           "contents": {
             "json": {
-              "id": "0x8465562a80b8701abde792175fbfc4ff032b68eb6e160c17931459549ea204ab",
               "balance": {
                 "value": "300"
-              }
+              },
+              "id": "0x8465562a80b8701abde792175fbfc4ff032b68eb6e160c17931459549ea204ab"
             }
-          }
-        },
-        {
+          },
           "owner": {
             "owner": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
-          },
+          }
+        },
+        {
           "contents": {
             "json": {
-              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff",
               "balance": {
                 "value": "100"
-              }
+              },
+              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff"
             }
-          }
-        },
-        {
+          },
           "owner": {
             "owner": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
-          },
+          }
+        },
+        {
           "contents": {
             "json": {
-              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1",
               "balance": {
                 "value": "200"
-              }
+              },
+              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
           }
         }
@@ -165,13 +166,13 @@ task 8, line 104:
 //# transfer-object 1,2 --sender A --recipient B
 mutated: object(0,0), object(1,2)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2295200,  storage_rebate: 2295200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2295200, storage_rebate: 2295200, non_refundable_storage_fee: 0
 
 task 9, line 106:
 //# transfer-object 1,3 --sender A --recipient B
 mutated: object(0,0), object(1,3)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2295200,  storage_rebate: 2295200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2295200, storage_rebate: 2295200, non_refundable_storage_fee: 0
 
 task 10, line 108:
 //# create-checkpoint
@@ -183,7 +184,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 2
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 3
@@ -192,47 +193,47 @@ Response: {
     "coins": {
       "nodes": [
         {
+          "contents": {
+            "json": {
+              "balance": {
+                "value": "300"
+              },
+              "id": "0x8465562a80b8701abde792175fbfc4ff032b68eb6e160c17931459549ea204ab"
+            }
+          },
           "owner": {
             "owner": {
               "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
-          },
-          "contents": {
-            "json": {
-              "id": "0x8465562a80b8701abde792175fbfc4ff032b68eb6e160c17931459549ea204ab",
-              "balance": {
-                "value": "300"
-              }
-            }
           }
         },
         {
-          "owner": {
-            "owner": {
-              "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
-            }
-          },
           "contents": {
             "json": {
-              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff",
               "balance": {
                 "value": "100"
-              }
+              },
+              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff"
             }
-          }
-        },
-        {
+          },
           "owner": {
             "owner": {
               "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
             }
-          },
+          }
+        },
+        {
           "contents": {
             "json": {
-              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1",
               "balance": {
                 "value": "200"
-              }
+              },
+              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
             }
           }
         }
@@ -247,7 +248,7 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 2
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 3
@@ -256,34 +257,34 @@ Response: {
     "coins": {
       "nodes": [
         {
-          "owner": {
-            "owner": {
-              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
-            }
-          },
           "address": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff",
           "contents": {
             "json": {
-              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff",
               "balance": {
                 "value": "100"
-              }
+              },
+              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
           }
         },
         {
-          "owner": {
-            "owner": {
-              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
-            }
-          },
           "address": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1",
           "contents": {
             "json": {
-              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1",
               "balance": {
                 "value": "200"
-              }
+              },
+              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
             }
           }
         }
@@ -295,45 +296,68 @@ Response: {
 task 13, lines 166-192:
 //# run-graphql --cursors bcs(@{obj_1_1},1)
 Response: {
-  "data": null,
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 11,
-          "column": 3
-        }
-      ],
-      "path": [
-        "coins"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 0
+      },
+      "last": {
+        "sequenceNumber": 3
       }
+    },
+    "coins": {
+      "nodes": [
+        {
+          "address": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff",
+          "contents": {
+            "json": {
+              "balance": {
+                "value": "100"
+              },
+              "id": "0xa461d4dde3d736c3cf3b8faa49973802987ccb143c5f9f7df0437a4ebba9f5ff"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+            }
+          }
+        },
+        {
+          "address": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1",
+          "contents": {
+            "json": {
+              "balance": {
+                "value": "200"
+              },
+              "id": "0xc32a65f3c1b1b5376f5e1515a17f558968dd2d5316e58a29877cc7e49610bea1"
+            }
+          },
+          "owner": {
+            "owner": {
+              "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+            }
+          }
+        }
+      ]
     }
-  ]
+  }
 }
 
 task 14, lines 194-220:
 //# run-graphql --cursors bcs(@{obj_1_1},0)
 Response: {
-  "data": null,
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 11,
-          "column": 3
-        }
-      ],
-      "path": [
-        "coins"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 0
+      },
+      "last": {
+        "sequenceNumber": 3
       }
+    },
+    "coins": {
+      "nodes": []
     }
-  ]
+  }
 }

@@ -4,18 +4,14 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, ensure};
-use iota_sdk::types::block::output::{BasicOutput, OutputId, TokenId};
+use iota_sdk_types::{Owner, TypeTag};
+use iota_stardust_types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
-    TypeTag,
     balance::Balance,
     coin::Coin,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
-    object::Owner,
-    timelock::{
-        stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
-        timelock::{TimeLock, is_timelocked_vested_reward},
-    },
+    timelock::{stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE, timelock::TimeLock},
 };
 
 use crate::stardust::{
@@ -31,7 +27,10 @@ use crate::stardust::{
             },
         },
     },
-    types::address_swap_map::AddressSwapMap,
+    types::{
+        address_swap_map::AddressSwapMap, output::basic::BasicOutput as MoveBasicOutput,
+        vested_reward::is_timelocked_vested_reward,
+    },
 };
 
 pub(super) fn verify_basic_output(
@@ -54,7 +53,7 @@ pub(super) fn verify_basic_output(
                     .ok_or_else(|| anyhow!("missing timelock object"))
             })?
             .to_rust::<TimeLock<Balance>>()
-            .ok_or_else(|| anyhow!("invalid timelock object"))?;
+            .map_err(|e| anyhow!("invalid timelock object: {e}"))?;
 
         // Locked timestamp
         let output_timelock_timestamp =
@@ -132,14 +131,14 @@ pub(super) fn verify_basic_output(
                 .ok_or_else(|| anyhow!("missing basic output object"))
         })?;
         let created_output = created_output_obj
-            .to_rust::<iota_types::stardust::output::BasicOutput>()
-            .ok_or_else(|| anyhow!("invalid basic output object"))?;
+            .to_rust::<MoveBasicOutput>()
+            .map_err(|e| anyhow!("invalid basic output object: {e}"))?;
 
         // Owner
         // If there is an expiration unlock condition, the output is shared.
         if output.unlock_conditions().expiration().is_some() {
             ensure!(
-                matches!(created_output_obj.owner, Owner::Shared { .. }),
+                matches!(created_output_obj.owner, Owner::Shared(_)),
                 "basic output owner mismatch: found {:?}, expected Shared",
                 created_output_obj.owner,
             );

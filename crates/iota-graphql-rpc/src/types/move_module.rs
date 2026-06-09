@@ -85,20 +85,20 @@ impl MoveModule {
         let bytecode = self.parsed.bytecode();
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, checkpoint_viewed_at, cs)) = page
+        let Some(consistent_page) = page
             .paginate_consistent_indices(bytecode.friend_decls.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
         let runtime_id = *bytecode.self_id().address();
         let Some(package) = MovePackage::query(
             ctx,
             self.storage_id,
-            MovePackage::by_id_at(checkpoint_viewed_at),
+            MovePackage::by_id_at(consistent_page.checkpoint_viewed_at),
         )
         .await
         .extend()?
@@ -112,7 +112,7 @@ impl MoveModule {
 
         // Select `friend_decls[lo..hi]` using iterators to enumerate before taking a
         // sub-sequence from it, to get pairs `(i, friend_decls[i])`.
-        for c in cs {
+        for c in consistent_page.cursors {
             let decl = &bytecode.friend_decls[c.ix];
             let friend_pkg = bytecode.address_identifier_at(decl.address);
             let friend_mod = bytecode.identifier_at(decl.name);

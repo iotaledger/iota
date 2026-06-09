@@ -5,43 +5,50 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
-    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     digests::{ChainIdentifier, TransactionDigest},
-    error::IotaObjectResponseError,
     iota_serde::BigInt,
     object::{ObjectRead, PastObjectRead},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader, models::objects::StoredObject};
+use crate::{
+    errors::{IndexerError, IndexerResult},
+    models::objects::StoredObject,
+    read::IndexerReader,
+};
 
 #[derive(Clone)]
-pub(crate) struct ReadApi {
+pub struct ReadApi {
     inner: IndexerReader,
+    fullnode_grpc_client: GrpcClient,
 }
 
 impl ReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
-        Self { inner }
+    /// Creates a new instance of ReadApi with a fullnode RPC client which can
+    /// be either JSON-RPC or gRPC.
+    pub fn new(inner: IndexerReader, fullnode_grpc_client: GrpcClient) -> Self {
+        Self {
+            inner,
+            fullnode_grpc_client,
+        }
     }
 
     async fn get_checkpoint(&self, id: CheckpointId) -> Result<Checkpoint, IndexerError> {
-        match self
-            .inner
-            .spawn_blocking(move |this| this.get_checkpoint(id))
-            .await
-        {
-            Ok(Some(epoch_info)) => Ok(epoch_info),
+        match self.inner.get_checkpoint_with_fallback(id).await {
+            Ok(Some(checkpoint)) => Ok(checkpoint),
             Ok(None) => Err(IndexerError::InvalidArgument(format!(
                 "Checkpoint {id:?} not found"
             ))),
@@ -76,7 +83,7 @@ impl ReadApi {
                         Err(e) => {
                             return Ok(IotaObjectResponse::new(
                                 Some(
-                                    IotaObjectData::new(object_ref, o, layout, options, None)
+                                    IotaObjectData::new(object_ref, o, layout, &options, None)
                                         .map_err(internal_error)?,
                                 ),
                                 Some(IotaObjectResponseError::Display {
@@ -87,17 +94,17 @@ impl ReadApi {
                     }
                 }
                 Ok(IotaObjectResponse::new_with_data(
-                    IotaObjectData::new(object_ref, o, layout, options, display_fields)
+                    IotaObjectData::new(object_ref, o, layout, &options, display_fields)
                         .map_err(internal_error)?,
                 ))
             }
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
+            ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::Deleted {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
+                },
+            )),
         }
     }
 
@@ -112,7 +119,7 @@ impl ReadApi {
             PastObjectRead::ObjectNotExists(id) => Ok(IotaPastObjectResponse::ObjectNotExists(id)),
 
             PastObjectRead::ObjectDeleted(object_ref) => {
-                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref.into()))
+                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref))
             }
 
             PastObjectRead::VersionFound(object_ref, object, layout) => {
@@ -129,7 +136,7 @@ impl ReadApi {
                 };
 
                 Ok(IotaPastObjectResponse::VersionFound(
-                    IotaObjectData::new(object_ref, object, layout, options, display_fields)
+                    IotaObjectData::new(object_ref, object, layout, &options, display_fields)
                         .map_err(internal_error)?,
                 ))
             }
@@ -149,13 +156,43 @@ impl ReadApi {
             }),
         }
     }
+
+    /// Checks if the transaction is indexed on node through fullnode gRPC API.
+    async fn is_transaction_indexed_on_node(
+        &self,
+        digest: TransactionDigest,
+    ) -> IndexerResult<bool> {
+        match self
+            .fullnode_grpc_client
+            .get_transactions(
+                &[digest],
+                Some(ReadMask::from(TransactionField::TRANSACTION_DIGEST)),
+            )
+            .await
+        {
+            Ok(txns) => {
+                let executed_tx = txns.into_inner().pop().ok_or_else(|| {
+                    IndexerError::Grpc("there should be one tx lookup response".into())
+                })?;
+
+                Ok(executed_tx.transaction()?.digest()? == digest)
+            }
+            Err(e) => {
+                if matches!(e, iota_grpc_client::Error::Server(ref e) if e.to_tonic_status().code() == tonic::Code::NotFound)
+                {
+                    return Ok(false);
+                }
+                Err(IndexerError::from(e))
+            }
+        }
+    }
 }
 
 #[async_trait]
 impl ReadApiServer for ReadApi {
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
         let object_read = self
@@ -168,7 +205,7 @@ impl ReadApiServer for ReadApi {
 
     async fn multi_get_objects(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>> {
         if object_ids.len() > *QUERY_MAX_RESULT_LIMIT {
@@ -183,18 +220,18 @@ impl ReadApiServer for ReadApi {
             .multi_get_objects_in_blocking_task(object_ids.clone())
             .await?;
 
-        // Map the returned `StoredObject`s to `ObjectID`
-        let object_map: Arc<HashMap<ObjectID, StoredObject>> = Arc::new(
+        // Map the returned `StoredObject`s to `ObjectId`
+        let object_map: Arc<HashMap<ObjectId, StoredObject>> = Arc::new(
             stored_objects
                 .into_iter()
                 .map(|obj| {
-                    let object_id = ObjectID::try_from(obj.object_id.clone()).map_err(|_| {
+                    let object_id = ObjectId::from_bytes(obj.object_id.clone()).map_err(|_| {
                         IndexerError::PersistentStorageDataCorruption(format!(
-                            "failed to parse ObjectID: {:?}",
+                            "failed to parse ObjectId: {:?}",
                             obj.object_id
                         ))
                     })?;
-                    Ok::<(ObjectID, StoredObject), IndexerError>((object_id, obj))
+                    Ok::<(ObjectId, StoredObject), IndexerError>((object_id, obj))
                 })
                 .collect::<Result<_, IndexerError>>()?,
         );
@@ -205,7 +242,6 @@ impl ReadApiServer for ReadApi {
         // Create a future for each requested object id
         let futures = object_ids.into_iter().map(|object_id| {
             let options = options.clone();
-            let resolver = resolver.clone();
             let maybe_stored = object_map.get(&object_id).cloned();
             async move {
                 match maybe_stored {
@@ -233,6 +269,12 @@ impl ReadApiServer for ReadApi {
         Ok(BigInt::from(checkpoint.network_total_transactions))
     }
 
+    async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
+        self.is_transaction_indexed_on_node(digest)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn get_transaction_block(
         &self,
         digest: TransactionDigest,
@@ -241,7 +283,7 @@ impl ReadApiServer for ReadApi {
         let options = options.unwrap_or_default();
         let txn = self
             .inner
-            .get_single_transaction_block_response(digest, options)
+            .get_single_transaction_block_response_with_fallback(digest, options)
             .await?;
 
         let txn = txn.ok_or_else(|| {
@@ -274,13 +316,13 @@ impl ReadApiServer for ReadApi {
 
     async fn try_get_past_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
-            .get_past_object_read(object_id, version, false)
+            .get_past_object_read_with_fallback(object_id, version, false)
             .await?;
 
         self.past_object_read_to_response(options, past_object_read)
@@ -289,16 +331,19 @@ impl ReadApiServer for ReadApi {
 
     async fn try_get_object_before_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
-            .get_past_object_read(object_id, version, true)
+            .get_past_object_read_with_fallback(object_id, version, true)
             .await?;
 
-        self.past_object_read_to_response(None, past_object_read)
-            .await
+        self.past_object_read_to_response(
+            Some(IotaObjectDataOptions::bcs_lossless()),
+            past_object_read,
+        )
+        .await
     }
 
     async fn try_multi_get_past_objects(
@@ -311,7 +356,7 @@ impl ReadApiServer for ReadApi {
         for request in past_objects {
             let past_object_read = self
                 .inner
-                .get_past_object_read(request.object_id, request.version, false)
+                .get_past_object_read_with_fallback(request.object_id, request.version, false)
                 .await?;
 
             responses.push(
@@ -347,7 +392,7 @@ impl ReadApiServer for ReadApi {
 
         let mut checkpoints = self
             .inner
-            .spawn_blocking(move |this| this.get_checkpoints(cursor, limit + 1, descending_order))
+            .get_checkpoints_with_fallback(cursor, limit + 1, descending_order)
             .await?;
 
         let has_next_page = checkpoints.len() > limit;
@@ -364,7 +409,7 @@ impl ReadApiServer for ReadApi {
 
     async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {
         self.inner
-            .get_transaction_events_in_blocking_task(transaction_digest)
+            .get_transaction_events_with_fallback(transaction_digest)
             .await
             .map_err(Into::into)
     }

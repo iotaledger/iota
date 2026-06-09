@@ -15,7 +15,7 @@ use iota_storage::object_store::util::{
     copy_recursively, find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs,
     path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
 };
-use object_store::{DynObjectStore, path::Path};
+use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::{debug, error, info};
 
@@ -26,8 +26,9 @@ use crate::{
         },
         authority_store_tables::AuthorityPerpetualTables,
     },
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
-    rest_index::RestIndexStore,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
 };
 
 pub const SUCCESS_MARKER: &str = "_SUCCESS";
@@ -80,6 +81,7 @@ pub struct DBCheckpointHandler {
     /// Pruning objects
     pruning_config: AuthorityStorePruningConfig,
     metrics: Arc<DBCheckpointMetrics>,
+    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 }
 
 impl DBCheckpointHandler {
@@ -91,6 +93,7 @@ impl DBCheckpointHandler {
         pruning_config: AuthorityStorePruningConfig,
         registry: &Registry,
         state_snapshot_enabled: bool,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Result<Arc<Self>> {
         let input_store_config = ObjectStoreConfig {
             object_store: Some(ObjectStoreType::File),
@@ -112,6 +115,7 @@ impl DBCheckpointHandler {
             state_snapshot_enabled,
             pruning_config,
             metrics: DBCheckpointMetrics::new(registry),
+            checkpoint_progress_tracker,
         }))
     }
     pub fn new_for_test(
@@ -136,6 +140,7 @@ impl DBCheckpointHandler {
             state_snapshot_enabled,
             pruning_config: AuthorityStorePruningConfig::default(),
             metrics: DBCheckpointMetrics::new(&Registry::default()),
+            checkpoint_progress_tracker: None,
         }))
     }
 
@@ -146,13 +151,13 @@ impl DBCheckpointHandler {
     /// remote store configuration.
     pub fn start(self: Arc<Self>) -> tokio::sync::broadcast::Sender<()> {
         let (kill_sender, _kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
-        if self.output_object_store.is_some() {
+        if let Some(output_object_store) = &self.output_object_store {
             tokio::task::spawn(Self::run_db_checkpoint_upload_loop(
                 self.clone(),
                 kill_sender.subscribe(),
             ));
             tokio::task::spawn(run_manifest_update_loop(
-                self.output_object_store.as_ref().unwrap().clone(),
+                output_object_store.clone(),
                 kill_sender.subscribe(),
             ));
         } else {
@@ -276,7 +281,7 @@ impl DBCheckpointHandler {
         let checkpoint_store = Arc::new(CheckpointStore::new_for_db_checkpoint_handler(
             &db_path.join("checkpoints"),
         ));
-        let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
+        let grpc_indexes_store = GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
         let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
         info!(
             "Pruning db checkpoint in {:?} for epoch: {epoch}",
@@ -285,11 +290,12 @@ impl DBCheckpointHandler {
         AuthorityStorePruner::prune_objects_for_eligible_epochs(
             &perpetual_db,
             &checkpoint_store,
-            Some(&rest_index),
+            Some(&grpc_indexes_store),
             None,
             self.pruning_config.clone(),
             metrics,
             epoch_duration_ms,
+            self.checkpoint_progress_tracker.as_ref(),
         )
         .await?;
         info!(

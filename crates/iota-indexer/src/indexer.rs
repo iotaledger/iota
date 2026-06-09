@@ -2,33 +2,35 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, env};
+use std::{env, time::Duration};
 
-use anyhow::Result;
-use async_trait::async_trait;
-use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
-};
+use anyhow::{Context, Result};
+use iota_data_ingestion_core::ReaderOptions;
 use iota_metrics::spawn_monitored_task;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
-    build_optimistic_json_rpc_server,
-    config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
+    build_json_rpc_server,
+    config::{HistoricFallbackOptions, IngestionConfig, JsonRpcConfig, RetentionConfig},
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{
-        checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
-        pruner::Pruner,
-    },
-    indexer_reader::IndexerReader,
+    historical_fallback::reader::HistoricalFallbackReader,
+    ingestion::{common::connection::resolve_remote_url, primary::orchestration::PrimaryPipeline},
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
+    pruning::{
+        pruner::Pruner,
+        watermark_task::{WatermarkCache, WatermarkTask},
+    },
+    read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
+    system_package_task::SystemPackageTask,
 };
+
+/// Maximum timeout for resolving the remote checkpoint source.
+const MAX_URL_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct Indexer;
 
@@ -37,7 +39,6 @@ impl Indexer {
         config: &IngestionConfig,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
-        snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
@@ -47,13 +48,6 @@ impl Indexer {
         );
 
         info!("IOTA Indexer Writer config: {config:?}",);
-
-        let primary_watermark = store
-            .get_latest_checkpoint_sequence_number()
-            .await
-            .expect("Failed to get latest tx checkpoint sequence number from DB")
-            .map(|seq| seq + 1)
-            .unwrap_or_default();
         let extra_reader_options = ReaderOptions {
             batch_size: config.checkpoint_download_queue_size,
             timeout_secs: config.checkpoint_download_timeout,
@@ -61,15 +55,8 @@ impl Indexer {
             ..Default::default()
         };
 
-        // Start objects snapshot processor, which is a separate pipeline with its
-        // ingestion pipeline.
-        let (object_snapshot_worker, object_snapshot_watermark) = start_objects_snapshot_handler(
-            store.clone(),
-            metrics.clone(),
-            snapshot_config,
-            cancel.clone(),
-        )
-        .await?;
+        let remote_store_url =
+            resolve_remote_url(&config.sources, MAX_URL_RESOLUTION_TIMEOUT).await?;
 
         if let Some(retention_config) = retention_config {
             let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
@@ -85,49 +72,32 @@ impl Indexer {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
 
-        let mut executor = IndexerExecutor::new(
-            ShimIndexerProgressStore::new(vec![
-                ("primary".to_string(), primary_watermark),
-                ("object_snapshot".to_string(), object_snapshot_watermark),
-            ]),
-            1,
-            DataIngestionMetrics::new(&Registry::new()),
-            cancel.child_token(),
-        );
-        let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
-        let worker_pool = WorkerPool::new(
-            worker,
-            "primary".to_string(),
+        let primary_pipeline = PrimaryPipeline::setup(
+            store.clone(),
+            metrics.clone(),
             config.checkpoint_download_queue_size,
-            Default::default(),
-        );
+            cancel.clone(),
+        )
+        .await?;
 
-        executor.register(worker_pool).await?;
-
-        let worker_pool = WorkerPool::new(
-            object_snapshot_worker,
-            "object_snapshot".to_string(),
-            config.checkpoint_download_queue_size,
-            Default::default(),
-        );
-        executor.register(worker_pool).await?;
         info!("Starting data ingestion executor...");
-        executor
+        let primary_pipeline_handle = primary_pipeline
             .run(
-                config
-                    .sources
-                    .data_ingestion_path
-                    .clone()
-                    .unwrap_or(tempfile::tempdir().unwrap().keep()),
-                config
-                    .sources
-                    .remote_store_url
-                    .as_ref()
-                    .map(|url| url.as_str().to_owned()),
-                vec![],
+                config.sources.data_ingestion_path.clone(),
+                remote_store_url,
                 extra_reader_options,
             )
-            .await?;
+            .await;
+
+        let result = primary_pipeline_handle
+            .await
+            .context("failed to join primary pipeline")?
+            .context("primary pipeline failed");
+        info!("Primary pipeline finished");
+        // Tell other tasks (e.g. the pruner) to stop.
+        cancel.cancel();
+        result?;
+
         Ok(())
     }
 
@@ -137,22 +107,65 @@ impl Indexer {
         registry: &Registry,
         connection_pool: ConnectionPool,
         metrics: IndexerMetrics,
+        cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let indexer_reader = IndexerReader::new(connection_pool);
-        let handle =
-            build_optimistic_json_rpc_server(store, registry, indexer_reader, config, metrics)
-                .await
-                .expect("Json rpc server should not run into errors upon start.");
+
+        // Create the watermark cache that will track pruning state
+        let watermark_cache = WatermarkCache::new();
+        let mut read = IndexerReader::new(connection_pool.clone(), watermark_cache.clone());
+
+        if let HistoricFallbackOptions {
+            fallback_kv_url: Some(ref url),
+            fallback_kv_multi_fetch_batch_size,
+            fallback_kv_concurrent_fetches,
+            fallback_kv_cache_size,
+        } = config.historic_fallback_options
+        {
+            let historic_fallback_reader = HistoricalFallbackReader::new(
+                url.as_str(),
+                fallback_kv_cache_size,
+                read.package_resolver().clone(),
+                fallback_kv_multi_fetch_batch_size,
+                fallback_kv_concurrent_fetches,
+                registry,
+            )?;
+            info!("HistoricalFallbackReader initialized with URL: {url}");
+            read.with_fallback_reader(historic_fallback_reader);
+        } else {
+            info!("No config for HistoricalFallbackReader provided, skipping...");
+        }
+
+        let handle = build_json_rpc_server(
+            store.clone(),
+            registry,
+            read.clone(),
+            config,
+            metrics,
+            cancel.clone(),
+        )
+        .await
+        .expect("json rpc server should not run into errors upon start.");
+
+        tracing::info!("Starting watermark background task to track pruning state");
+        let watermark_task = WatermarkTask::new(store, watermark_cache);
+        watermark_task.start(cancel.clone());
+
+        tracing::info!("Starting system package task");
+        let system_package_task =
+            SystemPackageTask::new(read, cancel, std::time::Duration::from_secs(10));
+        spawn_monitored_task!(async move { system_package_task.run().await });
+
         tokio::spawn(async move { handle.stopped().await })
             .await
-            .expect("Rpc server task failed");
+            .expect("rpc server task failed");
 
         Ok(())
     }
+
     pub async fn start_analytical_worker<
         S: IndexerAnalyticalStore + Clone + Send + Sync + 'static,
     >(
@@ -165,31 +178,6 @@ impl Indexer {
         );
         let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
         processor_orchestrator.run_forever().await;
-        Ok(())
-    }
-}
-
-struct ShimIndexerProgressStore {
-    watermarks: HashMap<String, CheckpointSequenceNumber>,
-}
-
-impl ShimIndexerProgressStore {
-    fn new(watermarks: Vec<(String, CheckpointSequenceNumber)>) -> Self {
-        Self {
-            watermarks: watermarks.into_iter().collect(),
-        }
-    }
-}
-
-#[async_trait]
-impl ProgressStore for ShimIndexerProgressStore {
-    type Error = IndexerError;
-
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
-        Ok(*self.watermarks.get(&task_name).expect("missing watermark"))
-    }
-
-    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<(), Self::Error> {
         Ok(())
     }
 }

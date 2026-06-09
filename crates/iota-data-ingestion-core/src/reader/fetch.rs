@@ -10,12 +10,13 @@ use std::{
     sync::Arc,
 };
 
-use iota_rest_api::{CheckpointData, Client};
 use iota_storage::blob::Blob;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::{
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+};
 #[cfg(not(target_os = "macos"))]
 use notify::{RecommendedWatcher, RecursiveMode};
-use object_store::{ObjectStore, path::Path as ObjectStorePath};
+use object_store::{ObjectStore, ObjectStoreExt, path::Path as ObjectStorePath};
 use tracing::{debug, info};
 
 use crate::{
@@ -23,6 +24,8 @@ use crate::{
 };
 
 pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
+
+pub(crate) const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 125 * 1024 * 1024;
 
 /// Managing and processing checkpoint files in a directory.
 pub(crate) trait LocalRead {
@@ -80,7 +83,7 @@ pub(crate) trait LocalRead {
     fn read_local_files(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
         // files are already sorted by sequence number in ascending order
         let files = self.list_unprocessed_checkpoint_files()?;
-        debug!("unprocessed local files {:?}", files);
+        debug!("unprocessed local files {files:?}");
         let mut checkpoints = vec![];
         for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
             let checkpoint = self.read_checkpoint_file(filename)?;
@@ -160,12 +163,12 @@ pub(crate) fn init_watcher(
         }
         inotify_sender
             .blocking_send(())
-            .expect("Failed to send inotify update");
+            .expect("failed to send inotify update");
     })
-    .expect("Failed to init inotify");
+    .expect("failed to init inotify");
     watcher
         .watch(path, RecursiveMode::NonRecursive)
-        .expect("Inotify watcher failed");
+        .expect("inotify watcher failed");
     watcher
 }
 
@@ -190,7 +193,7 @@ pub async fn fetch_from_object_store(
     checkpoint_number: CheckpointSequenceNumber,
 ) -> CheckpointResult {
     let path = ObjectStorePath::from(format!("{checkpoint_number}.{CHECKPOINT_FILE_SUFFIX}"));
-    debug!("Fetch {path} from live");
+    debug!("fetch {path} from live");
     let response = store.get(&path).await?;
     let bytes = response.bytes().await?;
     Ok((
@@ -198,14 +201,4 @@ pub async fn fetch_from_object_store(
             .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?,
         bytes.len(),
     ))
-}
-
-/// Fetches and deserializes a checkpoint from a full node via REST API.
-pub async fn fetch_from_full_node(
-    client: &Client,
-    checkpoint_number: CheckpointSequenceNumber,
-) -> CheckpointResult {
-    let checkpoint = client.get_full_checkpoint(checkpoint_number).await?;
-    let size = bcs::serialized_size(&checkpoint)?;
-    Ok((Arc::new(checkpoint), size))
 }

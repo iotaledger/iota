@@ -10,14 +10,11 @@
 
 use std::time::SystemTime;
 
-use iota_sdk::{
-    client::secret::{SecretManage, mnemonic::MnemonicSecretManager},
-    types::block::output::Output,
-};
+use iota_stardust_types::block::output::Output;
 use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::{MERGE_TIMESTAMP_SECS, new_vested_output},
+    test_outputs::{MERGE_TIMESTAMP_SECS, address_derivation, new_vested_output},
     types::output_header::OutputHeader,
 };
 
@@ -28,7 +25,7 @@ const ADDRESSES_PER_ACCOUNT: u32 = 20;
 const VESTING_WEEKS: usize = 104;
 const VESTING_WEEKS_FREQUENCY: usize = 2;
 
-pub(crate) async fn outputs(
+pub(crate) fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
     coin_type: u32,
@@ -37,18 +34,16 @@ pub(crate) async fn outputs(
         .duration_since(SystemTime::UNIX_EPOCH)?
         .as_secs() as u32;
     let mut outputs = Vec::new();
-    let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
     for account_index in 0..ACCOUNTS {
         for address_index in 0..ADDRESSES_PER_ACCOUNT {
-            let address = secret_manager
-                .generate_ed25519_addresses(
-                    coin_type,
-                    account_index,
-                    address_index..address_index + 1,
-                    None,
-                )
-                .await?[0];
+            let address = address_derivation::derive_address(
+                MNEMONIC,
+                coin_type,
+                account_index,
+                address_index,
+                false,
+            )?;
             // VESTING_WEEKS / VESTING_WEEKS_FREQUENCY * 10 so that `vested_amount` doesn't
             // lose precision.
             let amount = rng.gen_range(1_000_000..10_000_000)

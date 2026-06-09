@@ -71,6 +71,8 @@ static_symbols!(
     "Clock",
     "tx_context",
     "TxContext",
+    "auth_context",
+    "AuthContext",
     "ID",
     "IOTA",
     "authenticator_state",
@@ -96,6 +98,10 @@ static_symbols!(
     "migration",
     "beta",
     "development",
+    "account",
+    "create_account_v1",
+    "create_immutable_account_v1",
+    "rotate_auth_function_ref_v1",
 );
 
 /// The global, unique cache of strings.
@@ -105,7 +111,7 @@ pub(crate) static SYMBOL_POOL: Lazy<Mutex<Pool>> = Lazy::new(|| Mutex::new(Pool:
 mod tests {
     use std::mem::replace;
 
-    use crate::{Pool, Symbol, SYMBOL_POOL};
+    use crate::{Pool, SYMBOL_POOL, Symbol};
 
     #[test]
     fn test_serialization() {

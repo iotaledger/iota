@@ -11,17 +11,19 @@ tags:
 
 # Locked Notarization
 
-**Locked Notarization** is the method within the IOTA Notarization suite focused on creating a singular, tamper-proof, and permanent on-chain record. It is the ideal solution for scenarios where absolute data integrity and long-term immutability are paramount.
+**Locked Notarization** is the method within the IOTA Notarization suite focused on creating a singular and tamper-proof on-chain record. It is the ideal solution for scenarios where absolute data integrity and long-term immutability are paramount.
 
-Once a Locked Notarization is created, its content is permanently sealed. This provides a powerful guarantee that the data existed in a specific state at a specific point in time and has not been—and cannot be—altered since. It is designed to address critical needs for traceability, transparency, and accountability across industries like legal services, supply chain, and digital product ecosystems.
+Once a Locked Notarization is created, its content is permanently sealed. This provides a powerful guarantee that the data existed in a specific state at a specific point in time and has not been altered since. It is designed to address critical needs for traceability, transparency, and accountability across industries like legal services, supply chain, and digital product ecosystems.
 
 ---
 ## Core Characteristics
 
-A `Notarization` object configured with the `Locked` method is defined by its strict and uncompromising rules, prioritizing permanent, immutable records over the flexibility of [Dynamic Notarization](./dynamic-notarization.mdx).
+A `Notarization` object configured with the `Locked` method is defined by its strict and uncompromising rules, prioritizing immutable records
+with clear guarantees of existence over the flexibility of [Dynamic Notarization](./dynamic-notarization.mdx).
 
 -   **Immutable State and Metadata**
-    The core principle of Locked Notarization is that its data is written to the ledger once and can never be changed. This applies to both the `state` and its associated metadata, providing a permanent, verifiable record. This is the primary difference from [Dynamic Notarization](./dynamic-notarization.mdx), which allows for state updates.
+    The core principle of Locked Notarization is that its data is written to the ledger once and can never be changed. This applies to both the `state` and its associated metadata, providing a permanent, verifiable record until the notarization object is destroyed.
+    This is the primary difference from [Dynamic Notarization](./dynamic-notarization.mdx), which allows for state updates.
 
     The standard three-tiered metadata structure is locked down as follows:
     -   **Immutable Description**: An optional string set once at the time of creation. It is immutable by default in all notarization methods.
@@ -34,10 +36,14 @@ A `Notarization` object configured with the `Locked` method is defined by its st
     Ownership of a Locked Notarization object is permanent, in direct contrast to the transferable nature of a [Dynamic Notarization](./dynamic-notarization.mdx). It cannot be transferred to another address, ensuring that the original creator (the Prover) remains the sole entity associated with its creation and eventual deletion. This is enforced by setting the `transfer_lock` to `TimeLock::UntilDestroyed`.
 
 -   **Controlled and Timed Destruction**
-    While the data is immutable, the object itself can eventually be deleted by its owner to recover the storage deposit. However, this action is controlled by a mandatory **Delete Timelock**. The creator must specify a `delete_lock` using `TimeLock::UnlockAt(timestamp)`, which defines the *earliest possible time* the object can be deleted. This feature is critical for compliance and data retention policies, guaranteeing the record remains on-chain for a required period.
+    While the data is immutable, the object itself can eventually be deleted by its owner to recover the storage deposit.
+    This action can optionally be controlled by a **Delete Timelock**. The creator can specify a `delete_lock` using `TimeLock::UnlockAt(timestamp)`,
+    which defines the *earliest possible time* the object can be deleted. This feature is critical for compliance and data retention policies,
+    guaranteeing the record remains on-chain for a required period.
 
 -   **Cost-Efficient Permanence**
-    Like all on-chain objects, the notarized record is secured on the IOTA ledger via a storage deposit. This deposit makes on-chain storage viable for long-term use and is fully refundable to the owner when the object is destroyed after the `delete_lock` period has expired.
+    Like all on-chain objects, the notarized record is secured on the IOTA ledger via a storage deposit. This deposit makes
+    on-chain storage viable for long-term use and is fully refundable to the owner when the object is destroyed.
 
 ---
 ## The `LockedNotarization` Object in Practice

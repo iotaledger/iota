@@ -12,7 +12,7 @@ use crate::{
     block_header::{BlockHeaderAPI, Slot, TestBlockHeader, VerifiedBlockHeader},
     commit::{DecidedLeader, WaveNumber},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     storage::mem_store::MemStore,
     test_dag::build_dag,
@@ -52,7 +52,7 @@ async fn direct_commit() {
     tracing::info!("Commit sequence: {sequence:#?}");
     // The decided leaders should be all from round 1 to round 5
     assert_eq!(sequence.len(), 5);
-    if let DecidedLeader::Commit(ref block) = sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = sequence[0] {
         assert_eq!(
             block.author(),
             test_setup
@@ -84,7 +84,7 @@ async fn idempotence() {
     let first_sequence = committer.try_decide(last_decided);
     assert_eq!(first_sequence.len(), 1);
 
-    if let DecidedLeader::Commit(ref block) = first_sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
         assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
         assert_eq!(
             block.author(),
@@ -99,7 +99,7 @@ async fn idempotence() {
     let first_sequence = committer.try_decide(last_decided);
 
     assert_eq!(first_sequence.len(), 1);
-    if let DecidedLeader::Commit(ref block) = first_sequence[0] {
+    if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
         assert_eq!(first_sequence[0].round(), first_non_genesis_leader_round);
         assert_eq!(
             block.author(),
@@ -112,8 +112,8 @@ async fn idempotence() {
     // Add more rounds so we have something to commit after the leader of wave 1
     let certifying_round_for_round_5 = 7;
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_certifying_round_for_round_1),
         certifying_round_for_round_5,
     );
@@ -132,7 +132,7 @@ async fn idempotence() {
     // Expect that all leaders between round 2 and round 5 are committed.
     // The last one is a block of leader from round 5
     assert_eq!(second_sequence.len(), 4);
-    if let DecidedLeader::Commit(ref block) = second_sequence[3] {
+    if let DecidedLeader::Commit(ref block, _, _) = second_sequence[3] {
         assert_eq!(block.round(), round_5);
         assert_eq!(block.author(), committer.get_leaders(round_5)[0]);
     } else {
@@ -164,7 +164,7 @@ async fn multiple_direct_commit() {
         let sequence = committer.try_decide(last_decided);
         tracing::info!("Commit sequence: {sequence:#?}");
         assert_eq!(sequence.len(), 3);
-        if let DecidedLeader::Commit(ref block) = sequence[2] {
+        if let DecidedLeader::Commit(ref block, _, _) = sequence[2] {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
         } else {
@@ -187,12 +187,7 @@ async fn direct_commit_late_call() {
     // note: waves & rounds are zero-indexed.
     let num_waves = 11;
     let certifying_round_wave_10 = committer.committers[0].certifying_round(10);
-    build_dag(
-        context.clone(),
-        dag_state.clone(),
-        None,
-        certifying_round_wave_10,
-    );
+    build_dag(context, dag_state, None, certifying_round_wave_10);
 
     let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
@@ -203,7 +198,7 @@ async fn direct_commit_late_call() {
     assert_eq!(sequence.len(), 3 * (num_waves - 1_usize));
     for (i, leader_block) in sequence.iter().enumerate() {
         let leader_round = committer.committers[(i + 1) % 3].leader_round((i as u32 + 1) / 3);
-        if let DecidedLeader::Commit(ref block) = leader_block {
+        if let DecidedLeader::Commit(ref block, _, _) = leader_block {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), committer.get_leaders(leader_round)[0]);
         } else {
@@ -266,12 +261,8 @@ async fn direct_skip_no_leader_votes() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
-        leader_schedule,
-        dag_state.clone(),
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: without pipelining or multi-leader enabled there should only be one
     // committer.
     assert_eq!(committer.committers.len(), 3);
@@ -386,12 +377,8 @@ async fn indirect_commit() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
-        leader_schedule,
-        dag_state.clone(),
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: with pipelining or multi-leader enabled there should be three
     // committer.
     assert_eq!(committer.committers.len(), 3);
@@ -407,7 +394,7 @@ async fn indirect_commit() {
         let leader_round =
             committer.committers[(idx + 1) % 3].leader_round(((idx + 1) / 3) as WaveNumber);
         let expected_leader = committer.get_leaders(leader_round)[0];
-        if let DecidedLeader::Commit(ref block) = decided_leader {
+        if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
             assert_eq!(block.round(), leader_round);
             assert_eq!(block.author(), expected_leader);
         } else {
@@ -468,12 +455,8 @@ async fn indirect_skip() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
-        leader_schedule,
-        dag_state.clone(),
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: with pipelining or multi-leader enabled there should be three
     // committers.
     assert_eq!(committer.committers.len(), 3);
@@ -486,7 +469,7 @@ async fn indirect_skip() {
     assert_eq!(sequence.len(), 7);
 
     for (idx, decided_leader) in sequence.iter().enumerate() {
-        if let DecidedLeader::Commit(ref block) = decided_leader {
+        if let DecidedLeader::Commit(ref block, _, _) = decided_leader {
             assert_eq!(block.round(), (idx + 1) as Round);
             assert_eq!(
                 block.author(),
@@ -554,12 +537,8 @@ async fn undecided() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
-        leader_schedule,
-        dag_state.clone(),
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: without pipelining or multi-leader enabled there should only be one
     // committer.
     assert_eq!(committer.committers.len(), 3);
@@ -590,7 +569,7 @@ async fn test_byzantine_direct_commit() {
     // This includes a "good vote" from validator C which is acting as a byzantine
     // validator
     let good_references_voting_round_for_round_12 = build_dag(
-        context.clone(),
+        context,
         dag_state.clone(),
         Some(references_round_12.clone()),
         voting_round_for_round_12_leader,
@@ -622,7 +601,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_1.clone());
+        .accept_block_header(byzantine_block_c13_1.clone(), DataSource::Test);
 
     let byzantine_block_c13_2 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
@@ -631,7 +610,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_2.clone());
+        .accept_block_header(byzantine_block_c13_2.clone(), DataSource::Test);
 
     let byzantine_block_c13_3 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
@@ -640,7 +619,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_3.clone());
+        .accept_block_header(byzantine_block_c13_3.clone(), DataSource::Test);
 
     // Ancestors of certifying blocks in round 14 should include multiple byzantine
     // non-votes C13 but there are enough good votes to prevent a skip.
@@ -653,7 +632,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_a14.clone());
+        .accept_block_header(certifying_block_a14, DataSource::Test);
 
     let good_references_voting_round_for_round_12_without_c13 =
         good_references_voting_round_for_round_12
@@ -674,7 +653,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_b14.clone());
+        .accept_block_header(certifying_block_b14, DataSource::Test);
 
     let certifying_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
@@ -689,7 +668,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_c14.clone());
+        .accept_block_header(certifying_block_c14, DataSource::Test);
 
     let certifying_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
@@ -704,7 +683,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_d14.clone());
+        .accept_block_header(certifying_block_d14, DataSource::Test);
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round for round-12
@@ -720,7 +699,7 @@ async fn test_byzantine_direct_commit() {
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), 12);
-    if let DecidedLeader::Commit(ref block) = sequence[11] {
+    if let DecidedLeader::Commit(ref block, _, _) = sequence[11] {
         assert_eq!(block.author(), committer.get_leaders(round_12)[0])
     } else {
         panic!("Expected a committed leader")

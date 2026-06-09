@@ -4,11 +4,8 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    iota_serde::BigInt,
-    object::Owner,
-};
+use iota_sdk_types::{ObjectId, Owner};
+use iota_types::{base_types::IotaAddress, iota_serde::BigInt};
 use jsonrpsee::rpc_params;
 use tracing::{debug, info};
 
@@ -54,7 +51,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
                 .iter()
                 .map(|coin_ref| {
                     ObjectChecker::new(coin_ref.reference.object_id)
-                        .owner(Owner::AddressOwner(signer))
+                        .owner(Owner::Address(signer))
                         .check_into_gas_coin(ctx.get_fullnode_client())
                 })
                 .collect::<Vec<_>>(),
@@ -69,13 +66,10 @@ impl TestCaseImpl for CoinMergeSplitTest {
         // be locked
         for new_coin in new_coins {
             let coin_to_merge = new_coin.reference.object_id;
-            debug!(
-                "Merging coin {} back to {}.",
-                coin_to_merge, primary_coin_id
-            );
+            debug!("Merging coin {coin_to_merge} back to {primary_coin_id}.",);
             let response =
                 Self::merge_coin(ctx, signer, primary_coin_id, coin_to_merge, *gas_obj.id()).await;
-            debug!("Verifying the merged coin {} is deleted.", coin_to_merge);
+            debug!("Verifying the merged coin {coin_to_merge} is deleted.");
             coins_merged.push(coin_to_merge);
             txes.push(response.digest);
         }
@@ -88,7 +82,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
                 .iter()
                 .map(|obj_id| {
                     ObjectChecker::new(*obj_id)
-                        .owner(Owner::AddressOwner(signer))
+                        .owner(Owner::Address(signer))
                         .deleted()
                         .check(ctx.get_fullnode_client())
                 })
@@ -104,14 +98,13 @@ impl TestCaseImpl for CoinMergeSplitTest {
             *primary_coin.id()
         );
         let primary_after_merge = ObjectChecker::new(primary_coin_id)
-            .owner(Owner::AddressOwner(ctx.get_wallet_address()))
+            .owner(Owner::Address(ctx.get_wallet_address()))
             .check_into_gas_coin(ctx.get_fullnode_client())
             .await;
         assert_eq!(
             primary_after_merge.value(),
             original_value,
-            "Split-then-merge yields unexpected coin value, expect {}, got {}",
-            original_value,
+            "split-then-merge yields unexpected coin value, expect {original_value}, got {}",
             primary_after_merge.value(),
         );
         Ok(())
@@ -122,9 +115,9 @@ impl CoinMergeSplitTest {
     async fn merge_coin(
         ctx: &TestContext,
         signer: IotaAddress,
-        primary_coin: ObjectID,
-        coin_to_merge: ObjectID,
-        gas_obj_id: ObjectID,
+        primary_coin: ObjectId,
+        coin_to_merge: ObjectId,
+        gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
         let params = rpc_params![
             signer,
@@ -145,9 +138,9 @@ impl CoinMergeSplitTest {
     async fn split_coin(
         ctx: &TestContext,
         signer: IotaAddress,
-        primary_coin: ObjectID,
+        primary_coin: ObjectId,
         amounts: Vec<BigInt<u64>>,
-        gas_obj_id: ObjectID,
+        gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
         let params = rpc_params![
             signer,

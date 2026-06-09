@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::bail;
 use clap::Parser;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 use move_cli::base;
 use move_package::{
     BuildConfig,
@@ -30,15 +30,15 @@ pub struct ManagePackage {
     #[arg(long = "network-id")]
     /// The network chain identifier. Use '6364aad5' for mainnet.
     pub chain_id: String,
-    #[arg(long, value_parser = ObjectID::from_hex_literal)]
+    #[arg(long)]
     /// The original address (Object ID) where this package is published.
-    pub original_id: ObjectID,
-    #[arg(long, value_parser = ObjectID::from_hex_literal)]
+    pub original_id: ObjectId,
+    #[arg(long)]
     /// The most recent address (Object ID) where this package is published. It
     /// is the same as 'original-id' if the package is immutable and
     /// published once. It is different from 'original-id' if the package has
     /// been upgraded to a different address.
-    pub latest_id: ObjectID,
+    pub latest_id: ObjectId,
     #[arg(long)]
     /// The version number of the published package. It is '1' if the package is
     /// immutable and published once. It is some number greater than '1' if
@@ -60,7 +60,7 @@ impl ManagePackage {
             bail!(NO_LOCK_FILE)
         };
         let install_dir = build_config.install_dir.unwrap_or(PathBuf::from("."));
-        let mut lock = LockFile::from(install_dir.clone(), &lock_file)?;
+        let mut lock = LockFile::from(install_dir, &lock_file)?;
 
         // Updating managed packages in the Move.lock file is controlled by distinct
         // `Published` and `Upgraded` commands. To set all relevant values, we

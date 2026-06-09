@@ -12,7 +12,7 @@ workspace = true
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
-csv = "1.3.1"
+csv.workspace = true
 regex.workspace = true
 serde.workspace = true
 tempfile.workspace = true

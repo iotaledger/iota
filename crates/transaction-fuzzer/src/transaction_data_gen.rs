@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{ObjectId, TransactionExpiration, TransactionKind};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
-    transaction::{
-        GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
-    },
+    transaction::{GasData, TransactionData, TransactionDataV1},
 };
 use move_core_types::account_address::AccountAddress;
 use proptest::{arbitrary::*, collection::vec, prelude::*};
@@ -42,7 +41,11 @@ pub fn gen_object_ref() -> impl Strategy<Value = ObjectRef> {
         any::<[u8; 32]>(),
     )
         .prop_map(move |(addr, seq, seed)| {
-            (ObjectID::from_address(addr), seq, ObjectDigest::new(seed))
+            ObjectRef::new(
+                ObjectId::new(addr.into_bytes()),
+                seq,
+                ObjectDigest::new(seed),
+            )
         })
 }
 
@@ -53,7 +56,7 @@ pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
         gas_budget_selection_strategy(),
     )
         .prop_map(move |(obj_refs, price, budget)| GasData {
-            payment: obj_refs,
+            objects: obj_refs,
             owner: sender,
             price,
             budget,
@@ -63,7 +66,7 @@ pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
 pub fn gen_transaction_kind() -> impl Strategy<Value = TransactionKind> {
     (vec(gen_type_tag(), 0..10))
         .prop_map(pt_for_tags)
-        .prop_map(TransactionKind::ProgrammableTransaction)
+        .prop_map(TransactionKind::Programmable)
 }
 
 pub fn transaction_data_gen(sender: IotaAddress) -> impl Strategy<Value = TransactionData> {
@@ -125,7 +128,7 @@ impl<
             .prop_map(|(kind, sender, gas_data, expiration)| TransactionDataV1 {
                 kind,
                 sender,
-                gas_data,
+                gas_payment: gas_data,
                 expiration,
             })
             .prop_map(TransactionData::V1)

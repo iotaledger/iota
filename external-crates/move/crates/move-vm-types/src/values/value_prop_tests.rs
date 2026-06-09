@@ -6,7 +6,7 @@
 use move_core_types::runtime_value::MoveValue;
 use proptest::prelude::*;
 
-use crate::values::{prop::layout_and_value_strategy, Value};
+use crate::values::{Value, prop::layout_and_value_strategy};
 
 proptest! {
     #[test]

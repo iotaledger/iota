@@ -31,9 +31,12 @@ use iota_keys::{
     keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_types::{
+    Identifier, ObjectId, Owner, TypeTag,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
@@ -46,12 +49,9 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     multiaddr::Multiaddr,
-    object::Owner,
-    transaction::{CallArg, ObjectArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
-use move_core_types::ident_str;
 use serde::Serialize;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use tabled::{
     builder::Builder,
     settings::{
@@ -60,7 +60,7 @@ use tabled::{
     },
 };
 
-use crate::{PrintableResult, fire_drill::get_gas_obj_ref, signing::sign_transaction};
+use crate::{PrintableResult, signing::sign_transaction};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -123,7 +123,7 @@ pub enum IotaValidatorCommand {
         /// validator itself. Validator's OperationCap ID can be found
         /// by using the `display-metadata` subcommand.
         #[arg(name = "operation-cap-id", long)]
-        operation_cap_id: Option<ObjectID>,
+        operation_cap_id: Option<ObjectId>,
         /// The IOTA Address of the validator is being reported or un-reported
         #[arg(name = "reportee-address")]
         reportee_address: IotaAddress,
@@ -221,7 +221,7 @@ impl IotaValidatorCommand {
 
                 if let StoredKey::KeyPair(keypair) = account_key {
                     let account_key_file_name = dir.join("account.key");
-                    make_key_files(account_key_file_name.clone(), false, Some(keypair.clone()))?;
+                    make_key_files(account_key_file_name, false, Some(keypair.clone()))?;
                 }
 
                 let network_key_file_name = dir.join("network.key");
@@ -276,39 +276,21 @@ impl IotaValidatorCommand {
                 let validator = validator_info.info;
 
                 let args = vec![
-                    CallArg::Pure(
-                        bcs::to_bytes(&AuthorityPublicKeyBytes::from_bytes(
-                            validator.authority_key().as_bytes(),
-                        )?)
-                        .unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.network_key().as_bytes().to_vec()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.protocol_key().as_bytes().to_vec()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator_info.proof_of_possession.as_ref().to_vec())
-                            .unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.name().to_owned().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.description.clone().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.image_url.clone().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.project_url.clone().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(bcs::to_bytes(validator.network_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(validator.p2p_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(validator.primary_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&validator.gas_price()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&validator.commission_rate()).unwrap()),
+                    CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
+                        validator.authority_key().as_bytes(),
+                    )?),
+                    CallArg::pure(&validator.network_key().as_bytes().to_vec()),
+                    CallArg::pure(&validator.protocol_key().as_bytes().to_vec()),
+                    CallArg::pure(&validator_info.proof_of_possession.as_ref().to_vec()),
+                    CallArg::pure(&validator.name().to_owned().into_bytes()),
+                    CallArg::pure(&validator.description.clone().into_bytes()),
+                    CallArg::pure(&validator.image_url.clone().into_bytes()),
+                    CallArg::pure(&validator.project_url.clone().into_bytes()),
+                    CallArg::pure(validator.network_address()),
+                    CallArg::pure(validator.p2p_address()),
+                    CallArg::pure(validator.primary_address()),
+                    CallArg::pure(&validator.gas_price()),
+                    CallArg::pure(&validator.commission_rate()),
                 ];
                 let response =
                     call_0x5(context, "request_add_validator_candidate", args, gas_budget).await?;
@@ -466,7 +448,7 @@ impl IotaValidatorCommand {
 
 async fn get_cap_object_ref(
     context: &mut WalletContext,
-    operation_cap_id: Option<ObjectID>,
+    operation_cap_id: Option<ObjectId>,
 ) -> Result<(ValidatorStatus, IotaValidatorSummary, ObjectRef)> {
     let iota_client = context.get_client().await?;
     if let Some(operation_cap_id) = operation_cap_id {
@@ -506,7 +488,7 @@ async fn get_cap_object_ref(
         let cap_obj_ref = resp
             .object_ref_if_exists()
             .unwrap_or_else(|| panic!("OperationCap {cap_object_id} does not exist"));
-        if owner != Owner::AddressOwner(context.active_address()?) {
+        if owner != Owner::Address(context.active_address()?) {
             anyhow::bail!(
                 "OperationCap {} is not owned by the sender address {} but {:?}",
                 summary.operation_cap_id,
@@ -521,7 +503,7 @@ async fn get_cap_object_ref(
 async fn report_validator(
     context: &mut WalletContext,
     reportee_address: IotaAddress,
-    operation_cap_id: Option<ObjectID>,
+    operation_cap_id: Option<ObjectId>,
     undo_report: bool,
     gas_budget: u64,
 ) -> Result<IotaTransactionBlockResponse> {
@@ -535,8 +517,8 @@ async fn report_validator(
         );
     }
     let args = vec![
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(cap_obj_ref)),
-        CallArg::Pure(bcs::to_bytes(&reportee_address).unwrap()),
+        CallArg::ImmutableOrOwned(cap_obj_ref),
+        CallArg::pure(&reportee_address),
     ];
     let function_name = if undo_report {
         "undo_report_validator"
@@ -548,7 +530,7 @@ async fn report_validator(
 
 async fn get_validator_summary_from_cap_id(
     client: &IotaClient,
-    operation_cap_id: ObjectID,
+    operation_cap_id: ObjectId,
 ) -> anyhow::Result<(ValidatorStatus, IotaValidatorSummary)> {
     let resp = client
         .read_api()
@@ -592,7 +574,7 @@ async fn construct_unsigned_0x5_txn(
     gas_budget: u64,
 ) -> anyhow::Result<TransactionData> {
     let iota_client = context.get_client().await?;
-    let mut args = vec![CallArg::IOTA_SYSTEM_MUT];
+    let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
     let rgp = iota_client
         .governance_api()
@@ -602,9 +584,9 @@ async fn construct_unsigned_0x5_txn(
     let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
     TransactionData::new_move_call(
         sender,
-        IOTA_SYSTEM_PACKAGE_ID,
-        ident_str!("iota_system").to_owned(),
-        ident_str!(function).to_owned(),
+        ObjectId::SYSTEM,
+        Identifier::IOTA_SYSTEM_MODULE,
+        Identifier::from_static(function),
         vec![],
         gas_obj_ref,
         args,
@@ -624,8 +606,8 @@ async fn call_0x5(
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
     let iota_client = context.get_client().await?;
 
-    let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
-    let transaction = Transaction::from_data(tx_data, vec![signature]);
+    let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
+    let transaction = Transaction::from_generic_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()
@@ -727,6 +709,7 @@ pub async fn get_validator_summary(
         pending_active_validators_id,
         validator_candidates_id,
         inactive_pools_id,
+        protocol_version,
     ) = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => (
             None,
@@ -734,6 +717,7 @@ pub async fn get_validator_summary(
             v1.pending_active_validators_id,
             v1.validator_candidates_id,
             v1.inactive_pools_id,
+            v1.protocol_version,
         ),
         IotaSystemStateSummary::V2(v2) => (
             Some(v2.committee_members),
@@ -741,6 +725,7 @@ pub async fn get_validator_summary(
             v2.pending_active_validators_id,
             v2.validator_candidates_id,
             v2.inactive_pools_id,
+            v2.protocol_version,
         ),
         _ => bail!(
             "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
@@ -777,7 +762,7 @@ pub async fn get_validator_summary(
     let pending_validator_summary =
         get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
             .await?
-            .map(|v| v.into_iota_validator_summary());
+            .map(|v| v.into_iota_validator_summary(Some(protocol_version)));
 
     if let Some(pending_validator_summary) = pending_validator_summary {
         return Ok(Some((ValidatorStatus::Pending, pending_validator_summary)));
@@ -795,7 +780,8 @@ pub async fn get_validator_summary(
     if res.error.is_none() {
         let object_id = res.data.expect("no data in result").object_id;
         let validator_summary =
-            get_validator_summary_from_validator_wrapper(client, object_id).await?;
+            get_validator_summary_from_validator_wrapper(client, object_id, Some(protocol_version))
+                .await?;
         return Ok(Some((ValidatorStatus::Candidate, validator_summary)));
     };
 
@@ -807,9 +793,12 @@ pub async fn get_validator_summary(
             .await
     });
     while let Some(dynamic_field_info) = stream.try_next().await? {
-        let validator_summary =
-            get_validator_summary_from_validator_wrapper(client, dynamic_field_info.object_id)
-                .await?;
+        let validator_summary = get_validator_summary_from_validator_wrapper(
+            client,
+            dynamic_field_info.object_id,
+            Some(protocol_version),
+        )
+        .await?;
         if validator_summary.iota_address == validator_address {
             return Ok(Some((ValidatorStatus::Inactive, validator_summary)));
         }
@@ -820,7 +809,8 @@ pub async fn get_validator_summary(
 
 async fn get_validator_summary_from_validator_wrapper(
     client: &IotaClient,
-    validator_object_id: ObjectID,
+    validator_object_id: ObjectId,
+    protocol_version: Option<u64>,
 ) -> anyhow::Result<IotaValidatorSummary> {
     let validator = client
         .read_api()
@@ -852,7 +842,9 @@ async fn get_validator_summary_from_validator_wrapper(
         .expect("invalid move type")
         .deserialize::<Field<u64, ValidatorV1>>()?;
 
-    Ok(validator.value.into_iota_validator_summary())
+    Ok(validator
+        .value
+        .into_iota_validator_summary(protocol_version))
 }
 
 async fn display_metadata(
@@ -888,7 +880,7 @@ async fn display_metadata(
 async fn get_pending_candidate_summary(
     validator_address: IotaAddress,
     iota_client: &IotaClient,
-    pending_active_validators_id: ObjectID,
+    pending_active_validators_id: ObjectId,
 ) -> anyhow::Result<Option<ValidatorV1>> {
     let pending_validators = iota_client
         .read_api()
@@ -965,25 +957,19 @@ async fn update_metadata(
 ) -> anyhow::Result<IotaTransactionBlockResponse> {
     match metadata {
         MetadataUpdate::Name { name } => {
-            let args = vec![CallArg::Pure(bcs::to_bytes(&name.into_bytes()).unwrap())];
+            let args = vec![CallArg::pure(&name.into_bytes())];
             call_0x5(context, "update_validator_name", args, gas_budget).await
         }
         MetadataUpdate::Description { description } => {
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&description.into_bytes()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&description.into_bytes())];
             call_0x5(context, "update_validator_description", args, gas_budget).await
         }
         MetadataUpdate::ImageUrl { image_url } => {
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&image_url.into_bytes()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&image_url.into_bytes())];
             call_0x5(context, "update_validator_image_url", args, gas_budget).await
         }
         MetadataUpdate::ProjectUrl { project_url } => {
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&project_url.into_bytes()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&project_url.into_bytes())];
             call_0x5(context, "update_validator_project_url", args, gas_budget).await
         }
         MetadataUpdate::NetworkAddress { network_address } => {
@@ -992,7 +978,7 @@ async fn update_metadata(
                 bail!("Network address must be a TCP address");
             }
             can_validator_mutate_all_data(context).await?;
-            let args = vec![CallArg::Pure(bcs::to_bytes(&network_address).unwrap())];
+            let args = vec![CallArg::pure(&network_address)];
             call_0x5(
                 context,
                 "update_validator_next_epoch_network_address",
@@ -1006,7 +992,7 @@ async fn update_metadata(
                 anyhow!("Invalid primary address, it must look like `/[ip4,ip6,dns]/.../udp/port`")
             })?;
             can_validator_mutate_all_data(context).await?;
-            let args = vec![CallArg::Pure(bcs::to_bytes(&primary_address).unwrap())];
+            let args = vec![CallArg::pure(&primary_address)];
             call_0x5(
                 context,
                 "update_validator_next_epoch_primary_address",
@@ -1020,7 +1006,7 @@ async fn update_metadata(
                 anyhow!("Invalid p2p address, it must look like `/[ip4,ip6,dns]/.../udp/port`")
             })?;
             can_validator_mutate_all_data(context).await?;
-            let args = vec![CallArg::Pure(bcs::to_bytes(&p2p_address).unwrap())];
+            let args = vec![CallArg::pure(&p2p_address)];
             call_0x5(
                 context,
                 "update_validator_next_epoch_p2p_address",
@@ -1033,9 +1019,7 @@ async fn update_metadata(
             can_validator_mutate_all_data(context).await?;
             let network_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&network_pub_key.as_bytes().to_vec()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&network_pub_key.as_bytes().to_vec())];
             call_0x5(
                 context,
                 "update_validator_next_epoch_network_pubkey",
@@ -1048,9 +1032,7 @@ async fn update_metadata(
             can_validator_mutate_all_data(context).await?;
             let protocol_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&protocol_pub_key.as_bytes().to_vec()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&protocol_pub_key.as_bytes().to_vec())];
             call_0x5(
                 context,
                 "update_validator_next_epoch_protocol_pubkey",
@@ -1066,13 +1048,10 @@ async fn update_metadata(
             let authority_pub_key: AuthorityPublicKey = authority_key_pair.public().clone();
             let pop = generate_proof_of_possession(&authority_key_pair, iota_address);
             let args = vec![
-                CallArg::Pure(
-                    bcs::to_bytes(&AuthorityPublicKeyBytes::from_bytes(
-                        authority_pub_key.as_bytes(),
-                    )?)
-                    .unwrap(),
-                ),
-                CallArg::Pure(bcs::to_bytes(&pop.as_ref().to_vec()).unwrap()),
+                CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
+                    authority_pub_key.as_bytes(),
+                )?),
+                CallArg::pure(&pop.as_ref().to_vec()),
             ];
             call_0x5(
                 context,
@@ -1116,4 +1095,21 @@ async fn can_validator_mutate_all_data(context: &mut WalletContext) -> Result<()
     )
     .await?;
     Ok(())
+}
+
+async fn get_gas_obj_ref(
+    iota_address: IotaAddress,
+    iota_client: &IotaClient,
+    minimal_gas_balance: u64,
+) -> anyhow::Result<ObjectRef> {
+    let coins = iota_client
+        .coin_read_api()
+        .get_coins(iota_address, Some("0x2::iota::IOTA".into()), None, None)
+        .await?
+        .data;
+    let gas_obj = coins.iter().find(|c| c.balance >= minimal_gas_balance);
+    if gas_obj.is_none() {
+        bail!("Validator doesn't have enough IOTA coins to cover transaction fees.");
+    }
+    Ok(gas_obj.unwrap().object_ref())
 }

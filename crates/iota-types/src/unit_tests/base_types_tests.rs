@@ -7,34 +7,36 @@
 
 use std::str::FromStr;
 
-use base_types_tests::timelock::TimeLock;
-use fastcrypto::{encoding::Base58, traits::EncodeDecodeBase64};
+use fastcrypto::{
+    encoding::{Base58, Encoding},
+    traits::EncodeDecodeBase64,
+};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Owner,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use move_binary_format::file_format;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 
 use super::*;
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    balance::Balance,
+    base_types::TypeTag,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature,
+        IotaSignature, Signature, SignatureScheme,
         bcs_signable_test::{Bar, Foo},
         get_key_pair, get_key_pair_from_bytes,
     },
-    digests::Digest,
+    digests::{Digest, TransactionDigest},
+    dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
-    id::{ID, UID},
     object::Object,
 };
 
 #[test]
 fn test_bcs_enum() {
-    let address = Owner::AddressOwner(IotaAddress::random_for_testing_only());
-    let shared = Owner::Shared {
-        initial_shared_version: 1.into(),
-    };
+    let address = Owner::Address(IotaAddress::random());
+    let shared = Owner::Shared(1.into());
 
     let address_ser = bcs::to_bytes(&address).unwrap();
     let shared_ser = bcs::to_bytes(&shared).unwrap();
@@ -100,12 +102,12 @@ fn test_signatures_serde() {
 #[test]
 fn test_max_sequence_number() {
     let max = SequenceNumber::MAX_VALID_EXCL;
-    assert_eq!(max.0 * 2 + 1, u64::MAX);
+    assert_eq!(max * 2 + 1, u64::MAX);
 }
 
 #[test]
 fn test_gas_coin_ser_deser_roundtrip() {
-    let id = ObjectID::random();
+    let id = ObjectId::random();
     let coin = GasCoin::new(id, 10);
     let coin_bytes = coin.to_bcs_bytes();
 
@@ -123,7 +125,7 @@ fn test_lamport_increment_version() {
         SequenceNumber::from(42),
     ];
 
-    let incremented = SequenceNumber::lamport_increment(versions);
+    let incremented = SequenceNumber::lamport_increment(versions).unwrap();
 
     for version in versions {
         assert!(version < incremented, "Expected: {version} < {incremented}");
@@ -135,24 +137,24 @@ fn test_object_id_conversions() {}
 
 #[test]
 fn test_object_id_display() {
-    let id = ObjectID::from_str(SAMPLE_ADDRESS).unwrap();
-    assert_eq!(format!("{id:?}"), SAMPLE_ADDRESS);
+    let id = ObjectId::from_str(SAMPLE_ADDRESS).unwrap();
+    assert_eq!(format!("{id}"), SAMPLE_ADDRESS);
 }
 
 #[test]
 fn test_object_id_str_lossless() {
-    let id = ObjectID::from_str("0000000000000000000000000000000000c0f1f95c5b1c5f0eda533eff269000")
+    let id = ObjectId::from_str("0000000000000000000000000000000000c0f1f95c5b1c5f0eda533eff269000")
         .unwrap();
     let id_empty =
-        ObjectID::from_str("0000000000000000000000000000000000000000000000000000000000000000")
+        ObjectId::from_str("0000000000000000000000000000000000000000000000000000000000000000")
             .unwrap();
     let id_one =
-        ObjectID::from_str("0000000000000000000000000000000000000000000000000000000000000001")
+        ObjectId::from_str("0000000000000000000000000000000000000000000000000000000000000001")
             .unwrap();
 
-    assert_eq!(id.short_str_lossless(), "c0f1f95c5b1c5f0eda533eff269000",);
-    assert_eq!(id_empty.short_str_lossless(), "0",);
-    assert_eq!(id_one.short_str_lossless(), "1",);
+    assert_eq!(id.to_raw_short_hex(), "c0f1f95c5b1c5f0eda533eff269000",);
+    assert_eq!(id_empty.to_raw_short_hex(), "0",);
+    assert_eq!(id_one.to_raw_short_hex(), "1",);
 }
 
 #[test]
@@ -160,42 +162,42 @@ fn test_object_id_from_hex_literal() {
     let hex_literal = "0x1";
     let hex = "0000000000000000000000000000000000000000000000000000000000000001";
 
-    let obj_id_from_literal = ObjectID::from_hex_literal(hex_literal).unwrap();
-    let obj_id = ObjectID::from_str(hex).unwrap();
+    let obj_id_from_literal = ObjectId::from_short_hex(hex_literal).unwrap();
+    let obj_id = ObjectId::from_str(hex).unwrap();
 
     assert_eq!(obj_id_from_literal, obj_id);
-    assert_eq!(hex_literal, obj_id.to_hex_literal());
+    assert_eq!(hex_literal, obj_id.to_short_hex());
 
     // Missing '0x'
-    ObjectID::from_hex_literal(hex).unwrap_err();
+    ObjectId::from_prefixed_short_hex(hex).unwrap_err();
     // Too long
-    ObjectID::from_hex_literal(
+    ObjectId::from_prefixed_short_hex(
         "0x10000000000000000000000000000000000000000000000000000000000000001",
     )
     .unwrap_err();
     assert_eq!(
         "0x0000000000000000000000000000000000000000000000000000000000000001",
-        obj_id.to_hex_uncompressed()
+        obj_id.to_hex()
     );
 }
 
 #[test]
 fn test_object_id_ref() {
-    let obj_id = ObjectID::new([1u8; ObjectID::LENGTH]);
+    let obj_id = ObjectId::new([1u8; ObjectId::LENGTH]);
     let _: &[u8] = obj_id.as_ref();
 }
 
 #[test]
 fn test_object_id_from_proto_invalid_length() {
     let bytes = vec![1; 123];
-    ObjectID::from_bytes(bytes).unwrap_err();
+    ObjectId::from_bytes(bytes).unwrap_err();
 }
 
 #[test]
 fn test_object_id_deserialize_from_json_value() {
-    let obj_id = ObjectID::random();
+    let obj_id = ObjectId::random();
     let json_value = serde_json::to_value(obj_id).expect("serde_json::to_value fail.");
-    let obj_id2: ObjectID =
+    let obj_id2: ObjectId =
         serde_json::from_value(json_value).expect("serde_json::from_value fail.");
     assert_eq!(obj_id, obj_id2)
 }
@@ -204,10 +206,10 @@ fn test_object_id_deserialize_from_json_value() {
 fn test_object_id_serde_json() {
     let json_hex = format!("\"{SAMPLE_ADDRESS}\"");
 
-    let obj_id = ObjectID::from_hex_literal(SAMPLE_ADDRESS).unwrap();
+    let obj_id = ObjectId::from_hex(SAMPLE_ADDRESS).unwrap();
 
     let json = serde_json::to_string(&obj_id).unwrap();
-    let json_obj_id: ObjectID = serde_json::from_str(&json_hex).unwrap();
+    let json_obj_id: ObjectId = serde_json::from_str(&json_hex).unwrap();
 
     assert_eq!(json, json_hex);
     assert_eq!(obj_id, json_obj_id);
@@ -215,17 +217,17 @@ fn test_object_id_serde_json() {
 
 #[test]
 fn test_object_id_serde_not_human_readable() {
-    let obj_id = ObjectID::random();
+    let obj_id = ObjectId::random();
     let serialized = bcs::to_bytes(&obj_id).unwrap();
-    assert_eq!(obj_id.0.to_vec(), serialized);
-    let deserialized: ObjectID = bcs::from_bytes(&serialized).unwrap();
+    assert_eq!(obj_id.as_bytes().to_vec(), serialized);
+    let deserialized: ObjectId = bcs::from_bytes(&serialized).unwrap();
     assert_eq!(deserialized, obj_id);
 }
 
 #[test]
 fn test_object_id_serde_with_expected_value() {
     let object_id_vec = SAMPLE_ADDRESS_VEC.to_vec();
-    let object_id = ObjectID::try_from(object_id_vec.clone()).unwrap();
+    let object_id = ObjectId::from_bytes(&object_id_vec).unwrap();
     let json_serialized = serde_json::to_string(&object_id).unwrap();
     let bcs_serialized = bcs::to_bytes(&object_id).unwrap();
 
@@ -239,41 +241,41 @@ fn test_object_id_zero_padding() {
     let hex = "0x2";
     let long_hex = "0x0000000000000000000000000000000000000000000000000000000000000002";
     let long_hex_alt = "0000000000000000000000000000000000000000000000000000000000000002";
-    let obj_id_1 = ObjectID::from_str(hex).unwrap();
-    let obj_id_2 = ObjectID::from_str(long_hex).unwrap();
-    let obj_id_3 = ObjectID::from_str(long_hex_alt).unwrap();
-    let obj_id_4: ObjectID = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
-    let obj_id_5: ObjectID = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
-    let obj_id_6: ObjectID = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_1.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_2.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_3.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_4.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_5.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_6.0);
+    let obj_id_1 = ObjectId::from_str(hex).unwrap();
+    let obj_id_2 = ObjectId::from_str(long_hex).unwrap();
+    let obj_id_3 = ObjectId::from_str(long_hex_alt).unwrap();
+    let obj_id_4: ObjectId = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
+    let obj_id_5: ObjectId = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
+    let obj_id_6: ObjectId = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
+    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_1.as_bytes());
+    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_2.as_bytes());
+    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_3.as_bytes());
+    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_4.as_bytes());
+    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_5.as_bytes());
+    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_6.as_bytes());
 }
 
 #[test]
 fn test_address_display() {
     let id = IotaAddress::from_str(SAMPLE_ADDRESS).unwrap();
-    assert_eq!(format!("{id:?}"), SAMPLE_ADDRESS);
+    assert_eq!(format!("{id}"), SAMPLE_ADDRESS);
 }
 
 #[test]
 fn test_address_serde_not_human_readable() {
-    let address = IotaAddress::random_for_testing_only();
+    let address = IotaAddress::random();
     let serialized = bincode::serialize(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
     // bincode use 8 bytes for BYTES len and bcs use 1 byte
     assert_eq!(serialized, bcs_serialized);
-    assert_eq!(address.0, serialized[..]);
+    assert_eq!(address.as_bytes(), &serialized[..]);
     let deserialized: IotaAddress = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, address);
 }
 
 #[test]
 fn test_address_serde_human_readable() {
-    let address = IotaAddress::random_for_testing_only();
+    let address = IotaAddress::random();
     let serialized = serde_json::to_string(&address).unwrap();
     assert_eq!(format!("\"{address}\""), serialized);
     let deserialized: IotaAddress = serde_json::from_str(&serialized).unwrap();
@@ -282,7 +284,7 @@ fn test_address_serde_human_readable() {
 
 #[test]
 fn test_address_serde_with_expected_value() {
-    let address = IotaAddress::try_from(SAMPLE_ADDRESS_VEC.to_vec()).unwrap();
+    let address = IotaAddress::from_bytes(SAMPLE_ADDRESS_VEC).unwrap();
     let json_serialized = serde_json::to_string(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
 
@@ -346,15 +348,12 @@ fn test_authority_signature_serde_human_readable() {
 
 #[test]
 fn test_object_id_from_empty_string() {
-    assert!(ObjectID::from_str("").is_err());
+    assert!(ObjectId::from_str("").is_err());
 }
 
 #[test]
 fn test_move_object_size_for_gas_metering() {
-    let object = Object::with_id_owner_for_testing(
-        ObjectID::random(),
-        IotaAddress::random_for_testing_only(),
-    );
+    let object = Object::with_id_owner_for_testing(ObjectId::random(), IotaAddress::random());
     let size = object.object_size_for_gas_metering();
     let serialized = bcs::to_bytes(&object).unwrap();
     // If the following assertion breaks, it's likely you have changed MoveObject's
@@ -369,7 +368,7 @@ fn test_move_package_size_for_gas_metering() {
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let package = Object::new_package(
         &[module],
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
         &config,
         &[], // empty dependencies for empty package (no modules)
     )
@@ -418,66 +417,58 @@ fn test_address_backwards_compatibility() {
     );
 }
 
-// tests translating into and out of a MoveObjectType from a StructTag
+// tests StructTag constructor and checker consistency
 #[test]
 fn move_object_type_consistency() {
-    // Tests consistency properties for the relationship between a StructTag and a
-    // MoveObjectType
-    fn assert_consistent(tag: &StructTag) -> MoveObjectType {
-        let ty: MoveObjectType = tag.clone().into();
-        // check into/out of the tag works
-        assert!(ty.is(tag));
-        let ty_as_tag: StructTag = ty.clone().into();
-        assert_eq!(&ty_as_tag, tag);
+    // Tests consistency properties for StructTag constructors and type checkers
+    fn assert_consistent(tag: &StructTag) -> StructTag {
+        let ty = tag.clone();
         // test same type information
-        assert_eq!(ty.address(), tag.address);
-        assert_eq!(ty.module(), tag.module.as_ident_str());
-        assert_eq!(ty.name(), tag.name.as_ident_str());
-        assert_eq!(&ty.type_params(), &tag.type_params);
-        assert_eq!(ty.module_id(), tag.module_id());
+        assert_eq!(ty.address(), tag.address());
+        assert_eq!(ty.module(), tag.module());
+        assert_eq!(ty.name(), tag.name());
+        assert_eq!(ty.type_params(), tag.type_params());
         // sanity check special cases
         assert!(!ty.is_gas_coin() || ty.is_coin());
-        assert!(!ty.is_timelocked_balance() || ty.is_timelock());
+        assert!(!ty.is_timelocked_balance() || ty.is_time_lock());
         let cases = [
             ty.is_coin(),
             ty.is_staked_iota(),
             ty.is_coin_metadata(),
             ty.is_dynamic_field(),
-            ty.is_timelock(),
+            ty.is_time_lock(),
             ty.is_timelocked_staked_iota(),
         ];
         assert!(cases.into_iter().map(|is_ty| is_ty as u8).sum::<u8>() <= 1);
         ty
     }
 
-    let ty = assert_consistent(&GasCoin::type_());
+    let ty = assert_consistent(&StructTag::new_gas_coin());
     assert!(ty.is_coin());
     assert!(ty.is_gas_coin());
-    let ty = assert_consistent(&StakedIota::type_());
+    let ty = assert_consistent(&StructTag::new_staked_iota());
     assert!(ty.is_staked_iota());
-    let ty = assert_consistent(&Coin::type_(TypeTag::U64));
+    let ty = assert_consistent(&StructTag::new_coin(TypeTag::U64));
     assert!(ty.is_coin());
-    let ty = assert_consistent(&CoinMetadata::type_(GasCoin::type_()));
+    let ty = assert_consistent(&StructTag::new_coin_metadata(StructTag::new_gas_coin()));
     assert!(ty.is_coin_metadata());
     let ty = assert_consistent(&DynamicFieldInfo::dynamic_field_type(
-        TypeTag::Struct(Box::new(ID::type_())),
+        TypeTag::Struct(Box::new(StructTag::new_id())),
         TypeTag::U64,
     ));
     assert!(ty.is_dynamic_field());
-    let ty = assert_consistent(&TimeLock::<Balance>::type_(
-        Balance::type_(GAS::type_().into()).into(),
-    ));
-    assert_eq!(ty, MoveObjectType::timelocked_iota_balance());
-    assert!(ty.is_timelock());
+    let ty = assert_consistent(&StructTag::new_timelocked_gas_balance());
+    assert_eq!(ty, StructTag::new_timelocked_gas_balance());
+    assert!(ty.is_time_lock());
     assert!(ty.is_timelocked_balance());
-    let ty = assert_consistent(&TimeLock::<Coin>::type_(GasCoin::type_().into()));
-    assert!(ty.is_timelock());
+    let ty = assert_consistent(&StructTag::new_time_lock(StructTag::new_gas_coin()));
+    assert!(ty.is_time_lock());
     assert!(!ty.is_timelocked_balance());
-    let ty = assert_consistent(&TimelockedStakedIota::type_());
-    assert_eq!(ty, MoveObjectType::timelocked_staked_iota());
+    let ty = assert_consistent(&StructTag::new_timelocked_staked_iota());
+    assert_eq!(ty, StructTag::new_timelocked_staked_iota());
     assert!(ty.is_timelocked_staked_iota());
-    assert_consistent(&UID::type_());
-    assert_consistent(&ID::type_());
+    assert_consistent(&StructTag::new_uid());
+    assert_consistent(&StructTag::new_id());
 }
 
 #[test]
@@ -486,16 +477,16 @@ fn next_lexicographical_digest() {
     output[31] = 1;
     assert_eq!(
         TransactionDigest::ZERO.next_lexicographical(),
-        Some(TransactionDigest::from(output))
+        TransactionDigest::from(output)
     );
 
     let max = [255; 32];
     let mut input = max;
     input[31] = 254;
-    assert_eq!(Digest::from(max).next_lexicographical(), None);
+    assert_eq!(Digest::from(max).next_lexicographical(), Digest::ZERO);
     assert_eq!(
         Digest::from(input).next_lexicographical(),
-        Some(Digest::from(max))
+        Digest::from(max)
     );
 
     input = max;
@@ -504,6 +495,6 @@ fn next_lexicographical_digest() {
     output[0] = 1;
     assert_eq!(
         Digest::from(input).next_lexicographical(),
-        Some(Digest::from(output))
+        Digest::from(output)
     );
 }

@@ -44,6 +44,18 @@ wasm:
   label: WASM
   description: WebAssembly programming language.
 
+go:
+  label: Go
+  description: Go programming language.
+
+kotlin:
+  label: Kotlin
+  description: Kotlin programming language.
+
+swift:
+  label: Swift
+  description: Swift programming language.
+
 # VMs
 evm:
   label: EVM
@@ -192,6 +204,10 @@ address:
   label: Address
   description: Identifier for a wallet.
 
+account-abstraction:
+  label: Account Abstraction
+  description: Account Abstraction.
+
 api:
   label: API
   description: Application Programming Interface.
@@ -237,6 +253,10 @@ crates:
   label: Crates
   description: The IOTA Rust crates.
 
+dapp-kit:
+  label: dApp Kit
+  description: IOTA dApp Kit for building web dApps.
+
 getting-started:
   label: Getting Started
   description: Initial steps to start using IOTA.
@@ -280,6 +300,14 @@ tokenomics:
 iota-cli:
   label: IOTA CLI
   description: IOTA Command Line Interface
+
+iota-localnet:
+  label: IOTA Localnet
+  description: IOTA Localnet Command Line Interface
+
+iota-tool:
+  label: IOTA Tool
+  description: IOTA Tool Command Line Interface
 
 rust-sdk:
   label: IOTA Rust SDK

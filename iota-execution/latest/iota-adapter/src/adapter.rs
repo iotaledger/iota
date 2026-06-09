@@ -5,12 +5,20 @@
 pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+    use std::{cell::RefCell, collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
 
     use anyhow::Result;
-    use iota_move_natives::{NativesCostTable, object_runtime, object_runtime::ObjectRuntime};
+    use iota_common::debug_fatal;
+    use iota_move_natives::{
+        NativesCostTable,
+        authentication_context::AuthenticationContext,
+        object_runtime::{self, ObjectRuntime},
+        transaction_context::TransactionContext,
+    };
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
+        auth_context::AuthContext,
         base_types::*,
         error::{ExecutionError, ExecutionErrorKind, IotaError},
         execution_config_utils::to_binary_config,
@@ -50,7 +58,7 @@ mod checked {
         #[cfg(not(feature = "tracing"))]
         let vm_profiler_config = None;
         #[cfg(feature = "tracing")]
-        let vm_profiler_config = _enable_profiler.clone().map(|path| VMProfilerConfig {
+        let vm_profiler_config = _enable_profiler.map(|path| VMProfilerConfig {
             full_path: path,
             track_bytecode_instructions: false,
             use_long_function_name: false,
@@ -82,20 +90,25 @@ mod checked {
         .map_err(|_| IotaError::ExecutionInvariantViolation)
     }
 
-    /// Creates a new set of `NativeContextExtensions` for the Move VM,
-    /// configuring extensions such as `ObjectRuntime` and
+    /// Creates a new set of `NativeContextExtensions`.
+    ///
+    /// Configuring extensions such as `ObjectRuntime` and
     /// `NativesCostTable`. These extensions manage object resolution, input
     /// objects, metering, protocol configuration, and metrics tracking.
     /// They are available and mainly used in native function implementations
     /// via `NativeContext` instance.
     pub fn new_native_extensions<'r>(
         child_resolver: &'r dyn ChildObjectResolver,
-        input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_objects: BTreeMap<ObjectId, object_runtime::InputObject>,
         is_metered: bool,
         protocol_config: &'r ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
-        current_epoch_id: EpochId,
+        tx_context: Rc<RefCell<TxContext>>,
+        auth_context: Option<Rc<RefCell<AuthContext>>>,
     ) -> NativeContextExtensions<'r> {
+        // When changing the list of configured extensions, make sure you also
+        // update the one used while executing `move test` command.
+        let current_epoch_id = tx_context.borrow().epoch();
         let mut extensions = NativeContextExtensions::default();
         extensions.add(ObjectRuntime::new(
             child_resolver,
@@ -106,6 +119,10 @@ mod checked {
             current_epoch_id,
         ));
         extensions.add(NativesCostTable::from_protocol_config(protocol_config));
+        extensions.add(TransactionContext::new(tx_context));
+        if let Some(auth_context) = auth_context {
+            extensions.add(AuthenticationContext::new(auth_context));
+        }
         extensions
     }
 
@@ -113,9 +130,9 @@ mod checked {
     /// ID (which must be 0x0) to be `object_id`.
     pub fn substitute_package_id(
         modules: &mut [CompiledModule],
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<(), ExecutionError> {
-        let new_address = AccountAddress::from(object_id);
+        let new_address = AccountAddress::new(object_id.into_bytes());
 
         for module in modules.iter_mut() {
             let self_handle = module.self_handle().clone();
@@ -207,6 +224,19 @@ mod checked {
         if let Err(e) = verify_module_with_config_metered(verifier_config, module, meter) {
             // Check that the status indicates metering timeout.
             if check_for_verifier_timeout(&e.major_status()) {
+                if e.major_status()
+                    == move_core_types::vm_status::StatusCode::REFERENCE_SAFETY_INCONSISTENT
+                {
+                    let mut bytes = vec![];
+                    let _ = module.serialize_with_version(
+                        move_binary_format::file_format_common::VERSION_MAX,
+                        &mut bytes,
+                    );
+                    debug_fatal!(
+                        "Reference safety inconsistency detected in module: {:?}",
+                        bytes
+                    );
+                }
                 return Err(IotaError::ModuleVerificationFailure {
                     error: format!("Verification timed out: {e}"),
                 });

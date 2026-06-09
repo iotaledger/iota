@@ -3,32 +3,33 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
-use shared_crypto::intent::{
-    AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
+use iota_sdk_types::{
+    ObjectId,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage},
 };
 
 use crate::{
-    base_types::{ObjectID, dbg_addr},
+    base_types::dbg_addr,
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         IotaSignature, Signature, SignatureScheme, get_key_pair,
     },
     object::Object,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData},
+    transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+    },
 };
 
 #[test]
 fn test_personal_message_intent() {
     let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
     let message = "Hello".as_bytes().to_vec();
-    let p_message = PersonalMessage { message };
+    let p_message = PersonalMessage(message.into());
     let p_message_2 = p_message.clone();
     let p_message_bcs = bcs::to_bytes(&p_message).unwrap();
 
     let intent = Intent::iota_app(IntentScope::PersonalMessage);
-    let intent1 = intent.clone();
-    let intent2 = intent.clone();
     let intent_bcs = bcs::to_bytes(&IntentMessage::new(intent, &p_message)).unwrap();
     assert_eq!(intent_bcs.len(), p_message_bcs.len() + 3);
 
@@ -38,7 +39,7 @@ fn test_personal_message_intent() {
         vec![
             IntentScope::PersonalMessage as u8,
             IntentVersion::V0 as u8,
-            AppId::Iota as u8,
+            IntentAppId::Iota as u8,
         ]
     );
 
@@ -46,9 +47,9 @@ fn test_personal_message_intent() {
     assert_eq!(&intent_bcs[3..], &p_message_bcs);
 
     // Let's ensure we can sign and verify intents.
-    let s = Signature::new_secure(&IntentMessage::new(intent1, p_message), &sec1);
+    let s = Signature::new_secure(&IntentMessage::new(intent, p_message), &sec1);
     let verification = s.verify_secure(
-        &IntentMessage::new(intent2, p_message_2),
+        &IntentMessage::new(intent, p_message_2),
         addr1,
         SignatureScheme::ED25519,
     );
@@ -63,14 +64,14 @@ fn test_authority_signature_intent() {
     // Create a signed user transaction.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::random();
+    let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);
     let gas_price = 1000;
     let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         None,
-        object.compute_object_reference(),
+        object.object_ref(),
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
@@ -81,7 +82,7 @@ fn test_authority_signature_intent() {
     let tx = Transaction::from_data(data, vec![signature]);
     let tx1 = tx.clone();
     assert!(
-        tx.try_into_verified_for_testing(epoch, &Default::default())
+        tx.try_into_verified_for_testing(&Default::default())
             .is_ok()
     );
 
@@ -94,7 +95,7 @@ fn test_authority_signature_intent() {
         vec![
             IntentScope::TransactionData as u8,
             IntentVersion::V0 as u8,
-            AppId::Iota as u8,
+            IntentAppId::Iota as u8,
         ]
     );
 

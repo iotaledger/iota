@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{CommandArgumentError, ObjectId, Owner};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, SequenceNumber},
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
-    execution_status::CommandArgumentError,
-    object::Owner,
     storage::{BackingPackageStore, ChildObjectResolver, StorageView},
     transfer::Receiving,
 };
@@ -53,11 +52,11 @@ where
 #[derive(Clone, Debug)]
 pub enum InputObjectMetadata {
     Receiving {
-        id: ObjectID,
+        id: ObjectId,
         version: SequenceNumber,
     },
     InputObject {
-        id: ObjectID,
+        id: ObjectId,
         is_mutable_input: bool,
         owner: Owner,
         version: SequenceNumber,
@@ -74,7 +73,7 @@ pub enum UsageKind {
 #[derive(Clone, Copy)]
 pub enum CommandKind<'a> {
     MoveCall {
-        package: ObjectID,
+        package: ObjectId,
         module: &'a IdentStr,
         function: &'a IdentStr,
     },
@@ -106,7 +105,7 @@ pub struct ResultValue {
 pub enum Value {
     Object(ObjectValue),
     Raw(RawValueType, Vec<u8>),
-    Receiving(ObjectID, SequenceNumber, Option<Type>),
+    Receiving(ObjectId, SequenceNumber, Option<Type>),
 }
 
 #[derive(Debug, Clone)]
@@ -137,7 +136,7 @@ pub enum RawValueType {
 }
 
 impl InputObjectMetadata {
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         match self {
             InputObjectMetadata::Receiving { id, .. } => *id,
             InputObjectMetadata::InputObject { id, .. } => *id,
@@ -167,7 +166,7 @@ impl InputValue {
         }
     }
 
-    pub fn new_receiving_object(id: ObjectID, version: SequenceNumber) -> Self {
+    pub fn new_receiving_object(id: ObjectId, version: SequenceNumber) -> Self {
         InputValue {
             object_metadata: Some(InputObjectMetadata::Receiving { id, version }),
             inner: ResultValue::new(Value::Receiving(id, version, None)),
@@ -271,7 +270,7 @@ impl ObjectValue {
 
 pub fn ensure_serialized_size(size: u64, bound: u64) -> Result<(), ExecutionError> {
     if size > bound {
-        let e = ExecutionErrorKind::MoveObjectTooBig {
+        let e = ExecutionErrorKind::ObjectTooBig {
             object_size: size,
             max_object_size: bound,
         };
@@ -322,13 +321,13 @@ fn try_from_value_prim<'a, T: Deserialize<'a>>(
         Value::Object(_) => Err(CommandArgumentError::TypeMismatch),
         Value::Receiving(_, _, _) => Err(CommandArgumentError::TypeMismatch),
         Value::Raw(RawValueType::Any, bytes) => {
-            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBCSBytes)
+            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBcsBytes)
         }
         Value::Raw(RawValueType::Loaded { ty, .. }, bytes) => {
             if ty != &expected_ty {
                 return Err(CommandArgumentError::TypeMismatch);
             }
-            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBCSBytes)
+            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBcsBytes)
         }
     }
 }

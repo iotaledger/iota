@@ -6,17 +6,17 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
+use iota_indexer::types::OwnerType;
 use iota_types::{
-    TypeTag,
     dynamic_field::{
         DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
         visitor::{Field, FieldVisitor},
     },
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
 };
 
 use crate::{
-    consistency::{View, build_objects_query},
+    backward_view::{consistent, dynamic_fields},
     data::{Db, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter,
@@ -28,7 +28,7 @@ use crate::{
         iota_address::IotaAddress,
         move_object::MoveObject,
         move_value::MoveValue,
-        object::{self, Object, ObjectKind},
+        object::{self, Object, ObjectKind, StoredBackwardObject},
         type_filter::ExactTypeFilter,
     },
 };
@@ -72,11 +72,11 @@ impl DynamicField {
     async fn name(&self, ctx: &Context<'_>) -> Result<Option<MoveValue>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
-        let type_ = TypeTag::from(self.super_.native.type_().clone());
+        let type_ = self.super_.native.type_tag();
         let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error fetching layout for type {}: {e}",
-                type_.to_canonical_display(/* with_prefix */ true)
+                type_.to_canonical_string(/* with_prefix */ true)
             ))
         })?;
 
@@ -89,7 +89,7 @@ impl DynamicField {
             .extend()?;
 
         Ok(Some(MoveValue::new(
-            name_layout.into(),
+            type_tag_core_to_sdk(&name_layout.into()),
             Base64::from(name_bytes.to_owned()),
         )))
     }
@@ -101,11 +101,11 @@ impl DynamicField {
     async fn value(&self, ctx: &Context<'_>) -> Result<Option<DynamicFieldValue>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
-        let type_ = TypeTag::from(self.super_.native.type_().clone());
+        let type_ = self.super_.native.type_tag();
         let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error fetching layout for type {}: {e}",
-                type_.to_canonical_display(/* with_prefix */ true)
+                type_.to_canonical_string(/* with_prefix */ true)
             ))
         })?;
 
@@ -134,7 +134,7 @@ impl DynamicField {
             Ok(obj.map(|obj| DynamicFieldValue::MoveObject(Box::new(obj))))
         } else {
             Ok(Some(DynamicFieldValue::MoveValue(MoveValue::new(
-                value_layout.into(),
+                type_tag_core_to_sdk(&value_layout.into()),
                 Base64::from(value_bytes.to_owned()),
             ))))
         }
@@ -201,16 +201,29 @@ impl DynamicField {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
+        let max_available_range = db.max_available_range;
+
         let Some((prev, next, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                    max_available_range,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
-                Ok(Some(page.paginate_raw_query::<StoredHistoryObject>(
+                let query = match parent_version {
+                    Some(pv) => dynamic_fields::query(parent, pv, &page),
+                    None => {
+                        consistent::query(checkpoint_viewed_at, &page, |q| apply_filter(q, parent))
+                    }
+                };
+
+                Ok(Some(page.paginate_raw_query::<StoredBackwardObject>(
                     conn,
                     checkpoint_viewed_at,
-                    dynamic_fields_query(parent, parent_version, range, &page),
+                    query,
                 )?))
             })
             .await?
@@ -226,9 +239,10 @@ impl DynamicField {
             // To maintain consistency, the returned cursor should have the same upper-bound
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let stored_history = stored.into_stored_history(checkpoint_viewed_at);
 
             let object = Object::try_from_stored_history_object(
-                stored,
+                stored_history,
                 checkpoint_viewed_at,
                 parent_version,
             )?;
@@ -268,15 +282,11 @@ impl TryFrom<MoveObject> for DynamicField {
             }
         };
 
-        let Some(object) = native.data.try_as_move() else {
+        let Some(object) = native.data.as_struct_opt() else {
             return Err(Error::Internal("DynamicField is not an object".to_string()));
         };
 
-        let Some(tag) = object.type_().other() else {
-            return Err(Error::Internal("DynamicField is not a struct".to_string()));
-        };
-
-        if !DynamicFieldInfo::is_dynamic_field(tag) {
+        if !DynamicFieldInfo::is_dynamic_field(object.struct_tag()) {
             return Err(Error::Internal("Wrong type for DynamicField".to_string()));
         }
 
@@ -284,51 +294,13 @@ impl TryFrom<MoveObject> for DynamicField {
     }
 }
 
-/// Builds the `RawQuery` for fetching dynamic fields attached to a parent
-/// object. If `parent_version` is null, the latest version of each field within
-/// the given checkpoint range [`lhs`, `rhs`] is returned, conditioned on the
-/// fact that there is not a more recent version of the field.
-///
-/// If `parent_version` is provided, it is used to bound both the `candidates`
-/// and `newer` objects subqueries. This is because the dynamic fields of a
-/// parent at version v are dynamic fields owned by the parent whose versions
-/// are <= v. Unlike object ownership, where owned and owner objects
-/// can have arbitrary `object_version`s, dynamic fields on a parent cannot have
-/// a version greater than its parent.
-fn dynamic_fields_query(
-    parent: IotaAddress,
-    parent_version: Option<u64>,
-    range: AvailableRange,
-    page: &Page<object::Cursor>,
-) -> RawQuery {
-    build_objects_query(
-        View::Consistent,
-        range,
-        page,
-        move |query| apply_filter(query, parent, parent_version),
-        move |newer| {
-            if let Some(parent_version) = parent_version {
-                filter!(newer, format!("object_version <= {}", parent_version))
-            } else {
-                newer
-            }
-        },
-    )
-}
-
-fn apply_filter(query: RawQuery, parent: IotaAddress, parent_version: Option<u64>) -> RawQuery {
-    let query = filter!(
+fn apply_filter(query: RawQuery, parent: IotaAddress) -> RawQuery {
+    filter!(
         query,
         format!(
             "owner_id = '\\x{}'::bytea AND owner_type = {} AND df_kind IS NOT NULL",
             hex::encode(parent.into_vec()),
             OwnerType::Object as i16
         )
-    );
-
-    if let Some(version) = parent_version {
-        filter!(query, format!("object_version <= {}", version))
-    } else {
-        query
-    }
+    )
 }

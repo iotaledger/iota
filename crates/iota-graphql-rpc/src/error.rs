@@ -5,6 +5,7 @@
 use async_graphql::{ErrorExtensionValues, ErrorExtensions, Pos, Response, ServerError};
 use async_graphql_axum::GraphQLResponse;
 use iota_indexer::errors::IndexerError;
+use iota_indexer_streaming::error::IndexerStreamingError;
 use iota_names::error::IotaNamesError;
 
 /// Error codes for the `extensions.code` field of a GraphQL error that
@@ -80,6 +81,10 @@ pub enum Error {
     Internal(String),
     #[error(transparent)]
     IotaNames(#[from] IotaNamesError),
+    #[error("{0}")]
+    ServerInit(String),
+    #[error("Unsupported feature: {0}")]
+    UnsupportedFeature(String),
 }
 
 impl ErrorExtensions for Error {
@@ -97,12 +102,24 @@ impl ErrorExtensions for Error {
             Error::IotaNames(_) => {
                 e.set("code", code::BAD_REQUEST);
             }
+            Error::ServerInit(_) => {
+                e.set("code", code::UNKNOWN);
+            }
+            Error::UnsupportedFeature(_) => {
+                e.set("code", code::BAD_REQUEST);
+            }
         })
     }
 }
 
 impl From<IndexerError> for Error {
     fn from(e: IndexerError) -> Self {
+        Error::Internal(e.to_string())
+    }
+}
+
+impl From<IndexerStreamingError> for Error {
+    fn from(e: IndexerStreamingError) -> Self {
         Error::Internal(e.to_string())
     }
 }

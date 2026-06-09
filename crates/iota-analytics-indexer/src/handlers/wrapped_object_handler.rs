@@ -62,7 +62,7 @@ impl Worker for WrappedObjectHandler {
                 state
                     .resolver
                     .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                    .evict(SYSTEM_PACKAGE_ADDRESSES);
             }
         }
         Ok(())
@@ -88,8 +88,8 @@ impl AnalyticsHandler<WrappedObjectEntry> for WrappedObjectHandler {
 }
 
 impl WrappedObjectHandler {
-    pub fn new(store_path: &Path, rest_uri: &str) -> Self {
-        let package_store = LocalDBPackageStore::new(&store_path.join("wrapped_object"), rest_uri);
+    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+        let package_store = LocalDBPackageStore::new(&store_path.join("wrapped_object"), client);
         let state = Mutex::new(State {
             wrapped_objects: vec![],
             package_store: package_store.clone(),
@@ -122,7 +122,7 @@ impl WrappedObjectHandler {
     ) -> Result<()> {
         let move_struct = if let Some((tag, contents)) = object
             .struct_tag()
-            .and_then(|tag| object.data.try_as_move().map(|mo| (tag, mo.contents())))
+            .and_then(|tag| object.data.as_struct_opt().map(|mo| (tag, mo.contents())))
         {
             let move_struct = get_move_struct(&tag, contents, &state.resolver).await?;
             Some(move_struct)
@@ -137,7 +137,7 @@ impl WrappedObjectHandler {
             let entry = WrappedObjectEntry {
                 object_id: wrapped_struct.object_id.map(|id| id.to_string()),
                 root_object_id: object.id().to_string(),
-                root_object_version: object.version().value(),
+                root_object_version: object.version().as_u64(),
                 checkpoint,
                 epoch,
                 timestamp_ms,

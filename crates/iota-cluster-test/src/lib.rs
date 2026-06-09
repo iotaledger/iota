@@ -15,12 +15,12 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk_types::Owner;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, TransactionDigest},
     gas_coin::GasCoin,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
@@ -79,7 +79,7 @@ impl TestContext {
 
         if gas_coins.len() < minimum_coins {
             panic!(
-                "Expect to get at least {minimum_coins} IOTA Coins for address {addr}, but only got {}",
+                "expect to get at least {minimum_coins} IOTA Coins for address {addr}, but only got {}",
                 gas_coins.len()
             )
         }
@@ -166,13 +166,13 @@ impl TestContext {
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
             .await
-            .unwrap_or_else(|e| panic!("Failed to execute transaction for {desc}. {e}"));
+            .unwrap_or_else(|e| panic!("failed to execute transaction for {desc}. {e}"));
         assert!(
             matches!(
                 resp.effects.as_ref().unwrap().status(),
                 IotaExecutionStatus::Success
             ),
-            "Failed to execute transaction for {desc}: {resp:?}"
+            "failed to execute transaction for {desc}: {resp:?}"
         );
         resp
     }
@@ -202,7 +202,7 @@ impl TestContext {
         loop {
             tokio::select! {
                 _ = &mut sleep => {
-                    panic!("Fullnode does not know all of {digests:?} after {timeout_sec} secs.");
+                    panic!("fullnode does not know all of {digests:?} after {timeout_sec} secs.");
                 }
                 res = futures.next() => {
                     match res {
@@ -248,7 +248,7 @@ impl TestContext {
                 .iter()
                 .map(|coin_info| {
                     ObjectChecker::new(coin_info.id)
-                        .owner(Owner::AddressOwner(owner))
+                        .owner(Owner::Address(owner))
                         .check_into_gas_coin(self.get_fullnode_client())
                 })
                 .collect::<Vec<_>>(),
@@ -282,7 +282,7 @@ impl<'a> TestCase<'a> {
                 true
             }
             Err(e) => {
-                error!("Test {test_name} failed with error: {e}.");
+                error!("test {test_name} failed with error: {e}.");
                 false
             }
         }
@@ -302,7 +302,7 @@ impl ClusterTest {
     pub async fn run(options: ClusterTestOpt) {
         let mut ctx = TestContext::setup(options)
             .await
-            .unwrap_or_else(|e| panic!("Failed to set up TestContext, e: {e}"));
+            .unwrap_or_else(|e| panic!("failed to set up TestContext, e: {e}"));
 
         // TODO: collect tests from each test_case file instead.
         let tests = vec![

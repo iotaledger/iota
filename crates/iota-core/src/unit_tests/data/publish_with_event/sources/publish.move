@@ -6,7 +6,6 @@ module examples::publish_with_event {
     use std::ascii::{Self, String};
 
     use iota::event;
-    use iota::tx_context::TxContext;
 
     public struct PublishEvent has copy, drop {
         foo: String

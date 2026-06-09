@@ -10,10 +10,6 @@ iota-archival:
   - "crates/iota-archival/**"
 iota-authority-aggregation:
   - "crates/iota-authority-aggregation/**"
-iota-aws-orchestrator:
-  - "crates/iota-aws-orchestrator/**"
-iota-benchmark:
-  - "crates/iota-benchmark/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-common:
@@ -54,16 +50,16 @@ iota-graphql-rpc-client:
   - "crates/iota-graphql-rpc-client/**"
 iota-graphql-rpc-headers:
   - "crates/iota-graphql-rpc-headers/**"
-iota-grpc-api:
-  - "crates/iota-grpc-api/**"
-iota-grpc-types:
-  - "crates/iota-grpc-types/**"
+iota-grpc-server:
+  - "crates/iota-grpc-server/**"
 iota-http:
   - "crates/iota-http/**"
 iota-indexer:
   - "crates/iota-indexer/**"
 iota-indexer-builder:
   - "crates/iota-indexer-builder/**"
+iota-indexer-streaming:
+  - "crates/iota-indexer-streaming/**"
 iota-json:
   - "crates/iota-json/**"
 iota-json-rpc:
@@ -84,6 +80,8 @@ iota-ledger-signer:
   - "crates/iota-ledger-signer/**"
 iota-light-client:
   - "crates/iota-light-client/**"
+iota-localnet:
+  - "crates/iota-localnet/**"
 iota-macros:
   - "crates/iota-macros/**"
 iota-mainnet-unlocks:
@@ -106,10 +104,14 @@ iota-network-stack:
   - "crates/iota-network-stack/**"
 iota-node:
   - "crates/iota-node/**"
+iota-node-storage:
+  - "crates/iota-node-storage/**"
 iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
   - "crates/iota-open-rpc-macros/**"
+iota-package-alt:
+  - "crates/iota-package-alt/**"
 iota-package-dump:
   - "crates/iota-package-dump/**"
 iota-package-management:
@@ -126,12 +128,8 @@ iota-proxy:
   - "crates/iota-proxy/**"
 iota-replay:
   - "crates/iota-replay/**"
-iota-rest-api:
-  - "crates/iota-rest-api/**"
 iota-rest-kv:
   - "crates/iota-rest-kv/**"
-iota-rosetta:
-  - "crates/iota-rosetta/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
 iota-sdk:
@@ -148,8 +146,6 @@ iota-source-validation-service:
   - "crates/iota-source-validation-service/**"
 iota-storage:
   - "crates/iota-storage/**"
-iota-surfer:
-  - "crates/iota-surfer/**"
 iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:
@@ -176,10 +172,10 @@ iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
-shared-crypto:
-  - "crates/shared-crypto/**"
 simulacrum:
   - "crates/simulacrum/**"
+simulacrum-server:
+  - "crates/simulacrum-server/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:
@@ -206,12 +202,6 @@ iota-move-natives-latest:
   - "iota-execution/latest/iota-move-natives/**"
 iota-verifier-latest:
   - "iota-execution/latest/iota-verifier/**"
-
-# Mysticeti Consensus
-consensus-config:
-  - "consensus/config/**"
-consensus-core:
-  - "consensus/core/**"
 
 # Starfish Consensus
 starfish-config:

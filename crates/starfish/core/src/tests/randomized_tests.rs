@@ -13,7 +13,7 @@ use crate::{
     block_manager::{BlockManager, block_suspender::tests::evaluate_block_headers},
     commit::DecidedLeader,
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     storage::mem_store::MemStore,
     test_dag::create_random_dag,
@@ -61,7 +61,7 @@ async fn test_randomized_dag_all_direct_commit() {
         for (i, leader_block) in sequence.iter().enumerate() {
             // First sequenced leader should be in round 1.
             let leader_round = i as u32 + 1;
-            if let DecidedLeader::Commit(ref block) = leader_block {
+            if let DecidedLeader::Commit(ref block, _, _) = leader_block {
                 assert_eq!(block.round(), leader_round);
                 assert_eq!(
                     block.author(),
@@ -127,7 +127,7 @@ async fn test_randomized_dag_and_decision_sequence() {
             seen_so_far.extend(chunk.iter().cloned());
             let _ = authority_1
                 .block_manager
-                .try_accept_block_headers(chunk.to_vec());
+                .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
             let sequence = authority_1.committer.try_decide(last_decided);
 
             if !sequence.is_empty() {
@@ -170,7 +170,7 @@ async fn test_randomized_dag_and_decision_sequence() {
 
             let _ = authority_2
                 .block_manager
-                .try_accept_block_headers(chunk.to_vec());
+                .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
             let sequence = authority_2.committer.try_decide(last_decided);
 
             if !sequence.is_empty() {

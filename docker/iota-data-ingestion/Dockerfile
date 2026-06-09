@@ -1,8 +1,9 @@
-# Build image (the specific rust version can also be passed, e.g. "1.82-bookworm")
-ARG RUST_IMAGE_VERSION=bookworm
+# Build image (the specific rust version can also be passed, e.g. "1.91-trixie")
+ARG RUST_IMAGE_VERSION=trixie
 FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
+ARG TARGET_FOLDER=target/release
 ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
@@ -21,29 +22,20 @@ RUN mkdir -p ~/.cargo && \
 RUN apt install -y ca-certificates
 
 # Copy in all crates, Cargo.toml, and Cargo.lock
-COPY consensus consensus
 COPY crates crates
 COPY docs docs
 COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-RUN cargo build --profile ${PROFILE} --bin iota-data-ingestion --features ${CARGO_BUILD_FEATURES:=default}
-
-# Copy the built binary to the working directory depending on the output folder of the profile,
-# so we can copy it to the runtime image
-RUN if [ -d target/release ]; then \
-  TARGET_DIR="target/release"; \
-elif [ -d target/debug ]; then \
-  TARGET_DIR="target/debug"; \
-else \
-  echo "Error: No build directory found"; \
-  exit 1; \
-fi && \
-mv $TARGET_DIR/iota-data-ingestion ./;
+# Build the binaries and copy them to the working directory
+RUN cargo build --profile ${PROFILE} \
+      --bin iota-data-ingestion \
+      --features ${CARGO_BUILD_FEATURES:=default} && \
+    cp $TARGET_FOLDER/iota-data-ingestion ./iota-data-ingestion
 
 # Production image
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 # Install runtime dependencies and tools
 RUN apt update && apt install -y ca-certificates curl

@@ -5,13 +5,14 @@
 use std::mem::size_of;
 
 use anyhow::Result;
-use iota_sdk::types::block::{BlockId, output::OutputId, payload::milestone::MilestoneIndex};
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
+use iota_stardust_types::block::{BlockId, MilestoneIndex, TransactionId, output::OutputId};
 use packable::Packable;
 
 use crate::stardust::types::output_index::OutputIndex;
 
-/// The header of an [`Output`](iota_sdk::types::block::output::Output) in the
+/// The header of an
+/// [`Output`](iota_stardust_types::block::output::Output) in the
 /// snapshot
 #[derive(Debug, Clone, Packable, PartialEq, Eq)]
 pub struct OutputHeader {
@@ -33,8 +34,8 @@ impl OutputHeader {
         self.output_id
     }
 
-    pub fn new_object_id(&self) -> ObjectID {
-        ObjectID::new(self.output_id.hash())
+    pub fn new_object_id(&self) -> ObjectId {
+        ObjectId::new(self.output_id.hash())
     }
 
     pub fn block_id(&self) -> BlockId {
@@ -64,8 +65,6 @@ impl OutputHeader {
         milestone_index: u32,
         milestone_timestamp: u32,
     ) -> OutputHeader {
-        use iota_sdk::types::block::payload::transaction::TransactionId;
-
         OutputHeader {
             output_id: OutputId::new(TransactionId::new(transaction_id_bytes), output_index.get())
                 .unwrap(),

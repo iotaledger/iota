@@ -245,7 +245,7 @@ impl Histogram {
 
     /// Starts a timer and returns a `HistogramTimerGuard` that, when dropped,
     /// will record the elapsed time in the associated histogram.
-    pub fn start_timer(&self) -> HistogramTimerGuard {
+    pub fn start_timer(&self) -> HistogramTimerGuard<'_> {
         HistogramTimerGuard {
             histogram: self,
             start: Instant::now(),

@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+# Copyright (c) 2025 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+import os
+import sys
+import time
+import subprocess
+import argparse
+from pathlib import Path
+
+# ---------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------
+NUM_VALIDATORS = 10
+
+# ---------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------
+SCRIPT_DIR = Path(__file__).resolve().parent
+PRIVNET_DIR = SCRIPT_DIR.parents[3]
+REPO_ROOT = PRIVNET_DIR.parents[1]
+DOCKER_ROOT = REPO_ROOT / "docker"
+FUZZER_DIR = PRIVNET_DIR / "fuzzer"
+
+def run_command(cmd, cwd=None, check=True, shell=False):
+    """Runs a shell command."""
+    print(f"Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
+    try:
+        subprocess.run(cmd, cwd=cwd, check=check, shell=shell)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {e}")
+        sys.exit(1)
+
+def build_images():
+    """Builds the necessary Docker images."""
+    print(">>> Building Docker images...")
+
+    images = [
+        ("iota-node", DOCKER_ROOT / "iota-node"),
+        ("iota-tools", DOCKER_ROOT / "iota-tools"),
+        ("iota-indexer", DOCKER_ROOT / "iota-indexer"),
+    ]
+
+    for name, path in images:
+        print(f"Building {name}...")
+        # Using sudo because the build scripts often require it or docker requires it
+        run_command(["sudo", "./build.sh", "-t", name], cwd=path)
+
+def run_experiment():
+    """Runs the mirage stress test."""
+    print(f"\n{'='*60}")
+    print("=== Starting Mirage Stress Test ===")
+    print(f"{'='*60}\n")
+
+    # 1. Cleanup existing network
+    print(">>> Cleaning up existing network...")
+    run_command(["sudo", "./cleanup.sh"], cwd=PRIVNET_DIR)
+
+    # 2. Bootstrap network
+    print(">>> Bootstrapping network...")
+    # bootstrap.sh generates the configuration
+    run_command(["sudo", "./bootstrap.sh", "-n", str(NUM_VALIDATORS)], cwd=PRIVNET_DIR)
+
+    # 3. Start network
+    print(">>> Starting network...")
+    run_command(["sudo", "./run.sh", "-n", str(NUM_VALIDATORS)], cwd=PRIVNET_DIR)
+
+    # Wait for network to stabilize
+    print(">>> Waiting for network to stabilize (20s)...")
+    time.sleep(20)
+
+    # 4. Run Mirage Stress Test
+    print(">>> Running Mirage Stress Test (Python)...")
+
+    # Ensure venv exists (simple check)
+    venv_python = PRIVNET_DIR / ".venv" / "bin" / "python"
+    pip_path = PRIVNET_DIR / ".venv" / "bin" / "pip"
+    if not venv_python.exists():
+        print("Creating Python venv...")
+        run_command([sys.executable, "-m", "venv", str(PRIVNET_DIR / ".venv")])
+        run_command([str(pip_path), "install", "--upgrade", "pip"])
+
+    run_command([str(pip_path), "install", "-e", "."], cwd=FUZZER_DIR)
+
+    # Run the fuzzer script
+    # We use sudo because the fuzzer needs to manipulate docker/iptables
+    # We execute the module net_fuzz.experiments.mirage_stress
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(FUZZER_DIR / "src")
+
+    try:
+        run_command(
+            ["sudo", str(venv_python), "-m", "net_fuzz.experiments.mirage_stress"],
+            cwd=FUZZER_DIR,
+            check=True
+        )
+    except SystemExit:
+        print("Test failed")
+        # We don't exit here, we might want to continue or cleanup
+        pass
+    except Exception as e:
+        print(f"An error occurred during the test: {e}")
+
+    print("=== Finished Mirage Stress Test ===")
+
+    # 5. Cleanup
+    print(">>> Cleaning up...")
+    run_command(["sudo", "./cleanup.sh"], cwd=PRIVNET_DIR)
+
+def main():
+    parser = argparse.ArgumentParser(description="Run Mirage Stress Test")
+    parser.add_argument("--skip-build", action="store_true", help="Skip building docker images")
+    args = parser.parse_args()
+
+    if not args.skip_build:
+        build_images()
+
+    run_experiment()
+
+    print("\nMirage stress run completed.")
+
+if __name__ == "__main__":
+    main()

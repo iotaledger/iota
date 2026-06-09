@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{net::SocketAddr, path::PathBuf};
 
 use fastcrypto::{
     encoding::{Encoding, Hex},
@@ -14,15 +14,15 @@ use iota_config::{
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
-        ExecutionCacheConfig, ExecutionCacheType, ExpensiveSafetyCheckConfig, Genesis,
-        KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
-        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
-        default_zklogin_oauth_providers,
+        ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath,
+        RunWithRange, StateArchiveConfig, StateSnapshotConfig, default_enable_index_processing,
+        default_end_of_epoch_broadcast_channel_capacity,
     },
-    p2p::{P2pConfig, SeedPeer, StateSyncConfig},
+    p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
 };
 use iota_names::config::IotaNamesConfig;
+use iota_protocol_config::Chain;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
@@ -43,15 +43,15 @@ pub struct ValidatorConfigBuilder {
     config_directory: Option<PathBuf>,
     supported_protocol_versions: Option<SupportedProtocolVersions>,
     force_unpruned_checkpoints: bool,
-    jwk_fetch_interval: Option<Duration>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    execution_cache_type: Option<ExecutionCacheType>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
+    discovery_config: Option<DiscoveryConfig>,
+    chain_override: Option<Chain>,
 }
 
 impl ValidatorConfigBuilder {
@@ -59,6 +59,12 @@ impl ValidatorConfigBuilder {
         Self {
             ..Default::default()
         }
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        assert!(self.chain_override.is_none(), "Chain override already set");
+        self.chain_override = Some(chain);
+        self
     }
 
     pub fn with_config_directory(mut self, config_directory: PathBuf) -> Self {
@@ -81,18 +87,8 @@ impl ValidatorConfigBuilder {
         self
     }
 
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
-        self
-    }
-
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         self.authority_overload_config = Some(config);
-        self
-    }
-
-    pub fn with_execution_cache_type(mut self, execution_cache_type: ExecutionCacheType) -> Self {
-        self.execution_cache_type = Some(execution_cache_type);
         self
     }
 
@@ -129,11 +125,16 @@ impl ValidatorConfigBuilder {
         self
     }
 
+    pub fn with_discovery_config(mut self, discovery_config: DiscoveryConfig) -> Self {
+        self.discovery_config = Some(discovery_config);
+        self
+    }
+
     pub fn build_without_genesis(self, validator: ValidatorGenesisConfig) -> NodeConfig {
         let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
+            .unwrap_or_else(|| iota_common::tempdir().keep());
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
         let db_path = config_directory
@@ -166,6 +167,8 @@ impl ValidatorConfigBuilder {
                 checkpoint_content_timeout_ms: Some(10_000),
                 ..Default::default()
             }),
+            // Use discovery config if provided
+            discovery: self.discovery_config,
             ..Default::default()
         };
 
@@ -191,14 +194,11 @@ impl ValidatorConfigBuilder {
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
-            admin_interface_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
-                .to_socket_addr()
-                .unwrap(),
+            admin_interface_address: validator.admin_interface_address,
             json_rpc_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
                 .to_socket_addr()
                 .unwrap(),
             consensus_config: Some(consensus_config),
-            remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
@@ -224,18 +224,7 @@ impl ValidatorConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
-            enable_rest_api: true,
-            rest: Some(iota_rest_api::Config {
-                enable_unstable_apis: Some(true),
-                ..Default::default()
-            }),
-            jwk_fetch_interval_seconds: self
-                .jwk_fetch_interval
-                .map(|i| i.as_secs())
-                .unwrap_or(3600),
-            zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
-            execution_cache: self.execution_cache_type.unwrap_or_default(),
             execution_cache_config: self.execution_cache_config.unwrap_or_default(),
             run_with_range: None,
             jsonrpc_server_type: None,
@@ -247,6 +236,7 @@ impl ValidatorConfigBuilder {
             iota_names_config: None,
             enable_grpc_api: false,
             grpc_api_config: None,
+            chain_override_for_testing: self.chain_override,
         }
     }
 
@@ -294,12 +284,21 @@ pub struct FullnodeConfigBuilder {
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
-    grpc_api_config: Option<iota_grpc_api::Config>,
+    enable_grpc_api: bool,
+    grpc_api_config: Option<GrpcApiConfig>,
+    discovery_config: Option<DiscoveryConfig>,
+    chain_override: Option<Chain>,
 }
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        assert!(self.chain_override.is_none(), "Chain override already set");
+        self.chain_override = Some(chain);
+        self
     }
 
     pub fn with_config_directory(mut self, config_directory: PathBuf) -> Self {
@@ -364,9 +363,9 @@ impl FullnodeConfigBuilder {
 
     pub fn with_admin_interface_address(
         mut self,
-        admin_interface_address: impl Into<SocketAddr>,
+        admin_interface_address: Option<impl Into<SocketAddr>>,
     ) -> Self {
-        self.admin_interface_address = Some(admin_interface_address.into());
+        self.admin_interface_address = admin_interface_address.map(|addr| addr.into());
         self
     }
 
@@ -420,8 +419,18 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_grpc_api_config(mut self, config: iota_grpc_api::Config) -> Self {
+    pub fn with_enable_grpc_api(mut self, enable_grpc_api: bool) -> Self {
+        self.enable_grpc_api = enable_grpc_api;
+        self
+    }
+
+    pub fn with_grpc_api_config(mut self, config: GrpcApiConfig) -> Self {
         self.grpc_api_config = Some(config);
+        self
+    }
+
+    pub fn with_discovery_config(mut self, discovery_config: DiscoveryConfig) -> Self {
+        self.discovery_config = Some(discovery_config);
         self
     }
 
@@ -444,7 +453,7 @@ impl FullnodeConfigBuilder {
         let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
+            .unwrap_or_else(|| iota_common::tempdir().keep());
 
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
@@ -479,6 +488,8 @@ impl FullnodeConfigBuilder {
                     checkpoint_content_timeout_ms: Some(10_000),
                     ..Default::default()
                 }),
+                // Use discovery config if provided
+                discovery: self.discovery_config,
                 ..Default::default()
             }
         };
@@ -488,6 +499,19 @@ impl FullnodeConfigBuilder {
                 .rpc_port
                 .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
             format!("{ip}:{rpc_port}").parse().unwrap()
+        });
+
+        let grpc_api_config = self.grpc_api_config.or_else(|| {
+            if self.enable_grpc_api {
+                Some(GrpcApiConfig {
+                    address: format!("{ip}:{}", local_ip_utils::get_available_port(&ip))
+                        .parse()
+                        .unwrap(),
+                    ..Default::default()
+                })
+            } else {
+                None
+            }
         });
 
         let checkpoint_executor_config = CheckpointExecutorConfig {
@@ -524,7 +548,6 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
             json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
-            remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis,
             migration_tx_data_path,
@@ -550,28 +573,20 @@ impl FullnodeConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
-            enable_rest_api: true,
-            rest: Some(iota_rest_api::Config {
-                enable_unstable_apis: Some(true),
-                ..Default::default()
-            }),
-            // note: not used by fullnodes.
-            jwk_fetch_interval_seconds: 3600,
-            zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: Default::default(),
             run_with_range: self.run_with_range,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
             firewall_config: self.fw_config,
-            execution_cache: ExecutionCacheType::default(),
             execution_cache_config: ExecutionCacheConfig::default(),
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
-            enable_grpc_api: self.grpc_api_config.is_some(),
-            grpc_api_config: self.grpc_api_config,
+            enable_grpc_api: self.enable_grpc_api,
+            grpc_api_config,
+            chain_override_for_testing: self.chain_override,
         }
     }
 

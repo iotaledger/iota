@@ -11,18 +11,23 @@ use std::{
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    crypto::{Intent, IntentScope},
+    gas::GasCostSummary,
+};
 use once_cell::sync::OnceCell;
+#[cfg(not(target_arch = "wasm32"))]
 use prometheus::Histogram;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use shared_crypto::intent::{Intent, IntentScope};
+#[cfg(not(target_arch = "wasm32"))]
 use tap::TapFallible;
+use tracing::instrument;
+#[cfg(not(target_arch = "wasm32"))]
 use tracing::warn;
 
 pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
 use crate::{
-    accumulator::Accumulator,
     base_types::{
         AuthorityName, ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref,
     },
@@ -34,12 +39,12 @@ use crate::{
     digests::Digest,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
-    gas::GasCostSummary,
+    global_state_hash::GlobalStateHash,
     iota_serde::{AsProtocolVersion, BigInt, Readable},
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     signature::GenericSignature,
     storage::ReadStore,
-    transaction::{Transaction, TransactionData},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 
 pub type CheckpointSequenceNumber = u64;
@@ -85,9 +90,8 @@ pub struct CheckpointResponse {
 
 /// The Sha256 digest of an EllipticCurveMultisetHash committing to the live
 /// object set.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ECMHLiveObjectSetDigest {
-    #[schemars(with = "[u8; 32]")]
     pub digest: Digest,
 }
 
@@ -101,11 +105,11 @@ impl From<fastcrypto::hash::Digest<32>> for ECMHLiveObjectSetDigest {
 
 impl Default for ECMHLiveObjectSetDigest {
     fn default() -> Self {
-        Accumulator::default().digest().into()
+        GlobalStateHash::default().digest().into()
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CheckpointCommitment {
     ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest),
     // Other commitment types (e.g. merkle roots) go here.
@@ -118,7 +122,7 @@ impl From<ECMHLiveObjectSetDigest> for CheckpointCommitment {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct EndOfEpochData {
     /// next_epoch_committee is `Some` if and only if the current checkpoint is
@@ -129,13 +133,11 @@ pub struct EndOfEpochData {
     /// from genesis to the end of an epoch. The committee is stored as a
     /// vector of validator pub key and stake pairs. The vector
     /// should be sorted based on the Committee data structure.
-    #[schemars(with = "Vec<(AuthorityName, BigInt<u64>)>")]
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
     pub next_epoch_committee: Vec<(AuthorityName, StakeUnit)>,
 
     /// The protocol version that is in effect during the epoch that starts
     /// immediately after this checkpoint.
-    #[schemars(with = "AsProtocolVersion")]
     #[serde_as(as = "Readable<AsProtocolVersion, _>")]
     pub next_epoch_protocol_version: ProtocolVersion,
 
@@ -257,6 +259,7 @@ impl CheckpointSummary {
             .map(|e| e.next_epoch_committee.as_slice())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn report_checkpoint_age(&self, metrics: &Histogram) {
         SystemTime::now()
             .duration_since(self.timestamp())
@@ -318,6 +321,7 @@ pub type VerifiedCheckpoint = VerifiedEnvelope<CheckpointSummary, AuthorityStron
 pub type TrustedCheckpoint = TrustedEnvelope<CheckpointSummary, AuthorityStrongQuorumSignInfo>;
 
 impl CertifiedCheckpointSummary {
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
         self.data().verify_epoch(self.auth_sig().epoch)?;
         self.auth_sig().verify_secure(
@@ -368,6 +372,7 @@ impl CertifiedCheckpointSummary {
 }
 
 impl SignedCheckpointSummary {
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
         self.data().verify_epoch(self.auth_sig().epoch)?;
         self.auth_sig().verify_secure(
@@ -405,7 +410,7 @@ impl CheckpointSignatureMessage {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CheckpointContents {
     V1(CheckpointContentsV1),
 }
@@ -414,7 +419,7 @@ pub enum CheckpointContents {
 /// They must have already been causally ordered. Since the causal order
 /// algorithm is the same among validators, we expect all honest validators to
 /// come up with the same order for each checkpoint content.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckpointContentsV1 {
     #[serde(skip)]
     digest: OnceCell<CheckpointContentsDigest>,

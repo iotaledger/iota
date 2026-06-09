@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use diesel::RunQueryDsl;
-use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::{effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData};
 
 use crate::{
     backfill::ingestion::IngestionBackfill,
@@ -20,7 +20,7 @@ pub(crate) struct TxWrappedOrDeletedObjectsBackfill;
 impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
     type ProcessedType = StoredTxWrappedOrDeletedObject;
 
-    fn process_checkpoint(
+    async fn process_checkpoint(
         checkpoint: Arc<CheckpointData>,
     ) -> Result<Vec<Self::ProcessedType>, IndexerError> {
         let checkpoint_summary = &checkpoint.checkpoint_summary;
@@ -30,7 +30,7 @@ impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
 
         if checkpoint_contents.size() != transactions.len() {
             return Err(IndexerError::FullNodeReading(format!(
-                "Checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
+                "checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
                 checkpoint_contents.size(),
                 transactions.len()
             )));
@@ -47,7 +47,7 @@ impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
 
             if expected_digest != *actual_digest {
                 return Err(IndexerError::FullNodeReading(format!(
-                    "Digest mismatch at checkpoint {checkpoint_seq}: expected {expected_digest}, found {actual_digest}",
+                    "digest mismatch at checkpoint {checkpoint_seq}: expected {expected_digest}, found {actual_digest}",
                 )));
             }
 
@@ -58,8 +58,8 @@ impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
                     .chain(tx.effects.created_then_wrapped_objects())
                     .map(|(object_id, _)| StoredTxWrappedOrDeletedObject {
                         tx_sequence_number: tx_sequence_number as i64,
-                        object_id: object_id.to_vec(),
-                        sender: tx.transaction.sender_address().to_vec(),
+                        object_id: object_id.as_bytes().to_vec(),
+                        sender: tx.transaction.sender_address().as_bytes().to_vec(),
                     }),
             );
         }

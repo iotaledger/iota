@@ -2,24 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use iota_config::genesis;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, SequenceNumber},
+    base_types::{
+        AuthorityName, IotaAddress, ObjectRef, SequenceNumber, address_from_iota_pub_key,
+    },
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
-    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
-    object::{Object, Owner},
+    object::Object,
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
-        load_package_object_from_object_store,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
+        get_module, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -39,22 +45,31 @@ pub struct InMemoryStore {
     // Transaction data
     transactions: HashMap<TransactionDigest, VerifiedTransaction>,
     effects: HashMap<TransactionDigest, TransactionEffects>,
-    events: HashMap<TransactionEventsDigest, TransactionEvents>,
-    // Map from transaction digest to events digest for easy lookup
-    events_tx_digest_index: HashMap<TransactionDigest, TransactionEventsDigest>,
+    events: HashMap<TransactionDigest, TransactionEvents>,
 
     // Committee data
     epoch_to_committee: Vec<Committee>,
 
+    // Epoch data
+    last_checkpoints_per_epoch: HashMap<EpochId, CheckpointSequenceNumber>,
+
+    // Historical system states by epoch
+    historical_system_states: HashMap<EpochId, iota_types::iota_system_state::IotaSystemState>,
+
     // Object data
-    live_objects: HashMap<ObjectID, SequenceNumber>,
-    objects: HashMap<ObjectID, BTreeMap<SequenceNumber, Object>>,
+    live_objects: HashMap<ObjectId, SequenceNumber>,
+    objects: HashMap<ObjectId, BTreeMap<SequenceNumber, Object>>,
 }
 
 impl InMemoryStore {
     pub fn new(genesis: &genesis::Genesis) -> Self {
         let mut store = Self::default();
         store.init_with_genesis(genesis);
+
+        // Store the initial system state for epoch 0
+        let initial_system_state = store.get_system_state();
+        store.store_system_state_for_epoch(0, initial_system_state);
+
         store
     }
 
@@ -90,6 +105,7 @@ impl InMemoryStore {
     pub fn get_committee_by_epoch(&self, epoch: EpochId) -> Option<&Committee> {
         self.epoch_to_committee.get(epoch as usize)
     }
+
     pub fn get_transaction(&self, digest: &TransactionDigest) -> Option<&VerifiedTransaction> {
         self.transactions.get(digest)
     }
@@ -101,19 +117,16 @@ impl InMemoryStore {
         self.effects.get(digest)
     }
 
-    pub fn get_transaction_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> Option<&TransactionEvents> {
+    pub fn get_transaction_events(&self, digest: &TransactionDigest) -> Option<&TransactionEvents> {
         self.events.get(digest)
     }
 
-    pub fn get_object(&self, id: &ObjectID) -> Option<&Object> {
+    pub fn get_object(&self, id: &ObjectId) -> Option<&Object> {
         let version = self.live_objects.get(id)?;
         self.get_object_at_version(id, *version)
     }
 
-    pub fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<&Object> {
+    pub fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<&Object> {
         self.objects
             .get(id)
             .and_then(|versions| versions.get(&version))
@@ -124,25 +137,65 @@ impl InMemoryStore {
     }
 
     pub fn get_clock(&self) -> iota_types::clock::Clock {
-        self.get_object(&iota_types::IOTA_CLOCK_OBJECT_ID)
+        self.get_object(&ObjectId::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
+    }
+
+    pub fn get_last_checkpoint_of_epoch(&self, epoch: EpochId) -> Option<CheckpointSequenceNumber> {
+        self.last_checkpoints_per_epoch.get(&epoch).cloned()
+    }
+
+    /// Get the system state for a specific epoch.
+    /// Returns None if the system state for that epoch was not stored.
+    pub fn get_system_state_by_epoch(
+        &self,
+        epoch: EpochId,
+    ) -> Option<&iota_types::iota_system_state::IotaSystemState> {
+        self.historical_system_states.get(&epoch)
+    }
+
+    /// Store the system state for a specific epoch.
+    /// This should be called when an epoch ends to preserve the final system
+    /// state.
+    pub fn store_system_state_for_epoch(
+        &mut self,
+        epoch: EpochId,
+        system_state: iota_types::iota_system_state::IotaSystemState,
+    ) {
+        self.historical_system_states.insert(epoch, system_state);
     }
 
     pub fn owned_objects(&self, owner: IotaAddress) -> impl Iterator<Item = &Object> {
         self.live_objects
             .iter()
             .flat_map(|(id, version)| self.get_object_at_version(id, *version))
-            .filter(
-                move |object| matches!(object.owner, Owner::AddressOwner(addr) if addr == owner),
-            )
+            .filter(move |object| matches!(object.owner, Owner::Address(addr) if addr == owner))
+    }
+
+    pub fn update_last_checkpoint_by_epoch(
+        &mut self,
+        epoch: EpochId,
+        last_checkpoint: CheckpointSequenceNumber,
+    ) {
+        self.last_checkpoints_per_epoch
+            .entry(epoch)
+            .and_modify(|last| {
+                *last = last_checkpoint;
+            })
+            .or_insert(last_checkpoint);
     }
 }
 
 impl InMemoryStore {
     pub fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint) {
         if let Some(end_of_epoch_data) = &checkpoint.data().end_of_epoch_data {
+            // Store the current system state for the ending epoch before transitioning
+            let current_epoch = checkpoint.epoch();
+            let current_system_state = self.get_system_state();
+            self.store_system_state_for_epoch(current_epoch, current_system_state);
+
             let next_committee = end_of_epoch_data
                 .next_epoch_committee
                 .iter()
@@ -183,7 +236,7 @@ impl InMemoryStore {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     ) {
         let deleted_objects = effects.deleted();
         let tx_digest = *effects.transaction_digest();
@@ -202,18 +255,16 @@ impl InMemoryStore {
     }
 
     pub fn insert_events(&mut self, tx_digest: &TransactionDigest, events: TransactionEvents) {
-        self.events_tx_digest_index
-            .insert(*tx_digest, events.digest());
-        self.events.insert(events.digest(), events);
+        self.events.insert(*tx_digest, events);
     }
 
     pub fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        written_objects: BTreeMap<ObjectId, Object>,
+        deleted_objects: Vec<ObjectRef>,
     ) {
-        for (object_id, _, _) in deleted_objects {
-            self.live_objects.remove(&object_id);
+        for deleted_object in deleted_objects {
+            self.live_objects.remove(&deleted_object.object_id);
         }
 
         for (object_id, object) in written_objects {
@@ -230,7 +281,7 @@ impl InMemoryStore {
 impl BackingPackageStore for InMemoryStore {
     fn get_package_object(
         &self,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
     ) -> iota_types::error::IotaResult<Option<PackageObject>> {
         load_package_object_from_object_store(self, package_id)
     }
@@ -239,8 +290,8 @@ impl BackingPackageStore for InMemoryStore {
 impl ChildObjectResolver for InMemoryStore {
     fn read_child_object(
         &self,
-        parent: &ObjectID,
-        child: &ObjectID,
+        parent: &ObjectId,
+        child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let child_object = match crate::store::SimulatorStore::get_object(self, child) {
@@ -249,7 +300,7 @@ impl ChildObjectResolver for InMemoryStore {
         };
 
         let parent = *parent;
-        if child_object.owner != Owner::ObjectOwner(parent.into()) {
+        if child_object.owner != Owner::Object(parent) {
             return Err(IotaError::InvalidChildObjectAccess {
                 object: *child,
                 given_parent: parent,
@@ -269,8 +320,8 @@ impl ChildObjectResolver for InMemoryStore {
 
     fn get_object_received_at_version(
         &self,
-        owner: &ObjectID,
-        receiving_object_id: &ObjectID,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> iota_types::error::IotaResult<Option<Object>> {
@@ -279,7 +330,7 @@ impl ChildObjectResolver for InMemoryStore {
             None => return Ok(None),
             Some(obj) => obj,
         };
-        if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+        if recv_object.owner != Owner::Address((*owner).into()) {
             return Ok(None);
         }
 
@@ -312,17 +363,152 @@ impl ModuleResolver for InMemoryStore {
 impl ObjectStore for InMemoryStore {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object(object_id).cloned())
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.get_object_at_version(object_id, version).cloned())
+    }
+}
+
+impl ReadStore for InMemoryStore {
+    fn try_get_committee(
+        &self,
+        epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
+        Ok(self
+            .get_committee_by_epoch(epoch)
+            .cloned()
+            .map(std::sync::Arc::new))
+    }
+
+    fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        self.get_highest_checkpoint()
+            .cloned()
+            .ok_or(iota_types::storage::error::Error::missing(
+                "no checkpoints in store",
+            ))
+    }
+
+    fn try_get_highest_verified_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        self.get_highest_checkpoint()
+            .cloned()
+            .ok_or(iota_types::storage::error::Error::missing(
+                "no checkpoints in store",
+            ))
+    }
+
+    fn try_get_highest_synced_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        self.get_highest_checkpoint()
+            .cloned()
+            .ok_or(iota_types::storage::error::Error::missing(
+                "no checkpoints in store",
+            ))
+    }
+
+    fn try_get_lowest_available_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
+    {
+        // we never prune the sim store
+        Ok(0)
+    }
+
+    fn try_get_checkpoint_by_digest(
+        &self,
+        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        Ok(self.get_checkpoint_by_digest(digest).cloned())
+    }
+
+    fn try_get_checkpoint_by_sequence_number(
+        &self,
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        Ok(self
+            .get_checkpoint_by_sequence_number(sequence_number)
+            .cloned())
+    }
+
+    fn try_get_checkpoint_contents_by_digest(
+        &self,
+        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
+        Ok(self.get_checkpoint_contents(digest).cloned())
+    }
+
+    fn try_get_checkpoint_contents_by_sequence_number(
+        &self,
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
+        Ok(self
+            .get_checkpoint_by_sequence_number(sequence_number)
+            .and_then(|c| self.get_checkpoint_contents(&c.content_digest).cloned()))
+    }
+
+    fn try_get_transaction(
+        &self,
+        tx_digest: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
+        Ok(self.get_transaction(tx_digest).cloned().map(Arc::new))
+    }
+
+    fn try_get_transaction_effects(
+        &self,
+        tx_digest: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
+        Ok(self.get_transaction_effects(tx_digest).cloned())
+    }
+
+    fn try_get_events(
+        &self,
+        digest: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
+        Ok(self.get_transaction_events(digest).cloned())
+    }
+
+    fn try_get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
+    > {
+        self.try_get_checkpoint_contents_by_sequence_number(sequence_number)?
+            .map_or(Ok(None), |contents| {
+                iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
+                    self,
+                    contents,
+                )
+            })
+    }
+
+    fn try_get_full_checkpoint_contents(
+        &self,
+        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
+    > {
+        self.get_checkpoint_contents(digest)
+            .map_or(Ok(None), |contents| {
+                iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
+                    self,
+                    contents.clone(),
+                )
+            })
     }
 }
 
@@ -330,6 +516,24 @@ impl ObjectStore for InMemoryStore {
 pub struct KeyStore {
     validator_keys: BTreeMap<AuthorityName, AuthorityKeyPair>,
     account_keys: BTreeMap<IotaAddress, AccountKeyPair>,
+}
+
+impl Clone for KeyStore {
+    fn clone(&self) -> Self {
+        use fastcrypto::traits::KeyPair;
+        Self {
+            validator_keys: self
+                .validator_keys
+                .iter()
+                .map(|(k, v)| (*k, v.copy()))
+                .collect(),
+            account_keys: self
+                .account_keys
+                .iter()
+                .map(|(k, v)| (*k, v.copy()))
+                .collect(),
+        }
+    }
 }
 
 impl KeyStore {
@@ -352,7 +556,7 @@ impl KeyStore {
         let account_keys = network_config
             .account_keys
             .iter()
-            .map(|key| (key.public().into(), key.copy()))
+            .map(|key| (address_from_iota_pub_key(key.public()), key.copy()))
             .collect();
         Self {
             validator_keys,
@@ -370,63 +574,15 @@ impl KeyStore {
 }
 
 impl SimulatorStore for InMemoryStore {
-    fn get_checkpoint_by_sequence_number(
-        &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> Option<VerifiedCheckpoint> {
-        self.get_checkpoint_by_sequence_number(sequence_number)
-            .cloned()
-    }
-
-    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
-        self.get_checkpoint_by_digest(digest).cloned()
-    }
-
     fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint> {
         self.get_highest_checkpoint().cloned()
     }
 
-    fn get_checkpoint_contents(
-        &self,
-        digest: &CheckpointContentsDigest,
-    ) -> Option<CheckpointContents> {
-        self.get_checkpoint_contents(digest).cloned()
-    }
-
-    fn get_committee_by_epoch(&self, epoch: EpochId) -> Option<Committee> {
-        self.get_committee_by_epoch(epoch).cloned()
-    }
-
-    fn get_transaction(&self, digest: &TransactionDigest) -> Option<VerifiedTransaction> {
-        self.get_transaction(digest).cloned()
-    }
-
-    fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
-        self.get_transaction_effects(digest).cloned()
-    }
-
-    fn get_transaction_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> Option<TransactionEvents> {
-        self.get_transaction_events(digest).cloned()
-    }
-
-    fn get_transaction_events_by_tx_digest(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Option<TransactionEvents> {
-        self.events_tx_digest_index
-            .get(tx_digest)
-            .and_then(|x| self.events.get(x))
-            .cloned()
-    }
-
-    fn get_object(&self, id: &ObjectID) -> Option<Object> {
+    fn get_object(&self, id: &ObjectId) -> Option<Object> {
         self.get_object(id).cloned()
     }
 
-    fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object> {
+    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object> {
         self.get_object_at_version(id, version).cloned()
     }
 
@@ -436,6 +592,17 @@ impl SimulatorStore for InMemoryStore {
 
     fn get_clock(&self) -> iota_types::clock::Clock {
         self.get_clock()
+    }
+
+    fn get_last_checkpoint_of_epoch(&self, epoch: EpochId) -> Option<CheckpointSequenceNumber> {
+        self.get_last_checkpoint_of_epoch(epoch)
+    }
+
+    fn get_system_state_by_epoch(
+        &self,
+        epoch: EpochId,
+    ) -> Option<&iota_types::iota_system_state::IotaSystemState> {
+        self.get_system_state_by_epoch(epoch)
     }
 
     fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
@@ -459,7 +626,7 @@ impl SimulatorStore for InMemoryStore {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         events: TransactionEvents,
-        written_objects: BTreeMap<ObjectID, Object>,
+        written_objects: BTreeMap<ObjectId, Object>,
     ) {
         self.insert_executed_transaction(transaction, effects, events, written_objects)
     }
@@ -478,13 +645,21 @@ impl SimulatorStore for InMemoryStore {
 
     fn update_objects(
         &mut self,
-        written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        written_objects: BTreeMap<ObjectId, Object>,
+        deleted_objects: Vec<ObjectRef>,
     ) {
         self.update_objects(written_objects, deleted_objects)
     }
 
     fn backing_store(&self) -> &dyn iota_types::storage::BackingStore {
         self
+    }
+
+    fn update_last_checkpoint_of_epoch(
+        &mut self,
+        epoch: EpochId,
+        last_checkpoint: CheckpointSequenceNumber,
+    ) {
+        self.update_last_checkpoint_by_epoch(epoch, last_checkpoint);
     }
 }

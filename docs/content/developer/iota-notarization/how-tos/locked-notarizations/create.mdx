@@ -18,8 +18,12 @@ This guide will walk you through the process of creating a Locked Notarization a
 
 - **Immutable**: State and metadata cannot be changed after creation
 - **Non-transferable**: Cannot be transferred to other addresses
-- **Delete locks**: Support time-based destruction controls
-- **Permanent record**: Provides immutable document notarization
+- **Delete locks**: Support time-based destruction restrictions
+- **Permanent record**: Provides immutable document notarization until the **Delete Lock** expires
+
+In the current implementation, it isn't possible to create infinitely permanent records with Locked Notarizations.
+The delete lock must either be set to `None` (allowing immediate deletion) or to `UnlockAt(timestamp)` (restricting deletion until a specified time).
+This design ensures that storage deposits can be reclaimed in the future. To have a nearly infinitely permanent record choose a very distant future timestamp for the delete lock.
 
 ### 1. Get Funds to cover the gas costs
 
@@ -114,7 +118,7 @@ Locked notarizations support different delete lock options:
 
 - **None**: Can be destroyed immediately after creation
 - **UnlockAt(timestamp)**: Cannot be destroyed until specified timestamp
-- **UntilDestroyed**: Cannot be destroyed (permanent record)
+- **UntilDestroyed**: This option can **not** be used for delete locks
 
 
 ## Use Cases for Locked Notarizations

@@ -11,6 +11,7 @@ use iota_indexer::{models::epoch::QueryableEpochInfo, schema::epochs};
 use iota_types::messages_checkpoint::CheckpointCommitment as EpochCommitment;
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     context_data::db_data_provider::PgManager,
     data::{DataLoader, Db, DbConnection, QueryExecutor},
@@ -241,6 +242,9 @@ impl Epoch {
     ///
     /// By default, the scanning range consists of all transactions in this
     /// epoch.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,

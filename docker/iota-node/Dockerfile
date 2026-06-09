@@ -1,8 +1,9 @@
-# Build image (the specific rust version can also be passed, e.g. "1.82-bookworm")
-ARG RUST_IMAGE_VERSION=bookworm
+# Build image (the specific rust version can also be passed, e.g. "1.91-trixie")
+ARG RUST_IMAGE_VERSION=trixie
 FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
+ARG TARGET_FOLDER=target/release
 ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
@@ -18,38 +19,32 @@ RUN mkdir -p ~/.cargo && \
     echo -e "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\nrustflags = [\"-C\", \"link-arg=-fuse-ld=lld\"]" > ~/.cargo/config.toml
 
 # Install additional dependencies
-RUN apt install -y libpq5 libpq-dev ca-certificates
+RUN apt install -y ca-certificates
 
 # Copy in all crates, Cargo.toml, and Cargo.lock
-COPY consensus consensus
 COPY crates crates
 COPY docs docs
 COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-RUN cargo build --profile ${PROFILE} --bin iota-node --features ${CARGO_BUILD_FEATURES:=default}
+# Build the binaries and copy them to the working directory
+RUN cargo build --profile ${PROFILE} \
+      --bin iota-node \
+      --bin iota-tool \
+      --features ${CARGO_BUILD_FEATURES:=default} && \
+    cp $TARGET_FOLDER/iota-node ./iota-node && \
+    cp $TARGET_FOLDER/iota-tool ./iota-tool
 
-# Copy the built binary to the working directory depending on the output folder of the profile,
-# so we can copy it to the runtime image
-RUN if [ -d target/release ]; then \
-  TARGET_DIR="target/release"; \
-elif [ -d target/debug ]; then \
-  TARGET_DIR="target/debug"; \
-else \
-  echo "Error: No build directory found"; \
-  exit 1; \
-fi && \
-mv $TARGET_DIR/iota-node ./;
 
 # Production image
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 ARG WORKDIR="/iota"
 WORKDIR "$WORKDIR"
 
 # Install runtime dependencies and tools
-RUN apt update && apt install -y libpq5 ca-certificates curl
+RUN apt update && apt install -y ca-certificates curl
 
 # Install jemalloc as the default allocator used for memory profiling on supported
 # architectures and create a symlink for the correct version based on the architecture
@@ -66,6 +61,7 @@ fi
 ENV LD_PRELOAD=/usr/lib/libjemalloc.so
 
 COPY --from=builder /iota/iota-node /usr/local/bin
+COPY --from=builder /iota/iota-tool /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION

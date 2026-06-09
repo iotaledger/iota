@@ -1,0 +1,30 @@
+[package]
+name = "move-package-alt"
+version = "0.1.0"
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+append-only-vec.workspace = true
+codespan-reporting.workspace = true
+derive-where.workspace = true
+serde.workspace = true
+serde_spanned.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+toml_edit.workspace = true
+
+[dev-dependencies]
+# external dependencies
+datatest-stable.workspace = true
+insta.workspace = true
+
+# internal dependencies
+move-command-line-common.workspace = true
+
+[[test]]
+name = "parsing_tests"
+harness = false

@@ -2,7 +2,7 @@
 tags: [core-protocol]
 ---
 import Quiz from '@site/src/components/Quiz';
-import {questions} from '../../../site/static/json/about-iota/iota-architecture/iota-security.json';
+import quizData from '../../../site/static/json/about-iota/iota-architecture/iota-security.json';
 
 # Security
 
@@ -55,7 +55,7 @@ When a transaction is submitted in IOTA, validators must collectively agree on i
 
 ### Gas and Transaction Execution
 
-Every transaction incurs a gas fee for computational processing. A transaction either executes successfully or fails. Failures can result from smart contract errors or insufficient gas. If a transaction succeeds, its effects are permanently recorded on the IOTA network. If it fails, no changes occur, but some gas fees are still deducted to mitigate spam attacks. For more details, see the [gas and gas fees](../tokenomics/gas-in-iota.mdx) documentation.
+Every transaction incurs a gas fee for computational processing. A transaction either executes successfully or fails. Failures can result from smart contract errors or insufficient gas. If a transaction succeeds, its effects are permanently recorded on the IOTA network. If it fails, no changes occur, but some gas fees are still deducted to mitigate spam attacks. For more details, see the [gas and gas fees](../tokenomics/gas-pricing.mdx) documentation.
 
 ### Submitting Transactions
 
@@ -71,4 +71,4 @@ IOTA full nodes provide access to asset balances and transaction histories. Vali
 
 All transactions and assets on IOTA are publicly viewable, ensuring auditability. However, users can maintain pseudonymity by utilizing multiple addresses. Third-party custodial services can further enhance privacy by managing assets on behalf of users. Additionally, privacy-preserving smart contracts can be developed to add extra confidentiality layers.
 
-<Quiz questions={questions} />
+<Quiz questions={quizData.questions} />

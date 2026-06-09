@@ -2,7 +2,7 @@
 	"name": "@iota/prettier-plugin-move",
 	"author": "IOTA Foundation <info@iota.org>",
 	"description": "Move Plugin for Prettier",
-	"version": "0.2.2",
+	"version": "0.3.0",
 	"license": "Apache-2.0",
 	"keywords": [
 		"prettier",
@@ -26,7 +26,7 @@
 	},
 	"devDependencies": {
 		"@types/diff": "^5.2.1",
-		"@types/node": "^20.14.10",
+		"@types/node": "^20.17.6",
 		"diff": "^5.2.0",
 		"typescript": "^5.5.3",
 		"vitest": "^2.0.1"

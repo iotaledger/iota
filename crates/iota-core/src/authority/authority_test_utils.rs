@@ -83,10 +83,11 @@ pub async fn execute_certificate_with_execution_error(
     IotaError,
 > {
     // We also check the incremental effects of the transaction on the live object
-    // set against StateAccumulator for testing and regression detection.
+    // set against GlobalStateHasher for testing and regression detection.
     // We must do this before sending to consensus, otherwise consensus may already
     // lead to transaction execution and state change.
-    let state_acc = StateAccumulator::new_for_tests(authority.get_accumulator_store().clone());
+    let state_acc =
+        GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
 
     if with_shared {
@@ -98,7 +99,7 @@ pub async fn execute_certificate_with_execution_error(
                 .epoch_store_for_testing()
                 .assign_shared_object_versions_for_tests(
                     authority.get_object_cache_reader().as_ref(),
-                    &vec![VerifiedExecutableTransaction::new_from_certificate(
+                    &[VerifiedExecutableTransaction::new_from_certificate(
                         certificate.clone(),
                     )],
                 )?;
@@ -108,7 +109,7 @@ pub async fn execute_certificate_with_execution_error(
                 .epoch_store_for_testing()
                 .assign_shared_object_versions_for_tests(
                     fullnode.get_object_cache_reader().as_ref(),
-                    &vec![VerifiedExecutableTransaction::new_from_certificate(
+                    &[VerifiedExecutableTransaction::new_from_certificate(
                         certificate.clone(),
                     )],
                 )?;
@@ -183,7 +184,7 @@ pub async fn init_state_with_committee(
         .await
 }
 
-pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectID)>>(
+pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectId)>>(
     objects: I,
 ) -> Arc<AuthorityState> {
     let state = TestAuthorityBuilder::new().build().await;
@@ -196,17 +197,14 @@ pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectID)>
 }
 
 pub async fn init_state_with_ids_and_versions<
-    I: IntoIterator<Item = (IotaAddress, ObjectID, SequenceNumber)>,
+    I: IntoIterator<Item = (IotaAddress, ObjectId, SequenceNumber)>,
 >(
     objects: I,
 ) -> Arc<AuthorityState> {
     let state = TestAuthorityBuilder::new().build().await;
     for (address, object_id, version) in objects {
-        let obj = Object::with_id_owner_version_for_testing(
-            object_id,
-            version,
-            Owner::AddressOwner(address),
-        );
+        let obj =
+            Object::with_id_owner_version_for_testing(object_id, version, Owner::Address(address));
         state.insert_genesis_object(obj).await;
     }
     state
@@ -239,13 +237,13 @@ pub async fn init_state_with_objects_and_committee<I: IntoIterator<Item = Object
 
 pub async fn init_state_with_object_id(
     address: IotaAddress,
-    object: ObjectID,
+    object: ObjectId,
 ) -> Arc<AuthorityState> {
     init_state_with_ids(std::iter::once((address, object))).await
 }
 
 pub async fn init_state_with_ids_and_expensive_checks<
-    I: IntoIterator<Item = (IotaAddress, ObjectID)>,
+    I: IntoIterator<Item = (IotaAddress, ObjectId)>,
 >(
     objects: I,
     config: ExpensiveSafetyCheckConfig,

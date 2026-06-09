@@ -30,7 +30,7 @@ The MC (Master of Ceremony) will create a new git repository and initialize the 
 
 ```
 $ git init genesis && cd genesis
-$ iota genesis-ceremony init
+$ iota-tool genesis-ceremony init
 $ git add .
 $ git commit -m "init genesis"
 $ git push
@@ -42,7 +42,7 @@ Once the shared workspace has been initialized, each validator can contribute th
 
 ```
 $ git clone <url to genesis repo> && cd genesis
-$ iota genesis-ceremony add-validator \
+$ iota-tool genesis-ceremony add-validator \
     --name <human-readable validator name> \
     --authority-key-file <BLS12381KeyPair AUTHORITY_KEY_FILE> \
     --protocol-key-file <Ed25519KeyPair PROTOCOL_KEY_FILE> \
@@ -63,7 +63,7 @@ $ git push # either to the shared workspace or another branch followed by a PR
 Example:
 
 ```
-$ iota genesis-ceremony add-validator \
+$ iota-tool genesis-ceremony add-validator \
     --name validator0 \
     --authority-key-file ./validator0/bls-0x7f9ca307a22d8ef380f1c702743e385baa1b01ba33a7e99f15ced59352e5a0a7.key \
     --protocol-key-file ./validator0/0x6c58f5df3d6749863ebac6592b1e4320e73ca7785764c93af7ea9ad63b98ded4.key \
@@ -95,7 +95,7 @@ The resulting distribution schedule is amended only if any migration sources are
 passed in the "Build Genesis" step.
 
 ```
-$ iota genesis-ceremony init-token-distribution-schedule \
+$ iota-tool genesis-ceremony init-token-distribution-schedule \
     --token-allocations-path <path-to-token-allocations-csv-file>
 $ git add .
 $ git commit -m "initialize token distribution schedule"
@@ -107,7 +107,7 @@ $ git push
 Once all validators and gas objects have been added, the MC can build the genesis object:
 
 ```
-$ iota genesis-ceremony build-unsigned-checkpoint
+$ iota-tool genesis-ceremony build-unsigned-checkpoint
 $ git add .
 $ git commit -m "build genesis"
 $ git push
@@ -118,7 +118,7 @@ $ git push
 Once genesis is built each validator will need to verify and sign genesis:
 
 ```
-$ iota genesis-ceremony verify-and-sign \
+$ iota-tool genesis-ceremony verify-and-sign \
     --key-file <path to key file>
 $ git add .
 $ git commit -m "sign genesis"
@@ -128,7 +128,7 @@ $ git push
 Example:
 
 ```
-$ iota genesis-ceremony verify-and-sign \
+$ iota-tool genesis-ceremony verify-and-sign \
     --key-file ./validator0/bls-0x7f9ca307a22d8ef380f1c702743e385baa1b01ba33a7e99f15ced59352e5a0a7.key
 ```
 
@@ -138,5 +138,5 @@ Once all validators have successfully verified and signed genesis, the MC can fi
 and then the genesis state can be distributed:
 
 ```
-$ iota genesis-ceremony finalize
+$ iota-tool genesis-ceremony finalize
 ```

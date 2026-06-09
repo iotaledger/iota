@@ -5,20 +5,18 @@
 //! 4-years, initial unlock, bi-weekly unlock.
 //! One mnemonic/wallet, one account, multiple public and internal addresses.
 
-use iota_sdk::{
-    client::secret::{GenerateAddressOptions, SecretManage, mnemonic::MnemonicSecretManager},
-    types::block::{
-        address::Ed25519Address,
-        output::{
-            BasicOutputBuilder, OUTPUT_INDEX_RANGE, Output,
-            unlock_condition::AddressUnlockCondition,
-        },
+use iota_stardust_types::block::{
+    address::Ed25519Address,
+    output::{
+        BasicOutputBuilder, OUTPUT_INDEX_RANGE, Output, unlock_condition::AddressUnlockCondition,
     },
 };
 use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, new_vested_output},
+    test_outputs::{
+        MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, address_derivation, new_vested_output,
+    },
     types::{output_header::OutputHeader, output_index::OutputIndex},
 };
 
@@ -37,23 +35,21 @@ const ADDRESSES: &[[u32; 3]] = &[
     [0, 1, 2],
 ];
 
-pub(crate) async fn outputs(
+pub(crate) fn outputs(
     rng: &mut StdRng,
     vested_index: &mut u32,
     coin_type: u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
-    let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
 
     for [account_index, internal, address_index] in ADDRESSES {
-        let address = secret_manager
-            .generate_ed25519_addresses(
-                coin_type,
-                *account_index,
-                *address_index..address_index + 1,
-                (*internal == 1).then_some(GenerateAddressOptions::internal()),
-            )
-            .await?[0];
+        let address = address_derivation::derive_address(
+            MNEMONIC,
+            coin_type,
+            *account_index,
+            *address_index,
+            *internal == 1,
+        )?;
 
         match address_index {
             0 => {

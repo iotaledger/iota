@@ -9,30 +9,33 @@
     rust_2021_compatibility
 )]
 
-use base_types::{IotaAddress, ObjectID, SequenceNumber};
+use base_types::{IotaAddress, SequenceNumber};
+#[cfg(not(target_arch = "wasm32"))]
 pub use iota_network_stack::multiaddr;
+#[cfg(target_arch = "wasm32")]
+#[path = "wasm_multiaddr.rs"]
+pub mod multiaddr;
+pub use iota_sdk_types as sdk_types;
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
 };
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
-};
-pub use move_core_types::{identifier::Identifier, language_storage::TypeTag};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use object::OBJECT_START_VERSION;
 
 use crate::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     id::RESOLVED_IOTA_ID,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
 
 #[macro_use]
 pub mod error;
 
-pub mod accumulator;
-pub mod authenticator_state;
+pub mod account_abstraction;
+pub mod auth_context;
 pub mod balance;
 pub mod base_types;
 pub mod clock;
@@ -43,6 +46,7 @@ pub mod committee;
 pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
+pub mod derived_object;
 pub mod digests;
 pub mod display;
 pub mod dynamic_field;
@@ -52,11 +56,11 @@ pub mod event;
 pub mod executable_transaction;
 pub mod execution;
 pub mod execution_config_utils;
-pub mod execution_status;
 pub mod full_checkpoint_content;
 pub mod gas;
 pub mod gas_coin;
 pub mod gas_model;
+pub mod global_state_hash;
 pub mod governance;
 pub mod id;
 pub mod in_memory_storage;
@@ -67,16 +71,22 @@ pub mod iota_system_state;
 pub mod layout_resolver;
 pub mod message_envelope;
 pub mod messages_checkpoint;
+// Consensus message types (and the gRPC API types that carry them) are
+// node-only and pull in fastcrypto-tbls / tonic, which don't build on wasm32.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod messages_consensus;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod messages_grpc;
 pub mod messages_safe_client;
 pub mod metrics;
 pub mod mock_checkpoint_builder;
+pub mod move_authenticator;
 pub mod move_package;
 pub mod multisig;
 pub mod object;
 pub mod passkey_authenticator;
 pub mod programmable_transaction_builder;
+pub mod proto_value;
 pub mod quorum_driver_types;
 pub mod randomness_state;
 pub mod signature;
@@ -91,10 +101,7 @@ pub mod traffic_control;
 pub mod transaction;
 pub mod transaction_executor;
 pub mod transfer;
-pub mod type_input;
 pub mod versioned;
-pub mod zk_login_authenticator;
-pub mod zk_login_util;
 
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;
@@ -103,7 +110,7 @@ macro_rules! built_in_ids {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         $(
             pub const $addr: AccountAddress = builtin_address($init);
-            pub const $id: ObjectID = ObjectID::from_address($addr);
+            pub const $id: ObjectId = ObjectId::new($addr.into_bytes());
         )*
     }
 }
@@ -111,10 +118,6 @@ macro_rules! built_in_ids {
 macro_rules! built_in_pkgs {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         built_in_ids! { $($addr / $id = $init;)* }
-        pub const SYSTEM_PACKAGE_ADDRESSES: &[AccountAddress] = &[$($addr),*];
-        pub fn is_system_package(addr: impl Into<AccountAddress>) -> bool {
-            matches!(addr.into(), $($addr)|*)
-        }
     }
 }
 
@@ -135,9 +138,16 @@ built_in_ids! {
     IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
 }
 
+pub const SYSTEM_PACKAGE_ADDRESSES: [IotaAddress; 5] = [
+    IotaAddress::STD,
+    IotaAddress::FRAMEWORK,
+    IotaAddress::SYSTEM,
+    IotaAddress::GENESIS_BRIDGE,
+    IotaAddress::STARDUST,
+];
+
 pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
 pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
-pub const IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
 
 const fn builtin_address(suffix: u16) -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];
@@ -148,7 +158,7 @@ const fn builtin_address(suffix: u16) -> AccountAddress {
 }
 
 pub fn iota_framework_address_concat_string(suffix: &str) -> String {
-    format!("{}{suffix}", IOTA_FRAMEWORK_ADDRESS.to_hex_literal())
+    format!("{}{suffix}", IotaAddress::FRAMEWORK.to_short_hex())
 }
 
 /// Parses `s` as an address. Valid formats for addresses are:
@@ -163,9 +173,11 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 /// authority codebases.
 pub fn parse_iota_address(s: &str) -> anyhow::Result<IotaAddress> {
     use move_core_types::parsing::address::ParsedAddress;
-    Ok(ParsedAddress::parse(s)?
-        .into_account_address(&resolve_address)?
-        .into())
+    Ok(IotaAddress::new(
+        ParsedAddress::parse(s)?
+            .into_account_address(&resolve_address)?
+            .into_bytes(),
+    ))
 }
 
 /// Parse `s` as a Module ID: An address (see `parse_iota_address`), followed by
@@ -194,7 +206,9 @@ pub fn parse_iota_fq_name(s: &str) -> anyhow::Result<(ModuleId, String)> {
 /// intended for use within the authority codebase.
 pub fn parse_iota_struct_tag(s: &str) -> anyhow::Result<StructTag> {
     use move_core_types::parsing::types::ParsedStructType;
-    ParsedStructType::parse(s)?.into_struct_tag(&resolve_address)
+    ParsedStructType::parse(s)?
+        .into_struct_tag(&resolve_address)
+        .map(|s| struct_tag_core_to_sdk(&s))
 }
 
 /// Parse `s` as a type: Either a struct type (see `parse_iota_struct_tag`), a
@@ -203,18 +217,21 @@ pub fn parse_iota_struct_tag(s: &str) -> anyhow::Result<StructTag> {
 /// function is intended for use within the authority codebase.
 pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
     use move_core_types::parsing::types::ParsedType;
-    ParsedType::parse(s)?.into_type_tag(&resolve_address)
+    ParsedType::parse(s)?
+        .into_type_tag(&resolve_address)
+        .map(|s| type_tag_core_to_sdk(&s))
 }
 
 /// Resolve well-known named addresses into numeric addresses.
 pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
     match addr {
-        "std" => Some(MOVE_STDLIB_ADDRESS),
-        "iota" => Some(IOTA_FRAMEWORK_ADDRESS),
-        "iota_system" => Some(IOTA_SYSTEM_ADDRESS),
-        "stardust" => Some(STARDUST_ADDRESS),
+        "std" => Some(IotaAddress::STD),
+        "iota" => Some(IotaAddress::FRAMEWORK),
+        "iota_system" => Some(IotaAddress::SYSTEM),
+        "stardust" => Some(IotaAddress::STARDUST),
         _ => None,
     }
+    .map(|addr| AccountAddress::new(addr.into_bytes()))
 }
 
 pub trait MoveTypeTagTrait {
@@ -233,7 +250,7 @@ impl MoveTypeTagTrait for u64 {
     }
 }
 
-impl MoveTypeTagTrait for ObjectID {
+impl MoveTypeTagTrait for ObjectId {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }
@@ -251,17 +268,54 @@ impl<T: MoveTypeTagTrait> MoveTypeTagTrait for Vec<T> {
     }
 }
 
+/// Check if a type is a primitive type in optimistic mode. It invokes the inner
+/// function with is_strict = false.
 pub fn is_primitive(
     view: &CompiledModule,
     function_type_args: &[AbilitySet],
     s: &SignatureToken,
 ) -> bool {
+    is_primitive_inner(view, function_type_args, s, false)
+}
+
+/// Check if a type is a primitive type in strict mode. It invokes the inner
+/// function with is_strict = true.
+pub fn is_primitive_strict(
+    view: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    s: &SignatureToken,
+) -> bool {
+    is_primitive_inner(view, function_type_args, s, true)
+}
+
+/// Check if a type is a primitive type.
+/// In optimistic mode (is_strict = false), a type parameter is considered
+/// primitive if it has no key ability. In strict mode (is_strict = true), a
+/// type parameter is considered primitive if it has at least copy or drop
+/// ability.
+pub fn is_primitive_inner(
+    view: &CompiledModule,
+    function_type_args: &[AbilitySet],
+    s: &SignatureToken,
+    is_strict: bool,
+) -> bool {
     use SignatureToken as S;
     match s {
         S::Bool | S::U8 | S::U16 | S::U32 | S::U64 | S::U128 | S::U256 | S::Address => true,
         S::Signer => false,
-        // optimistic, but no primitive has key
-        S::TypeParameter(idx) => !function_type_args[*idx as usize].has_key(),
+        // optimistic -> no primitive has key
+        // strict -> all primitives have at least copy or drop
+        S::TypeParameter(idx) => {
+            if !is_strict {
+                // optimistic: has no key
+                !function_type_args[*idx as usize].has_key()
+            } else {
+                // strict: has at least one of: copy or drop (or store and one of the others).
+                // copy or drop abilities always imply having no key, but here we double check
+                let abilities = function_type_args[*idx as usize];
+                !abilities.has_key() && (abilities.has_copy() || abilities.has_drop())
+            }
+        }
 
         S::Datatype(idx) => [RESOLVED_IOTA_ID, RESOLVED_ASCII_STR, RESOLVED_UTF8_STR]
             .contains(&resolve_struct(view, *idx)),
@@ -272,10 +326,10 @@ pub fn is_primitive(
             // option is a primitive
             resolved_struct == RESOLVED_STD_OPTION
                 && targs.len() == 1
-                && is_primitive(view, function_type_args, &targs[0])
+                && is_primitive_inner(view, function_type_args, &targs[0], is_strict)
         }
 
-        S::Vector(inner) => is_primitive(view, function_type_args, inner),
+        S::Vector(inner) => is_primitive_inner(view, function_type_args, inner, is_strict),
         S::Reference(_) | S::MutableReference(_) => false,
     }
 }
@@ -306,7 +360,7 @@ pub fn is_object_vector(
     }
 }
 
-fn is_object_struct(
+pub fn is_object_struct(
     view: &CompiledModule,
     function_type_args: &[AbilitySet],
     s: &SignatureToken,

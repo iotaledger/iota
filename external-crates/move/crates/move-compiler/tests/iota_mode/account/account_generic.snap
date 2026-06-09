@@ -1,0 +1,31 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: iota
+  edition: legacy
+  lint: false
+---
+error[Iota E02010]: invalid private account call
+  ┌─ tests/iota_mode/account/account_generic.move:8:9
+  │
+7 │     public fun t1<A: key>(account: A, authenticator: AuthenticatorFunctionRefV1<A>) {
+  │                                    - The type 'A' is not declared in the current module
+8 │         account::create_account_v1(account, authenticator);
+  │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::create_account_v1' is restricted to being called in the object's module
+
+error[Iota E02010]: invalid private account call
+   ┌─ tests/iota_mode/account/account_generic.move:12:9
+   │
+11 │     public fun t2<A: key>(account: A, authenticator: AuthenticatorFunctionRefV1<A>) {
+   │                                    - The type 'A' is not declared in the current module
+12 │         account::create_immutable_account_v1(account, authenticator);
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::create_immutable_account_v1' is restricted to being called in the object's module
+
+error[Iota E02010]: invalid private account call
+   ┌─ tests/iota_mode/account/account_generic.move:19:9
+   │
+16 │         account: &mut A,
+   │                       - The type 'A' is not declared in the current module
+   ·
+19 │         account::rotate_auth_function_ref_v1(account, authenticator)
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Invalid private account call. The function 'iota::account::rotate_auth_function_ref_v1' is restricted to being called in the object's module

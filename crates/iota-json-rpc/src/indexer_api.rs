@@ -15,7 +15,7 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
     IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
     TransactionFilter,
@@ -26,20 +26,21 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::{IotaObjectResponseError, UserInputError},
+    error::UserInputError,
     event::EventID,
+    iota_sdk_types_conversions::type_tag_sdk_to_core,
 };
 use jsonrpsee::{
     PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult},
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
-use move_core_types::language_storage::TypeTag;
 use serde::Serialize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument};
@@ -142,7 +143,10 @@ impl<R: ReadApiServer> IndexerApi<R> {
             value,
         } = name;
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
-        let layout = TypeLayoutBuilder::build_with_types(&name_type, epoch_store.module_cache())?;
+        let layout = TypeLayoutBuilder::build_with_types(
+            &type_tag_sdk_to_core(&name_type),
+            epoch_store.module_cache(),
+        )?;
         let iota_json_value = IotaJsonValue::new(value)?;
         let name_bcs_value = iota_json_value.to_bcs_bytes(&layout)?;
         Ok((name_type, name_bcs_value))
@@ -157,7 +161,7 @@ impl<R: ReadApiServer> IndexerApi<R> {
 
     async fn get_dynamic_field_object(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
@@ -197,12 +201,12 @@ impl<R: ReadApiServer> IndexerApi<R> {
 
 #[async_trait]
 impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, address), fields(address = %address))]
     async fn get_owned_objects(
         &self,
         address: IotaAddress,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         async move {
@@ -217,12 +221,14 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
 
             // objects here are of size (limit + 1), where the last one is the cursor for
             // the next page
-            let has_next_page = objects.len() > limit;
+            let has_next_page = objects.len() > limit && limit > 0;
             objects.truncate(limit);
-            let next_cursor = objects
-                .last()
-                .cloned()
-                .map_or(cursor, |o_info| Some(o_info.object_id));
+            let next_cursor = (has_next_page).then_some(
+                objects
+                    .last()
+                    .map(|obj| obj.object_id)
+                    .unwrap_or(ObjectId::ZERO),
+            );
 
             let data = match options.is_not_in_object_info() {
                 true => {
@@ -429,12 +435,12 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, parent_object_id), fields(parent_object_id = %parent_object_id))]
     async fn get_dynamic_fields(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
     ) -> RpcResult<DynamicFieldPage> {
         async move {
@@ -463,10 +469,10 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, parent_object_id), fields(parent_object_id = %parent_object_id))]
     async fn get_dynamic_field_object(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
         self.get_dynamic_field_object(
@@ -477,10 +483,10 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, parent_object_id), fields(parent_object_id = %parent_object_id))]
     async fn get_dynamic_field_object_v2(
         &self,
-        parent_object_id: ObjectID,
+        parent_object_id: ObjectId,
         name: DynamicFieldName,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
@@ -561,7 +567,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, address), fields(address = %address))]
     async fn iota_names_reverse_lookup(&self, address: IotaAddress) -> RpcResult<Option<String>> {
         let reverse_record_id = self.iota_names_config.reverse_record_field_id(&address);
 
@@ -576,7 +582,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
 
         let name = field_reverse_record_object
             .to_rust::<Field<IotaAddress, Name>>()
-            .ok_or_else(|| Error::Unexpected(format!("malformed Object {reverse_record_id}")))?
+            .map_err(|e| Error::Unexpected(format!("malformed Object {reverse_record_id}: {e}")))?
             .value;
 
         let name = name.to_string();
@@ -591,17 +597,17 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         Ok(Some(name))
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, address), fields(address = %address))]
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: IotaAddress,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
-                self.iota_names_config.package_address.into(),
+                self.iota_names_config.package_address,
             ))),
             options,
         };

@@ -3,7 +3,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
 use move_vm_runtime::{
@@ -14,18 +15,18 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
     pop_arg,
-    values::{values_impl::SignerRef, Value},
+    values::{Value, values_impl::SignerRef},
 };
 use smallvec::smallvec;
-use std::{collections::VecDeque, sync::Arc};
+
+use crate::helpers::make_module_natives;
 
 /// ****************************************************************************
-/// ********************* native fun borrow_address
+/// native fun borrow_address
 ///
 ///   gas cost: base_cost
 ///
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct BorrowAddressGasParameters {
     pub base: InternalGas,
@@ -59,9 +60,8 @@ pub fn make_native_borrow_address(gas_params: BorrowAddressGasParameters) -> Nat
 }
 
 /// ****************************************************************************
-/// ********************* module
+/// module
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub borrow_address: BorrowAddressGasParameters,

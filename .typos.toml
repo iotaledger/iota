@@ -4,14 +4,24 @@ extend-ignore-identifiers-re = [
   "^[a-f0-9]{7}$",
   "^[a-f0-9]{12}$",
   # Base64
+  "^[a-zA-Z0-9_]{30}$",
   "^[a-zA-Z0-9_]{43}$",
   "^[a-zA-Z0-9_]{44}$",
   "^[a-zA-Z0-9_]{47}$",
   "^[a-zA-Z0-9_]{49}$",
+  "^[a-zA-Z0-9_]{50}$",
   "^[a-zA-Z0-9_]{56,}$",
 ]
-# Truncated hex IDs (ex. "0x9...a9b")
-extend-ignore-re = ["0x[a-f0-9]\\.{3}[a-f0-9]{3}"]
+
+extend-ignore-re = [
+  # Truncated hex IDs (ex. "0x9...a9b")
+  "0x[a-f0-9]\\.{3}[a-f0-9]{3}",
+  # Block ignore for docs (e.g. { /* spellchecker:off */ } ... { /* spellchecker:on */ })
+  # This can be expanded to other comment styles if needed
+  "(?s)(\\{ /\\*)\\s*spellchecker:off.*?\\n\\s*(\\{ /\\*)\\s*spellchecker:on",
+  # BCS octet documentation
+  "[0-9]{2}OCTECT",
+]
 
 [type.hex-move]
 extend-glob = ["hex.move"]
@@ -28,15 +38,22 @@ nd = "nd"
 tto = "tto"
 ser = "ser"
 groth = "groth"
+typ = "typ"
+cpy = "cpy"
 # Identity
 AAS = "AAS"
 # actual typos purposely used in tests
 assing = "assing"
+namee = "namee"
 tring = "tring"
 # better suggestions for typos
 transferer = "transferrer"
 # not in the correction dictionary
 checkpoitn = "checkpoint"
+# crates
+bimap = "bimap"
+# plurals
+pendings = "pendings"
 
 [default.extend-identifiers]
 numer = "numer"

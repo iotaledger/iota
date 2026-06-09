@@ -20,7 +20,7 @@
   margin: 0;
   font-size: 1.125rem;
   line-height: 1.25rem;
-  color: var(--iota-cards-header);
+  color: var(--iota-blue-primary);
 }
 
 .card__copy {

@@ -8,7 +8,7 @@ use iota_types::{
     base_types::IotaAddress,
     crypto::{EncodeDecodeBase64, IotaKeyPair},
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionData,
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use tracing::debug;
 
@@ -30,7 +30,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             gas_budget,
             gas_payment,
         } = signer_info.clone().unwrap();
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let amount = 1;
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_payments = gas_payment.unwrap();
@@ -52,7 +52,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             .governance_api()
             .get_reference_gas_price()
             .await
-            .expect("Unable to fetch gas price");
+            .expect("unable to fetch gas price");
         join_all(gas_payments.iter().map(|gas| async {
             let tx = TransactionData::new_transfer_iota(
                 recipient,

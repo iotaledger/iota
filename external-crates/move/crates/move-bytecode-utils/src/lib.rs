@@ -6,15 +6,15 @@
 pub mod layout;
 pub mod module_cache;
 
+use std::collections::BTreeMap;
+
+use anyhow::{Result, anyhow};
+use indexmap::IndexMap;
 use move_binary_format::file_format::{CompiledModule, DatatypeHandleIndex, SignatureToken};
 use move_core_types::{
     account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
 };
-
-use anyhow::{anyhow, Result};
-use indexmap::IndexMap;
 use petgraph::graphmap::DiGraphMap;
-use std::collections::BTreeMap;
 
 /// Set of Move modules indexed by module Id
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -46,9 +46,9 @@ impl<'a> Modules<'a> {
         self.iter_modules().into_iter().cloned().collect()
     }
 
-    /// Return an iterator over the modules in `self` in topological order--modules with least deps first.
-    /// Fails with an error if `self` contains circular dependencies.
-    /// Tolerates missing dependencies.
+    /// Return an iterator over the modules in `self` in topological
+    /// order--modules with least deps first. Fails with an error if `self`
+    /// contains circular dependencies. Tolerates missing dependencies.
     pub fn compute_topological_order(&self) -> Result<impl Iterator<Item = &CompiledModule>> {
         let mut module_map = IndexMap::new();
         for m in self.iter_modules() {

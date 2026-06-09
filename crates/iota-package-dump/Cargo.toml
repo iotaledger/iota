@@ -22,3 +22,6 @@ iota-types.workspace = true
 
 [build-dependencies]
 cynic-codegen = "=3.7.3"
+
+[lints]
+workspace = true

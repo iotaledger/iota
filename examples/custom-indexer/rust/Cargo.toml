@@ -9,12 +9,11 @@ license = "Apache-2.0"
 anyhow = "1.0"
 async-trait = "0.1"
 prometheus = "0.14"
-tokio = "1.46.1"
-tokio-util = "0.7"
+tokio = "1.49.0"
 
 # internal dependencies
-iota-data-ingestion-core = { git = "https://github.com/iotaledger/iota", package = "iota-data-ingestion-core" }
-iota-types = { git = "https://github.com/iotaledger/iota", package = "iota-types" }
+iota-data-ingestion-core = { path = "../../../crates/iota-data-ingestion-core" }
+iota-types = { path = "../../../crates/iota-types" }
 
 [[bin]]
 name = "local_reader"

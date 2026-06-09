@@ -3,9 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module type_params::m1 {
-    use iota::object::{Self, UID};
-    use iota::tx_context::TxContext;
-    use iota::transfer;
     use type_params::m2;
 
     public struct Object has key, store {

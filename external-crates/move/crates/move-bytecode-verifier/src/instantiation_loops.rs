@@ -16,7 +16,7 @@
 //! to an infinite number of specialized instances. We do reject recursive
 //! functions that create a new type upon each call but do terminate eventually.
 
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map};
 
 use move_binary_format::{
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
@@ -27,10 +27,10 @@ use move_binary_format::{
 };
 use move_core_types::vm_status::StatusCode;
 use petgraph::{
+    Graph,
     algo::tarjan_scc,
     graph::{EdgeIndex, NodeIndex},
     visit::EdgeRef,
-    Graph,
 };
 
 /// Data attached to each node.

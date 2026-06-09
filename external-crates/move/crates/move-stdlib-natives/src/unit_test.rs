@@ -3,7 +3,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::helpers::make_module_natives;
+use std::{collections::VecDeque, sync::Arc};
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
 use move_vm_runtime::{
@@ -14,7 +15,8 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
 };
 use smallvec::smallvec;
-use std::{collections::VecDeque, sync::Arc};
+
+use crate::helpers::make_module_natives;
 
 #[derive(Debug, Clone)]
 pub struct PoisonGasParameters {
@@ -43,9 +45,8 @@ pub fn make_native_poison(gas_params: PoisonGasParameters) -> NativeFunction {
 }
 
 /// ****************************************************************************
-/// ********************* module
+/// module
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub poison: PoisonGasParameters,

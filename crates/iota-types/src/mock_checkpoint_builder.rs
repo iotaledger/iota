@@ -5,13 +5,13 @@
 use std::mem;
 
 use fastcrypto::traits::Signer;
+use iota_sdk_types::gas::GasCostSummary;
 
 use crate::{
     base_types::{AuthorityName, VerifiedExecutionData},
     committee::Committee,
     crypto::{AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature},
     effects::{TransactionEffects, TransactionEffectsAPI},
-    gas::GasCostSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
         CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
@@ -193,9 +193,9 @@ impl MockCheckpointBuilder {
             .voting_rights
             .iter()
             .map(|(name, _)| {
-                let intent_msg = shared_crypto::intent::IntentMessage::new(
-                    shared_crypto::intent::Intent::iota_app(
-                        shared_crypto::intent::IntentScope::CheckpointSummary,
+                let intent_msg = iota_sdk_types::crypto::IntentMessage::new(
+                    iota_sdk_types::crypto::Intent::iota_app(
+                        iota_sdk_types::crypto::IntentScope::CheckpointSummary,
                     ),
                     &checkpoint,
                 );

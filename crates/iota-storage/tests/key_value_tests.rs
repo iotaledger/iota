@@ -7,10 +7,11 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::ObjectId;
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectID, VersionNumber, random_object_ref},
+    base_types::{ExecutionDigests, VersionNumber, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
@@ -188,10 +189,20 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
 
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
         Ok(self.objects.get(&ObjectKey(object_id, version)).cloned())
+    }
+
+    async fn multi_get_objects(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> IotaResult<Vec<Option<Object>>> {
+        Ok(object_keys
+            .iter()
+            .map(|key| self.objects.get(key).cloned())
+            .collect())
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(
@@ -369,9 +380,10 @@ mod simtests {
         routing::get,
     };
     use iota_macros::sim_test;
+    use iota_sdk_types::{Identifier, StructTag};
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
-    use iota_types::event::Event;
+    use iota_types::{base_types::IotaAddress, event::Event};
     use rustls::crypto::{CryptoProvider, ring};
     use tracing::info;
 
@@ -422,8 +434,19 @@ mod simtests {
     }
 
     fn random_events() -> TransactionEvents {
-        let event = Event::random_for_testing();
-        TransactionEvents { data: vec![event] }
+        let event = Event {
+            package_id: ObjectId::random(),
+            module: Identifier::from_static("test"),
+            sender: IotaAddress::random(),
+            type_: StructTag::new(
+                IotaAddress::random(),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
+                vec![],
+            ),
+            contents: vec![],
+        };
+        TransactionEvents(vec![event])
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]

@@ -5,20 +5,23 @@
 use std::path::Path;
 
 use iota_types::{
-    accumulator::Accumulator, base_types::SequenceNumber, digests::TransactionEventsDigest,
-    effects::TransactionEffects, storage::MarkerValue,
+    base_types::SequenceNumber,
+    digests::TransactionEventsDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    global_state_hash::GlobalStateHash,
+    storage::MarkerValue,
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;
 use typed_store::{
-    DBMapUtils,
+    DBMapUtils, DbIterator,
     metrics::SamplingInterval,
     rocks::{
         DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
         read_size_from_env,
     },
     rocksdb::compaction_filter::Decision,
-    traits::{Map, TableSummary, TypedStoreDebug},
+    traits::Map,
 };
 
 use super::*;
@@ -109,6 +112,9 @@ pub struct AuthorityPerpetualTables {
     // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
 
+    // Events keyed by the digest of the transaction that produced them.
+    pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
+
     /// Epoch and checkpoint of transactions finalized by checkpoint
     /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
     /// Note, there is a table with the same name in
@@ -116,10 +122,11 @@ pub struct AuthorityPerpetualTables {
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
-    // Finalized root state accumulator for epoch, to be included in CheckpointSummary
+    // Finalized root state hash for epoch, to be included in CheckpointSummary
     // of last checkpoint of epoch. These values should only ever be written once
     // and never changed
-    pub(crate) root_state_hash_by_epoch: DBMap<EpochId, (CheckpointSequenceNumber, Accumulator)>,
+    pub(crate) root_state_hash_by_epoch:
+        DBMap<EpochId, (CheckpointSequenceNumber, GlobalStateHash)>,
 
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
@@ -151,7 +158,7 @@ pub struct AuthorityPerpetualTables {
 
 #[derive(DBMapUtils)]
 pub struct AuthorityPrunerTables {
-    pub(crate) object_tombstones: DBMap<ObjectID, SequenceNumber>,
+    pub(crate) object_tombstones: DBMap<ObjectId, SequenceNumber>,
 }
 
 impl AuthorityPrunerTables {
@@ -237,7 +244,7 @@ impl AuthorityPerpetualTables {
     // or eq to the parent.
     pub fn find_object_lt_or_eq_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         let mut iter = self.objects.reversed_safe_iter_with_bounds(
@@ -269,7 +276,7 @@ impl AuthorityPerpetualTables {
         let StoreObject::Value(store_object) = store_object.migrate().into_inner() else {
             return Ok(None);
         };
-        Ok(Some(self.construct_object(object_key, store_object)?))
+        Ok(Some(self.construct_object(object_key, *store_object)?))
     }
 
     pub fn object_reference(
@@ -278,19 +285,13 @@ impl AuthorityPerpetualTables {
         store_object: StoreObjectWrapper,
     ) -> Result<ObjectRef, IotaError> {
         let obj_ref = match store_object.migrate().into_inner() {
-            StoreObject::Value(object) => self
-                .construct_object(object_key, object)?
-                .compute_object_reference(),
-            StoreObject::Deleted => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
-            ),
-            StoreObject::Wrapped => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
-            ),
+            StoreObject::Value(object) => self.construct_object(object_key, *object)?.object_ref(),
+            StoreObject::Deleted => {
+                ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
+            }
+            StoreObject::Wrapped => {
+                ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED)
+            }
         };
         Ok(obj_ref)
     }
@@ -301,15 +302,15 @@ impl AuthorityPerpetualTables {
         store_object: &StoreObjectWrapper,
     ) -> Result<Option<ObjectRef>, IotaError> {
         let obj_ref = match store_object.inner() {
-            StoreObject::Deleted => Some((
+            StoreObject::Deleted => Some(ObjectRef::new(
                 object_key.0,
                 object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
+                ObjectDigest::OBJECT_DELETED,
             )),
-            StoreObject::Wrapped => Some((
+            StoreObject::Wrapped => Some(ObjectRef::new(
                 object_key.0,
                 object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
+                ObjectDigest::OBJECT_WRAPPED,
             )),
             _ => None,
         };
@@ -318,7 +319,7 @@ impl AuthorityPerpetualTables {
 
     pub fn get_latest_object_ref_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<ObjectRef>, IotaError> {
         let mut iterator = self.objects.reversed_safe_iter_with_bounds(
             Some(ObjectKey::min_for_id(&object_id)),
@@ -335,7 +336,7 @@ impl AuthorityPerpetualTables {
 
     pub fn get_latest_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
         let mut iterator = self.objects.reversed_safe_iter_with_bounds(
             Some(ObjectKey::min_for_id(&object_id)),
@@ -372,8 +373,10 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
-        Ok(self.pruned_checkpoint.get(&())?.unwrap_or_default())
+    pub fn get_highest_pruned_checkpoint(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.pruned_checkpoint.get(&())
     }
 
     pub fn set_highest_pruned_checkpoint(
@@ -414,11 +417,11 @@ impl AuthorityPerpetualTables {
 
     pub fn get_newer_object_keys(
         &self,
-        object: &(ObjectID, SequenceNumber),
+        object: &(ObjectId, SequenceNumber),
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
-            Some(ObjectKey(object.0, object.1.next())),
+            Some(ObjectKey(object.0, object.1.next().unwrap())),
             Some(ObjectKey(object.0, VersionNumber::MAX_VALID_EXCL)),
         ) {
             let (key, _) = result?;
@@ -438,12 +441,12 @@ impl AuthorityPerpetualTables {
     }
 
     pub fn database_is_empty(&self) -> IotaResult<bool> {
-        Ok(self.objects.unbounded_iter().next().is_none())
+        Ok(self.objects.safe_iter().next().is_none())
     }
 
     pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
         LiveSetIter {
-            iter: self.objects.unbounded_iter(),
+            iter: Box::new(self.objects.safe_iter()),
             tables: self,
             prev: None,
         }
@@ -451,14 +454,14 @@ impl AuthorityPerpetualTables {
 
     pub fn range_iter_live_object_set(
         &self,
-        lower_bound: Option<ObjectID>,
-        upper_bound: Option<ObjectID>,
+        lower_bound: Option<ObjectId>,
+        upper_bound: Option<ObjectId>,
     ) -> LiveSetIter<'_> {
         let lower_bound = lower_bound.as_ref().map(ObjectKey::min_for_id);
         let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
 
         LiveSetIter {
-            iter: self.objects.iter_with_bounds(lower_bound, upper_bound),
+            iter: Box::new(self.objects.safe_iter_with_bounds(lower_bound, upper_bound)),
             tables: self,
             prev: None,
         }
@@ -469,27 +472,10 @@ impl AuthorityPerpetualTables {
         self.objects.checkpoint_db(path).map_err(Into::into)
     }
 
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        // TODO: Add new tables that get added to the db automatically
-        self.objects.unsafe_clear()?;
-        self.live_owned_object_markers.unsafe_clear()?;
-        self.executed_effects.unsafe_clear()?;
-        self.events.unsafe_clear()?;
-        self.executed_transactions_to_checkpoint.unsafe_clear()?;
-        self.root_state_hash_by_epoch.unsafe_clear()?;
-        self.epoch_start_configuration.unsafe_clear()?;
-        self.pruned_checkpoint.unsafe_clear()?;
-        self.total_iota_supply.unsafe_clear()?;
-        self.expected_storage_fund_imbalance.unsafe_clear()?;
-        self.object_per_epoch_marker_table.unsafe_clear()?;
-        self.objects.rocksdb.flush()?;
-        Ok(())
-    }
-
     pub fn get_root_state_hash(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
         Ok(self.root_state_hash_by_epoch.get(&epoch)?)
     }
 
@@ -497,15 +483,15 @@ impl AuthorityPerpetualTables {
         &self,
         epoch: EpochId,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
-        accumulator: Accumulator,
+        hash: GlobalStateHash,
     ) -> IotaResult {
         self.root_state_hash_by_epoch
-            .insert(&epoch, &(last_checkpoint_of_epoch, accumulator))?;
+            .insert(&epoch, &(last_checkpoint_of_epoch, hash))?;
         Ok(())
     }
 
     pub fn insert_object_test_only(&self, object: Object) -> IotaResult {
-        let object_reference = object.compute_object_reference();
+        let object_reference = object.object_ref();
         let wrapper = get_store_object(object);
         let mut wb = self.objects.batch();
         wb.insert_batch(
@@ -521,7 +507,7 @@ impl ObjectStore for AuthorityPerpetualTables {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         let obj_entry = self
             .objects
@@ -539,7 +525,7 @@ impl ObjectStore for AuthorityPerpetualTables {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self
@@ -554,8 +540,7 @@ impl ObjectStore for AuthorityPerpetualTables {
 }
 
 pub struct LiveSetIter<'a> {
-    iter:
-        <DBMap<ObjectKey, StoreObjectWrapper> as Map<'a, ObjectKey, StoreObjectWrapper>>::Iterator,
+    iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
     tables: &'a AuthorityPerpetualTables,
     prev: Option<(ObjectKey, StoreObjectWrapper)>,
 }
@@ -567,7 +552,7 @@ pub enum LiveObject {
 }
 
 impl LiveObject {
-    pub fn object_id(&self) -> ObjectID {
+    pub fn object_id(&self) -> ObjectId {
         match self {
             LiveObject::Normal(obj) => obj.id(),
             LiveObject::Wrapped(key) => key.0,
@@ -583,8 +568,8 @@ impl LiveObject {
 
     pub fn object_reference(&self) -> ObjectRef {
         match self {
-            LiveObject::Normal(obj) => obj.compute_object_reference(),
-            LiveObject::Wrapped(key) => (key.0, key.1, ObjectDigest::OBJECT_DIGEST_WRAPPED),
+            LiveObject::Normal(obj) => obj.object_ref(),
+            LiveObject::Wrapped(key) => ObjectRef::new(key.0, key.1, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 
@@ -606,7 +591,7 @@ impl LiveSetIter<'_> {
             StoreObject::Value(object) => {
                 let object = self
                     .tables
-                    .construct_object(&object_key, object)
+                    .construct_object(&object_key, *object)
                     .expect("Constructing object from store cannot fail");
                 Some(LiveObject::Normal(object))
             }
@@ -620,7 +605,7 @@ impl Iterator for LiveSetIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some((next_key, next_value)) = self.iter.next() {
+            if let Some(Ok((next_key, next_value))) = self.iter.next() {
                 let prev = self.prev.take();
                 self.prev = Some((next_key, next_value));
 
@@ -654,7 +639,7 @@ fn live_owned_object_markers_table_config(db_options: DBOptions) -> DBOptions {
             .optimize_for_write_throughput()
             .optimize_for_read(read_size_from_env(ENV_VAR_LOCKS_BLOCK_CACHE_SIZE).unwrap_or(1024))
             .options,
-        rw_options: db_options.rw_options.set_ignore_range_deletions(false),
+        rw_options: db_options.rw_options,
     }
 }
 

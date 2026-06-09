@@ -5,13 +5,11 @@
 
 
 # Default validator count
-nval=4
-
-# Parse -n flag for number of validators
+NUM_VALIDATORS=4
 while getopts "n:" opt; do
   case "$opt" in
-    n) nval="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators] [modes...]"; exit 1 ;;
+    n) NUM_VALIDATORS="$OPTARG" ;;
+    *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
   esac
 done
 shift $((OPTIND -1))
@@ -19,7 +17,7 @@ shift $((OPTIND -1))
 function start_services() {
   services="$1"
   validators=""
-  for ((i=1; i<=nval; i++)); do
+  for ((i=1; i<=NUM_VALIDATORS; i++)); do
     validators="$validators validator-$i"
   done
   docker compose up -d $validators $services

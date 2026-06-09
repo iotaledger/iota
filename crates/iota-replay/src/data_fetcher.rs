@@ -13,21 +13,20 @@ use iota_json_rpc_types::{
     IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
+use iota_sdk_types::{ObjectId, StructTag, TransactionKind};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
-    digests::TransactionDigest,
+    base_types::{SequenceNumber, VersionNumber},
+    digests::{ChainIdentifier, TransactionDigest},
     object::Object,
-    transaction::{
-        EndOfEpochTransactionKind, SenderSignedData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{EndOfEpochTransactionKind, SenderSignedData, TransactionDataAPI},
 };
 use lru::LruCache;
-use move_core_types::language_storage::StructTag;
 use parking_lot::RwLock;
 use rand::Rng;
 
-use crate::types::{EPOCH_CHANGE_STRUCT_TAG, ReplayEngineError};
+use crate::types::{EPOCH_CHANGE_STRUCT_TAGS, ReplayEngineError};
 
 /// This trait defines the interfaces for fetching data from some local or
 /// remote store
@@ -37,13 +36,13 @@ pub(crate) trait DataFetcher {
     /// Fetch the specified versions of objects
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectID, SequenceNumber)],
+        objects: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError>;
 
     /// Fetch the latest versions of objects
     async fn multi_get_latest(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError>;
 
     /// Fetch the TXs for this checkpoint
@@ -61,7 +60,7 @@ pub(crate) trait DataFetcher {
     async fn get_loaded_child_objects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError>;
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError>;
 
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<u64, ReplayEngineError>;
 
@@ -86,7 +85,7 @@ pub(crate) trait DataFetcher {
 
     async fn get_child_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version_upper_bound: VersionNumber,
     ) -> Result<Object, ReplayEngineError>;
 }
@@ -131,7 +130,7 @@ impl DataFetcher for Fetchers {
     #![allow(implied_bounds_entailment)]
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectID, SequenceNumber)],
+        objects: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.multi_get_versioned(objects).await,
@@ -141,7 +140,7 @@ impl DataFetcher for Fetchers {
 
     async fn multi_get_latest(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.multi_get_latest(objects).await,
@@ -172,7 +171,7 @@ impl DataFetcher for Fetchers {
     async fn get_loaded_child_objects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.get_loaded_child_objects(tx_digest).await,
             Fetchers::NodeStateDump(q) => q.get_loaded_child_objects(tx_digest).await,
@@ -230,7 +229,7 @@ impl DataFetcher for Fetchers {
     }
     async fn get_child_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version_upper_bound: VersionNumber,
     ) -> Result<Object, ReplayEngineError> {
         match self {
@@ -248,9 +247,9 @@ pub struct RemoteFetcher {
     /// This is used to download items not in store
     pub rpc_client: IotaClient,
     /// Cache versioned objects
-    pub versioned_object_cache: RwLock<LruCache<(ObjectID, VersionNumber), Object>>,
+    pub versioned_object_cache: RwLock<LruCache<(ObjectId, VersionNumber), Object>>,
     /// Cache non-versioned objects
-    pub latest_object_cache: RwLock<LruCache<ObjectID, Object>>,
+    pub latest_object_cache: RwLock<LruCache<ObjectId, Object>>,
     /// Cache epoch info
     pub epoch_info_cache: RwLock<LruCache<u64, (u64, u64)>>,
 }
@@ -304,8 +303,8 @@ impl RemoteFetcher {
 
     pub fn check_versioned_cache(
         &self,
-        objects: &[(ObjectID, VersionNumber)],
-    ) -> (Vec<Object>, Vec<(ObjectID, VersionNumber)>) {
+        objects: &[(ObjectId, VersionNumber)],
+    ) -> (Vec<Object>, Vec<(ObjectId, VersionNumber)>) {
         let mut to_fetch = Vec::new();
         let mut cached = Vec::new();
         for (object_id, version) in objects {
@@ -323,7 +322,7 @@ impl RemoteFetcher {
         (cached, to_fetch)
     }
 
-    pub fn check_latest_cache(&self, objects: &[ObjectID]) -> (Vec<Object>, Vec<ObjectID>) {
+    pub fn check_latest_cache(&self, objects: &[ObjectId]) -> (Vec<Object>, Vec<ObjectId>) {
         let mut to_fetch = Vec::new();
         let mut cached = Vec::new();
         for object_id in objects {
@@ -342,6 +341,25 @@ impl RemoteFetcher {
         // All other caches should be valid as long as the network doesn't change.
         self.latest_object_cache.write().clear();
     }
+
+    async fn get_protocol_config(
+        &self,
+        protocol_version: u64,
+    ) -> Result<ProtocolConfig, ReplayEngineError> {
+        // Get chain identifier to determine which chain we're on
+        let chain_id = self.get_chain_id().await?;
+
+        // Get protocol config for this version
+        let protocol_config = ProtocolConfig::get_for_version(
+            ProtocolVersion::new(protocol_version),
+            match ChainIdentifier::from_chain_short_id(chain_id.as_str()) {
+                Some(chain_id) => chain_id.chain(),
+                None => Chain::Unknown,
+            },
+        );
+
+        Ok(protocol_config)
+    }
 }
 
 #[async_trait]
@@ -349,7 +367,7 @@ impl DataFetcher for RemoteFetcher {
     #![allow(implied_bounds_entailment)]
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectID, VersionNumber)],
+        objects: &[(ObjectId, VersionNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         // First check which we have in cache
         let (cached, to_fetch) = self.check_versioned_cache(objects);
@@ -384,10 +402,10 @@ impl DataFetcher for RemoteFetcher {
                 x.extend(cached);
                 // Backfill the cache
                 for obj in &x {
-                    let r = obj.compute_object_reference();
+                    let r = obj.object_ref();
                     self.versioned_object_cache
                         .write()
-                        .put((r.0, r.1), obj.clone());
+                        .put((r.object_id, r.version), obj.clone());
                 }
                 x
             })
@@ -395,7 +413,7 @@ impl DataFetcher for RemoteFetcher {
 
     async fn get_child_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version_upper_bound: VersionNumber,
     ) -> Result<Object, ReplayEngineError> {
         let response = self
@@ -409,7 +427,7 @@ impl DataFetcher for RemoteFetcher {
 
     async fn multi_get_latest(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         // First check which we have in cache
         let (cached, to_fetch) = self.check_latest_cache(objects);
@@ -471,7 +489,7 @@ impl DataFetcher for RemoteFetcher {
     async fn get_loaded_child_objects(
         &self,
         _: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         Ok(vec![])
     }
 
@@ -519,13 +537,8 @@ impl DataFetcher for RemoteFetcher {
             })
             .ok_or(ReplayEngineError::EventNotFound { epoch: epoch_id })?;
 
-        let reference_gas_price = if let serde_json::Value::Object(w) = event.parsed_json {
-            u64::from_str(&w["reference_gas_price"].to_string().replace('\"', "")).unwrap()
-        } else {
-            return Err(ReplayEngineError::UnexpectedEventFormat {
-                event: Box::new(event.clone()),
-            });
-        };
+        // Extract protocol version from the event
+        let (_, protocol_version) = extract_epoch_and_version(event.clone())?;
 
         let epoch_change_tx = event.id.tx_digest;
 
@@ -535,17 +548,57 @@ impl DataFetcher for RemoteFetcher {
         let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
-        if let TransactionKind::EndOfEpochTransaction(kinds) = tx_kind_orig {
-            for kind in kinds {
-                if let EndOfEpochTransactionKind::ChangeEpoch(change) = kind {
-                    // Backfill cache
-                    self.epoch_info_cache.write().put(
-                        epoch_id,
-                        (change.epoch_start_timestamp_ms, reference_gas_price),
-                    );
+        if let TransactionKind::EndOfEpoch(kinds) = tx_kind_orig {
+            if let Some(kind) = kinds.iter().next() {
+                let (epoch_start_timestamp_ms, reference_gas_price) = match kind {
+                    EndOfEpochTransactionKind::ChangeEpoch(change) => {
+                        let rgp = if let serde_json::Value::Object(ref w) = event.parsed_json {
+                            w.get("reference_gas_price")
+                                .and_then(|v| {
+                                    // Handle both JSON number and string representations
+                                    v.as_u64()
+                                        .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                                })
+                                .ok_or_else(|| ReplayEngineError::UnexpectedEventFormat {
+                                    event: Box::new(event.clone()),
+                                })?
+                        } else {
+                            return Err(ReplayEngineError::UnexpectedEventFormat {
+                                event: Box::new(event.clone()),
+                            });
+                        };
 
-                    return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
-                }
+                        (change.epoch_start_timestamp_ms, rgp)
+                    }
+                    EndOfEpochTransactionKind::ChangeEpochV2(change) => (
+                        change.epoch_start_timestamp_ms,
+                        self.get_protocol_config(protocol_version)
+                            .await?
+                            .base_gas_price(),
+                    ),
+                    EndOfEpochTransactionKind::ChangeEpochV3(change) => (
+                        change.epoch_start_timestamp_ms,
+                        self.get_protocol_config(protocol_version)
+                            .await?
+                            .base_gas_price(),
+                    ),
+                    EndOfEpochTransactionKind::ChangeEpochV4(change) => (
+                        change.epoch_start_timestamp_ms,
+                        self.get_protocol_config(protocol_version)
+                            .await?
+                            .base_gas_price(),
+                    ),
+                    _ => unimplemented!(
+                        "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                    ),
+                };
+
+                // Backfill cache
+                self.epoch_info_cache
+                    .write()
+                    .put(epoch_id, (epoch_start_timestamp_ms, reference_gas_price));
+
+                return Ok((epoch_start_timestamp_ms, reference_gas_price));
             }
         }
         Err(ReplayEngineError::InvalidEpochChangeTx { epoch: epoch_id })
@@ -555,30 +608,33 @@ impl DataFetcher for RemoteFetcher {
         &self,
         reverse: bool,
     ) -> Result<Vec<IotaEvent>, ReplayEngineError> {
-        let struct_tag_str = EPOCH_CHANGE_STRUCT_TAG.to_string();
-        let struct_tag = StructTag::from_str(&struct_tag_str)?;
+        let struct_tags: Vec<StructTag> = EPOCH_CHANGE_STRUCT_TAGS
+            .iter()
+            .map(|tag| StructTag::from_str(tag))
+            .collect::<Result<_, _>>()
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         let mut epoch_change_events: Vec<IotaEvent> = vec![];
-        let mut has_next_page = true;
-        let mut cursor = None;
 
-        while has_next_page {
-            let page_data = self
-                .rpc_client
-                .event_api()
-                .query_events(
-                    EventFilter::MoveEventType(struct_tag.clone()),
-                    cursor,
-                    None,
-                    reverse,
-                )
-                .await
-                .map_err(|e| ReplayEngineError::UnableToQuerySystemEvents {
-                    rpc_err: e.to_string(),
-                })?;
-            epoch_change_events.extend(page_data.data);
-            has_next_page = page_data.has_next_page;
-            cursor = page_data.next_cursor;
+        // Query each struct tag separately since fullnode doesn't support Any filter
+        for struct_tag in struct_tags {
+            let event_filter = EventFilter::MoveEventType(struct_tag);
+            let mut has_next_page = true;
+            let mut cursor = None;
+
+            while has_next_page {
+                let page_data = self
+                    .rpc_client
+                    .event_api()
+                    .query_events(event_filter.clone(), cursor, None, reverse)
+                    .await
+                    .map_err(|e| ReplayEngineError::UnableToQuerySystemEvents {
+                        rpc_err: e.to_string(),
+                    })?;
+                epoch_change_events.extend(page_data.data);
+                has_next_page = page_data.has_next_page;
+                cursor = page_data.next_cursor;
+            }
         }
 
         Ok(epoch_change_events)
@@ -648,8 +704,8 @@ pub fn extract_epoch_and_version(ev: IotaEvent) -> Result<(u64, u64), ReplayEngi
 #[derive(Clone)]
 pub struct NodeStateDumpFetcher {
     pub node_state_dump: NodeStateDump,
-    pub object_ref_pool: BTreeMap<(ObjectID, SequenceNumber), Object>,
-    pub latest_object_version_pool: BTreeMap<ObjectID, Object>,
+    pub object_ref_pool: BTreeMap<(ObjectId, SequenceNumber), Object>,
+    pub latest_object_version_pool: BTreeMap<ObjectId, Object>,
 
     // Used when we need to fetch data from remote such as
     pub backup_remote_fetcher: Option<RemoteFetcher>,
@@ -658,7 +714,7 @@ pub struct NodeStateDumpFetcher {
 impl From<NodeStateDump> for NodeStateDumpFetcher {
     fn from(node_state_dump: NodeStateDump) -> Self {
         let mut object_ref_pool = BTreeMap::new();
-        let mut latest_object_version_pool: BTreeMap<ObjectID, Object> = BTreeMap::new();
+        let mut latest_object_version_pool: BTreeMap<ObjectId, Object> = BTreeMap::new();
 
         node_state_dump
             .all_objects()
@@ -702,7 +758,7 @@ impl NodeStateDumpFetcher {
 impl DataFetcher for NodeStateDumpFetcher {
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectID, SequenceNumber)],
+        objects: &[(ObjectId, SequenceNumber)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut resp = vec![];
         match objects.iter().try_for_each(|(id, version)| {
@@ -727,7 +783,7 @@ impl DataFetcher for NodeStateDumpFetcher {
 
     async fn multi_get_latest(
         &self,
-        objects: &[ObjectID],
+        objects: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut resp = vec![];
         match objects.iter().try_for_each(|id| {
@@ -764,7 +820,7 @@ impl DataFetcher for NodeStateDumpFetcher {
     async fn get_loaded_child_objects(
         &self,
         _tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
         Ok(self
             .node_state_dump
             .loaded_child_objects
@@ -810,7 +866,7 @@ impl DataFetcher for NodeStateDumpFetcher {
 
     async fn get_child_object(
         &self,
-        _object_id: &ObjectID,
+        _object_id: &ObjectId,
         _version_upper_bound: VersionNumber,
     ) -> Result<Object, ReplayEngineError> {
         unimplemented!("get child object is not implemented for state dump");

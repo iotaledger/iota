@@ -225,9 +225,10 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::ObjectId;
     use iota_types::{
-        base_types::{ObjectDigest, ObjectID, SequenceNumber},
-        effects::TransactionEffects,
+        base_types::{ObjectDigest, ObjectRef, SequenceNumber},
+        effects::{TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt},
     };
 
     use super::*;
@@ -260,17 +261,17 @@ mod tests {
         let mut e2 = e(d(2), vec![]);
         let mut e3 = e(d(3), vec![]);
         let obj_digest = ObjectDigest::new(Default::default());
-        e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly((
+        e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(ObjectRef::new(
             o(1),
             SequenceNumber::from_u64(1),
             obj_digest,
         )));
-        e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly((
+        e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(ObjectRef::new(
             o(1),
             SequenceNumber::from_u64(1),
             obj_digest,
         )));
-        e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate((
+        e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate(ObjectRef::new(
             o(1),
             SequenceNumber::from_u64(1),
             obj_digest,
@@ -296,18 +297,17 @@ mod tests {
         TransactionDigest::new(bytes)
     }
 
-    fn o(i: u8) -> ObjectID {
-        let mut bytes: [u8; ObjectID::LENGTH] = Default::default();
+    fn o(i: u8) -> ObjectId {
+        let mut bytes: [u8; ObjectId::LENGTH] = Default::default();
         bytes[0] = i;
-        ObjectID::new(bytes)
+        ObjectId::new(bytes)
     }
 
     fn e(
         transaction_digest: TransactionDigest,
         dependencies: Vec<TransactionDigest>,
     ) -> TransactionEffects {
-        let mut effects = TransactionEffects::default();
-        *effects.transaction_digest_mut_for_testing() = transaction_digest;
+        let mut effects = TransactionEffects::new_empty_v1(transaction_digest);
         *effects.dependencies_mut_for_testing() = dependencies;
         effects
     }

@@ -3,6 +3,14 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::{HashMap, hash_map::Entry};
+
+use move_binary_format::file_format::{
+    Ability, AbilitySet, FieldHandleIndex, FieldInstantiationIndex, FunctionHandleIndex,
+    FunctionInstantiationIndex, Signature, SignatureIndex, SignatureToken,
+    StructDefInstantiationIndex, StructDefinitionIndex, StructFieldInformation, TableIndex,
+};
+
 use crate::{
     abilities,
     abstract_state::{AbstractState, AbstractValue, BorrowState, Mutability},
@@ -10,15 +18,6 @@ use crate::{
     error::VMError,
     get_struct_handle_from_reference, get_type_actuals_from_reference, substitute,
 };
-use move_binary_format::file_format::{
-    Ability, AbilitySet, FieldHandleIndex, FieldInstantiationIndex, FunctionHandleIndex,
-    FunctionInstantiationIndex, Signature, SignatureIndex, SignatureToken,
-    StructDefInstantiationIndex, StructDefinitionIndex, StructFieldInformation,
-};
-
-use move_binary_format::file_format::TableIndex;
-use std::collections::{hash_map::Entry, HashMap};
-
 
 //---------------------------------------------------------------------------
 // Type Instantiations from Unification with the Abstract Stack
@@ -560,7 +559,7 @@ pub fn get_struct_instantiation_for_state(
 
 /// Determine if a struct (of the given signature) is at the top of the stack
 /// The `struct_index` can be `Some(index)` to check for a particular struct,
-/// or `None` to just check that there is a a struct.
+/// or `None` to just check that there is a struct.
 pub fn stack_has_struct(state: &AbstractState, struct_index: StructDefinitionIndex) -> bool {
     if state.stack_len() > 0 {
         if let Some(struct_value) = state.stack_peek(0) {

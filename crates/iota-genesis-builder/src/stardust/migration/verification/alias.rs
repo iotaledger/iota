@@ -4,14 +4,13 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, ensure};
-use iota_sdk::types::block::output as stardust;
+use iota_sdk_types::{ObjectId, Owner, TypeTag};
+use iota_stardust_types::block::output as stardust;
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
-    object::Owner,
     stardust::output::{
         ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Alias, AliasOutput,
     },
@@ -41,7 +40,7 @@ pub(super) fn verify_alias_output(
     tokens_counter: &mut TokensAmountCounter,
     address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
-    let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
+    let alias_id = ObjectId::new(*output.alias_id_non_null(&output_id));
 
     let created_output_obj = created_objects.output().and_then(|id| {
         storage
@@ -62,17 +61,14 @@ pub(super) fn verify_alias_output(
     )?;
 
     // Alias Owner
-    let expected_alias_owner = Owner::ObjectOwner(
-        derive_dynamic_field_id(
-            created_output_obj.id(),
-            &DynamicFieldInfo::dynamic_object_field_wrapper(
-                ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
-            )
-            .into(),
-            &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY)?,
-        )?
+    let expected_alias_owner = Owner::Object(derive_dynamic_field_id(
+        created_output_obj.id(),
+        &DynamicFieldInfo::dynamic_object_field_wrapper(
+            ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
+        )
         .into(),
-    );
+        &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY)?,
+    )?);
 
     ensure!(
         created_alias_obj.owner == expected_alias_owner,
@@ -83,11 +79,11 @@ pub(super) fn verify_alias_output(
 
     let created_alias = created_alias_obj
         .to_rust::<Alias>()
-        .ok_or_else(|| anyhow!("invalid alias object"))?;
+        .map_err(|e| anyhow!("invalid alias object: {e}"))?;
 
     let created_output = created_output_obj
         .to_rust::<AliasOutput>()
-        .ok_or_else(|| anyhow!("invalid alias output object"))?;
+        .map_err(|e| anyhow!("invalid alias output object: {e}"))?;
 
     // Amount
     ensure!(

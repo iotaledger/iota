@@ -33,7 +33,7 @@ impl<T: IngestionBackfill> Worker for Adapter<T> {
         &self,
         checkpoint: Arc<CheckpointData>,
     ) -> Result<(), IndexerError> {
-        let processed = T::process_checkpoint(checkpoint.clone())?;
+        let processed = T::process_checkpoint(checkpoint.clone()).await?;
         self.ready_checkpoints
             .insert(checkpoint.checkpoint_summary.sequence_number, processed);
         self.notify.notify_waiters();

@@ -28,7 +28,7 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle,
+    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -39,12 +39,14 @@ use crate::{
     CommitIndex, Round,
     block_header::BlockRef,
     commit::CommitRange,
+    commit_syncer::CommitSyncType,
     context::Context,
     error::{ConsensusError, ConsensusResult},
     network::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
     },
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 // Maximum bytes size in a single fetch_blocks()response.
@@ -81,15 +83,11 @@ impl TonicClient {
             .channel_pool
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
-        let mut client = ConsensusServiceClient::new(channel)
+        let client = ConsensusServiceClient::new(channel)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(config.message_size_limit);
-
-        if self.context.protocol_config.consensus_zstd_compression() {
-            client = client
-                .send_compressed(CompressionEncoding::Zstd)
-                .accept_compressed(CompressionEncoding::Zstd);
-        }
+            .max_decoding_message_size(config.message_size_limit)
+            .send_compressed(CompressionEncoding::Zstd)
+            .accept_compressed(CompressionEncoding::Zstd);
         Ok(client)
     }
 }
@@ -129,7 +127,7 @@ impl NetworkClient for TonicClient {
                 }
             });
         let rate_limited_stream =
-            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
+            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_block_delay / 2)
                 .boxed();
         Ok(rate_limited_stream)
     }
@@ -301,22 +299,32 @@ impl NetworkClient for TonicClient {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        transactions_refs: Vec<GenericTransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
         let mut request = Request::new(FetchTransactionsRequest {
-            block_refs: block_refs
+            block_refs: transactions_refs
                 .iter()
-                .filter_map(|r| match bcs::to_bytes(r) {
-                    Ok(serialized) => Some(serialized),
-                    Err(e) => {
-                        debug!("Failed to serialize block ref {:?}: {e:?}", r);
-                        None
-                    }
+                .filter_map(|r| match r {
+                    GenericTransactionRef::BlockRef(block_ref) => match bcs::to_bytes(block_ref) {
+                        Ok(serialized) => Some(serialized),
+                        Err(e) => {
+                            debug!("Failed to serialize BlockRef {:?}: {e:?}", block_ref);
+                            None
+                        }
+                    },
+                    GenericTransactionRef::TransactionRef(tx_ref) => match bcs::to_bytes(tx_ref) {
+                        Ok(serialized) => Some(serialized),
+                        Err(e) => {
+                            debug!("Failed to serialize TransactionRef {:?}: {e:?}", tx_ref);
+                            None
+                        }
+                    },
                 })
                 .collect(),
         });
+
         request.set_timeout(timeout);
         let mut stream = client
             .fetch_transactions(request)
@@ -370,6 +378,92 @@ impl NetworkClient for TonicClient {
             }
         }
         Ok(vec_serialized_transactions)
+    }
+
+    async fn fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+        timeout: Duration,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        let mut client = self.get_client(peer, timeout).await?;
+        let mut request = Request::new(FetchCommitsAndTransactionsRequest {
+            start: commit_range.start(),
+            end: commit_range.end(),
+        });
+        request.set_timeout(timeout);
+        let mut stream = client
+            .fetch_commits_and_transactions(request)
+            .await
+            .map_err(|e| {
+                if e.code() == tonic::Code::DeadlineExceeded {
+                    ConsensusError::NetworkRequestTimeout(format!(
+                        "fetch_commits_and_transactions failed: {e:?}"
+                    ))
+                } else {
+                    ConsensusError::NetworkRequest(format!(
+                        "fetch_commits_and_transactions failed: {e:?}"
+                    ))
+                }
+            })?
+            .into_inner();
+
+        // First chunk contains commits and certifier headers
+        let mut commits = Vec::new();
+        let mut certifier_block_headers = Vec::new();
+        let mut transactions = Vec::new();
+        let mut total_fetched_bytes = 0;
+
+        loop {
+            match stream.message().await {
+                Ok(Some(response)) => {
+                    // Accumulate commits and headers (typically in first chunk)
+                    for c in &response.commits {
+                        total_fetched_bytes += c.len();
+                    }
+                    commits.extend(response.commits);
+
+                    for h in &response.certifier_block_headers {
+                        total_fetched_bytes += h.len();
+                    }
+                    certifier_block_headers.extend(response.certifier_block_headers);
+
+                    // Accumulate transactions (streamed in subsequent chunks)
+                    for t in &response.transactions {
+                        total_fetched_bytes += t.len();
+                    }
+                    transactions.extend(response.transactions);
+
+                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
+                        info!(
+                            "fetch_commits_and_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
+                        );
+                        break;
+                    }
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(e) => {
+                    if commits.is_empty() {
+                        if e.code() == tonic::Code::DeadlineExceeded {
+                            return Err(ConsensusError::NetworkRequestTimeout(format!(
+                                "fetch_commits_and_transactions failed mid-stream: {e:?}"
+                            )));
+                        }
+                        return Err(ConsensusError::NetworkRequest(format!(
+                            "fetch_commits_and_transactions failed mid-stream: {e:?}"
+                        )));
+                    } else {
+                        warn!("fetch_commits_and_transactions failed mid-stream: {e:?}");
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok((commits, certifier_block_headers, transactions))
     }
 }
 
@@ -437,7 +531,7 @@ impl ChannelPool {
             .keep_alive_timeout(config.keepalive_interval)
             .http2_keep_alive_interval(config.keepalive_interval)
             // tcp keepalive is probably unnecessary and is unsupported by msim.
-            .user_agent("mysticeti")
+            .user_agent("starfish")
             .unwrap()
             .tls_config(client_tls_config)
             .unwrap();
@@ -532,7 +626,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 })
             });
         let rate_limited_stream =
-            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
+            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_block_delay / 2)
                 .boxed();
         Ok(Response::new(rate_limited_stream))
     }
@@ -597,7 +691,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let request = request.into_inner();
         let (commits, certifier_block_headers) = self
             .service
-            .handle_fetch_commits(peer_index, (request.start..=request.end).into())
+            .handle_fetch_commits(
+                peer_index,
+                (request.start..=request.end).into(),
+                CommitSyncType::Regular,
+            )
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let commits = commits
@@ -612,6 +710,66 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             commits,
             certifier_block_headers,
         }))
+    }
+
+    type FetchCommitsAndTransactionsStream =
+        Iter<std::vec::IntoIter<Result<FetchCommitsAndTransactionsResponse, tonic::Status>>>;
+
+    async fn fetch_commits_and_transactions(
+        &self,
+        request: Request<FetchCommitsAndTransactionsRequest>,
+    ) -> Result<Response<Self::FetchCommitsAndTransactionsStream>, tonic::Status> {
+        let Some(peer_index) = request
+            .extensions()
+            .get::<PeerInfo>()
+            .map(|p| p.authority_index)
+        else {
+            return Err(tonic::Status::internal("PeerInfo not found"));
+        };
+        let request = request.into_inner();
+        let (serialized_commits, serialized_headers, serialized_transactions) = self
+            .service
+            .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
+            .await
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+
+        // Build response as a stream of chunks to stay under gRPC message size limit.
+        // Commits and transactions are chunked by size. Certifier headers are small
+        // enough to fit in a single chunk and are sent with the first commit chunk.
+        let mut responses = Vec::new();
+
+        let commit_chunks = chunk_data(serialized_commits, MAX_FETCH_RESPONSE_BYTES);
+        for (i, commit_chunk) in commit_chunks.into_iter().enumerate() {
+            responses.push(Ok(FetchCommitsAndTransactionsResponse {
+                commits: commit_chunk,
+                certifier_block_headers: if i == 0 {
+                    serialized_headers.clone()
+                } else {
+                    vec![]
+                },
+                transactions: vec![],
+            }));
+        }
+
+        if responses.is_empty() {
+            responses.push(Ok(FetchCommitsAndTransactionsResponse {
+                commits: vec![],
+                certifier_block_headers: serialized_headers,
+                transactions: vec![],
+            }));
+        }
+
+        let tx_chunks = chunk_data(serialized_transactions, MAX_FETCH_RESPONSE_BYTES);
+        for txs_chunk in tx_chunks {
+            responses.push(Ok(FetchCommitsAndTransactionsResponse {
+                commits: vec![],
+                certifier_block_headers: vec![],
+                transactions: txs_chunk,
+            }));
+        }
+
+        let stream = iter(responses);
+        Ok(Response::new(stream))
     }
 
     type FetchLatestBlockHeadersStream =
@@ -666,24 +824,14 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
     async fn get_latest_rounds(
         &self,
-        request: Request<GetLatestRoundsRequest>,
+        _request: Request<GetLatestRoundsRequest>,
     ) -> Result<Response<GetLatestRoundsResponse>, tonic::Status> {
-        let Some(peer_index) = request
-            .extensions()
-            .get::<PeerInfo>()
-            .map(|p| p.authority_index)
-        else {
-            return Err(tonic::Status::internal("PeerInfo not found"));
-        };
-        let (highest_received, highest_accepted) = self
-            .service
-            .handle_get_latest_rounds(peer_index)
-            .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
-        Ok(Response::new(GetLatestRoundsResponse {
-            highest_received,
-            highest_accepted,
-        }))
+        // This RPC is kept in the service definition for backward compatibility,
+        // but is not supported by Starfish.
+        error!("get_latest_rounds() is deprecated in starfish and should not be called");
+        Err(tonic::Status::unimplemented(
+            "get_latest_rounds is deprecated and not supported",
+        ))
     }
 
     type FetchTransactionsStream =
@@ -702,21 +850,39 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         };
 
         let request = request.into_inner();
-        let block_refs = request
+        let committed_transactions_refs: Vec<GenericTransactionRef> = request
             .block_refs
             .iter()
-            .filter_map(|r| match bcs::from_bytes::<BlockRef>(r) {
-                Ok(block_ref) => Some(block_ref),
-                Err(e) => {
-                    debug!("Failed to deserialize block ref: {e:?}");
-                    None
+            .filter_map(|r| {
+                if self.context.protocol_config.consensus_fast_commit_sync() {
+                    match bcs::from_bytes::<TransactionRef>(r) {
+                        Ok(transaction_ref) => {
+                            Some(GenericTransactionRef::TransactionRef(transaction_ref))
+                        }
+                        Err(e) => {
+                            debug!("Failed to deserialize block ref: {e:?}");
+                            None
+                        }
+                    }
+                } else {
+                    match bcs::from_bytes::<BlockRef>(r) {
+                        Ok(block_ref) => Some(GenericTransactionRef::BlockRef(block_ref)),
+                        Err(e) => {
+                            debug!("Failed to deserialize block ref: {e:?}");
+                            None
+                        }
+                    }
                 }
             })
             .collect();
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(peer_index, block_refs)
+            .handle_fetch_transactions(
+                peer_index,
+                committed_transactions_refs,
+                TransactionFetchMode::TransactionSync,
+            )
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 
@@ -817,15 +983,11 @@ impl<S: NetworkService> TonicManager<S> {
             )
             .layer_fn(|service| iota_network_stack::grpc_timeout::GrpcTimeout::new(service, None));
 
-        let mut consensus_service_server = ConsensusServiceServer::new(service)
+        let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(config.message_size_limit);
-
-        if self.context.protocol_config.consensus_zstd_compression() {
-            consensus_service_server = consensus_service_server
-                .send_compressed(CompressionEncoding::Zstd)
-                .accept_compressed(CompressionEncoding::Zstd);
-        }
+            .max_decoding_message_size(config.message_size_limit)
+            .send_compressed(CompressionEncoding::Zstd)
+            .accept_compressed(CompressionEncoding::Zstd);
 
         let consensus_service = tonic::service::Routes::new(consensus_service_server)
             .into_axum_router()
@@ -1059,10 +1221,29 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
+/// Calculate approximate size of HTTP headers.
+/// Note: This is an approximation of uncompressed size. Actual wire size will
+/// be smaller due to HTTP/2 HPACK compression.
+fn calculate_header_size(headers: &http::HeaderMap) -> usize {
+    headers
+        .iter()
+        .map(|(name, value)| {
+            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
+            name.as_str().len() + value.len() + 4
+        })
+        .sum()
+}
+
 impl SizedRequest for http::request::Parts {
     fn size(&self) -> usize {
-        // TODO: implement this.
-        0
+        let header_size = calculate_header_size(&self.headers);
+        let body_size = self
+            .headers
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        header_size + body_size
     }
 
     fn route(&self) -> String {
@@ -1076,8 +1257,9 @@ impl SizedRequest for http::request::Parts {
 
 impl SizedResponse for http::response::Parts {
     fn size(&self) -> usize {
-        // TODO: implement this.
-        0
+        // Return header size only. Body size is tracked separately via
+        // ResponseHandler::on_body_chunk callback to support streaming responses.
+        calculate_header_size(&self.headers)
     }
 
     fn error_type(&self) -> Option<String> {
@@ -1099,11 +1281,19 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
 
 impl ResponseHandler for MetricsResponseCallback {
     fn on_response(&mut self, response: &http::response::Parts) {
-        MetricsResponseCallback::on_response(self, response)
+        MetricsResponseCallback::on_response(self, response, &response.headers)
     }
 
     fn on_error<E>(&mut self, err: &E) {
         MetricsResponseCallback::on_error(self, err)
+    }
+
+    fn on_body_chunk<B>(&mut self, chunk: &B)
+    where
+        B: bytes::Buf,
+    {
+        let chunk_size = chunk.chunk().len();
+        self.on_chunk(chunk_size);
     }
 }
 
@@ -1118,18 +1308,6 @@ pub(crate) struct SubscribeBlockBundlesRequest {
 pub(crate) struct SubscribeBlockBundlesResponse {
     #[prost(bytes = "bytes", tag = "1")]
     serialized_block_bundle: Bytes,
-}
-
-#[derive(Clone, prost::Message)]
-pub(crate) struct SubscribeBlocksRequest {
-    #[prost(uint32, tag = "1")]
-    last_received_round: Round,
-}
-
-#[derive(Clone, prost::Message)]
-pub(crate) struct SubscribeBlocksResponse {
-    #[prost(bytes = "bytes", tag = "1")]
-    vec_serialized_blocks: Bytes,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1148,6 +1326,7 @@ pub(crate) struct FetchBlockHeadersResponse {
     vec_serialized_block_header: Vec<Bytes>,
 }
 
+#[allow(unused)]
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksRequest {
     #[prost(bytes = "vec", repeated, tag = "1")]
@@ -1158,6 +1337,7 @@ pub(crate) struct FetchBlocksRequest {
     highest_accepted_rounds: Vec<Round>,
 }
 
+#[allow(unused)]
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]
@@ -1180,6 +1360,28 @@ pub(crate) struct FetchCommitsResponse {
     // Serialized SignedBlockHeader that certify the last commit from above.
     #[prost(bytes = "bytes", repeated, tag = "2")]
     certifier_block_headers: Vec<Bytes>,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchCommitsAndTransactionsRequest {
+    #[prost(uint32, tag = "1")]
+    start: CommitIndex,
+    #[prost(uint32, tag = "2")]
+    end: CommitIndex,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchCommitsAndTransactionsResponse {
+    // Serialized consecutive Commit (sent in first chunk).
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    commits: Vec<Bytes>,
+    // Serialized SignedBlockHeader that certify the last commit (sent in first chunk).
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    certifier_block_headers: Vec<Bytes>,
+    // Serialized transactions as SerializedTransactionsV2 (sent in transaction chunks).
+    // Each entry contains both the TransactionRef and the actual transaction data.
+    #[prost(bytes = "bytes", repeated, tag = "3")]
+    transactions: Vec<Bytes>,
 }
 
 #[derive(Clone, prost::Message)]

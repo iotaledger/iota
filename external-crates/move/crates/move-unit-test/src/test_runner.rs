@@ -143,8 +143,7 @@ impl TestRunner {
             move_stdlib_natives::all_natives(
                 AccountAddress::from_hex_literal("0x1").unwrap(),
                 move_stdlib_natives::GasParameters::zeros(),
-                // silent
-                false,
+                false, // silent
             )
         });
         Ok(Self {
@@ -262,7 +261,7 @@ impl SharedTestingConfig {
         arguments: Vec<MoveValue>,
     ) -> (
         VMResult<ChangeSet>,
-        VMResult<NativeContextExtensions>,
+        VMResult<NativeContextExtensions<'_>>,
         VMResult<Vec<Vec<u8>>>,
         TestRunInfo,
     ) {

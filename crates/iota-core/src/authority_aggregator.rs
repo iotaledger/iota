@@ -20,6 +20,7 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
+use iota_sdk_types::ObjectId;
 use iota_swarm_config::network_config::NetworkConfig;
 use iota_types::{
     base_types::*,
@@ -35,10 +36,10 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
-    message_envelope::Message,
     messages_grpc::{
-        HandleCertificateRequestV1, HandleCertificateResponseV1, LayoutGenerationOption,
-        ObjectInfoRequest, TransactionInfoRequest,
+        HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1,
+        HandleCertificateResponseV1, LayoutGenerationOption, ObjectInfoRequest,
+        TransactionInfoRequest,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     object::Object,
@@ -110,6 +111,9 @@ pub struct AuthAggMetrics {
     pub remaining_tasks_when_reaching_cert_quorum: Histogram,
     pub remaining_tasks_when_cert_broadcasting_post_quorum_timeout: Histogram,
     pub quorum_reached_without_requested_objects: IntCounter,
+
+    pub capability_notification_success: IntCounter,
+    pub capability_notification_errors: IntCounter,
 }
 
 impl AuthAggMetrics {
@@ -202,6 +206,18 @@ impl AuthAggMetrics {
                 registry,
             )
             .unwrap(),
+            capability_notification_success: register_int_counter_with_registry!(
+                "capability_notification_success",
+                "Total number of successful capability notifications sent to committee validators",
+                registry,
+            )
+            .unwrap(),
+            capability_notification_errors: register_int_counter_with_registry!(
+                "capability_notification_errors",
+                "Number of errors returned from validators when sending capability notifications",
+                registry,
+            )
+            .unwrap(),
         }
     }
 
@@ -262,6 +278,21 @@ pub enum AggregatorProcessTransactionError {
         errors: GroupedErrors,
         retry_after_secs: u64,
     },
+}
+
+#[derive(Error, Debug)]
+pub enum AggregatorSendCapabilityNotificationError {
+    #[error(
+        "Failed to send capability notification to a quorum of validators due to non-retryable errors. Validator errors: {:?}",
+        errors
+    )]
+    NonRetryableNotification { errors: GroupedErrors },
+
+    #[error(
+        "Failed to send capability notification to a quorum of validators but state is still retryable. Validator errors: {:?}",
+        errors
+    )]
+    RetryableNotification { errors: GroupedErrors },
 }
 
 #[derive(Error, Debug)]
@@ -449,7 +480,7 @@ struct ProcessCertificateState {
 #[derive(Debug)]
 pub enum ProcessTransactionResult {
     Certified {
-        certificate: CertifiedTransaction,
+        certificate: Box<CertifiedTransaction>,
         /// Whether this certificate is newly created by aggregating 2f+1
         /// signatures. If a validator returned a cert directly, this
         /// will be false. This is used to inform the quorum driver,
@@ -457,14 +488,14 @@ pub enum ProcessTransactionResult {
         /// such as settlement latency.
         newly_formed: bool,
     },
-    Executed(VerifiedCertifiedTransactionEffects, TransactionEvents),
+    Executed(Box<VerifiedCertifiedTransactionEffects>, TransactionEvents),
 }
 
 impl ProcessTransactionResult {
     /// Returns the `CertifiedTransaction` if it is a `Certified` variant.
     pub fn into_cert_for_testing(self) -> CertifiedTransaction {
         match self {
-            Self::Certified { certificate, .. } => certificate,
+            Self::Certified { certificate, .. } => *certificate,
             Self::Executed(..) => panic!("Wrong type"),
         }
     }
@@ -474,7 +505,7 @@ impl ProcessTransactionResult {
     pub fn into_effects_for_testing(self) -> VerifiedCertifiedTransactionEffects {
         match self {
             Self::Certified { .. } => panic!("Wrong type"),
-            Self::Executed(effects, ..) => effects,
+            Self::Executed(effects, ..) => *effects,
         }
     }
 }
@@ -908,7 +939,7 @@ where
     /// benchmarking.
     pub async fn get_latest_object_version_for_testing(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IotaResult<Object> {
         #[derive(Debug, Default)]
         struct State {
@@ -924,7 +955,19 @@ where
                     Box::pin(async move {
                         let request =
                             ObjectInfoRequest::latest_object_info_request(object_id, /* generate_layout */ LayoutGenerationOption::None);
-                        client.handle_object_info_request(request).await
+                        let mut retry_count = 0;
+                        loop {
+                            match client.handle_object_info_request(request.clone()).await {
+                                Ok(object_info) => return Ok(object_info),
+                                Err(err) => {
+                                    retry_count += 1;
+                                    if retry_count > 3 {
+                                        return Err(err);
+                                    }
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                }
+                            }
+                        }
                     })
                 },
                 |mut state, name, weight, result| {
@@ -1340,7 +1383,7 @@ where
                     CertifiedTransaction::new_from_data_and_sig(plain_tx.into_data(), cert_sig);
                 certificate.verify_committee_sigs_only(&self.committee)?;
                 Ok(Some(ProcessTransactionResult::Certified {
-                    certificate,
+                    certificate: Box::new(certificate),
                     newly_formed: true,
                 }))
             }
@@ -1363,7 +1406,7 @@ where
                 // A certificate in a past epoch does not guarantee finality
                 // and validators may reject to process it.
                 Ok(Some(ProcessTransactionResult::Certified {
-                    certificate,
+                    certificate: Box::new(certificate),
                     newly_formed: false,
                 }))
             }
@@ -1397,7 +1440,7 @@ where
                             cert_sig,
                         );
                         Ok(Some(ProcessTransactionResult::Executed(
-                            ct.verify(&self.committee)?,
+                            Box::new(ct.verify(&self.committee)?),
                             events,
                         )))
                     }
@@ -1440,7 +1483,7 @@ where
                 } else {
                     // TODO: Figure out a more reliable way to detect invariance violations.
                     error!(
-                        "We have seen signed effects but unable to reach quorum threshold even including retriable stakes. This is very rare. Tx: {tx_digest:?}. Non-quorum effects: {non_quorum_effects:?}."
+                        "We have seen signed effects but unable to reach quorum threshold even including retriable stakes. This is very rare. Tx: {tx_digest}. Non-quorum effects: {non_quorum_effects:?}."
                     );
                 }
             }
@@ -1796,9 +1839,9 @@ where
             .process_transaction(transaction.clone(), client_addr)
             .await?;
         let cert = match result {
-            ProcessTransactionResult::Certified { certificate, .. } => certificate,
+            ProcessTransactionResult::Certified { certificate, .. } => *certificate,
             ProcessTransactionResult::Executed(effects, _) => {
-                return Ok(effects);
+                return Ok(*effects);
             }
         };
         self.metrics.total_tx_certificates_created.inc();
@@ -1848,6 +1891,132 @@ where
             "handle_transaction_info_request_from_some_validators".to_string(),
         )
         .await
+    }
+
+    /// Sends signed capability notification to a quorum of committee
+    /// validators. Uses validity threshold (f+1) to ensure at least one
+    /// honest node processes it.
+    #[instrument(level = "trace", skip_all)]
+    pub async fn send_capability_notification_to_quorum(
+        &self,
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<(), AggregatorSendCapabilityNotificationError> {
+        #[derive(Debug, Default)]
+        struct CapabilityNotificationState {
+            good_responses: StakeUnit,
+            non_retryable_errors: StakeUnit,
+            retryable_errors: StakeUnit,
+            errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>,
+        }
+
+        let validity_threshold = self.committee.validity_threshold();
+        let quorum_threshold = self.committee.quorum_threshold();
+        let validator_display_names = self.validator_display_names.clone();
+
+        debug!(
+            "Sending capability notification to committee validators with validity threshold: {}",
+            validity_threshold
+        );
+
+        let result = quorum_map_then_reduce_with_timeout(
+            self.committee.clone(),
+            self.authority_clients.clone(),
+            CapabilityNotificationState::default(),
+            |name, client| {
+                Box::pin(async move {
+                    let concise_name = name.concise_owned();
+                    client
+                        .authority_client()
+                        .handle_capability_notification_v1(request.clone())
+                        .instrument(trace_span!("handle_capability_notification_v1", authority = ?concise_name))
+                        .await
+                })
+            },
+            |mut state, name, weight, response| {
+                let display_name = validator_display_names.get(&name).unwrap_or(&name.concise().to_string()).clone();
+                Box::pin(async move {
+                    match response {
+                        Ok(_) => {
+                            debug!(
+                                authority = ?name.concise(),
+                                weight,
+                                "Successfully sent capability notification to committee validator"
+                            );
+                            state.good_responses += weight;
+                            // Check if we've reached validity threshold (f+1) for success
+                            if state.good_responses >= validity_threshold {
+                                return ReduceOutput::Success(());
+                            }
+                        }
+                        Err(err) => {
+                            debug!(
+                                authority = ?name.concise(),
+                                weight,
+                                error = ?err,
+                                "Failed to send capability notification to committee validator"
+                            );
+                            Self::record_rpc_error_maybe(self.metrics.clone(), &display_name, &err);
+
+                            let (retryable, _categorized) = err.is_retryable();
+                            if  retryable {
+                                // Other retryable errors (timeouts, etc.)
+                                state.retryable_errors += weight;
+                            } else {
+                                // Non-retryable errors
+                                state.non_retryable_errors += weight;
+                            }
+                            state.errors.push((err, vec![name], weight));
+
+                            // Check if we have reached 2f+1 non-retryable errors OR we have reached 2f+1 total errors, and there is still a chance to reach the validity threshold with retryable errors and good responses.
+                            if state.non_retryable_errors >= quorum_threshold || (state.non_retryable_errors + state.retryable_errors  >= quorum_threshold && state.good_responses + state.retryable_errors >= validity_threshold) {
+                                return ReduceOutput::Failed(state);
+                            }
+                        }
+                    }
+
+                    ReduceOutput::Continue(state)
+                })
+            },
+            // Use pre_quorum_timeout for capability notifications
+            self.timeouts.pre_quorum_timeout,
+        ).await;
+
+        match result {
+            Ok(_) => {
+                info!("Successfully sent capability notification to quorum of validators");
+                self.metrics.capability_notification_success.inc();
+                Ok(())
+            }
+            Err(state) => {
+                warn!(
+                    good_responses = state.good_responses,
+                    non_retryable_errors = state.non_retryable_errors,
+                    retryable_errors = state.retryable_errors,
+                    validity_threshold,
+                    quorum_threshold,
+                    errors = ?state.errors,
+                    "Failed to reach validity threshold for capability notification"
+                );
+                self.metrics.capability_notification_errors.inc();
+
+                let grouped_errors = group_errors(state.errors);
+
+                // Determine an error type based on which condition was met
+                if state.non_retryable_errors >= quorum_threshold {
+                    Err(
+                        AggregatorSendCapabilityNotificationError::NonRetryableNotification {
+                            errors: grouped_errors,
+                        },
+                    )
+                } else {
+                    Err(
+                        AggregatorSendCapabilityNotificationError::RetryableNotification {
+                            errors: grouped_errors,
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 

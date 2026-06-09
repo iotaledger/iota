@@ -7,7 +7,7 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use iota_sdk_types::{Identifier, ObjectId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
@@ -15,19 +15,23 @@ use self::{
     iota_system_state_inner_v2::IotaSystemStateV2,
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
 use crate::{
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait,
-    base_types::ObjectID,
+    MoveTypeTagTrait,
     committee::CommitteeWithNetworkMetadata,
     dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
     id::UID,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
-    object::{MoveObject, Object},
+    object::{MoveObject, MoveObjectExt, Object},
     storage::ObjectStore,
     versioned::Versioned,
 };
 
+// `EpochStartSystemState` pulls in anemo / starfish-config (consensus + p2p),
+// which don't compile to wasm32. It's only consumed by the node, so the whole
+// module and the `into_epoch_start_state` accessor are gated out of wasm.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod epoch_start_iota_system_state;
 pub mod iota_system_state_inner_v1;
 pub mod iota_system_state_inner_v2;
@@ -41,11 +45,9 @@ use self::simtest_iota_system_state_inner::{
     SimTestValidatorDeepV1, SimTestValidatorV1,
 };
 
-const IOTA_SYSTEM_STATE_WRAPPER_STRUCT_NAME: &IdentStr = ident_str!("IotaSystemState");
-
-pub const IOTA_SYSTEM_MODULE_NAME: &IdentStr = ident_str!("iota_system");
-pub const ADVANCE_EPOCH_FUNCTION_NAME: &IdentStr = ident_str!("advance_epoch");
-pub const ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME: &IdentStr = ident_str!("advance_epoch_safe_mode");
+pub const ADVANCE_EPOCH_FUNCTION_NAME: Identifier = Identifier::from_static("advance_epoch");
+pub const ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME: Identifier =
+    Identifier::from_static("advance_epoch_safe_mode");
 
 #[cfg(msim)]
 pub const IOTA_SYSTEM_STATE_SIM_TEST_V1: u64 = 18446744073709551605; // u64::MAX - 10
@@ -69,15 +71,6 @@ pub struct IotaSystemStateWrapper {
 }
 
 impl IotaSystemStateWrapper {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_SYSTEM_ADDRESS,
-            name: IOTA_SYSTEM_STATE_WRAPPER_STRUCT_NAME.to_owned(),
-            module: IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-
     /// Advances epoch in safe mode natively in Rust, without involking Move.
     /// This ensures that there cannot be any failure from Move and is
     /// guaranteed to succeed. Returns the old and new inner system state
@@ -94,7 +87,7 @@ impl IotaSystemStateWrapper {
         let mut new_field_object = old_field_object.clone();
         let move_object = new_field_object
             .data
-            .try_as_move_mut()
+            .as_struct_mut_opt()
             .expect("Dynamic field object must be a Move object");
         match self.version {
             1 => {
@@ -186,6 +179,7 @@ pub trait IotaSystemStateTrait {
         &self,
         object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError>;
+    #[cfg(not(target_arch = "wasm32"))]
     fn into_epoch_start_state(self) -> EpochStartSystemState;
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary;
 }
@@ -235,12 +229,12 @@ pub fn get_iota_system_state_wrapper(
     object_store: &dyn ObjectStore,
 ) -> Result<IotaSystemStateWrapper, IotaError> {
     let wrapper = object_store
-        .try_get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
+        .try_get_object(&ObjectId::SYSTEM_STATE)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())
         })?;
-    let move_object = wrapper.data.try_as_move().ok_or_else(|| {
+    let move_object = wrapper.data.as_struct_opt().ok_or_else(|| {
         IotaError::IotaSystemStateRead(
             "IotaSystemStateWrapper object must be a Move object".to_owned(),
         )
@@ -330,8 +324,9 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
 /// that the validator is stored in the table as Validator type.
 pub fn get_validator_from_table<K>(
     object_store: &dyn ObjectStore,
-    table_id: ObjectID,
+    table_id: ObjectId,
     key: &K,
+    protocol_version: Option<u64>,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
     K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
@@ -353,7 +348,7 @@ where
                             "Failed to load inner validator from the wrapper: {err:?}"
                         ))
                     })?;
-            Ok(validator.into_iota_validator_summary())
+            Ok(validator.into_iota_validator_summary(protocol_version))
         }
         #[cfg(msim)]
         IOTA_SYSTEM_STATE_SIM_TEST_V1 => {
@@ -387,7 +382,7 @@ where
 
 pub fn get_validators_from_table_vec<S, ValidatorType>(
     object_store: &S,
-    table_id: ObjectID,
+    table_id: ObjectId,
     table_size: u64,
 ) -> Result<Vec<ValidatorType>, IotaError>
 where
@@ -449,6 +444,9 @@ pub struct AdvanceEpochParams {
     pub reward_slashing_rate: u64,
     pub epoch_start_timestamp_ms: u64,
     pub max_committee_members_count: u64,
+    pub eligible_active_validators: Vec<u64>,
+    pub scores: Vec<u64>,
+    pub adjust_rewards_by_score: bool,
 }
 
 #[cfg(msim)]

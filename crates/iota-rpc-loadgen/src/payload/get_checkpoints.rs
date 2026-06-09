@@ -45,7 +45,7 @@ impl<'a> ProcessPayload<'a, &'a GetCheckpoints> for RpcCommandProcessor {
                     if end_checkpoint_for_clients[i] < seq {
                         // TODO(chris) log actual url
                         warn!(
-                            "The RPC server corresponding to the {i}th url has a outdated checkpoint number {}.\
+                            "the RPC server corresponding to the {i}th url has a outdated checkpoint number {}.\
                             The latest checkpoint number is {seq}",
                             end_checkpoint_for_clients[i]
                         );
@@ -58,7 +58,7 @@ impl<'a> ProcessPayload<'a, &'a GetCheckpoints> for RpcCommandProcessor {
                         .await {
                         Ok(t) => {
                             if t.sequence_number != seq {
-                                error!("The RPC server corresponding to the {i}th url has unexpected checkpoint sequence number {}, expected {seq}", t.sequence_number,);
+                                error!("the RPC server corresponding to the {i}th url has unexpected checkpoint sequence number {}, expected {seq}", t.sequence_number);
                             }
                             for digest in t.transactions.iter() {
                                 transaction_digests.lock().await.insert(*digest);
@@ -66,7 +66,7 @@ impl<'a> ProcessPayload<'a, &'a GetCheckpoints> for RpcCommandProcessor {
                             Some(t)
                         },
                         Err(err) => {
-                            error!("Failed to fetch checkpoint {seq} on the {i}th url: {err}");
+                            error!("failed to fetch checkpoint {seq} on the {i}th url: {err}");
                             None
                         }
                     }

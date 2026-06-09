@@ -10,43 +10,43 @@ task 1, lines 21-69:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8762800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8762800, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 71:
 //# run Test::M1::parent --sender A --args @A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 73:
 //# run Test::M1::child --sender A --args @A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 75:
 //# run Test::M1::child --sender A --args @A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, line 77:
 //# run Test::M1::add_child --sender A --args object(2,0) object(3,0) 42
 created: object(5,0)
 mutated: object(0,0), object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6034400,  storage_rebate: 3587200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6034400, storage_rebate: 3587200, non_refundable_storage_fee: 0
 
 task 6, line 79:
 //# run Test::M1::add_nested_child --sender A --args object(2,0) 42 object(4,0) 420
 created: object(6,0)
 mutated: object(0,0), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6034400,  storage_rebate: 3587200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6034400, storage_rebate: 3587200, non_refundable_storage_fee: 0
 
 task 7, line 81:
 //# run Test::M1::reclaim_and_freeze_child --sender A --args object(2,0) 42
 mutated: object(0,0), object(2,0), object(3,0)
 deleted: object(5,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3587200,  storage_rebate: 6034400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3587200, storage_rebate: 6034400, non_refundable_storage_fee: 0
 
 task 8, line 83:
 //# create-checkpoint
@@ -62,16 +62,16 @@ Response: {
           {
             "value": {
               "address": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
-              "version": 5,
               "contents": {
                 "json": {
-                  "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
-                  "count": "0"
+                  "count": "0",
+                  "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0"
                 }
               },
               "dynamicFields": {
                 "nodes": []
-              }
+              },
+              "version": 5
             }
           }
         ]
@@ -90,11 +90,10 @@ Response: {
           {
             "value": {
               "address": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
-              "version": 5,
               "contents": {
                 "json": {
-                  "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0",
-                  "count": "0"
+                  "count": "0",
+                  "id": "0xc8fb82be0c01e305d8aa14702ecc136d16cded95dfe8cebac07e54835a34f9c0"
                 }
               },
               "dynamicFields": {
@@ -102,17 +101,18 @@ Response: {
                   {
                     "value": {
                       "address": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-                      "version": 6,
                       "contents": {
                         "json": {
-                          "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-                          "count": "0"
+                          "count": "0",
+                          "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b"
                         }
-                      }
+                      },
+                      "version": 6
                     }
                   }
                 ]
-              }
+              },
+              "version": 5
             }
           }
         ]
@@ -146,13 +146,13 @@ task 13, lines 213-240:
 Response: {
   "data": {
     "object": {
+      "dynamicFields": {
+        "nodes": []
+      },
       "owner": {
         "parent": {
           "address": "0xae4a44d68e868342127a1d6b4cd907d24f582ce898baa8f2ff1aa1cac2e8929a"
         }
-      },
-      "dynamicFields": {
-        "nodes": []
       }
     }
   }
@@ -171,24 +171,24 @@ task 15, lines 261-288:
 Response: {
   "data": {
     "object": {
-      "owner": {
-        "_": null
-      },
       "dynamicFields": {
         "nodes": [
           {
             "value": {
               "address": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-              "version": 6,
               "contents": {
                 "json": {
-                  "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-                  "count": "0"
+                  "count": "0",
+                  "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b"
                 }
-              }
+              },
+              "version": 6
             }
           }
         ]
+      },
+      "owner": {
+        "_": null
       }
     }
   }
@@ -199,24 +199,24 @@ task 16, lines 290-317:
 Response: {
   "data": {
     "object": {
-      "owner": {
-        "_": null
-      },
       "dynamicFields": {
         "nodes": [
           {
             "value": {
               "address": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-              "version": 6,
               "contents": {
                 "json": {
-                  "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b",
-                  "count": "0"
+                  "count": "0",
+                  "id": "0xcb3fe503ccc6588f9adf899f8c1a5c4655a186ef8053b49fcaf41f4e3d1b174b"
                 }
-              }
+              },
+              "version": 6
             }
           }
         ]
+      },
+      "owner": {
+        "_": null
       }
     }
   }

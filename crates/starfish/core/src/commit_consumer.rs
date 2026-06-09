@@ -13,7 +13,7 @@ pub struct CommitConsumer {
     // A channel to send the committed sub dags through
     pub(crate) sender: UnboundedSender<CommittedSubDag>,
     // Index of the last commit that the consumer has processed. This is useful for
-    // crash/recovery so mysticeti can replay the commits from the next index.
+    // crash/recovery so consensus can replay the commits from the next index.
     // First commit in the replayed sequence will have index last_processed_commit_index + 1.
     // Set 0 to replay from the start (as generated commit sequence starts at index = 1).
     pub(crate) last_processed_commit_index: CommitIndex,

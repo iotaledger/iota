@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 use fastcrypto::traits::ToFromBytes;
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
@@ -30,7 +31,6 @@ use passkey_types::{
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
 };
-use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use url::Url;
 
@@ -276,7 +276,7 @@ async fn test_passkey_fails_mismatched_challenge() {
     assert_eq!(
         err,
         IotaError::InvalidSignature {
-            error: "Invalid challenge".to_string()
+            error: "Invalid passkey authentication: signature error: passkey challenge does not match expected message".to_string()
         }
     );
 
@@ -296,7 +296,7 @@ async fn test_passkey_fails_mismatched_challenge() {
     assert_eq!(
         err,
         IotaError::InvalidSignature {
-            error: "Invalid challenge".to_string()
+            error: "Invalid passkey authentication: signature error: passkey challenge does not match expected message".to_string()
         }
     );
 }
@@ -325,7 +325,7 @@ async fn test_passkey_fails_to_verify_sig() {
     assert_eq!(
         err,
         IotaError::InvalidSignature {
-            error: "Fails to verify".to_string()
+            error: "Invalid passkey authentication: signature error".to_string()
         }
     );
 
@@ -350,7 +350,7 @@ async fn test_passkey_fails_to_verify_sig() {
     assert_eq!(
         err,
         IotaError::InvalidSignature {
-            error: "Fails to verify".to_string()
+            error: "Invalid passkey authentication: signature error".to_string()
         }
     );
 }

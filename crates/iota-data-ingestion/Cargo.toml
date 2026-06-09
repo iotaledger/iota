@@ -12,6 +12,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 aws-config.workspace = true
 aws-sdk-dynamodb.workspace = true
+aws-smithy-http-client.workspace = true
 backoff.workspace = true
 base64-url.workspace = true
 bcs.workspace = true
@@ -20,10 +21,10 @@ bytes.workspace = true
 futures.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
-tempfile.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
 tokio-util.workspace = true
 tracing.workspace = true
 
@@ -31,12 +32,12 @@ tracing.workspace = true
 iota-archival.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
+iota-grpc-client.workspace = true
 iota-kvstore.workspace = true
 iota-metrics.workspace = true
-iota-rest-api.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
 
-[dev-dependencies]
-tempfile.workspace = true
+[lints]
+workspace = true

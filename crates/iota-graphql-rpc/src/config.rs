@@ -2,18 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, fmt::Display, time::Duration};
+use std::{collections::BTreeSet, fmt::Display};
 
 use async_graphql::*;
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
 use iota_graphql_config::GraphQLConfig;
 use iota_names::config::IotaNamesConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::functional_group::FunctionalGroup;
 
-pub(crate) const RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD: Duration = Duration::from_millis(10_000);
-pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
+pub(crate) const DEFAULT_PAGE_SIZE: u32 = 20;
+pub(crate) const MAX_PAGE_SIZE: u32 = 50;
 
 /// The combination of all configurations for the GraphQL service.
 #[GraphQLConfig]
@@ -31,16 +30,40 @@ pub struct ServerConfig {
 /// other services, and might differ from instance to instance of the GraphQL
 /// service.
 #[GraphQLConfig]
-#[derive(Clone, Eq, PartialEq)]
+#[derive(clap::Args, Clone, Eq, PartialEq)]
 pub struct ConnectionConfig {
     /// Port to bind the server to
-    pub(crate) port: u16,
+    #[arg(short, long, default_value_t = ConnectionConfig::default().port)]
+    pub port: u16,
     /// Host to bind the server to
-    pub(crate) host: String,
-    pub(crate) db_url: String,
-    pub(crate) db_pool_size: u32,
-    pub(crate) prom_url: String,
-    pub(crate) prom_port: u16,
+    #[arg(long, default_value_t = ConnectionConfig::default().host)]
+    pub host: String,
+    /// DB URL for data fetching
+    #[arg(short, long, default_value_t = ConnectionConfig::default().db_url)]
+    pub db_url: String,
+    /// Pool size for DB connections
+    #[arg(long, default_value_t = ConnectionConfig::default().db_pool_size)]
+    pub db_pool_size: u32,
+    /// Host to bind the prom server to
+    #[arg(long, default_value_t = ConnectionConfig::default().prom_host)]
+    pub prom_host: String,
+    /// Port to bind the prom server to
+    #[arg(long, default_value_t = ConnectionConfig::default().prom_port)]
+    pub prom_port: u16,
+    /// Skip checking whether the service is compatible with the DB it is about
+    /// to connect to, on start-up.
+    #[arg(long, default_value_t = ConnectionConfig::default().skip_migration_consistency_check)]
+    pub skip_migration_consistency_check: bool,
+    /// Maximum number of checkpoints to look back for consistent view queries.
+    /// Directly influences the `availableRange` size. Larger values let
+    /// pagination cursors stay valid for longer, downside is that older cursors
+    /// have higher DB cost.
+    #[arg(
+        long,
+        default_value_t = ConnectionConfig::default().max_available_range,
+        env = "MAX_AVAILABLE_RANGE",
+    )]
+    pub max_available_range: u64,
 }
 
 /// Configuration on features supported by the GraphQL service, passed in a
@@ -49,13 +72,12 @@ pub struct ConnectionConfig {
 #[GraphQLConfig]
 #[derive(Default)]
 pub struct ServiceConfig {
-    pub(crate) versions: Versions,
-    pub(crate) limits: Limits,
-    pub(crate) disabled_features: BTreeSet<FunctionalGroup>,
-    pub(crate) experiments: Experiments,
-    pub(crate) iota_names: IotaNamesConfig,
-    pub(crate) background_tasks: BackgroundTasksConfig,
-    pub(crate) zklogin: ZkLoginConfig,
+    pub versions: Versions,
+    pub limits: Limits,
+    pub disabled_features: BTreeSet<FunctionalGroup>,
+    pub experiments: Experiments,
+    pub iota_names: IotaNamesConfig,
+    pub background_tasks: BackgroundTasksConfig,
 }
 
 #[GraphQLConfig]
@@ -71,7 +93,12 @@ pub struct Limits {
     pub max_query_nodes: u32,
     /// Maximum number of output nodes allowed in the response.
     pub max_output_nodes: u32,
-    /// Maximum size (in bytes) of a GraphQL request.
+    /// Maximum size in bytes allowed for the `txBytes` and `signatures` fields
+    /// of a GraphQL mutation request in the `executeTransactionBlock` node,
+    /// and for the `txBytes` of a `dryRunTransactionBlock` node.
+    pub max_tx_payload_size: u32,
+    /// Maximum size in bytes of the JSON payload of a GraphQL read request
+    /// (excluding `max_tx_payload_size`).
     pub max_query_payload_size: u32,
     /// Queries whose EXPLAIN cost are more than this will be logged. Given in
     /// the units used by the database (where 1.0 is roughly the cost of a
@@ -101,7 +128,7 @@ pub struct Limits {
     /// Maximum deph of a move value.
     pub max_move_value_depth: u32,
     /// Maximum number of transaction ids that can be passed to a
-    /// `TransactionBlockFilter`.
+    /// `TransactionBlockFilter` or to `transaction_blocks_by_digests`.
     pub max_transaction_ids: u32,
     /// Maximum number of candidates to scan when gathering a page of results.
     pub max_scan_limit: u32,
@@ -157,7 +184,10 @@ impl Version {
 }
 
 #[GraphQLConfig]
+#[derive(clap::Args)]
 pub struct Ide {
+    /// The title to display at the top of the web-based GraphiQL IDE.
+    #[arg(short, long, default_value_t = Ide::default().ide_title)]
     pub(crate) ide_title: String,
 }
 
@@ -184,15 +214,11 @@ pub struct InternalFeatureConfig {
 }
 
 #[GraphQLConfig]
-#[derive(Default)]
+#[derive(clap::Args, Default)]
 pub struct TxExecFullNodeConfig {
+    /// RPC URL for the fullnode to send transactions to execute and dry-run.
+    #[arg(long)]
     pub(crate) node_rpc_url: Option<String>,
-}
-
-#[GraphQLConfig]
-#[derive(Default)]
-pub struct ZkLoginConfig {
-    pub env: ZkLoginEnv,
 }
 
 /// The enabled features and service limits configured by the server.
@@ -277,7 +303,23 @@ impl ServiceConfig {
         self.limits.request_timeout_ms
     }
 
-    /// Maximum length of a query payload string.
+    /// The maximum bytes allowed for transactions in queries.
+    ///
+    /// This corresponds to the `txBytes` and `signatures` fields of the GraphQL
+    /// mutation `executeTransactionBlock` node, or the `txBytes` of a
+    /// `dryRunTransactionBlock`.
+    ///
+    /// By default, this is set to the value of the maximum transaction bytes
+    /// (including the signatures) allowed by the protocol, plus the Base64
+    /// overhead (roughly 1/3 of the original string).
+    async fn max_transaction_payload_size(&self) -> u32 {
+        self.limits.max_tx_payload_size
+    }
+
+    /// The maximum bytes allowed for the read part of GraphQL queries.
+    ///
+    /// In case of mutations or `dryRunTransactionBlocks` the `txBytes` and
+    /// `signatures` are not included in this limit.
     async fn max_query_payload_size(&self) -> u32 {
         self.limits.max_query_payload_size
     }
@@ -318,20 +360,16 @@ impl ServiceConfig {
     }
 }
 
-impl TxExecFullNodeConfig {
-    pub fn new(node_rpc_url: Option<String>) -> Self {
-        Self { node_rpc_url }
-    }
-}
-
 impl ConnectionConfig {
     pub fn new(
         port: Option<u16>,
         host: Option<String>,
         db_url: Option<String>,
         db_pool_size: Option<u32>,
-        prom_url: Option<String>,
+        prom_host: Option<String>,
         prom_port: Option<u16>,
+        skip_migration_consistency_check: Option<bool>,
+        max_available_range: Option<u64>,
     ) -> Self {
         let default = Self::default();
         Self {
@@ -339,8 +377,11 @@ impl ConnectionConfig {
             host: host.unwrap_or(default.host),
             db_url: db_url.unwrap_or(default.db_url),
             db_pool_size: db_pool_size.unwrap_or(default.db_pool_size),
-            prom_url: prom_url.unwrap_or(default.prom_url),
+            prom_host: prom_host.unwrap_or(default.prom_host),
             prom_port: prom_port.unwrap_or(default.prom_port),
+            skip_migration_consistency_check: skip_migration_consistency_check
+                .unwrap_or(default.skip_migration_consistency_check),
+            max_available_range: max_available_range.unwrap_or(default.max_available_range),
         }
     }
 
@@ -390,9 +431,6 @@ impl ServiceConfig {
     pub fn test_defaults() -> Self {
         Self {
             background_tasks: BackgroundTasksConfig::test_defaults(),
-            zklogin: ZkLoginConfig {
-                env: ZkLoginEnv::Test,
-            },
             ..Default::default()
         }
     }
@@ -407,14 +445,6 @@ impl Limits {
             max_type_nodes: self.max_type_nodes as usize,
             max_move_value_depth: self.max_move_value_depth as usize,
         }
-    }
-}
-
-impl Ide {
-    pub fn new(ide_title: Option<String>) -> Self {
-        ide_title
-            .map(|ide_title| Ide { ide_title })
-            .unwrap_or_default()
     }
 }
 
@@ -453,8 +483,10 @@ impl Default for ConnectionConfig {
             host: "127.0.0.1".to_string(),
             db_url: "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string(),
             db_pool_size: 10,
-            prom_url: "0.0.0.0".to_string(),
+            prom_host: "0.0.0.0".to_string(),
             prom_port: 9184,
+            skip_migration_consistency_check: false,
+            max_available_range: 9_000,
         }
     }
 }
@@ -469,8 +501,8 @@ impl Default for Limits {
             max_output_nodes: 100_000,
             max_query_payload_size: 5_000,
             max_db_query_cost: 20_000,
-            default_page_size: 20,
-            max_page_size: 50,
+            default_page_size: DEFAULT_PAGE_SIZE,
+            max_page_size: MAX_PAGE_SIZE,
             // This default was picked as the sum of pre- and post- quorum timeouts from
             // [`iota_core::authority_aggregator::TimeoutConfig`], with a 10% buffer.
             //
@@ -490,6 +522,11 @@ impl Default for Limits {
             // for the `TransactionBlockFilter`.
             max_transaction_ids: 1000,
             max_scan_limit: 100_000_000,
+            // Protocol limit for max transaction bytes allowed + base64
+            // overhead (roughly 1/3 of the original string). This is rounded up.
+            //
+            // <https://github.com/iotaledger/iota/blob/29c410ac809dd7c71dbf0237a96f08d72b406e52/crates/iota-protocol-config/src/lib.rs#L1566>
+            max_tx_payload_size: (128u32 * 1024u32 * 4u32).div_ceil(3),
         }
     }
 }
@@ -542,6 +579,7 @@ mod tests {
                 max-query-depth = 100
                 max-query-nodes = 300
                 max-output-nodes = 200000
+                max-tx-payload-size = 174763
                 max-query-payload-size = 2000
                 max-db-query-cost = 50
                 default-page-size = 20
@@ -563,6 +601,7 @@ mod tests {
                 max_query_depth: 100,
                 max_query_nodes: 300,
                 max_output_nodes: 200000,
+                max_tx_payload_size: 174763,
                 max_query_payload_size: 2000,
                 max_db_query_cost: 50,
                 default_page_size: 20,
@@ -627,6 +666,7 @@ mod tests {
                 max-query-depth = 42
                 max-query-nodes = 320
                 max-output-nodes = 200000
+                max-tx-payload-size = 181017
                 max-query-payload-size = 200
                 max-db-query-cost = 20
                 default-page-size = 10
@@ -651,6 +691,7 @@ mod tests {
                 max_query_depth: 42,
                 max_query_nodes: 320,
                 max_output_nodes: 200000,
+                max_tx_payload_size: 181017,
                 max_query_payload_size: 200,
                 max_db_query_cost: 20,
                 default_page_size: 10,

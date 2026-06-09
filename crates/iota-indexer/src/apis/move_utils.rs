@@ -12,11 +12,11 @@ use iota_json_rpc_types::{
     IotaMoveNormalizedType, MoveFunctionArgType, ObjectValueKind,
 };
 use iota_open_rpc::Module;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 use jsonrpsee::{RpcModule, core::RpcResult};
-use move_binary_format::normalized::Module as NormalizedModule;
+use move_binary_format::normalized;
 
-use crate::indexer_reader::IndexerReader;
+use crate::read::IndexerReader;
 
 pub struct MoveUtilsApi {
     inner: IndexerReader,
@@ -32,19 +32,23 @@ impl MoveUtilsApi {
 impl MoveUtilsServer for MoveUtilsApi {
     async fn get_normalized_move_modules_by_package(
         &self,
-        package_id: ObjectID,
+        package_id: ObjectId,
     ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
         let resolver_modules = self.inner.get_package(package_id).await?.modules().clone();
+        let pool = &mut normalized::RcPool::new();
         let iota_normalized_modules = resolver_modules
             .into_iter()
-            .map(|(k, v)| (k, NormalizedModule::new(v.bytecode()).into()))
+            .map(|(k, v)| {
+                let m = &normalized::Module::new(pool, v.bytecode(), /* include code */ false);
+                (k, m.into())
+            })
             .collect::<BTreeMap<String, IotaMoveNormalizedModule>>();
         Ok(iota_normalized_modules)
     }
 
     async fn get_normalized_move_module(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
     ) -> RpcResult<IotaMoveNormalizedModule> {
         let mut modules = self.get_normalized_move_modules_by_package(package).await?;
@@ -58,7 +62,7 @@ impl MoveUtilsServer for MoveUtilsApi {
 
     async fn get_normalized_move_struct(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
         struct_name: String,
     ) -> RpcResult<IotaMoveNormalizedStruct> {
@@ -78,7 +82,7 @@ impl MoveUtilsServer for MoveUtilsApi {
 
     async fn get_normalized_move_function(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module_name: String,
         function_name: String,
     ) -> RpcResult<IotaMoveNormalizedFunction> {
@@ -98,7 +102,7 @@ impl MoveUtilsServer for MoveUtilsApi {
 
     async fn get_move_function_arg_types(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module: String,
         function: String,
     ) -> RpcResult<Vec<MoveFunctionArgType>> {

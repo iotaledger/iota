@@ -1,0 +1,73 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use core::str::FromStr;
+
+use derive_more::{AsRef, Deref, From};
+
+use crate::block::{
+    Error,
+    output::{NftId, OutputId},
+};
+
+/// An NFT address.
+#[derive(
+    Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, From, AsRef, Deref, packable::Packable,
+)]
+#[as_ref(forward)]
+pub struct NftAddress(NftId);
+
+impl NftAddress {
+    /// The [`Address`](crate::block::address::Address) kind of an NFT
+    /// address.
+    pub const KIND: u8 = 16;
+    /// The length of a [`NftAddress`].
+    pub const LENGTH: usize = NftId::LENGTH;
+
+    /// Creates a new [`NftAddress`].
+    #[inline(always)]
+    pub fn new(id: NftId) -> Self {
+        Self::from(id)
+    }
+
+    /// Returns the [`NftId`] of an [`NftAddress`].
+    #[inline(always)]
+    pub fn nft_id(&self) -> &NftId {
+        &self.0
+    }
+
+    /// Consumes an [`NftAddress`] and returns its [`NftId`].
+    #[inline(always)]
+    pub fn into_nft_id(self) -> NftId {
+        self.0
+    }
+}
+
+#[cfg(feature = "serde")]
+string_serde_impl!(NftAddress);
+
+impl FromStr for NftAddress {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from(NftId::from_str(s)?))
+    }
+}
+
+impl From<&OutputId> for NftAddress {
+    fn from(output_id: &OutputId) -> Self {
+        Self(NftId::from(output_id))
+    }
+}
+
+impl core::fmt::Display for NftAddress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl core::fmt::Debug for NftAddress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "NftAddress({self})")
+    }
+}

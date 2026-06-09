@@ -10,10 +10,12 @@ use iota_config::genesis::{
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     object::Object,
-    stardust::coin_kind::get_gas_balance_maybe,
 };
 
-use crate::stardust::migration::{ExpirationTimestamp, MigrationObjects};
+use crate::stardust::{
+    migration::{ExpirationTimestamp, MigrationObjects},
+    types::coin_kind::get_gas_balance_maybe,
+};
 
 #[derive(Default, Debug, Clone)]
 pub struct GenesisStake {
@@ -392,7 +394,7 @@ fn pick_objects_for_allocation<'obj>(
     while allocation_amount_nanos < target_amount_nanos {
         if let Some((object, timestamp)) = pool.next() {
             // In here we pick an object
-            let obj_ref = object.compute_object_reference();
+            let obj_ref = object.object_ref();
             let object_balance = get_gas_balance_maybe(object)
                 .expect("the pool should only contain gas coins or timelock balance objects")
                 .value();

@@ -32,12 +32,6 @@ pub struct OffchainReaderForAdapter {
 
 #[async_trait]
 impl OffchainStateReader for OffchainReaderForAdapter {
-    async fn wait_for_objects_snapshot_catchup(&self, base_timeout: Duration) {
-        self.cluster
-            .wait_for_objects_snapshot_catchup(base_timeout)
-            .await
-    }
-
     async fn wait_for_checkpoint_catchup(&self, checkpoint: u64, base_timeout: Duration) {
         self.cluster
             .wait_for_checkpoint_catchup(checkpoint, base_timeout)
@@ -55,11 +49,14 @@ impl OffchainStateReader for OffchainReaderForAdapter {
         query: String,
         show_usage: bool,
     ) -> Result<TestResponse, anyhow::Error> {
-        let result = self
+        let mut result = self
             .cluster
             .graphql_client
             .execute_to_graphql(query, show_usage, vec![], vec![])
             .await?;
+        // Sort because these will be used to create snapshots that should be
+        // deterministically ordered
+        result.sort_response_body();
 
         Ok(TestResponse {
             http_headers: Some(result.http_headers_without_date()),
@@ -104,7 +101,6 @@ async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
             ),
             internal_data_port,
             adapter.read_replica.as_ref().unwrap().clone(),
-            Some(offchain_config.snapshot_config.clone()),
             offchain_config.epochs_to_keep,
             offchain_config.data_ingestion_path.clone(),
         )

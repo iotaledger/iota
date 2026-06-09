@@ -48,7 +48,7 @@ network-key-pair:
   path: /opt/iota/key-pairs/network.key
 ```
 
-5. Place `genesis.blob` (see [Genesis](https://docs.iota.org/operator/genesis)) in `/opt/iota/config/`
+5. Place `genesis.blob` (see [Genesis](https://docs.iota.org/operator/full-node/configs/genesis)) in `/opt/iota/config/`
 
 6. Copy the `iota-node` systemd service unit file
 

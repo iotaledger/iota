@@ -38,6 +38,10 @@ const EUnableToReceiveObject: u64 = 3;
 /// Shared object operations such as wrapping, freezing, and converting to owned are not allowed.
 const ESharedObjectOperationNotSupported: u64 = 4;
 
+#[allow(unused_const)]
+// An object cannot be received if the parent is an account.
+const EAccountCannotReceiveObject: u64 = 5;
+
 /// Transfer ownership of `obj` to `recipient`. `obj` must have the `key` attribute,
 /// which (in turn) ensures that `obj` has a globally unique ID. Note that if the recipient
 /// address represents an object ID, the `obj` sent will be inaccessible after the transfer

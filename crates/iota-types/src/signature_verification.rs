@@ -2,29 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{hash::Hash, sync::Arc};
+#[cfg(not(target_arch = "wasm32"))]
+use std::hash::Hash;
 
+use iota_sdk_types::crypto::Intent;
+#[cfg(not(target_arch = "wasm32"))]
 use lru::LruCache;
 use nonempty::NonEmpty;
+#[cfg(not(target_arch = "wasm32"))]
 use parking_lot::RwLock;
+#[cfg(not(target_arch = "wasm32"))]
 use prometheus::IntCounter;
-use shared_crypto::intent::Intent;
 
 use crate::{
-    committee::EpochId,
-    digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     signature::VerifyParams,
     transaction::{SenderSignedData, TransactionDataAPI},
 };
 
-// Cache up to 20000 verified certs. We will need to tune this number in the
+// Cache up to this many verified certs. We will need to tune this number in the
 // future - a decent guess to start with is that it should be 10-20 times larger
 // than peak transactions per second, on the assumption that we should see most
 // certs twice within about 10-20 seconds at most: Once via RPC, once via
 // consensus.
-const VERIFIED_CERTIFICATE_CACHE_SIZE: usize = 20000;
+#[cfg(not(target_arch = "wasm32"))]
+const VERIFIED_CERTIFICATE_CACHE_SIZE: usize = 100_000;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub struct VerifiedDigestCache<D> {
     inner: RwLock<LruCache<D, ()>>,
     cache_hits_counter: IntCounter,
@@ -32,6 +36,7 @@ pub struct VerifiedDigestCache<D> {
     cache_evictions_counter: IntCounter,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
     pub fn new(
         cache_hits_counter: IntCounter,
@@ -99,8 +104,8 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
         inner.clear();
     }
 
-    // Initialize an empty cache when the cache is not needed (in testing scenarios,
-    // graphql and rosetta initialization).
+    // Initialize an empty cache when the cache is not needed (in testing scenarios
+    // and graphql initialization).
     pub fn new_empty() -> Self {
         Self::new(
             IntCounter::new("test_cache_hits", "test cache hits").unwrap(),
@@ -114,9 +119,7 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
 /// be from a checkpoint.
 pub fn verify_sender_signed_data_message_signatures(
     txn: &SenderSignedData,
-    current_epoch: EpochId,
     verify_params: &VerifyParams,
-    zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
 ) -> IotaResult {
     let intent_message = txn.intent_message();
     assert_eq!(intent_message.intent, Intent::iota_transaction());
@@ -151,13 +154,7 @@ pub fn verify_sender_signed_data_message_signatures(
 
     // 4. Every signature must be valid.
     for (signer, signature) in present_sigs {
-        signature.verify_authenticator(
-            intent_message,
-            signer,
-            current_epoch,
-            verify_params,
-            zklogin_inputs_cache.clone(),
-        )?;
+        signature.verify_authenticator(intent_message, signer, verify_params)?;
     }
     Ok(())
 }

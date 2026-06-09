@@ -2,9 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The `CombinableBool` detects and warns about boolean conditions in Move code that can be simplified.
-//! It identifies comparisons that are logically equivalent and suggests more concise alternatives.
-//! This rule focuses on simplifying expressions involving `==`, `<`, `>`, and `!=` operators to improve code readability.
+//! The `CombinableBool` detects and warns about boolean conditions in Move code
+//! that can be simplified. It identifies comparisons that are logically
+//! equivalent and suggests more concise alternatives. This rule focuses on
+//! simplifying expressions involving `==`, `<`, `>`, and `!=` operators to
+//! improve code readability.
 
 use crate::{
     diag,
@@ -86,10 +88,10 @@ simple_visitor!(
     }
 );
 
-/// Each binary operator is represented as a 3-bit number where each bit represents a range of
-/// possible values. With three bits, 0bGEL we are "drawing" an interval of ranges. The comparison
-/// `true` if the value is within the interval. so for `x cmp y``
-/// ```text
+/// Each binary operator is represented as a 3-bit number where each bit
+/// represents a range of possible values. With three bits, 0bGEL we are
+/// "drawing" an interval of ranges. The comparison `true` if the value is
+/// within the interval. so for `x cmp y`` ```text
 /// G E L
 ///     ^ this bit represents x < y (less than the equal bit)
 ///   ^ this bit represents x == y (the equal bit)
@@ -97,12 +99,13 @@ simple_visitor!(
 /// ```
 /// We then take the disjunction of intervals by the bits--creating a bitset.
 /// So for example, `>=` is 0b110 since the interval is either greater OR equal.
-/// And for `!=` is 0b101 since the interval is either not equal OR less than. We are only dealing
-/// with primitives so we know the values are well ordered.
-/// From there we can then bitwise-or the bits (set union) when the outer operation is `||` and
-/// bitwise-and the bits (set intersection) when the outer operation is `&&` to get the final
-/// "simplified" operation. If all bits are set, then the operation is always true. If no bits are
-/// set, then the operation is always false.
+/// And for `!=` is 0b101 since the interval is either not equal OR less than.
+/// We are only dealing with primitives so we know the values are well ordered.
+/// From there we can then bitwise-or the bits (set union) when the outer
+/// operation is `||` and bitwise-and the bits (set intersection) when the outer
+/// operation is `&&` to get the final "simplified" operation. If all bits are
+/// set, then the operation is always true. If no bits are set, then the
+/// operation is always false.
 fn simplify(outer: BoolOp, inner_l: CmpOp, inner_r: CmpOp) -> Simplification {
     let lbits = inner_l as u8;
     let rbits = inner_r as u8;

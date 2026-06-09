@@ -41,7 +41,7 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Max concurrency: {max_concurrency}.");
 
     let prom_binding = PROM_PORT_ADDR.parse().unwrap();
-    info!("Starting Prometheus HTTP endpoint at {}", prom_binding);
+    info!("Starting Prometheus HTTP endpoint at {prom_binding}");
     let registry_service = iota_metrics::start_prometheus_server(prom_binding);
     let prometheus_registry = registry_service.default_registry();
     let app_state = Arc::new(AppState {

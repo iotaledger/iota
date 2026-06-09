@@ -11,13 +11,13 @@ use std::{
     time::Duration,
 };
 
-use futures::{StreamExt, future::join_all};
+use futures::future::join_all;
 use iota_common::fatal;
 use iota_config::{
-    Config, ExecutionCacheConfig, ExecutionCacheType, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG, NodeConfig, PersistedConfig,
+    Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
+    NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
@@ -27,32 +27,34 @@ use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClie
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, TransactionFilter,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::ProtocolVersion;
+use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     apis::QuorumDriverApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_types::ObjectId;
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{
-        ProtocolVersionsConfig, StateAccumulatorEnabledCallback, StateAccumulatorV1EnabledConfig,
+        GlobalStateHashV1EnabledCallback, GlobalStateHashV1EnabledConfig, ProtocolVersionsConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
+    base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectRef},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -60,15 +62,12 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
-    message_envelope::Message,
     messages_grpc::HandleCertificateRequestV1,
     object::Object,
     quorum_driver_types::ExecuteTransactionRequestType,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
-    transaction::{
-        CertifiedTransaction, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{CertifiedTransaction, Transaction, TransactionData},
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -131,6 +130,14 @@ impl TestCluster {
 
     pub fn rpc_url(&self) -> &str {
         &self.fullnode_handle.rpc_url
+    }
+
+    pub fn grpc_url(&self) -> String {
+        let grpc_config = self
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.get_config().grpc_api_config.clone());
+        format!("http://{}", grpc_config.unwrap_or_default().address)
     }
 
     pub fn wallet(&mut self) -> &WalletContext {
@@ -257,23 +264,23 @@ impl TestCluster {
             .expect("failed to get reference gas price")
     }
 
-    pub async fn get_object_from_fullnode_store(&self, object_id: &ObjectID) -> Option<Object> {
+    pub async fn get_object_from_fullnode_store(&self, object_id: &ObjectId) -> Option<Object> {
         self.fullnode_handle
             .iota_node
             .with_async(|node| async { node.state().get_object(object_id).await })
             .await
     }
 
-    pub async fn get_latest_object_ref(&self, object_id: &ObjectID) -> ObjectRef {
+    pub async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectRef {
         self.get_object_from_fullnode_store(object_id)
             .await
             .unwrap()
-            .compute_object_reference()
+            .object_ref()
     }
 
     pub async fn get_object_or_tombstone_from_fullnode_store(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> ObjectRef {
         self.fullnode_handle
             .iota_node
@@ -313,7 +320,7 @@ impl TestCluster {
             }
         })
             .await
-            .expect("Timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
+            .expect("timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
     }
 
     pub async fn wait_for_protocol_version(
@@ -341,7 +348,7 @@ impl TestCluster {
             }
         })
         .await
-        .expect("Timed out waiting for cluster to target protocol version")
+        .expect("timed out waiting for cluster to target protocol version")
     }
 
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire
@@ -357,13 +364,13 @@ impl TestCluster {
             .iota_node
             .with(|node| node.state().clone_committee_for_testing());
         let mut cur_stake = 0;
-        for node in self.swarm.active_validators() {
+        for node in self.swarm.committee_validators() {
             node.get_node_handle()
                 .unwrap()
                 .with_async(|node| async {
                     node.close_epoch_for_testing().await.unwrap_or_else(|_| {
                         fatal!(
-                            "Failed to close epoch for validator {:?}",
+                            "failed to close epoch for validator {:?}",
                             node.state().name
                         );
                     });
@@ -421,15 +428,15 @@ impl TestCluster {
                     _ => (),
                 }
             }
-            unreachable!("Broken reconfig channel");
+            unreachable!("broken reconfig channel");
         })
             .await
             .unwrap_or_else(|_| {
-                error!("Timed out waiting for cluster to reach epoch {target_epoch:?}");
+                error!("timed out waiting for cluster to reach epoch {target_epoch:?}");
                 if let Some(state) = state {
-                    panic!("Timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
+                    panic!("timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
                 }
-                panic!("Timed out waiting for cluster to target epoch {target_epoch:?}")
+                panic!("timed out waiting for cluster to target epoch {target_epoch:?}")
             })
     }
 
@@ -469,7 +476,7 @@ impl TestCluster {
                         tokio::time::sleep(Duration::from_secs(1)).await;
                         retries += 1;
                         if retries % 5 == 0 {
-                            tracing::warn!(validator=?node.state().name.concise(), "Waiting for {:?} seconds to reach epoch {:?}. Currently at epoch {:?}", retries, target_epoch, epoch);
+                            tracing::warn!(validator=?node.state().name.concise(), "waiting for {retries:?} seconds to reach epoch {target_epoch:?}. Currently at epoch {epoch:?}");
                         }
                     }
                 })
@@ -519,37 +526,6 @@ impl TestCluster {
             })
             .await;
         }
-    }
-
-    pub async fn wait_for_authenticator_state_update(&self) {
-        timeout(
-            Duration::from_secs(60),
-            self.fullnode_handle
-                .iota_node
-                .with_async(|node| async move {
-                    let mut txns = node.state().subscription_handler.subscribe_transactions(
-                        TransactionFilter::ChangedObject(
-                            ObjectID::from_hex_literal("0x7").unwrap(),
-                        ),
-                    );
-                    let state = node.state();
-
-                    while let Some(tx) = txns.next().await {
-                        let digest = *tx.transaction_digest();
-                        let tx = state
-                            .get_transaction_cache_reader()
-                            .get_transaction_block(&digest)
-                            .unwrap();
-                        match &tx.data().intent_message().value.kind() {
-                            TransactionKind::EndOfEpochTransaction(_) => (),
-                            TransactionKind::AuthenticatorStateUpdateV1(_) => break,
-                            _ => panic!("{tx:?}"),
-                        }
-                    }
-                }),
-        )
-        .await
-        .expect("Timed out waiting for authenticator state update");
     }
 
     /// Return the highest observed protocol version in the test cluster.
@@ -728,18 +704,19 @@ impl TestCluster {
     }
 
     /// This call sends some funds from the seeded faucet address to the funding
-    /// address for the given amount and returns the gas object ref. This
-    /// is useful to construct transactions from the funding address.
-    pub async fn fund_address_and_return_gas(
+    /// address for the given amount and returns the gas object ref and
+    /// transaction digest. This is useful to construct transactions from
+    /// the funding address.
+    pub async fn fund_address_and_return_gas_and_tx(
         &self,
         rgp: u64,
         amount: Option<u64>,
         funding_address: IotaAddress,
-    ) -> ObjectRef {
+    ) -> (ObjectRef, TransactionDigest) {
         let Faucet { address, keypair } = &self
             .faucet
             .as_ref()
-            .expect("Faucet not initialized: incompatible with `NetworkConfig`.");
+            .expect("faucet not initialized: incompatible with `NetworkConfig`.");
 
         let keypair = &*keypair.lock().await;
 
@@ -768,14 +745,33 @@ impl TestCluster {
             .await
             .unwrap();
 
-        response
+        let object_ref = response
             .effects
+            .as_ref()
             .unwrap()
             .created()
             .first()
             .unwrap()
-            .reference
-            .to_object_ref()
+            .reference;
+
+        let tx_digest = response.digest;
+
+        (object_ref, tx_digest)
+    }
+
+    /// This call sends some funds from the seeded faucet address to the funding
+    /// address for the given amount and returns the gas object ref. This
+    /// is useful to construct transactions from the funding address.
+    pub async fn fund_address_and_return_gas(
+        &self,
+        rgp: u64,
+        amount: Option<u64>,
+        funding_address: IotaAddress,
+    ) -> ObjectRef {
+        let (object_ref, _tx_digest) = self
+            .fund_address_and_return_gas_and_tx(rgp, amount, funding_address)
+            .await;
+        object_ref
     }
 
     pub async fn transfer_iota_must_exceed(
@@ -783,7 +779,7 @@ impl TestCluster {
         sender: IotaAddress,
         receiver: IotaAddress,
         amount: u64,
-    ) -> ObjectID {
+    ) -> ObjectId {
         let tx = self
             .test_transaction_builder_with_sender(sender)
             .await
@@ -825,7 +821,7 @@ impl TestCluster {
             }
         })
         .await
-        .expect("Timeout waiting for indexer to catchup to checkpoint");
+        .expect("timeout waiting for indexer to catchup to checkpoint");
     }
 
     /// Get all objects owned by an address
@@ -853,8 +849,8 @@ impl TestCluster {
         &self,
         sender: IotaAddress,
         receiver: IotaAddress,
-        object_ids: Vec<ObjectID>,
-        gas: ObjectID,
+        object_ids: Vec<ObjectId>,
+        gas: ObjectId,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> anyhow::Result<Vec<IotaTransactionBlockResponse>> {
         let mut transaction_block_resp: Vec<IotaTransactionBlockResponse> = Vec::new();
@@ -876,8 +872,8 @@ impl TestCluster {
         &self,
         sender: IotaAddress,
         receiver: IotaAddress,
-        object_id: ObjectID,
-        gas: ObjectID,
+        object_id: ObjectId,
+        gas: ObjectId,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> anyhow::Result<IotaTransactionBlockResponse> {
         let http_client = self.rpc_client();
@@ -896,7 +892,7 @@ impl TestCluster {
                 tx_bytes,
                 signatures,
                 options,
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
             )
             .await?;
 
@@ -992,20 +988,20 @@ pub struct TestClusterBuilder {
     db_checkpoint_config_validators: DBCheckpointConfig,
     db_checkpoint_config_fullnodes: DBCheckpointConfig,
     num_unpruned_validators: Option<usize>,
-    jwk_fetch_interval: Option<Duration>,
     config_dir: Option<PathBuf>,
-    default_jwks: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    execution_cache_type: Option<ExecutionCacheType>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
-    fullnode_grpc_api_config: Option<iota_grpc_api::Config>,
+    fullnode_enable_grpc_api: bool,
+    fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
+    validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
+    disable_address_verification_cooldown: bool,
+    chain_override: Option<Chain>,
 }
 
 impl TestClusterBuilder {
@@ -1013,6 +1009,7 @@ impl TestClusterBuilder {
         TestClusterBuilder {
             genesis_config: None,
             network_config: None,
+            chain_override: None,
             additional_objects: vec![],
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
@@ -1024,20 +1021,21 @@ impl TestClusterBuilder {
             db_checkpoint_config_validators: DBCheckpointConfig::default(),
             db_checkpoint_config_fullnodes: DBCheckpointConfig::default(),
             num_unpruned_validators: None,
-            jwk_fetch_interval: None,
             config_dir: None,
-            default_jwks: false,
             authority_overload_config: None,
-            execution_cache_type: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
             fullnode_fw_config: None,
+            fullnode_enable_grpc_api: false,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
+            validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig::Global(
+                true,
+            ),
+            disable_address_verification_cooldown: false,
         }
     }
 
@@ -1065,6 +1063,11 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_rpc_addr(mut self, addr: SocketAddr) -> Self {
         self.fullnode_rpc_addr = Some(addr);
+        self
+    }
+
+    pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
+        self.fullnode_enable_grpc_api = enable;
         self
     }
 
@@ -1141,11 +1144,6 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
-        self
-    }
-
     pub fn with_fullnode_supported_protocol_versions_config(
         mut self,
         c: SupportedProtocolVersions,
@@ -1170,12 +1168,12 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_state_accumulator_callback(
+    pub fn with_global_state_hash_v1_enabled_callback(
         mut self,
-        func: StateAccumulatorEnabledCallback,
+        func: GlobalStateHashV1EnabledCallback,
     ) -> Self {
-        self.validator_state_accumulator_config =
-            StateAccumulatorV1EnabledConfig::PerValidator(func);
+        self.validator_global_state_hash_v1_enabled_config =
+            GlobalStateHashV1EnabledConfig::PerValidator(func);
         self
     }
 
@@ -1222,20 +1220,9 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_default_jwks(mut self) -> Self {
-        self.default_jwks = true;
-        self
-    }
-
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         assert!(self.network_config.is_none());
         self.authority_overload_config = Some(config);
-        self
-    }
-
-    pub fn with_execution_cache_type(mut self, config: ExecutionCacheType) -> Self {
-        assert!(self.network_config.is_none());
-        self.execution_cache_type = Some(config);
         self
     }
 
@@ -1263,6 +1250,19 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Disable address verification cooldown for test environments where nodes
+    /// frequently restart. This prevents nodes from being blocked from
+    /// reconnecting after crashes/restarts.
+    pub fn with_disabled_address_verification_cooldown(mut self) -> Self {
+        self.disable_address_verification_cooldown = true;
+        self
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        self.chain_override = Some(chain);
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1281,35 +1281,6 @@ impl TestClusterBuilder {
                 ))),
             }
         });
-
-        // All test clusters receive a continuous stream of random JWKs.
-        // If we later use zklogin authenticated transactions in tests we will need to
-        // supply valid JWKs as well.
-        #[cfg(msim)]
-        if !self.default_jwks {
-            iota_node::set_jwk_injector(Arc::new(|_authority, provider| {
-                use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
-                use rand::Rng;
-
-                // generate random (and possibly conflicting) id/key pairings.
-                let id_num = rand::thread_rng().gen_range(1..=4);
-                let key_num = rand::thread_rng().gen_range(1..=4);
-
-                let id = JwkId {
-                    iss: provider.get_config().iss,
-                    kid: format!("kid{}", id_num),
-                };
-
-                let jwk = JWK {
-                    kty: "kty".to_string(),
-                    e: "e".to_string(),
-                    n: format!("n{}", key_num),
-                    alg: "alg".to_string(),
-                };
-
-                Ok(vec![(id, jwk)])
-            }));
-        }
 
         let swarm = self.start_swarm().await.unwrap();
         let working_dir = swarm.dir();
@@ -1331,7 +1302,7 @@ impl TestClusterBuilder {
             .unwrap();
 
         let wallet_conf = swarm.dir().join(IOTA_CLIENT_CONFIG);
-        let wallet = WalletContext::new(&wallet_conf, None, None).unwrap();
+        let wallet = WalletContext::new(&wallet_conf).unwrap();
 
         TestCluster {
             swarm,
@@ -1352,7 +1323,9 @@ impl TestClusterBuilder {
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
-            .with_state_accumulator_config(self.validator_state_accumulator_config.clone())
+            .with_global_state_hash_v1_enabled_config(
+                self.validator_global_state_hash_v1_enabled_config.clone(),
+            )
             .with_fullnode_count(1)
             .with_fullnode_supported_protocol_versions_config(
                 self.fullnode_supported_protocol_versions_config
@@ -1364,6 +1337,10 @@ impl TestClusterBuilder {
             .with_fullnode_policy_config(self.fullnode_policy_config.clone())
             .with_fullnode_fw_config(self.fullnode_fw_config.clone());
 
+        if let Some(chain) = self.chain_override {
+            builder = builder.with_chain_override(chain);
+        }
+
         if let Some(genesis_config) = self.genesis_config.take() {
             builder = builder.with_genesis_config(genesis_config);
         }
@@ -1374,10 +1351,6 @@ impl TestClusterBuilder {
 
         if let Some(authority_overload_config) = self.authority_overload_config.take() {
             builder = builder.with_authority_overload_config(authority_overload_config);
-        }
-
-        if let Some(execution_cache_type) = self.execution_cache_type.take() {
-            builder = builder.with_execution_cache_type(execution_cache_type);
         }
 
         if let Some(execution_cache_config) = self.execution_cache_config.take() {
@@ -1392,10 +1365,6 @@ impl TestClusterBuilder {
 
         if let Some(num_unpruned_validators) = self.num_unpruned_validators {
             builder = builder.with_num_unpruned_validators(num_unpruned_validators);
-        }
-
-        if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
-            builder = builder.with_jwk_fetch_interval(jwk_fetch_interval);
         }
 
         if let Some(config_dir) = self.config_dir.take() {
@@ -1418,8 +1387,12 @@ impl TestClusterBuilder {
         if self.disable_fullnode_pruning {
             builder = builder.with_disable_fullnode_pruning();
         }
+        builder = builder.with_fullnode_enable_grpc_api(self.fullnode_enable_grpc_api);
         if let Some(config) = &self.fullnode_grpc_api_config {
             builder = builder.with_fullnode_grpc_api_config(config.clone());
+        }
+        if self.disable_address_verification_cooldown {
+            builder = builder.with_disabled_address_verification_cooldown();
         }
 
         let mut swarm = builder.build();

@@ -10,12 +10,17 @@ use crate::types::{
     type_filter::{ModuleFilter, TypeFilter},
 };
 
+/// Represents optional available filters for events.
 #[derive(InputObject, Clone, Default)]
 pub(crate) struct EventFilter {
+    /// Filter down to events from transactions sent by this address.
     pub sender: Option<IotaAddress>,
+    /// Filter down to the events from this transaction (given by its
+    /// transaction digest).
     pub transaction_digest: Option<Digest>,
     // Enhancement (post-MVP)
     // after_checkpoint
+    // at_checkpoint
     // before_checkpoint
     /// Events emitted by a particular module. An event is emitted by a
     /// particular module if some function in the module is called by a

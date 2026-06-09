@@ -14,8 +14,6 @@ mod tests {
     use rand::{SeedableRng, rngs::StdRng};
     use serial_test::serial;
     use simulacrum::Simulacrum;
-    use tempfile::tempdir;
-
     struct Example {
         contents: String,
         path: Option<PathBuf>,
@@ -33,11 +31,11 @@ mod tests {
             for entry in entries {
                 let entry = entry.with_context(|| format!("Entry in {}", dir.display()))?;
                 let path = entry.path();
-                let typ_ = entry
+                let type_ = entry
                     .file_type()
                     .with_context(|| format!("Metadata for {}", path.display()))?;
 
-                if typ_.is_dir() {
+                if type_.is_dir() {
                     dirs.push(entry.path());
                     continue;
                 }
@@ -143,8 +141,9 @@ mod tests {
     #[serial]
     async fn good_examples_within_limits() {
         let rng = StdRng::from_seed([12; 32]);
-        let data_ingestion_path = tempdir().unwrap().keep();
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let tmp_dir = iota_common::tempdir();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
+        let sim = Simulacrum::new_with_rng(rng);
         let (mut max_nodes, mut max_output_nodes, mut max_depth, mut max_payload) = (0, 0, 0, 0);
 
         sim.set_data_ingestion_path(data_ingestion_path.clone());
@@ -154,7 +153,6 @@ mod tests {
             ConnectionConfig::default(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
             Arc::new(sim),
-            None,
             None,
             data_ingestion_path,
         )
@@ -210,8 +208,9 @@ mod tests {
     #[serial]
     async fn bad_examples_fail() {
         let rng = StdRng::from_seed([12; 32]);
-        let data_ingestion_path = tempdir().unwrap().keep();
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let tmp_dir = iota_common::tempdir();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
+        let sim = Simulacrum::new_with_rng(rng);
         let (mut max_nodes, mut max_output_nodes, mut max_depth, mut max_payload) = (0, 0, 0, 0);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -221,7 +220,6 @@ mod tests {
             ConnectionConfig::default(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
             Arc::new(sim),
-            None,
             None,
             data_ingestion_path,
         )

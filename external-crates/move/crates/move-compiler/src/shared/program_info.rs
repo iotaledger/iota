@@ -2,11 +2,21 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, fmt::Display, sync::Arc, sync::OnceLock};
+use std::{
+    collections::BTreeMap,
+    fmt::Display,
+    sync::{Arc, OnceLock},
+};
+
+use move_core_types::runtime_value;
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
 
 use self::known_attributes::AttributePosition;
 use crate::{
+    FullyCompiledProgram,
     expansion::ast::{AbilitySet, Attributes, ModuleIdent, Visibility},
+    iota_mode::info::IotaInfo,
     naming::ast::{
         self as N, DatatypeTypeParameter, EnumDefinition, FunctionSignature, ResolvedUseFuns,
         StructDefinition, SyntaxMethods, Type,
@@ -15,13 +25,8 @@ use crate::{
         ConstantName, DatatypeName, DocComment, Field, FunctionName, TargetKind, VariantName,
     },
     shared::{unique_map::UniqueMap, *},
-    iota_mode::info::IotaInfo,
     typing::ast::{self as T},
-    FullyCompiledProgram,
 };
-use move_core_types::runtime_value;
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
 
 #[derive(Debug, Clone)]
 pub struct FunctionInfo {

@@ -296,22 +296,10 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
         } else if config.checkpoint_store_config.is_some() {
             download_summaries_from_checkpoint_store(config, missing).await?;
         } else {
-            info!("Downloading missing summaries from full node.");
-
-            // Download summaries from the full node
-            let client = iota_rest_api::Client::new(&config.rpc_url);
-
-            // Download all missing checkpoints
-            for seq in missing {
-                info!("Downloading summary: {seq}");
-
-                let summary = client
-                    .get_checkpoint_summary(seq)
-                    .await
-                    .context(format!("Failed to download checkpoint summary '{seq}'"))?;
-
-                write_checkpoint_summary(config, &summary)?;
-            }
+            anyhow::bail!(
+                "No download source configured for missing checkpoint summaries. \
+                 Configure one of: archive_store_config or checkpoint_store_config."
+            );
         }
     }
 
@@ -492,7 +480,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_events(
         &self,
-        _: &iota_types::digests::TransactionEventsDigest,
+        _: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         unimplemented!()
     }
@@ -519,14 +507,14 @@ impl ReadStore for CheckpointSummaryFileStore {
 impl ObjectStore for CheckpointSummaryFileStore {
     fn try_get_object(
         &self,
-        _: &iota_types::base_types::ObjectID,
+        _: &iota_sdk_types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _: &iota_types::base_types::ObjectID,
+        _: &iota_sdk_types::ObjectId,
         _: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
@@ -535,9 +523,9 @@ impl ObjectStore for CheckpointSummaryFileStore {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::gas::GasCostSummary;
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
-        gas::GasCostSummary,
         message_envelope::Envelope,
         messages_checkpoint::{CheckpointContents, CheckpointSummary},
         supported_protocol_versions::ProtocolConfig,

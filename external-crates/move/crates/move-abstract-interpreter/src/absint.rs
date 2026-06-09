@@ -6,12 +6,12 @@
 use std::collections::BTreeMap;
 
 use move_binary_format::{
+    CompiledModule,
     errors::PartialVMResult,
     file_format::{
         AbilitySet, Bytecode, CodeOffset, CodeUnit, FunctionDefinitionIndex, FunctionHandle,
         Signature,
     },
-    CompiledModule,
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
 

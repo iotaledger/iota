@@ -5,10 +5,13 @@
 use fastcrypto::error::FastCryptoError;
 use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
+use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectIDParseError,
-    error::{IotaError, IotaObjectResponseError, UserInputError},
+    base_types::{ObjectIdParseError, SequenceNumber},
+    error::{IotaError, UserInputError},
+    iota_sdk_types_conversions::SdkTypeConversionError,
 };
 use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
 use thiserror::Error;
@@ -107,7 +110,7 @@ pub enum IndexerError {
     Uncategorized(#[from] anyhow::Error),
 
     #[error(transparent)]
-    ObjectIdParse(#[from] ObjectIDParseError),
+    ObjectIdParse(#[from] ObjectIdParseError),
 
     #[error("Invalid transaction digest with error: `{0}`")]
     InvalidTransactionDigest(String),
@@ -153,7 +156,32 @@ pub enum IndexerError {
 
     #[error("Transaction dependencies have not been indexed")]
     TransactionDependenciesNotIndexed,
+
+    #[error("historical fallback object not found: id {object_id}, version {version}")]
+    HistoricalFallbackObjectNotFound {
+        object_id: ObjectId,
+        version: SequenceNumber,
+    },
+    #[error("historical fallback storage error: {0}")]
+    HistoricalFallbackStorageError(String),
+
+    #[error("historical fallback input error: {0}")]
+    HistoricalFallbackInput(String),
+
+    #[error("Missing data due to pruning: `{0}`")]
+    DataPruned(String),
+
+    #[error("grpc error: `{0}`")]
+    Grpc(String),
+
+    #[error(transparent)]
+    SdkTypeConversion(#[from] SdkTypeConversionError),
+
+    #[error(transparent)]
+    IdentifierParse(#[from] iota_sdk_types::move_core::TypeParseError),
 }
+
+pub type IndexerResult<T> = Result<T, IndexerError>;
 
 pub trait Context<T> {
     fn context(self, context: &str) -> Result<T, IndexerError>;
@@ -180,5 +208,29 @@ impl From<IndexerError> for ErrorObjectOwned {
 impl From<tokio::task::JoinError> for IndexerError {
     fn from(value: tokio::task::JoinError) -> Self {
         IndexerError::Uncategorized(anyhow::Error::from(value))
+    }
+}
+
+impl From<reqwest::Error> for IndexerError {
+    fn from(err: reqwest::Error) -> Self {
+        IndexerError::Generic(format!("Reqwest error: {err}"))
+    }
+}
+
+impl From<url::ParseError> for IndexerError {
+    fn from(err: url::ParseError) -> Self {
+        IndexerError::Generic(format!("URL parse error: {err}"))
+    }
+}
+
+impl From<iota_grpc_client::Error> for IndexerError {
+    fn from(err: iota_grpc_client::Error) -> Self {
+        IndexerError::Grpc(err.to_string())
+    }
+}
+
+impl From<iota_grpc_types::proto::TryFromProtoError> for IndexerError {
+    fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
+        IndexerError::Grpc(err.to_string())
     }
 }

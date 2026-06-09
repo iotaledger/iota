@@ -18,7 +18,7 @@
 // 11 | epoch          |        11 |     2
 // 12 | epoch          |        12 |     3
 
-//# init --protocol-version 5 --addresses Test=0x0 --accounts A B --simulator
+//# init --protocol-version 13 --addresses Test=0x0 --accounts A B --simulator
 
 //# publish
 module Test::M1 {
@@ -250,7 +250,7 @@ module Test::M1 {
   checkpoint {
     sequenceNumber
   }
-  with_cursor: transactionBlocks(after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  with_cursor: transactionBlocks(after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     edges {
       cursor
       node {
@@ -265,7 +265,7 @@ module Test::M1 {
       }
     }
   }
-  without_cursor: transactionBlocks(filter: {signAddress: "@{A}"}) {
+  without_cursor: transactionBlocks(filter: {sentAddress: "@{A}"}) {
     edges {
       cursor
       node {

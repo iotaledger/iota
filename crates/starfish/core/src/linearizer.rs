@@ -8,23 +8,23 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Stake};
+use tracing::{error, instrument};
 
 use crate::{
     Round,
-    block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef, VerifiedBlockHeader},
-    commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
+    block_header::{
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, VerifiedBlockHeader,
+    },
+    commit::{
+        Commit, CommitAPI, CommitMetastate, PendingSubDag, TrustedCommit, sort_sub_dag_blocks,
+    },
     context::Context,
-    dag_state::{DagState, MAX_TRANSACTIONS_ACK_DEPTH},
+    dag_state::DagState,
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
-
-/// The maximum depth of the linearizer, i.e. how many rounds back it will
-/// traverse the DAG from a committed leader block
-// TODO: https://github.com/iotaledger/iota/issues/8379
-// make it derivable from the protocol parameters
-pub(crate) const MAX_LINEARIZER_DEPTH: Round = 60;
 
 /// The `StorageAPI` trait provides an interface for the block store and has
 /// been mostly introduced for allowing to inject the test store in
@@ -37,7 +37,7 @@ impl BlockStoreAPI
     for parking_lot::lock_api::RwLockReadGuard<'_, parking_lot::RawRwLock, DagState>
 {
     fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
-        DagState::get_block_headers(self, refs)
+        DagState::get_verified_block_headers(self, refs)
     }
 }
 
@@ -48,6 +48,7 @@ pub(crate) struct Linearizer {
     dag_state: Arc<RwLock<DagState>>,
     leader_schedule: Arc<LeaderSchedule>,
     transactions_ack_tracker: BTreeMap<BlockRef, StakeAggregator<QuorumThreshold>>,
+    traversed_headers_tracker: BTreeSet<BlockRef>,
 }
 
 impl Linearizer {
@@ -61,7 +62,15 @@ impl Linearizer {
             leader_schedule,
             context,
             transactions_ack_tracker: BTreeMap::new(),
+            traversed_headers_tracker: BTreeSet::new(),
         }
+    }
+
+    /// Reinitialize Linearizer after fast sync completes.
+    /// Clears tracked state for a fresh start.
+    pub(crate) fn clear_state(&mut self) {
+        self.transactions_ack_tracker.clear();
+        self.traversed_headers_tracker.clear();
     }
 
     /// Collect the sub-dag and the corresponding commit from a specific leader,
@@ -70,6 +79,8 @@ impl Linearizer {
     fn collect_sub_dag_and_commit(
         &mut self,
         leader_block: VerifiedBlockHeader,
+        metastate: Option<CommitMetastate>,
+        strong_voters: Vec<AuthorityIndex>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> (PendingSubDag, TrustedCommit) {
         let _s = self
@@ -85,20 +96,38 @@ impl Linearizer {
         let last_commit_digest = dag_state_guard.last_commit_digest();
         let last_commit_timestamp_ms = dag_state_guard.last_commit_timestamp_ms();
         let last_committed_rounds = dag_state_guard.last_committed_rounds();
-        let timestamp_ms = leader_block.timestamp_ms().max(last_commit_timestamp_ms);
 
         // Now linearize the sub-dag starting from the leader block
         let to_commit = Self::linearize_sub_dag(
             leader_block.clone(),
             last_committed_rounds,
             &dag_state_guard,
+            self.context.protocol_config.gc_depth(),
+        );
+
+        // Calculate commit timestamp using median of leader's parents (NEW mode)
+        let timestamp_ms = Self::calculate_commit_timestamp(
+            &self.context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
         );
 
         drop(dag_state_guard);
+        if self
+            .context
+            .protocol_config
+            .consensus_commit_transactions_only_for_traversed_headers()
+        {
+            for block_header in &to_commit {
+                self.traversed_headers_tracker
+                    .insert(block_header.reference());
+            }
+        }
 
         // Collect all block references for transactions that reached quorum after
         // adding acknowledgments
-        let committed_transactions = to_commit
+        let mut committed_transactions = to_commit
             .iter()
             // Add the acknowledgments to the tracker and collect the ones that reached quorum.
             // This will return a vector of block references that reached the quorum threshold, so
@@ -111,6 +140,28 @@ impl Linearizer {
                 )
             })
             .collect::<Vec<BlockRef>>();
+
+        // Optimistic: record the leader's r+1 strong-voters as acks for the
+        // leader's ref and each of its acknowledgments. Crossing 2f+1 commits
+        // the ref through the standard quorum path.
+        if metastate == Some(CommitMetastate::Optimistic) {
+            let leader_ref = leader_block.reference();
+            let refs: Vec<BlockRef> = std::iter::once(leader_ref)
+                .chain(leader_block.acknowledgments().iter().copied())
+                .collect();
+            for strong_voter in &strong_voters {
+                committed_transactions.extend(self.add_committed_transaction_acks(
+                    leader_block.round() + 1,
+                    *strong_voter,
+                    refs.clone(),
+                ));
+            }
+            // The order in which transactions are added to the committed_transactions
+            // in above loop is not deterministic and depends on local state of validator,
+            // so we need to sort them.
+            committed_transactions.sort();
+        }
+
         // Check that there are no duplicates in the committed transactions
         assert_eq!(
             committed_transactions.len(),
@@ -118,8 +169,38 @@ impl Linearizer {
             "Duplicate BlockRef found"
         );
 
+        // Convert BlockRef to GenericTransactionRef based on protocol flag
+        let committed_transactions_refs: Vec<GenericTransactionRef> =
+            if self.context.protocol_config.consensus_fast_commit_sync() {
+                // Use batch function to get transaction commitments efficiently
+                let dag_state_guard = self.dag_state.read();
+                let transactions_commitments =
+                    dag_state_guard.get_transactions_commitments_batch(&committed_transactions);
+
+                // Zip block_refs with their corresponding transaction commitments
+                committed_transactions
+                    .into_iter()
+                    .zip(transactions_commitments)
+                    .map(|(block_ref, transactions_commitment_opt)| {
+                        let transactions_commitment = transactions_commitment_opt
+                            .expect("Block header must exist for committed transaction");
+                        GenericTransactionRef::TransactionRef(TransactionRef {
+                            round: block_ref.round,
+                            author: block_ref.author,
+                            transactions_commitment,
+                        })
+                    })
+                    .collect()
+            } else {
+                committed_transactions
+                    .into_iter()
+                    .map(GenericTransactionRef::BlockRef)
+                    .collect()
+            };
+
         // Create the Commit.
         let commit = Commit::new(
+            &self.context,
             last_commit_index + 1,
             last_commit_digest,
             timestamp_ms,
@@ -128,7 +209,9 @@ impl Linearizer {
                 .iter()
                 .map(|block| block.reference())
                 .collect::<Vec<BlockRef>>(),
-            committed_transactions,
+            committed_transactions_refs,
+            reputation_scores_desc.clone(),
+            metastate == Some(CommitMetastate::Optimistic),
         );
         let serialized = commit
             .serialize()
@@ -139,6 +222,7 @@ impl Linearizer {
         let sub_dag = PendingSubDag::new(
             leader_block.reference(),
             to_commit,
+            commit.block_headers().to_vec(),
             commit.committed_transactions(),
             timestamp_ms,
             commit.reference(),
@@ -152,6 +236,7 @@ impl Linearizer {
         leader_block: VerifiedBlockHeader,
         last_committed_rounds: Vec<u32>,
         dag_state: &impl BlockStoreAPI,
+        max_linearizer_depth: u32,
     ) -> Vec<VerifiedBlockHeader> {
         let leader_block_ref = leader_block.reference();
         let leader_round = leader_block.round();
@@ -159,8 +244,8 @@ impl Linearizer {
 
         let mut to_commit = Vec::new();
 
-        let mut committed = HashSet::new();
-        assert!(committed.insert(leader_block_ref));
+        let mut traversed_headers = HashSet::new();
+        assert!(traversed_headers.insert(leader_block_ref));
 
         while let Some(x) = buffer.pop() {
             to_commit.push(x.clone());
@@ -174,10 +259,10 @@ impl Linearizer {
                             // We skip the block if we already committed it or
                             // we reached a round that we already committed or
                             // we traverse too far back in the past
-                            !committed.contains(ancestor)
+                            !traversed_headers.contains(ancestor)
                                 && last_committed_rounds[ancestor.author] < ancestor.round
                                 && ancestor.round
-                                    >= leader_round.saturating_sub(MAX_LINEARIZER_DEPTH)
+                                    >= leader_round.saturating_sub(max_linearizer_depth)
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -189,7 +274,7 @@ impl Linearizer {
 
             for ancestor in ancestors {
                 buffer.push(ancestor.clone());
-                assert!(committed.insert(ancestor.reference()));
+                assert!(traversed_headers.insert(ancestor.reference()));
             }
         }
 
@@ -204,9 +289,14 @@ impl Linearizer {
     // committed sub-dags.
     // Leaders in `committed_leaders` are assumed to be ordered in increasing
     // rounds.
-    pub(crate) fn handle_commit(
+    #[instrument(level = "trace", skip_all)]
+    pub(crate) fn get_pending_sub_dags(
         &mut self,
-        committed_leaders: Vec<VerifiedBlockHeader>,
+        committed_leaders: Vec<(
+            VerifiedBlockHeader,
+            Option<CommitMetastate>,
+            Vec<AuthorityIndex>,
+        )>,
     ) -> Vec<PendingSubDag> {
         if committed_leaders.is_empty() {
             return vec![];
@@ -220,7 +310,9 @@ impl Linearizer {
 
         let mut pending_sub_dags = vec![];
 
-        for (i, leader_block) in committed_leaders.into_iter().enumerate() {
+        for (i, (leader_block, metastate, strong_voters)) in
+            committed_leaders.into_iter().enumerate()
+        {
             let reputation_scores_desc = if schedule_updated && i == 0 {
                 self.leader_schedule
                     .leader_swap_table
@@ -231,8 +323,12 @@ impl Linearizer {
                 vec![]
             };
 
-            let (sub_dag, commit) =
-                self.collect_sub_dag_and_commit(leader_block, reputation_scores_desc);
+            let (sub_dag, commit) = self.collect_sub_dag_and_commit(
+                leader_block,
+                metastate,
+                strong_voters,
+                reputation_scores_desc,
+            );
 
             // Buffer commit in dag state for persistence later.
             // This also updates the last committed rounds.
@@ -243,31 +339,32 @@ impl Linearizer {
             pending_sub_dags.push(sub_dag);
         }
 
-        // Committed blocks must be persisted to storage before sending them to IOTA and
-        // executing their transactions.
-        // Commit metadata can be persisted more lazily because they are recoverable.
-        // Uncommitted blocks can wait to persist too.
-        // But for simplicity, all unpersisted blocks and commits are flushed to
-        // storage.
-        let mut dag_state_guard = self.dag_state.write();
-        dag_state_guard.flush();
-        drop(dag_state_guard);
-
         pending_sub_dags
     }
 
-    /// This function evicts old acknowledgments from the tracker. Should be
-    /// called for solid committed leader round since we rely on the ack
-    /// tracker in transaction synchronizer.
-    pub(crate) fn evict_old_acknowledgments(&mut self, solid_commit_leader_round: Round) {
-        let lower_bound_round = solid_commit_leader_round
-            .saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH);
-        let lower_bound = BlockRef::new(
+    /// This function evicts old acknowledgments and traversed headers from the
+    /// tracker. Should be called for solid committed leader round since we
+    /// rely on the ack tracker in transaction synchronizer.
+    pub(crate) fn evict_linearizer(&mut self, solid_commit_leader_round: Round) {
+        let lower_bound_round =
+            solid_commit_leader_round.saturating_sub(self.context.protocol_config.gc_depth() * 2);
+        let lower_header_bound = BlockRef::new(
             lower_bound_round + 1,
             AuthorityIndex::ZERO,
             BlockHeaderDigest::MIN,
         );
-        self.transactions_ack_tracker = self.transactions_ack_tracker.split_off(&lower_bound);
+
+        self.transactions_ack_tracker =
+            self.transactions_ack_tracker.split_off(&lower_header_bound);
+        if self
+            .context
+            .protocol_config
+            .consensus_commit_transactions_only_for_traversed_headers()
+        {
+            self.traversed_headers_tracker = self
+                .traversed_headers_tracker
+                .split_off(&lower_header_bound);
+        }
     }
 
     /// This function is called to add the transaction acknowledgments to the
@@ -279,9 +376,9 @@ impl Linearizer {
         authority: AuthorityIndex,
         acknowledgments: Vec<BlockRef>,
     ) -> Vec<BlockRef> {
-        let mut acknowledged_data = Vec::new();
+        let mut transactions_to_commit = Vec::new();
         for block_ref in acknowledgments {
-            if block_ref.round < round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH) {
+            if block_ref.round < round.saturating_sub(self.context.protocol_config.gc_depth()) {
                 continue; // Ignore acknowledgments for blocks that are too old
             }
             let votes_collector = self
@@ -292,10 +389,19 @@ impl Linearizer {
             let was_below_threshold = !votes_collector.reached_threshold(&self.context.committee);
 
             if votes_collector.add(authority, &self.context.committee) && was_below_threshold {
-                acknowledged_data.push(block_ref);
+                // We commit transactions only if at the moment of reaching the quorum the
+                // corresponding header is traversed
+                if !self
+                    .context
+                    .protocol_config
+                    .consensus_commit_transactions_only_for_traversed_headers()
+                    || self.traversed_headers_tracker.contains(&block_ref)
+                {
+                    transactions_to_commit.push(block_ref);
+                }
             }
         }
-        acknowledged_data
+        transactions_to_commit
     }
 
     /// This method accepts a vector of missing transaction references and
@@ -303,31 +409,152 @@ impl Linearizer {
     /// have acknowledged this reference.
     pub fn get_transaction_ack_authors(
         &self,
-        missing_refs: Vec<BlockRef>,
-    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        missing_refs: Vec<GenericTransactionRef>,
+    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
         let mut acknowledged_map = BTreeMap::new();
 
         for missing_ref in missing_refs {
-            if let Some(acknowledgments) = self.transactions_ack_tracker.get(&missing_ref) {
+            let block_ref = match missing_ref {
+                GenericTransactionRef::BlockRef(br) => br,
+                GenericTransactionRef::TransactionRef(tx_ref) => {
+                    let dag = self.dag_state.read();
+                    match dag.resolve_block_ref(&tx_ref) {
+                        Some(br) => br,
+                        None => {
+                            error!(
+                                "block_digest not found for {tx_ref:?} in transactions_ack_tracker lookup; \
+                                 entry should exist since missing txns are above eviction boundary"
+                            );
+                            continue;
+                        }
+                    }
+                }
+            };
+            if let Some(acknowledgments) = self.transactions_ack_tracker.get(&block_ref) {
                 acknowledged_map.insert(missing_ref, acknowledgments.votes());
             }
         }
 
         acknowledged_map
     }
+
+    /// Record headers as traversed when recovering state so transaction commit
+    /// checks can succeed after a restart.
+    pub(crate) fn record_traversed_headers<'a>(
+        &mut self,
+        headers: impl IntoIterator<Item = &'a VerifiedBlockHeader>,
+    ) {
+        if !self
+            .context
+            .protocol_config
+            .consensus_commit_transactions_only_for_traversed_headers()
+        {
+            return;
+        }
+
+        for header in headers {
+            self.traversed_headers_tracker.insert(header.reference());
+        }
+    }
+
+    /// Calculates the commit's timestamp using the median of leader's parents
+    /// (leader.round - 1) timestamps by stake. To ensure that commit timestamp
+    /// monotonicity is respected, it is compared against the
+    /// `last_commit_timestamp_ms` and the maximum of the two is returned.
+    pub(crate) fn calculate_commit_timestamp(
+        context: &Context,
+        dag_state: &impl BlockStoreAPI,
+        leader_block: &VerifiedBlockHeader,
+        last_commit_timestamp_ms: BlockTimestampMs,
+    ) -> BlockTimestampMs {
+        // Select leaders' parent blocks (blocks at round - 1)
+        let block_refs = leader_block
+            .ancestors()
+            .iter()
+            .filter(|block_ref| block_ref.round == leader_block.round() - 1)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        // Get the blocks from dag state which should not fail
+        let block_headers = dag_state
+            .get_block_headers(&block_refs)
+            .into_iter()
+            .map(|block_opt| block_opt.expect("We should have all block headers in dag state."));
+
+        let timestamp_ms = median_timestamp_by_stake(context, block_headers).unwrap_or_else(|e| {
+            panic!(
+                "Cannot compute median timestamp for leader block {:?} ancestors: {}",
+                leader_block.reference(),
+                e
+            )
+        });
+
+        // Always make sure that commit timestamps are monotonic, so override if
+        // necessary
+        timestamp_ms.max(last_commit_timestamp_ms)
+    }
+}
+
+/// Computes the median timestamp of the blocks weighted by the stake of their
+/// authorities. This function assumes each block comes from a different
+/// authority of the same round. Error is returned if no blocks are provided or
+///  the total stake is less than a quorum threshold.
+pub(crate) fn median_timestamp_by_stake(
+    context: &Context,
+    block_headers: impl Iterator<Item = VerifiedBlockHeader>,
+) -> Result<BlockTimestampMs, String> {
+    let mut total_stake = 0;
+    let mut timestamps = vec![];
+    for header in block_headers {
+        let stake = context.committee.authority(header.author()).stake;
+        timestamps.push((header.timestamp_ms(), stake));
+        total_stake += stake;
+    }
+
+    if timestamps.is_empty() {
+        return Err("No block headers provided".to_string());
+    }
+    if total_stake < context.committee.quorum_threshold() {
+        return Err(format!(
+            "Total stake {} < quorum threshold {}",
+            total_stake,
+            context.committee.quorum_threshold()
+        ));
+    }
+
+    Ok(median_timestamps_by_stake_inner(timestamps, total_stake))
+}
+
+fn median_timestamps_by_stake_inner(
+    mut timestamps: Vec<(BlockTimestampMs, Stake)>,
+    total_stake: Stake,
+) -> BlockTimestampMs {
+    timestamps.sort_by_key(|(ts, _)| *ts);
+
+    let mut cumulative_stake = 0;
+    for (ts, stake) in &timestamps {
+        cumulative_stake += stake;
+        if cumulative_stake > total_stake / 2 {
+            return *ts;
+        }
+    }
+
+    timestamps.last().unwrap().0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        CommitIndex,
-        commit::{CommitDigest, WAVE_LENGTH},
+        CommitIndex, TestBlockHeader,
+        commit::{CommitDigest, WAVE_LENGTH, with_no_metastate},
         context::Context,
+        dag_state::DataSource,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
+        transaction_ref::GenericTransactionRefAPI,
     };
 
     #[tokio::test]
@@ -359,34 +586,49 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders.clone()));
         for (idx, subdag) in commits.into_iter().enumerate() {
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
-            assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
+
+            let block_refs = leaders[idx]
+                .ancestors()
+                .iter()
+                .filter(|block_ref| block_ref.round == leaders[idx].round() - 1)
+                .cloned()
+                .collect::<Vec<_>>();
+            let blocks = dag_state
+                .read()
+                .get_block_headers(&block_refs)
+                .into_iter()
+                .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
+            let expected_ts = median_timestamp_by_stake(&context, blocks).unwrap();
+
+            assert_eq!(subdag.timestamp_ms, expected_ts);
+
             if idx == 0 {
                 // First subdag includes the leader block only and no committed data
-                assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.headers.len(), 1);
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 1 {
                 // Genesis blocks are included in the first commit
-                assert_eq!(subdag.blocks.len(), num_authorities);
+                assert_eq!(subdag.headers.len(), num_authorities);
                 // Transactions from genesis are not committed
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else {
                 // Every subdag after will be missing the leader block from the previous
                 // committed subdag
-                assert_eq!(subdag.blocks.len(), num_authorities);
+                assert_eq!(subdag.headers.len(), num_authorities);
                 // Every subdag after the first one will have all the committed transactions
                 // from 2 rounds before the leader round
                 assert_eq!(subdag.committed_transaction_refs.len(), num_authorities);
             }
-            for block in subdag.blocks.iter() {
-                assert!(block.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                assert!(block_ref.round <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round == leaders[idx].round() - 2);
+                assert!(committed_transactions_ref.round() == leaders[idx].round() - 2);
             }
 
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
@@ -412,7 +654,7 @@ mod tests {
 
         // Populate fully connected test blocks for round 0 ~ 20, authorities 0 ~ 3.
         let num_rounds: u32 = 20;
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=num_rounds)
             .build()
@@ -426,14 +668,14 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create some commits
-        let commits = linearizer.handle_commit(leaders.clone());
-
-        // Write them in DagState
-        dag_state
-            .write()
-            .add_scoring_subdags(commits.iter().map(|d| d.base.clone()).collect());
-        // Now update the leader schedule
-        leader_schedule.update_leader_schedule(&dag_state);
+        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders));
+        {
+            // Write them in DagState
+            let mut write = dag_state.write();
+            write.add_scoring_subdags(commits.iter().map(|d| d.base.clone()).collect());
+            // Now update the leader schedule
+            leader_schedule.update_leader_schedule(&mut write);
+        }
         assert!(
             leader_schedule.leader_schedule_updated(&dag_state),
             "Leader schedule should have been updated"
@@ -448,7 +690,7 @@ mod tests {
 
         // Now on the commits only the first one should contain the updated scores, the
         // other should be empty
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.get_pending_sub_dags(with_no_metastate(leaders));
         assert_eq!(commits.len(), 10);
         let scores = vec![
             (AuthorityIndex::new_for_test(1), 29),
@@ -500,20 +742,21 @@ mod tests {
         );
         dag_state
             .write()
-            .accept_block_headers(block_headers_wave_1.clone());
+            .accept_block_headers(block_headers_wave_1.clone(), DataSource::Test);
 
         let first_leader = dag_builder
             .leader_block(leader_round_wave_1)
             .expect("Wave 1 leader round block should exist");
         let mut last_commit_index = 1;
         let first_commit_data = TrustedCommit::new_for_test(
+            &context,
             last_commit_index,
             CommitDigest::MIN,
             0,
             first_leader.reference(),
             block_headers_wave_1
-                .into_iter()
-                .map(|block| block.reference())
+                .iter()
+                .map(|block_header| block_header.reference())
                 .collect(),
             vec![],
         );
@@ -537,7 +780,7 @@ mod tests {
         // Write them in dag state
         dag_state
             .write()
-            .accept_block_headers(block_headers_wave_2.clone());
+            .accept_block_headers(block_headers_wave_2.clone(), DataSource::Test);
 
         let mut block_refs_wave_2: Vec<_> = block_headers_wave_2
             .into_iter()
@@ -551,6 +794,7 @@ mod tests {
 
         last_commit_index += 1;
         let expected_second_commit = TrustedCommit::new_for_test(
+            &context,
             last_commit_index,
             CommitDigest::MIN,
             0,
@@ -559,29 +803,34 @@ mod tests {
             vec![],
         );
 
-        let commit = linearizer.handle_commit(vec![leader.clone()]);
+        let commit = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader.clone()]));
         assert_eq!(commit.len(), 1);
 
         let subdag = &commit[0];
         tracing::info!("{subdag:?}");
         assert_eq!(subdag.leader, leader.reference());
-        assert_eq!(subdag.timestamp_ms, leader.timestamp_ms());
         assert_eq!(subdag.commit_ref.index, expected_second_commit.index());
+
+        let expected_ts = median_timestamp_by_stake(
+            &context,
+            subdag.headers.iter().filter_map(|header| {
+                if header.round() == subdag.leader.round - 1 {
+                    Some(header.clone())
+                } else {
+                    None
+                }
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(subdag.timestamp_ms, expected_ts);
 
         // Using the same sorting as used in CommittedSubDag::sort
         block_refs_wave_2
             .sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
-        assert_eq!(
-            subdag
-                .blocks
-                .clone()
-                .into_iter()
-                .map(|b| b.reference())
-                .collect::<Vec<_>>(),
-            block_refs_wave_2
-        );
-        for block in subdag.blocks.iter() {
-            assert!(block.round() <= expected_second_commit.leader().round);
+        assert_eq!(subdag.committed_header_refs, block_refs_wave_2);
+        for block_ref in subdag.base.committed_header_refs.iter() {
+            assert!(block_ref.round <= expected_second_commit.leader().round);
         }
     }
 
@@ -648,20 +897,36 @@ mod tests {
             .collect::<Vec<_>>();
 
         for (idx, leader) in leaders.iter().enumerate() {
-            let subdags = linearizer.handle_commit(vec![leader.clone()]);
+            let subdags = linearizer.get_pending_sub_dags(with_no_metastate(vec![leader.clone()]));
             assert_eq!(subdags.len(), 1);
             let subdag = &subdags[0];
 
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
-            assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
+
+            let block_refs = leaders[idx]
+                .ancestors()
+                .iter()
+                .filter(|block_ref| block_ref.round == leaders[idx].round() - 1)
+                .cloned()
+                .collect::<Vec<_>>();
+            let blocks = dag_state
+                .read()
+                .get_block_headers(&block_refs)
+                .into_iter()
+                .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
+
+            let expected_ts = median_timestamp_by_stake(&context, blocks).unwrap();
+
+            assert_eq!(subdag.timestamp_ms, expected_ts);
+
             if idx == 0 {
                 // First subdag includes the leader block only
-                assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.headers.len(), 1);
                 // First subdag does not commit any transactions
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 1 {
-                assert_eq!(subdag.blocks.len(), 3);
+                assert_eq!(subdag.headers.len(), 3);
                 // The second subdag does not commit any transactions either yet
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 2 {
@@ -671,7 +936,7 @@ mod tests {
                 //   missing
                 // * 2 blocks on round 2, again as no commit happened on round 3, we commit the
                 //   "sub dag" of leader of round 3, which will be another 2 blocks
-                assert_eq!(subdag.blocks.len(), 6);
+                assert_eq!(subdag.headers.len(), 6);
 
                 // We commit transactions from:
                 // * 3 blocks on round 1, as no commit happened on round 3 since the leader was
@@ -691,9 +956,9 @@ mod tests {
                 }
             } else {
                 // we expect to see all blocks of round >= 1
-                assert_eq!(subdag.blocks.len(), 6);
+                assert_eq!(subdag.headers.len(), 6);
                 assert!(
-                    subdag.blocks.iter().all(|block| block.round() >= 1),
+                    subdag.headers.iter().all(|block| block.round() >= 1),
                     "Found blocks that are of round < 1."
                 );
 
@@ -709,12 +974,12 @@ mod tests {
                     assert_eq!(authors, (0..=3).map(AuthorityIndex::new_for_test).collect());
                 }
             }
-            for block in subdag.blocks.iter() {
-                assert!(block.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                assert!(block_ref.round <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round < leaders[idx].round());
+                assert!(committed_transactions_ref.round() < leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
@@ -735,42 +1000,44 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
         let num_rounds_to_evict = 20;
-        // Populate fully connected test blocks for round 0 ~ MAX_LINEARIZER_DEPTH +
-        // MAX_TRANSACTIONS_ACK_DEPTH + num_rounds_to_evict, authorities 0 ~ 3.
-        let num_rounds: u32 =
-            MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + num_rounds_to_evict;
-        let mut dag_builder = DagBuilder::new(context.clone());
+        // Populate fully connected test blocks for round 0 ~ protocol_config.gc_depth()
+        // * 2
+        // + num_rounds_to_evict, authorities 0 ~
+        // 3.
+        let num_rounds: u32 = context.protocol_config.gc_depth() * 2 + num_rounds_to_evict;
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=num_rounds)
             .build()
-            .persist_layers(dag_state.clone());
+            .persist_layers(dag_state);
 
         let leaders = dag_builder
             .leader_blocks(1..=num_rounds)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        linearizer.handle_commit(leaders.clone());
+        linearizer.get_pending_sub_dags(with_no_metastate(leaders));
         // Check that before eviction acknowledgements for all rounds up to num_rounds-2
         // are stored
         for round in 1..=num_rounds - 2 {
             let round_references: Vec<_> = dag_builder
                 .block_headers(round..=round)
                 .into_iter()
-                .map(|bh| bh.reference())
+                .map(|bh| GenericTransactionRef::from(bh.reference()))
                 .collect();
+
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
             assert_eq!(ack_authors.len(), 4);
         }
 
-        linearizer.evict_old_acknowledgments(num_rounds);
+        linearizer.evict_linearizer(num_rounds);
         // Check that acknowledgements for the first num_rounds_to_evict rounds are
         // evicted and the rest are still stored
         for round in 1..=num_rounds - 2 {
             let round_references: Vec<_> = dag_builder
                 .block_headers(round..=round)
                 .into_iter()
-                .map(|bh| bh.reference())
+                .map(|bh| GenericTransactionRef::from(bh.reference()))
                 .collect();
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
             if round <= num_rounds_to_evict {
@@ -779,5 +1046,505 @@ mod tests {
                 assert_eq!(ack_authors.len(), 4);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_calculate_commit_timestamp() {
+        let timestamp_1 = 3_000;
+        let timestamp_2 = 3_000;
+        let timestamp_3 = 6_000;
+        // GIVEN
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let ancestors = vec![
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(4, 0).set_timestamp_ms(1_000).build(),
+            ),
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(4, 1).set_timestamp_ms(2_000).build(),
+            ),
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(4, 2).set_timestamp_ms(3_000).build(),
+            ),
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(4, 3).set_timestamp_ms(4_000).build(),
+            ),
+        ];
+        let leader_block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, 0)
+                .set_timestamp_ms(5_000)
+                .set_ancestors(
+                    ancestors
+                        .iter()
+                        .map(|block| block.reference())
+                        .collect::<Vec<_>>(),
+                )
+                .build(),
+        );
+        {
+            let mut dag_state_guard = dag_state.write();
+            for block in &ancestors {
+                dag_state_guard.accept_block_header(block.clone(), DataSource::Test);
+            }
+        }
+        let last_commit_timestamp_ms = 0;
+        // WHEN
+        let dag_state_guard = dag_state.read();
+
+        let timestamp = Linearizer::calculate_commit_timestamp(
+            &context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
+        );
+        assert_eq!(timestamp, timestamp_1);
+        // AND skip the block of authority 0 and round 4.
+        let leader_block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, 0)
+                .set_timestamp_ms(5_000)
+                .set_ancestors(
+                    ancestors
+                        .iter()
+                        .skip(1)
+                        .map(|block| block.reference())
+                        .collect::<Vec<_>>(),
+                )
+                .build(),
+        );
+        let timestamp = Linearizer::calculate_commit_timestamp(
+            &context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
+        );
+        assert_eq!(timestamp, timestamp_2);
+        // AND set the `last_commit_timestamp_ms` to 6_000
+        let last_commit_timestamp_ms = 6_000;
+        let timestamp = Linearizer::calculate_commit_timestamp(
+            &context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
+        );
+        assert_eq!(timestamp, timestamp_3);
+        // AND there is only one ancestor block to commit
+        let (context, _) = Context::new_for_test(1);
+        let leader_block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, 0)
+                .set_timestamp_ms(5_000)
+                .set_ancestors(
+                    ancestors
+                        .iter()
+                        .take(1)
+                        .map(|block| block.reference())
+                        .collect::<Vec<_>>(),
+                )
+                .build(),
+        );
+        let last_commit_timestamp_ms = 0;
+        let timestamp = Linearizer::calculate_commit_timestamp(
+            &context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
+        );
+        assert_eq!(timestamp, 1_000);
+    }
+    #[test]
+    fn test_median_timestamps_by_stake() {
+        // One total stake.
+        let timestamps = vec![(1_000, 1)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 1), 1_000);
+        // Odd number of total stakes.
+        let timestamps = vec![(1_000, 1), (2_000, 1), (3_000, 1)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 3), 2_000);
+        // Even the number of total stakes.
+        let timestamps = vec![(1_000, 1), (2_000, 1), (3_000, 1), (4_000, 1)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 4), 3_000);
+        // Even number of total stakes, different order.
+        let timestamps = vec![(4_000, 1), (3_000, 1), (1_000, 1), (2_000, 1)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 4), 3_000);
+        // Unequal stakes.
+        let timestamps = vec![(2_000, 2), (4_000, 2), (1_000, 3), (3_000, 3)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 10), 3_000);
+        // Unequal stakes.
+        let timestamps = vec![
+            (500, 2),
+            (4_000, 2),
+            (2_500, 3),
+            (1_000, 5),
+            (3_000, 3),
+            (2_000, 4),
+        ];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 19), 2_000);
+        // One authority dominates.
+        let timestamps = vec![(1_000, 1), (2_000, 1), (3_000, 1), (4_000, 1), (5_000, 10)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 14), 5_000);
+    }
+    #[tokio::test]
+    async fn test_median_timestamps_by_stake_errors() {
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        // No blocks provided
+        let err = median_timestamp_by_stake(&context, vec![].into_iter()).unwrap_err();
+        assert_eq!(err, "No block headers provided");
+        // Blocks provided but total stake is less than a quorum threshold
+        let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
+        let err = median_timestamp_by_stake(&context, vec![block].into_iter()).unwrap_err();
+        assert_eq!(err, "Total stake 1 < quorum threshold 3");
+    }
+
+    #[tokio::test]
+    async fn test_optimistic_commits_leader_ref_and_acknowledgments() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=5).build().persist_layers(dag_state);
+
+        let leader = dag_builder
+            .leader_block(5)
+            .expect("Leader at round 5 should exist");
+        let leader_ref = leader.reference();
+        let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
+        assert!(
+            !leader_ack_refs.is_empty(),
+            "fully-linked round-5 leader should have acknowledgments"
+        );
+
+        // Synthetic strong-voter set: every authority. Carries 2f+1 stake so
+        // the per-ref tracker reaches quorum once these votes are added.
+        let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect();
+        let commits = linearizer.get_pending_sub_dags(vec![(
+            leader,
+            Some(CommitMetastate::Optimistic),
+            strong_voters,
+        )]);
+        assert_eq!(commits.len(), 1);
+        let optimistic_refs = &commits[0].committed_transaction_refs;
+        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+            refs.iter()
+                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+        };
+
+        // Optimistic commits the leader's own ref.
+        assert!(
+            contains_block(optimistic_refs, &leader_ref),
+            "Optimistic should include leader's own ref {leader_ref:?}"
+        );
+
+        // Optimistic commits every ack of the leader.
+        for ack_ref in &leader_ack_refs {
+            assert!(
+                contains_block(optimistic_refs, ack_ref),
+                "Optimistic should include leader's ack ref {ack_ref:?}"
+            );
+        }
+
+        // Optimistic is additive over the standard flow.
+        assert!(
+            optimistic_refs.len() > 1 + leader_ack_refs.len(),
+            "Optimistic should additively include standard-flow refs; \
+             got {} refs, optimistic-only would give {}",
+            optimistic_refs.len(),
+            1 + leader_ack_refs.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_optimistic_does_not_double_commit_across_sub_dags() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=7).build().persist_layers(dag_state);
+
+        // First commit: L_a at round 4 with Optimistic metastate.
+        let leader_a = dag_builder
+            .leader_block(4)
+            .expect("Leader at round 4 should exist");
+        let optimistic_set: Vec<BlockRef> = std::iter::once(leader_a.reference())
+            .chain(leader_a.acknowledgments().iter().copied())
+            .collect();
+        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+            refs.iter()
+                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+        };
+
+        let strong_voters: Vec<AuthorityIndex> = (0..num_authorities as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect();
+        let commits_a = linearizer.get_pending_sub_dags(vec![(
+            leader_a,
+            Some(CommitMetastate::Optimistic),
+            strong_voters,
+        )]);
+        assert_eq!(commits_a.len(), 1);
+        for block_ref in &optimistic_set {
+            assert!(
+                contains_block(&commits_a[0].committed_transaction_refs, block_ref),
+                "Optimistic commit of L_a should include {block_ref:?}"
+            );
+        }
+
+        // Second commit: L_b at round 7 standardly. Its causal history
+        // accumulates 2f+1 acks for L_a's optimistically-committed refs, but
+        // the votes already recorded for L_a's commit must keep the per-ref
+        // tracker at threshold so the standard path skips re-commit.
+        let leader_b = dag_builder
+            .leader_block(7)
+            .expect("Leader at round 7 should exist");
+        let commits_b = linearizer.get_pending_sub_dags(vec![(leader_b, None, vec![])]);
+        assert_eq!(commits_b.len(), 1);
+        for block_ref in &optimistic_set {
+            assert!(
+                !contains_block(&commits_b[0].committed_transaction_refs, block_ref),
+                "Standard commit of L_b should NOT re-include {block_ref:?} \
+                 already committed by L_a's Optimistic commit"
+            );
+        }
+
+        // Sanity: the standard flow still commits refs L_a never touched.
+        let has_round_5_ref = commits_b[0]
+            .committed_transaction_refs
+            .iter()
+            .any(|r| r.round() == 5);
+        assert!(
+            has_round_5_ref,
+            "Standard commit of L_b should still include round-5 refs"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_standard_metastate_does_not_commit_leader_ref_or_acks() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=5).build().persist_layers(dag_state);
+
+        let leader = dag_builder
+            .leader_block(5)
+            .expect("Leader at round 5 should exist");
+        let leader_ref = leader.reference();
+        let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
+
+        let commits = linearizer.get_pending_sub_dags(vec![(
+            leader,
+            Some(CommitMetastate::Standard),
+            vec![],
+        )]);
+        assert_eq!(commits.len(), 1);
+        let standard_refs = &commits[0].committed_transaction_refs;
+        let contains_block = |refs: &[GenericTransactionRef], block_ref: &BlockRef| -> bool {
+            refs.iter()
+                .any(|r| r.round() == block_ref.round && r.author() == block_ref.author)
+        };
+
+        // Standard metastate must not trigger the Optimistic shortcut.
+        assert!(
+            !contains_block(standard_refs, &leader_ref),
+            "Standard should not include leader's own ref {leader_ref:?}"
+        );
+        for ack_ref in &leader_ack_refs {
+            assert!(
+                !contains_block(standard_refs, ack_ref),
+                "Standard should not include leader's ack ref {ack_ref:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_optimistic_records_strong_voters_in_ack_tracker() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=5).build().persist_layers(dag_state);
+
+        let leader = dag_builder
+            .leader_block(5)
+            .expect("Leader at round 5 should exist");
+        let leader_ref = leader.reference();
+        let leader_ack_refs: Vec<BlockRef> = leader.acknowledgments().to_vec();
+
+        // Synthetic strong-voter set: exactly 2f+1 (= 3) authorities. These
+        // should land in the tracker as actual votes for the leader's ref and
+        // for every block the leader acknowledges, so that
+        // `get_transaction_ack_authors` returns them as fetch sources.
+        let strong_voters: BTreeSet<AuthorityIndex> =
+            (0..3u8).map(AuthorityIndex::new_for_test).collect();
+        let commits = linearizer.get_pending_sub_dags(vec![(
+            leader,
+            Some(CommitMetastate::Optimistic),
+            strong_voters.iter().copied().collect(),
+        )]);
+        assert_eq!(commits.len(), 1);
+
+        let ack_authors =
+            linearizer.get_transaction_ack_authors(commits[0].committed_transaction_refs.clone());
+
+        let leader_generic = ack_authors
+            .iter()
+            .find(|(r, _)| r.round() == leader_ref.round && r.author() == leader_ref.author)
+            .map(|(_, authors)| authors)
+            .expect("leader ref must be present in ack tracker");
+        assert!(
+            strong_voters.is_subset(leader_generic),
+            "leader ref tracker should record the strong-voter authorities; \
+             got {leader_generic:?}, expected superset of {strong_voters:?}"
+        );
+
+        for ack_ref in &leader_ack_refs {
+            let recorded = ack_authors
+                .iter()
+                .find(|(r, _)| r.round() == ack_ref.round && r.author() == ack_ref.author)
+                .map(|(_, authors)| authors)
+                .unwrap_or_else(|| panic!("ack ref {ack_ref:?} must be in tracker"));
+            assert!(
+                strong_voters.is_subset(recorded),
+                "ack ref {ack_ref:?} tracker should record the strong-voter authorities; \
+                 got {recorded:?}, expected superset of {strong_voters:?}"
+            );
+        }
+    }
+
+    /// A leader-ack that is not among the leader's ancestors never enters
+    /// the traversed-headers tracker, so the Optimistic path must not commit
+    /// it when `consensus_commit_transactions_only_for_traversed_headers` is
+    /// on.
+    #[tokio::test]
+    async fn test_optimistic_path_respects_traversed_headers_gate() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let (mut ctx, _) = Context::new_for_test(num_authorities);
+        ctx.protocol_config
+            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
+        let context = Arc::new(ctx);
+
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule = Arc::new(LeaderSchedule::new(
+            context.clone(),
+            LeaderSwapTable::default(),
+        ));
+        let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+
+        let all_authorities: Vec<AuthorityIndex> = (0..num_authorities as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect();
+        // Pick an authority that is neither the local node (own_index = 0) nor
+        // the round-5 leader. Their round-3 block will be the orphaned ref.
+        let orphan_author = AuthorityIndex::new_for_test(2);
+
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder
+            .layers(1..=3)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        // Round 4: every authority builds, but no round-4 block references the
+        // orphan author's round-3 block as either ancestor or ack. The orphan's
+        // round-3 block stays in dag_state but is not in the transitive
+        // ancestry of any round-5 block.
+        dag_builder
+            .layers(4..=4)
+            .authorities(all_authorities.clone())
+            .skip_ancestor_links(vec![orphan_author])
+            .skip_acknowledgements(vec![orphan_author])
+            .build()
+            .persist_layers(dag_state.clone());
+
+        dag_builder
+            .layers(5..=5)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let orphan_block = dag_builder
+            .block_headers(3..=3)
+            .into_iter()
+            .find(|b| b.author() == orphan_author)
+            .expect("orphan round-3 block should exist");
+        let orphan_ref = orphan_block.reference();
+
+        let leader_orig = dag_builder
+            .leader_block(5)
+            .expect("leader at round 5 should exist");
+        let leader_author = leader_orig.author();
+        let leader_ancestors: Vec<BlockRef> = leader_orig.ancestors().to_vec();
+        let mut modified_acks = leader_orig.acknowledgments().to_vec();
+        modified_acks.push(orphan_ref);
+        let leader_modified = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, leader_author.value() as u8)
+                .set_ancestors(leader_ancestors)
+                .set_acknowledgments(modified_acks)
+                .build(),
+        );
+        dag_state
+            .write()
+            .accept_block_header(leader_modified.clone(), DataSource::Test);
+
+        let subdags = linearizer.get_pending_sub_dags(vec![(
+            leader_modified,
+            Some(CommitMetastate::Optimistic),
+            all_authorities,
+        )]);
+        assert_eq!(subdags.len(), 1);
+
+        let contains_orphan = subdags[0]
+            .committed_transaction_refs
+            .iter()
+            .any(|r| r.round() == orphan_ref.round && r.author() == orphan_ref.author);
+        assert!(
+            !contains_orphan,
+            "Optimistic path must not commit a ref whose header is not traversed"
+        );
     }
 }

@@ -5,9 +5,6 @@
 /// The `ASCII` module defines basic string and char newtypes in Move that verify
 /// that characters are valid ASCII, and that strings consist of only valid ASCII characters.
 module base::ascii {
-    use std::vector;
-    use std::option::{Self, Option};
-
     /// An invalid ASCII character was encountered when creating an ASCII string.
     const EINVALID_ASCII_CHARACTER: u64 = 0x10000;
 

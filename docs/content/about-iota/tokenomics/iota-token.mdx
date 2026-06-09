@@ -7,7 +7,7 @@ description: The native asset on IOTA is called IOTA.
 ---
 
 import Quiz from '@site/src/components/Quiz';
-import {questions} from '../../../site/static/json/about-iota/tokenomics/iota-token.json';
+import quizData from '../../../site/static/json/about-iota/tokenomics/iota-token.json';
 
 The native asset on IOTA is called **IOTA**.
 
@@ -30,4 +30,4 @@ The IOTA token serves four purposes on the IOTA network:
 All original IOTA Tokens are represented as the `0x2::iota::IOTA` type of object on IOTA, accessible on the same (Hex format) addresses from the Stardust-based network. No manual migration is needed to access these tokens.
 
 
-<Quiz questions={questions} />
+<Quiz questions={quizData.questions} />

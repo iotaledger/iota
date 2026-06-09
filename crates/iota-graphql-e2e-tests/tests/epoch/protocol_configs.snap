@@ -15,10 +15,10 @@ task 2, lines 9-17:
 Response: {
   "data": {
     "protocolConfig": {
-      "protocolVersion": 4,
       "config": {
         "value": "128"
-      }
+      },
+      "protocolVersion": 4
     }
   }
 }
@@ -28,10 +28,10 @@ task 3, lines 19-27:
 Response: {
   "data": {
     "protocolConfig": {
-      "protocolVersion": 1,
       "config": {
         "value": "128"
-      }
+      },
+      "protocolVersion": 1
     }
   }
 }

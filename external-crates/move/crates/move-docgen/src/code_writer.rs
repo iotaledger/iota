@@ -4,11 +4,12 @@
 
 // TODO move this to docgen once this stabilizes
 
-use codespan::{ByteIndex, ByteOffset, RawIndex, RawOffset};
 use std::{cell::RefCell, collections::BTreeMap, ops::Deref};
 
-/// A label which can be created at the code writers current output position to later insert
-/// code at this position.
+use codespan::{ByteIndex, ByteOffset, RawIndex, RawOffset};
+
+/// A label which can be created at the code writers current output position to
+/// later insert code at this position.
 #[derive(Debug, Clone, Copy)]
 pub struct CodeWriterLabel(ByteIndex);
 
@@ -19,10 +20,12 @@ pub struct CodeWriter {
     /// Current active indentation.
     indent: usize,
 
-    /// A map from label indices to the current position in output they are pointing to.
+    /// A map from label indices to the current position in output they are
+    /// pointing to.
     label_map: BTreeMap<ByteIndex, ByteIndex>,
 }
 
+#[expect(unused)]
 pub struct CodeWriterRefCell(pub RefCell<CodeWriter>);
 
 impl CodeWriter {
@@ -79,9 +82,9 @@ impl CodeWriter {
         output
     }
 
-    /// Indents any subsequently written output. The current line of output and any subsequent ones
-    /// will be indented. Note this works after the last output was `\n` but the line is still
-    /// empty.
+    /// Indents any subsequently written output. The current line of output and
+    /// any subsequent ones will be indented. Note this works after the last
+    /// output was `\n` but the line is still empty.
     pub fn indent(&mut self) {
         self.indent += 4;
     }

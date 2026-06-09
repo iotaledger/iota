@@ -16,14 +16,19 @@ fastcrypto-vdf.workspace = true
 fastcrypto-zkp.workspace = true
 indexmap.workspace = true
 rand = { workspace = true, features = ["small_rng"] }
-smallvec.workspace = true
+serde.workspace = true
+smallvec = "1.10.0"
 tracing.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-stdlib-natives = { path = "../../../external-crates/move/crates/move-stdlib-natives" }
 move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
 move-vm-types = { path = "../../../external-crates/move/crates/move-vm-types" }
+
+[lints]
+workspace = true

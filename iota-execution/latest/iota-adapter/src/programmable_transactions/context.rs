@@ -8,7 +8,9 @@ pub use checked::*;
 mod checked {
     use std::{
         borrow::Borrow,
+        cell::RefCell,
         collections::{BTreeMap, BTreeSet, HashMap},
+        rc::Rc,
         sync::Arc,
     };
 
@@ -16,19 +18,23 @@ mod checked {
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{
+        Argument, CommandArgumentError, Identifier, ObjectId, Owner, StructTag, TypeTag,
+        move_package::MovePackage,
+    };
     use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
+        base_types::{IotaAddress, TxContext},
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
         execution::{ExecutionResults, ExecutionResultsV1},
-        execution_status::CommandArgumentError,
+        iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
-        move_package::MovePackage,
-        object::{Data, MoveObject, Object, ObjectInner, Owner},
+        move_package::{MovePackageExt, derive_package_metadata_id},
+        object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
-        transaction::{Argument, CallArg, ObjectArg},
+        transaction::{CallArg, SharedObjectRef},
     };
     use move_binary_format::{
         CompiledModule,
@@ -36,11 +42,8 @@ mod checked {
         file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
     };
     use move_core_types::{
-        account_address::AccountAddress,
-        identifier::IdentStr,
-        language_storage::{ModuleId, StructTag, TypeTag},
-        resolver::ModuleResolver,
-        vm_status::StatusCode,
+        account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
+        resolver::ModuleResolver, vm_status::StatusCode,
     };
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::{
@@ -80,11 +83,11 @@ mod checked {
         pub state_view: &'state dyn ExecutionState,
         /// A shared transaction context, contains transaction digest
         /// information and manages the creation of new object IDs
-        pub tx_context: &'a mut TxContext,
+        pub tx_context: Rc<RefCell<TxContext>>,
         /// The gas charger used for metering
         pub gas_charger: &'a mut GasCharger,
         /// Additional transfers not from the Move runtime
-        additional_transfers: Vec<(/* new owner */ IotaAddress, ObjectValue)>,
+        additional_transfers: Vec<(/* new owner */ Owner, ObjectValue)>,
         /// Newly published packages
         new_packages: Vec<MovePackage>,
         /// User events are claimed after each Move call
@@ -146,7 +149,7 @@ mod checked {
             metrics: Arc<LimitsMetrics>,
             vm: &'vm MoveVM,
             state_view: &'state dyn ExecutionState,
-            tx_context: &'a mut TxContext,
+            tx_context: Rc<RefCell<TxContext>>,
             gas_charger: &'a mut GasCharger,
             inputs: Vec<CallArg>,
         ) -> Result<Self, ExecutionError>
@@ -213,7 +216,8 @@ mod checked {
                 !gas_charger.is_unmetered(),
                 protocol_config,
                 metrics.clone(),
-                tx_context.epoch(),
+                tx_context.clone(),
+                state_view.read_auth_context(),
             );
 
             // Set the profiler if in CLI
@@ -222,7 +226,8 @@ mod checked {
                 use move_vm_profiler::GasProfiler;
                 use move_vm_types::gas::GasMeter;
 
-                let tx_digest = tx_context.digest();
+                let ref_context: &RefCell<TxContext> = tx_context.borrow();
+                let tx_digest = ref_context.borrow().digest();
                 let remaining_gas: u64 =
                     move_vm_types::gas::GasMeter::remaining_gas(&IotaGasMeter(gas_charger.move_gas_status_mut()))
                         .into();
@@ -253,15 +258,29 @@ mod checked {
             })
         }
 
-        pub fn object_runtime(&self) -> Result<&ObjectRuntime, ExecutionError> {
+        pub fn object_runtime(&self) -> Result<&ObjectRuntime<'_>, ExecutionError> {
             self.native_extensions
                 .get::<ObjectRuntime>()
                 .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))
         }
 
         /// Create a new ID and update the state
-        pub fn fresh_id(&mut self) -> Result<ObjectID, ExecutionError> {
-            let object_id = self.tx_context.fresh_id();
+        pub fn fresh_id(&mut self) -> Result<ObjectId, ExecutionError> {
+            let object_id = self.tx_context.borrow_mut().fresh_id();
+            self.native_extensions
+                .get_mut()
+                .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
+                .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))?;
+            Ok(object_id)
+        }
+
+        /// Create a new ID and update the state
+        pub(crate) fn package_derived_metadata_id(
+            &mut self,
+            package_storage_id: ObjectId,
+        ) -> Result<ObjectId, ExecutionError> {
+            let object_id = derive_package_metadata_id(package_storage_id);
+
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
@@ -270,7 +289,7 @@ mod checked {
         }
 
         /// Delete an ID and update the state
-        pub fn delete_id(&mut self, object_id: ObjectID) -> Result<(), ExecutionError> {
+        pub fn delete_id(&mut self, object_id: ObjectId) -> Result<(), ExecutionError> {
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.delete_id(object_id))
@@ -282,14 +301,14 @@ mod checked {
         /// ID of the link context package on success.
         pub fn set_link_context(
             &mut self,
-            package_id: ObjectID,
+            package_id: ObjectId,
         ) -> Result<AccountAddress, ExecutionError> {
             if self.linkage_view.has_linkage(package_id) {
                 // Setting same context again, can skip.
                 return Ok(self
                     .linkage_view
                     .original_package_id()
-                    .unwrap_or(*package_id));
+                    .unwrap_or(AccountAddress::new(package_id.into_bytes())));
             }
 
             let package = package_for_linkage(&self.linkage_view, package_id)
@@ -350,7 +369,7 @@ mod checked {
                     let Some(bytes) = value.simple_serialize(&layout) else {
                         invariant_violation!("Failed to deserialize already serialized Move value");
                     };
-                    Ok((module_id.clone(), tag, bytes))
+                    Ok((module_id.clone(), struct_tag_core_to_sdk(&tag), bytes))
                 })
                 .collect::<Result<Vec<_>, ExecutionError>>()?;
             self.user_events.extend(new_events);
@@ -387,21 +406,21 @@ mod checked {
 
         fn splat_arg(&self, res: &mut Vec<Arg>, arg: Argument) -> Result<(), EitherError> {
             match arg {
-                Argument::GasCoin => res.push(Arg(Arg_::V2(NormalizedArg::GasCoin))),
+                Argument::Gas => res.push(Arg(Arg_::V2(NormalizedArg::GasCoin))),
                 Argument::Input(i) => {
                     if i as usize >= self.inputs.len() {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i }.into());
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i }.into());
                     }
                     res.push(Arg(Arg_::V2(NormalizedArg::Input(i))))
                 }
                 Argument::NestedResult(i, j) => {
                     let Some(command_result) = self.results.get(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i }.into());
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i }.into());
                     };
                     if j as usize >= command_result.len() {
                         return Err(CommandArgumentError::SecondaryIndexOutOfBounds {
-                            result_idx: i,
-                            secondary_idx: j,
+                            result: i,
+                            subresult: j,
                         }
                         .into());
                     };
@@ -409,18 +428,19 @@ mod checked {
                 }
                 Argument::Result(i) => {
                     let Some(result) = self.results.get(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i }.into());
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i }.into());
                     };
                     let Ok(len): Result<u16, _> = result.len().try_into() else {
                         invariant_violation!("Result of length greater than u16::MAX");
                     };
                     if len != 1 {
                         // TODO protocol config to allow splatting of args
-                        return Err(
-                            CommandArgumentError::InvalidResultArity { result_idx: i }.into()
-                        );
+                        return Err(CommandArgumentError::InvalidResultArity { result: i }.into());
                     }
                     res.extend((0..len).map(|j| Arg(Arg_::V2(NormalizedArg::Result(i, j)))))
+                }
+                _ => {
+                    unimplemented!("a new Argument enum variant was added and needs to be handled")
                 }
             }
             Ok(())
@@ -448,7 +468,7 @@ mod checked {
         /// an object that cannot be taken by value (shared or immutable)
         pub fn by_value_arg<V: TryFromValue>(
             &mut self,
-            command_kind: CommandKind<'_>,
+            command_kind: CommandKind,
             arg_idx: usize,
             arg: Arg,
         ) -> Result<V, ExecutionError> {
@@ -457,7 +477,7 @@ mod checked {
         }
         fn by_value_arg_<V: TryFromValue>(
             &mut self,
-            command_kind: CommandKind<'_>,
+            command_kind: CommandKind,
             arg: Arg,
         ) -> Result<V, EitherError> {
             let is_borrowed = self.arg_is_borrowed(&arg);
@@ -629,7 +649,13 @@ mod checked {
             obj: ObjectValue,
             addr: IotaAddress,
         ) -> Result<(), ExecutionError> {
-            self.additional_transfers.push((addr, obj));
+            self.additional_transfers.push((Owner::Address(addr), obj));
+            Ok(())
+        }
+
+        /// Freeze the object
+        pub fn freeze_object(&mut self, obj: ObjectValue) -> Result<(), ExecutionError> {
+            self.additional_transfers.push((Owner::Immutable, obj));
             Ok(())
         }
 
@@ -646,7 +672,7 @@ mod checked {
         /// and `dependencies`
         pub fn upgrade_package<'p>(
             &self,
-            storage_id: ObjectID,
+            storage_id: ObjectId,
             previous_package: &MovePackage,
             new_modules: &[CompiledModule],
             dependencies: impl IntoIterator<Item = &'p MovePackage>,
@@ -705,7 +731,9 @@ mod checked {
                 state_view,
                 ..
             } = self;
-            let tx_digest = tx_context.digest();
+            let ref_context: &RefCell<TxContext> = tx_context.borrow();
+            let tx_digest = ref_context.borrow().digest();
+
             let gas_id_opt = gas.object_metadata.as_ref().map(|info| info.id());
             let mut loaded_runtime_objects = BTreeMap::new();
             let mut additional_writes = BTreeMap::new();
@@ -751,8 +779,8 @@ mod checked {
                             None => (),
                             Some(Value::Object(_)) => {
                                 return Err(ExecutionErrorKind::UnusedValueWithoutDrop {
-                                    result_idx: i as u16,
-                                    secondary_idx: j as u16,
+                                    result: i as u16,
+                                    subresult: j as u16,
                                 }
                                 .into());
                             }
@@ -776,8 +804,8 @@ mod checked {
                                     };
                                     return Err(ExecutionError::new_with_source(
                                         ExecutionErrorKind::UnusedValueWithoutDrop {
-                                            result_idx: i as u16,
-                                            secondary_idx: j as u16,
+                                            result: i as u16,
+                                            subresult: j as u16,
                                         },
                                         msg,
                                     ));
@@ -790,8 +818,7 @@ mod checked {
                 }
             }
             // add transfers from TransferObjects command
-            for (recipient, object_value) in additional_transfers {
-                let owner = Owner::AddressOwner(recipient);
+            for (owner, object_value) in additional_transfers {
                 add_additional_write(&mut additional_writes, owner, object_value)?;
             }
             // Refund unused gas
@@ -919,13 +946,16 @@ mod checked {
             let user_events = user_events
                 .into_iter()
                 .map(|(module_id, tag, contents)| {
-                    Event::new(
-                        module_id.address(),
-                        module_id.name(),
-                        tx_context.sender(),
-                        tag,
+                    let package_id = ObjectId::new(module_id.address().into_bytes());
+                    let module = Identifier::new_unchecked(module_id.name().as_str());
+                    let sender = ref_context.borrow().sender();
+                    Event {
+                        package_id,
+                        module,
+                        sender,
+                        type_: tag,
                         contents,
-                    )
+                    }
                 })
                 .collect();
 
@@ -948,19 +978,19 @@ mod checked {
 
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
-            use iota_types::execution_status::TypeArgumentError;
+            use iota_sdk_types::TypeArgumentError;
             use move_core_types::vm_status::StatusCode;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {
                     ExecutionErrorKind::TypeArityMismatch.into()
                 }
                 StatusCode::TYPE_RESOLUTION_FAILURE => ExecutionErrorKind::TypeArgumentError {
-                    argument_idx: idx as TypeParameterIndex,
+                    type_argument: idx as TypeParameterIndex,
                     kind: TypeArgumentError::TypeNotFound,
                 }
                 .into(),
                 StatusCode::CONSTRAINT_NOT_SATISFIED => ExecutionErrorKind::TypeArgumentError {
-                    argument_idx: idx as TypeParameterIndex,
+                    type_argument: idx as TypeParameterIndex,
                     kind: TypeArgumentError::ConstraintNotSatisfied,
                 }
                 .into(),
@@ -1023,33 +1053,36 @@ mod checked {
         ) -> Result<(Option<&InputObjectMetadata>, &mut Option<Value>), CommandArgumentError>
         {
             let (metadata, result_value) = match arg {
-                Argument::GasCoin => (self.gas.object_metadata.as_ref(), &mut self.gas.inner),
+                Argument::Gas => (self.gas.object_metadata.as_ref(), &mut self.gas.inner),
                 Argument::Input(i) => {
                     let Some(input_value) = self.inputs.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i });
                     };
                     (input_value.object_metadata.as_ref(), &mut input_value.inner)
                 }
                 Argument::Result(i) => {
                     let Some(command_result) = self.results.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i });
                     };
                     if command_result.len() != 1 {
-                        return Err(CommandArgumentError::InvalidResultArity { result_idx: i });
+                        return Err(CommandArgumentError::InvalidResultArity { result: i });
                     }
                     (None, &mut command_result[0])
                 }
                 Argument::NestedResult(i, j) => {
                     let Some(command_result) = self.results.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i });
                     };
                     let Some(result_value) = command_result.get_mut(j as usize) else {
                         return Err(CommandArgumentError::SecondaryIndexOutOfBounds {
-                            result_idx: i,
-                            secondary_idx: j,
+                            result: i,
+                            subresult: j,
                         });
                     };
                     (None, result_value)
+                }
+                _ => {
+                    unimplemented!("a new Argument enum variant was added and needs to be handled")
                 }
             };
             if let Some(usage) = update_last_usage {
@@ -1140,7 +1173,7 @@ mod checked {
         /// linkage view to properly interpret and instantiate the object.
         pub(crate) fn make_object_value(
             &mut self,
-            type_: MoveObjectType,
+            type_: StructTag,
             used_in_non_entry_move_call: bool,
             contents: &[u8],
         ) -> Result<ObjectValue, ExecutionError> {
@@ -1183,6 +1216,7 @@ mod checked {
                 .get_runtime()
                 .get_type_tag(type_)
                 .map_err(|e| self.convert_vm_error(e))
+                .map(|tt| type_tag_core_to_sdk(&tt))
         }
     }
 
@@ -1191,7 +1225,7 @@ mod checked {
     /// or is not a package.
     fn package_for_linkage(
         linkage_view: &LinkageView,
-        package_id: ObjectID,
+        package_id: ObjectId,
     ) -> VMResult<PackageObject> {
         use move_binary_format::errors::PartialVMError;
         use move_core_types::vm_status::StatusCode;
@@ -1224,15 +1258,8 @@ mod checked {
             Err(PartialVMError::new(code).finish(Location::Undefined))
         }
 
-        let StructTag {
-            address,
-            module,
-            name,
-            type_params,
-        } = struct_tag;
-
         // Load the package that the struct is defined in, in storage
-        let defining_id = ObjectID::from_address(*address);
+        let defining_id = struct_tag.address().into();
         let package = package_for_linkage(linkage_view, defining_id)?;
 
         // Set the defining package as the link context while loading the
@@ -1245,22 +1272,30 @@ mod checked {
                     .finish(Location::Undefined)
             })?;
 
-        let runtime_id = ModuleId::new(original_address, module.clone());
+        let runtime_id = ModuleId::new(
+            original_address,
+            move_core_types::identifier::Identifier::new(struct_tag.module().as_str()).unwrap(),
+        );
         let data_store = IotaDataStore::new(linkage_view, new_packages);
-        let res = vm.get_runtime().load_type(&runtime_id, name, &data_store);
+        let res = vm.get_runtime().load_type(
+            &runtime_id,
+            IdentStr::new(struct_tag.name().as_str()).unwrap(),
+            &data_store,
+        );
         linkage_view.reset_linkage();
         let (idx, struct_type) = res?;
 
         // Recursively load type parameters, if necessary
         let type_param_constraints = struct_type.type_param_constraints();
-        if type_param_constraints.len() != type_params.len() {
+        if type_param_constraints.len() != struct_tag.type_params().len() {
             return verification_error(StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH);
         }
 
-        if type_params.is_empty() {
+        if struct_tag.type_params().is_empty() {
             Ok(Type::Datatype(idx))
         } else {
-            let loaded_type_params = type_params
+            let loaded_type_params = struct_tag
+                .type_params()
                 .iter()
                 .map(|type_param| load_type(vm, linkage_view, new_packages, type_param))
                 .collect::<VMResult<Vec<_>>>()?;
@@ -1309,7 +1344,7 @@ mod checked {
         })
     }
 
-    /// Constructs an `ObjectValue` based on the provided `MoveObjectType`,
+    /// Constructs an `ObjectValue` based on the provided `StructTag`,
     /// contents, and additional flags such as transferability and usage
     /// context. If the object is a coin, it deserializes the contents into
     /// a `Coin` type; otherwise, it treats the contents as raw data. The
@@ -1319,7 +1354,7 @@ mod checked {
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        type_: MoveObjectType,
+        type_: StructTag,
         used_in_non_entry_move_call: bool,
         contents: &[u8],
     ) -> Result<ObjectValue, ExecutionError> {
@@ -1332,8 +1367,7 @@ mod checked {
             ObjectContents::Raw(contents.to_vec())
         };
 
-        let tag: StructTag = type_.into();
-        let type_ = load_type_from_struct(vm, linkage_view, new_packages, &tag)
+        let type_ = load_type_from_struct(vm, linkage_view, new_packages, &type_)
             .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
         let abilities = vm
             .get_runtime()
@@ -1352,7 +1386,7 @@ mod checked {
         fn is_gas_coin(&self) -> bool {
             // kept as two separate matches for exhaustiveness
             match self {
-                Arg(Arg_::V1(a)) => matches!(a, Argument::GasCoin),
+                Arg(Arg_::V1(a)) => matches!(a, Argument::Gas),
                 Arg(Arg_::V2(n)) => matches!(n, NormalizedArg::GasCoin),
             }
         }
@@ -1363,7 +1397,7 @@ mod checked {
             match arg.0 {
                 Arg_::V1(a) => a,
                 Arg_::V2(normalized) => match normalized {
-                    NormalizedArg::GasCoin => Argument::GasCoin,
+                    NormalizedArg::GasCoin => Argument::Gas,
                     NormalizedArg::Input(i) => Argument::Input(i),
                     NormalizedArg::Result(i, j) => Argument::NestedResult(i, j),
                 },
@@ -1372,7 +1406,7 @@ mod checked {
     }
 
     /// Converts a provided `Object` into an `ObjectValue`, extracting and
-    /// validating the `MoveObjectType` and contents. This function assumes
+    /// validating the `StructTag` and contents. This function assumes
     /// the object contains Move-specific data and passes the extracted data
     /// through `make_object_value` to create the corresponding `ObjectValue`.
     pub(crate) fn value_from_object(
@@ -1382,7 +1416,7 @@ mod checked {
         object: &Object,
     ) -> Result<ObjectValue, ExecutionError> {
         let ObjectInner {
-            data: Data::Move(object),
+            data: Data::Struct(object),
             ..
         } = object.as_inner()
         else {
@@ -1394,7 +1428,7 @@ mod checked {
             vm,
             linkage_view,
             new_packages,
-            object.type_().clone(),
+            object.struct_tag().clone(),
             used_in_non_entry_move_call,
             object.contents(),
         )
@@ -1406,9 +1440,9 @@ mod checked {
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
         override_as_immutable: bool,
-        id: ObjectID,
+        id: ObjectId,
     ) -> Result<InputValue, ExecutionError> {
         let Some(obj) = state_view.read_object(&id) else {
             // protected by transaction input checker
@@ -1416,17 +1450,18 @@ mod checked {
         };
         // override_as_immutable ==> Owner::Shared
         assert_invariant!(
-            !override_as_immutable || matches!(obj.owner, Owner::Shared { .. }),
+            !override_as_immutable || matches!(obj.owner, Owner::Shared(_)),
             "override_as_immutable should only be set for shared objects"
         );
         let is_mutable_input = match obj.owner {
-            Owner::AddressOwner(_) => true,
-            Owner::Shared { .. } => !override_as_immutable,
+            Owner::Address(_) => true,
+            Owner::Shared(_) => !override_as_immutable,
             Owner::Immutable => false,
-            Owner::ObjectOwner(_) => {
+            Owner::Object(_) => {
                 // protected by transaction input checker
-                invariant_violation!("ObjectOwner objects cannot be input")
+                invariant_violation!("Object-owned objects cannot be inputs")
             }
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         };
         let owner = obj.owner;
         let version = obj.version();
@@ -1468,34 +1503,34 @@ mod checked {
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
         call_arg: CallArg,
     ) -> Result<InputValue, ExecutionError> {
         Ok(match call_arg {
-            CallArg::Pure(bytes) => InputValue::new_raw(RawValueType::Any, bytes),
-            CallArg::Object(obj_arg) => load_object_arg(
+            CallArg::Pure(value) => InputValue::new_raw(RawValueType::Any, value),
+            other => load_object_arg(
                 vm,
                 state_view,
                 linkage_view,
                 new_packages,
                 input_object_map,
-                obj_arg,
+                other,
             )?,
         })
     }
 
-    /// Load an ObjectArg from state view, marking if it can be treated as
-    /// mutable or not
+    /// Load an object `CallArg` from state view, marking if it can be treated
+    /// as mutable or not
     fn load_object_arg(
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
-        obj_arg: ObjectArg,
+        input_object_map: &mut BTreeMap<ObjectId, object_runtime::InputObject>,
+        obj_arg: CallArg,
     ) -> Result<InputValue, ExecutionError> {
         match obj_arg {
-            ObjectArg::ImmOrOwnedObject((id, _, _)) => load_object(
+            CallArg::ImmutableOrOwned(object_ref) => load_object(
                 vm,
                 state_view,
                 linkage_view,
@@ -1503,9 +1538,13 @@ mod checked {
                 input_object_map,
                 // imm override
                 false,
-                id,
+                object_ref.object_id,
             ),
-            ObjectArg::SharedObject { id, mutable, .. } => load_object(
+            CallArg::Shared(SharedObjectRef {
+                object_id: id,
+                mutable,
+                ..
+            }) => load_object(
                 vm,
                 state_view,
                 linkage_view,
@@ -1515,15 +1554,22 @@ mod checked {
                 !mutable,
                 id,
             ),
-            ObjectArg::Receiving((id, version, _)) => {
-                Ok(InputValue::new_receiving_object(id, version))
-            }
+            CallArg::Receiving(object_ref) => Ok(InputValue::new_receiving_object(
+                object_ref.object_id,
+                object_ref.version,
+            )),
+            CallArg::Pure(_) => Err(ExecutionError::invariant_violation(
+                "unexpected pure CallArg in load_object_arg",
+            )),
+            _ => Err(ExecutionError::invariant_violation(
+                "a new CallArg enum variant was added and needs to be handled",
+            )),
         }
     }
 
     /// Generate an additional write for an ObjectValue
     fn add_additional_write(
-        additional_writes: &mut BTreeMap<ObjectID, AdditionalWrite>,
+        additional_writes: &mut BTreeMap<ObjectId, AdditionalWrite>,
         owner: Owner,
         object_value: ObjectValue,
     ) -> Result<(), ExecutionError> {
@@ -1534,9 +1580,11 @@ mod checked {
             ObjectContents::Coin(coin) => coin.to_bcs_bytes(),
             ObjectContents::Raw(bytes) => bytes,
         };
-        let object_id = MoveObject::id_opt(&bytes).map_err(|e| {
-            ExecutionError::invariant_violation(format!("No id for Raw object bytes. {e}"))
-        })?;
+        let object_id =
+            ObjectId::from_bytes(bytes.get(..ObjectId::LENGTH).ok_or_else(|| {
+                ExecutionError::invariant_violation("No id for Raw object bytes")
+            })?)
+            .expect("ObjectId::LENGTH bytes is always a valid ObjectId");
         let additional_write = AdditionalWrite {
             recipient: owner,
             type_,
@@ -1550,9 +1598,9 @@ mod checked {
     /// transaction, now we return exactly that amount. Gas will be charged
     /// by the execution engine
     fn refund_max_gas_budget(
-        additional_writes: &mut BTreeMap<ObjectID, AdditionalWrite>,
+        additional_writes: &mut BTreeMap<ObjectId, AdditionalWrite>,
         gas_charger: &mut GasCharger,
-        gas_id: ObjectID,
+        gas_id: ObjectId,
     ) -> Result<(), ExecutionError> {
         let Some(AdditionalWrite { bytes, .. }) = additional_writes.get_mut(&gas_id) else {
             invariant_violation!("Gas object cannot be wrapped or destroyed")
@@ -1576,30 +1624,32 @@ mod checked {
         vm: &MoveVM,
         linkage_view: &LinkageView,
         protocol_config: &ProtocolConfig,
-        objects_modified_at: &BTreeMap<ObjectID, LoadedRuntimeObject>,
-        id: ObjectID,
+        objects_modified_at: &BTreeMap<ObjectId, LoadedRuntimeObject>,
+        id: ObjectId,
         type_: Type,
         contents: Vec<u8>,
     ) -> Result<MoveObject, ExecutionError> {
         debug_assert_eq!(
             id,
-            MoveObject::id_opt(&contents).expect("object contents should start with an id")
+            ObjectId::from_bytes(&contents[..ObjectId::LENGTH])
+                .expect("object contents should start with an id")
         );
         let old_obj_ver = objects_modified_at
             .get(&id)
             .map(|obj: &LoadedRuntimeObject| obj.version);
 
-        let type_tag = vm
-            .get_runtime()
-            .get_type_tag(&type_)
-            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+        let type_tag = type_tag_core_to_sdk(
+            &vm.get_runtime()
+                .get_type_tag(&type_)
+                .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?,
+        );
 
         let struct_tag = match type_tag {
             TypeTag::Struct(inner) => *inner,
             _ => invariant_violation!("Non struct type for object"),
         };
         MoveObject::new_from_execution(
-            struct_tag.into(),
+            struct_tag,
             old_obj_ver.unwrap_or_default(),
             contents,
             protocol_config,
@@ -1631,7 +1681,13 @@ mod checked {
 
         fn get_module(&self, module_id: &ModuleId) -> Option<&Vec<u8>> {
             for package in self.new_packages {
-                let module = package.get_module(module_id);
+                if package.id != ObjectId::from(module_id.address().into_bytes()) {
+                    continue;
+                }
+
+                let module =
+                    package.get_module(&Identifier::new_unchecked(module_id.name().as_str()));
+
                 if module.is_some() {
                     return module;
                 }

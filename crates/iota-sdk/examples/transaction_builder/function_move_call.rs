@@ -11,14 +11,12 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        Identifier,
-        base_types::ObjectID,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, CallArg, Command, Transaction, TransactionData},
+        transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
     },
 };
-use shared_crypto::intent::Intent;
+use iota_sdk_types::{Argument, Command, Identifier, ObjectId, crypto::Intent};
 use utils::setup_for_write;
 
 // This example shows how to use programmable transactions to chain multiple
@@ -53,7 +51,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Create an Argument::Input for Pure 6 value of type u64
     let input_value = 10u64;
-    let input_argument = CallArg::Pure(bcs::to_bytes(&input_value).unwrap());
+    let input_argument = CallArg::pure(&input_value);
 
     // Add this input to the builder
     ptb.input(input_argument)?;
@@ -61,10 +59,10 @@ async fn main() -> Result<(), anyhow::Error> {
     // 3) add a move call to the PTB
     // Replace the pkg_id with the package id you want to call
     let pkg_id = "0x883393ee444fb828aa0e977670cf233b0078b41d144e6208719557cb3888244d";
-    let package = ObjectID::from_hex_literal(pkg_id).map_err(|e| anyhow!(e))?;
+    let package = ObjectId::from_hex(pkg_id).map_err(|e| anyhow!(e))?;
     let module = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
     let function = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
-    ptb.command(Command::move_call(
+    ptb.command(Command::new_move_call(
         package,
         module,
         function,

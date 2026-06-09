@@ -1,0 +1,234 @@
+---
+title: IoT Weather Station - Dynamic Notarization
+sidebar_label: IoT Weather Station
+description: Real-world example demonstrating an IoT weather station using dynamic notarization for continuous sensor data recording.
+teams:
+  - iotaledger/identity
+tags:
+  - notarization
+  - dynamic-notarization
+---
+
+# IoT Weather Station - Dynamic Notarization
+
+This real-world example demonstrates how to use IOTA Notarization to create an IoT weather station system that continuously reports temperature, humidity, and pressure readings while maintaining data integrity and providing an immutable audit trail.
+
+## Business Context
+
+IoT weather stations need to provide verifiable, timestamped environmental data that can be trusted by:
+- Weather monitoring services requiring certified data feeds
+- Agricultural systems making irrigation decisions
+- Smart city infrastructure optimizing energy consumption
+- Insurance companies assessing weather-related claims
+- Research institutions collecting climate data
+- Emergency services monitoring environmental conditions
+
+## Field Usage Strategy
+
+The system leverages different notarization fields for optimal data organization:
+
+- **`state.data`**: Current sensor readings (temperature, humidity, pressure) in JSON format
+- **`state.metadata`**: Measurement context (location, coordinates, timestamp)
+- **`immutable_description`**: Static device information (model, sensors, installation date)
+- **`updatable_metadata`**: Dynamic operational status (battery level, signal strength, maintenance info)
+
+This separation enables efficient updates while maintaining clear data categorization and integrity.
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Notarization client SDK installed
+- IoT device with environmental sensors (or simulated data)
+
+## Implementation Overview
+
+### 1. Initialize Weather Station Notarization
+
+Create the initial dynamic notarization with device information and first sensor reading:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/01_iot_weather_station.rs#L35-L70
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/01_iot_weather_station.ts#L44-L84
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Update Sensor Readings
+
+Continuously update the weather station with new sensor measurements:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/01_iot_weather_station.rs#L80-L112
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/01_iot_weather_station.ts#L92-L123
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Update Device Status
+
+Periodically update operational metadata like battery level and signal strength:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/01_iot_weather_station.rs#L120-L140
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/01_iot_weather_station.ts#L135-L148
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Agricultural Monitoring
+- **Scenario**: Smart farming system monitoring field conditions
+- **Process**: Hourly weather updates informing automated irrigation decisions
+- **Benefits**: Water conservation, crop optimization, yield prediction
+
+### Smart City Infrastructure
+- **Scenario**: Urban environmental monitoring network
+- **Process**: Real-time air quality and weather data collection
+- **Benefits**: Traffic optimization, energy management, pollution control
+
+### Weather Service Integration
+- **Scenario**: Professional weather forecasting service data feeds
+- **Process**: Certified meteorological station data with audit trails
+- **Benefits**: Regulatory compliance, data quality assurance, liability protection
+
+### Insurance Claims Verification
+- **Scenario**: Weather-related damage assessment
+- **Process**: Historical weather data verification for claim validation
+- **Benefits**: Fraud prevention, accurate assessments, automated processing
+
+### Research Data Collection
+- **Scenario**: Climate research institution data gathering
+- **Process**: Long-term environmental monitoring with data provenance
+- **Benefits**: Research integrity, reproducible results, data sharing
+
+### Emergency Response
+- **Scenario**: Severe weather monitoring and alerting
+- **Process**: Real-time condition monitoring with alert thresholds
+- **Benefits**: Public safety, early warnings, emergency preparedness
+
+## Data Structure Design
+
+### Sensor Readings (state.data)
+```json
+{
+  "temperature_celsius": 18.3,
+  "humidity_percent": 61.0,
+  "pressure_hpa": 1010.5,
+  "timestamp": 1703098800,
+  "reading_id": "WS001-20231220-1400"
+}
+```
+
+### Measurement Context (state.metadata)
+```
+Location: Hamburg, Germany | Coordinates: 53.5488°N, 9.9872°E | Recorded: 2024-12-20 14:00:00 UTC | Sensor Calibration: Valid
+```
+
+### Device Information (immutable_description)
+```
+Weather Station Model: WS-2024-HH01 | Sensors: DHT22 (Temp/Humidity), BMP280 (Pressure) | Installation: 2024-12-15 | Certification: ISO 17025
+```
+
+### Operational Status (updatable_metadata)
+```
+Battery: 87% | Signal: Good | Last Calibration: 2024-12-20 | Status: Operational | Firmware: v2.1.3
+```
+
+## Key Features
+
+### Data Integrity & Verification
+- **Cryptographic Signatures**: Each update is cryptographically signed
+- **Tamper Detection**: Any modification attempts are immediately detectable
+- **Version Control**: Complete history of all sensor readings and device changes
+- **Audit Trail**: Immutable record of all data collection activities
+
+### Efficient Data Management
+- **Structured Updates**: Separate handling of sensor data vs. device status
+- **Optimized Storage**: JSON format for sensor readings, text for metadata
+- **Version Tracking**: Automatic increment of state version counters
+- **Timestamp Management**: Precise recording of measurement times
+
+### Device Lifecycle Management
+- **Installation Tracking**: Permanent record of device deployment
+- **Maintenance Logging**: Updates to calibration and maintenance activities
+- **Status Monitoring**: Battery level, connectivity, and health tracking
+- **Firmware Management**: Version tracking and update logging
+
+### Integration Capabilities
+- **API Access**: Standard interfaces for data retrieval
+- **Real-time Updates**: Immediate availability of latest measurements
+- **Historical Analysis**: Access to complete measurement history
+- **Export Functions**: Data format compatibility with analysis tools
+
+## Benefits Achieved
+
+- **Data Integrity**: Cryptographic proof prevents tampering and fraud
+- **Regulatory Compliance**: Audit trails meet meteorological standards
+- **Real-time Monitoring**: Immediate access to latest sensor readings
+- **Historical Analysis**: Complete measurement history for trend analysis
+- **Device Management**: Comprehensive tracking of device health and status
+- **Automated Validation**: Built-in data quality and consistency checks
+- **Scalable Architecture**: Support for multiple weather stations
+- **Cost Efficiency**: Reduced manual data collection and verification
+- **Integration Ready**: Standard APIs for third-party system integration
+- **Emergency Response**: Rapid access to critical weather information
+
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/01_iot_weather_station.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/01_iot_weather_station.ts
+```
+
+</TabItem>
+</Tabs>
+</div>

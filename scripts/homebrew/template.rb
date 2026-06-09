@@ -25,12 +25,13 @@ class Iota < Formula
 
     sha256 checksums[@@arch]
 
-    depends_on "postgresql@14"
+    depends_on "postgresql@15"
+    depends_on "libpq"
 
     if @@arch == "source"
         depends_on "cmake" => :build
-        depends_on "libpq" => :build
         depends_on "rust" => :build
+        depends_on "protobuf" => :build
         on_linux do
             depends_on "llvm" => :build
         end
@@ -42,11 +43,13 @@ class Iota < Formula
     def install
         if @@arch == "source"
             ENV["GIT_REVISION"] = ""
-            system "cargo", "build", "--release", "--bin", "iota", "--bin", "iota-tool", "-F", "indexer,iota-names,gen-completions,tracing"
+            system "cargo", "build", "--release", "--bin", "iota", "--bin", "iota-localnet", "--bin", "iota-tool", "-F", "indexer,iota-names,gen-completions,tracing"
             bin.install "target/release/iota" => "iota"
+            bin.install "target/release/iota-localnet" => "iota-localnet"
             bin.install "target/release/iota-tool" => "iota-tool"
         else
             bin.install "iota" => "iota"
+            bin.install "iota-localnet" => "iota-localnet"
             bin.install "iota-tool" => "iota-tool"
         end
     end

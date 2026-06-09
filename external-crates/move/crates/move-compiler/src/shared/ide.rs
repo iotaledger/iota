@@ -2,6 +2,15 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
+
+use move_core_types::parsing::address::NumericalAddress;
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+
 use crate::{
     debug_display, diag,
     diagnostics::Diagnostic,
@@ -11,19 +20,9 @@ use crate::{
     },
     naming::ast as N,
     parser::ast as P,
-    shared::string_utils::format_oxford_list,
-    shared::Name,
+    shared::{Name, string_utils::format_oxford_list},
     typing::ast as T,
     unit_test::filter_test_members::UNIT_TEST_POISON_FUN_NAME,
-};
-
-use move_core_types::parsing::address::NumericalAddress;
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
-
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
 };
 
 //*************************************************************************************************
@@ -62,7 +61,8 @@ pub struct MacroCallInfo {
     pub method_name: Option<Name>,
     /// Type params at macro's call site
     pub type_arguments: Vec<N::Type>,
-    /// By-value args (at this point there should only be one, representing receiver arg)
+    /// By-value args (at this point there should only be one, representing
+    /// receiver arg)
     pub by_value_args: Vec<T::SequenceItem>,
 }
 
@@ -76,7 +76,8 @@ pub struct AutocompleteMethod {
 pub struct DotAutocompleteInfo {
     /// Methods that are valid auto-completes
     pub methods: Vec<AutocompleteMethod>,
-    /// Fields that are valid auto-completes (e.g., for a struct) along with their types
+    /// Fields that are valid auto-completes (e.g., for a struct) along with
+    /// their types
     pub fields: Vec<(Symbol, N::Type)>,
 }
 
@@ -86,21 +87,26 @@ pub struct AliasAutocompleteInfo {
     pub addresses: BTreeMap<Symbol, NumericalAddress>,
     /// Modules that are valid autocompletes
     pub modules: BTreeMap<Symbol, E::ModuleIdent>,
-    /// Members that are valid autocompletes
-    pub members: BTreeSet<(Symbol, E::ModuleIdent, Name)>,
+    /// Members that are valid autocompletes (module
+    /// and symbol representing member name) with a set
+    /// of symbols used in the source code representing
+    /// this member including possible (multiple) aliases
+    pub members: BTreeMap<(E::ModuleIdent, Symbol), BTreeSet<Symbol>>,
     /// Type parameters that are valid autocompletes
     pub type_params: BTreeSet<Symbol>,
 }
 
 #[derive(Debug, Clone)]
 pub struct MissingMatchArmsInfo {
-    /// A vector of arm patterns that can be inserted to make the match complete.
-    /// Note the span information on these is _wrong_ and must be recomputed after insertion.
+    /// A vector of arm patterns that can be inserted to make the match
+    /// complete. Note the span information on these is _wrong_ and must be
+    /// recomputed after insertion.
     pub arms: Vec<PatternSuggestion>,
 }
 
-/// Suggested new entries for a pattern. Note that any location information points to the
-/// definition site. As this is largely suggested text, it lacks location information.
+/// Suggested new entries for a pattern. Note that any location information
+/// points to the definition site. As this is largely suggested text, it lacks
+/// location information.
 #[derive(Debug, Clone)]
 pub enum PatternSuggestion {
     Wildcard,
@@ -216,7 +222,7 @@ impl
     ) -> Self {
         let mut addresses: BTreeMap<Symbol, NumericalAddress> = BTreeMap::new();
         let mut modules: BTreeMap<Symbol, E::ModuleIdent> = BTreeMap::new();
-        let mut members: BTreeSet<(Symbol, E::ModuleIdent, Name)> = BTreeSet::new();
+        let mut members: BTreeMap<(E::ModuleIdent, Symbol), BTreeSet<Symbol>> = BTreeMap::new();
         let mut type_params: BTreeSet<Symbol> = BTreeSet::new();
 
         for (symbol, entry) in leading_names
@@ -231,7 +237,10 @@ impl
                     modules.insert(*symbol, *mident);
                 }
                 LeadingAccessEntry::Member(mident, name) => {
-                    members.insert((*symbol, *mident, *name));
+                    members
+                        .entry((*mident, name.value))
+                        .or_default()
+                        .insert(*symbol);
                 }
                 LeadingAccessEntry::TypeParam => {
                     type_params.insert(*symbol);
@@ -239,14 +248,18 @@ impl
             }
         }
 
-        // The member names shadow, though this should be no issue as they should be identical.
+        // The member names shadow, though this should be no issue as they should be
+        // identical.
         for (symbol, entry) in member_names
             .iter()
             .filter(|(symbol, _)| symbol.to_string() != UNIT_TEST_POISON_FUN_NAME.to_string())
         {
             match entry {
                 MemberEntry::Member(mident, name) => {
-                    members.insert((*symbol, *mident, *name));
+                    members
+                        .entry((*mident, name.value))
+                        .or_default()
+                        .insert(*symbol);
                 }
                 MemberEntry::TypeParam => {
                     type_params.insert(*symbol);
@@ -301,9 +314,12 @@ impl From<(Loc, IDEAnnotation)> for Diagnostic {
                 } = *info;
 
                 let members = members
-                    .into_iter()
-                    .map(|(name, m, f)| format!("{name} -> {m}::{f}"));
-                let member_names = format_oxford_list!(ITER, "or", "'{}'", members);
+                    .iter()
+                    .flat_map(|((m, f), names)| {
+                        names.iter().map(move |name| format!("{name} -> {m}::{f}"))
+                    })
+                    .collect::<Vec<_>>();
+                let member_names = format_oxford_list!(ITER, "or", "'{}'", members.iter());
                 let modules = modules
                     .into_iter()
                     .map(|(name, m)| format!("{name} -> {m}"));

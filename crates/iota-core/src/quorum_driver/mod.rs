@@ -251,7 +251,7 @@ where
     pub async fn submit_transaction(
         &self,
         request: ExecuteTransactionRequestV1,
-    ) -> IotaResult<Registration<TransactionDigest, QuorumDriverResult>> {
+    ) -> IotaResult<Registration<'_, TransactionDigest, QuorumDriverResult>> {
         let tx_digest = request.transaction.digest();
         debug!(?tx_digest, "Received transaction execution request.");
         self.metrics.total_requests.inc();
@@ -507,7 +507,7 @@ where
     pub async fn submit_transaction(
         &self,
         request: ExecuteTransactionRequestV1,
-    ) -> IotaResult<Registration<TransactionDigest, QuorumDriverResult>> {
+    ) -> IotaResult<Registration<'_, TransactionDigest, QuorumDriverResult>> {
         self.quorum_driver.submit_transaction(request).await
     }
 
@@ -604,7 +604,7 @@ where
                     newly_formed,
                 }) => {
                     debug!(?tx_digest, "Transaction processing succeeded");
-                    (certificate, newly_formed)
+                    (*certificate, newly_formed)
                 }
                 Ok(ProcessTransactionResult::Executed(effects_cert, events)) => {
                     debug!(
@@ -612,7 +612,7 @@ where
                         "Transaction processing succeeded with effects directly"
                     );
                     let response = QuorumDriverResponse {
-                        effects_cert,
+                        effects_cert: *effects_cert,
                         events: Some(events),
                         input_objects: None,
                         output_objects: None,

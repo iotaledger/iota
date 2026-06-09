@@ -77,10 +77,10 @@ In the root folder of the `iota` repository (or in the `iota-sdk` crate folder),
 
 The `IotaClientBuilder` struct provides a connection to the JSON-RPC server that you use for all read-only operations. The default URLs to connect to the IOTA network are:
 
-- Local: http://127.0.0.1:9000
-- Devnet: https://api.devnet.iota.cafe
-- Testnet: https://api.testnet.iota.cafe
-- Mainnet: https://api.mainnet.iota.cafe
+- Local: `http://127.0.0.1:9000`
+- Devnet: `https://api.devnet.iota.cafe`
+- Testnet: `https://api.testnet.iota.cafe`
+- Mainnet: `https://api.mainnet.iota.cafe`
 
 For all available servers, see [here](https://docs.iota.org/developer/network-overview).
 
@@ -142,7 +142,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 ## Advanced examples
 
-See the programmable transactions [example](https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/examples/programmable_transactions_api.rs).
+See the programmable transactions [example](https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/examples/transaction_builder/programmable_transactions_api.rs).
 
 ## Games examples
 

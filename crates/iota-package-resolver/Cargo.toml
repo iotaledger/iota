@@ -12,9 +12,9 @@ async-trait.workspace = true
 bcs.workspace = true
 lru.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
 
 # internal dependencies
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 # TODO: `move-command-line-common` is used for `ErrorBitset`. We should
@@ -28,8 +28,12 @@ move-core-types.workspace = true
 hyper.workspace = true
 insta.workspace = true
 serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 tower.workspace = true
 
 # internal dependencies
 iota-move-build.workspace = true
 move-compiler.workspace = true
+
+[lints]
+workspace = true

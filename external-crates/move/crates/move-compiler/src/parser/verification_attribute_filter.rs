@@ -9,6 +9,7 @@ use move_symbol_pool::Symbol;
 use crate::{
     diag,
     diagnostics::DiagnosticReporter,
+    editions::Flavor,
     parser::{
         ast as P,
         filter::{FilterContext, filter_program},
@@ -48,7 +49,12 @@ impl FilterContext for Context<'_> {
     // * It is annotated #[verify_only] and verify mode is not set
     fn should_remove_by_attributes(&mut self, attrs: &[P::Attributes]) -> bool {
         use known_attributes::VerificationAttribute;
-        let flattened_attrs: Vec<_> = attrs.iter().flat_map(verification_attributes).collect();
+        let current_package = self.current_package;
+        let flavor = self.env.flavor(current_package);
+        let flattened_attrs: Vec<_> = attrs
+            .iter()
+            .flat_map(|attr| verification_attributes(attr, flavor))
+            .collect();
         let is_verify_only_loc = flattened_attrs
             .iter()
             .map(|attr| match attr {
@@ -91,16 +97,17 @@ pub fn program(compilation_env: &CompilationEnv, prog: P::Program) -> P::Program
 
 fn verification_attributes(
     attrs: &P::Attributes,
+    flavor: Flavor,
 ) -> Vec<(Loc, known_attributes::VerificationAttribute)> {
     use known_attributes::KnownAttribute;
     attrs
         .value
         .iter()
-        .filter_map(
-            |attr| match KnownAttribute::resolve(attr.value.attribute_name().value)? {
+        .filter_map(|attr| {
+            match KnownAttribute::resolve(attr.value.attribute_name().value, flavor)? {
                 KnownAttribute::Verification(verify_attr) => Some((attr.loc, verify_attr)),
                 _ => None,
-            },
-        )
+            }
+        })
         .collect()
 }

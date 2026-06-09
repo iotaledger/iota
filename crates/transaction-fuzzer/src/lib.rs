@@ -13,12 +13,13 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
@@ -26,9 +27,9 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), balance),
+        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), balance),
         owner,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 
@@ -56,9 +57,7 @@ fn generate_random_gas_data(
     let gas_coin_owners = gas_coin_owners
         .iter()
         .map(|o| match o {
-            Owner::ObjectOwner(_) | Owner::AddressOwner(_) if owned_by_sender => {
-                Owner::AddressOwner(sender)
-            }
+            Owner::Object(_) | Owner::Address(_) if owned_by_sender => Owner::Address(sender),
             _ => *o,
         })
         .collect::<Vec<_>>();
@@ -66,7 +65,7 @@ fn generate_random_gas_data(
         let gas_balance = rng.gen_range(0..=remaining_gas_balance);
         let gas_object = new_gas_coin_with_balance_and_owner(gas_balance, *owner);
         remaining_gas_balance -= gas_balance;
-        object_refs.push(gas_object.compute_object_reference());
+        object_refs.push(gas_object.object_ref());
         gas_objects.push(gas_object);
     }
     // Put the remaining balance in the last gas object.
@@ -74,21 +73,21 @@ fn generate_random_gas_data(
         remaining_gas_balance,
         gas_coin_owners[num_gas_objects - 1],
     );
-    object_refs.push(last_gas_object.compute_object_reference());
+    object_refs.push(last_gas_object.object_ref());
     gas_objects.push(last_gas_object);
 
     assert_eq!(gas_objects.len(), num_gas_objects);
     assert_eq!(
         gas_objects
             .iter()
-            .map(|o| o.data.try_as_move().unwrap().get_coin_value_unsafe())
+            .map(|o| o.data.as_struct_opt().unwrap().get_coin_value_unchecked())
             .sum::<u64>(),
         total_gas_balance
     );
 
     GasDataWithObjects {
         gas_data: GasData {
-            payment: object_refs,
+            objects: object_refs,
             owner: sender,
             price: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price()),
             budget: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas()),

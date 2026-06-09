@@ -20,7 +20,7 @@ import { useUnlockMutation } from "@/mutations/locked";
  * Prefer to use the `Locked` component only through `LockedObject`.
  *
  * This can also render data directly from the API, but we prefer
- * to also validate ownership from on-chain state (as objects are transferrable)
+ * to also validate ownership from on-chain state (as objects are transferable)
  * and the API cannot track all the ownership changes.
  */
 export function Locked({

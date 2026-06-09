@@ -13,8 +13,8 @@ use move_command_line_common::env::MOVE_HOME;
 
 use self::dependency_graph::DependencyGraphBuilder;
 use crate::{
-    source_package::parsed_manifest::{DependencyKind, GitInfo, OnChainInfo},
     BuildConfig,
+    source_package::parsed_manifest::{DependencyKind, GitInfo, OnChainInfo},
 };
 
 pub mod dependency_cache;

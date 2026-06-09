@@ -4,12 +4,10 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_types::{
-    TypeTag,
-    object::{Data, MoveObject as NativeMoveObject},
-};
+use iota_types::object::{Data, MoveObject as NativeMoveObject};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     data::Db,
     error::Error,
@@ -116,7 +114,7 @@ pub(crate) enum IMoveObject {
 }
 
 /// The representation of an object as a Move Object, which exposes additional
-/// information (content, module that governs it, version, is transferrable,
+/// information (content, module that governs it, version, is transferable,
 /// etc.) about this object.
 #[Object]
 impl MoveObject {
@@ -227,14 +225,13 @@ impl MoveObject {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -292,6 +289,9 @@ impl MoveObject {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -435,11 +435,11 @@ impl MoveObject {
 
 impl MoveObjectImpl<'_> {
     pub(crate) async fn contents(&self) -> Option<MoveValue> {
-        let type_ = TypeTag::from(self.0.native.type_().clone());
+        let type_ = self.0.native.type_tag();
         Some(MoveValue::new(type_, self.0.native.contents().into()))
     }
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
-        let type_: MoveType = self.0.native.type_().clone().into();
+        let type_: MoveType = self.0.native.struct_tag().clone().into();
         let set = type_.abilities_impl(ctx.data_unchecked()).await.extend()?;
         Ok(set.is_some_and(|s| s.has_key() && s.has_store()))
     }
@@ -503,7 +503,7 @@ impl TryFrom<&Object> for MoveObject {
             return Err(MoveObjectDowncastError::WrappedOrDeleted);
         };
 
-        if let Data::Move(move_object) = &native.data {
+        if let Data::Struct(move_object) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_object.clone(),

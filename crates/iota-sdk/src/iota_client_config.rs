@@ -19,9 +19,8 @@ use crate::{
     IotaClientBuilder,
 };
 
-/// Configuration for the IOTA client, containing a
-/// [`Keystore`](iota_keys::keystore::Keystore) and potentially multiple
-/// [`IotaEnv`]s.
+/// Configuration for the IOTA client, containing a [`Keystore`] and potentially
+/// multiple [`IotaEnv`]s.
 #[serde_as]
 #[derive(Serialize, Deserialize, Getters, MutGetters)]
 #[getset(get = "pub", get_mut = "pub")]

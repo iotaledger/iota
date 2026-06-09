@@ -5,9 +5,6 @@
 /// The `ASCII` module defines basic string and char newtypes in Move that verify
 /// that characters are valid ASCII, and that strings consist of only valid ASCII characters.
 module base::ascii {
-    use std::option::{Option, Self};
-    use std::vector;
-
     /// An ASCII character.
     public struct Char has copy, drop, store {
         byte: u8,

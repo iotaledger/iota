@@ -1,0 +1,287 @@
+---
+title: Legal Contract - Locked Notarization
+sidebar_label: Legal Contracts
+description: Real-world example demonstrating immutable legal contract notarization using locked notarizations for document integrity and compliance.
+teams:
+  - iotaledger/identity
+tags:
+  - notarization
+  - locked-notarization
+---
+
+# Legal Contract - Locked Notarization
+
+This real-world example demonstrates how to use IOTA Locked Notarization to create immutable legal contracts that ensure document integrity, meet regulatory compliance requirements, and provide tamper-proof legal evidence.
+
+## Business Context
+
+Legal contracts require absolute integrity and immutability to ensure:
+- **Legal Enforceability**: Courts require proof that documents haven't been altered
+- **Regulatory Compliance**: Many jurisdictions mandate specific document retention periods
+- **Dispute Resolution**: Immutable contracts prevent tampering claims in litigation
+- **Audit Requirements**: Financial and legal audits need verifiable document trails
+- **Insurance Coverage**: Policies require authentic contract documentation
+- **International Trade**: Cross-border agreements need universally verifiable authenticity
+
+## Field Usage Strategy
+
+Locked notarizations make ALL fields immutable after creation, providing comprehensive legal protection:
+
+- **`state.data`**: Document hash (SHA-256) ensuring content integrity verification
+- **`state.metadata`**: Structured contract details (parties, dates, terms, governing law)
+- **`immutable_description`**: Human-readable contract summary for legal identification
+- **`updatable_metadata`**: Administrative filing information (becomes immutable when locked)
+
+**Important**: Unlike dynamic notarizations, locked notarizations cannot be modified after creation, making them ideal for legal documents.
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Notarization client SDK installed
+- Legal document content (contract, agreement, etc.)
+- Understanding of applicable retention requirements
+
+## Implementation Overview
+
+### 1. Create Immutable Contract Notarization
+
+Generate document hash and create locked notarization with legal metadata:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L41-L125
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L51-L131
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Configure Legal Retention Period
+
+Set deletion locks to comply with legal document retention requirements:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L90-L122
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L99-L129
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Demonstrate Immutability Protection
+
+Verify that attempts to modify locked contracts are automatically rejected:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L135-L166
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L140-L170
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Verify Document Integrity
+
+Demonstrate cryptographic verification of contract authenticity:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L169-L177
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L173-L183
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Legal Discovery and Evidence
+
+Access contract details for legal proceedings and compliance audits:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L180-L200
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L155-L175
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Employment Agreements
+- **Scenario**: HR department recording employment contracts
+- **Process**: Hash contract PDF, notarize with employee/employer details
+- **Benefits**: Prevents contract disputes, meets labor law requirements
+
+### Real Estate Transactions
+- **Scenario**: Property purchase agreements and deed transfers
+- **Process**: Immutable record of transaction terms and conditions
+- **Benefits**: Title insurance compliance, fraud prevention, clear ownership
+
+### Intellectual Property Licensing
+- **Scenario**: Software licensing agreements and patent transfers
+- **Process**: Timestamped, immutable IP rights documentation
+- **Benefits**: Priority disputes resolution, licensing compliance, royalty audits
+
+### International Trade Contracts
+- **Scenario**: Cross-border supply agreements and Letters of Credit
+- **Process**: Multi-jurisdictional contract verification with governing law
+- **Benefits**: Customs compliance, trade dispute resolution, payment security
+
+### Insurance Policies
+- **Scenario**: Policy documents and claims settlement agreements
+- **Process**: Immutable policy terms with coverage details
+- **Benefits**: Claims dispute prevention, regulatory compliance, audit trails
+
+### Government Procurement
+- **Scenario**: Public sector contracts and vendor agreements
+- **Process**: Transparent, tamper-proof government contracting
+- **Benefits**: Anti-corruption compliance, public accountability, audit readiness
+
+## Contract Data Structure
+
+### Document Hash (state.data)
+```
+SHA-256: a7f8d9c2b1e4567890abcdef1234567890abcdef1234567890abcdef12345678
+```
+
+### Contract Metadata (state.metadata)
+```json
+{
+  "contract_type": "Employment Agreement",
+  "effective_date": "2025-02-01",
+  "expiration_date": "2027-01-31",
+  "duration_years": 2,
+  "employer": "ACME Corporation",
+  "employee": "John Doe",
+  "governing_law": "German Labor Law",
+  "hash_algorithm": "SHA-256",
+  "document_size_bytes": 2847,
+  "created_timestamp": 1735689600
+}
+```
+
+### Contract Summary (immutable_description)
+```
+Employment Agreement between ACME Corporation (Employer) and John Doe (Employee) |
+Effective: Feb 1, 2025 - Jan 31, 2027 | Position: Senior Software Engineer
+```
+
+### Administrative Info (updatable_metadata - immutable when locked)
+```
+Filed: 2025-01-28 14:30:00 UTC | HR Reference: HR-2025-001-EA |
+Legal Review: Completed | Storage: Digital Vault A7
+```
+
+## Key Legal Features
+
+### Document Integrity Protection
+- **Cryptographic Hashing**: SHA-256 ensures any document change is detectable
+- **Tamper Evidence**: Blockchain immutability prevents unauthorized modifications
+- **Version Control**: Locked contracts maintain single, authoritative version
+- **Chain of Custody**: Complete audit trail from creation to deletion
+
+### Compliance & Retention Management
+- **Retention Periods**: Configurable deletion locks for legal requirements
+- **Regulatory Standards**: Meets various jurisdictional document retention laws
+- **Discovery Support**: Easy retrieval for legal proceedings and audits
+- **Privacy Controls**: Selective disclosure of contract terms when required
+
+### Legal Enforceability
+- **Court Admissibility**: Cryptographic proof acceptable in legal proceedings
+- **Authentication**: Digital signatures and timestamps provide legal validity
+- **Non-Repudiation**: Parties cannot deny contract existence or terms
+- **Jurisdictional Compliance**: Supports multi-jurisdiction legal requirements
+
+### Business Process Integration
+- **ERP Integration**: Connect with enterprise resource planning systems
+- **Legal Case Management**: Direct integration with law firm management tools
+- **Compliance Dashboards**: Real-time monitoring of retention and obligations
+- **Automated Workflows**: Trigger business processes based on contract events
+
+## Benefits Achieved
+
+- **Legal Enforceability**: Court-admissible evidence with cryptographic proof
+- **Regulatory Compliance**: Automated retention and discovery management
+- **Fraud Prevention**: Impossible to forge or backdated contracts
+- **Cost Reduction**: Eliminated manual verification and authentication processes
+- **Risk Mitigation**: Reduced litigation risk through tamper-proof documentation
+- **Audit Readiness**: Instant compliance verification for regulatory inspections
+- **International Recognition**: Cross-border enforceability with universal verification
+- **Process Automation**: Streamlined contract lifecycle management
+- **Dispute Prevention**: Clear, immutable terms prevent interpretation conflicts
+- **Professional Standards**: Meets legal industry best practices and ethics requirements
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts
+```
+
+</TabItem>
+</Tabs>
+</div>

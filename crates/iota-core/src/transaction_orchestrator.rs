@@ -6,7 +6,9 @@
 // submit transactions to validators for finality, and proactively executes
 // finalized transactions locally, when possible.
 
-use std::{net::SocketAddr, ops::Deref, path::Path, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap, net::SocketAddr, ops::Deref, path::Path, sync::Arc, time::Duration,
+};
 
 use futures::{
     FutureExt,
@@ -20,17 +22,16 @@ use iota_metrics::{
 use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
 use iota_types::{
     base_types::TransactionDigest,
-    effects::{TransactionEffectsAPI, VerifiedCertifiedTransactionEffects},
     error::{IotaError, IotaResult},
-    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
+    messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
         QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
     transaction::{TransactionData, VerifiedTransaction},
-    transaction_executor::SimulateTransactionResult,
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use prometheus::{
     Histogram, Registry,
@@ -44,7 +45,7 @@ use tokio::{
     task::JoinHandle,
     time::timeout,
 };
-use tracing::{Instrument, debug, error, error_span, info, instrument, warn};
+use tracing::{Instrument, debug, error, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -116,9 +117,9 @@ where
         let notifier = Arc::new(NotifyRead::new());
         let reconfig_observer = Arc::new(reconfig_observer);
         let quorum_driver_handler = Arc::new(
-            QuorumDriverHandlerBuilder::new(validators.clone(), metrics.clone())
+            QuorumDriverHandlerBuilder::new(validators, metrics)
                 .with_notifier(notifier.clone())
-                .with_reconfig_observer(reconfig_observer.clone())
+                .with_reconfig_observer(reconfig_observer)
                 .start(),
         );
 
@@ -130,8 +131,7 @@ where
         let pending_tx_log_clone = pending_tx_log.clone();
         let _local_executor_handle = {
             spawn_monitored_task!(async move {
-                Self::loop_execute_finalized_tx_locally(effects_receiver, pending_tx_log_clone)
-                    .await;
+                Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
             })
         };
         Self::schedule_txes_in_log(pending_tx_log.clone(), quorum_driver_handler.clone());
@@ -150,7 +150,7 @@ impl<A> TransactionOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
-    #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "debug", skip_all,
+    #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "trace", skip_all,
     fields(
         tx_digest = ?request.transaction.digest(),
         tx_type = ?request_type,
@@ -173,15 +173,9 @@ where
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         ) {
-            let executable_tx = VerifiedExecutableTransaction::new_from_quorum_execution(
-                transaction,
-                response.effects_cert.executed_epoch(),
-            );
-            let executed_locally = Self::execute_finalized_tx_locally_with_timeout(
+            let executed_locally = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                 &self.validator_state,
-                &epoch_store,
-                &executable_tx,
-                &response.effects_cert,
+                &transaction,
                 &self.metrics,
             )
             .await
@@ -245,12 +239,19 @@ where
     // TODO check if tx is already executed on this node.
     // Note: since EffectsCert is not stored today, we need to gather that from
     // validators (and maybe store it for caching purposes)
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.transaction.digest()))]
     pub async fn execute_transaction_impl(
         &self,
         epoch_store: &AuthorityPerEpochStore,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<(VerifiedTransaction, QuorumDriverResponse), QuorumDriverError> {
+        // Reject malformed transactions before any code path inspects shared
+        // inputs or `MoveAuthenticator`
+        request
+            .transaction
+            .validity_check(epoch_store.protocol_config(), epoch_store.epoch())
+            .map_err(QuorumDriverError::InvalidTransaction)?;
         let transaction = epoch_store
             .verify_transaction(request.transaction.clone())
             .map_err(QuorumDriverError::InvalidUserSignature)?;
@@ -363,27 +364,13 @@ where
         })
     }
 
-    #[instrument(name = "tx_orchestrator_execute_finalized_tx_locally_with_timeout", level = "debug", skip_all, fields(tx_digest = ?transaction.digest()), err)]
-    async fn execute_finalized_tx_locally_with_timeout(
+    #[instrument(name = "tx_orchestrator_wait_for_finalized_tx_executed_locally_with_timeout", level = "debug", skip_all, fields(tx_digest = ?transaction.digest()), err)]
+    async fn wait_for_finalized_tx_executed_locally_with_timeout(
         validator_state: &Arc<AuthorityState>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        transaction: &VerifiedExecutableTransaction,
-        effects_cert: &VerifiedCertifiedTransactionEffects,
+        transaction: &VerifiedTransaction,
         metrics: &TransactionOrchestratorMetrics,
     ) -> IotaResult {
-        // TODO: attempt a finalized tx at most once per request.
-        // Every WaitForLocalExecution request will be attempted to execute twice,
-        // one from the subscriber queue, one from the proactive execution before
-        // returning results to clients. This is not insanely bad because:
-        // 1. it's possible that one attempt finishes before the other, so there's zero
-        //    extra work except DB checks
-        // 2. an up-to-date fullnode should have minimal overhead to sync parents (for
-        //    one extra time)
-        // 3. at the end of day, the tx will be executed at most once per lock guard.
-        let tx_digest = transaction.digest();
-        if validator_state.try_is_tx_already_executed(tx_digest)? {
-            return Ok(());
-        }
+        let tx_digest = *transaction.digest();
         metrics.local_execution_in_flight.inc();
         let _metrics_guard =
             scopeguard::guard(metrics.local_execution_in_flight.clone(), |in_flight| {
@@ -395,25 +382,23 @@ where
         } else {
             metrics.local_execution_latency_single_writer.start_timer()
         };
-        debug!(?tx_digest, "Executing finalized tx locally.");
+        debug!(
+            ?tx_digest,
+            "Waiting for finalized tx to be executed locally."
+        );
         match timeout(
             LOCAL_EXECUTION_TIMEOUT,
-            validator_state.fullnode_execute_certificate_with_effects(
-                transaction,
-                effects_cert,
-                epoch_store,
-            ),
+            validator_state
+                .get_transaction_cache_reader()
+                .try_notify_read_executed_effects_digests(&[tx_digest]),
         )
-        .instrument(error_span!(
-            "transaction_orchestrator::local_execution",
-            ?tx_digest
-        ))
+        .instrument(trace_span!("local_execution"))
         .await
         {
             Err(_elapsed) => {
                 debug!(
                     ?tx_digest,
-                    "Executing tx locally by orchestrator timed out within {:?}.",
+                    "Waiting for finalized tx to be executed locally timed out within {:?}.",
                     LOCAL_EXECUTION_TIMEOUT
                 );
                 metrics.local_execution_timeout.inc();
@@ -422,7 +407,7 @@ where
             Ok(Err(err)) => {
                 debug!(
                     ?tx_digest,
-                    "Executing tx locally by orchestrator failed with error: {:?}", err
+                    "Waiting for finalized tx to be executed locally failed with error: {:?}", err
                 );
                 metrics.local_execution_failure.inc();
                 Err(IotaError::TransactionOrchestratorLocalExecution {
@@ -436,7 +421,8 @@ where
         }
     }
 
-    async fn loop_execute_finalized_tx_locally(
+    // TODO: Potentially cleanup this function and pending transaction log.
+    async fn loop_pending_transaction_log(
         mut effects_receiver: Receiver<QuorumDriverEffectsQueueResult>,
         pending_transaction_log: Arc<WritePathPendingTransactionLog>,
     ) {
@@ -521,7 +507,9 @@ where
                 info!("Skipping loading pending transactions from pending_tx_log.");
                 return;
             }
-            let pending_txes = pending_tx_log.load_all_pending_transactions();
+            let pending_txes = pending_tx_log
+                .load_all_pending_transactions()
+                .expect("failed to load all pending transactions");
             info!(
                 "Recovering {} pending transactions from pending_tx_log.",
                 pending_txes.len()
@@ -563,7 +551,7 @@ where
         });
     }
 
-    pub fn load_all_pending_transactions(&self) -> Vec<VerifiedTransaction> {
+    pub fn load_all_pending_transactions(&self) -> IotaResult<Vec<VerifiedTransaction>> {
         self.pending_tx_log.load_all_pending_transactions()
     }
 }
@@ -749,7 +737,25 @@ where
     fn simulate_transaction(
         &self,
         transaction: TransactionData,
+        checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError> {
-        self.validator_state.simulate_transaction(transaction)
+        self.validator_state
+            .simulate_transaction(transaction, checks)
+    }
+
+    /// Wait for the given transactions to be included in a checkpoint.
+    ///
+    /// Returns a mapping from transaction digest to
+    /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
+    /// On timeout, returns partial results for any transactions that were
+    /// already checkpointed.
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        digests: &[TransactionDigest],
+        timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
+        self.validator_state
+            .wait_for_checkpoint_inclusion(digests, timeout)
+            .await
     }
 }

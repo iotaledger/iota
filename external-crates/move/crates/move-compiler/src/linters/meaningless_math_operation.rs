@@ -2,8 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Detects meaningless math operations like `x * 0`, `x << 0`, `x >> 0`, `x * 1`, `x + 0`, `x - 0`
-//! Aims to reduce code redundancy and improve clarity by flagging operations with no effect.
+//! Detects meaningless math operations like `x * 0`, `x << 0`, `x >> 0`, `x *
+//! 1`, `x + 0`, `x - 0` Aims to reduce code redundancy and improve clarity by
+//! flagging operations with no effect.
+use move_core_types::u256::U256;
+use move_ir_types::location::Loc;
+
 use crate::{
     cfgir::visitor::simple_visitor,
     diag,
@@ -11,8 +15,6 @@ use crate::{
     linters::StyleCodes,
     parser::ast::BinOp_,
 };
-use move_core_types::u256::U256;
-use move_ir_types::location::Loc;
 
 simple_visitor!(
     MeaninglessMathOperation,

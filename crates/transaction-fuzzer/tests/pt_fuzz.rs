@@ -2,13 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
     base_types::ObjectRef,
     effects::TransactionEffectsAPI,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    object::Owner,
-    transaction::{CallArg, ObjectArg, ProgrammableTransaction},
+    transaction::{CallArg, ProgrammableTransaction},
 };
 use proptest::{prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{
@@ -39,7 +37,7 @@ fn publish_coin_factory(
 ) -> (ObjectRef, ObjectRef) {
     let effects = exec.publish(
         "coin_factory",
-        vec![MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID],
+        vec![ObjectId::STD, ObjectId::FRAMEWORK],
         account,
     );
     let package = effects
@@ -53,12 +51,12 @@ fn publish_coin_factory(
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
                 .rt
-                .block_on(exec.state.get_object(&obj_ref.0))
+                .block_on(exec.state.get_object(&obj_ref.object_id))
                 .unwrap()
                 .data
                 .struct_tag()
             {
-                stag.name.as_str().eq("TreasuryCap")
+                stag.name().as_str().eq("TreasuryCap")
             } else {
                 false
             }
@@ -80,9 +78,9 @@ pub fn run_pt_success(
     cap: ObjectRef,
 ) -> ObjectRef {
     for i in 0..pt.inputs.len() {
-        if let CallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref)) = pt.inputs[i] {
-            if obj_ref.0 == cap.0 {
-                pt.inputs[i] = CallArg::Object(ObjectArg::ImmOrOwnedObject(cap));
+        if let CallArg::ImmutableOrOwned(obj_ref) = &pt.inputs[i] {
+            if obj_ref.object_id == cap.object_id {
+                pt.inputs[i] = CallArg::ImmutableOrOwned(cap);
             }
         }
     }
@@ -98,7 +96,7 @@ pub fn run_pt_success(
         matches!(
             status,
             ExecutionStatus::Failure {
-                error: ExecutionFailureStatus::UnusedValueWithoutDrop { .. },
+                error: ExecutionError::UnusedValueWithoutDrop { .. },
                 command: _,
             }
         ),
@@ -110,12 +108,12 @@ pub fn run_pt_success(
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
                 .rt
-                .block_on(exec.state.get_object(&obj_ref.0))
+                .block_on(exec.state.get_object(&obj_ref.object_id))
                 .unwrap()
                 .data
                 .struct_tag()
             {
-                stag.name.as_str().eq("TreasuryCap")
+                stag.name().as_str().eq("TreasuryCap")
             } else {
                 false
             }
@@ -133,7 +131,8 @@ fn pt_fuzz_input_match() {
     let mut account = AccountCurrent::new(AccountData::new_random());
     let (package, cap) = publish_coin_factory(&mut exec, &mut account);
 
-    let strategy = gen_many_input_match(account.initial_data.account.address, package.0, cap);
+    let strategy =
+        gen_many_input_match(account.initial_data.account.address, package.object_id, cap);
     let mut new_cap = cap;
     for _ in 0..MAX_ITERATIONS_INPUT_MATCH {
         let pt = strategy.new_tree(&mut runner).unwrap().current();

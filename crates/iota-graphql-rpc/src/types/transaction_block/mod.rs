@@ -7,12 +7,15 @@ use std::collections::{BTreeMap, HashMap};
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
 use connection::Edge;
 use cursor::TxLookup;
-use diesel::{ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
+use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
-    models::transactions::StoredTransaction,
-    schema::{transactions, tx_digests},
+    apis::ReadApi,
+    models::transactions::{OptimisticTransaction, StoredTransaction},
+    schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
+use iota_json_rpc_api::ReadApiServer;
+use iota_sdk_types::TransactionExpiration;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
@@ -20,7 +23,7 @@ use iota_types::{
     message_envelope::Message,
     transaction::{
         SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
-        TransactionDataAPI, TransactionExpiration,
+        TransactionDataAPI,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -28,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::ServiceConfig,
     connection::ScanConnection,
+    consistency::UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     server::watermark_task::Watermark,
@@ -64,19 +68,20 @@ pub(crate) struct TransactionBlock {
 
 #[derive(Clone, Debug)]
 pub(crate) enum TransactionBlockInner {
-    /// A transaction block that has been indexed and stored in the database,
-    /// containing all information that the other two variants have, and more.
-    Stored {
+    /// A transaction block that has been checkpointed and stored in the
+    /// database, containing all information that the other two variants
+    /// have, and more.
+    Checkpointed {
         stored_tx: StoredTransaction,
         native: NativeSenderSignedData,
     },
-    /// A transaction block that has been executed via executeTransactionBlock
-    /// but not yet indexed.
+    /// A transaction block that has been executed and indexed without
+    /// checkpoint information.
     Executed {
-        tx_data: NativeSenderSignedData,
-        effects: NativeTransactionEffects,
-        events: Vec<NativeEvent>,
+        optimistic_tx: OptimisticTransaction,
+        native: NativeSenderSignedData,
     },
+
     /// A transaction block that has been executed via dryRunTransactionBlock.
     /// This variant also does not return signatures or digest since only
     /// `NativeTransactionData` is present.
@@ -85,6 +90,16 @@ pub(crate) enum TransactionBlockInner {
         effects: NativeTransactionEffects,
         events: Vec<NativeEvent>,
     },
+}
+
+impl TransactionBlockInner {
+    /// Returns if the transaction is included in a checkpoint.
+    fn is_checkpointed(&self) -> bool {
+        let TransactionBlockInner::Checkpointed { stored_tx, .. } = &self else {
+            return false;
+        };
+        stored_tx.checkpoint_sequence_number >= 0
+    }
 }
 
 /// An input filter selecting for either system or programmable transactions.
@@ -99,8 +114,6 @@ pub(crate) enum TransactionBlockKindInput {
     Genesis = 2,
     /// The consensus commit prologue transaction block.
     ConsensusCommitPrologueV1 = 3,
-    /// The authenticator state update transaction block.
-    AuthenticatorStateUpdateV1 = 4,
     /// The randomness state update transaction block.
     RandomnessStateUpdate = 5,
     /// The end of epoch transaction block.
@@ -112,6 +125,7 @@ type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
 /// The cursor returned for each `TransactionBlock` in a connection's page of
 /// results. The `checkpoint_viewed_at` will set the consistent upper bound for
 /// subsequent queries made on this cursor.
+#[allow(unused)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct TransactionBlockCursor {
     /// The checkpoint sequence number this was viewed at.
@@ -127,9 +141,53 @@ pub(crate) struct TransactionBlockCursor {
 /// `DataLoader` key for fetching a `TransactionBlock` by its digest, optionally
 /// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
-struct DigestKey {
+pub(crate) struct DigestKey {
     pub digest: Digest,
     pub checkpoint_viewed_at: u64,
+}
+
+impl DigestKey {
+    pub fn new(digest: Digest, checkpoint_viewed_at: u64) -> Self {
+        Self {
+            digest,
+            checkpoint_viewed_at,
+        }
+    }
+}
+
+/// `DataLoader` key for fetching a `TransactionBlock` by its sequence number,
+/// constrained by a consistency cursor.
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+pub(crate) struct SeqKey {
+    pub tx_sequence_number: u64,
+    pub checkpoint_viewed_at: u64,
+}
+
+impl SeqKey {
+    pub fn new(tx_sequence_number: u64, checkpoint_viewed_at: u64) -> Self {
+        Self {
+            tx_sequence_number,
+            checkpoint_viewed_at,
+        }
+    }
+}
+
+/// Filter for a point query of a TransactionBlock.
+pub(crate) enum TransactionBlockLookup {
+    ByDigest(DigestKey),
+    BySeq(SeqKey),
+}
+
+impl From<DigestKey> for TransactionBlockLookup {
+    fn from(key: DigestKey) -> Self {
+        TransactionBlockLookup::ByDigest(key)
+    }
+}
+
+impl From<SeqKey> for TransactionBlockLookup {
+    fn from(key: SeqKey) -> Self {
+        TransactionBlockLookup::BySeq(key)
+    }
 }
 
 #[Object]
@@ -137,6 +195,7 @@ impl TransactionBlock {
     /// A 32-byte hash that uniquely identifies the transaction block contents,
     /// encoded in Base58. This serves as a unique id for the block on
     /// chain.
+    #[graphql(complexity = 0)]
     async fn digest(&self) -> Option<String> {
         self.native_signed_data()
             .map(|s| Base58::encode(s.digest()))
@@ -144,6 +203,7 @@ impl TransactionBlock {
 
     /// The address corresponding to the public key that signed this
     /// transaction. System transactions do not have senders.
+    #[graphql(complexity = "child_complexity")]
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
@@ -159,17 +219,21 @@ impl TransactionBlock {
     ///
     /// If the owner of the gas object(s) is not the same as the sender, the
     /// transaction block is a sponsored transaction block.
+    #[graphql(complexity = "child_complexity")]
     async fn gas_input(&self, ctx: &Context<'_>) -> Option<GasInput> {
-        let checkpoint_viewed_at = if matches!(self.inner, TransactionBlockInner::Stored { .. }) {
-            self.checkpoint_viewed_at
-        } else {
-            // Non-stored transactions have a sentinel checkpoint_viewed_at value that
-            // generally prevents access to further queries, but inputs should
-            // generally be available so try to access them at the high
-            // watermark.
-            let Watermark { checkpoint, .. } = *ctx.data_unchecked();
-            checkpoint
-        };
+        let checkpoint_viewed_at =
+            if matches!(self.inner, TransactionBlockInner::Checkpointed { .. })
+                && self.is_available()
+            {
+                self.checkpoint_viewed_at
+            } else {
+                // Non-checkpointed and unavailable transactions have a sentinel
+                // checkpoint_viewed_at value that generally prevents access to
+                // further queries, but inputs should generally be available so
+                // try to access them at the high watermark.
+                let Watermark { checkpoint, .. } = *ctx.data_unchecked();
+                checkpoint
+            };
 
         Some(GasInput::from(
             self.native().gas_data(),
@@ -179,15 +243,14 @@ impl TransactionBlock {
 
     /// The type of this transaction as well as the commands and/or parameters
     /// comprising the transaction of this kind.
+    #[graphql(complexity = "child_complexity")]
     async fn kind(&self) -> Option<TransactionBlockKind> {
-        Some(TransactionBlockKind::from(
-            self.native().kind().clone(),
-            self.checkpoint_viewed_at,
-        ))
+        TransactionBlockKind::try_from(self.native().kind().clone(), self.checkpoint_viewed_at).ok()
     }
 
     /// A list of all signatures, Base64-encoded, from senders, and potentially
     /// the gas owner if this is a sponsored transaction.
+    #[graphql(complexity = 0)]
     async fn signatures(&self) -> Option<Vec<Base64>> {
         self.native_signed_data().map(|s| {
             s.tx_signatures()
@@ -199,6 +262,7 @@ impl TransactionBlock {
 
     /// The effects field captures the results to the chain of executing this
     /// transaction.
+    #[graphql(complexity = "child_complexity")]
     async fn effects(&self) -> Result<Option<TransactionBlockEffects>> {
         Ok(Some(self.clone().try_into().extend()?))
     }
@@ -207,6 +271,7 @@ impl TransactionBlock {
     /// reference that sets a deadline after which validators will no longer
     /// consider the transaction valid. By default, there is no deadline for
     /// when a transaction must execute.
+    #[graphql(complexity = "child_complexity")]
     async fn expiration(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         let TransactionExpiration::Epoch(id) = self.native().expiration() else {
             return Ok(None);
@@ -219,53 +284,82 @@ impl TransactionBlock {
 
     /// Serialized form of this transaction's `SenderSignedData`, BCS serialized
     /// and Base64 encoded.
+    #[graphql(complexity = 0)]
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
-            TransactionBlockInner::Stored { stored_tx, .. } => {
+            TransactionBlockInner::Checkpointed { stored_tx, .. } => {
                 Some(Base64::from(&stored_tx.raw_transaction))
             }
-            TransactionBlockInner::Executed { tx_data, .. } => {
-                bcs::to_bytes(&tx_data).ok().map(Base64::from)
+            TransactionBlockInner::Executed { optimistic_tx, .. } => {
+                Some(Base64::from(&optimistic_tx.raw_transaction))
             }
+
             // Dry run transaction does not have signatures so no sender signed data.
             TransactionBlockInner::DryRun { .. } => None,
         }
+    }
+
+    /// Returns whether the transaction has been indexed on the fullnode.
+    ///
+    /// This makes a request to the fullnode if the transaction is not part of
+    /// a checkpoint to resolve the index status on the node.
+    ///
+    /// However, as this relies on the transaction data being already
+    /// constructed or fetched from the backing database, it only makes
+    /// sense to be used with `Mutation.executeTransactionBlock` on the
+    /// resulting effects.
+    ///
+    /// Otherwise, it is recommended that you use
+    /// `Query.isTransactionIndexedOnNode` for optimal performance.
+    #[graphql(complexity = 0)]
+    async fn indexed_on_node(&self, ctx: &Context<'_>) -> Result<Option<bool>> {
+        if self.inner.is_checkpointed() {
+            return Ok(Some(true));
+        }
+        let Some(digest) = self.native_signed_data().map(|d| d.digest()) else {
+            // dry-run transactions are never indexed
+            return Ok(Some(false));
+        };
+        Ok(Some(
+            ctx.data::<ReadApi>()?
+                .is_transaction_indexed_on_node(digest)
+                .await?,
+        ))
     }
 }
 
 impl TransactionBlock {
     fn native(&self) -> &NativeTransactionData {
         match &self.inner {
-            TransactionBlockInner::Stored { native, .. } => native.transaction_data(),
-            TransactionBlockInner::Executed { tx_data, .. } => tx_data.transaction_data(),
+            TransactionBlockInner::Checkpointed { native, .. } => native.transaction_data(),
+            TransactionBlockInner::Executed { native, .. } => native.transaction_data(),
+
             TransactionBlockInner::DryRun { tx_data, .. } => tx_data,
         }
     }
 
     fn native_signed_data(&self) -> Option<&NativeSenderSignedData> {
         match &self.inner {
-            TransactionBlockInner::Stored { native, .. } => Some(native),
-            TransactionBlockInner::Executed { tx_data, .. } => Some(tx_data),
+            TransactionBlockInner::Checkpointed { native, .. } => Some(native),
+            TransactionBlockInner::Executed { native, .. } => Some(native),
+
             TransactionBlockInner::DryRun { .. } => None,
         }
     }
 
-    /// Look up a `TransactionBlock` in the database, by its transaction digest.
-    /// Treats it as if it is being viewed at the `checkpoint_viewed_at`
-    /// (e.g. the state of all relevant addresses will be at that
-    /// checkpoint).
+    /// Look up a `TransactionBlock` in the database, by its transaction digest
+    /// or sequence number. Treats it as if it is being viewed at the
+    /// `checkpoint_viewed_at` (e.g. the state of all relevant addresses
+    /// will be at that checkpoint).
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        digest: Digest,
-        checkpoint_viewed_at: u64,
+        key: TransactionBlockLookup,
     ) -> Result<Option<Self>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
-        loader
-            .load_one(DigestKey {
-                digest,
-                checkpoint_viewed_at,
-            })
-            .await
+        match key {
+            TransactionBlockLookup::ByDigest(digest_key) => loader.load_one(digest_key).await,
+            TransactionBlockLookup::BySeq(seq_key) => loader.load_one(seq_key).await,
+        }
     }
 
     /// Look up multiple `TransactionBlock`s by their digests. Returns a map
@@ -440,6 +534,11 @@ impl TransactionBlock {
 
         Ok(conn)
     }
+
+    /// Returns whether this transaction block is within the available range.
+    pub(crate) fn is_available(&self) -> bool {
+        self.checkpoint_viewed_at < UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
+    }
 }
 
 impl Loader<DigestKey> for Db {
@@ -450,11 +549,14 @@ impl Loader<DigestKey> for Db {
         &self,
         keys: &[DigestKey],
     ) -> Result<HashMap<DigestKey, TransactionBlock>, Error> {
+        use optimistic_transactions::dsl as opt_tx;
         use transactions::dsl as tx;
         use tx_digests::dsl as ds;
+        use tx_global_order::dsl as tx_global;
 
         let digests: Vec<_> = keys.iter().map(|k| k.digest.to_vec()).collect();
 
+        // First, fetch from the main transactions table
         let transactions: Vec<StoredTransaction> = self
             .execute(move |conn| {
                 conn.results(move || {
@@ -469,33 +571,121 @@ impl Loader<DigestKey> for Db {
             .await
             .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
 
-        let transaction_digest_to_stored: BTreeMap<_, _> = transactions
+        let transaction_digest_to_stored: BTreeMap<Vec<u8>, StoredTransaction> = transactions
             .into_iter()
-            .map(|tx| Ok((tx.transaction_digest.clone(), tx)))
-            .collect::<Result<BTreeMap<_, _>, Error>>()?;
+            .map(|tx| (tx.transaction_digest.clone(), tx))
+            .collect();
 
+        // Process stored transactions and collect missing digests
         let mut results = HashMap::new();
+        let mut missing_digests = Vec::new();
+
         for key in keys {
-            let Some(stored) = transaction_digest_to_stored
-                .get(key.digest.as_slice())
-                .cloned()
-            else {
+            let digest_bytes = key.digest.as_slice();
+
+            if let Some(stored) = transaction_digest_to_stored.get(digest_bytes) {
+                let mut checkpoint_viewed_at = key.checkpoint_viewed_at;
+                if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                    checkpoint_viewed_at = UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER;
+                }
+                let tx_block = TransactionBlock {
+                    inner: TransactionBlockInner::try_from(stored.clone())?,
+                    checkpoint_viewed_at,
+                };
+                results.insert(*key, tx_block);
+            } else {
+                missing_digests.push(key.digest.to_vec());
+            }
+        }
+
+        if !missing_digests.is_empty() {
+            let optimistic_transactions: Vec<OptimisticTransaction> = self
+                .execute(move |conn| {
+                    conn.results(move || {
+                        opt_tx::optimistic_transactions
+                            .inner_join(
+                                tx_global::tx_global_order.on(opt_tx::global_sequence_number
+                                    .eq(tx_global::global_sequence_number)
+                                    .and(
+                                        opt_tx::optimistic_sequence_number
+                                            .eq(tx_global::optimistic_sequence_number),
+                                    )),
+                            )
+                            // Filter by digest on tx_global_order table because it is indexed by
+                            // digest, optimistic_transactions table is not
+                            .filter(tx_global::tx_digest.eq_any(missing_digests.clone()))
+                            .select(OptimisticTransaction::as_select())
+                    })
+                })
+                .await
+                .map_err(|e| {
+                    Error::Internal(format!("Failed to fetch optimistic transactions: {e}"))
+                })?;
+
+            let transaction_digest_to_optimistic: BTreeMap<Vec<u8>, OptimisticTransaction> =
+                optimistic_transactions
+                    .into_iter()
+                    .map(|opt_tx| (opt_tx.transaction_digest.clone(), opt_tx))
+                    .collect();
+
+            for key in keys {
+                let digest_bytes = key.digest.as_slice();
+                if let Some(optimistic) = transaction_digest_to_optimistic.get(digest_bytes) {
+                    let tx_block = TransactionBlock {
+                        inner: TransactionBlockInner::try_from(optimistic.clone())?,
+                        checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
+                    };
+                    results.insert(*key, tx_block);
+                }
+            }
+        }
+
+        Ok(results)
+    }
+}
+
+impl Loader<SeqKey> for Db {
+    type Value = TransactionBlock;
+    type Error = Error;
+
+    async fn load(&self, keys: &[SeqKey]) -> Result<HashMap<SeqKey, TransactionBlock>, Error> {
+        use transactions::dsl as tx;
+
+        let tx_seqs = keys
+            .iter()
+            .map(|k| k.tx_sequence_number as i64)
+            .collect::<Vec<_>>();
+        let transactions: Vec<StoredTransaction> = self
+            .execute(move |conn| {
+                conn.results(|| {
+                    tx::transactions
+                        .select(StoredTransaction::as_select())
+                        .filter(tx::tx_sequence_number.eq_any(tx_seqs.clone()))
+                })
+            })
+            .await
+            .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
+
+        let seq_num_to_tx: HashMap<i64, StoredTransaction> = transactions
+            .into_iter()
+            .map(|tx| (tx.tx_sequence_number, tx))
+            .collect();
+
+        let mut results = HashMap::with_capacity(keys.len());
+        for key in keys {
+            let Some(stored) = seq_num_to_tx.get(&(key.tx_sequence_number as i64)) else {
                 continue;
             };
 
-            // Filter by key's checkpoint viewed at here. Doing this in memory because it
-            // should be quite rare that this query actually filters something,
-            // but encoding it in SQL is complicated.
+            let mut checkpoint_viewed_at = key.checkpoint_viewed_at;
             if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
-                continue;
+                checkpoint_viewed_at = UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER;
             }
-
-            let inner = TransactionBlockInner::try_from(stored)?;
             results.insert(
                 *key,
                 TransactionBlock {
-                    inner,
-                    checkpoint_viewed_at: key.checkpoint_viewed_at,
+                    inner: TransactionBlockInner::try_from(stored.clone())?,
+                    checkpoint_viewed_at,
                 },
             );
         }
@@ -511,7 +701,38 @@ impl TryFrom<StoredTransaction> for TransactionBlockInner {
         let native = bcs::from_bytes(&stored_tx.raw_transaction)
             .map_err(|e| Error::Internal(format!("Error deserializing transaction block: {e}")))?;
 
-        Ok(TransactionBlockInner::Stored { stored_tx, native })
+        Ok(TransactionBlockInner::Checkpointed { stored_tx, native })
+    }
+}
+
+impl TryFrom<StoredTransaction> for TransactionBlock {
+    type Error = Error;
+
+    fn try_from(stored_tx: StoredTransaction) -> Result<Self, Error> {
+        let checkpoint_viewed_at = stored_tx.checkpoint_sequence_number as u64;
+        let inner = TransactionBlockInner::try_from(stored_tx)?;
+
+        Ok(TransactionBlock {
+            inner,
+            checkpoint_viewed_at,
+        })
+    }
+}
+
+impl TryFrom<OptimisticTransaction> for TransactionBlockInner {
+    type Error = Error;
+
+    fn try_from(optimistic_tx: OptimisticTransaction) -> Result<Self, Error> {
+        let native = bcs::from_bytes(&optimistic_tx.raw_transaction).map_err(|e| {
+            Error::Internal(format!(
+                "Failed to deserialize NativeSenderSignedData from optimistic transaction: {e}"
+            ))
+        })?;
+
+        Ok(TransactionBlockInner::Executed {
+            optimistic_tx,
+            native,
+        })
     }
 }
 
@@ -521,26 +742,21 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
     fn try_from(effects: TransactionBlockEffects) -> Result<Self, Error> {
         let checkpoint_viewed_at = effects.checkpoint_viewed_at;
         let inner = match effects.kind {
-            TransactionBlockEffectsKind::Stored { stored_tx, .. } => {
-                TransactionBlockInner::try_from(stored_tx.clone())
+            TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
+                TransactionBlockInner::try_from(stored_tx)
             }
-            TransactionBlockEffectsKind::Executed {
-                tx_data,
-                native,
-                events,
-            } => Ok(TransactionBlockInner::Executed {
-                tx_data: tx_data.clone(),
-                effects: native.clone(),
-                events: events.clone(),
-            }),
+            TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
+                TransactionBlockInner::try_from(optimistic_tx)
+            }
+
             TransactionBlockEffectsKind::DryRun {
                 tx_data,
-                native,
+                native: effects,
                 events,
             } => Ok(TransactionBlockInner::DryRun {
-                tx_data: tx_data.clone(),
-                effects: native.clone(),
-                events: events.clone(),
+                tx_data,
+                effects,
+                events,
             }),
         }?;
 

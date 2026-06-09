@@ -7,52 +7,58 @@ use crate::{
     language_storage::TypeTag,
 };
 
-/// Elements are components of paths that select values from the sub-structure of other values.
-/// They are split into two categories:
+/// Elements are components of paths that select values from the sub-structure
+/// of other values. They are split into two categories:
 ///
 /// - Selectors, which recurse into the sub-structure.
-/// - Filters, which check properties of the value at that position in the sub-structure.
+/// - Filters, which check properties of the value at that position in the
+///   sub-structure.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Element<'e> {
     // Selectors
-    /// Select a named field, assuming the value in question is a struct or an enum variant.
+    /// Select a named field, assuming the value in question is a struct or an
+    /// enum variant.
     Field(&'e str),
 
-    /// Select a positional element. This can be the element of a vector, or it can be a positional
-    /// field in an enum or a struct.
+    /// Select a positional element. This can be the element of a vector, or it
+    /// can be a positional field in an enum or a struct.
     Index(u64),
 
     // Filters
     /// Confirm that the current value has a certain type.
     Type(&'e TypeTag),
 
-    /// Confirm that the current value is an enum and its variant has this name. Note that to
-    /// filter on both the enum type and the variant name, the path must contain the Type first,
-    /// and then the Variant. Otherwise the type filter will be assumed
+    /// Confirm that the current value is an enum and its variant has this name.
+    /// Note that to filter on both the enum type and the variant name, the
+    /// path must contain the Type first, and then the Variant. Otherwise
+    /// the type filter will be assumed
     Variant(&'e str),
 }
 
-/// An Extractor is an [`AV::Visitor`] that deserializes a sub-structure of the value. The
-/// sub-structure is found at the end of a path of [`Element`]s which select fields from structs,
-/// indices from vectors, and variants from enums. Deserialization is delegated to another visitor,
-/// of type `V`, with the Extractor returning `Option<V::Value>`:
+/// An Extractor is an [`AV::Visitor`] that deserializes a sub-structure of the
+/// value. The sub-structure is found at the end of a path of [`Element`]s which
+/// select fields from structs, indices from vectors, and variants from enums.
+/// Deserialization is delegated to another visitor, of type `V`, with the
+/// Extractor returning `Option<V::Value>`:
 ///
 /// - `Some(v)` if the given path exists in the value, or
 /// - `None` if the path did not exist,
 /// - Or an error if the underlying visitor failed for some reason.
 ///
-/// At every stage, the path can optionally start with an [`Element::Type`], which restricts the
-/// type of the top-level value being deserialized. From there, the elements expected are driven by
-/// the layout being deserialized:
+/// At every stage, the path can optionally start with an [`Element::Type`],
+/// which restricts the type of the top-level value being deserialized. From
+/// there, the elements expected are driven by the layout being deserialized:
 ///
-/// - When deserializing a vector, the next element must be an [`Element::Index`] which selects the
-///   offset into the vector that the extractor recurses into.
-/// - When deserializing a struct, the next element may be an [`Element::Field`] which selects the
-///   field of the struct that the extractor recurses into by name, or an [`Element::Index`] which
-///   selects the field by its offset.
-/// - When deserializing a variant, the next elements may optionally be an [`Element::Variant`]
-///   which expects a particular variant of the enum, followed by either an [`Element::Field`] or
-///   an [`Element::Index`], similar to a struct.
+/// - When deserializing a vector, the next element must be an
+///   [`Element::Index`] which selects the offset into the vector that the
+///   extractor recurses into.
+/// - When deserializing a struct, the next element may be an [`Element::Field`]
+///   which selects the field of the struct that the extractor recurses into by
+///   name, or an [`Element::Index`] which selects the field by its offset.
+/// - When deserializing a variant, the next elements may optionally be an
+///   [`Element::Variant`] which expects a particular variant of the enum,
+///   followed by either an [`Element::Field`] or an [`Element::Index`], similar
+///   to a struct.
 pub struct Extractor<'p, 'v, V> {
     inner: &'v mut V,
     path: &'p [Element<'p>],
@@ -199,8 +205,8 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         use Element as E;
         use TypeTag as T;
 
-        // If there is a type element, check that it is a vector type with the correct element
-        // type, and remove it from the path.
+        // If there is a type element, check that it is a vector type with the correct
+        // element type, and remove it from the path.
         let path = if let [E::Type(t), path @ ..] = self.path {
             if !matches!(t, T::Vector(t) if driver.element_layout().is_type(t)) {
                 return Ok(None);
@@ -215,8 +221,8 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
             return Ok(Some(self.inner.visit_vector(driver)?));
         };
 
-        // Visiting a vector, the next part of the path must be an index -- anything else is
-        // guaranteed to fail.
+        // Visiting a vector, the next part of the path must be an index -- anything
+        // else is guaranteed to fail.
         let E::Index(i) = index else {
             return Ok(None);
         };
@@ -238,8 +244,8 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         use Element as E;
         use TypeTag as T;
 
-        // If there is a type element, check that it is a struct type with the correct struct tag,
-        // and remove it from the path.
+        // If there is a type element, check that it is a struct type with the correct
+        // struct tag, and remove it from the path.
         let path = if let [E::Type(t), path @ ..] = self.path {
             if !matches!(t, T::Struct(t) if driver.struct_layout().is_type(t)) {
                 return Ok(None);
@@ -284,8 +290,8 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
         use Element as E;
         use TypeTag as T;
 
-        // If there is a type element, check that it is a struct type with the correct struct tag,
-        // and remove it from the path.
+        // If there is a type element, check that it is a struct type with the correct
+        // struct tag, and remove it from the path.
         let path = if let [E::Type(t), path @ ..] = self.path {
             if !matches!(t, T::Struct(t) if driver.enum_layout().is_type(t)) {
                 return Ok(None);
@@ -295,7 +301,8 @@ impl<'b, 'l, V: AV::Visitor<'b, 'l>> AV::Visitor<'b, 'l> for Extractor<'_, '_, V
             self.path
         };
 
-        // If there is a variant element, check that it matches and remove it from the path.
+        // If there is a variant element, check that it matches and remove it from the
+        // path.
         let path = if let [E::Variant(v), path @ ..] = path {
             if driver.variant_name().as_str() != *v {
                 return Ok(None);

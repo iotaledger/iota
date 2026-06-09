@@ -5,12 +5,13 @@
 use diesel::prelude::*;
 
 use crate::{
+    errors::IndexerError,
     schema::objects_version,
     types::{IndexedDeletedObject, IndexedObject},
 };
 
 /// Model types related to tables that support efficient execution of queries on
-/// the `objects`, `objects_history` and `objects_snapshot` tables.
+/// the `objects`, `objects_history` and related object tables.
 
 #[derive(Queryable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
 #[diesel(table_name = objects_version, primary_key(object_id, object_version))]
@@ -20,20 +21,26 @@ pub struct StoredObjectVersion {
     pub cp_sequence_number: i64,
 }
 
-impl From<&IndexedObject> for StoredObjectVersion {
-    fn from(o: &IndexedObject) -> Self {
-        Self {
-            object_id: o.object.id().to_vec(),
-            object_version: o.object.version().value() as i64,
-            cp_sequence_number: o.checkpoint_sequence_number as i64,
-        }
+impl TryFrom<&IndexedObject> for StoredObjectVersion {
+    type Error = IndexerError;
+
+    fn try_from(o: &IndexedObject) -> Result<Self, Self::Error> {
+        Ok(Self {
+            object_id: o.object.id().as_bytes().to_vec(),
+            object_version: o.object.version().as_u64() as i64,
+            cp_sequence_number: o.checkpoint_sequence_number.ok_or_else(|| {
+                IndexerError::InvalidArgument(
+                    "checkpoint_sequence_number is required for StoredObjectVersion".to_string(),
+                )
+            })? as i64,
+        })
     }
 }
 
 impl From<&IndexedDeletedObject> for StoredObjectVersion {
     fn from(o: &IndexedDeletedObject) -> Self {
         Self {
-            object_id: o.object_id.to_vec(),
+            object_id: o.object_id.as_bytes().to_vec(),
             object_version: o.object_version as i64,
             cp_sequence_number: o.checkpoint_sequence_number as i64,
         }

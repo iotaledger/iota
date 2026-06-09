@@ -12,10 +12,10 @@ use std::error::Error;
 
 use crossterm::event::{self, Event, KeyCode as Key, KeyEvent};
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Position},
     style::Style,
     widgets::{Block, Borders, Paragraph},
-    Frame,
 };
 
 use crate::tui::tui_interface::TUIInterface;
@@ -147,4 +147,3 @@ impl<Interface: TUIInterface> TUI<Interface> {
         Ok(false)
     }
 }
-

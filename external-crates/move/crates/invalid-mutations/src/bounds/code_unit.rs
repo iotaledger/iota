@@ -6,7 +6,8 @@
 use std::collections::BTreeMap;
 
 use move_binary_format::{
-    errors::{offset_out_of_bounds, PartialVMError},
+    IndexKind,
+    errors::{PartialVMError, offset_out_of_bounds},
     file_format::{
         Bytecode, CodeOffset, CompiledModule, ConstantPoolIndex, FieldHandleIndex,
         FieldInstantiationIndex, FunctionDefinitionIndex, FunctionHandleIndex,
@@ -15,7 +16,6 @@ use move_binary_format::{
         VariantJumpTableIndex,
     },
     internals::ModuleIndex,
-    IndexKind,
 };
 use move_core_types::vm_status::StatusCode;
 use proptest::{prelude::*, sample::Index as PropIndex};

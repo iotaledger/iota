@@ -22,10 +22,7 @@ impl Worker for CustomWorker {
 
     async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> Result<Self::Message> {
         // custom processing logic
-        println!(
-            "Processing checkpoint: {}",
-            checkpoint.checkpoint_summary.to_string()
-        );
+        println!("Processing checkpoint: {}", *checkpoint.checkpoint_summary);
         Ok(())
     }
 }
@@ -56,10 +53,10 @@ async fn main() -> Result<()> {
     executor.register(worker_pool).await?;
 
     let config = CheckpointReaderConfig {
-        // It's also possible to start a fullnode locally and use the REST API to sync checkpoints
-        // data.
+        // It's also possible to start a fullnode locally and use the gRPC connection to sync
+        // checkpoints data.
         //
-        // remote_store_url: Some(RemoteUrl::Fullnode("http://127.0.0.1:9000/api/v1".to_string())),
+        // remote_store_url: Some(RemoteUrl::Fullnode("http://127.0.0.1:50051".to_string())),
         remote_store_url: Some(RemoteUrl::HybridHistoricalStore {
             historical_url: "https://checkpoints.mainnet.iota.cafe/ingestion/historical".into(),
             live_url: Some("https://checkpoints.mainnet.iota.cafe/ingestion/live".into()),

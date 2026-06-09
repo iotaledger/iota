@@ -1,17 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::types::block::{
-    payload::milestone::{MilestoneId, MilestoneIndex, MilestoneOption},
-    protocol::ProtocolParameters,
-};
-use iota_types::stardust::error::StardustError;
+use iota_stardust_types::block::{MilestoneId, MilestoneIndex, MilestoneOption};
 use packable::{
     Packable, PackableExt,
     error::{UnpackError, UnpackErrorExt},
     packer::Packer,
     unpacker::Unpacker,
 };
+
+use super::error::StardustError;
 
 /// The snapshot version supported currently
 const SNAPSHOT_VERSION: u8 = 2;
@@ -181,8 +179,7 @@ impl Packable for FullSnapshotHeader {
         let _parameters_milestone_option_length =
             u16::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
         let parameters_milestone_option =
-            MilestoneOption::unpack::<_, true>(unpacker, &ProtocolParameters::default())
-                .coerce()?;
+            MilestoneOption::unpack::<_, true>(unpacker, &()).coerce()?;
         let output_count = u64::unpack::<_, VERIFY>(unpacker, &()).coerce()?;
         let milestone_diff_count =
             MilestoneDiffCount::unpack::<_, VERIFY>(unpacker, &()).coerce()?;

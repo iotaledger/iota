@@ -23,7 +23,7 @@ cleanup() {
 trap cleanup SIGINT
 
 if [ -z "$NUM_CPUS" ]; then
-  if [ "$(uname -s)" == "Darwin" ]; 
+  if [ "$(uname -s)" == "Darwin" ];
     then NUM_CPUS="$(sysctl -n hw.ncpu)"; # mac
     else NUM_CPUS=$(cat /proc/cpuinfo | grep processor | wc -l) # ubuntu
   fi
@@ -74,58 +74,6 @@ scripts/simtest/cargo-simtest simtest \
   --package iota-core \
   --package iota-archival \
   --package iota-e2e-tests \
-  --profile simtestnightly \
-  -E "$FINAL_TEST_FILTER" 2>&1 | tee "$LOG_FILE"
-
-# define the worker count, it's max of NUM_CPUS or 8
-WORKERS_COUNT=$(($NUM_CPUS > 8 ? 8 : $NUM_CPUS))
-
-echo ""
-echo "============================================="
-echo "Running $WORKERS_COUNT stress simtests in parallel"
-echo "============================================="
-date
-
-for WORKER_NUMBER in `seq 1 $WORKERS_COUNT`; do
-  SUB_SEED="$WORKER_NUMBER$DATE"
-  LOG_FILE="$LOG_DIR/log-$SUB_SEED"
-  echo "Iteration $WORKER_NUMBER using MSIM_TEST_SEED=${SUB_SEED}, MSIM_TEST_NUM=1, SIM_STRESS_TEST_DURATION_SECS=300, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
-
-  # --test-threads 1 is important: parallelism is achieved via the for loop
-  MSIM_TEST_SEED="$SUB_SEED" \
-  MSIM_TEST_NUM=1 \
-  MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} \
-  SIM_STRESS_TEST_DURATION_SECS=300 \
-  scripts/simtest/cargo-simtest simtest \
-    --color always \
-    --test-threads 1 \
-    --package iota-benchmark \
-    --profile simtestnightly \
-    -E "$FINAL_TEST_FILTER" > "$LOG_FILE" 2>&1 &
-
-done
-
-# wait for all the jobs to end
-wait
-
-echo ""
-echo "==========================="
-echo "Running determinism simtest"
-echo "==========================="
-date
-
-# Check for determinism in stress simtests
-LOG_FILE="$LOG_DIR/determinism-log"
-echo "Using MSIM_TEST_SEED=${MSIM_TEST_SEED}, MSIM_TEST_NUM=1, MSIM_TEST_CHECK_DETERMINISM=1, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
-
-MSIM_TEST_SEED=${MSIM_TEST_SEED} \
-MSIM_TEST_NUM=1 \
-MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} \
-MSIM_TEST_CHECK_DETERMINISM=1 \
-scripts/simtest/cargo-simtest simtest \
-  --color always \
-  --test-threads "$NUM_CPUS" \
-  --package iota-benchmark \
   --profile simtestnightly \
   -E "$FINAL_TEST_FILTER" 2>&1 | tee "$LOG_FILE"
 

@@ -10,13 +10,15 @@ use std::{
 };
 
 use async_trait::async_trait;
-use iota_types::{
-    Identifier,
-    base_types::{SequenceNumber, is_primitive_type_tag},
+use iota_sdk_types::{
+    Argument, Command, Identifier, MakeMoveVector, StructTag, TypeTag,
     move_package::{MovePackage, TypeOrigin},
+};
+use iota_types::{
+    base_types::{IotaAddress, SequenceNumber, is_primitive_type_tag},
+    iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     object::Object,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
-    type_input::{StructInput, TypeInput},
+    transaction::{CallArg, ProgrammableTransaction},
 };
 use lru::LruCache;
 use move_binary_format::{
@@ -35,7 +37,7 @@ use move_command_line_common::{
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveEnumLayout, MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
-    language_storage::{ModuleId, StructTag, TypeTag},
+    language_storage::ModuleId,
 };
 
 use crate::error::Error;
@@ -76,19 +78,19 @@ pub struct Limits {
 /// backend db and if package version is stale locally, it updates the local
 /// state before returning to the user
 pub struct PackageStoreWithLruCache<T> {
-    pub(crate) packages: Mutex<LruCache<AccountAddress, Arc<Package>>>,
+    pub(crate) packages: Mutex<LruCache<IotaAddress, Arc<Package>>>,
     pub(crate) inner: T,
 }
 
 #[derive(Clone, Debug)]
 pub struct Package {
     /// The ID this package was loaded from on-chain.
-    storage_id: AccountAddress,
+    storage_id: IotaAddress,
 
     /// The ID that this package is associated with at runtime.  Bytecode in
     /// other packages refers to types and functions from this package using
     /// this ID.
-    runtime_id: AccountAddress,
+    runtime_id: IotaAddress,
 
     /// The package's transitive dependencies as a mapping from the package's
     /// runtime ID (the ID it is referred to by in other packages) to its
@@ -102,7 +104,7 @@ pub struct Package {
     modules: BTreeMap<String, Module>,
 }
 
-type Linkage = BTreeMap<AccountAddress, AccountAddress>;
+type Linkage = BTreeMap<IotaAddress, IotaAddress>;
 
 /// A `CleverError` is a special kind of abort code that is used to encode more
 /// information than a normal abort code. These clever errors are used to encode
@@ -169,12 +171,11 @@ pub struct Module {
 
     /// Index mapping struct names to their defining ID, and the index for their
     /// definition in the bytecode, to speed up definition lookups.
-    struct_index: BTreeMap<String, (AccountAddress, StructDefinitionIndex)>,
+    struct_index: BTreeMap<String, (IotaAddress, StructDefinitionIndex)>,
 
     /// Index mapping enum names to their defining ID and the index of their
     /// definition in the bytecode. This speeds up definition lookups.
-    enum_index: BTreeMap<String, (AccountAddress, EnumDefinitionIndex)>,
-
+    enum_index: BTreeMap<String, (IotaAddress, EnumDefinitionIndex)>,
     /// Index mapping function names to the index for their definition in the
     /// bytecode, to speed up definition lookups.
     function_index: BTreeMap<String, FunctionDefinitionIndex>,
@@ -184,7 +185,7 @@ pub struct Module {
 #[derive(Debug)]
 pub struct DataDef {
     /// The storage ID of the package that first introduced this type.
-    pub defining_id: AccountAddress,
+    pub defining_id: IotaAddress,
 
     /// This type's abilities.
     pub abilities: AbilitySet,
@@ -246,7 +247,7 @@ pub struct FunctionDef {
 /// without having to allocate strings on the heap.
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Hash)]
 pub struct DatatypeRef<'m, 'n> {
-    pub package: AccountAddress,
+    pub package: IotaAddress,
     pub module: Cow<'m, str>,
     pub name: Cow<'n, str>,
 }
@@ -310,14 +311,14 @@ struct ResolutionContext<'l> {
 pub trait PackageStore: Send + Sync + 'static {
     /// Read package contents. Fails if `id` is not an object, not a package, or
     /// is malformed in some way.
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>>;
+    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>>;
 }
 
 macro_rules! as_ref_impl {
     ($type:ty) => {
         #[async_trait]
         impl PackageStore for $type {
-            async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>> {
+            async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>> {
                 self.as_ref().fetch(id).await
             }
         }
@@ -455,7 +456,7 @@ impl<S: PackageStore> Resolver<S> {
     /// in the package store, assuming the function exists.
     pub async fn function_signature(
         &self,
-        pkg: AccountAddress,
+        pkg: IotaAddress,
         module: &str,
         function: &str,
     ) -> Result<FunctionDef> {
@@ -536,41 +537,37 @@ impl<S: PackageStore> Resolver<S> {
         // (1). Infer type tags for pure inputs from their uses.
         for cmd in &tx.commands {
             match cmd {
-                Command::MoveCall(call) => {
+                Command::MoveCall(cmd) => {
                     let Ok(signature) = self
                         .function_signature(
-                            call.package.into(),
-                            call.module.as_str(),
-                            call.function.as_str(),
+                            cmd.package.into(),
+                            cmd.module.as_str(),
+                            cmd.function.as_str(),
                         )
                         .await
                     else {
                         continue;
                     };
 
-                    for (open_sig, arg) in signature.parameters.iter().zip(call.arguments.iter()) {
-                        let sig = open_sig.instantiate(&call.type_arguments)?;
+                    for (open_sig, arg) in signature.parameters.iter().zip(cmd.arguments.iter()) {
+                        let sig = open_sig.instantiate(&cmd.type_arguments)?;
                         register_type(arg, &sig.body)?;
                     }
                 }
-
-                Command::TransferObjects(_, arg) => register_type(arg, &TypeTag::Address)?,
-
-                Command::SplitCoins(_, amounts) => {
-                    for amount in amounts {
+                Command::TransferObjects(cmd) => register_type(&cmd.address, &TypeTag::Address)?,
+                Command::SplitCoins(cmd) => {
+                    for amount in &cmd.amounts {
                         register_type(amount, &TypeTag::U64)?;
                     }
                 }
-
-                Command::MakeMoveVec(Some(tag), elems) => {
-                    let tag = as_type_tag(tag)?;
-                    if is_primitive_type_tag(&tag) {
-                        for elem in elems {
-                            register_type(elem, &tag)?;
-                        }
+                Command::MakeMoveVector(MakeMoveVector {
+                    type_: Some(tag),
+                    elements,
+                }) if is_primitive_type_tag(tag) => {
+                    for elem in elements {
+                        register_type(elem, tag)?;
                     }
                 }
-
                 _ => { /* nop */ }
             }
         }
@@ -605,11 +602,14 @@ impl<S: PackageStore> Resolver<S> {
     pub async fn resolve_module_id(
         &self,
         module_id: ModuleId,
-        context: AccountAddress,
+        context: IotaAddress,
     ) -> Result<ModuleId> {
         let package = self.package_store.fetch(context).await?;
-        let storage_id = package.relocate(*module_id.address())?;
-        Ok(ModuleId::new(storage_id, module_id.name().to_owned()))
+        let storage_id = package.relocate(IotaAddress::new(module_id.address().into_bytes()))?;
+        Ok(ModuleId::new(
+            AccountAddress::new(storage_id.into_bytes()),
+            module_id.name().to_owned(),
+        ))
     }
 
     /// Resolves an abort code following the clever error format to a
@@ -634,7 +634,11 @@ impl<S: PackageStore> Resolver<S> {
         abort_code: u64,
     ) -> Option<CleverError> {
         let bitset = ErrorBitset::from_u64(abort_code)?;
-        let package = self.package_store.fetch(*module_id.address()).await.ok()?;
+        let package = self
+            .package_store
+            .fetch(IotaAddress::new(module_id.address().into_bytes()))
+            .await
+            .ok()?;
         let module = package.module(module_id.name().as_str()).ok()?.bytecode();
         let source_line_number = bitset.line_number()?;
 
@@ -696,7 +700,7 @@ impl<T> PackageStoreWithLruCache<T> {
     /// Removes all packages with ids in `ids` from the cache, if they exist.
     /// Does nothing for ids that are not in the cache. Accepts `self`
     /// immutably as it operates under the lock.
-    pub fn evict(&self, ids: impl IntoIterator<Item = AccountAddress>) {
+    pub fn evict(&self, ids: impl IntoIterator<Item = IotaAddress>) {
         let mut packages = self.packages.lock().unwrap();
         for id in ids {
             packages.pop(&id);
@@ -706,7 +710,7 @@ impl<T> PackageStoreWithLruCache<T> {
 
 #[async_trait]
 impl<T: PackageStore> PackageStore for PackageStoreWithLruCache<T> {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>> {
+    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>> {
         if let Some(package) = {
             // Release the lock after getting the package
             let mut packages = self.packages.lock().unwrap();
@@ -741,17 +745,15 @@ impl<T: PackageStore> PackageStore for PackageStoreWithLruCache<T> {
 
 impl Package {
     pub fn read_from_object(object: &Object) -> Result<Self> {
-        let storage_id = AccountAddress::from(object.id());
-        let Some(package) = object.data.try_as_package() else {
-            return Err(Error::NotAPackage(storage_id));
+        let Some(package) = object.data.as_package_opt() else {
+            return Err(Error::NotAPackage(object.id().into()));
         };
 
         Self::read_from_package(package)
     }
 
     pub fn read_from_package(package: &MovePackage) -> Result<Self> {
-        let storage_id = AccountAddress::from(package.id());
-        let mut type_origins: BTreeMap<String, BTreeMap<String, AccountAddress>> = BTreeMap::new();
+        let mut type_origins: BTreeMap<String, BTreeMap<String, IotaAddress>> = BTreeMap::new();
         for TypeOrigin {
             module_name,
             datatype_name,
@@ -761,27 +763,33 @@ impl Package {
             type_origins
                 .entry(module_name.to_string())
                 .or_default()
-                .insert(datatype_name.to_string(), AccountAddress::from(*package));
+                .insert(datatype_name.to_string(), (*package).into());
         }
 
         let mut runtime_id = None;
         let mut modules = BTreeMap::new();
         for (name, bytes) in package.serialized_module_map() {
-            let origins = type_origins.remove(name).unwrap_or_default();
+            let origins = type_origins.remove(&name.to_string()).unwrap_or_default();
             let bytecode = CompiledModule::deserialize_with_defaults(bytes)
                 .map_err(|e| Error::Deserialize(e.finish(Location::Undefined)))?;
 
-            runtime_id = Some(*bytecode.address());
+            runtime_id = Some(IotaAddress::new(bytecode.address().into_bytes()));
 
             let name = name.clone();
             match Module::read(bytecode, origins) {
-                Ok(module) => modules.insert(name, module),
-                Err(struct_) => return Err(Error::NoTypeOrigin(storage_id, name, struct_)),
+                Ok(module) => modules.insert(name.to_string(), module),
+                Err(struct_) => {
+                    return Err(Error::NoTypeOrigin(
+                        package.id().into(),
+                        name.to_string(),
+                        struct_,
+                    ));
+                }
             };
         }
 
         let Some(runtime_id) = runtime_id else {
-            return Err(Error::EmptyPackage(storage_id));
+            return Err(Error::EmptyPackage(package.id().into()));
         };
 
         let linkage = package
@@ -791,7 +799,7 @@ impl Package {
             .collect();
 
         Ok(Package {
-            storage_id,
+            storage_id: package.id().into(),
             runtime_id,
             version: package.version(),
             modules,
@@ -824,7 +832,7 @@ impl Package {
     /// Translate the `runtime_id` of a package to a specific storage ID using
     /// this package's linkage table.  Returns an error if the package in
     /// question is not present in the linkage table.
-    fn relocate(&self, runtime_id: AccountAddress) -> Result<AccountAddress> {
+    fn relocate(&self, runtime_id: IotaAddress) -> Result<IotaAddress> {
         // Special case the current package, because it doesn't get an entry in the
         // linkage table.
         if runtime_id == self.runtime_id {
@@ -845,7 +853,7 @@ impl Module {
     /// case.
     fn read(
         bytecode: CompiledModule,
-        mut origins: BTreeMap<String, AccountAddress>,
+        mut origins: BTreeMap<String, IotaAddress>,
     ) -> std::result::Result<Self, String> {
         let mut struct_index = BTreeMap::new();
         for (index, def) in bytecode.struct_defs.iter().enumerate() {
@@ -1105,7 +1113,7 @@ impl OpenSignature {
     /// the struct or function this signature is part of), but will
     /// produce an error if the signature references a type parameter that is
     /// out of bounds.
-    pub fn instantiate(&self, type_params: &[TypeInput]) -> Result<Signature> {
+    pub fn instantiate(&self, type_params: &[TypeTag]) -> Result<Signature> {
         Ok(Signature {
             ref_: self.ref_,
             body: self.body.instantiate(type_params)?,
@@ -1148,7 +1156,7 @@ impl OpenSignatureBody {
         })
     }
 
-    fn instantiate(&self, type_params: &[TypeInput]) -> Result<TypeTag> {
+    fn instantiate(&self, type_params: &[TypeTag]) -> Result<TypeTag> {
         use OpenSignatureBody as O;
         use TypeTag as T;
 
@@ -1163,21 +1171,20 @@ impl OpenSignatureBody {
             O::U256 => T::U256,
             O::Vector(s) => T::Vector(Box::new(s.instantiate(type_params)?)),
 
-            O::Datatype(key, dty_params) => T::Struct(Box::new(StructTag {
-                address: key.package,
-                module: ident(&key.module)?,
-                name: ident(&key.name)?,
-                type_params: dty_params
+            O::Datatype(key, dty_params) => T::Struct(Box::new(StructTag::new(
+                key.package,
+                ident(&key.module)?,
+                ident(&key.name)?,
+                dty_params
                     .iter()
                     .map(|p| p.instantiate(type_params))
                     .collect::<Result<_>>()?,
-            })),
+            ))),
 
-            O::TypeParameter(ix) => as_type_tag(
-                type_params
-                    .get(*ix as usize)
-                    .ok_or_else(|| Error::TypeParamOOB(*ix, type_params.len()))?,
-            )?,
+            O::TypeParameter(ix) => type_params
+                .get(*ix as usize)
+                .ok_or_else(|| Error::TypeParamOOB(*ix, type_params.len()))?
+                .clone(),
         })
     }
 }
@@ -1197,7 +1204,7 @@ impl DatatypeKey {
         let sh = bytecode.datatype_handle_at(ix);
         let mh = bytecode.module_handle_at(sh.module);
 
-        let package = *bytecode.address_identifier_at(mh.address);
+        let package = IotaAddress::new(bytecode.address_identifier_at(mh.address).into_bytes());
         let module = bytecode.identifier_at(mh.name).to_string().into();
         let name = bytecode.identifier_at(sh.name).to_string().into();
 
@@ -1274,31 +1281,36 @@ impl<'l> ResolutionContext<'l> {
                 T::Vector(tag) => push_ty_param!(tag),
 
                 T::Struct(s) => {
-                    let context = store.fetch(s.address).await?;
+                    let context = store.fetch(s.address()).await?;
                     let def = context
                         .clone()
-                        .data_def(s.module.as_str(), s.name.as_str())?;
+                        .data_def(s.module().as_str(), s.name().as_str())?;
 
                     // Normalize `address` (the ID of a package that contains the definition of this
                     // struct) to be a runtime ID, because that's what the resolution context uses
                     // for keys.  Take care to do this before generating the key that is used to
                     // query and/or write into `self.structs.
-                    s.address = context.runtime_id;
+                    *s.as_mut() = StructTag::new(
+                        context.runtime_id,
+                        s.module().clone(),
+                        s.name().clone(),
+                        s.type_params().to_vec(),
+                    );
                     let key = DatatypeRef::from(s.as_ref()).as_key();
 
-                    if def.type_params.len() != s.type_params.len() {
+                    if def.type_params.len() != s.type_params().len() {
                         return Err(Error::TypeArityMismatch(
                             def.type_params.len(),
-                            s.type_params.len(),
+                            s.type_params().len(),
                         ));
                     }
 
                     check_max_limit!(
                         TooManyTypeParams, self.limits;
-                        max_type_argument_width >= s.type_params.len()
+                        max_type_argument_width >= s.type_params().len()
                     );
 
-                    for (param, def) in s.type_params.iter_mut().zip(def.type_params.iter()) {
+                    for (param, def) in s.type_params_mut().iter_mut().zip(def.type_params.iter()) {
                         if !def.is_phantom || visit_phantoms {
                             push_ty_param!(param);
                         }
@@ -1381,7 +1393,7 @@ impl<'l> ResolutionContext<'l> {
 
                     let params_count = params.len();
                     let data_count = self.datatypes.len();
-                    frontier.extend(params.into_iter());
+                    frontier.extend(params);
 
                     let type_params = if let Some(def) = self.datatypes.get(&key) {
                         &def.type_params
@@ -1441,7 +1453,8 @@ impl<'l> ResolutionContext<'l> {
             T::Vector(tag) => self.canonicalize_type(tag.as_mut())?,
 
             T::Struct(s) => {
-                for tag in &mut s.type_params {
+                let mut type_params = s.type_params().to_vec();
+                for tag in &mut type_params {
                     self.canonicalize_type(tag)?;
                 }
 
@@ -1449,7 +1462,12 @@ impl<'l> ResolutionContext<'l> {
                 let key = DatatypeRef::from(s.as_ref());
                 let def = &self.datatypes[&key];
 
-                s.address = def.defining_id;
+                *s.as_mut() = StructTag::new(
+                    def.defining_id,
+                    s.module().clone(),
+                    s.name().clone(),
+                    type_params,
+                );
             }
         }
 
@@ -1511,7 +1529,7 @@ impl<'l> ResolutionContext<'l> {
                 // phantom parameter, which is currently done by converting a type layout into a
                 // tag.
                 let param_layouts = s
-                    .type_params
+                    .type_params()
                     .iter()
                     // Reduce the max depth because we know these type parameters will be nested
                     // within this struct.
@@ -1522,18 +1540,22 @@ impl<'l> ResolutionContext<'l> {
                 // this `ResolutionContext`, which guarantees that struct
                 // layouts come with types, which is necessary to avoid errors
                 // when converting layouts into type tags.
-                let type_params = param_layouts.iter().map(|l| TypeTag::from(&l.0)).collect();
+                let type_params = param_layouts
+                    .iter()
+                    .map(|l| move_core_types::language_storage::TypeTag::from(&l.0))
+                    .map(|tt| type_tag_core_to_sdk(&tt))
+                    .collect();
 
                 // SAFETY: `add_type_tag` ensures `datatyps` has an element with this key.
                 let key = DatatypeRef::from(s.as_ref());
                 let def = &self.datatypes[&key];
 
-                let type_ = StructTag {
-                    address: def.defining_id,
-                    module: s.module.clone(),
-                    name: s.name.clone(),
+                let type_ = StructTag::new(
+                    def.defining_id,
+                    s.module().clone(),
+                    s.name().clone(),
                     type_params,
-                };
+                );
 
                 self.resolve_datatype_signature(def, type_, param_layouts, max_depth)?
             }
@@ -1565,14 +1587,15 @@ impl<'l> ResolutionContext<'l> {
 
                     field_depth = field_depth.max(depth);
                     resolved_fields.push(MoveFieldLayout {
-                        name: ident(name.as_str())?,
+                        name: move_core_types::identifier::Identifier::new(name.as_str())
+                            .map_err(|_| Error::NotAnIdentifier(name.to_string()))?,
                         layout,
                     })
                 }
 
                 (
                     MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-                        type_,
+                        type_: struct_tag_sdk_to_core(&type_),
                         fields: resolved_fields,
                     })),
                     field_depth + 1,
@@ -1591,16 +1614,24 @@ impl<'l> ResolutionContext<'l> {
 
                         field_depth = field_depth.max(depth);
                         fields.push(MoveFieldLayout {
-                            name: ident(name.as_str())?,
+                            name: move_core_types::identifier::Identifier::new(name.as_str())
+                                .map_err(|_| Error::NotAnIdentifier(name.to_string()))?,
                             layout,
                         })
                     }
-                    resolved_variants.insert((ident(variant.name.as_str())?, tag as u16), fields);
+                    resolved_variants.insert(
+                        (
+                            move_core_types::identifier::Identifier::new(variant.name.as_str())
+                                .map_err(|_| Error::NotAnIdentifier(variant.name.to_string()))?,
+                            tag as u16,
+                        ),
+                        fields,
+                    );
                 }
 
                 (
                     MoveTypeLayout::Enum(Box::new(MoveEnumLayout {
-                        type_,
+                        type_: struct_tag_sdk_to_core(&type_),
                         variants: resolved_variants,
                     })),
                     field_depth + 1,
@@ -1679,15 +1710,18 @@ impl<'l> ResolutionContext<'l> {
                 // this `ResolutionContext`, which guarantees that struct
                 // layouts come with types, which is necessary to avoid errors
                 // when converting layouts into type tags.
-                let type_params: Vec<TypeTag> =
-                    param_layouts.iter().map(|l| TypeTag::from(&l.0)).collect();
+                let type_params: Vec<TypeTag> = param_layouts
+                    .iter()
+                    .map(|l| move_core_types::language_storage::TypeTag::from(&l.0))
+                    .map(|tt| type_tag_core_to_sdk(&tt))
+                    .collect();
 
-                let type_ = StructTag {
-                    address: def.defining_id,
-                    module: ident(&key.module)?,
-                    name: ident(&key.name)?,
+                let type_ = StructTag::new(
+                    def.defining_id,
+                    ident(&key.module)?,
+                    ident(&key.name)?,
                     type_params,
-                };
+                );
 
                 self.resolve_datatype_signature(def, type_, param_layouts, max_depth)?
             }
@@ -1713,15 +1747,15 @@ impl<'l> ResolutionContext<'l> {
                 let key = DatatypeRef::from(s.as_ref());
                 let def = &self.datatypes[&key];
 
-                if def.type_params.len() != s.type_params.len() {
+                if def.type_params.len() != s.type_params().len() {
                     return Err(Error::TypeArityMismatch(
                         def.type_params.len(),
-                        s.type_params.len(),
+                        s.type_params().len(),
                     ));
                 }
 
                 let param_abilities: Result<Vec<AbilitySet>> = s
-                    .type_params
+                    .type_params()
                     .iter()
                     .zip(def.type_params.iter())
                     .map(|(p, d)| {
@@ -1736,7 +1770,7 @@ impl<'l> ResolutionContext<'l> {
                 AbilitySet::polymorphic_abilities(
                     def.abilities,
                     def.type_params.iter().map(|p| p.is_phantom),
-                    param_abilities?.into_iter(),
+                    param_abilities?,
                 )
                 // This error is unexpected because the only reason it would fail is because of a
                 // type parameter arity mismatch, which we check for above.
@@ -1779,9 +1813,9 @@ impl<'l> ResolutionContext<'l> {
 impl<'s> From<&'s StructTag> for DatatypeRef<'s, 's> {
     fn from(tag: &'s StructTag) -> Self {
         DatatypeRef {
-            package: tag.address,
-            module: tag.module.as_str().into(),
-            name: tag.name.as_str().into(),
+            package: tag.address(),
+            module: tag.module().as_str().into(),
+            name: tag.name().as_str().into(),
         }
     }
 }
@@ -1790,39 +1824,6 @@ impl<'s> From<&'s StructTag> for DatatypeRef<'s, 's> {
 /// module's error type.
 fn ident(s: &str) -> Result<Identifier> {
     Identifier::new(s).map_err(|_| Error::NotAnIdentifier(s.to_string()))
-}
-
-pub fn as_type_tag(type_input: &TypeInput) -> Result<TypeTag> {
-    // Keep this in sync with implementation in: crates/iota-types/src/type_input.rs
-    use TypeInput as I;
-    use TypeTag as T;
-    Ok(match type_input {
-        I::Bool => T::Bool,
-        I::U8 => T::U8,
-        I::U16 => T::U16,
-        I::U32 => T::U32,
-        I::U64 => T::U64,
-        I::U128 => T::U128,
-        I::U256 => T::U256,
-        I::Address => T::Address,
-        I::Signer => T::Signer,
-        I::Vector(t) => T::Vector(Box::new(as_type_tag(t)?)),
-        I::Struct(s) => {
-            let StructInput {
-                address,
-                module,
-                name,
-                type_params,
-            } = s.as_ref();
-            let type_params = type_params.iter().map(as_type_tag).collect::<Result<_>>()?;
-            T::Struct(Box::new(StructTag {
-                address: *address,
-                module: ident(module)?,
-                name: ident(name)?,
-                type_params,
-            }))
-        }
-    })
 }
 
 /// Read and deserialize a signature index (from function parameter or return
@@ -1848,10 +1849,10 @@ mod tests {
 
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_types::{base_types::random_object_ref, error::IotaResult, transaction::ObjectArg};
+    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+    use iota_types::{base_types::random_object_ref, error::IotaResult};
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;
-    use move_core_types::ident_str;
 
     use super::*;
 
@@ -2401,7 +2402,7 @@ mod tests {
     async fn test_enums() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let a0 = cache
-            .fetch(AccountAddress::from_str("0xa0").unwrap())
+            .fetch(IotaAddress::from_str("0xa0").unwrap())
             .await
             .unwrap();
         let m = a0.module("m").unwrap();
@@ -2500,7 +2501,7 @@ mod tests {
     #[tokio::test]
     async fn test_signature_instantiation() {
         use OpenSignatureBody as O;
-        use TypeInput as T;
+        use TypeTag as T;
 
         let sig = O::Datatype(
             key("0x2::table::Table"),
@@ -2519,7 +2520,7 @@ mod tests {
     #[tokio::test]
     async fn test_signature_instantiation_error() {
         use OpenSignatureBody as O;
-        use TypeInput as T;
+        use TypeTag as T;
 
         let sig = O::Datatype(
             key("0x2::table::Table"),
@@ -2805,7 +2806,6 @@ mod tests {
     #[tokio::test]
     async fn test_pure_input_layouts() {
         use CallArg as I;
-        use ObjectArg::ImmOrOwnedObject as O;
         use TypeTag as T;
 
         let (_, cache) = package_cache([
@@ -2820,18 +2820,18 @@ mod tests {
         fn ptb(t: TypeTag, y: CallArg) -> ProgrammableTransaction {
             ProgrammableTransaction {
                 inputs: vec![
-                    I::Object(O(random_object_ref())),
+                    I::ImmutableOrOwned(random_object_ref()),
                     I::Pure(bcs::to_bytes(&42u64).unwrap()),
-                    I::Object(O(random_object_ref())),
+                    I::ImmutableOrOwned(random_object_ref()),
                     y,
-                    I::Object(O(random_object_ref())),
+                    I::ImmutableOrOwned(random_object_ref()),
                     I::Pure(bcs::to_bytes("hello").unwrap()),
                     I::Pure(bcs::to_bytes("world").unwrap()),
                 ],
-                commands: vec![Command::move_call(
-                    addr("0xe0").into(),
-                    ident_str!("m").to_owned(),
-                    ident_str!("foo").to_owned(),
+                commands: vec![Command::new_move_call(
+                    obj_id("0xe0"),
+                    Identifier::from_static("m"),
+                    Identifier::from_static("foo"),
                     vec![t],
                     (0..=6).map(Argument::Input).collect(),
                 )],
@@ -2841,23 +2841,23 @@ mod tests {
         let ptb_u64 = ptb(T::U64, I::Pure(bcs::to_bytes(&1u64).unwrap()));
 
         let ptb_opt = ptb(
-            TypeTag::Struct(Box::new(StructTag {
-                address: addr("0x1"),
-                module: ident_str!("option").to_owned(),
-                name: ident_str!("Option").to_owned(),
-                type_params: vec![TypeTag::U64],
-            })),
+            TypeTag::Struct(Box::new(StructTag::new(
+                addr("0x1"),
+                Identifier::OPTION_MODULE,
+                Identifier::from_static("Option"),
+                vec![TypeTag::U64],
+            ))),
             I::Pure(bcs::to_bytes(&[vec![1u64], vec![], vec![3]]).unwrap()),
         );
 
         let ptb_obj = ptb(
-            TypeTag::Struct(Box::new(StructTag {
-                address: addr("0xe0"),
-                module: ident_str!("m").to_owned(),
-                name: ident_str!("O").to_owned(),
-                type_params: vec![],
-            })),
-            I::Object(O(random_object_ref())),
+            TypeTag::Struct(Box::new(StructTag::new(
+                addr("0xe0"),
+                Identifier::from_static("m"),
+                Identifier::from_static("O"),
+                vec![],
+            ))),
+            I::ImmutableOrOwned(random_object_ref()),
         );
 
         let inputs_u64 = resolver.pure_input_layouts(&ptb_u64).await.unwrap();
@@ -2885,7 +2885,6 @@ mod tests {
     #[tokio::test]
     async fn test_pure_input_layouts_overlapping() {
         use CallArg as I;
-        use ObjectArg::ImmOrOwnedObject as O;
         use TypeTag as T;
 
         let (_, cache) = package_cache([
@@ -2899,26 +2898,26 @@ mod tests {
         // Helper function to generate a PTB calling 0xe0::m::foo.
         let ptb = ProgrammableTransaction {
             inputs: vec![
-                I::Object(O(random_object_ref())),
+                I::ImmutableOrOwned(random_object_ref()),
                 I::Pure(bcs::to_bytes(&42u64).unwrap()),
-                I::Object(O(random_object_ref())),
+                I::ImmutableOrOwned(random_object_ref()),
                 I::Pure(bcs::to_bytes(&43u64).unwrap()),
-                I::Object(O(random_object_ref())),
+                I::ImmutableOrOwned(random_object_ref()),
                 I::Pure(bcs::to_bytes("hello").unwrap()),
                 I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
-                Command::move_call(
-                    addr("0xe0").into(),
-                    ident_str!("m").to_owned(),
-                    ident_str!("foo").to_owned(),
+                Command::new_move_call(
+                    obj_id("0xe0"),
+                    Identifier::from_static("m"),
+                    Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
-                Command::move_call(
-                    addr("0xe0").into(),
-                    ident_str!("m").to_owned(),
-                    ident_str!("foo").to_owned(),
+                Command::new_move_call(
+                    obj_id("0xe0"),
+                    Identifier::from_static("m"),
+                    Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
@@ -2942,8 +2941,6 @@ mod tests {
     #[tokio::test]
     async fn test_pure_input_layouts_conflicting() {
         use CallArg as I;
-        use ObjectArg::ImmOrOwnedObject as O;
-        use TypeInput as TI;
         use TypeTag as T;
 
         let (_, cache) = package_cache([
@@ -2956,25 +2953,25 @@ mod tests {
 
         let ptb = ProgrammableTransaction {
             inputs: vec![
-                I::Object(O(random_object_ref())),
+                I::ImmutableOrOwned(random_object_ref()),
                 I::Pure(bcs::to_bytes(&42u64).unwrap()),
-                I::Object(O(random_object_ref())),
+                I::ImmutableOrOwned(random_object_ref()),
                 I::Pure(bcs::to_bytes(&43u64).unwrap()),
-                I::Object(O(random_object_ref())),
+                I::ImmutableOrOwned(random_object_ref()),
                 I::Pure(bcs::to_bytes("hello").unwrap()),
                 I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
-                Command::move_call(
-                    addr("0xe0").into(),
-                    ident_str!("m").to_owned(),
-                    ident_str!("foo").to_owned(),
+                Command::new_move_call(
+                    obj_id("0xe0"),
+                    Identifier::from_static("m"),
+                    Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
                 // This command is using the input that was previously used as a U64, but now as a
                 // U32, which will cause an error.
-                Command::MakeMoveVec(Some(TI::U32), vec![Argument::Input(3)]),
+                Command::new_make_move_vector(Some(T::U32), vec![Argument::Input(3)]),
             ],
         };
 
@@ -3082,7 +3079,7 @@ mod tests {
         Arc<RwLock<InnerStore>>,
         PackageStoreWithLruCache<InMemoryPackageStore>,
     ) {
-        let packages_by_storage_id: BTreeMap<AccountAddress, _> = packages
+        let packages_by_storage_id: BTreeMap<IotaAddress, _> = packages
             .into_iter()
             .map(|(version, package, origins)| {
                 (package_storage_id(&package), (version, package, origins))
@@ -3097,7 +3094,7 @@ mod tests {
                     .published
                     .values()
                     .map(|dep_id| {
-                        let storage_id = AccountAddress::from(*dep_id);
+                        let storage_id = IotaAddress::from(*dep_id);
                         let runtime_id = package_runtime_id(
                             &packages_by_storage_id
                                 .get(&storage_id)
@@ -3165,20 +3162,29 @@ mod tests {
         }
     }
 
-    fn package_storage_id(package: &CompiledPackage) -> AccountAddress {
-        AccountAddress::from(*package.published_at.as_ref().unwrap_or_else(|_| {
-            panic!(
-                "Package {} doesn't have published-at set",
-                package.package.compiled_package_info.package_name,
-            )
-        }))
+    fn package_storage_id(package: &CompiledPackage) -> IotaAddress {
+        IotaAddress::new(
+            package
+                .published_at
+                .as_ref()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Package {} doesn't have published-at set",
+                        package.package.compiled_package_info.package_name,
+                    )
+                })
+                .into_bytes(),
+        )
     }
 
-    fn package_runtime_id(package: &CompiledPackage) -> AccountAddress {
-        *package
-            .published_root_module()
-            .expect("No compiled module")
-            .address()
+    fn package_runtime_id(package: &CompiledPackage) -> IotaAddress {
+        IotaAddress::new(
+            package
+                .published_root_module()
+                .expect("No compiled module")
+                .address()
+                .into_bytes(),
+        )
     }
 
     fn build_package(dir: &str) -> IotaResult<CompiledPackage> {
@@ -3187,8 +3193,12 @@ mod tests {
         BuildConfig::new_for_testing().build(&path)
     }
 
-    fn addr(a: &str) -> AccountAddress {
-        AccountAddress::from_str(a).unwrap()
+    fn addr(a: &str) -> IotaAddress {
+        IotaAddress::from_str(a).unwrap()
+    }
+
+    fn obj_id(a: &str) -> ObjectId {
+        ObjectId::from_str(a).unwrap()
     }
 
     fn datakey(a: &str, m: &'static str, n: &'static str) -> DatatypeKey {
@@ -3215,13 +3225,13 @@ mod tests {
     }
 
     struct InnerStore {
-        packages: BTreeMap<AccountAddress, Package>,
+        packages: BTreeMap<IotaAddress, Package>,
         fetches: usize,
     }
 
     #[async_trait]
     impl PackageStore for InMemoryPackageStore {
-        async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>> {
+        async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>> {
             let mut inner = self.inner.as_ref().write().unwrap();
             inner.fetches += 1;
             inner
@@ -3234,7 +3244,7 @@ mod tests {
     }
 
     impl InnerStore {
-        fn replace(&mut self, id: AccountAddress, package: Package) {
+        fn replace(&mut self, id: IotaAddress, package: Package) {
             self.packages.insert(id, package);
         }
     }

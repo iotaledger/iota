@@ -12,8 +12,7 @@ use diesel::{
     query_dsl::LoadQuery,
 };
 use iota_indexer::{
-    indexer_reader::IndexerReader, run_query_async, run_query_repeatable_async,
-    spawn_read_only_blocking,
+    read::IndexerReader, run_query_async, run_query_repeatable_async, spawn_read_only_blocking,
 };
 use tracing::error;
 
@@ -24,6 +23,10 @@ pub(crate) struct PgExecutor {
     pub inner: IndexerReader,
     pub limits: Limits,
     pub metrics: Metrics,
+    /// Maximum size of the `availableRange` window (`MAX_AVAILABLE_RANGE`).
+    /// Caps how many checkpoints below `latest` a consistent view can be
+    /// requested for.
+    pub max_available_range: u64,
 }
 
 pub(crate) struct PgConnection<'c> {
@@ -34,11 +37,17 @@ pub(crate) struct PgConnection<'c> {
 pub(crate) struct ByteaLiteral<'a>(pub &'a [u8]);
 
 impl PgExecutor {
-    pub(crate) fn new(inner: IndexerReader, limits: Limits, metrics: Metrics) -> Self {
+    pub(crate) fn new(
+        inner: IndexerReader,
+        limits: Limits,
+        metrics: Metrics,
+        max_available_range: u64,
+    ) -> Self {
         Self {
             inner,
             limits,
             metrics,
+            max_available_range,
         }
     }
 }
@@ -65,7 +74,7 @@ impl QueryExecutor for PgExecutor {
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
-            error!("DB query error: {e:?}");
+            error!("db query error: {e:?}");
         }
         result.map_err(|e| Error::Internal(e.to_string()))
     }
@@ -89,7 +98,7 @@ impl QueryExecutor for PgExecutor {
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
-            error!("DB query error: {e:?}");
+            error!("db query error: {e:?}");
         }
         result.map_err(|e| Error::Internal(e.to_string()))
     }
@@ -225,7 +234,7 @@ mod tests {
         reset_database(&mut conn).unwrap();
 
         let objects: Vec<StoredObject> = BuiltInFramework::iter_system_packages()
-            .map(|pkg| IndexedObject::from_object(1, pkg.genesis_object(), None).into())
+            .map(|pkg| IndexedObject::from_object(Some(1), pkg.genesis_object(), None).into())
             .collect();
 
         let expect = objects.len();

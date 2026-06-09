@@ -10,8 +10,8 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
+use iota_sdk_types::StructTag;
 use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
-use move_core_types::language_storage::StructTag;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -27,7 +27,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -36,10 +36,12 @@ use super::{
     uint53::UInt53,
 };
 use crate::{
+    backward_view::consistent,
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::{View, build_objects_query},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
+    types::object::{ObjectOwner, StoredBackwardObject},
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and
@@ -206,14 +208,13 @@ impl NameRegistration {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -271,6 +272,9 @@ impl NameRegistration {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -462,7 +466,7 @@ impl IotaNames {
         let field: Field<NativeIotaAddress, NativeName> = object
             .native
             .to_rust()
-            .ok_or_else(|| Error::Internal("Malformed IOTA-Names Name".to_string()))?;
+            .map_err(|e| Error::Internal(format!("Malformed IOTA-Names Name: {e}")))?;
 
         let name = Name(field.value);
 
@@ -485,6 +489,7 @@ impl IotaNames {
     ) -> Result<Option<NameExpiration>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
         let db: &Db = ctx.data_unchecked();
+        let max_available_range = db.max_available_range;
         // Construct the list of `object_id`s to look up. The first element is the
         // name's `NameRecord`. If the name is a subname, there will be a
         // second element for the parent's `NameRecord`.
@@ -517,22 +522,26 @@ impl IotaNames {
 
         let Some((checkpoint_timestamp_ms, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if !AvailableRange::is_checkpoint_in_backward_history_range(
+                    conn,
+                    checkpoint_viewed_at,
+                    max_available_range,
+                )? {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
                 let timestamp_ms = Checkpoint::query_timestamp(conn, checkpoint_viewed_at)?;
 
-                let sql = build_objects_query(
-                    View::Consistent,
-                    range,
-                    &page,
-                    move |query| filter.apply(query),
-                    move |newer| newer,
-                );
+                let sql = consistent::query(checkpoint_viewed_at, &page, move |query| {
+                    filter.apply(query)
+                });
 
-                let objects: Vec<StoredHistoryObject> =
+                let backward_objects: Vec<StoredBackwardObject> =
                     conn.results(move || sql.clone().into_boxed())?;
+                let objects: Vec<StoredHistoryObject> = backward_objects
+                    .into_iter()
+                    .map(|o| o.into_stored_history(checkpoint_viewed_at))
+                    .collect();
 
                 Ok(Some((timestamp_ms, objects)))
             })
@@ -629,7 +638,7 @@ impl NameRegistration {
         move_object: &MoveObject,
         tag: &StructTag,
     ) -> Result<Self, NameRegistrationDowncastError> {
-        if !move_object.native.is_type(tag) {
+        if !move_object.native.is_struct_tag(tag) {
             return Err(NameRegistrationDowncastError::NotAnNameRegistration);
         }
 

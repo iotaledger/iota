@@ -24,6 +24,9 @@ on:
       changedExternalCrates:
         type: string
         required: false
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -81,38 +84,51 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: Install postgresql-client
-        run: sudo apt-get install -y postgresql-client
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - name: Setup db
         run: |
           PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
+
       - run: docker restart --time 0 postgres_container
+
       - run: sleep 5
+
       - name: rust tests
         # test using filters, to only include changed crates and all their dependent crates.
-        # "CI_IS_EXTERNAL_CRATES" is set "isRust" because we also want to test the external crates when rust code changes.
-        # "RESTART_POSTGRES" are set in the env variables above.
+        # "--tests-crates-external" is added when "isRust" is set because we also want to test the
+        # external crates when rust code changes.
+        # "RESTART_POSTGRES" is set in the env variables above.
         run: |
-          export CI_IS_RUST=${{ inputs.isRust }}
-          export CI_IS_EXTERNAL_CRATES=${{ inputs.isRust }}
-          export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
-          export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
-          export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
-
-          if [ -n "${{ inputs.changedCrates }}" ]; then
-            export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
-          else
-            unset CI_CHANGED_CRATES
+          ARGS="--run-tests"
+          if [ "${{ inputs.isRust }}" = "true" ]; then
+            ARGS="$ARGS --tests-crates-workspace"
+            ARGS="$ARGS --tests-crates-external"
+          fi
+          if [ "${{ inputs.isPgIntegration }}" = "true" ]; then
+            ARGS="$ARGS --tests-pg-integration"
+          fi
+          if [ "${{ inputs.isMoveExampleUsedByOthers }}" = "true" ]; then
+            ARGS="$ARGS --tests-move-examples-rdeps"
+          fi
+          if [ "${{ inputs.testOnlyChangedCrates }}" = "true" ]; then
+            ARGS="$ARGS --test-only-changed-crates"
           fi
 
-          if [ -n "${{ inputs.changedExternalCrates }}" ]; then
-            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
-          else
-            unset CI_CHANGED_EXTERNAL_CRATES
-          fi
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
+          ARGS="$ARGS --changed-crates-external '${{ inputs.changedExternalCrates }}'"
 
-          ./scripts/ci_tests/rust_tests.sh run_tests
+          eval "./scripts/ci_tests/rust_tests.sh $ARGS"
+
+  rust-tests-cancel:
+    needs: [rust-tests]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   rust-simtests:
     name: Run rust simtests
@@ -139,34 +155,76 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: Install postgresql-client
-        run: sudo apt-get install -y postgresql-client
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - name: Setup db
         run: |
           PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
+
       - run: docker restart --time 0 postgres_container
+
       - run: sleep 5
+
       - name: rust tests
         # test using filters, to only include changed crates and all their dependent crates.
-        # "RESTART_POSTGRES" are set in the env variables above.
+        # "RESTART_POSTGRES" is set in the env variables above.
         run: |
-          export CI_IS_RUST=${{ inputs.isRust }}
-          export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
-          export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
-          export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
-
-          if [ -n "${{ inputs.changedCrates }}" ]; then
-            export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
-          else
-            unset CI_CHANGED_CRATES
+          ARGS="--run-sim-tests"
+          if [ "${{ inputs.isRust }}" = "true" ]; then
+            ARGS="$ARGS --tests-crates-workspace"
           fi
+          if [ "${{ inputs.isPgIntegration }}" = "true" ]; then
+            ARGS="$ARGS --tests-pg-integration"
+          fi
+          if [ "${{ inputs.isMoveExampleUsedByOthers }}" = "true" ]; then
+            ARGS="$ARGS --tests-move-examples-rdeps"
+          fi
+          if [ "${{ inputs.testOnlyChangedCrates }}" = "true" ]; then
+            ARGS="$ARGS --test-only-changed-crates"
+          fi
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
 
-          ./scripts/ci_tests/rust_tests.sh run_simtests
+          eval "./scripts/ci_tests/rust_tests.sh $ARGS"
+
       - name: check new tests for flakiness
         run: |
-          export CHANGED_CRATES="${{ inputs.changedCrates }}"
-          ./scripts/ci_tests/rust_tests.sh stress_new_tests_check_for_flakiness
+          ARGS="--run-stress-new-tests-check-for-flakiness"
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
+
+          eval "./scripts/ci_tests/rust_tests.sh $ARGS"
+
+  rust-simtests-cancel:
+    needs: [rust-simtests]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  check-wasm32:
+    name: Check Move VM crates compile to wasm32-unknown-unknown
+    if: (!cancelled() && !failure() && inputs.isRust)
+    runs-on: [self-hosted-x64]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check Move VM crates compile to wasm32
+        run: cargo check -p iota-types -p iota-common -p iota-config -p iota-adapter-latest --target wasm32-unknown-unknown
+
+  check-wasm32-cancel:
+    needs: [check-wasm32]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
@@ -177,11 +235,23 @@ jobs:
       fail-fast: false
     runs-on: [self-hosted-x64]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - name: Run Cargo Udeps
-        run: cargo +nightly-2025-04-01 ci-udeps ${{ matrix.flags }}
+        run: cargo +nightly-2026-01-07 ci-udeps ${{ matrix.flags }}
+
       - name: Run Cargo Udeps (external crates)
-        run: cargo +nightly-2025-04-01 ci-udeps-external ${{ matrix.flags }}
+        run: cargo +nightly-2026-01-07 ci-udeps-external ${{ matrix.flags }}
+
+  check-unused-deps-cancel:
+    needs: [check-unused-deps]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   test-extra:
     env:
@@ -197,21 +267,33 @@ jobs:
           - [self-hosted-x64]
       fail-fast: false
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: benchmark (smoke)
-        run: |
-          cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - name: doctests
         run: |
           cargo test --doc
+
       - name: rustdoc
         run: |
           cargo doc --all-features --workspace --no-deps
+
       - name: Install nightly rustfmt
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
+
       - name: iota-execution
         run: |
           ./scripts/execution_layer.py generate-lib
+
       # Ensure there are no uncommitted changes in the repo after running tests
       - run: scripts/changed-files.sh
         shell: bash
+
+  test-extra-cancel:
+    needs: [test-extra]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

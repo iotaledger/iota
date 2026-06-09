@@ -4,16 +4,13 @@
 
 use std::sync::{Arc, Weak};
 
-use iota_common::fatal;
+use iota_common::{fatal, random::get_rng};
 use iota_macros::fail_point_async;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_types::error::IotaError;
-use rand::{
-    Rng, SeedableRng,
-    rngs::{OsRng, StdRng},
-};
+use rand::Rng;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver, oneshot};
-use tracing::{Instrument, error_span, info, trace, warn};
+use tracing::{Instrument, error_span, info, instrument, warn};
 
 use crate::{authority::AuthorityState, transaction_manager::PendingCertificate};
 
@@ -25,6 +22,7 @@ const QUEUEING_DELAY_SAMPLING_RATIO: f64 = 0.05;
 
 /// When a notification that a new pending transaction is received we activate
 /// processing the transaction in a loop.
+#[instrument("start_execute_pending_certs", level = "trace", skip_all)]
 pub async fn execution_process(
     authority_state: Weak<AuthorityState>,
     mut rx_ready_certificates: UnboundedReceiver<PendingCertificate>,
@@ -34,7 +32,6 @@ pub async fn execution_process(
 
     // Rate limit concurrent executions to # of cpus.
     let limit = Arc::new(Semaphore::new(num_cpus::get()));
-    let mut rng = StdRng::from_rng(&mut OsRng).unwrap();
 
     // Loop whenever there is a signal that a new transactions is ready to process.
     loop {
@@ -77,7 +74,6 @@ pub async fn execution_process(
         let epoch_store = authority.load_epoch_store_one_call_per_task();
 
         let digest = *certificate.digest();
-        trace!(?digest, "Pending certificate execution activated.");
 
         if epoch_store.epoch() != certificate.epoch() {
             info!(
@@ -94,7 +90,7 @@ pub async fn execution_process(
         // the semaphore in this context.
         let permit = limit.acquire_owned().await.unwrap();
 
-        if rng.gen_range(0.0..1.0) < QUEUEING_DELAY_SAMPLING_RATIO {
+        if get_rng().gen_range(0.0..1.0) < QUEUEING_DELAY_SAMPLING_RATIO {
             authority
                 .metrics
                 .execution_queueing_latency
@@ -127,11 +123,11 @@ pub async fn execution_process(
                 &epoch_store_clone,
             ) {
                 Err(IotaError::ValidatorHaltedAtEpochEnd) => {
-                    warn!("Could not execute transaction {digest:?} because validator is halted at epoch end. certificate={certificate:?}");
+                    warn!("Could not execute transaction {digest} because validator is halted at epoch end. certificate={certificate:?}");
                     return;
                 }
                 Err(e) => {
-                    fatal!("Failed to execute certified transaction {digest:?}! error={e} certificate={certificate:?}");
+                    fatal!("Failed to execute certified transaction {digest}! error={e} certificate={certificate:?}");
                 }
                 _ => (),
             }
@@ -139,6 +135,6 @@ pub async fn execution_process(
                 .metrics
                 .execution_driver_executed_transactions
                 .inc();
-        }.instrument(error_span!("execution_driver", tx_digest = ?digest))));
+        }.instrument(error_span!("executing_pending_cert", tx_digest = ?digest))));
     }
 }

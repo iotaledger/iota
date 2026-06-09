@@ -154,7 +154,7 @@ mod tests {
                 .get_result(&mut conn)
                 .unwrap();
 
-            assert_eq!(cnt, 20, "Should have filled exactly 5 missing rows");
+            assert_eq!(cnt, 20, "should have filled exactly 5 missing rows");
         }
 
         database.drop_if_exists();
@@ -208,7 +208,7 @@ mod tests {
             let RowCount { cnt } = sql_query("SELECT COUNT(*) AS cnt FROM target_items")
                 .get_result(&mut conn)
                 .unwrap();
-            assert_eq!(cnt, 20, "Count should remain at 20 after retry");
+            assert_eq!(cnt, 20, "count should remain at 20 after retry");
         }
 
         database.drop_if_exists();

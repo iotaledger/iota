@@ -4,10 +4,7 @@
 
 /// Example coin with a trusted owner responsible for minting/burning (e.g., a stablecoin)
 module examples::trusted_coin {
-    use std::option;
     use iota::coin::{Self, TreasuryCap};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
 
     /// Name of the coin
     public struct TRUSTED_COIN has drop {}

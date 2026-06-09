@@ -16,7 +16,7 @@ byteorder.workspace = true
 bytes.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
-notify.workspace = true
+notify = "6.1.1"
 object_store.workspace = true
 prometheus.workspace = true
 serde.workspace = true
@@ -24,7 +24,7 @@ serde_json.workspace = true
 tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time", "fs"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
@@ -32,11 +32,20 @@ url.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
+iota-grpc-client.workspace = true
+iota-grpc-types.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
-iota-rest-api.workspace = true
+iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 
 [dev-dependencies]
+# external dependencies
 rand.workspace = true
+
+# internal dependencies
+iota-common.workspace = true
+
+[lints]
+workspace = true

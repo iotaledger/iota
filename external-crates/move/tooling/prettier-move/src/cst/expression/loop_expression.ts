@@ -11,11 +11,11 @@ const {} = doc.builders;
 export const NODE_TYPE = 'loop_expression';
 
 export default function (path: AstPath<Node>): treeFn | null {
-	if (path.node.type === NODE_TYPE) {
-		return printLoopExpression;
-	}
+    if (path.node.type === NODE_TYPE) {
+        return printLoopExpression;
+    }
 
-	return null;
+    return null;
 }
 
 /**
@@ -26,5 +26,5 @@ export default function (path: AstPath<Node>): treeFn | null {
  * ```
  */
 function printLoopExpression(path: AstPath<Node>, options: MoveOptions, print: printFn): Doc {
-	return [`loop `, path.call(print, 'nonFormattingChildren', 0)];
+    return [`loop `, path.call(print, 'nonFormattingChildren', 0)];
 }

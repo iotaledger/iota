@@ -20,18 +20,18 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::{IotaAddress, ObjectID},
+        base_types::IotaAddress,
         crypto::SignatureScheme::ED25519,
         digests::TransactionDigest,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, Command, Transaction, TransactionData},
+        transaction::{Transaction, TransactionData, TransactionDataAPI},
     },
     wallet_context::WalletContext,
 };
+use iota_sdk_types::{Argument, Command, ObjectId, crypto::Intent};
 use reqwest::Client;
 use serde_json::json;
-use shared_crypto::intent::Intent;
 use tracing::info;
 
 #[derive(serde::Deserialize)]
@@ -44,8 +44,8 @@ struct FaucetResponse {
 
 pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.cafe"; // testnet faucet
 
-// if you use the `iota start` subcommand and use the local network; if it does
-// not work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
+// if you use the `iota-localnet start` subcommand and use the local network; if
+// it does not work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
 
 /// Return an iota client to interact with the APIs,
 /// the active address of the local wallet, and another address that can be used
@@ -157,13 +157,17 @@ pub async fn request_tokens_from_faucet(
         let owner = client
             .read_api()
             .get_object_with_options(
-                ObjectID::from_str(&coin_id)?,
+                ObjectId::from_str(&coin_id)?,
                 IotaObjectDataOptions::new().with_owner(),
             )
             .await?;
 
         if owner.owner().is_some() {
-            let owner_address = owner.owner().unwrap().get_owner_address()?;
+            let owner_address = *owner
+                .owner()
+                .unwrap()
+                .address_or_object()
+                .ok_or_else(|| anyhow::anyhow!("owner is not an address or object"))?;
             if owner_address == address {
                 break;
             }
@@ -221,15 +225,15 @@ pub async fn split_coin_digest(
     // first, we want to split the coin, and we specify how much IOTA (in NANOS) we
     // want for the new coin
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type here
-    ptb.command(Command::SplitCoins(
-        Argument::GasCoin,
+    ptb.command(Command::new_split_coins(
+        Argument::Gas,
         vec![split_coin_amount],
     ));
     // now we want to merge the coins (so that we don't have many coins with very
     // small values) observe here that we pass Argument::Result(0), which
     // instructs the PTB to get the result from the previous command
-    ptb.command(Command::MergeCoins(
-        Argument::GasCoin,
+    ptb.command(Command::new_merge_coins(
+        Argument::Gas,
         vec![Argument::Result(0)],
     ));
 
@@ -288,7 +292,8 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
     client_config.set_active_address(default_active_address);
     client_config.save(&wallet_conf)?;
 
-    let wallet = WalletContext::new(&wallet_conf, std::time::Duration::from_secs(60), None)?;
+    let wallet =
+        WalletContext::new(&wallet_conf)?.with_request_timeout(std::time::Duration::from_secs(60));
 
     Ok(wallet)
 }

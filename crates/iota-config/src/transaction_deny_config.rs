@@ -4,7 +4,8 @@
 
 use std::collections::HashSet;
 
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +18,7 @@ pub struct TransactionDenyConfig {
     /// child-objects). Similarly this does not apply to wrapped objects as
     /// they are not directly accessible.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    object_deny_list: Vec<ObjectID>,
+    object_deny_list: Vec<ObjectId>,
 
     /// A list of package object IDs that are not allowed to be called into in
     /// transactions, either directly or indirectly through transitive
@@ -31,7 +32,7 @@ pub struct TransactionDenyConfig {
     /// whether to block entire upgrade family, whether to allow upgrade and
     /// etc.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    package_deny_list: Vec<ObjectID>,
+    package_deny_list: Vec<ObjectId>,
 
     /// A list of iota addresses that are not allowed to be used as the sender
     /// or sponsor.
@@ -58,10 +59,10 @@ pub struct TransactionDenyConfig {
 
     /// In-memory maps for faster lookup of various lists.
     #[serde(skip)]
-    object_deny_set: OnceCell<HashSet<ObjectID>>,
+    object_deny_set: OnceCell<HashSet<ObjectId>>,
 
     #[serde(skip)]
-    package_deny_set: OnceCell<HashSet<ObjectID>>,
+    package_deny_set: OnceCell<HashSet<ObjectId>>,
 
     #[serde(skip)]
     address_deny_set: OnceCell<HashSet<IotaAddress>>,
@@ -70,25 +71,21 @@ pub struct TransactionDenyConfig {
     #[serde(default)]
     receiving_objects_disabled: bool,
 
-    /// Whether zklogin transaction is disabled
+    /// Whether `MoveAuthenticator` is disabled
     #[serde(default)]
-    zklogin_sig_disabled: bool,
-
-    /// A list of disabled OAuth providers for zkLogin
-    #[serde(default)]
-    zklogin_disabled_providers: HashSet<String>,
+    move_authenticator_disabled: bool,
     // TODO: We could consider add a deny list for types that we want to disable public transfer.
     // TODO: We could also consider disable more types of commands, such as transfer, split and
     // etc.
 }
 
 impl TransactionDenyConfig {
-    pub fn get_object_deny_set(&self) -> &HashSet<ObjectID> {
+    pub fn get_object_deny_set(&self) -> &HashSet<ObjectId> {
         self.object_deny_set
             .get_or_init(|| self.object_deny_list.iter().cloned().collect())
     }
 
-    pub fn get_package_deny_set(&self) -> &HashSet<ObjectID> {
+    pub fn get_package_deny_set(&self) -> &HashSet<ObjectId> {
         self.package_deny_set
             .get_or_init(|| self.package_deny_list.iter().cloned().collect())
     }
@@ -118,12 +115,8 @@ impl TransactionDenyConfig {
         self.receiving_objects_disabled
     }
 
-    pub fn zklogin_sig_disabled(&self) -> bool {
-        self.zklogin_sig_disabled
-    }
-
-    pub fn zklogin_disabled_providers(&self) -> &HashSet<String> {
-        &self.zklogin_disabled_providers
+    pub fn move_authenticator_disabled(&self) -> bool {
+        self.move_authenticator_disabled
     }
 }
 
@@ -166,7 +159,7 @@ impl TransactionDenyConfigBuilder {
         self
     }
 
-    pub fn add_denied_object(mut self, id: ObjectID) -> Self {
+    pub fn add_denied_object(mut self, id: ObjectId) -> Self {
         self.config.object_deny_list.push(id);
         self
     }
@@ -176,18 +169,13 @@ impl TransactionDenyConfigBuilder {
         self
     }
 
-    pub fn add_denied_package(mut self, id: ObjectID) -> Self {
+    pub fn add_denied_package(mut self, id: ObjectId) -> Self {
         self.config.package_deny_list.push(id);
         self
     }
 
-    pub fn disable_zklogin_sig(mut self) -> Self {
-        self.config.zklogin_sig_disabled = true;
-        self
-    }
-
-    pub fn add_zklogin_disabled_provider(mut self, provider: String) -> Self {
-        self.config.zklogin_disabled_providers.insert(provider);
+    pub fn disable_move_authenticator(mut self) -> Self {
+        self.config.move_authenticator_disabled = true;
         self
     }
 }

@@ -7,37 +7,37 @@ task 1, lines 7-20:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5168000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5168000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 22-23:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, lines 25-26:
 //# run Test::M1::create --args 1 @A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, lines 28-29:
 //# run Test::M1::create --args 2 @A
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 31-32:
 //# run Test::M1::create --args 3 @A
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, lines 34-35:
 //# run Test::M1::create --args 4 @A
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 37:
 //# create-checkpoint
@@ -130,20 +130,20 @@ Response: {
         ]
       }
     },
+    "obj_2_0": {
+      "address": "0x8782cfa9fc99b2c6e879ee5a17eaa4e2d40e105317773cd3d0f222ba8b835d0a"
+    },
     "obj_3_0": {
       "address": "0xbfdc7fff4634524dfc1182dfa68196636d749ded10f38f36576e5f82c802f8b4"
+    },
+    "obj_4_0": {
+      "address": "0x7bb4eff769da118266d208087d125acdfc7d09d8cdcba1d409a6d7f7522ddc17"
     },
     "obj_5_0": {
       "address": "0x267cda0f7f996af2a90442c587cf6290cc150a42edfcbf3e7286757172b2ccc7"
     },
     "obj_6_0": {
       "address": "0x1fd412f85be5ed2b3f47b047101b7f9429f05b4c379a278c5040a13a18261f84"
-    },
-    "obj_4_0": {
-      "address": "0x7bb4eff769da118266d208087d125acdfc7d09d8cdcba1d409a6d7f7522ddc17"
-    },
-    "obj_2_0": {
-      "address": "0x8782cfa9fc99b2c6e879ee5a17eaa4e2d40e105317773cd3d0f222ba8b835d0a"
     }
   }
 }

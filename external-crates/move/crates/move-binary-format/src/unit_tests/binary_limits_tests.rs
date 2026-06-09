@@ -8,10 +8,10 @@ use move_core_types::{
 };
 
 use crate::{
+    CompiledModule,
     binary_config::{BinaryConfig, TableConfig},
     errors::BinaryLoaderResult,
     file_format::*,
-    CompiledModule,
 };
 // Add simple proptest tests
 // use proptest::prelude::*;

@@ -125,9 +125,9 @@ async fn test_new_committee() {
     );
 
     let committee_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None,
-        targets: ProofTargets::new().set_committee(new_committee.clone()),
+        targets: ProofTargets::new().set_committee(new_committee),
     };
 
     verify_proof(&committee, &committee_proof).unwrap()
@@ -139,7 +139,7 @@ async fn test_incorrect_new_committee() {
     let (committee, full_checkpoint) = read_test_data().await;
 
     let committee_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None,
         targets: ProofTargets::new().set_committee(committee.clone()), // WRONG,
     };
@@ -173,7 +173,7 @@ async fn test_fail_incorrect_cert() {
     );
 
     let committee_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None,
         targets: ProofTargets::new(),
     };
@@ -192,10 +192,10 @@ async fn test_object_target_fail_no_data() {
     let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
-    let sample_ref = sample_object.compute_object_reference();
+    let sample_ref = sample_object.object_ref();
 
     let bad_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None, // WRONG
         targets: ProofTargets::new().add_object(sample_ref, sample_object),
     };
@@ -208,7 +208,7 @@ async fn test_object_target_success() {
     let (committee, full_checkpoint) = read_test_data().await;
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
-    let sample_ref = sample_object.compute_object_reference();
+    let sample_ref = sample_object.object_ref();
 
     let target = ProofTargets::new().add_object(sample_ref, sample_object);
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();
@@ -222,15 +222,15 @@ async fn test_object_target_fail_wrong_object() {
 
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let wrong_object: Object = full_checkpoint.transactions[1].output_objects[1].clone();
-    let mut sample_ref = sample_object.compute_object_reference();
-    let wrong_ref = wrong_object.compute_object_reference();
+    let mut sample_ref = sample_object.object_ref();
+    let wrong_ref = wrong_object.object_ref();
 
     let target = ProofTargets::new().add_object(wrong_ref, sample_object.clone()); // WRONG
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();
     assert!(verify_proof(&committee, &object_proof).is_err());
 
     // Does not exist
-    sample_ref.1 = sample_ref.1.next(); // WRONG
+    sample_ref.version = sample_ref.version.next().unwrap(); // WRONG
 
     let target = ProofTargets::new().add_object(sample_ref, sample_object);
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();
@@ -241,19 +241,14 @@ async fn test_object_target_fail_wrong_object() {
 async fn test_event_target_fail_no_data() {
     let (committee, full_checkpoint) = read_test_data().await;
 
-    let sample_event: Event = full_checkpoint.transactions[1]
-        .events
-        .as_ref()
-        .unwrap()
-        .data[0]
-        .clone();
+    let sample_event: Event = full_checkpoint.transactions[1].events.as_ref().unwrap()[0].clone();
     let sample_eid = EventID::from((
         *full_checkpoint.transactions[1].effects.transaction_digest(),
         0,
     ));
 
     let bad_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None, // WRONG
         targets: ProofTargets::new().add_event(sample_eid, sample_event),
     };
@@ -265,12 +260,7 @@ async fn test_event_target_fail_no_data() {
 async fn test_event_target_success() {
     let (committee, full_checkpoint) = read_test_data().await;
 
-    let sample_event: Event = full_checkpoint.transactions[1]
-        .events
-        .as_ref()
-        .unwrap()
-        .data[0]
-        .clone();
+    let sample_event: Event = full_checkpoint.transactions[1].events.as_ref().unwrap()[0].clone();
     let sample_eid = EventID::from((
         *full_checkpoint.transactions[1].effects.transaction_digest(),
         0,
@@ -286,12 +276,7 @@ async fn test_event_target_success() {
 async fn test_event_target_fail_bad_event() {
     let (committee, full_checkpoint) = read_test_data().await;
 
-    let sample_event: Event = full_checkpoint.transactions[1]
-        .events
-        .as_ref()
-        .unwrap()
-        .data[0]
-        .clone();
+    let sample_event: Event = full_checkpoint.transactions[1].events.as_ref().unwrap()[0].clone();
     let sample_eid = EventID::from((
         *full_checkpoint.transactions[1].effects.transaction_digest(),
         1, // WRONG

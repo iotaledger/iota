@@ -1,15 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{Result, anyhow, ensure};
-use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
+use iota_sdk_types::{Identifier, Owner};
+use iota_stardust_types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
-    Identifier, base_types::IotaAddress, coin_manager::CoinManager,
-    in_memory_storage::InMemoryStorage, object::Owner,
+    base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
 };
-use move_core_types::language_storage::ModuleId;
 
 use crate::stardust::{
     migration::{
@@ -69,7 +68,7 @@ pub(super) fn verify_foundry_output(
         .ok_or_else(|| anyhow!("expected a native token coin"))?;
 
     // The minted native token coin should be owned by `0x0`
-    let expected_owner = Owner::AddressOwner(IotaAddress::default());
+    let expected_owner = Owner::Address(IotaAddress::ZERO);
     ensure!(
         native_token_coin_obj.owner == expected_owner,
         "native token coin owner mismatch: found {}, expected {}",
@@ -97,7 +96,7 @@ pub(super) fn verify_foundry_output(
         .get_object(package_id)
         .ok_or_else(|| anyhow!("missing package"))?
         .data
-        .try_as_package()
+        .as_package_opt()
         .ok_or_else(|| anyhow!("expected a package"))?;
 
     ensure!(
@@ -109,13 +108,12 @@ pub(super) fn verify_foundry_output(
 
     let expected_package_data = NativeTokenPackageData::try_from(output)?;
 
-    let module_id = ModuleId::new(
-        created_package.id().into(),
-        Identifier::new(expected_package_data.module().module_name.as_ref())?,
-    );
-
     ensure!(
-        created_package.get_module(&module_id).is_some(),
+        created_package
+            .get_module(&Identifier::from_str(
+                &expected_package_data.module().module_name
+            )?)
+            .is_some(),
         "package did not create expected module `{}`",
         expected_package_data.module().module_name
     );
@@ -124,8 +122,8 @@ pub(super) fn verify_foundry_output(
 
     ensure!(
         type_origin_map.contains_key(&(
-            expected_package_data.module().module_name.clone(),
-            expected_package_data.module().otw_name.clone()
+            Identifier::from_str(&expected_package_data.module().module_name)?,
+            Identifier::from_str(&expected_package_data.module().otw_name)?
         )),
         "package did not create expected OTW type `{}` within module `{}`",
         expected_package_data.module().otw_name,
@@ -139,7 +137,7 @@ pub(super) fn verify_foundry_output(
     );
     ensure!(
         foundry_data.coin_type_origin.datatype_name == expected_package_data.module().otw_name,
-        "foundry data OTW struct name mismatch: found {}, expected {}",
+        "foundry data OTW datatype name mismatch: found {}, expected {}",
         foundry_data.coin_type_origin.datatype_name,
         expected_package_data.module().otw_name
     );
@@ -162,7 +160,7 @@ pub(super) fn verify_foundry_output(
             .and_then(|obj| {
                 verify_shared_object(obj, "coin manager").map(|_| {
                     obj.to_rust::<CoinManager>()
-                        .ok_or(anyhow!("expected a coin manager"))
+                        .map_err(|e| anyhow!("expected a coin manager: {e}"))
                 })?
             })
     })?;

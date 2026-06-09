@@ -3,11 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module entry_point_vector::entry_point_vector {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::{Self, TxContext};
-    use std::vector;
-
     public struct Obj has key, store {
         id: UID,
         value: u64

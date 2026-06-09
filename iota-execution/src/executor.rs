@@ -2,11 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::TransactionKind;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, TxContext},
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+    },
+    auth_context::AuthContextData,
+    base_types::{IotaAddress, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -16,8 +21,9 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     metrics::LimitsMetrics,
+    move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
+    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction},
 };
 use move_trace_format::format::MoveTraceBuilder;
 
@@ -37,7 +43,7 @@ pub trait Executor {
         // Transaction Inputs
         input_objects: CheckedInputObjects,
         // Gas related
-        gas_coins: Vec<ObjectRef>,
+        gas_data: GasData,
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
@@ -65,7 +71,7 @@ pub trait Executor {
         // Transaction Inputs
         input_objects: CheckedInputObjects,
         // Gas related
-        gas_coins: Vec<ObjectRef>,
+        gas_data: GasData,
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
@@ -79,6 +85,71 @@ pub trait Executor {
         Result<Vec<ExecutionResult>, ExecutionError>,
     );
 
+    fn authenticate_then_execute_transaction_to_effects(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_data: GasData,
+        gas_status: IotaGasStatus,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRefForExecution,
+            CheckedInputObjects,
+        )>,
+        authenticator_and_transaction_input_objects: CheckedInputObjects,
+        // Transaction
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
+        // BCS-serialized `TransactionData` bytes for the auth context.
+        auth_context_data: AuthContextData,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Result<(), ExecutionError>,
+    );
+
+    fn authenticate_transaction(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_data: GasData,
+        gas_status: IotaGasStatus,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRef,
+            CheckedInputObjects,
+        )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
+        // Transaction
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
+        // BCS-serialized `TransactionData` bytes for the auth context.
+        auth_context_data: AuthContextData,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError>;
+
     fn update_genesis_state(
         &self,
         store: &dyn BackingStore,
@@ -86,7 +157,7 @@ pub trait Executor {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         // Genesis State
-        tx_context: &mut TxContext,
+        tx_context: Rc<RefCell<TxContext>>,
         // Transaction
         input_objects: CheckedInputObjects,
         pt: ProgrammableTransaction,

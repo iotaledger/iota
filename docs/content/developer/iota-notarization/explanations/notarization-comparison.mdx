@@ -28,15 +28,15 @@ To understand the difference intuitively, consider this analogy:
 ---
 ## Detailed Feature Comparison
 
-| Feature                 | Locked Notarization                                                               | Dynamic Notarization                                                             |
-| ----------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **Core Principle** | **Immutability**. Creates a permanent, unchangeable record of a past state.       | **Availability**. Provides a stable reference to the most current, up-to-date state. |
-| **State Changes** | **Not Allowed**. The `state` is written once and is permanently locked.           | **Allowed**. The owner can update the `state`, overwriting the previous version. |
-| **Ownership** | **Permanent & Non-Transferable**. The original creator is the sole and final owner. | **Transferable**. Ownership can be passed to another address or entity.          |
-| **Primary Goal** | To **prove** that specific data existed in a fixed state at a specific time.       | To **provide** a reliable and always-current version of evolving data.           |
-| **Version Tracking** | Not applicable, as there is only one version.                                     | **Essential**. The `state_version_count` increments with each update.            |
-| **Timelocks** | Mandatory `delete_lock` to ensure data remains on-chain for a required period.   | Optional `transfer_lock` to temporarily prevent change of ownership.             |
-| **Lifecycle** | Create → Hold → Destroy                                                           | Create → Update → (Optional) Transfer → Destroy                                  |
+| Feature              | Locked Notarization                                                                         | Dynamic Notarization                                                                 |
+|----------------------|---------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| **Core Principle**   | **Immutability**. Creates a permanent, unchangeable record of a past state.                 | **Availability**. Provides a stable reference to the most current, up-to-date state. |
+| **State Changes**    | **Not Allowed**. The `state` is written once and is permanently locked.                     | **Allowed**. The owner can update the `state`, overwriting the previous version.     |
+| **Ownership**        | **Permanent & Non-Transferable**. The original creator is the sole and final owner.         | **Transferable**. Ownership can be passed to another address or entity.              |
+| **Primary Goal**     | To **prove** that specific data existed in a fixed state at a specific time.                | To **provide** a reliable and always-current version of evolving data.               |
+| **Version Tracking** | Not applicable, as there is only one version.                                               | **Essential**. The `state_version_count` increments with each update.                |
+| **Timelocks**        | Optional, Recommended: `delete_lock` to ensure data remains on-chain for a required period. | Optional: `transfer_lock` to temporarily prevent change of ownership.                |
+| **Lifecycle**        | Create → Hold → Destroy                                                                     | Create → Update → (Optional) Transfer → Destroy                                      |
 
 ---
 ## When to Use Which Method?

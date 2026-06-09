@@ -47,17 +47,10 @@ ignore = [
   "RUSTSEC-2024-0370",
   # `atty` is unmaintained
   "RUSTSEC-2024-0375",
-  # Potential unaligned read in `atty`
-  "RUSTSEC-2021-0145",
-
   # allow unmaintained instant crate used in transitive dependencies (backoff, cached, fastrand, parking_lot_*)
   "RUSTSEC-2024-0384",
   # `paste` is unmaintained
   "RUSTSEC-2024-0436",
-  # Logging user input may result in poisoning logs with ANSI escape sequences
-  "RUSTSEC-2025-0055",
-  # adler is unmaintained
-  "RUSTSEC-2025-0056",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -83,7 +76,6 @@ allow = [
   "Apache-2.0",
   "MPL-2.0",
   "CC0-1.0",
-  "0BSD",
   "Unlicense",
   "BSL-1.0",
   "Unicode-3.0",
@@ -168,7 +160,6 @@ deny = [
 ]
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-  "hermit-abi",
   # { name = "ansi_term", version = "=0.11.0" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate

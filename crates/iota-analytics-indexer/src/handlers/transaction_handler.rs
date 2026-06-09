@@ -7,10 +7,11 @@ use std::{collections::BTreeSet, sync::Arc};
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
+use iota_sdk_types::{Command, TransactionKind};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::{Command, TransactionDataAPI, TransactionKind},
+    transaction::{TransactionDataAPI, TransactionKindExt},
 };
 use tokio::sync::Mutex;
 use tracing::error;
@@ -102,7 +103,7 @@ impl TransactionHandler {
             .map(|s| s.as_str())
             .collect::<Vec<_>>()
             .join("-");
-        let transaction_digest = transaction.digest().base58_encode();
+        let transaction_digest = transaction.digest().to_base58();
 
         let mut transfers: u64 = 0;
         let mut split_coins: u64 = 0;
@@ -117,26 +118,26 @@ impl TransactionHandler {
         let is_system_txn = txn_data.is_system_tx();
         if !is_system_txn {
             let kind = txn_data.kind();
-            if let TransactionKind::ProgrammableTransaction(pt) = txn_data.kind() {
+            if let TransactionKind::Programmable(pt) = txn_data.kind() {
                 for cmd in &pt.commands {
                     match cmd {
                         Command::MoveCall(_) => move_calls_count += 1,
-                        Command::TransferObjects(_, _) => transfers += 1,
-                        Command::SplitCoins(_, _) => split_coins += 1,
-                        Command::MergeCoins(_, _) => merge_coins += 1,
-                        Command::Publish(_, _) => publish += 1,
-                        Command::Upgrade(_, _, _, _) => upgrade += 1,
+                        Command::TransferObjects(_) => transfers += 1,
+                        Command::SplitCoins(_) => split_coins += 1,
+                        Command::MergeCoins(_) => merge_coins += 1,
+                        Command::Publish(_) => publish += 1,
+                        Command::Upgrade(_) => upgrade += 1,
                         _ => others += 1,
                     }
                 }
             } else {
                 error!(
-                    "Transaction kind [{kind}] is not programmable transaction and not a system transaction"
+                    "transaction kind [{kind}] is not programmable transaction and not a system transaction"
                 );
             }
             if move_calls_count != move_calls {
                 error!(
-                    "Mismatch in move calls count: commands {move_calls_count} != {move_calls} calls"
+                    "mismatch in move calls count: commands {move_calls_count} != {move_calls} calls"
                 );
             }
         }
@@ -153,12 +154,13 @@ impl TransactionHandler {
             is_system_txn,
             is_sponsored_tx,
             transaction_count: txn_data.kind().num_commands() as u64,
-            execution_success: effects.status().is_ok(),
-            input: txn_data
+            execution_success: effects.status().is_success(),
+            // Calculate all objects(transaction + authenticators) amount.
+            input: transaction
                 .input_objects()
-                .expect("Input objects must be valid")
+                .expect("input objects must be valid")
                 .len() as u64,
-            shared_input: txn_data.shared_input_objects().len() as u64,
+            shared_input: transaction.shared_input_objects().len() as u64,
             gas_coins: txn_data.gas().len() as u64,
             created: effects.created().len() as u64,
             mutated: (effects.mutated().len() + effects.unwrapped().len()) as u64,
@@ -174,9 +176,9 @@ impl TransactionHandler {
             move_calls,
             packages,
             gas_owner: txn_data.gas_owner().to_string(),
-            gas_object_id: gas_object.0.0.to_string(),
-            gas_object_sequence: gas_object.0.1.value(),
-            gas_object_digest: gas_object.0.2.to_string(),
+            gas_object_id: gas_object.0.object_id.to_string(),
+            gas_object_sequence: gas_object.0.version.as_u64(),
+            gas_object_digest: gas_object.0.digest.to_string(),
             gas_budget: txn_data.gas_budget(),
             total_gas_cost: gas_summary.net_gas_usage(),
             computation_cost: gas_summary.computation_cost,
@@ -189,7 +191,7 @@ impl TransactionHandler {
 
             raw_transaction: Base64::encode(bcs::to_bytes(&txn_data).unwrap()),
 
-            has_zklogin_sig: transaction.has_zklogin_sig(),
+            has_zklogin_sig: false,
             has_upgraded_multisig: transaction.has_upgraded_multisig(),
             transaction_json: Some(transaction_json),
             effects_json: Some(effects_json),
@@ -212,10 +214,10 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_transaction_handler() -> anyhow::Result<()> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());

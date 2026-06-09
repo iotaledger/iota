@@ -477,9 +477,9 @@ impl<'b> GasMeter for GasStatus<'b> {
         // Charge for the stack operations. We don't count this as an "instruction"
         // since we already accounted for the `Call` instruction in the
         // `charge_native_function_before_execution` call.
-        // The amount returned by the native function is viewed as the "virtual" instruction cost
-        // for the native function, and will be charged and contribute to the overall cost tier of
-        // the transaction accordingly.
+        // The amount returned by the native function is viewed as the "virtual"
+        // instruction cost for the native function, and will be charged and
+        // contribute to the overall cost tier of the transaction accordingly.
         self.num_native_calls = self.num_native_calls.saturating_add(1);
         if self.num_native_calls > NATIVE_FUNCTION_THRESHOLD {
             self.charge(amount.into(), pushes, 0, size_increase.into(), 0)
@@ -566,16 +566,16 @@ impl<'b> GasMeter for GasStatus<'b> {
     }
 
     fn charge_move_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the move of the local on to the stack. Note that we charge here since we
-        // aren't tracking the local size (at least not yet). If we were, this should be a net-zero
-        // operation in terms of memory usage.
+        // Charge for the move of the local on to the stack. Note that we charge here
+        // since we aren't tracking the local size (at least not yet). If we
+        // were, this should be a net-zero operation in terms of memory usage.
         self.charge(1, 1, 0, abstract_memory_size(val).into(), 0)
     }
 
     fn charge_store_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the storing of the value on the stack into a local. Note here that if we were
-        // also accounting for the size of the locals that this would be a net-zero operation in
-        // terms of memory.
+        // Charge for the storing of the value on the stack into a local. Note here that
+        // if we were also accounting for the size of the locals that this would
+        // be a net-zero operation in terms of memory.
         self.charge(1, 0, 1, 0, abstract_memory_size(val).into())
     }
 
@@ -607,9 +607,9 @@ impl<'b> GasMeter for GasStatus<'b> {
     }
 
     fn charge_read_ref(&mut self, ref_val: impl ValueView) -> PartialVMResult<()> {
-        // We read the reference so we are decreasing the size of the stack by the size of the
-        // reference, and adding to it the size of the value that has been read from that
-        // reference.
+        // We read the reference so we are decreasing the size of the stack by the size
+        // of the reference, and adding to it the size of the value that has
+        // been read from that reference.
         self.charge(
             1,
             1,
@@ -625,8 +625,8 @@ impl<'b> GasMeter for GasStatus<'b> {
         old_val: impl ValueView,
     ) -> PartialVMResult<()> {
         // TODO(tzakian): We should account for this elsewhere as the owner of data the
-        // reference points to won't be on the stack. For now though, we treat it as adding to the
-        // stack size.
+        // reference points to won't be on the stack. For now though, we treat it as
+        // adding to the stack size.
         self.charge(
             1,
             1,
@@ -667,8 +667,8 @@ impl<'b> GasMeter for GasStatus<'b> {
     ) -> PartialVMResult<()> {
         // We will perform `num_args` number of pops.
         let num_args = args.len() as u64;
-        // The amount of data on the stack stays constant except we have some extra metadata for
-        // the vector to hold the length of the vector.
+        // The amount of data on the stack stays constant except we have some extra
+        // metadata for the vector to hold the length of the vector.
         self.charge(1, 1, num_args, VEC_SIZE.into(), 0)
     }
 

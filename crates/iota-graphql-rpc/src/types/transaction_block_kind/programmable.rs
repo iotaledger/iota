@@ -7,10 +7,13 @@ use async_graphql::{
     *,
 };
 use iota_json_rpc_types::IotaArgument;
+use iota_sdk_types::{
+    Argument as NativeArgument, Command as NativeProgrammableTransaction,
+    MoveCall as NativeMoveCallTransaction,
+};
 use iota_types::transaction::{
-    Argument as NativeArgument, CallArg as NativeCallArg, Command as NativeProgrammableTransaction,
-    ObjectArg as NativeObjectArg, ProgrammableMoveCall as NativeMoveCallTransaction,
-    ProgrammableTransaction as NativeProgrammableTransactionBlock,
+    CallArg as NativeCallArg, ProgrammableTransaction as NativeProgrammableTransactionBlock,
+    SharedObjectRef,
 };
 
 use crate::{
@@ -55,7 +58,7 @@ struct OwnedOrImmutable {
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 struct SharedInput {
     address: IotaAddress,
-    /// The version that this this object was shared at.
+    /// The version at which this object was shared.​
     initial_shared_version: UInt53,
     /// Controls whether the transaction block can reference the shared object
     /// as a mutable reference or by value. This has implications for
@@ -226,16 +229,16 @@ impl ProgrammableTransactionBlock {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.inputs.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let input = TransactionInput::from(self.native.inputs[c.ix].clone(), c.c);
             connection.edges.push(Edge::new(c.encode_cursor(), input));
         }
@@ -255,16 +258,16 @@ impl ProgrammableTransactionBlock {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) = page
+        let Some(consistent_page) = page
             .paginate_consistent_indices(self.native.commands.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let txn = ProgrammableTransaction::from(self.native.commands[c.ix].clone(), c.c);
             connection.edges.push(Edge::new(c.encode_cursor(), txn));
         }
@@ -327,7 +330,6 @@ impl MoveCallTransaction {
 impl TransactionInput {
     fn from(argument: NativeCallArg, checkpoint_viewed_at: u64) -> Self {
         use NativeCallArg as N;
-        use NativeObjectArg as O;
         use TransactionInput as I;
 
         match argument {
@@ -335,29 +337,31 @@ impl TransactionInput {
                 bytes: Base64::from(bytes),
             }),
 
-            N::Object(O::ImmOrOwnedObject(oref)) => I::OwnedOrImmutable(OwnedOrImmutable {
+            N::ImmutableOrOwned(obj_ref) => I::OwnedOrImmutable(OwnedOrImmutable {
                 read: ObjectRead {
-                    native: oref,
+                    native: obj_ref,
                     checkpoint_viewed_at,
                 },
             }),
 
-            N::Object(O::SharedObject {
-                id,
+            N::Shared(SharedObjectRef {
+                object_id: id,
                 initial_shared_version,
                 mutable,
             }) => I::SharedInput(SharedInput {
                 address: id.into(),
-                initial_shared_version: initial_shared_version.value().into(),
+                initial_shared_version: initial_shared_version.as_u64().into(),
                 mutable,
             }),
 
-            N::Object(O::Receiving(oref)) => I::Receiving(Receiving {
+            N::Receiving(obj_ref) => I::Receiving(Receiving {
                 read: ObjectRead {
-                    native: oref,
+                    native: obj_ref,
                     checkpoint_viewed_at,
                 },
             }),
+
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 }
@@ -367,47 +371,61 @@ impl ProgrammableTransaction {
         use NativeProgrammableTransaction as N;
         use ProgrammableTransaction as P;
         match pt {
-            N::MoveCall(call) => P::MoveCall(MoveCallTransaction {
-                native: *call,
+            N::MoveCall(cmd) => P::MoveCall(MoveCallTransaction {
+                native: cmd,
                 checkpoint_viewed_at,
             }),
-
-            N::TransferObjects(inputs, address) => P::TransferObjects(TransferObjectsTransaction {
-                inputs: inputs.into_iter().map(TransactionArgument::from).collect(),
-                address: address.into(),
+            N::TransferObjects(cmd) => P::TransferObjects(TransferObjectsTransaction {
+                inputs: cmd
+                    .objects
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
+                address: cmd.address.into(),
             }),
-
-            N::SplitCoins(coin, amounts) => P::SplitCoins(SplitCoinsTransaction {
-                coin: coin.into(),
-                amounts: amounts.into_iter().map(TransactionArgument::from).collect(),
-            }),
-
-            N::MergeCoins(coin, coins) => P::MergeCoins(MergeCoinsTransaction {
-                coin: coin.into(),
-                coins: coins.into_iter().map(TransactionArgument::from).collect(),
-            }),
-
-            N::Publish(modules, dependencies) => P::Publish(PublishTransaction {
-                modules: modules.into_iter().map(Base64::from).collect(),
-                dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
-            }),
-
-            N::MakeMoveVec(type_, elements) => P::MakeMoveVec(MakeMoveVecTransaction {
-                type_: type_.map(Into::into),
-                elements: elements
+            N::SplitCoins(cmd) => P::SplitCoins(SplitCoinsTransaction {
+                coin: cmd.coin.into(),
+                amounts: cmd
+                    .amounts
                     .into_iter()
                     .map(TransactionArgument::from)
                     .collect(),
             }),
-
-            N::Upgrade(modules, dependencies, current_package, upgrade_ticket) => {
-                P::Upgrade(UpgradeTransaction {
-                    modules: modules.into_iter().map(Base64::from).collect(),
-                    dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
-                    current_package: current_package.into(),
-                    upgrade_ticket: upgrade_ticket.into(),
-                })
-            }
+            N::MergeCoins(cmd) => P::MergeCoins(MergeCoinsTransaction {
+                coin: cmd.coin.into(),
+                coins: cmd
+                    .coins_to_merge
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
+            }),
+            N::Publish(cmd) => P::Publish(PublishTransaction {
+                modules: cmd.modules.into_iter().map(Base64::from).collect(),
+                dependencies: cmd
+                    .dependencies
+                    .into_iter()
+                    .map(IotaAddress::from)
+                    .collect(),
+            }),
+            N::MakeMoveVector(cmd) => P::MakeMoveVec(MakeMoveVecTransaction {
+                type_: cmd.type_.map(Into::into),
+                elements: cmd
+                    .elements
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
+            }),
+            N::Upgrade(cmd) => P::Upgrade(UpgradeTransaction {
+                modules: cmd.modules.into_iter().map(Base64::from).collect(),
+                dependencies: cmd
+                    .dependencies
+                    .into_iter()
+                    .map(IotaAddress::from)
+                    .collect(),
+                current_package: cmd.package.into(),
+                upgrade_ticket: cmd.ticket.into(),
+            }),
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }
@@ -417,10 +435,11 @@ impl From<NativeArgument> for TransactionArgument {
         use NativeArgument as N;
         use TransactionArgument as A;
         match argument {
-            N::GasCoin => A::GasCoin(GasCoin { dummy: None }),
+            N::Gas => A::GasCoin(GasCoin { dummy: None }),
             N::Input(ix) => A::Input(Input { ix }),
             N::Result(cmd) => A::Result(TxResult { cmd, ix: None }),
             N::NestedResult(cmd, ix) => A::Result(TxResult { cmd, ix: Some(ix) }),
+            _ => unimplemented!("a new Argument enum variant was added and needs to be handled"),
         }
     }
 }

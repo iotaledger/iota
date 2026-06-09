@@ -3,12 +3,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::Path;
+
 use codespan_reporting::{diagnostic::Severity, term::termcolor::Buffer};
 use move_binary_format::file_format::{FunctionDefinitionIndex, StructDefinitionIndex};
 use move_command_line_common::insta_assert;
 use move_compiler::{diagnostics::warning_filters::WarningFiltersBuilder, shared::PackagePaths};
 use move_model::{run_bytecode_model_builder, run_model_builder};
-use std::path::Path;
 
 fn test_runner(path: &Path) -> datatest_stable::Result<()> {
     let targets = vec![PackagePaths {

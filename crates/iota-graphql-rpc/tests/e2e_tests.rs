@@ -6,29 +6,83 @@
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use fastcrypto::encoding::{Base64, Encoding};
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+    use fastcrypto::encoding::{Base58, Base64, Encoding};
     use iota_graphql_rpc::{
         client::{ClientError, simple_client::GraphqlQueryVariable},
-        config::ConnectionConfig,
+        config::{ConnectionConfig, Limits, ServiceConfig},
+        server::builder::tests::*,
         test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster},
     };
+    use iota_graphql_rpc_client::{response::GraphqlResponse, simple_client::SimpleClient};
+    use iota_indexer::{
+        run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
+    };
+    use iota_sdk_types::ObjectId;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS,
-        digests::ChainIdentifier,
+        base_types::IotaAddress,
+        digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
-        transaction::{CallArg, ObjectArg, TransactionDataAPI},
+        transaction::{CallArg, Transaction, TransactionDataAPI},
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
     use serial_test::serial;
     use simulacrum::Simulacrum;
-    use tempfile::tempdir;
     use tokio::time::sleep;
+
+    async fn mutation_execute_transaction(
+        client: &SimpleClient,
+        signed_tx: &Transaction,
+        response_fields: &str,
+    ) -> GraphqlResponse {
+        let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();
+        let tx_bytes = tx_bytes.encoded();
+        let sigs = sigs.iter().map(|sig| sig.encoded()).collect::<Vec<_>>();
+
+        let mutation = format!(
+            "{{ executeTransactionBlock(txBytes: $tx, signatures: $sigs) {{ {response_fields} }} }}"
+        );
+
+        let variables = vec![
+            GraphqlQueryVariable {
+                name: "tx".to_string(),
+                ty: "String!".to_string(),
+                value: json!(tx_bytes),
+            },
+            GraphqlQueryVariable {
+                name: "sigs".to_string(),
+                ty: "[String!]!".to_string(),
+                value: json!(sigs),
+            },
+        ];
+        client
+            .execute_mutation_to_graphql(mutation, variables)
+            .await
+            .unwrap()
+    }
+
+    async fn query_is_transaction_indexed_on_node(client: &SimpleClient, digest: &str) -> bool {
+        let query = "{ isTransactionIndexedOnNode(digest: $digest) }";
+        let variables = vec![GraphqlQueryVariable {
+            name: "digest".to_string(),
+            ty: "String!".to_string(),
+            value: json!(digest),
+        }];
+        let resp = client
+            .execute_to_graphql(query.to_string(), false, variables.clone(), vec![])
+            .await
+            .unwrap()
+            .response_body_json();
+        resp["data"]["isTransactionIndexedOnNode"]
+            .as_bool()
+            .unwrap()
+    }
 
     async fn prep_executor_cluster() -> (ConnectionConfig, ExecutorCluster) {
         let rng = StdRng::from_seed([12; 32]);
-        let data_ingestion_path = tempdir().unwrap().keep();
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let data_ingestion_path = iota_common::tempdir().keep();
+        let sim = Simulacrum::new_with_rng(rng);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         sim.create_checkpoint();
@@ -40,7 +94,6 @@ mod tests {
             connection_config.clone(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
             Arc::new(sim),
-            None,
             None,
             data_ingestion_path,
         )
@@ -60,9 +113,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         cluster
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
@@ -89,24 +145,22 @@ mod tests {
 
         let exp = format!("{{\"data\":{{\"chainIdentifier\":\"{chain_id_actual}\"}}}}");
         assert_eq!(&format!("{res}"), &exp);
-        cluster.cleanup_resources().await
     }
 
     #[tokio::test]
     #[serial]
     async fn test_simple_client_simulator_cluster() {
         let rng = StdRng::from_seed([12; 32]);
-        let mut sim = Simulacrum::new_with_rng(rng);
-        let data_ingestion_path = tempdir().unwrap().keep();
+        let sim = Simulacrum::new_with_rng(rng);
+        let tmp_dir = iota_common::tempdir();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         sim.create_checkpoint();
         sim.create_checkpoint();
 
         let genesis_checkpoint_digest1 = *sim
-            .store()
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
+            .with_store(|store| store.get_checkpoint_by_sequence_number(0).cloned().unwrap())
             .digest();
 
         let chain_id_actual = format!("{}", ChainIdentifier::from(genesis_checkpoint_digest1));
@@ -115,7 +169,6 @@ mod tests {
             ConnectionConfig::default(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
             Arc::new(sim),
-            None,
             None,
             data_ingestion_path,
         )
@@ -202,7 +255,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IOTA_FRAMEWORK_ADDRESS.to_canonical_string(true)
+            IotaAddress::FRAMEWORK.to_canonical_string(true)
         );
         assert_eq!(
             data.get("obj2")
@@ -211,7 +264,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            STARDUST_ADDRESS.to_canonical_string(true)
+            IotaAddress::STARDUST.to_canonical_string(true)
         );
 
         let bad_variables = vec![
@@ -309,227 +362,285 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_transaction_execution() {
-        let _guard = telemetry_subscribers::TelemetryConfig::new()
-            .with_env()
-            .init();
+    async fn test_transaction_is_indexed_on_node() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let tx = cluster.build_transfer_iota_for_test().await;
+        let signed_tx = cluster.sign_transaction(&tx);
+        let response_fields = "effects { transactionBlock { digest } } errors";
+        let raw_response =
+            mutation_execute_transaction(&cluster.graphql_client, &signed_tx, response_fields)
+                .await
+                .response_body_json();
+        let response = &raw_response["data"]["executeTransactionBlock"];
 
-        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
-
-        let sender = addresses[0];
-        let recipient = addresses[1];
-        let tx = cluster
-            .validator_fullnode_handle
-            .test_transaction_builder()
-            .await
-            .transfer_iota(Some(1_000), recipient)
-            .build();
-        let signed_tx = cluster
-            .validator_fullnode_handle
-            .wallet
-            .sign_transaction(&tx);
-        let original_digest = signed_tx.digest();
-        let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();
-        let tx_bytes = tx_bytes.encoded();
-        let sigs = sigs.iter().map(|sig| sig.encoded()).collect::<Vec<_>>();
-
-        let mutation = r#"{ executeTransactionBlock(txBytes: $tx,  signatures: $sigs) { effects { transactionBlock { digest } } errors}}"#;
-
-        let variables = vec![
-            GraphqlQueryVariable {
-                name: "tx".to_string(),
-                ty: "String!".to_string(),
-                value: json!(tx_bytes),
-            },
-            GraphqlQueryVariable {
-                name: "sigs".to_string(),
-                ty: "[String!]!".to_string(),
-                value: json!(sigs),
-            },
-        ];
-        let res = cluster
-            .graphql_client
-            .execute_mutation_to_graphql(mutation.to_string(), variables)
-            .await
-            .unwrap();
-        let binding = res.response_body().data.clone().into_json().unwrap();
-        let res = binding.get("executeTransactionBlock").unwrap();
-
-        let digest = res
-            .get("effects")
-            .unwrap()
-            .get("transactionBlock")
-            .unwrap()
-            .get("digest")
-            .unwrap()
+        let digest = response["effects"]["transactionBlock"]["digest"]
             .as_str()
             .unwrap();
-        assert!(res.get("errors").unwrap().is_null());
-        assert_eq!(digest, original_digest.to_string());
 
-        // Wait for the transaction to be committed and indexed
-        sleep(Duration::from_secs(10)).await;
-        // Query the transaction
-        let query = r#"
-            {
-                transactionBlock(digest: $dig){
-                    sender {
-                        address
-                    }
+        // wait for the transaction to be indexed on the node
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if !query_is_transaction_indexed_on_node(&cluster.graphql_client, digest).await {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                } else {
+                    break;
                 }
             }
-        "#;
+        })
+        .await
+        .unwrap();
+    }
 
+    #[tokio::test]
+    #[serial]
+    async fn test_transaction_not_indexed_on_node() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+        let digest = TransactionDigest::generate(StdRng::from_seed([12; 32])).to_string();
+
+        assert!(
+            !query_is_transaction_indexed_on_node(&cluster.graphql_client, digest.as_str()).await
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_transaction_execution() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+        let sender = addresses[0];
+
+        let tx_block_gql_fields = r#"
+            digest
+            sender {
+              address
+            }
+            effects {
+              status
+              errors
+              objectChanges {
+                edges {
+                  node {
+                    inputState {
+                        version
+                        status
+                        bcs
+                    }
+                    outputState {
+                        version
+                        status
+                        bcs
+                    }
+                    idCreated
+                    idDeleted
+                  }
+                }
+              }
+              balanceChanges {
+                edges {
+                  node {
+                    coinType {
+                      repr
+                    }
+                    amount
+                  }
+                }
+              }
+            }
+            "#;
+
+        let response_fields = format!(
+            "effects {{ checkpoint {{ sequenceNumber }} transactionBlock {{ {tx_block_gql_fields} }} }} errors"
+        );
+
+        let tx = cluster.build_transfer_iota_for_test().await;
+        let signed_tx = cluster.sign_transaction(&tx);
+        let original_digest = signed_tx.digest();
+        let raw_response =
+            mutation_execute_transaction(&cluster.graphql_client, &signed_tx, &response_fields)
+                .await
+                .response_body_json();
+        let execute_transaction_block_res = &raw_response["data"]["executeTransactionBlock"];
+        let mutation_tx_data = &execute_transaction_block_res["effects"]["transactionBlock"];
+        let sender_read = mutation_tx_data["sender"]["address"].as_str().unwrap();
+        let digest = mutation_tx_data["digest"].as_str().unwrap();
+        assert!(execute_transaction_block_res["errors"].is_null());
+        assert_eq!(digest, original_digest.to_string());
+        assert_eq!(sender_read, sender.to_string());
+
+        // Query the transaction immediately after execution (optimistic indexing)
+        // Use the same fields as in the mutation
+        let query = format!(
+            r#"
+                {{
+                    transactionBlock(digest: $dig){{
+                        {tx_block_gql_fields}
+                    }}
+                }}
+            "#,
+        );
         let variables = vec![GraphqlQueryVariable {
             name: "dig".to_string(),
             ty: "String!".to_string(),
             value: json!(digest),
         }];
-        let res = cluster
-            .graphql_client
-            .execute_to_graphql(query.to_string(), true, variables, vec![])
-            .await
-            .unwrap();
 
-        let binding = res.response_body().data.clone().into_json().unwrap();
-        let sender_read = binding
-            .get("transactionBlock")
+        let immediate_res = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, variables.clone(), vec![])
+            .await
             .unwrap()
-            .get("sender")
-            .unwrap()
-            .get("address")
-            .unwrap()
-            .as_str()
+            .response_body()
+            .data
+            .clone()
+            .into_json()
             .unwrap();
-        assert_eq!(sender_read, sender.to_string());
-        cluster.cleanup_resources().await
+        let immediate_tx_data = &immediate_res["transactionBlock"];
+
+        // Wait 10 seconds for transaction to be checkpointed
+        sleep(Duration::from_secs(10)).await;
+        let checkpointed_res = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, variables.clone(), vec![])
+            .await
+            .unwrap()
+            .response_body()
+            .data
+            .clone()
+            .into_json()
+            .unwrap();
+        let checkpointed_tx_data = &checkpointed_res["transactionBlock"];
+
+        // All 3 responses should be identical: mutation, optimistic and checkpointed
+        assert_eq!(mutation_tx_data, immediate_tx_data);
+        assert_eq!(immediate_tx_data, checkpointed_tx_data);
+
+        // The mutation response carries a checkpoint only when optimistic
+        // indexing was skipped and the executor fell back to checkpointed reads.
+        let optimistically_indexed =
+            execute_transaction_block_res["effects"]["checkpoint"].is_null();
+
+        let digest_bytes = Base58::decode(digest).unwrap();
+        let pool = cluster.indexer_store.blocking_cp();
+
+        let count: i64 = run_query_async!(&pool, move |conn| {
+            optimistic_transactions::table
+                .filter(optimistic_transactions::transaction_digest.eq(&digest_bytes))
+                .count()
+                .get_result(conn)
+        })
+        .unwrap();
+
+        if optimistically_indexed {
+            assert_eq!(
+                count, 1,
+                "Transaction should be present in optimistic_transactions table"
+            );
+        } else {
+            assert_eq!(
+                count, 0,
+                "Transaction should NOT be present in optimistic_transactions table \
+                 when optimistic indexing was skipped"
+            );
+        }
     }
 
     #[tokio::test]
     #[serial]
-    #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-    async fn test_zklogin_sig_verify() {
-        use iota_test_transaction_builder::TestTransactionBuilder;
-        use iota_types::{
-            base_types::IotaAddress, crypto::Signature, signature::GenericSignature,
-            utils::load_test_vectors, zk_login_authenticator::ZkLoginAuthenticator,
-        };
-        use shared_crypto::intent::{Intent, IntentMessage};
+    async fn test_transaction_blocks_by_digests() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+        let sender1 = addresses[0];
+        let sender2 = addresses[1];
+        let recipient = addresses[2];
 
-        let _guard = telemetry_subscribers::TelemetryConfig::new()
-            .with_env()
-            .init();
-
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
-
-        let test_cluster = &cluster.validator_fullnode_handle;
-        test_cluster.wait_for_epoch_all_nodes(1).await;
-        test_cluster.wait_for_authenticator_state_update().await;
-
-        // Construct a valid zkLogin transaction data, signature.
-        let (kp, pk_zklogin, inputs) =
-            &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()
-                [1];
-
-        let zklogin_addr = (pk_zklogin).into();
-        let rgp = test_cluster.get_reference_gas_price().await;
-        let gas = test_cluster
-            .fund_address_and_return_gas(rgp, Some(20000000000), zklogin_addr)
-            .await;
-        let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
-            .transfer_iota(None, IotaAddress::ZERO)
+        let tx1 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender1)
+            .await
+            .transfer_iota(Some(1_000), recipient)
             .build();
-        let msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
-        let eph_sig = Signature::new_secure(&msg, kp);
-        let generic_sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
-            inputs.clone(),
-            2,
-            eph_sig.clone(),
-        ));
+        let signed_tx1 = cluster.sign_transaction(&tx1);
+        let digest1 = signed_tx1.digest();
 
-        // construct all parameters for the query
-        let bytes = Base64::encode(bcs::to_bytes(&tx_data).unwrap());
-        let signature = Base64::encode(generic_sig.as_ref());
-        let intent_scope = "TRANSACTION_DATA";
-        let author = zklogin_addr.to_string();
-
-        // now query the endpoint with a valid tx data bytes and a valid signature with
-        // the correct proof for dev env.
-        let query = r#"{ verifyZkloginSignature(bytes: $bytes, signature: $signature, intentScope: $intent_scope, author: $author ) { success, errors}}"#;
-        let variables = vec![
-            GraphqlQueryVariable {
-                name: "bytes".to_string(),
-                ty: "String!".to_string(),
-                value: json!(bytes),
-            },
-            GraphqlQueryVariable {
-                name: "signature".to_string(),
-                ty: "String!".to_string(),
-                value: json!(signature),
-            },
-            GraphqlQueryVariable {
-                name: "intent_scope".to_string(),
-                ty: "ZkLoginIntentScope!".to_string(),
-                value: json!(intent_scope),
-            },
-            GraphqlQueryVariable {
-                name: "author".to_string(),
-                ty: "IotaAddress!".to_string(),
-                value: json!(author),
-            },
-        ];
-        let res = cluster
-            .graphql_client
-            .execute_to_graphql(query.to_string(), true, variables, vec![])
+        let tx2 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender2)
             .await
+            .transfer_iota(Some(2_000), recipient)
+            .build();
+        let signed_tx2 = cluster.sign_transaction(&tx2);
+        let digest2 = signed_tx2.digest();
+
+        let response_fields = "effects { transactionBlock { digest } } errors";
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx1, response_fields).await;
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx2, response_fields).await;
+
+        let fake_digest = TransactionDigest::random().to_string();
+        let query = format!(
+            r#"
+                {{
+                    transactionBlocksByDigests(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
+                        digest
+                        sender {{
+                            address
+                        }}
+                    }}
+                }}
+            "#,
+        );
+
+        let response_body = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, vec![], vec![])
+            .await
+            .unwrap()
+            .response_body_json();
+        let transactions = response_body["data"]["transactionBlocksByDigests"]
+            .as_array()
             .unwrap();
 
-        // a valid signature with tx bytes returns success as true.
-        let binding = res.response_body().data.clone().into_json().unwrap();
-        tracing::info!("tktkbinding: {:?}", binding);
-        let res = binding.get("verifyZkloginSignature").unwrap();
-        assert_eq!(res.get("success").unwrap(), true);
+        assert_eq!(
+            transactions.len(),
+            3,
+            "3 results should be present in the response (2 real transactions and 1 null for fake digest)"
+        );
 
-        // set up an invalid intent scope.
-        let incorrect_intent_scope = "PERSONAL_MESSAGE";
-        let incorrect_variables = vec![
-            GraphqlQueryVariable {
-                name: "bytes".to_string(),
-                ty: "String!".to_string(),
-                value: json!(bytes),
-            },
-            GraphqlQueryVariable {
-                name: "signature".to_string(),
-                ty: "String!".to_string(),
-                value: json!(signature),
-            },
-            GraphqlQueryVariable {
-                name: "intent_scope".to_string(),
-                ty: "ZkLoginIntentScope!".to_string(),
-                value: json!(incorrect_intent_scope),
-            },
-            GraphqlQueryVariable {
-                name: "author".to_string(),
-                ty: "IotaAddress!".to_string(),
-                value: json!(author),
-            },
-        ];
-        //  returns a non-empty errors list in response
-        let res = cluster
-            .graphql_client
-            .execute_to_graphql(query.to_string(), true, incorrect_variables, vec![])
-            .await
-            .unwrap();
-        let binding = res.response_body().data.clone().into_json().unwrap();
-        let res = binding.get("verifyZkloginSignature").unwrap();
-        assert_eq!(res.get("success").unwrap(), false);
-        cluster.cleanup_resources().await
+        assert_eq!(
+            transactions[0]["digest"].as_str().unwrap(),
+            digest1.to_string(),
+            "First transaction should match digest1 (preserve input order)"
+        );
+        assert_eq!(
+            transactions[1]["digest"].as_str().unwrap(),
+            digest2.to_string(),
+            "Second transaction should match digest2 (preserve input order)"
+        );
+        assert!(
+            transactions[2].is_null(),
+            "Third transaction should be null for the fake digest"
+        );
     }
 
     // TODO: add more test cases for transaction execution/dry run in transactional
@@ -541,25 +652,21 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
-        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
-
-        let sender = addresses[0];
-        let recipient = addresses[1];
-        let tx = cluster
-            .validator_fullnode_handle
-            .test_transaction_builder()
-            .await
-            .transfer_iota(Some(1_000), recipient)
-            .build();
+        let tx = cluster.build_transfer_iota_for_test().await;
         let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
+        let sender = tx.sender();
 
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
                 transaction {
                     digest
+                    indexedOnNode
                     sender {
                         address
                     }
@@ -609,13 +716,12 @@ mod tests {
         let binding = res.response_body().data.clone().into_json().unwrap();
         let res = binding.get("dryRunTransactionBlock").unwrap();
 
-        let digest = res.get("transaction").unwrap().get("digest").unwrap();
+        let tx = res.get("transaction").unwrap();
+        let digest = tx.get("digest").unwrap();
         // Dry run txn does not have digest
         assert!(digest.is_null());
         assert!(res.get("error").unwrap().is_null());
-        let sender_read = res
-            .get("transaction")
-            .unwrap()
+        let sender_read = tx
             .get("sender")
             .unwrap()
             .get("address")
@@ -623,8 +729,9 @@ mod tests {
             .as_str()
             .unwrap();
         assert_eq!(sender_read, sender.to_string());
+        let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
+        assert!(!indexed_on_node);
         assert!(res.get("results").unwrap().is_array());
-        cluster.cleanup_resources().await
     }
 
     // Test dry run where the transaction kind is provided instead of the full
@@ -636,9 +743,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
 
@@ -696,7 +806,6 @@ mod tests {
         // running the trasanction in which case the sender is null.
         assert!(sender_read.is_null());
         assert!(res.get("results").unwrap().is_array());
-        cluster.cleanup_resources().await
     }
 
     // Test that we can handle dry run with failures at execution stage too.
@@ -707,9 +816,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
 
@@ -728,13 +840,10 @@ mod tests {
             .await
             // A split coin that goes nowhere -> execution failure
             .move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectId::FRAMEWORK,
                 "coin",
                 "split",
-                vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
-                    CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
-                ],
+                vec![CallArg::ImmutableOrOwned(coin), CallArg::pure(&1000u64)],
             )
             .with_type_args(vec![GAS::type_tag()])
             .build();
@@ -786,8 +895,6 @@ mod tests {
                 .unwrap()
                 .contains("UnusedValueWithoutDrop")
         );
-
-        cluster.cleanup_resources().await
     }
 
     #[tokio::test]
@@ -797,9 +904,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         cluster.validator_fullnode_handle.force_new_epoch().await;
 
@@ -832,29 +942,21 @@ mod tests {
                 .unwrap()
                 .is_null()
         );
-        cluster.cleanup_resources().await
     }
-
-    use iota_graphql_rpc::server::builder::tests::*;
 
     #[tokio::test]
     #[serial]
     async fn test_timeout() {
-        let _guard = telemetry_subscribers::TelemetryConfig::new()
-            .with_env()
-            .init();
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
         cluster
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
             .await;
-        // timeout test includes mutation timeout, which requires a [IotaClient] to be
-        // able to run the test, and a transaction. [WalletContext] gives access
-        // to everything that's needed.
-        let wallet = &cluster.validator_fullnode_handle.wallet;
-        test_timeout_impl(wallet).await;
-        cluster.cleanup_resources().await
+        test_timeout_impl(&cluster).await;
     }
 
     #[tokio::test]
@@ -895,13 +997,198 @@ mod tests {
             .with_env()
             .init();
         let connection_config = ConnectionConfig::ci_integration_test_cfg();
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(connection_config, None).await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            connection_config,
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         cluster
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
             .await;
         test_health_check_impl().await;
-        cluster.cleanup_resources().await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_total_exceeded() {
+        test_payload_total_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_read_exceeded() {
+        test_payload_read_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_mutation_exceeded() {
+        test_payload_mutation_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_dry_run_exceeded() {
+        test_payload_dry_run_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_using_vars_mutation_exceeded() {
+        test_payload_using_vars_mutation_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_using_vars_read_exceeded() {
+        test_payload_using_vars_read_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_using_vars_dry_run_read_exceeded() {
+        test_payload_using_vars_dry_run_read_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_using_vars_dry_run_exceeded() {
+        test_payload_using_vars_dry_run_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_multiple_execution_exceeded() {
+        test_payload_multiple_execution_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_multiple_dry_run_exceeded() {
+        test_payload_multiple_dry_run_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_execution_multiple_sigs_exceeded() {
+        test_payload_execution_multiple_sigs_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_sig_var_execution_exceeded() {
+        test_payload_sig_var_execution_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_reusing_vars_execution() {
+        test_payload_reusing_vars_execution_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_reusing_vars_dry_run() {
+        test_payload_reusing_vars_dry_run_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_named_fragment_execution_exceeded() {
+        test_payload_named_fragment_execution_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_inline_fragment_execution_exceeded() {
+        test_payload_inline_fragment_execution_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_named_fragment_dry_run_exceeded() {
+        test_payload_named_fragment_dry_run_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_inline_fragment_dry_run_exceeded() {
+        test_payload_inline_fragment_dry_run_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_object_input_dry_run_exceeded() {
+        test_payload_object_input_dry_run_exceeded_impl().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_payload_using_vars_mutation_passes() {
+        let _guard = telemetry_subscribers::TelemetryConfig::new()
+            .with_env()
+            .init();
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::ci_integration_test_cfg(),
+            None,
+            ServiceConfig {
+                limits: Limits {
+                    max_query_payload_size: 5000,
+                    max_tx_payload_size: 6000,
+                    ..Default::default()
+                },
+                ..ServiceConfig::test_defaults()
+            },
+        )
+        .await;
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+
+        let recipient = addresses[1];
+        let tx = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder()
+            .await
+            .transfer_iota(Some(1_000), recipient)
+            .build();
+        let signed_tx = cluster
+            .validator_fullnode_handle
+            .wallet
+            .sign_transaction(&tx);
+        let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();
+        let tx_bytes = tx_bytes.encoded();
+        let sigs = sigs.iter().map(|sig| sig.encoded()).collect::<Vec<_>>();
+
+        let mutation = r#"{
+            executeTransactionBlock(txBytes: $tx,  signatures: $sigs) {
+                effects {
+                    transactionBlock { digest }
+                    status
+                }
+                errors
+            }
+        }"#;
+
+        let variables = vec![
+            GraphqlQueryVariable {
+                name: "tx".to_string(),
+                ty: "String!".to_string(),
+                value: json!(tx_bytes),
+            },
+            GraphqlQueryVariable {
+                name: "sigs".to_string(),
+                ty: "[String!]!".to_string(),
+                value: json!(sigs),
+            },
+        ];
+
+        let res = cluster
+            .graphql_client
+            .execute_mutation_to_graphql(mutation.to_string(), variables)
+            .await
+            .unwrap();
+
+        assert!(res.errors().is_empty());
     }
 }

@@ -11,6 +11,4 @@ pub mod display;
 pub mod model;
 pub mod source_model;
 
-pub use compiled::ModuleId;
-pub use compiled::QualifiedMemberId;
-pub use compiled::TModuleId;
+pub use compiled::{ModuleId, QualifiedMemberId, TModuleId};

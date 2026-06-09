@@ -18,7 +18,7 @@ This prevents a single malicious node from wreaking havoc over the chain, but th
 individual nodes to act up.
 
 Smart contracts are deterministic. All honest nodes will produce the same output — but only if they have received the
-same input. Each validator node has its point of access to the Tangle, so it may look different to different nodes, as
+same input. Each validator node has its point of access to the L1, so it may look different to different nodes, as
 new transactions take time to propagate through the network. Validator nodes will receive smart contract requests with
 random delays in a random order, and, finally, all computers run on their own always slightly skewed clocks.
 
@@ -50,4 +50,4 @@ state. The timestamp for this transaction is derived from the timestamps of all 
 All nodes then sign the state anchor with their partial keys and exchange these signatures. This way, every node obtains
 the same valid combined signature and the same valid anchor transaction, which means that any node can publish this
 transaction to Layer 1. In theory, nodes could publish these state anchors every time they update the state; in
-practice, they do it only every approximately ten seconds to reduce the load on the Tangle.
+practice, they do it only every approximately ten seconds to reduce the load on the L1.

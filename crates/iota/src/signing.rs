@@ -4,13 +4,38 @@
 use std::fmt;
 
 use anyhow::{Result, bail};
+use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
-use iota_types::{base_types::IotaAddress, crypto::Signature, transaction::TransactionData};
+use iota_sdk_types::{ObjectId, Owner, TypeTag, crypto::Intent};
+use iota_types::{
+    base_types::{IotaAddress, SequenceNumber},
+    crypto::Signature,
+    move_authenticator::MoveAuthenticator,
+    signature::GenericSignature,
+    transaction::{CallArg, SharedObjectRef, TransactionData},
+};
 use serde::Serialize;
-use shared_crypto::intent::Intent;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignData {
+    pub iota_address: IotaAddress,
+    // Base64 encoded string of serialized transaction data.
+    pub raw_tx_data: String,
+    // Intent struct used, see [struct Intent] for field definitions.
+    pub intent: Intent,
+    // Base64 encoded [struct IntentMessage] consisting of (intent || message)
+    // where message can be `TransactionData` etc.
+    pub raw_intent_msg: String,
+    // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
+    pub digest: String,
+    // Base64 encoded `flag || signature || pubkey` for a complete
+    // serialized IOTA signature to be send for executing the transaction.
+    pub iota_signature: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ExternalKeySource {
@@ -46,22 +71,57 @@ pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
     tx_data: &TransactionData,
     signer_address: &IotaAddress,
-) -> Result<Signature> {
+    auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
+) -> Result<GenericSignature> {
     let iota_client = context.get_client().await?;
-
     let key = context.config().keystore().get_key(signer_address)?;
 
     match key {
-        StoredKey::KeyPair(_) => Ok(context.config().keystore().sign_secure(
-            signer_address,
-            tx_data,
-            Intent::iota_transaction(),
-        )?),
+        // An abstract account always signs via `MoveAuthenticator`, regardless of whether
+        // `--auth-call-args` / `--auth-type-args` were supplied. When they were, the resolved
+        // `auth_args` carry the user-facing inputs; when they weren't, the authenticator is
+        // expected to take no user-facing inputs (only the signer account and the framework
+        // contexts), so we forward empty `CallArg` / `TypeTag` vectors and let the validator
+        // reject the transaction at runtime if the on-chain function actually requires more.
+        StoredKey::Account(_) => {
+            let (auth_call_args, auth_type_args) = auth_args.unwrap_or_default();
+            let initial_shared_version =
+                get_shared_object_version(&iota_client, signer_address).await?;
+
+            Ok(GenericSignature::MoveAuthenticator(
+                MoveAuthenticator::new_v1(
+                    auth_call_args,
+                    auth_type_args,
+                    CallArg::Shared(SharedObjectRef::new(
+                        ObjectId::from(*signer_address),
+                        initial_shared_version,
+                        false,
+                    )),
+                ),
+            ))
+        }
+        StoredKey::KeyPair(_) => {
+            if auth_args.is_some() {
+                bail!(
+                    "--auth-call-args / --auth-type-args were supplied for {signer_address}, but it is not an abstract account."
+                );
+            }
+            Ok(context
+                .config()
+                .keystore()
+                .sign_secure(signer_address, tx_data, Intent::iota_transaction())?
+                .into())
+        }
         StoredKey::External {
             derivation_path,
             source,
             ..
         } => {
+            if auth_args.is_some() {
+                bail!(
+                    "--auth-call-args / --auth-type-args were supplied for {signer_address}, but it is not an abstract account."
+                );
+            }
             match ExternalKeySource::from(source.as_str()) {
                 ExternalKeySource::Ledger => {
                     let Some(derivation_path) = derivation_path else {
@@ -77,7 +137,8 @@ pub(crate) async fn sign_transaction(
                     Ok(signer
                         .sign_transaction(tx_data, signer_address)
                         .await
-                        .map(|s| s.signature)?)
+                        .map(|s| s.signature)?
+                        .into())
                 }
                 ExternalKeySource::Unknown(name) => {
                     bail!("External signing is not supported for source: {name}")
@@ -99,6 +160,11 @@ where
     let key = keystore.get_key(address)?;
     match key {
         StoredKey::KeyPair(_) => Ok(keystore.sign_secure(address, &msg, intent)?),
+        StoredKey::Account(_) => {
+            bail!(
+                "Cannot sign an arbitrary message for an abstract account — abstract accounts can only sign transactions via `MoveAuthenticator`."
+            )
+        }
         StoredKey::External {
             derivation_path,
             source,
@@ -124,5 +190,31 @@ where
                 }
             }
         }
+    }
+}
+
+pub(crate) async fn get_shared_object_version(
+    iota_client: &iota_sdk::IotaClient,
+    signer_address: &IotaAddress,
+) -> Result<SequenceNumber> {
+    let object_response = iota_client
+        .read_api()
+        .get_object_with_options(
+            ObjectId::from(*signer_address),
+            IotaObjectDataOptions {
+                show_owner: true,
+                ..Default::default()
+            },
+        )
+        .await?;
+    if let Some(error) = object_response.error {
+        bail!("failed to fetch object data for signer_address {signer_address}: {error:?}");
+    }
+    let object = object_response.data.expect("missing object data");
+
+    if let Some(Owner::Shared(initial_shared_version)) = object.owner {
+        Ok(initial_shared_version)
+    } else {
+        bail!("signer_address {signer_address} is not a shared object")
     }
 }

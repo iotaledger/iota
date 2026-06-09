@@ -20,19 +20,16 @@ rand.workspace = true
 serde.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
-tempfile.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-config.workspace = true
 iota-genesis-builder.workspace = true
-iota-grpc-api.workspace = true
-iota-macros.workspace = true
 iota-names.workspace = true
 iota-protocol-config.workspace = true
-iota-rest-api.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
-shared-crypto.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

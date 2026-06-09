@@ -125,7 +125,7 @@ impl<P, D, M> Indexer<P, D, M> {
                             data_mapper_clone.clone(),
                         )
                         .await
-                        .expect("Backfill task failed");
+                        .expect("backfill task failed");
                 }
             }
         });

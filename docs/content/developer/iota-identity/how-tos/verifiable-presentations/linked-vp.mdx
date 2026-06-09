@@ -1,0 +1,205 @@
+---
+title: Linked Verifiable Presentations
+sidebar_label: Linked VPs
+description: Explain how to link a verifiable presentation to its holder DID document
+image: /img/identity/icon.png
+teams:
+  - iotaledger/identity
+tags:
+  - how-to
+  - identity
+---
+
+## Introduction
+
+The Decentralized Identity Foundation ([DIF](https://identity.foundation/))'s Linked Verifiable
+Presentations ([Linked VP](https://identity.foundation/linked-vp/)) specification, allows users to
+make verifiable credentials ([VC](https://www.w3.org/TR/vc-data-model-1.1/)) publicly discoverable
+through their DID document. 
+
+## Specification Overview
+
+Linked VPs rely on [DID services](https://www.w3.org/TR/did-1.1/#services) of type
+[`LinkedVerifiablePresentation`](https://identity.foundation/linked-vp/#linked-verifiable-presentation-service-endpoint)
+that store either one or a set of Unique Resource Locators ([URL](https://datatracker.ietf.org/doc/html/rfc1738))
+to a Verifiable Presentation ([VP](https://www.w3.org/TR/vc-data-model-1.1/#presentations)).
+
+Here is a sample DID Document employing this mechanism:
+```json
+{
+  "@context": ["https://www.w3.org/ns/did/v1", "https://identity.foundation/linked-vp/contexts/v1"],
+  "id": "did:example:123",
+  "verificationMethod": [
+    {
+      "id": "did:example:123#_Qq0UL2Fq651Q0Fjd6TvnYE-faHiOpRlPVQcY_-tA4A",
+      "type": "JsonWebKey2020",
+      "controller": "did:example:123",
+      "publicKeyJwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "VCpo2LMLhn6iWku8MKvSLg2ZAoC-nlOyPVQaO3FxVeQ"
+      }
+    }
+  ],
+  "service": [
+    {
+      "id": "did:example:123#foo",
+      "type": "LinkedVerifiablePresentation",
+      "serviceEndpoint": ["https://bar.example.com/verifiable-presentation.jsonld"]
+    },
+    {
+      "id": "did:example:123#baz",
+      "type": "LinkedVerifiablePresentation",
+      "serviceEndpoint": "ipfs://bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly/verifiable-presentation.jwt"
+    }
+  ]
+}
+```
+
+By querying the DID document's services of type `LinkedVerifiablePresentation`, one can easily
+discover any VP the DID controller decided to publicly share. In the example above those
+are: `https://bar.example.com/verifiable-presentation.jsonld` and
+`ipfs://bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly/verifiable-presentation.jwt`.
+
+## Example: Linking a VP hosted on an IOTA Network within an IOTA Notarization
+
+In this example we are going to showcase how to host a VP on the IOTA Ledger leveraging IOTA
+Notarization and linking it from the holder's DID document through an URL-like IOTA Resource Locator
+([IRL](../../references/iota-resource-locator.mdx)).
+
+:::caution
+The concepts of [creating VCs](../verifiable-credentials/create.mdx) and [VPs](./create-and-validate.mdx)
+won't be covered in this page, please refer to their corresponding pages.
+:::
+
+Having created a JWT-encoded VP containing a set of JWT-encoded VCs, an IOTA Notarization to store
+it on the ledger can be created like so:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust
+let notarized_vp = notarization_client
+  .create_locked_notarization()
+  .with_state(State::from_string(jwt_vp.into(), None))
+  .with_immutable_description("My VP".to_owned())
+  .finish()?
+  .build_and_execute(&notarization_client)
+  .await?
+  .output;
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts
+const notarizedVp = await notarizationClient
+  .createLocked()
+  .withStringState(jwtVp.toString(), "My Linked VP")
+  .finish()
+  .buildAndExecute(notarizationClient)
+  .then(res => res.output);
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+Now that the VP is hosted on-chain we can link it to its holder's DID document:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust
+let notarized_vp_url: Url = notarized_vp
+  .iota_resource_locator_builder(notarization_client.network()) // This requires notarization's feature "irl".
+  .data() 
+  .into(); // This requires identity's feature "irl".
+let service_url: DIDUrl = did_document.id().clone().join("#linked-vp")?;
+let linked_verifiable_presentation_service = LinkedVerifiablePresentationService::new(service_url, [notarized_vp_url], Object::new())?;
+did_document.insert_service(linked_verifiable_presentation_service.into())?;
+
+let updated_did_document = identity_client
+  .publish_did_document_update(did_document, TEST_GAS_BUDGET)
+  .await?;
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts
+const notarizedVpUrl = notarizedVp.iotaResourceLocatorBuilder(notarizationClient.network()).data();
+const serviceUrl = didDocument.id().join("#linked-vp");
+const linkedVpService = new LinkedVerifiablePresentationService({
+    id: serviceUrl,
+    linked_vp: notarizedVpUrl,
+});
+didDocument.insertService(linkedVpService.toService());
+await identityClient.publishDidDocumentUpdate(didDocument, TEST_GAS_BUDGET);
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+If we inspect the services of `updated_did_document` we would see something similar to this JSON object:
+
+```json
+{
+  "id": "did:iota:fb230e5b:0x1222d84b5598234387bde3baa43ed8d3dbd24e23cfc8db9708412c748962a63f#linked-vp",
+  "type": "LinkedVerifiablePresentation",
+  "serviceEndpoint": "iota:fb230e5b/0x215e1425343e20fc69c8bacd5e783d3b3c81e3c86408b9b8357247860d0a376d/state/data"
+}
+```
+
+The value of the `serviceEndpoint` property is an IRL that references the `state.data` property of
+the Move object having ID `0x215e1425343e20fc69c8bacd5e783d3b3c81e3c86408b9b8357247860d0a376d` (which 
+in this instance is the ID of the Notarization that was previously created) and located on a custom
+IOTA network.
+
+
+To fetch or dereference an IRL, the `Resolver` implemented in the `iota-caip` library can be used:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust
+let custom_network = IotaNetwork::custom(identity_client.network().as_ref()).expect("valid IOTA network);
+let resolver = Resolver::new_with_custom_networks([(custom_network, custom_network_endpoint)]);
+let jwt_vp = serde_json::from_value(resolver.resolve(&notarized_vp.to_iota_resource_locator()).await?)?;
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts
+const irlResolver = new IrlResolver({ customNetworks: [{ chainId: network, endpoint: NETWORK_URL }] });
+const resolvedJwtVp = await irlResolver.resolve(vpUrl).then(value => new Jwt(value as string));
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Full Example
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/identity/blob/v1.7.0-beta.1/examples/1_advanced/11_linked_verifiable_presentation.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity/blob/wasm-v1.7.0-beta.1/bindings/wasm/identity_wasm/examples/src/1_advanced/13_linked_verifiable_presentation.ts
+```
+
+</TabItem>
+</Tabs>
+</div>

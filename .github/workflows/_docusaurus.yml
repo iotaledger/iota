@@ -1,6 +1,11 @@
 name: Docusaurus Build
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: docusaurus-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -12,18 +17,27 @@ jobs:
     runs-on: self-hosted-x64
     steps:
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 2
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
       - name: Install Nodejs
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: "20"
-          cache: "pnpm"
+          node-version: "24"
+      - uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
       - name: Enable corepack
         run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
         run: pnpm iota-docs build
+
+  build-cancel:
+    needs: [build]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

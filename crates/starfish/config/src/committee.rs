@@ -93,6 +93,10 @@ impl Committee {
         self.info_length
     }
 
+    pub fn parity_length(&self) -> usize {
+        self.size() - self.info_length()
+    }
+
     pub fn stake(&self, authority_index: AuthorityIndex) -> Stake {
         self.authorities[authority_index].stake
     }

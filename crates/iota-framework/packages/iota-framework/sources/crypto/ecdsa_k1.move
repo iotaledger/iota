@@ -38,8 +38,6 @@ const KECCAK256: u8 = 0;
 const SHA256: u8 = 1;
 
 /// @param signature: A 65-bytes signature in form (r, s, v) that is signed using
-/// Secp256k1. Reference implementation on signature generation using RFC6979:
-/// https://github.com/MystenLabs/narwhal/blob/5d6f6df8ccee94446ff88786c0dbbc98be7cfc09/crypto/src/secp256k1.rs
 /// The accepted v values are {0, 1, 2, 3}.
 /// @param msg: The message that the signature is signed against, this is raw message without hashing.
 /// @param hash: The hash function used to hash the message when signing.

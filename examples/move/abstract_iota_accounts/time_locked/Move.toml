@@ -1,0 +1,14 @@
+[package]
+name = "time_locked"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+public_key_authentication = { local = "../public_key_authentication" }
+
+[addresses]
+time_locked = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]

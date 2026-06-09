@@ -4,37 +4,28 @@
 
 use std::sync::Arc;
 
-use diesel::{
-    backend::Backend,
-    deserialize::{FromSql, Result as DeserializeResult},
-    expression::AsExpression,
-    prelude::*,
-    serialize::{Output, Result as SerializeResult, ToSql},
-    sql_types::BigInt,
-};
+use diesel::prelude::*;
 use iota_json_rpc_types::{
-    BalanceChange, IotaEvent, IotaTransactionBlock, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ObjectChange,
+    BalanceChange, IotaEvent, IotaExecutionStatus, IotaTransactionBlock,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
+use iota_sdk_types::TypeTag;
 use iota_types::{
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     event::Event,
     transaction::SenderSignedData,
 };
-use move_core_types::{
-    annotated_value::{MoveDatatypeLayout, MoveTypeLayout},
-    language_storage::TypeTag,
-};
+use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
 #[cfg(feature = "shared_test_runtime")]
 use serde::Deserialize;
 
 use crate::{
     errors::IndexerError,
     schema::{optimistic_transactions, transactions, tx_global_order},
-    types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
+    types::{IndexedBalanceChange, IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
@@ -55,80 +46,25 @@ pub struct TxGlobalOrder {
     /// Monotonically increasing number that represents the order
     /// of execution of optimistic transactions.
     ///
-    /// To maintain these semantics the value should be non-positive for
-    /// checkpointed transactions. More specifically we allow values
-    /// in the set `[0, -1]` to represent the index status of checkpointed
-    /// transactions.
-    ///
+    /// Checkpointed transactions use [`CHECKPOINT_TX_OPTIMISTIC_SEQ`] (-1).
     /// Optimistic transactions should set this value to `None`,
     /// so that it is auto-generated on the database.
     #[diesel(deserialize_as = i64)]
     pub optimistic_sequence_number: Option<i64>,
 }
 
-impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
+/// Value stored in `optimistic_sequence_number` for checkpointed
+/// transactions, to distinguish them from optimistic transactions
+/// which use positive auto-generated values.
+pub const CHECKPOINT_TX_OPTIMISTIC_SEQ: i64 = -1;
+
+impl From<&IndexedTransaction> for TxGlobalOrder {
     fn from(tx: &IndexedTransaction) -> Self {
         Self {
             chk_tx_sequence_number: Some(tx.tx_sequence_number as i64),
             global_sequence_number: tx.tx_sequence_number as i64,
             tx_digest: tx.tx_digest.into_inner().to_vec(),
-            index_status: Some(IndexStatus::Started),
-        }
-    }
-}
-
-/// Stored value for checkpointed transactions.
-///
-/// Differs from [`TxGlobalOrder`] in that it allows values
-/// for `optimistic_sequence_number` in the set `[0, -1]`
-/// that represent the index status.
-#[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
-#[diesel(table_name = tx_global_order)]
-pub(crate) struct CheckpointTxGlobalOrder {
-    pub(crate) chk_tx_sequence_number: Option<i64>,
-    pub(crate) global_sequence_number: i64,
-    pub(crate) tx_digest: Vec<u8>,
-    /// The index status of checkpointed transactions.
-    ///
-    /// This essentially reserves the values `[0, -1]` of the
-    /// `optimistic_sequence_number` stored in the table for checkpointed
-    /// transactions, to distinguish from optimistic transactions, and
-    /// assign semantics related to the index status.
-    #[diesel(deserialize_as = IndexStatus, column_name = "optimistic_sequence_number")]
-    pub(crate) index_status: Option<IndexStatus>,
-}
-
-/// Index status.
-#[derive(Clone, Debug, Copy, AsExpression, PartialEq, Eq)]
-#[diesel(sql_type = BigInt)]
-pub(crate) enum IndexStatus {
-    Started,
-    Completed,
-}
-
-impl<DB> ToSql<BigInt, DB> for IndexStatus
-where
-    DB: Backend,
-    i64: ToSql<BigInt, DB>,
-{
-    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, DB>) -> SerializeResult {
-        match *self {
-            IndexStatus::Started => 0.to_sql(out),
-            IndexStatus::Completed => (-1).to_sql(out),
-        }
-    }
-}
-
-impl<DB> FromSql<BigInt, DB> for IndexStatus
-where
-    DB: Backend,
-    i64: FromSql<BigInt, DB>,
-{
-    fn from_sql(bytes: DB::RawValue<'_>) -> DeserializeResult<Self> {
-        match i64::from_sql(bytes)? {
-            0 => Ok(IndexStatus::Started),
-            -1 => Ok(IndexStatus::Completed),
-            other => Err(format!("invalid index status {other}").into()),
+            optimistic_sequence_number: Some(CHECKPOINT_TX_OPTIMISTIC_SEQ),
         }
     }
 }
@@ -199,6 +135,30 @@ impl OptimisticTransaction {
             transaction_kind: stored.transaction_kind,
             success_command_count: stored.success_command_count,
         }
+    }
+
+    pub fn get_balance_len(&self) -> usize {
+        self.balance_changes.len()
+    }
+
+    pub fn get_balance_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.balance_changes.get(idx).cloned().flatten()
+    }
+
+    pub fn get_object_len(&self) -> usize {
+        self.object_changes.len()
+    }
+
+    pub fn get_object_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.object_changes.get(idx).cloned().flatten()
+    }
+
+    pub fn get_event_len(&self) -> usize {
+        self.events.len()
+    }
+
+    pub fn get_event_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.events.get(idx).cloned().flatten()
     }
 }
 
@@ -299,11 +259,11 @@ impl StoredTransaction {
     pub async fn try_into_iota_transaction_block_response(
         self,
         options: IotaTransactionBlockResponseOptions,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<IotaTransactionBlockResponse> {
         let options = options.clone();
         let tx_digest =
-            TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
+            TransactionDigest::from_bytes(self.transaction_digest.as_slice()).map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Can't convert {:?} as tx_digest. Error: {e}",
                     self.transaction_digest
@@ -321,7 +281,7 @@ impl StoredTransaction {
             let sender_signed_data = self.try_into_sender_signed_data()?;
             let tx_block = IotaTransactionBlock::try_from_with_package_resolver(
                 sender_signed_data,
-                package_resolver.clone(),
+                package_resolver,
                 tx_digest,
             )
             .await?;
@@ -330,10 +290,14 @@ impl StoredTransaction {
             None
         };
 
-        let effects = options
-            .show_effects
-            .then(|| self.try_into_iota_transaction_effects())
-            .transpose()?;
+        let effects = if options.show_effects {
+            Some(
+                self.try_into_iota_transaction_effects(package_resolver)
+                    .await?,
+            )
+        } else {
+            None
+        };
 
         let raw_transaction = if options.show_raw_input {
             self.raw_transaction
@@ -350,21 +314,23 @@ impl StoredTransaction {
                             Some(event) => {
                                 let event: Event = bcs::from_bytes(&event).map_err(|e| {
                                     IndexerError::PersistentStorageDataCorruption(format!(
-                                        "Can't convert event bytes into Event. tx_digest={tx_digest:?} Error: {e}"
+                                        "Can't convert event bytes into Event. tx_digest={tx_digest} Error: {e}"
                                     ))
                                 })?;
                                 Ok(event)
                             }
                             None => Err(IndexerError::PersistentStorageDataCorruption(format!(
-                                "Event should not be null, tx_digest={tx_digest:?}"
+                                "Event should not be null, tx_digest={tx_digest}"
                             ))),
                         })
                         .collect::<Result<Vec<Event>, IndexerError>>()?
             };
-            let tx_events = TransactionEvents { data: events };
+            let tx_events = TransactionEvents(events);
 
-            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, timestamp_ms)
-                .await?
+            Some(
+                tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, timestamp_ms)
+                    .await?,
+            )
         } else {
             None
         };
@@ -376,11 +342,11 @@ impl StoredTransaction {
                             Some(object_change) => {
                                 let object_change: IndexedObjectChange = bcs::from_bytes(&object_change)
                                     .map_err(|e| IndexerError::PersistentStorageDataCorruption(
-                                        format!("Can't convert object_change bytes into IndexedObjectChange. tx_digest={tx_digest:?} Error: {e}")
+                                        format!("Can't convert object_change bytes into IndexedObjectChange. tx_digest={tx_digest} Error: {e}")
                                     ))?;
                                 Ok(ObjectChange::from(object_change))
                             }
-                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={tx_digest:?}"))),
+                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={tx_digest}"))),
                         }
                     }).collect::<Result<Vec<ObjectChange>, IndexerError>>()?
             };
@@ -394,13 +360,13 @@ impl StoredTransaction {
                 self.balance_changes.into_iter().map(|balance_change| {
                         match balance_change {
                             Some(balance_change) => {
-                                let balance_change: BalanceChange = bcs::from_bytes(&balance_change)
+                                let balance_change: IndexedBalanceChange = bcs::from_bytes(&balance_change)
                                     .map_err(|e| IndexerError::PersistentStorageDataCorruption(
-                                        format!("Can't convert balance_change bytes into BalanceChange. tx_digest={tx_digest:?} Error: {e}")
+                                        format!("Can't convert balance_change bytes into IndexedBalanceChange. tx_digest={tx_digest} Error: {e}")
                                     ))?;
-                                Ok(balance_change)
+                                Ok(BalanceChange::from(balance_change))
                             }
-                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("object_change should not be null, tx_digest={tx_digest:?}"))),
+                            None => Err(IndexerError::PersistentStorageDataCorruption(format!("balance_change should not be null, tx_digest={tx_digest}"))),
                         }
                     }).collect::<Result<Vec<BalanceChange>, IndexerError>>()?
             };
@@ -415,6 +381,11 @@ impl StoredTransaction {
             Default::default()
         };
 
+        let errors = match effects.as_ref().map(|e| e.status()) {
+            Some(IotaExecutionStatus::Failure { error }) => vec![error.clone()],
+            _ => vec![],
+        };
+
         Ok(IotaTransactionBlockResponse {
             digest: tx_digest,
             transaction,
@@ -426,12 +397,12 @@ impl StoredTransaction {
             timestamp_ms,
             checkpoint,
             confirmed_local_execution: None,
-            errors: vec![],
+            errors,
             raw_effects,
         })
     }
 
-    fn try_into_sender_signed_data(&self) -> IndexerResult<SenderSignedData> {
+    pub fn try_into_sender_signed_data(&self) -> IndexerResult<SenderSignedData> {
         let sender_signed_data: SenderSignedData =
             bcs::from_bytes(&self.raw_transaction).map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
@@ -442,14 +413,19 @@ impl StoredTransaction {
         Ok(sender_signed_data)
     }
 
-    pub fn try_into_iota_transaction_effects(&self) -> IndexerResult<IotaTransactionBlockEffects> {
+    pub async fn try_into_iota_transaction_effects(
+        &self,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
+    ) -> IndexerResult<IotaTransactionBlockEffects> {
         let effects: TransactionEffects = bcs::from_bytes(&self.raw_effects).map_err(|e| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "Can't convert raw_effects of {} into TransactionEffects. Error: {e}",
                 self.tx_sequence_number
             ))
         })?;
-        let effects = IotaTransactionBlockEffects::try_from(effects)?;
+        let effects =
+            IotaTransactionBlockEffects::from_native_with_clever_error(effects, package_resolver)
+                .await;
         Ok(effects)
     }
 
@@ -481,19 +457,20 @@ pub fn stored_events_to_events(
 }
 
 pub async fn tx_events_to_iota_tx_events(
-    tx_events: TransactionEvents,
-    package_resolver: Arc<Resolver<impl PackageStore>>,
+    mut tx_events: TransactionEvents,
+    package_resolver: &Arc<Resolver<impl PackageStore>>,
     tx_digest: TransactionDigest,
     timestamp: Option<u64>,
-) -> Result<Option<IotaTransactionBlockEvents>, IndexerError> {
+) -> Result<IotaTransactionBlockEvents, IndexerError> {
     let mut iota_event_futures = vec![];
-    let tx_events_data_len = tx_events.data.len();
-    for tx_event in tx_events.data.clone() {
+
+    for tx_event in tx_events.iter() {
         let package_resolver_clone = package_resolver.clone();
+        let event_type = tx_event.type_.clone();
         iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
             resolver
-                .type_layout(TypeTag::Struct(Box::new(tx_event.type_.clone())))
+                .type_layout(TypeTag::Struct(Box::new(event_type)))
                 .await
         }));
     }
@@ -516,10 +493,9 @@ pub async fn tx_events_to_iota_tx_events(
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert!(tx_events_data_len == event_move_datatype_layouts.len());
+    assert!(tx_events.len() == event_move_datatype_layouts.len());
     let iota_events = tx_events
-        .data
-        .into_iter()
+        .drain(..)
         .enumerate()
         .zip(event_move_datatype_layouts)
         .map(|((seq, tx_event), move_datatype_layout)| {
@@ -533,5 +509,5 @@ pub async fn tx_events_to_iota_tx_events(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let iota_tx_events = IotaTransactionBlockEvents { data: iota_events };
-    Ok(Some(iota_tx_events))
+    Ok(iota_tx_events)
 }

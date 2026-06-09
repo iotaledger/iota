@@ -4,12 +4,13 @@
 
 use std::fmt;
 
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub(crate) struct Board {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub marks: Vec<u8>,
     pub turn: u8,
     pub x: IotaAddress,
@@ -24,7 +25,7 @@ pub(crate) enum Player {
 
 impl Board {
     pub(crate) fn next_player(&self) -> Player {
-        if self.turn % 2 == 0 {
+        if self.turn.is_multiple_of(2) {
             Player::X
         } else {
             Player::O
@@ -32,7 +33,7 @@ impl Board {
     }
 
     pub(crate) fn prev_player(&self) -> Player {
-        if self.turn % 2 == 0 {
+        if self.turn.is_multiple_of(2) {
             Player::O
         } else {
             Player::X
@@ -65,8 +66,7 @@ impl fmt::Display for Board {
         write!(f, "{}", if next == P::O { " -> " } else { "    " })?;
         writeln!(f, "O: {}", self.o)?;
 
-        let with_prefix = true;
-        write!(f, " GAME: {}", self.id.to_canonical_display(with_prefix))?;
+        write!(f, " GAME: {}", self.id)?;
 
         Ok(())
     }

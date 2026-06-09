@@ -1,5 +1,6 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 33 tasks
 
@@ -10,13 +11,13 @@ task 1, lines 18-55:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7007200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7007200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 57:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 59:
 //# create-checkpoint
@@ -27,8 +28,6 @@ task 4, lines 61-74:
 Response: {
   "data": {
     "object": {
-      "status": "INDEXED",
-      "version": 3,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -36,7 +35,9 @@ Response: {
             "value": "0"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 3
     }
   }
 }
@@ -44,7 +45,7 @@ Response: {
 task 5, line 76:
 //# run Test::M1::update --sender A --args object(2,0) 1
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 1307200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 1307200, non_refundable_storage_fee: 0
 
 task 6, line 78:
 //# create-checkpoint
@@ -55,8 +56,6 @@ task 7, lines 80-106:
 Response: {
   "data": {
     "latest_version": {
-      "status": "INDEXED",
-      "version": 4,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -64,11 +63,11 @@ Response: {
             "value": "1"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 4
     },
     "previous_version": {
-      "status": "INDEXED",
-      "version": 3,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -76,7 +75,9 @@ Response: {
             "value": "0"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 3
     }
   }
 }
@@ -86,7 +87,7 @@ task 8, line 108:
 created: object(8,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2538400,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2538400, storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 9, line 110:
 //# create-checkpoint
@@ -97,13 +98,11 @@ task 10, lines 112-138:
 Response: {
   "data": {
     "latest_wrapped": {
+      "asMoveObject": null,
       "status": "WRAPPED_OR_DELETED",
-      "version": 5,
-      "asMoveObject": null
+      "version": 5
     },
     "previous_version": {
-      "status": "INDEXED",
-      "version": 4,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -111,7 +110,9 @@ Response: {
             "value": "1"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 4
     }
   }
 }
@@ -121,7 +122,7 @@ task 11, line 140:
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(8,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2538400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 2538400, non_refundable_storage_fee: 0
 
 task 12, line 142:
 //# create-checkpoint
@@ -131,26 +132,7 @@ task 13, lines 144-182:
 //# run-graphql
 Response: {
   "data": {
-    "latest_unwrapped": {
-      "status": "INDEXED",
-      "version": 6,
-      "asMoveObject": {
-        "contents": {
-          "json": {
-            "id": "0x81feb1a34ea6905c132aee5e89e94ed24da787154def48644c561e1f3326fac6",
-            "value": "1"
-          }
-        }
-      }
-    },
-    "previous_version": {
-      "status": "WRAPPED_OR_DELETED",
-      "version": 5,
-      "asMoveObject": null
-    },
     "first_version": {
-      "status": "INDEXED",
-      "version": 3,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -158,7 +140,26 @@ Response: {
             "value": "0"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 3
+    },
+    "latest_unwrapped": {
+      "asMoveObject": {
+        "contents": {
+          "json": {
+            "id": "0x81feb1a34ea6905c132aee5e89e94ed24da787154def48644c561e1f3326fac6",
+            "value": "1"
+          }
+        }
+      },
+      "status": "INDEXED",
+      "version": 6
+    },
+    "previous_version": {
+      "asMoveObject": null,
+      "status": "WRAPPED_OR_DELETED",
+      "version": 5
     }
   }
 }
@@ -167,7 +168,7 @@ task 14, line 184:
 //# run Test::M1::delete --sender A --args object(2,0)
 mutated: object(0,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 2287600, non_refundable_storage_fee: 0
 
 task 15, line 186:
 //# create-checkpoint
@@ -178,14 +179,14 @@ task 16, lines 188-214:
 Response: {
   "data": {
     "latest_deleted": {
+      "asMoveObject": null,
       "status": "WRAPPED_OR_DELETED",
-      "version": 7,
-      "asMoveObject": null
+      "version": 7
     },
     "version_specified": {
+      "asMoveObject": null,
       "status": "WRAPPED_OR_DELETED",
-      "version": 7,
-      "asMoveObject": null
+      "version": 7
     }
   }
 }
@@ -194,7 +195,7 @@ task 17, line 216:
 //# run Test::M1::create --args 0 @A
 created: object(17,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 18, line 218:
 //# create-checkpoint
@@ -204,7 +205,7 @@ task 19, line 220:
 //# run Test::M1::create --args 0 @A
 created: object(19,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 20, line 222:
 //# create-checkpoint
@@ -214,7 +215,7 @@ task 21, line 224:
 //# run Test::M1::create --args 0 @A
 created: object(21,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 22, line 226:
 //# create-checkpoint
@@ -224,7 +225,7 @@ task 23, line 228:
 //# run Test::M1::create --args 0 @A
 created: object(23,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 24, line 230:
 //# create-checkpoint
@@ -234,7 +235,7 @@ task 25, line 232:
 //# run Test::M1::create --args 0 @A
 created: object(25,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 26, line 234:
 //# create-checkpoint
@@ -244,7 +245,7 @@ task 27, line 236:
 //# run Test::M1::create --args 0 @A
 created: object(27,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 28, line 238:
 //# create-checkpoint
@@ -260,15 +261,13 @@ Response: {
   "data": {
     "availableRange": {
       "first": {
-        "sequenceNumber": 7
+        "sequenceNumber": 0
       },
       "last": {
         "sequenceNumber": 12
       }
     },
     "indexed_object": {
-      "status": "INDEXED",
-      "version": 6,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -276,16 +275,11 @@ Response: {
             "value": "1"
           }
         }
-      }
-    },
-    "wrapped_or_deleted_object": {
-      "status": "WRAPPED_OR_DELETED",
-      "version": 5,
-      "asMoveObject": null
+      },
+      "status": "INDEXED",
+      "version": 6
     },
     "object_not_in_snapshot": {
-      "status": "INDEXED",
-      "version": 3,
       "asMoveObject": {
         "contents": {
           "json": {
@@ -293,7 +287,14 @@ Response: {
             "value": "0"
           }
         }
-      }
+      },
+      "status": "INDEXED",
+      "version": 3
+    },
+    "wrapped_or_deleted_object": {
+      "asMoveObject": null,
+      "status": "WRAPPED_OR_DELETED",
+      "version": 5
     }
   }
 }
@@ -301,22 +302,116 @@ Response: {
 task 32, lines 293-313:
 //# run-graphql --cursors bcs(@{obj_1_0},6)
 Response: {
-  "data": null,
-  "errors": [
-    {
-      "message": "Requested data is outside the available range",
-      "locations": [
-        {
-          "line": 11,
-          "column": 3
-        }
-      ],
-      "path": [
-        "objects"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 0
+      },
+      "last": {
+        "sequenceNumber": 12
       }
+    },
+    "objects": {
+      "nodes": [
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "balance": {
+                  "value": "299999987378400"
+                },
+                "id": "0x74184610eb1be53832d93b5c035b6b2fc3ed188eb9cebfb6a66d3f60ab5e4cd6"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "id": "0x79ceab573232d5b8261870aa29a11b4590f2f49e2c4cc45cec93d6c3257c3f0d",
+                "value": "0"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": null
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "decimals": 9,
+                "description": "The main (gas)token of the IOTA Network.",
+                "icon_url": {
+                  "url": "https://iota.org/logo.png"
+                },
+                "id": "0x96b43c2e24f626fb7da2c874536bdde1e8b425778c5f034e6916f903b57ecaa4",
+                "name": "IOTA",
+                "symbol": "IOTA"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "id": "0xcde1a7fec57f05ad9a5d5e883ca4b22be850e07be891293ce3b1e80220b8b634",
+                "name": "1",
+                "value": {
+                  "epoch": "0",
+                  "random_bytes": [],
+                  "randomness_round": "0",
+                  "version": "1"
+                }
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "balance": {
+                  "value": "299999996326800"
+                },
+                "id": "0xd35480b63fd276a2c1be5b7b6f24afe84ecd184ae8efde46979160968f760eeb"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "balance": {
+                  "value": "30000000000000000"
+                },
+                "id": "0xdd5dc3c252319ddf4e439bcfbd9d98626e86f7d9904124816c1b4aea98f97e3f"
+              }
+            }
+          }
+        },
+        {
+          "asMoveObject": null
+        },
+        {
+          "asMoveObject": {
+            "contents": {
+              "json": {
+                "id": "0xf6aab099cfda25dc837a09d3d3fe2acd6c4e5b593b51b06c7a77baaa72333314",
+                "pool_id": "0xf38de1eca1031530f50ca93c048e9d0f4f42aa372b70753e634e2014822b58cb",
+                "principal": {
+                  "value": "1500000000000000"
+                },
+                "stake_activation_epoch": "0"
+              }
+            }
+          }
+        }
+      ]
     }
-  ]
+  }
 }

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -12,7 +11,6 @@ use std::{
 };
 
 use anyhow::Result;
-use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
@@ -30,6 +28,7 @@ use iota_types::{
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
+use starfish_config::Parameters as StarfishParameters;
 use tracing::info;
 
 use crate::{
@@ -74,13 +73,6 @@ pub struct NodeConfig {
     #[serde(default = "default_json_rpc_address")]
     pub json_rpc_address: SocketAddr,
 
-    /// Flag to enable the REST API under `/api/v1`
-    /// endpoint on the same interface as `json` `rpc` server.
-    #[serde(default)]
-    pub enable_rest_api: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rest: Option<iota_rest_api::Config>,
-
     /// The address for Prometheus metrics.
     #[serde(default = "default_metrics_address")]
     pub metrics_address: SocketAddr,
@@ -101,9 +93,6 @@ pub struct NodeConfig {
     /// data including ownership and balance information.
     #[serde(default = "default_enable_index_processing")]
     pub enable_index_processing: bool,
-
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub remove_deprecated_tables: bool,
 
     // only allow websocket connections for jsonrpc traffic
     #[serde(default)]
@@ -214,12 +203,6 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_kv_store_write_config: Option<TransactionKeyValueStoreWriteConfig>,
 
-    #[serde(default = "default_jwk_fetch_interval_seconds")]
-    pub jwk_fetch_interval_seconds: u64,
-
-    #[serde(default = "default_zklogin_oauth_providers")]
-    pub zklogin_oauth_providers: BTreeMap<Chain, BTreeSet<String>>,
-
     /// Configuration for defining thresholds and settings
     /// for managing system overload conditions in a node.
     #[serde(default = "default_authority_overload_config")]
@@ -232,14 +215,14 @@ pub struct NodeConfig {
     pub run_with_range: Option<RunWithRange>,
 
     // For killswitch use None
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default = "default_traffic_controller_policy_config"
+    )]
     pub policy_config: Option<PolicyConfig>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub firewall_config: Option<RemoteFirewallConfig>,
-
-    #[serde(default)]
-    pub execution_cache: ExecutionCacheType,
 
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
@@ -266,53 +249,168 @@ pub struct NodeConfig {
         default = "default_grpc_api_config",
         skip_serializing_if = "Option::is_none"
     )]
-    pub grpc_api_config: Option<iota_grpc_api::Config>,
+    pub grpc_api_config: Option<GrpcApiConfig>,
+
+    /// Allow overriding the chain for testing purposes. For instance, it allows
+    /// you to create a test network that believes it is mainnet or testnet.
+    /// Attempting to override this value on production networks will result
+    /// in an error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_override_for_testing: Option<Chain>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum ExecutionCacheType {
-    #[default]
-    WritebackCache,
-    PassthroughCache,
+pub struct TlsConfig {
+    /// File path to a PEM formatted TLS certificate chain
+    cert: String,
+    /// File path to a PEM formatted TLS private key
+    key: String,
 }
 
-impl From<ExecutionCacheType> for u8 {
-    fn from(cache_type: ExecutionCacheType) -> Self {
-        match cache_type {
-            ExecutionCacheType::WritebackCache => 0,
-            ExecutionCacheType::PassthroughCache => 1,
+impl TlsConfig {
+    pub fn cert(&self) -> &str {
+        &self.cert
+    }
+
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+}
+
+/// Configuration for the gRPC API service
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct GrpcApiConfig {
+    /// The address to bind the gRPC server to
+    #[serde(default = "default_grpc_api_address")]
+    pub address: SocketAddr,
+
+    /// TLS configuration for the gRPC server.
+    ///
+    /// If not provided, the gRPC server will use plain TCP without TLS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<TlsConfig>,
+
+    /// Maximum message size for gRPC responses (in bytes)
+    #[serde(default = "default_grpc_api_max_message_size_bytes")]
+    pub max_message_size_bytes: u32,
+
+    /// Buffer size for broadcast channels used for streaming
+    #[serde(default = "default_grpc_api_broadcast_buffer_size")]
+    pub broadcast_buffer_size: u32,
+
+    /// Maximum number of concurrent subscribers to checkpoint streaming RPCs.
+    /// Once the cap is reached, additional subscribe requests are rejected
+    /// with `Unavailable` to protect the server from being overwhelmed by
+    /// unbounded streaming clients. Values below 1 are clamped to 1 at
+    /// server startup.
+    #[serde(default = "default_grpc_api_max_concurrent_stream_subscribers")]
+    pub max_concurrent_stream_subscribers: u32,
+
+    /// Maximum size for Move values when rendering to JSON
+    /// in bytes.
+    #[serde(default = "default_grpc_api_max_json_move_value_size")]
+    pub max_json_move_value_size: usize,
+
+    /// Maximum number of transactions allowed in a single ExecuteTransactions
+    /// batch request.
+    #[serde(default = "default_grpc_api_max_execute_transaction_batch_size")]
+    pub max_execute_transaction_batch_size: u32,
+
+    /// Maximum number of transactions allowed in a single SimulateTransactions
+    /// batch request.
+    #[serde(default = "default_grpc_api_max_simulate_transaction_batch_size")]
+    pub max_simulate_transaction_batch_size: u32,
+
+    /// Maximum allowed timeout in milliseconds for waiting for checkpoint
+    /// inclusion in ExecuteTransactions requests. Client-specified timeouts
+    /// are clamped to this value.
+    #[serde(default = "default_grpc_api_max_checkpoint_inclusion_timeout_ms")]
+    pub max_checkpoint_inclusion_timeout_ms: u64,
+}
+
+fn default_grpc_api_address() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 50051)
+}
+
+fn default_grpc_api_broadcast_buffer_size() -> u32 {
+    100
+}
+
+fn default_grpc_api_max_concurrent_stream_subscribers() -> u32 {
+    1024
+}
+
+fn default_grpc_api_max_message_size_bytes() -> u32 {
+    128 * 1024 * 1024 // 128MB
+}
+
+fn default_grpc_api_max_json_move_value_size() -> usize {
+    1024 * 1024 // 1 MB
+}
+
+fn default_grpc_api_max_execute_transaction_batch_size() -> u32 {
+    20
+}
+
+fn default_grpc_api_max_simulate_transaction_batch_size() -> u32 {
+    20
+}
+
+fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
+    60_000 // 60 seconds
+}
+
+impl Default for GrpcApiConfig {
+    fn default() -> Self {
+        Self {
+            address: default_grpc_api_address(),
+            tls: None,
+            max_message_size_bytes: default_grpc_api_max_message_size_bytes(),
+            broadcast_buffer_size: default_grpc_api_broadcast_buffer_size(),
+            max_concurrent_stream_subscribers: default_grpc_api_max_concurrent_stream_subscribers(),
+            max_json_move_value_size: default_grpc_api_max_json_move_value_size(),
+            max_execute_transaction_batch_size: default_grpc_api_max_execute_transaction_batch_size(
+            ),
+            max_simulate_transaction_batch_size:
+                default_grpc_api_max_simulate_transaction_batch_size(),
+            max_checkpoint_inclusion_timeout_ms:
+                default_grpc_api_max_checkpoint_inclusion_timeout_ms(),
         }
     }
 }
 
-impl From<&u8> for ExecutionCacheType {
-    fn from(cache_type: &u8) -> Self {
-        match cache_type {
-            0 => ExecutionCacheType::WritebackCache,
-            1 => ExecutionCacheType::PassthroughCache,
-            _ => unreachable!("Invalid value for ExecutionCacheType"),
-        }
+impl GrpcApiConfig {
+    // The default maximum uncompressed size in bytes for a message, based on
+    // tonic's default.
+    const GRPC_TONIC_DEFAULT_MAX_RECV_MESSAGE_SIZE: u32 = 4 * 1024 * 1024; // 4MB
+    const GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES: u32 =
+        Self::GRPC_TONIC_DEFAULT_MAX_RECV_MESSAGE_SIZE;
+
+    pub fn tls_config(&self) -> Option<&TlsConfig> {
+        self.tls.as_ref()
     }
-}
 
-/// Type alias for atomic representation of ExecutionCacheType for lock-free
-/// operations
-pub type ExecutionCacheTypeAtomicU8 = std::sync::atomic::AtomicU8;
-
-impl From<ExecutionCacheType> for ExecutionCacheTypeAtomicU8 {
-    fn from(cache_type: ExecutionCacheType) -> Self {
-        ExecutionCacheTypeAtomicU8::new(u8::from(cache_type))
+    pub fn max_message_size_bytes(&self) -> u32 {
+        // Ensure max message size is at least the minimum allowed
+        self.max_message_size_bytes
+            .max(Self::GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES)
     }
-}
 
-impl ExecutionCacheType {
-    pub fn cache_type(self) -> Self {
-        if std::env::var("DISABLE_WRITEBACK_CACHE").is_ok() {
-            Self::PassthroughCache
-        } else {
-            self
-        }
+    /// Calculate the maximum size for a message that can be
+    /// sent to a client, taking into account the client's max message size
+    /// preference.
+    pub fn max_message_size_client_bytes(&self, client_max_message_size_bytes: Option<u32>) -> u32 {
+        client_max_message_size_bytes
+            // if the client did not specify a max message size, use the tonic default receive
+            // message size
+            .unwrap_or(Self::GRPC_TONIC_DEFAULT_MAX_RECV_MESSAGE_SIZE)
+            // clamp the value between the tonic default and the service max message size
+            .clamp(
+                Self::GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES,
+                self.max_message_size_bytes(),
+            )
     }
 }
 
@@ -499,42 +597,6 @@ fn default_cache_size() -> u64 {
     100_000
 }
 
-fn default_jwk_fetch_interval_seconds() -> u64 {
-    3600
-}
-
-pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
-    let mut map = BTreeMap::new();
-
-    // providers that are available on devnet only.
-    let experimental_providers = BTreeSet::from([
-        "Google".to_string(),
-        "Facebook".to_string(),
-        "Twitch".to_string(),
-        "Kakao".to_string(),
-        "Apple".to_string(),
-        "Slack".to_string(),
-        "TestIssuer".to_string(),
-        "Microsoft".to_string(),
-        "KarrierOne".to_string(),
-        "Credenza3".to_string(),
-    ]);
-
-    // providers that are available for mainnet and testnet.
-    let providers = BTreeSet::from([
-        "Google".to_string(),
-        "Facebook".to_string(),
-        "Twitch".to_string(),
-        "Apple".to_string(),
-        "KarrierOne".to_string(),
-        "Credenza3".to_string(),
-    ]);
-    map.insert(Chain::Mainnet, providers.clone());
-    map.insert(Chain::Testnet, providers);
-    map.insert(Chain::Unknown, experimental_providers);
-    map
-}
-
 fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {
     TransactionKeyValueStoreReadConfig::default()
 }
@@ -563,7 +625,6 @@ fn default_key_pair() -> KeyPairWithPath {
 }
 
 fn default_metrics_address() -> SocketAddr {
-    use std::net::{IpAddr, Ipv4Addr};
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9184)
 }
 
@@ -572,12 +633,11 @@ pub fn default_admin_interface_address() -> SocketAddr {
 }
 
 pub fn default_json_rpc_address() -> SocketAddr {
-    use std::net::{IpAddr, Ipv4Addr};
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9000)
 }
 
-pub fn default_grpc_api_config() -> Option<iota_grpc_api::Config> {
-    None
+pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
+    Some(GrpcApiConfig::default())
 }
 
 pub fn default_concurrency_limit() -> Option<usize> {
@@ -693,14 +753,6 @@ impl NodeConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum ConsensusProtocol {
-    #[serde(rename = "mysticeti")]
-    Mysticeti,
-    #[serde(rename = "starfish")]
-    Starfish,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
     // Base consensus DB path for all epochs.
@@ -735,7 +787,9 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    pub parameters: Option<ConsensusParameters>,
+    /// Parameters for Starfish consensus
+    #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
+    pub parameters: Option<StarfishParameters>,
 }
 
 impl ConsensusConfig {
@@ -876,7 +930,7 @@ impl ExpensiveSafetyCheckConfig {
 }
 
 fn default_checkpoint_execution_max_concurrency() -> usize {
-    40
+    4
 }
 
 fn default_local_execution_timeout_sec() -> u64 {
@@ -899,10 +953,6 @@ pub struct AuthorityStorePruningConfig {
     /// number of the latest epoch dbs to retain
     #[serde(default = "default_num_latest_epoch_dbs_to_retain")]
     pub num_latest_epoch_dbs_to_retain: usize,
-    /// time interval used by the pruner to determine whether there are any
-    /// epoch DBs to remove
-    #[serde(default = "default_epoch_db_pruning_period_secs")]
-    pub epoch_db_pruning_period_secs: u64,
     /// number of epochs to keep the latest version of objects for.
     /// Note that a zero value corresponds to an aggressive pruner.
     /// This mode is experimental and needs to be used with caution.
@@ -941,14 +991,12 @@ pub struct AuthorityStorePruningConfig {
     /// may result in some old versions that will never be pruned.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub enable_compaction_filter: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_epochs_to_retain_for_indexes: Option<u64>,
 }
 
 fn default_num_latest_epoch_dbs_to_retain() -> usize {
     3
-}
-
-fn default_epoch_db_pruning_period_secs() -> u64 {
-    3600
 }
 
 fn default_max_transactions_in_batch() -> usize {
@@ -971,7 +1019,6 @@ impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
-            epoch_db_pruning_period_secs: default_epoch_db_pruning_period_secs(),
             num_epochs_to_retain: 0,
             pruning_run_delay_seconds: if cfg!(msim) { Some(2) } else { None },
             max_checkpoints_in_batch: default_max_checkpoints_in_batch(),
@@ -980,6 +1027,7 @@ impl Default for AuthorityStorePruningConfig {
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             smooth: true,
             enable_compaction_filter: cfg!(test) || cfg!(msim),
+            num_epochs_to_retain_for_indexes: None,
         }
     }
 }
@@ -1185,6 +1233,10 @@ impl Default for AuthorityOverloadConfig {
 
 fn default_authority_overload_config() -> AuthorityOverloadConfig {
     AuthorityOverloadConfig::default()
+}
+
+fn default_traffic_controller_policy_config() -> Option<PolicyConfig> {
+    Some(PolicyConfig::default_dos_protection_policy())
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]

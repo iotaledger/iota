@@ -7,7 +7,8 @@ use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 use futures::Stream;
 use iota_json_rpc_types::Filter;
 use iota_metrics::{metered_channel::Sender, spawn_monitored_task};
-use iota_types::{base_types::ObjectID, error::IotaError};
+use iota_sdk_types::ObjectId;
+use iota_types::error::IotaError;
 use parking_lot::RwLock;
 use prometheus::Registry;
 use tokio::sync::mpsc;
@@ -137,20 +138,31 @@ where
         let (tx, rx) = mpsc::channel::<S>(EVENT_DISPATCH_BUFFER_SIZE);
         self.subscribers
             .write()
-            .insert(ObjectID::random().to_string(), (tx, filter));
+            .insert(ObjectId::random().to_string(), (tx, filter));
         ReceiverStream::new(rx)
     }
 
     pub fn try_send(&self, data: T) -> Result<(), IotaError> {
-        self.streamer_queue.try_send(data).map_err(|e| {
-            self.metrics
-                .dropped_submissions
-                .with_label_values(&[self.metrics_label])
-                .inc();
+        // Only attempt to send if there are active subscribers
+        if self.has_subscribers() {
+            self.streamer_queue.try_send(data).map_err(|e| {
+                self.metrics
+                    .dropped_submissions
+                    .with_label_values(&[self.metrics_label])
+                    .inc();
 
-            IotaError::FailedToDispatchSubscription {
-                error: e.to_string(),
-            }
-        })
+                IotaError::FailedToDispatchSubscription {
+                    error: e.to_string(),
+                }
+            })
+        } else {
+            // Silently drop the data if no subscribers - this is expected behavior
+            Ok(())
+        }
+    }
+
+    /// Check if there are any active subscribers
+    pub fn has_subscribers(&self) -> bool {
+        !self.subscribers.read().is_empty()
     }
 }

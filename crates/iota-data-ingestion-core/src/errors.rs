@@ -22,31 +22,31 @@ pub enum IngestionError {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
-    #[error(transparent)]
-    RestApi(#[from] iota_rest_api::client::sdk::Error),
+    #[error("grpc error: `{0}`")]
+    Grpc(String),
 
-    #[error("Register at least one worker pool")]
+    #[error("register at least one worker pool")]
     EmptyWorkerPool,
 
     #[error("{component} shutdown error: `{msg}`")]
     Shutdown { component: String, msg: String },
 
-    #[error("Channel error: `{0}`")]
+    #[error("channel error: `{0}`")]
     Channel(String),
 
-    #[error("Checkpoint processing failed: `{0}`")]
+    #[error("checkpoint processing failed: `{0}`")]
     CheckpointProcessing(String),
 
-    #[error("Checkpoint hook processing failed: `{0}`")]
+    #[error("checkpoint hook processing failed: `{0}`")]
     CheckpointHookProcessing(String),
 
-    #[error("Progress Store error: `{0}`")]
+    #[error("progress store error: `{0}`")]
     ProgressStore(String),
 
-    #[error("Reducer error: `{0}`")]
+    #[error("reducer error: `{0}`")]
     Reducer(String),
 
-    #[error("Deserialize checkpoint failed: `{0}`")]
+    #[error("deserialize checkpoint failed: `{0}`")]
     DeserializeCheckpoint(String),
 
     #[error(transparent)]
@@ -55,9 +55,33 @@ pub enum IngestionError {
     #[error("reading historical data failed: `{0}`")]
     HistoryRead(String),
 
-    #[error("Max downloaded checkpoints limit reached")]
+    #[error("invalid epoch boundary update: `{0}`")]
+    EpochBoundary(String),
+
+    #[error("checkpoint verification failed: `{0}`")]
+    Verification(String),
+
+    #[error("max downloaded checkpoints limit reached")]
     MaxCheckpointsCapacityReached,
 
-    #[error("Checkpoint not available yet")]
+    #[error("checkpoint not available yet")]
     CheckpointNotAvailableYet,
+
+    #[error(transparent)]
+    Sdk(#[from] iota_types::iota_sdk_types_conversions::SdkTypeConversionError),
+
+    #[error("unsupported operation: `{0}`")]
+    Unsupported(String),
+}
+
+impl From<iota_grpc_types::proto::TryFromProtoError> for IngestionError {
+    fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
+        Self::Grpc(err.to_string())
+    }
+}
+
+impl From<iota_grpc_client::Error> for IngestionError {
+    fn from(err: iota_grpc_client::Error) -> Self {
+        Self::Grpc(err.to_string())
+    }
 }

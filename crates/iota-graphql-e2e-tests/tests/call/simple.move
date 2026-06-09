@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 5 --addresses Test=0x0 A=0x42 --simulator --custom-validator-account --reference-gas-price 234 --default-gas-price 1000
+//# init --protocol-version 13 --addresses Test=0x0 A=0x42 --simulator --custom-validator-account --reference-gas-price 234 --default-gas-price 1000
 
 //# publish
 module Test::M1 {
@@ -30,6 +30,8 @@ module Test::M1 {
 //# run Test::M1::create --args 0 @validator_0
 
 //# view-object 0,0
+
+//# view-object 0,1
 
 //# view-object 2,0
 
@@ -127,6 +129,11 @@ module Test::M1 {
         node {
           address
           digest
+          contents {
+            type {
+              repr
+            }
+          }
           owner {
               __typename
           }

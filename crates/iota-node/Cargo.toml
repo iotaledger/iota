@@ -9,6 +9,9 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+flamegraph-alloc = ["telemetry-subscribers/flamegraph-alloc"]
+
 [dependencies]
 # external dependencies
 anemo.workspace = true
@@ -19,15 +22,13 @@ axum.workspace = true
 base64.workspace = true
 bcs.workspace = true
 clap.workspace = true
-fastcrypto.workspace = true
-fastcrypto-zkp.workspace = true
 futures.workspace = true
 humantime.workspace = true
 prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 tap.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time", "signal", "net"] }
 tokio-util.workspace = true
 tonic.workspace = true
 tower.workspace = true
@@ -40,17 +41,18 @@ iota-archival.workspace = true
 iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
-iota-grpc-api.workspace = true
-iota-grpc-types.workspace = true
+iota-grpc-server.workspace = true
 iota-http.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-metrics-push-client.workspace = true
+iota-names.workspace = true
 iota-network.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-iota-rest-api.workspace = true
+iota-sdk-types.workspace = true
 iota-snapshot.workspace = true
 iota-storage.workspace = true
 iota-tls.workspace = true
@@ -58,6 +60,9 @@ iota-types.workspace = true
 move-vm-profiler.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
+
+[build-dependencies]
+rustc_version_runtime = "0.3"
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

@@ -7,8 +7,11 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-move-binary-format.workspace = true
+# external dependencies
 once_cell.workspace = true
+
+# internal dependencies
+move-binary-format.workspace = true
 
 [features]
 tracing = []

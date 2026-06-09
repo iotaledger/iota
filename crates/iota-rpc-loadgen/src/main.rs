@@ -145,14 +145,14 @@ fn get_keypair() -> Result<SignerInfo> {
 fn get_iota_config_directory() -> PathBuf {
     match dirs::home_dir() {
         Some(v) => v.join(".iota").join("iota_config"),
-        None => panic!("Cannot obtain home directory path"),
+        None => panic!("cannot obtain home directory path"),
     }
 }
 
 pub fn expand_path(dir_path: &str) -> String {
     shellexpand::full(&dir_path)
         .map(|v| v.into_owned())
-        .unwrap_or_else(|e| panic!("Failed to expand directory '{dir_path:?}': {e}"))
+        .unwrap_or_else(|e| panic!("failed to expand directory '{dir_path:?}': {e}"))
 }
 
 fn get_log_file_path(dir_path: String) -> String {

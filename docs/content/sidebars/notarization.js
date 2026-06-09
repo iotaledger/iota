@@ -28,6 +28,14 @@ const notarization = [
         items: [
             {
                 type: 'category',
+                label: 'Real-World',
+                items: [
+                    'developer/iota-notarization/how-tos/real-world/iot-weather-station',
+                    'developer/iota-notarization/how-tos/real-world/legal-contracts',
+                ],
+            },
+            {
+                type: 'category',
                 label: 'Dynamic Notarizations',
                 items: [
                     'developer/iota-notarization/how-tos/dynamic-notarizations/create',

@@ -13,13 +13,13 @@ tags:
 
 
 DID resolution is the process of fetching and decoding a [DID Document](https://www.w3.org/TR/did-core/#dfn-did-documents) corresponding to a given [DID](https://www.w3.org/TR/did-core/#dfn-decentralized-identifiers).
-The [IOTA Identity framework](https://github.com/iotaledger/identity.rs) supports resolving DID Documents that are
+The [IOTA Identity library](https://github.com/iotaledger/identity.rs) supports resolving DID Documents that are
 stored on an IOTA network and enables users to plug in handlers for additional methods.
 
 This is similar to, but not to be confused with,
 the [W3C DID Resolution specification](https://w3c-ccg.github.io/did-resolution/),
 which defines function signatures for resolution in the context of web or REST APIs,
-whereas the IOTA Identity framework provides strongly-typed resolution for a better developer experience.
+whereas the IOTA Identity library provides strongly-typed resolution for a better developer experience.
 
 This functionality is primarily provided by the `Resolver`, which can:
 
@@ -42,14 +42,14 @@ then extracts and validates the DID Document from it.
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/0_basic/2_resolve_did.rs#L27-L33
+https://github.com/iotaledger/identity.rs/blob/beta/examples/0_basic/2_resolve_did.rs#L27-L33
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/2_resolve_did.ts#L49-L53
+https://github.com/iotaledger/identity.rs/blob/beta/bindings/wasm/identity_wasm/examples/src/0_basic/2_resolve_did.ts#L49-L53
 ```
 
 </TabItem>
@@ -63,14 +63,14 @@ You can also use the `Client` directly to resolve individual DIDs from its confi
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/0_basic/2_resolve_did.rs#L23-L24
+https://github.com/iotaledger/identity.rs/blob/beta/examples/0_basic/2_resolve_did.rs#L23-L24
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/2_resolve_did.ts#L34-L35
+https://github.com/iotaledger/identity.rs/blob/beta/bindings/wasm/identity_wasm/examples/src/0_basic/2_resolve_did.ts#L34-L35
 ```
 
 </TabItem>
@@ -92,14 +92,14 @@ and [credentials](./../../explanations/verifiable-credentials.mdx).
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/1_advanced/5_custom_resolution.rs
+https://github.com/iotaledger/identity.rs/blob/beta/examples/1_advanced/5_custom_resolution.rs
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/1_advanced/4_custom_resolution.ts
+https://github.com/iotaledger/identity.rs/blob/beta/bindings/wasm/identity_wasm/examples/src/1_advanced/4_custom_resolution.ts
 ```
 
 </TabItem>

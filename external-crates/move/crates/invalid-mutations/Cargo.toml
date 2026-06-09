@@ -8,9 +8,12 @@ publish = false
 description = "Move invalid mutations"
 
 [dependencies]
+# external dependencies
+proptest.workspace = true
+
+# internal dependencies
 move-binary-format.workspace = true
 move-core-types.workspace = true
-proptest.workspace = true
 
 [features]
 default = []

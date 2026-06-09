@@ -78,7 +78,7 @@ mod test {
     #[tokio::test]
     async fn test_commit_vote_monitor() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let monitor = CommitVoteMonitor::new(context.clone());
+        let monitor = CommitVoteMonitor::new(context);
 
         // Observe commit votes for indices 5, 6, 7, 8 from blocks.
         let blocks = (0..4)

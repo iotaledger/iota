@@ -8,8 +8,11 @@ publish = false
 description = "Move ir to bytecode syntax"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 hex.workspace = true
+
+# internal dependencies
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-ir-types.workspace = true

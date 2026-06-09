@@ -10,13 +10,13 @@ task 1, lines 7-26:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5563200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5563200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 28:
 //# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 30:
 //# create-checkpoint
@@ -31,12 +31,6 @@ Response: {
         {
           "effects": {
             "objectChanges": {
-              "pageInfo": {
-                "hasPreviousPage": false,
-                "hasNextPage": false,
-                "startCursor": "eyJpIjowLCJjIjoxfQ",
-                "endCursor": "eyJpIjoxOSwiYyI6MX0"
-              },
               "edges": [
                 {
                   "cursor": "eyJpIjowLCJjIjoxfQ"
@@ -98,7 +92,13 @@ Response: {
                 {
                   "cursor": "eyJpIjoxOSwiYyI6MX0"
                 }
-              ]
+              ],
+              "pageInfo": {
+                "endCursor": "eyJpIjoxOSwiYyI6MX0",
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJpIjowLCJjIjoxfQ"
+              }
             }
           }
         }
@@ -116,12 +116,6 @@ Response: {
         {
           "effects": {
             "objectChanges": {
-              "pageInfo": {
-                "hasPreviousPage": true,
-                "hasNextPage": true,
-                "startCursor": "eyJpIjoxMSwiYyI6MX0",
-                "endCursor": "eyJpIjoxNSwiYyI6MX0"
-              },
               "edges": [
                 {
                   "cursor": "eyJpIjoxMSwiYyI6MX0"
@@ -138,7 +132,13 @@ Response: {
                 {
                   "cursor": "eyJpIjoxNSwiYyI6MX0"
                 }
-              ]
+              ],
+              "pageInfo": {
+                "endCursor": "eyJpIjoxNSwiYyI6MX0",
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJpIjoxMSwiYyI6MX0"
+              }
             }
           }
         }

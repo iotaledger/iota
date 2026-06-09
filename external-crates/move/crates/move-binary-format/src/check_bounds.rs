@@ -6,9 +6,10 @@
 use move_core_types::vm_status::StatusCode;
 
 use crate::{
+    IndexKind,
     errors::{
-        bounds_error, offset_out_of_bounds as offset_out_of_bounds_error, verification_error,
-        PartialVMError, PartialVMResult,
+        PartialVMError, PartialVMResult, bounds_error,
+        offset_out_of_bounds as offset_out_of_bounds_error, verification_error,
     },
     file_format::{
         AbilitySet, Bytecode, CodeOffset, CodeUnit, CompiledModule, Constant, DatatypeHandle,
@@ -19,7 +20,6 @@ use crate::{
         VariantInstantiationHandle, VariantJumpTable,
     },
     internals::ModuleIndex,
-    IndexKind,
 };
 
 enum BoundsCheckingContext {

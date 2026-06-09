@@ -10,7 +10,7 @@ use crate::{
     account_address::AccountAddress,
     gas_algebra::AbstractMemorySize,
     identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag, TypeTag, TYPETAG_ENUM_ABSTRACT_SIZE},
+    language_storage::{ModuleId, StructTag, TYPETAG_ENUM_ABSTRACT_SIZE, TypeTag},
 };
 
 proptest! {

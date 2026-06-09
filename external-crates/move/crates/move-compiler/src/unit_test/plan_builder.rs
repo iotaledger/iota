@@ -3,26 +3,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    cfgir::ast as G,
-    diag,
-    diagnostics::{warning_filters::WarningFilters, Diagnostic, DiagnosticReporter, Diagnostics},
-    expansion::ast::{
-        self as E, Address, Attribute, AttributeValue, Attributes, ModuleAccess_, ModuleIdent,
-        ModuleIdent_,
-    },
-    hlir::{ast as HA, translate::display_var},
-    naming::ast as NA,
-    parser::ast::ConstantName,
-    shared::{
-        known_attributes::{self, TestingAttribute},
-        unique_map::UniqueMap,
-        CompilationEnv, Identifier, NumericalAddress,
-    },
-    unit_test::{
-        ExpectedFailure, ExpectedMoveError, ModuleTestPlan, MoveErrorType, TestArgument, TestCase,
-    },
-};
+use std::collections::BTreeMap;
+
 use move_core_types::{
     account_address::AccountAddress as MoveAddress,
     language_storage::{ModuleId, TypeTag},
@@ -32,7 +14,27 @@ use move_core_types::{
 };
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
-use std::collections::BTreeMap;
+
+use crate::{
+    cfgir::ast as G,
+    diag,
+    diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
+    expansion::ast::{
+        self as E, Address, Attribute, AttributeValue, Attributes, ModuleAccess_, ModuleIdent,
+        ModuleIdent_,
+    },
+    hlir::{ast as HA, translate::display_var},
+    naming::ast as NA,
+    parser::ast::ConstantName,
+    shared::{
+        CompilationEnv, Identifier, NumericalAddress,
+        known_attributes::{self, TestingAttribute},
+        unique_map::UniqueMap,
+    },
+    unit_test::{
+        ExpectedFailure, ExpectedMoveError, ModuleTestPlan, MoveErrorType, TestArgument, TestCase,
+    },
+};
 
 struct Context<'env> {
     #[allow(unused)]

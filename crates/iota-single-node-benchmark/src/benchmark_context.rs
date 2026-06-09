@@ -10,9 +10,10 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
+use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
@@ -96,7 +97,7 @@ impl BenchmarkContext {
     /// address.
     pub(crate) async fn preparing_dynamic_fields(
         &mut self,
-        move_package: ObjectID,
+        move_package: ObjectId,
         num_dynamic_fields: u64,
     ) -> HashMap<IotaAddress, ObjectRef> {
         let mut root_objects = HashMap::new();
@@ -116,28 +117,26 @@ impl BenchmarkContext {
             .execute_raw_transactions(root_object_create_transactions)
             .await;
         let mut new_gas_objects = HashMap::new();
+        let cache_commit = self.validator().get_validator().get_cache_commit().clone();
         for effects in results {
-            self.validator()
-                .get_validator()
-                .get_cache_commit()
-                .commit_transaction_outputs(
-                    effects.executed_epoch(),
-                    &[*effects.transaction_digest()],
-                );
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
+
+            cache_commit.commit_transaction_outputs(
+                effects.epoch(),
+                batch,
+                &[*effects.transaction_digest()],
+            );
+
             let (owner, root_object) = effects
                 .created()
                 .into_iter()
-                .filter_map(|(oref, owner)| {
-                    owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|owner| (owner, oref))
-                })
+                .filter_map(|(oref, owner)| owner.as_address_opt().map(|owner| (*owner, oref)))
                 .next()
                 .unwrap();
             root_objects.insert(owner, root_object);
             let gas_object = effects.gas_object().0;
-            new_gas_objects.insert(gas_object.0, gas_object);
+            new_gas_objects.insert(gas_object.object_id, gas_object);
         }
         self.refresh_gas_objects(new_gas_objects);
         info!("Finished preparing root object with dynamic fields");
@@ -146,9 +145,9 @@ impl BenchmarkContext {
 
     pub(crate) async fn prepare_shared_objects(
         &mut self,
-        move_package: ObjectID,
+        move_package: ObjectId,
         num_shared_objects: usize,
-    ) -> Vec<(ObjectID, SequenceNumber)> {
+    ) -> Vec<(ObjectId, SequenceNumber)> {
         let mut shared_objects = Vec::new();
 
         if num_shared_objects == 0 {
@@ -168,7 +167,6 @@ impl BenchmarkContext {
             .execute_raw_transactions(shared_object_create_transactions)
             .await;
         let mut new_gas_objects = HashMap::new();
-        let epoch_id = self.validator.get_epoch_store().epoch();
         let cache_commit = self.validator.get_validator().get_cache_commit();
         for effects in results {
             let shared_object = effects
@@ -176,7 +174,7 @@ impl BenchmarkContext {
                 .into_iter()
                 .filter_map(|(oref, owner)| {
                     if owner.is_shared() {
-                        Some((oref.0, oref.1))
+                        Some((oref.object_id, oref.version))
                     } else {
                         None
                     }
@@ -185,14 +183,20 @@ impl BenchmarkContext {
                 .unwrap();
             shared_objects.push(shared_object);
             let gas_object = effects.gas_object().0;
-            new_gas_objects.insert(gas_object.0, gas_object);
+            new_gas_objects.insert(gas_object.object_id, gas_object);
             // Make sure to commit them to DB. This is needed by both the execution-only
             // mode and the checkpoint-executor mode. For execution-only mode,
             // we iterate through all live objects to construct the in memory
             // object store, hence requiring these objects committed to DB.
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
-            cache_commit.commit_transaction_outputs(epoch_id, &[*effects.transaction_digest()]);
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
+            cache_commit.commit_transaction_outputs(
+                effects.epoch(),
+                batch,
+                &[*effects.transaction_digest()],
+            );
         }
         self.refresh_gas_objects(new_gas_objects);
         info!("Finished preparing shared objects");
@@ -351,7 +355,7 @@ impl BenchmarkContext {
             .execute_dry_run(sample_transaction.into_unsigned())
             .await;
         info!("Sample effects: {:?}\n\n", effects);
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 
     /// Benchmark parallel signing a vector of transactions and measure the TPS.
@@ -481,14 +485,14 @@ impl BenchmarkContext {
         }
     }
 
-    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectID, ObjectRef>) {
+    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectRef>) {
         info!("Refreshing gas objects");
         for account in self.user_accounts.values_mut() {
             let refreshed_gas_objects: Vec<_> = account
                 .gas_objects
                 .iter()
                 .map(|oref| {
-                    if let Some(new_oref) = new_gas_objects.remove(&oref.0) {
+                    if let Some(new_oref) = new_gas_objects.remove(&oref.object_id) {
                         new_oref
                     } else {
                         *oref

@@ -7,7 +7,7 @@ use iota_genesis_builder::stardust::native_token::{
     package_builder,
     package_data::{NativeTokenModuleData, NativeTokenPackageData},
 };
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
     address::AliasAddress,
     output::{AliasId, FoundryId},
 };

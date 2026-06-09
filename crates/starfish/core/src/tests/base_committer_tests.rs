@@ -12,7 +12,7 @@ use crate::{
     block_header::{BlockHeaderAPI, TestBlockHeader, VerifiedBlockHeader},
     commit::LeaderStatus,
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     storage::mem_store::MemStore,
     test_dag::{build_dag, build_dag_layer},
 };
@@ -55,7 +55,7 @@ async fn try_direct_commit() {
         tracing::info!("Leader commit status: {leader_status}");
 
         if round < incomplete_wave_leader_round {
-            if let LeaderStatus::Commit(ref committed_block) = leader_status {
+            if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
                 assert_eq!(committed_block.author(), leader.authority)
             } else {
                 panic!("Expected a committed leader at round {round}")
@@ -99,7 +99,7 @@ async fn idempotence() {
     let leader_status = committer.try_direct_decide(leader);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref block) = leader_status {
+    if let LeaderStatus::Commit(ref block, _, _) = leader_status {
         assert_eq!(block.author(), leader.authority)
     } else {
         panic!("Expected a committed leader")
@@ -110,7 +110,7 @@ async fn idempotence() {
     let leader_status = committer.try_direct_decide(leader);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
         assert_eq!(committed_block.author(), leader.authority)
     } else {
         panic!("Expected a committed leader")
@@ -150,7 +150,7 @@ async fn multiple_direct_commit() {
         let leader_status = committer.try_direct_decide(leader);
         tracing::info!("Leader commit status: {leader_status}");
 
-        if let LeaderStatus::Commit(ref committed_block) = leader_status {
+        if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
             assert_eq!(committed_block.author(), leader.authority)
         } else {
             panic!("Expected a committed leader")
@@ -192,8 +192,8 @@ async fn direct_skip() {
     // Add enough blocks to reach the certifying round of wave 1.
     let certifying_round_wave_1 = committer.certifying_round(1);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_without_leader_wave_1),
         certifying_round_wave_1,
     );
@@ -299,8 +299,8 @@ async fn indirect_commit() {
     // manually constructed of the certifying round of wave 1.
     let certifying_round_wave_2 = committer.certifying_round(2);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_certifying_round_wave_1),
         certifying_round_wave_2,
     );
@@ -314,7 +314,7 @@ async fn indirect_commit() {
     tracing::info!("Leader commit status: {leader_status}");
 
     let mut decided_leaders = vec![];
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_2.authority);
         decided_leaders.push(leader_status);
     } else {
@@ -344,10 +344,13 @@ async fn indirect_commit() {
     // Ensure we commit the leader of wave 1 indirectly with the committed leader
     // of wave 2 as the anchor.
     tracing::info!("Try indirect commit for leader {leader_wave_1}",);
-    let leader_status = committer.try_indirect_decide(leader_wave_1, decided_leaders.iter());
+    let leader_status = committer.try_indirect_decide(
+        LeaderStatus::Undecided(leader_wave_1),
+        decided_leaders.iter(),
+    );
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_1.authority)
     } else {
         panic!("Expected a committed leader")
@@ -415,8 +418,8 @@ async fn indirect_skip() {
     // Add enough blocks to reach the certifying round of wave 3.
     let certifying_round_wave_3 = committer.certifying_round(3);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_voting_round_wave_2),
         certifying_round_wave_3,
     );
@@ -433,7 +436,7 @@ async fn indirect_skip() {
     tracing::info!("Leader commit status: {leader_status}");
 
     let mut decided_leaders = vec![];
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_3.authority);
         decided_leaders.push(leader_status);
     } else {
@@ -459,7 +462,10 @@ async fn indirect_skip() {
 
     // 3. Ensure we skip leader of wave 2 indirectly.
     tracing::info!("Try indirect commit for leader {leader_wave_2}",);
-    let leader_status = committer.try_indirect_decide(leader_wave_2, decided_leaders.iter());
+    let leader_status = committer.try_indirect_decide(
+        LeaderStatus::Undecided(leader_wave_2),
+        decided_leaders.iter(),
+    );
     tracing::info!("Leader commit status: {leader_status}");
 
     if let LeaderStatus::Skip(skipped_slot) = leader_status {
@@ -477,7 +483,7 @@ async fn indirect_skip() {
     let leader_status = committer.try_direct_decide(leader_wave_1);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_1.authority);
     } else {
         panic!("Expected a committed leader")
@@ -540,7 +546,7 @@ async fn undecided() {
     let certifying_round_wave_1 = committer.certifying_round(1);
     build_dag(
         context.clone(),
-        dag_state.clone(),
+        dag_state,
         Some(references_voting_round_wave_1),
         certifying_round_wave_1,
     );
@@ -560,7 +566,8 @@ async fn undecided() {
     // Ensure we indirectly mark leader of wave 1 undecided as there is no anchor
     // to make an indirect decision.
     tracing::info!("Try indirect commit for leader {leader_wave_1}");
-    let leader_status = committer.try_indirect_decide(leader_wave_1, [].iter());
+    let leader_status =
+        committer.try_indirect_decide(LeaderStatus::Undecided(leader_wave_1), [].iter());
     tracing::info!("Leader commit status: {leader_status}");
 
     if let LeaderStatus::Undecided(undecided_slot) = leader_status {
@@ -599,7 +606,7 @@ async fn test_byzantine_direct_commit() {
     // This includes a "good vote" from validator C which is acting as a byzantine
     // validator
     let good_references_voting_round_wave_4 = build_dag(
-        context.clone(),
+        context,
         dag_state.clone(),
         Some(references_leader_round_wave_4.clone()),
         voting_round_wave_4,
@@ -633,7 +640,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_1.clone());
+        .accept_block_header(byzantine_block_c13_1.clone(), DataSource::Test);
 
     let byzantine_block_c13_2 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
@@ -642,7 +649,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_2.clone());
+        .accept_block_header(byzantine_block_c13_2.clone(), DataSource::Test);
 
     let byzantine_block_c13_3 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
@@ -651,7 +658,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_3.clone());
+        .accept_block_header(byzantine_block_c13_3.clone(), DataSource::Test);
 
     // Ancestors of decision blocks in round 14 should include multiple byzantine
     // non-votes C13 but there are enough good votes to prevent a skip.
@@ -664,7 +671,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(decision_block_a14.clone());
+        .accept_block_header(decision_block_a14, DataSource::Test);
 
     let good_references_voting_round_wave_4_without_c13 = good_references_voting_round_wave_4
         .into_iter()
@@ -684,7 +691,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(decision_block_b14.clone());
+        .accept_block_header(decision_block_b14, DataSource::Test);
 
     let decision_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
@@ -699,7 +706,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(decision_block_c14.clone());
+        .accept_block_header(decision_block_c14, DataSource::Test);
 
     let decision_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
@@ -714,7 +721,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(decision_block_d14.clone());
+        .accept_block_header(decision_block_d14, DataSource::Test);
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4
@@ -729,7 +736,7 @@ async fn test_byzantine_direct_commit() {
     let leader_status = committer.try_direct_decide(leader_wave_4);
     tracing::info!("Leader commit status: {leader_status}");
 
-    if let LeaderStatus::Commit(ref committed_block) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_4.authority);
     } else {
         panic!("Expected a committed leader")

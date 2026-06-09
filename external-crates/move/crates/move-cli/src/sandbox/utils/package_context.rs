@@ -6,9 +6,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use move_package::{compilation::compiled_package::CompiledPackage, BuildConfig};
+use move_package::{BuildConfig, compilation::compiled_package::CompiledPackage};
 
-use crate::{sandbox::utils::OnDiskStateView, DEFAULT_BUILD_DIR};
+use crate::{DEFAULT_BUILD_DIR, sandbox::utils::OnDiskStateView};
 
 /// The PackageContext controls the package that the CLI is executing with
 /// respect to, and handles the creation of the `OnDiskStateView` with the

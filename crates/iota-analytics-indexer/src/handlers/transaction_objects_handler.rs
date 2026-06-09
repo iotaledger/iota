@@ -6,11 +6,10 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectID,
     effects::TransactionEffects,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::TransactionDataAPI,
 };
 use tokio::sync::Mutex;
 
@@ -93,16 +92,20 @@ impl TransactionObjectsHandler {
         state: &mut State,
     ) {
         let transaction = &checkpoint_transaction.transaction;
-        let transaction_digest = transaction.digest().base58_encode();
-        let txn_data = transaction.transaction_data();
-        let input_object_tracker = InputObjectTracker::new(txn_data);
+        let input_object_tracker = InputObjectTracker::new(transaction.data());
         let object_status_tracker = ObjectStatusTracker::new(effects);
+
+        let transaction_digest = transaction.digest().to_base58();
+
         // input
-        txn_data
+        //
+        // Process all objects associated with the transaction, including authenticator
+        // inputs.
+        transaction
             .input_objects()
-            .expect("Input objects must be valid")
-            .iter()
-            .map(|object| (object.object_id(), object.version().map(|v| v.value())))
+            .expect("input objects must be valid")
+            .into_iter()
+            .map(|object| (object.object_id(), object.version().map(|v| v.as_u64())))
             .for_each(|(object_id, version)| {
                 self.process_transaction_object(
                     epoch,
@@ -120,7 +123,7 @@ impl TransactionObjectsHandler {
         checkpoint_transaction
             .output_objects
             .iter()
-            .map(|object| (object.id(), Some(object.version().value())))
+            .map(|object| (object.id(), Some(object.version().as_u64())))
             .for_each(|(object_id, version)| {
                 self.process_transaction_object(
                     epoch,
@@ -143,7 +146,7 @@ impl TransactionObjectsHandler {
         checkpoint: u64,
         timestamp_ms: u64,
         transaction_digest: String,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: Option<u64>,
         input_object_tracker: &InputObjectTracker,
         object_status_tracker: &ObjectStatusTracker,

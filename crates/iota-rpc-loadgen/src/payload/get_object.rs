@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaObjectResponse};
 use iota_sdk::IotaClient;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 
 use super::validation::chunk_entities;
 use crate::payload::{GetObject, ProcessPayload, RpcCommandProcessor, SignerInfo};
@@ -16,7 +16,7 @@ use crate::payload::{GetObject, ProcessPayload, RpcCommandProcessor, SignerInfo}
 impl<'a> ProcessPayload<'a, &'a GetObject> for RpcCommandProcessor {
     async fn process(&'a self, op: &'a GetObject, _signer_info: &Option<SignerInfo>) -> Result<()> {
         if op.object_ids.is_empty() {
-            panic!("No object ids provided, skipping query");
+            panic!("no object ids provided, skipping query");
         };
         let clients = self.get_clients().await?;
         let chunked = chunk_entities(&op.object_ids, Some(op.chunk_size));
@@ -40,7 +40,7 @@ impl<'a> ProcessPayload<'a, &'a GetObject> for RpcCommandProcessor {
 // TODO: should organize these into an api_calls.rs
 pub(crate) async fn get_object(
     client: &IotaClient,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> Result<IotaObjectResponse> {
     let result = client
         .read_api()

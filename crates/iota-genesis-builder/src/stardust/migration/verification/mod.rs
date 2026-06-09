@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, ensure};
-use iota_sdk::types::block::output::{Output, OutputId, TokenId};
+use iota_stardust_types::block::output::{Output, OutputId, TokenId};
 use iota_types::in_memory_storage::InMemoryStorage;
 use tracing::warn;
 use util::{BASE_TOKEN_KEY, TokensAmountCounter};

@@ -5,8 +5,9 @@
 use std::collections::BTreeMap;
 
 use async_graphql::*;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
+    base_types::IotaAddress as NativeIotaAddress,
     iota_system_state::iota_system_state_summary::{
         IotaSystemStateSummary as NativeSystemStateSummary, IotaValidatorSummary,
     },
@@ -33,13 +34,13 @@ pub(crate) struct NativeStateValidatorInfo {
     pub at_risk_validators: Vec<(NativeIotaAddress, u64)>,
     pub validator_report_records: Vec<(NativeIotaAddress, Vec<NativeIotaAddress>)>,
     pub pending_removals: Vec<u64>,
-    pub pending_active_validators_id: ObjectID,
+    pub pending_active_validators_id: ObjectId,
     pub pending_active_validators_size: u64,
-    pub staking_pool_mappings_id: ObjectID,
+    pub staking_pool_mappings_id: ObjectId,
     pub staking_pool_mappings_size: u64,
-    pub inactive_pools_id: ObjectID,
+    pub inactive_pools_id: ObjectId,
     pub inactive_pools_size: u64,
-    pub validator_candidates_id: ObjectID,
+    pub validator_candidates_id: ObjectId,
     pub validator_candidates_size: u64,
 }
 
@@ -189,137 +190,6 @@ impl From<NativeSystemStateSummary> for NativeStateValidatorInfo {
     }
 }
 
-macro_rules! state_summary_take {
-    ($enum:expr, $field:ident) => {{
-        match $enum {
-            NativeSystemStateSummary::V1(inner) => inner.$field,
-            NativeSystemStateSummary::V2(inner) => inner.$field,
-            _ => unimplemented!(),
-        }
-    }};
-}
-
-/// Access system-state data of relevance to this library.
-pub(crate) trait SystemStateSummaryView {
-    fn epoch(&self) -> u64;
-
-    fn storage_fund_total_object_storage_rebates(&self) -> u64;
-
-    fn storage_fund_non_refundable_balance(&self) -> u64;
-
-    fn safe_mode(&self) -> bool;
-
-    fn safe_mode_computation_charges(&self) -> u64;
-
-    fn safe_mode_computation_charges_burned(&self) -> u64;
-
-    fn safe_mode_storage_charges(&self) -> u64;
-
-    fn safe_mode_storage_rebates(&self) -> u64;
-
-    fn safe_mode_non_refundable_storage_fee(&self) -> u64;
-
-    fn system_state_version(&self) -> u64;
-
-    fn iota_total_supply(&self) -> u64;
-
-    fn iota_treasury_cap_id(&self) -> ObjectID;
-
-    fn epoch_duration_ms(&self) -> u64;
-
-    fn max_validator_count(&self) -> u64;
-
-    fn min_validator_joining_stake(&self) -> u64;
-
-    fn validator_low_stake_threshold(&self) -> u64;
-
-    fn validator_very_low_stake_threshold(&self) -> u64;
-
-    fn validator_low_stake_grace_period(&self) -> u64;
-}
-
-impl SystemStateSummaryView for NativeSystemStateSummary {
-    fn epoch(&self) -> u64 {
-        state_summary_take!(self, epoch)
-    }
-
-    fn storage_fund_total_object_storage_rebates(&self) -> u64 {
-        state_summary_take!(self, storage_fund_total_object_storage_rebates)
-    }
-
-    fn storage_fund_non_refundable_balance(&self) -> u64 {
-        state_summary_take!(self, storage_fund_non_refundable_balance)
-    }
-
-    fn safe_mode(&self) -> bool {
-        state_summary_take!(self, safe_mode)
-    }
-
-    fn safe_mode_computation_charges(&self) -> u64 {
-        match &self {
-            NativeSystemStateSummary::V1(v1) => v1.safe_mode_computation_rewards,
-            NativeSystemStateSummary::V2(v2) => v2.safe_mode_computation_charges,
-            _ => unimplemented!(),
-        }
-    }
-
-    fn safe_mode_computation_charges_burned(&self) -> u64 {
-        match &self {
-            NativeSystemStateSummary::V1(v1) => v1.safe_mode_computation_rewards,
-            NativeSystemStateSummary::V2(v2) => v2.safe_mode_computation_charges_burned,
-            _ => unimplemented!(),
-        }
-    }
-
-    fn safe_mode_storage_charges(&self) -> u64 {
-        state_summary_take!(&self, safe_mode_storage_charges)
-    }
-
-    fn safe_mode_storage_rebates(&self) -> u64 {
-        state_summary_take!(&self, safe_mode_storage_rebates)
-    }
-
-    fn safe_mode_non_refundable_storage_fee(&self) -> u64 {
-        state_summary_take!(&self, safe_mode_non_refundable_storage_fee)
-    }
-
-    fn system_state_version(&self) -> u64 {
-        state_summary_take!(&self, system_state_version)
-    }
-
-    fn iota_total_supply(&self) -> u64 {
-        state_summary_take!(&self, iota_total_supply)
-    }
-
-    fn iota_treasury_cap_id(&self) -> ObjectID {
-        state_summary_take!(&self, iota_treasury_cap_id)
-    }
-
-    fn epoch_duration_ms(&self) -> u64 {
-        state_summary_take!(&self, epoch_duration_ms)
-    }
-
-    fn max_validator_count(&self) -> u64 {
-        state_summary_take!(&self, max_validator_count)
-    }
-
-    fn min_validator_joining_stake(&self) -> u64 {
-        state_summary_take!(&self, min_validator_joining_stake)
-    }
-
-    fn validator_low_stake_threshold(&self) -> u64 {
-        state_summary_take!(&self, validator_low_stake_threshold)
-    }
-
-    fn validator_very_low_stake_threshold(&self) -> u64 {
-        state_summary_take!(&self, validator_very_low_stake_threshold)
-    }
-
-    fn validator_low_stake_grace_period(&self) -> u64 {
-        state_summary_take!(&self, validator_low_stake_grace_period)
-    }
-}
-
 /// Aspects that affect the running of the system that are managed by the
 /// validators either directly, or through system transactions.
 #[Object]
@@ -361,8 +231,8 @@ impl SystemStateSummary {
     }
 
     /// The total IOTA supply.
-    async fn iota_total_supply(&self) -> Option<u64> {
-        Some(self.native.iota_total_supply())
+    async fn iota_total_supply(&self) -> Option<BigInt> {
+        Some(self.native.iota_total_supply().into())
     }
 
     /// The treasury-cap id.

@@ -19,8 +19,8 @@ object_store.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
-serde_json = "1.0.95"
-tokio = { workspace = true, features = ["full"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
 tracing.workspace = true
 
 # internal dependencies
@@ -37,6 +37,7 @@ tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
+iota-common.workspace = true
 iota-macros.workspace = true
 iota-swarm-config.workspace = true
 move-binary-format.workspace = true
@@ -44,3 +45,6 @@ move-core-types.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
+
+[lints]
+workspace = true

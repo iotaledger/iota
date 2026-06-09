@@ -5,15 +5,16 @@
 
 //! This module defines the abstract state for the local safety analysis.
 
-use crate::ability_cache::AbilityCache;
 use move_abstract_interpreter::absint::{AbstractDomain, FunctionContext, JoinResult};
 use move_binary_format::{
+    CompiledModule,
     errors::{PartialVMError, PartialVMResult},
     file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex},
-    CompiledModule,
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
+
+use crate::ability_cache::AbilityCache;
 
 /// LocalState represents the current assignment state of a local
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

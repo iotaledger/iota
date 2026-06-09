@@ -1,0 +1,96 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//# init --addresses test=0x0
+
+//# publish
+module test.external {
+    import 0x2.object;
+
+    struct Account has key {
+        id: object.UID,
+    }
+
+    public uid(self: &Self.Account): &object.UID {
+        let id: &object.UID;
+        label l0:
+        id = &move(self).Account::id;
+        return move(id);
+    }
+
+}
+
+//# set-address test object(1,0)
+
+//# publish --dependencies test
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.authenticator_function;
+    import 0x2.object;
+    import test.external;
+
+    t1(account: &external.Account): &authenticator_function.AuthenticatorFunctionRefV1<external.Account> {
+        let a: &authenticator_function.AuthenticatorFunctionRefV1<external.Account>;
+        let id: &object.UID;
+        label l0:
+        id = external.uid(move(account));
+        a = account.borrow_auth_function_ref_v1<external.Account>(move(id));
+        return move(a);
+    }
+}
+
+//# publish --dependencies test
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.object;
+    import test.external;
+
+    t2(account: &external.Account): bool {
+        let b: bool;
+        let id: &object.UID;
+        label l0:
+        id = external.uid(move(account));
+        b = account.has_auth_function_ref_v1(move(id));
+        return move(b);
+    }
+}
+
+//# publish --dependencies test
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.authenticator_function;
+    import test.external;
+
+    t3(account: external.Account, authenticator: authenticator_function.AuthenticatorFunctionRefV1<external.Account>) {
+        label l0:
+        account.create_account_v1<external.Account>(move(account), move(authenticator));
+        return;
+    }
+}
+
+//# publish --dependencies test
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.authenticator_function;
+    import test.external;
+
+    t4(account: external.Account, authenticator: authenticator_function.AuthenticatorFunctionRefV1<external.Account>) {
+        label l0:
+        account.create_immutable_account_v1<external.Account>(move(account), move(authenticator));
+        return;
+    }
+}
+
+//# publish --dependencies test
+module 0x0.m {
+    import 0x2.account;
+    import 0x2.authenticator_function;
+    import test.external;
+
+    t5(account: &mut external.Account, authenticator: authenticator_function.AuthenticatorFunctionRefV1<external.Account>): authenticator_function.AuthenticatorFunctionRefV1<external.Account> {
+        let a: authenticator_function.AuthenticatorFunctionRefV1<external.Account>;
+        label l0:
+        a = account.rotate_auth_function_ref_v1<external.Account>(move(account), move(authenticator));
+        return move(a);
+    }
+}

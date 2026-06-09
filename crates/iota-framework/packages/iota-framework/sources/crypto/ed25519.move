@@ -4,8 +4,8 @@
 
 module iota::ed25519;
 
-/// @param signature: 32-byte signature that is a point on the Ed25519 elliptic curve.
-/// @param public_key: 32-byte signature that is a point on the Ed25519 elliptic curve.
+/// @param signature: 64-byte Ed25519 signature associated with the Ed25519 elliptic curve.
+/// @param public_key: 32-byte public key that represents a point on the Ed25519 elliptic curve.
 /// @param msg: The message that we test the signature against.
 ///
 /// If the signature is a valid Ed25519 signature of the message and public key, return true.

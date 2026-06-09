@@ -51,6 +51,8 @@ pub struct ValidatorGenesisConfig {
     pub p2p_listen_address: Option<SocketAddr>,
     #[serde(default = "default_socket_address")]
     pub metrics_address: SocketAddr,
+    #[serde(default = "default_socket_address")]
+    pub admin_interface_address: SocketAddr,
     pub gas_price: u64,
     pub commission_rate: u64,
     pub primary_address: Multiaddr,
@@ -162,23 +164,30 @@ impl ValidatorGenesisConfigBuilder {
         let (protocol_key_pair, network_key_pair): (NetworkKeyPair, NetworkKeyPair) =
             (get_key_pair_from_rng(rng).1, get_key_pair_from_rng(rng).1);
 
-        let (network_address, p2p_address, metrics_address, primary_address) =
-            if let Some(offset) = self.port_offset {
-                (
-                    local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset),
-                    local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 1),
-                    local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
-                        .with_zero_ip(),
-                    local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 3),
-                )
-            } else {
-                (
-                    local_ip_utils::new_tcp_address_for_testing(&ip),
-                    local_ip_utils::new_udp_address_for_testing(&ip),
-                    local_ip_utils::new_tcp_address_for_testing(&localhost),
-                    local_ip_utils::new_udp_address_for_testing(&ip),
-                )
-            };
+        let (
+            network_address,
+            p2p_address,
+            metrics_address,
+            primary_address,
+            admin_interface_address,
+        ) = if let Some(offset) = self.port_offset {
+            (
+                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset),
+                local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 1),
+                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
+                    .with_zero_ip(),
+                local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 3),
+                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 4),
+            )
+        } else {
+            (
+                local_ip_utils::new_tcp_address_for_testing(&ip),
+                local_ip_utils::new_udp_address_for_testing(&ip),
+                local_ip_utils::new_tcp_address_for_testing(&localhost),
+                local_ip_utils::new_udp_address_for_testing(&ip),
+                local_ip_utils::new_tcp_address_for_testing(&localhost),
+            )
+        };
 
         let p2p_listen_address = self
             .p2p_listen_ip_address
@@ -193,6 +202,7 @@ impl ValidatorGenesisConfigBuilder {
             p2p_address,
             p2p_listen_address,
             metrics_address: metrics_address.to_socket_addr().unwrap(),
+            admin_interface_address: admin_interface_address.to_socket_addr().unwrap(),
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
@@ -289,9 +299,7 @@ impl GenesisConfig {
     pub const BENCHMARKS_RNG_SEED: u64 = 0;
     /// Port offset for benchmarks' genesis configs.
     pub const BENCHMARKS_PORT_OFFSET: u16 = 2000;
-    /// The gas amount for each genesis gas object.
-    const BENCHMARK_GAS_AMOUNT: u64 = 50_000_000_000_000_000;
-    /// Trigger epoch change every hour minutes.
+    /// Trigger epoch change every hour.
     const BENCHMARK_EPOCH_DURATION_MS: u64 = 60 * 60 * 1000;
 
     pub fn for_local_testing() -> Self {
@@ -344,7 +352,25 @@ impl GenesisConfig {
     /// predictable to facilitate benchmarks orchestration. Only the main ip
     /// addresses of the validators are specified (as those are often
     /// dictated by the cloud provider hosing the testbed).
-    pub fn new_for_benchmarks(ips: &[String]) -> Self {
+    ///
+    /// `num_additional_gas_accounts` specifies how many additional gas accounts
+    /// to create. This can be used to support more dedicated client instances.
+    ///
+    /// `total_available_amount` specifies the total amount of tokens available
+    /// for all allocations. The function will divide the available amount
+    /// among all account gas objects.
+    pub fn new_for_benchmarks(
+        ips: &[String],
+        epoch_duration_ms: Option<u64>,
+        chain_start_timestamp_ms: Option<u64>,
+        num_additional_gas_accounts: Option<usize>,
+        total_available_amount: u64,
+    ) -> Self {
+        // this translates to an assert in iota::balance::increase_supply
+        assert!(
+            total_available_amount < u64::MAX,
+            "Total available amount must be less than 18446744073709551615u64"
+        );
         // Set the validator's configs. They should be the same across multiple runs to
         // ensure reproducibility.
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
@@ -361,17 +387,25 @@ impl GenesisConfig {
             .collect();
 
         // Set the initial gas objects with a predictable owner address.
-        let account_configs = Self::benchmark_gas_keys(validator_config_info.len())
+        let num_validators = validator_config_info.len();
+        let num_accounts = num_additional_gas_accounts.unwrap_or(0) + num_validators;
+
+        // Divide the total available amount among all account gas objects.
+        let total_gas_objects = num_accounts * DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT;
+        let gas_amount_per_object = if total_gas_objects > 0 {
+            total_available_amount / total_gas_objects as u64
+        } else {
+            0
+        };
+
+        let account_configs = Self::benchmark_gas_keys(num_accounts)
             .iter()
             .map(|gas_key| {
                 let gas_address = IotaAddress::from(&gas_key.public());
 
                 AccountConfig {
                     address: Some(gas_address),
-                    // Generate one genesis gas object per validator (this seems a good rule of
-                    // thumb to produce enough gas objects for most types of
-                    // benchmarks).
-                    gas_amounts: vec![Self::BENCHMARK_GAS_AMOUNT; 5],
+                    gas_amounts: vec![gas_amount_per_object; DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT],
                 }
             })
             .collect();
@@ -379,8 +413,12 @@ impl GenesisConfig {
         // Benchmarks require a deterministic genesis. Every validator locally generates
         // it own genesis; it is thus important they have the same parameters.
         let parameters = GenesisCeremonyParameters {
-            chain_start_timestamp_ms: 0,
-            epoch_duration_ms: Self::BENCHMARK_EPOCH_DURATION_MS,
+            chain_start_timestamp_ms: chain_start_timestamp_ms.unwrap_or(0),
+            epoch_duration_ms: if let Some(duration_ms) = epoch_duration_ms {
+                duration_ms
+            } else {
+                Self::BENCHMARK_EPOCH_DURATION_MS
+            },
             ..GenesisCeremonyParameters::new()
         };
 

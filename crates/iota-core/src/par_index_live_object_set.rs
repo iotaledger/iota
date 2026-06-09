@@ -4,7 +4,8 @@
 
 use std::time::Instant;
 
-use iota_types::{base_types::ObjectID, object::Object, storage::error::Error as StorageError};
+use iota_sdk_types::ObjectId;
+use iota_types::{object::Object, storage::error::Error as StorageError};
 use tracing::info;
 
 use crate::authority::{AuthorityStore, authority_store_tables::LiveObject};
@@ -30,11 +31,12 @@ pub trait LiveObjectIndexer {
 
 /// Utility for iterating over, and indexing, the live object set in parallel
 ///
-/// This is done by dividing the addressable ObjectID space into smaller,
+/// This is done by dividing the addressable ObjectId space into smaller,
 /// disjoint sets and operating on each set in parallel in a separate thread.
 /// User's will need to implement the `ParMakeLiveObjectIndexer` trait which
 /// will be used to make N `LiveObjectIndexer`s which will then process one of
 /// the disjoint parts of the live object set.
+#[tracing::instrument(skip_all)]
 pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     authority_store: &AuthorityStore,
     make_indexer: &T,
@@ -67,21 +69,22 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     Ok(())
 }
 
+#[tracing::instrument(skip(authority_store, object_indexer))]
 fn live_object_set_index_task<T: LiveObjectIndexer>(
     task_id: u8,
     bits: u8,
     authority_store: &AuthorityStore,
     mut object_indexer: T,
 ) -> Result<(), StorageError> {
-    let mut id_bytes = [0; ObjectID::LENGTH];
+    let mut id_bytes = [0; ObjectId::LENGTH];
     id_bytes[0] = task_id << (8 - bits);
-    let start_id = ObjectID::new(id_bytes);
+    let start_id = ObjectId::new(id_bytes);
 
     id_bytes[0] |= (1 << (8 - bits)) - 1;
     for element in id_bytes.iter_mut().skip(1) {
         *element = u8::MAX;
     }
-    let end_id = ObjectID::new(id_bytes);
+    let end_id = ObjectId::new(id_bytes);
 
     let mut object_scanned: u64 = 0;
     for object in authority_store
@@ -90,7 +93,7 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
         .filter_map(LiveObject::to_normal)
     {
         object_scanned += 1;
-        if object_scanned % 2_000_000 == 0 {
+        if object_scanned.is_multiple_of(2_000_000) {
             info!(
                 "[Index] Task {}: object scanned: {}",
                 task_id, object_scanned

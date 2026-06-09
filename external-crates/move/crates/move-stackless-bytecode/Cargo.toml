@@ -8,12 +8,7 @@ publish = false
 description = "Move stackless bytecode"
 
 [dependencies]
-move-binary-format.workspace = true
-move-command-line-common.workspace = true
-move-compiler.workspace = true
-move-core-types.workspace = true
-move-model.workspace = true
-
+# external dependencies
 codespan.workspace = true
 codespan-reporting = { workspace = true, features = ["serde", "serialization"] }
 ethnum.workspace = true
@@ -24,11 +19,21 @@ num.workspace = true
 petgraph.workspace = true
 serde.workspace = true
 
+# internal dependencies
+move-binary-format.workspace = true
+move-command-line-common.workspace = true
+move-compiler.workspace = true
+move-core-types.workspace = true
+move-model.workspace = true
+
 [dev-dependencies]
+# external dependencies
 anyhow.workspace = true
 datatest-stable.workspace = true
-move-stdlib.workspace = true
 regex.workspace = true
+
+# internal dependencies
+move-stdlib.workspace = true
 
 [[test]]
 name = "testsuite"

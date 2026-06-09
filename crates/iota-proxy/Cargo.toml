@@ -21,20 +21,19 @@ git-version.workspace = true
 hex.workspace = true
 hyper.workspace = true
 itertools.workspace = true
-multiaddr = "0.17.0"
+multiaddr.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 prost.workspace = true
-protobuf.workspace = true
+protobuf = { version = "3.7.2", features = ["with-bytes"] }
 rand.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
-rustls-pemfile = "2.1.2"
 serde.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 snap.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
@@ -42,6 +41,7 @@ tracing.workspace = true
 # internal dependencies
 iota-metrics.workspace = true
 iota-sdk.workspace = true
+iota-sdk-types.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
@@ -52,4 +52,7 @@ mime = "0.3"
 tower.workspace = true
 
 [build-dependencies]
-prost-build = "0.13.1"
+prost-build = "0.14.3"
+
+[lints]
+workspace = true

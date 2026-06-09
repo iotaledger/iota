@@ -15,37 +15,37 @@ pub struct Lexeme<'t>(
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Token {
-    /// --[a-zA-Z0-9_-]+
+    /// `--[a-zA-Z0-9_-]+`
     Command,
-    /// -[a-zA-Z0-9]
+    /// `-[a-zA-Z0-9]`
     Flag,
-    /// [a-zA-Z_][a-zA-Z0-9_-]*
+    /// `[a-zA-Z_][a-zA-Z0-9_-]*`
     Ident,
-    /// [1-9][0-9_]*
+    /// `[1-9][0-9_]*`
     Number,
-    /// 0x[0-9a-fA-F][0-9a-fA-F_]*
+    /// `0x[0-9a-fA-F][0-9a-fA-F_]*`
     HexNumber,
-    /// "..." | '...'
+    /// `"..." | '...'`
     String,
-    /// ::
+    /// `::`
     ColonColon,
-    /// ,
+    /// `,`
     Comma,
-    /// [
+    /// `[`
     LBracket,
-    /// ]
+    /// `]`
     RBracket,
-    /// (
+    /// `(`
     LParen,
-    /// )
+    /// `)`
     RParen,
-    /// <
+    /// `<`
     LAngle,
-    /// >
+    /// `>`
     RAngle,
-    /// @
+    /// `@`
     At,
-    /// .
+    /// `.`
     Dot,
 
     /// End of input.
@@ -61,8 +61,10 @@ pub enum Token {
     // capture the path for a publish or an upgrade command.
     /// --publish \<shell-token\>
     Publish,
-    /// --upgraded \<shell-token\>
+    /// --upgrade \<shell-token\>
     Upgrade,
+    /// --compile-upgrade \<shell-token\>
+    CompileUpgrade,
 }
 
 impl Lexeme<'_> {
@@ -80,7 +82,14 @@ impl Lexeme<'_> {
 
     /// Returns true if this lexeme signifies the end of the current command.
     pub fn is_command_end(&self) -> bool {
-        self.is_terminal() || [Token::Command, Token::Publish, Token::Upgrade].contains(&self.0)
+        self.is_terminal()
+            || [
+                Token::Command,
+                Token::Publish,
+                Token::Upgrade,
+                Token::CompileUpgrade,
+            ]
+            .contains(&self.0)
     }
 }
 
@@ -110,6 +119,7 @@ impl fmt::Display for Lexeme<'_> {
             T::EarlyEof | T::Eof => write!(f, "end of input"),
             T::Publish => write!(f, "command '--publish {:?}'", self.1),
             T::Upgrade => write!(f, "command '--upgrade {:?}'", self.1),
+            T::CompileUpgrade => write!(f, "command '--compile-upgrade {:?}'", self.1),
         }
     }
 }
@@ -140,6 +150,7 @@ impl fmt::Display for Token {
             T::EarlyEof => write!(f, "unexpected end of input"),
             T::Publish => write!(f, "a '--publish' command"),
             T::Upgrade => write!(f, "an '--upgrade' command"),
+            T::CompileUpgrade => write!(f, "a '--compile-upgrade' command"),
         }
     }
 }

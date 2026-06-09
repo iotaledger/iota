@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 
 use fastcrypto::{groups::bls12381, serde_helpers::ToFromByteArray};
 use fastcrypto_tbls::{mocked_dkg, nodes};
+use iota_macros::sim_test;
 use iota_swarm_config::test_utils::CommitteeFixture;
 use iota_types::{
     base_types::ConciseableName,
@@ -19,7 +20,7 @@ use crate::{randomness::*, utils};
 type PkG = bls12381::G2Element;
 type EncG = bls12381::G2Element;
 
-#[tokio::test]
+#[sim_test]
 async fn test_multiple_epochs() {
     telemetry_subscribers::init_for_testing();
     let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
@@ -72,7 +73,7 @@ async fn test_multiple_epochs() {
                 .try_into()
                 .unwrap(),
         );
-        handle.send_partial_signatures(0, RandomnessRound(0));
+        handle.send_partial_signatures(0, RandomnessRound::new(0));
         handle.update_epoch(
             0,
             authority_info.clone(),
@@ -84,22 +85,22 @@ async fn test_multiple_epochs() {
     for rx in randomness_rxs.iter_mut() {
         let (epoch, round, bytes) = rx.recv().await.unwrap();
         assert_eq!(0, epoch);
-        assert_eq!(0, round.0);
+        assert_eq!(0, round.value());
         assert_ne!(0, bytes.len());
     }
 
     // Test a few more rounds. Generation of rounds in epoch 1 should block until
     // epoch is updated.
     for (_authority, handle) in handles.iter() {
-        handle.complete_round(0, RandomnessRound(0));
-        handle.send_partial_signatures(0, RandomnessRound(1));
-        handle.send_partial_signatures(1, RandomnessRound(0));
-        handle.send_partial_signatures(1, RandomnessRound(1));
+        handle.complete_round(0, RandomnessRound::new(0));
+        handle.send_partial_signatures(0, RandomnessRound::new(1));
+        handle.send_partial_signatures(1, RandomnessRound::new(0));
+        handle.send_partial_signatures(1, RandomnessRound::new(1));
     }
     for rx in randomness_rxs.iter_mut() {
         let (epoch, round, bytes) = rx.recv().await.unwrap();
         assert_eq!(0, epoch);
-        assert_eq!(1, round.0);
+        assert_eq!(1, round.value());
         assert_ne!(0, bytes.len());
         assert!(rx.try_recv().is_err()); // there should not be anything else
         // ready yet
@@ -136,11 +137,11 @@ async fn test_multiple_epochs() {
         rounds_seen.insert(round);
         assert_ne!(0, bytes.len());
     }
-    assert!(rounds_seen.contains(&RandomnessRound(0)));
-    assert!(rounds_seen.contains(&RandomnessRound(1)));
+    assert!(rounds_seen.contains(&RandomnessRound::new(0)));
+    assert!(rounds_seen.contains(&RandomnessRound::new(1)));
 }
 
-#[tokio::test]
+#[sim_test]
 async fn test_record_own_partial_sigs() {
     telemetry_subscribers::init_for_testing();
     let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
@@ -195,7 +196,7 @@ async fn test_record_own_partial_sigs() {
                 .try_into()
                 .unwrap(),
         );
-        handle.send_partial_signatures(0, RandomnessRound(0));
+        handle.send_partial_signatures(0, RandomnessRound::new(0));
         handle.update_epoch(
             0,
             authority_info.clone(),
@@ -208,7 +209,7 @@ async fn test_record_own_partial_sigs() {
         if i < 2 {
             let (epoch, round, bytes) = rx.recv().await.unwrap();
             assert_eq!(0, epoch);
-            assert_eq!(0, round.0);
+            assert_eq!(0, round.value());
             assert_ne!(0, bytes.len());
         } else {
             assert!(rx.try_recv().is_err());
@@ -216,7 +217,7 @@ async fn test_record_own_partial_sigs() {
     }
 }
 
-#[tokio::test]
+#[sim_test]
 async fn test_receive_full_sig() {
     telemetry_subscribers::init_for_testing();
     let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 8);
@@ -273,7 +274,7 @@ async fn test_receive_full_sig() {
                 .try_into()
                 .unwrap(),
         );
-        handle.send_partial_signatures(0, RandomnessRound(0));
+        handle.send_partial_signatures(0, RandomnessRound::new(0));
         handle.update_epoch(
             0,
             authority_info.clone(),
@@ -285,7 +286,7 @@ async fn test_receive_full_sig() {
     for rx in randomness_rxs[..7].iter_mut() {
         let (epoch, round, bytes) = rx.recv().await.unwrap();
         assert_eq!(0, epoch);
-        assert_eq!(0, round.0);
+        assert_eq!(0, round.value());
         assert_ne!(0, bytes.len());
     }
     // Authority 7 shouldn't have the completed sig, since it's disconnected.
@@ -296,11 +297,11 @@ async fn test_receive_full_sig() {
     networks[7].connect(networks[0].local_addr()).await.unwrap();
     let (epoch, round, bytes) = randomness_rxs[7].recv().await.unwrap();
     assert_eq!(0, epoch);
-    assert_eq!(0, round.0);
+    assert_eq!(0, round.value());
     assert_ne!(0, bytes.len());
 }
 
-#[tokio::test]
+#[sim_test]
 async fn test_restart_recovery() {
     telemetry_subscribers::init_for_testing();
     let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
@@ -353,24 +354,24 @@ async fn test_restart_recovery() {
                 .try_into()
                 .unwrap(),
         );
-        handle.send_partial_signatures(0, RandomnessRound(1_000_000));
+        handle.send_partial_signatures(0, RandomnessRound::new(1_000_000));
         handle.update_epoch(
             0,
             authority_info.clone(),
             mock_dkg_output,
             committee.validity_threshold().try_into().unwrap(),
-            Some(RandomnessRound(999_999)),
+            Some(RandomnessRound::new(999_999)),
         );
     }
     for rx in randomness_rxs.iter_mut() {
         let (epoch, round, bytes) = rx.recv().await.unwrap();
         assert_eq!(0, epoch);
-        assert_eq!(1_000_000, round.0);
+        assert_eq!(1_000_000, round.value());
         assert_ne!(0, bytes.len());
     }
 }
 
-#[tokio::test]
+#[sim_test]
 async fn test_byzantine_peer_handling() {
     telemetry_subscribers::init_for_testing();
     let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
@@ -429,7 +430,7 @@ async fn test_byzantine_peer_handling() {
                 .try_into()
                 .unwrap(),
         );
-        handle.send_partial_signatures(0, RandomnessRound(0));
+        handle.send_partial_signatures(0, RandomnessRound::new(0));
         handle.update_epoch(
             0,
             authority_info.clone(),
@@ -446,7 +447,7 @@ async fn test_byzantine_peer_handling() {
             .await
             .expect("Validators (2, 3) should receive randomness in epoch 0, round 0");
         assert_eq!(0, epoch);
-        assert_eq!(0, round.0);
+        assert_eq!(0, round.value());
         assert_ne!(0, bytes.len());
     }
     for rx in &mut randomness_rxs[..2] {
@@ -466,7 +467,7 @@ async fn test_byzantine_peer_handling() {
                 .try_into()
                 .unwrap(),
         );
-        handle.send_partial_signatures(1, RandomnessRound(0));
+        handle.send_partial_signatures(1, RandomnessRound::new(0));
         handle.update_epoch(
             1,
             authority_info.clone(),
@@ -482,7 +483,7 @@ async fn test_byzantine_peer_handling() {
             .await
             .expect("Validators (0, 1) should receive randomness in epoch 1, round 0");
         assert_eq!(1, epoch);
-        assert_eq!(0, round.0);
+        assert_eq!(0, round.value());
         assert_ne!(0, bytes.len());
     }
     for rx in &mut randomness_rxs[2..] {

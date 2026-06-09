@@ -8,18 +8,14 @@ use std::{
 };
 
 use iota_execution::Executor;
+use iota_sdk_types::{Argument, Command, MoveCall, TypeTag};
 use iota_types::{
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
-    transaction::{
-        Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
-        ProgrammableTransaction, write_sep,
-    },
+    sdk_types::utils::write_sep,
+    transaction::{CallArg, ProgrammableTransaction},
 };
-use move_core_types::{
-    annotated_value::{MoveTypeLayout, MoveValue},
-    language_storage::TypeTag,
-};
+use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
@@ -52,7 +48,7 @@ impl Display for Pretty<'_, FullPTB> {
             let mut builder = TableBuilder::default();
             for (i, input) in inputs.iter().enumerate() {
                 match input {
-                    Pure(v) => {
+                    CallArg::Pure(v) => {
                         if v.len() <= 16 {
                             builder.push_record(vec![format!("{i:<3} Pure Arg          {:?}", v)]);
                         } else {
@@ -77,15 +73,27 @@ impl Display for Pretty<'_, FullPTB> {
                         }
                     }
 
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(o)) => {
-                        builder.push_record(vec![format!("{i:<3} Imm/Owned Object  ID: {}", o.0)]);
+                    CallArg::ImmutableOrOwned(o) => {
+                        builder.push_record(vec![format!(
+                            "{i:<3} Imm/Owned Object  ID: {}",
+                            o.object_id
+                        )]);
                     }
-                    CallArg::Object(ObjectArg::SharedObject { id, .. }) => {
-                        builder.push_record(vec![format!("{i:<3} Shared Object     ID: {}", id)]);
+                    CallArg::Shared(obj_ref) => {
+                        builder.push_record(vec![format!(
+                            "{i:<3} Shared Object     ID: {}",
+                            obj_ref.object_id
+                        )]);
                     }
-                    CallArg::Object(ObjectArg::Receiving(o)) => {
-                        builder.push_record(vec![format!("{i:<3} Receiving Object  ID: {}", o.0)]);
+                    CallArg::Receiving(o) => {
+                        builder.push_record(vec![format!(
+                            "{i:<3} Receiving Object  ID: {}",
+                            o.object_id
+                        )]);
                     }
+                    _ => unimplemented!(
+                        "a new CallArg enum variant was added and needs to be handled"
+                    ),
                 };
             }
 
@@ -151,60 +159,61 @@ impl Display for Pretty<'_, Command> {
         let Pretty(command) = self;
         match command {
             Command::MoveCall(p) => {
-                write!(f, "{}", Pretty(&**p))
+                write!(f, "{}", Pretty(p))
             }
-            Command::MakeMoveVec(ty_opt, elems) => {
-                write!(f, "MakeMoveVec:\n ┌")?;
-                if let Some(ty) = ty_opt {
+            Command::MakeMoveVector(cmd) => {
+                write!(f, "MakeMoveVector:\n ┌")?;
+                if let Some(ty) = &cmd.type_ {
                     write!(f, "\n │ Type Tag: {ty}")?;
                 }
                 write!(f, "\n │ Arguments:\n │   ")?;
-                write_sep(f, elems.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.elements.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
-            Command::TransferObjects(objs, addr) => {
+            Command::TransferObjects(cmd) => {
                 write!(f, "TransferObjects:\n ┌\n │ Arguments: \n │   ")?;
-                write_sep(f, objs.iter().map(Pretty), "\n │   ")?;
-                write!(f, "\n │ Address: {}\n └", Pretty(addr))
+                write_sep(f, cmd.objects.iter().map(Pretty), None, "\n │   ")?;
+                write!(f, "\n │ Address: {}\n └", Pretty(&cmd.address))
             }
-            Command::SplitCoins(coin, amounts) => {
+            Command::SplitCoins(cmd) => {
                 write!(
                     f,
                     "SplitCoins:\n ┌\n │ Coin: {}\n │ Amounts: \n │   ",
-                    Pretty(coin)
+                    Pretty(&cmd.coin)
                 )?;
-                write_sep(f, amounts.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.amounts.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
-            Command::MergeCoins(target, coins) => {
+            Command::MergeCoins(cmd) => {
                 write!(
                     f,
                     "MergeCoins:\n ┌\n │ Target: {}\n │ Coins: \n │   ",
-                    Pretty(target)
+                    Pretty(&cmd.coin)
                 )?;
-                write_sep(f, coins.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.coins_to_merge.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
-            Command::Publish(_bytes, deps) => {
+            Command::Publish(cmd) => {
                 write!(f, "Publish:\n ┌\n │ Dependencies: \n │   ")?;
-                write_sep(f, deps, "\n │   ")?;
+                write_sep(f, &cmd.dependencies, None, "\n │   ")?;
                 write!(f, "\n └")
             }
-            Command::Upgrade(_bytes, deps, current_package_id, ticket) => {
+            Command::Upgrade(cmd) => {
                 write!(f, "Upgrade:\n ┌\n │ Dependencies: \n │   ")?;
-                write_sep(f, deps, "\n │   ")?;
-                write!(f, "\n │ Current Package ID: {current_package_id}")?;
-                write!(f, "\n │ Ticket: {}", Pretty(ticket))?;
+                write_sep(f, &cmd.dependencies, None, "\n │   ")?;
+                write!(f, "\n │ Current Package ID: {}", cmd.package)?;
+                write!(f, "\n │ Ticket: {}", Pretty(&cmd.ticket))?;
                 write!(f, "\n └")
             }
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }
 
-impl Display for Pretty<'_, ProgrammableMoveCall> {
+impl Display for Pretty<'_, MoveCall> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(move_call) = self;
-        let ProgrammableMoveCall {
+        let MoveCall {
             package,
             module,
             function,
@@ -219,11 +228,11 @@ impl Display for Pretty<'_, ProgrammableMoveCall> {
 
         if !type_arguments.is_empty() {
             write!(f, "\n │ Type Arguments: \n │   ")?;
-            write_sep(f, type_arguments, "\n │   ")?;
+            write_sep(f, type_arguments, None, "\n │   ")?;
         }
         if !arguments.is_empty() {
             write!(f, "\n │ Arguments: \n │   ")?;
-            write_sep(f, arguments.iter().map(Pretty), "\n │   ")?;
+            write_sep(f, arguments.iter().map(Pretty), None, "\n │   ")?;
         }
 
         write!(f, "\n └")
@@ -235,10 +244,11 @@ impl Display for Pretty<'_, Argument> {
         let Pretty(argument) = self;
 
         let output = match argument {
-            Argument::GasCoin => "GasCoin".to_string(),
+            Argument::Gas => "Gas".to_string(),
             Argument::Input(i) => format!("Input  {i}"),
             Argument::Result(i) => format!("Result {i}"),
             Argument::NestedResult(j, k) => format!("Result {j}: {k}"),
+            _ => unimplemented!("a new Argument enum variant was added and needs to be handled"),
         };
         write!(f, "{output}")
     }
@@ -290,7 +300,7 @@ impl Display for Pretty<'_, TypeTag> {
                 write!(f, "Vector of {}", Pretty(&**v))
             }
             TypeTag::Struct(s) => {
-                write!(f, "{}::{}", s.module, s.name)
+                write!(f, "{}::{}", s.module(), s.name())
             }
             _ => {
                 write!(f, "{type_tag}")

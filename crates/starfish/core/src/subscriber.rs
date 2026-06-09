@@ -8,7 +8,10 @@ use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use parking_lot::{Mutex, RwLock};
 use starfish_config::AuthorityIndex;
-use tokio::{task::JoinHandle, time::sleep};
+use tokio::{
+    task::JoinHandle,
+    time::{sleep, timeout},
+};
 use tracing::{debug, error, info};
 
 use crate::{
@@ -16,6 +19,7 @@ use crate::{
     block_header::BlockHeaderAPI as _,
     context::Context,
     dag_state::DagState,
+    encoder::create_encoder,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
 };
@@ -40,6 +44,10 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         authority_service: Arc<S>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Self {
+        // Drop label combos left over from previous epochs whose hostnames
+        // are no longer in the current committee — otherwise IntGaugeVec
+        // keeps re-emitting the last value (typically 1) forever.
+        context.metrics.node_metrics.subscribed_to.reset();
         let subscriptions = (0..context.committee.size())
             .map(|_| None)
             .collect::<Vec<_>>();
@@ -83,6 +91,14 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         }
     }
 
+    /// Unsubscribe from a specific peer. Used for testing scenarios where
+    /// we need to simulate network partitions without stopping the validator.
+    #[cfg(test)]
+    pub(crate) fn unsubscribe(&self, peer: AuthorityIndex) {
+        let mut subscriptions = self.subscriptions.lock();
+        self.unsubscribe_locked(peer, &mut subscriptions[peer.value()]);
+    }
+
     fn unsubscribe_locked(&self, peer: AuthorityIndex, subscription: &mut Option<JoinHandle<()>>) {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         if let Some(subscription) = subscription.take() {
@@ -114,6 +130,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let peer_hostname = &context.committee.authority(peer).hostname;
         let mut retries: i64 = 0;
         let mut delay = INITIAL_RETRY_INTERVAL;
+
+        let mut encoder = create_encoder(&context);
+
         'subscription: loop {
             context
                 .metrics
@@ -143,35 +162,49 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             }
             retries += 1;
 
-            // TODO: https://github.com/iotaledger/iota/issues/8380
-            // Port PR 7292 from consensus crate to starfish
-            let mut block_bundles = match network_client
-                .subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL)
-                .await
-            {
-                Ok(blocks) => {
+            // Wrap subscribe_block_bundles in a timeout and increment metric on timeout
+            let subscribe_future =
+                network_client.subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL);
+            let subscribe_result = timeout(MAX_RETRY_INTERVAL * 5, subscribe_future).await;
+            let mut block_bundles = match subscribe_result {
+                Ok(inner_result) => match inner_result {
+                    Ok(blocks) => {
+                        debug!(
+                            "Subscribed to peer {} {} after {} attempts",
+                            peer, peer_hostname, retries
+                        );
+                        context
+                            .metrics
+                            .node_metrics
+                            .subscriber_connection_attempts
+                            .with_label_values(&[peer_hostname.as_str(), "success"])
+                            .inc();
+                        blocks
+                    }
+                    Err(e) => {
+                        debug!(
+                            "Failed to subscribe to blocks from peer {} {}: {}",
+                            peer, peer_hostname, e
+                        );
+                        context
+                            .metrics
+                            .node_metrics
+                            .subscriber_connection_attempts
+                            .with_label_values(&[peer_hostname.as_str(), "failure"])
+                            .inc();
+                        continue 'subscription;
+                    }
+                },
+                Err(_) => {
                     debug!(
-                        "Subscribed to peer {} {} after {} attempts",
-                        peer, peer_hostname, retries
+                        "Timeout subscribing to blocks from peer {} {}",
+                        peer, peer_hostname
                     );
                     context
                         .metrics
                         .node_metrics
                         .subscriber_connection_attempts
-                        .with_label_values(&[peer_hostname.as_str(), "success"])
-                        .inc();
-                    blocks
-                }
-                Err(e) => {
-                    debug!(
-                        "Failed to subscribe to blocks from peer {} {}: {}",
-                        peer, peer_hostname, e
-                    );
-                    context
-                        .metrics
-                        .node_metrics
-                        .subscriber_connection_attempts
-                        .with_label_values(&[peer_hostname.as_str(), "failure"])
+                        .with_label_values(&[peer_hostname.as_str(), "timeout"])
                         .inc();
                     continue 'subscription;
                 }
@@ -191,11 +224,11 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                         context
                             .metrics
                             .node_metrics
-                            .subscribed_blocks
+                            .subscribed_block_bundles
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block.clone())
+                            .handle_subscribed_block_bundle(peer, block.clone(), &mut encoder)
                             .await;
                         if let Err(e) = result {
                             match e {
@@ -243,6 +276,7 @@ mod test {
         error::ConsensusResult,
         network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
     };
 
     struct SubscriberTestClient {}
@@ -275,7 +309,7 @@ mod test {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            _block_refs: Vec<GenericTransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -306,6 +340,15 @@ mod test {
             _authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
             unimplemented!("Unimplemented")
         }
     }

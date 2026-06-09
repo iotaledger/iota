@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use move_bytecode_utils::layout::{SerdeLayoutBuilder, SerdeLayoutConfig};
 use move_core_types::{
     identifier::Identifier,

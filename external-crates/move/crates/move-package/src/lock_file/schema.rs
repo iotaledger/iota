@@ -257,7 +257,7 @@ pub fn update_dependency_graph(
     use toml_edit::value;
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::Document>()?;
+    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
     let move_table = toml
         .entry("move")
         .or_insert(Item::Table(toml_edit::Table::new()))
@@ -306,7 +306,7 @@ pub fn update_compiler_toolchain(
 ) -> Result<()> {
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::Document>()?;
+    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
     let move_table = toml["move"].as_table_mut().ok_or(std::fmt::Error)?;
     let toolchain_version = toml::Value::try_from(ToolchainVersion {
         compiler_version,
@@ -364,10 +364,10 @@ pub enum ManagedAddressUpdate {
 /// raw utility for preparing package publishing and package upgrades.
 /// Invariant: callers maintain a valid hex `id`.
 pub fn set_original_id(file: &mut LockFile, environment: &str, id: &str) -> Result<()> {
-    use toml_edit::{Document, value};
+    use toml_edit::{DocumentMut, value};
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<Document>()?;
+    let mut toml = toml_string.parse::<DocumentMut>()?;
     let env_table = toml
         .get_mut(ENV_TABLE_NAME)
         .and_then(|item| item.as_table_mut())
@@ -391,11 +391,11 @@ pub fn update_managed_address(
     environment: &str,
     managed_address_update: ManagedAddressUpdate,
 ) -> Result<()> {
-    use toml_edit::{Document, Table, value};
+    use toml_edit::{DocumentMut, Table, value};
 
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<Document>()?;
+    let mut toml = toml_string.parse::<DocumentMut>()?;
 
     let env_table = toml
         .entry(ENV_TABLE_NAME)

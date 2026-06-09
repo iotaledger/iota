@@ -3,16 +3,16 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Result};
-
-use move_compiler::editions::{Edition, Flavor};
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::symbol::Symbol;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     path::{Component, Path, PathBuf},
 };
+
+use anyhow::{Result, bail};
+use move_compiler::editions::{Edition, Flavor};
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::symbol::Symbol;
+use serde::{Deserialize, Serialize};
 
 pub type NamedAddress = Symbol;
 pub type PackageName = Symbol;

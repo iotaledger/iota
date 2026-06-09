@@ -7,7 +7,7 @@
 
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 use proptest::{
-    collection::{btree_set, vec, SizeRange},
+    collection::{SizeRange, btree_set, vec},
     prelude::*,
     sample::Index as PropIndex,
 };

@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::sandbox::utils::{is_bytecode_file, on_disk_state_view::OnDiskStateView};
 /// Print a module or resource stored in `file`

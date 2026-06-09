@@ -3,13 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_types::{
-    TypeTag,
-    coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
-    gas_coin::GAS,
-};
+use iota_sdk_types::{StructTag, TypeTag};
+use iota_types::coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     context_data::db_data_provider::PgManager,
     data::Db,
@@ -28,7 +26,6 @@ use crate::{
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
-        system_state_summary::SystemStateSummaryView,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::ExactTypeFilter,
         uint53::UInt53,
@@ -157,14 +154,13 @@ impl CoinMetadata {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -222,6 +218,9 @@ impl CoinMetadata {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -340,8 +339,8 @@ impl CoinMetadata {
 
     /// The overall quantity of tokens that will be issued.
     async fn supply(&self, ctx: &Context<'_>) -> Result<Option<BigInt>> {
-        let mut type_params = self.super_.native.type_().type_params();
-        let Some(coin_type) = type_params.pop() else {
+        let type_params = self.super_.native.struct_tag().type_params();
+        let Some(coin_type) = type_params.last().cloned() else {
             return Ok(None);
         };
 
@@ -371,7 +370,7 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        let metadata_type = NativeCoinMetadata::type_(*coin_struct);
+        let metadata_type = StructTag::new_coin_metadata(*coin_struct);
         let Some(object) = Object::query_singleton(db, metadata_type, checkpoint_viewed_at).await?
         else {
             return Ok(None);
@@ -405,14 +404,14 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
+        Ok(Some(if coin_struct.is_gas() {
             let pg_manager = ctx.data_unchecked::<PgManager>();
 
             let state = pg_manager.fetch_iota_system_state(None).await?;
 
             state.iota_total_supply()
         } else {
-            let cap_type = TreasuryCap::type_(*coin_struct);
+            let cap_type = StructTag::new_treasury_cap(*coin_struct);
 
             let db = ctx.data_unchecked();
 
@@ -441,7 +440,7 @@ impl TryFrom<&MoveObject> for CoinMetadata {
     type Error = CoinMetadataDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.type_().is_coin_metadata() {
+        if !move_object.native.struct_tag().is_coin_metadata() {
             return Err(CoinMetadataDowncastError::NotCoinMetadata);
         }
 

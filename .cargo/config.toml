@@ -1,9 +1,11 @@
 [alias]
 ci-fmt = "fmt --check"
 ci-clippy = "clippy --all-targets --all-features -- -D warnings"
-ci-license = "license-template --template .license_template"
+ci-license = "license-template --template .license_template --ignore .license_ignore"
 ci-udeps = "udeps --all-targets --backend=depinfo"
 ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"
+ci-deny-bans = "deny --manifest-path ./Cargo.toml check bans licenses sources --hide-inclusion-graph"
+ci-deny-advisories = "deny --manifest-path ./Cargo.toml check advisories --hide-inclusion-graph"
 
 [build]
 rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
@@ -13,5 +15,5 @@ rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
 rustflags = ["-C", "link-arg=/STACK:8000000"]
 
 [target.x86_64-pc-windows-msvc.pq]
-rustc-link-search = ["C:\\Program Files\\PostgreSQL\\16\\lib"]
+rustc-link-search = ["C:\\Program Files\\PostgreSQL\\15\\lib"]
 rustc-link-lib = ["libpq"]

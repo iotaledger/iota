@@ -2,44 +2,71 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet};
+//! Move package.
+//!
+//! This module contains the [MovePackage] and types necessary for describing
+//! its update behavior and linkage information for module resolution during
+//! execution.
+//!
+//! Upgradeable packages form a version chain. This is simply the conceptual
+//! chain of package versions, with their monotonically increasing version
+//! numbers. Package { version: 1 } => Package { version: 2 } => ...
+//!
+//! The code contains terminology that may be confusing for the uninitiated,
+//! like `Module ID`, `Package ID`, `Storage ID` and `Runtime ID`. For avoidance
+//! of doubt these concepts are defined like so:
+//! - `Package ID` is the [ObjectId] representing the address by which the given
+//!   package may be found in storage.
+//! - `Runtime ID` will always mean the `Package ID`/`Storage ID` of the
+//!   initially published package. For a non upgradeable package this will
+//!   always be equal to `Storage ID`. For an upgradeable package, it will be
+//!   the `Storage ID` of the package's first deployed version.
+//! - `Storage ID` is the `Package ID`, and it is mostly used in to highlight
+//!   that we are talking about the current `Package ID` and not the `Runtime
+//!   ID`
+//! - `Module ID` is the the type
+//!   [ModuleID](move_core_types::language_storage::ModuleId).
+//!
+//! Some of these are redundant and have overlapping meaning, so whenever
+//! reasonable/necessary the possible naming will be listed. From all of these
+//! `Runtime ID` and `Module ID` are the most confusing. `Module ID` may be used
+//! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
+//! ID` is mostly used in name resolution during runtime, when a package with
+//! its modules has been loaded.
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    hash::Hash,
+};
 
 use derive_more::Display;
-use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Identifier, ObjectId, PackageUpgradeError, StructTag, TypeTag, Version,
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+};
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag},
-};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, SequenceNumber},
-    crypto::DefaultHash,
+    IotaAddress,
+    base_types::SequenceNumber,
+    collection_types::{Entry, VecMap},
+    derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    execution_status::PackageUpgradeError,
     id::{ID, UID},
-    object::OBJECT_START_VERSION,
+    iota_serde::TypeName,
 };
 
-// TODO: robust MovePackage tests
-// #[cfg(test)]
-// #[path = "unit_tests/move_package.rs"]
-// mod base_types_tests;
-
-pub const PACKAGE_MODULE_NAME: &IdentStr = ident_str!("package");
-pub const UPGRADECAP_STRUCT_NAME: &IdentStr = ident_str!("UpgradeCap");
-pub const UPGRADETICKET_STRUCT_NAME: &IdentStr = ident_str!("UpgradeTicket");
-pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
+pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
+pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadataV1");
+pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadataKey");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -47,69 +74,21 @@ pub struct FnInfo {
     /// If true, it's a function involved in testing (`[test]`, `[test_only]`,
     /// `[expected_failure]`)
     pub is_test: bool,
+    /// If set, function was marked to represent authenticator function of
+    /// given version.
+    pub authenticator_version: Option<u8>,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 /// Uniquely identifies a function in a module
 pub struct FnInfoKey {
     pub fn_name: String,
-    pub mod_addr: AccountAddress,
+    pub mod_name: String,
+    pub mod_addr: IotaAddress,
 }
 
 /// A map from function info keys to function info
 pub type FnInfoMap = BTreeMap<FnInfoKey, FnInfo>;
-
-/// Identifies a struct and the module it was defined in
-#[derive(
-    Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, Hash, JsonSchema,
-)]
-pub struct TypeOrigin {
-    pub module_name: String,
-    // `struct_name` alias to support backwards compatibility with the old name
-    #[serde(alias = "struct_name")]
-    pub datatype_name: String,
-    pub package: ObjectID,
-}
-
-/// Upgraded package info for the linkage table
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash, JsonSchema)]
-pub struct UpgradeInfo {
-    /// ID of the upgraded packages
-    pub upgraded_id: ObjectID,
-    /// Version of the upgraded package
-    pub upgraded_version: SequenceNumber,
-}
-
-// serde_bytes::ByteBuf is an analog of Vec<u8> with built-in fast
-// serialization.
-#[serde_as]
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-pub struct MovePackage {
-    pub(crate) id: ObjectID,
-    /// Most move packages are uniquely identified by their ID (i.e. there is
-    /// only one version per ID), but the version is still stored because
-    /// one package may be an upgrade of another (at a different ID), in
-    /// which case its version will be one greater than the version of the
-    /// upgraded package.
-    ///
-    /// Framework packages are an exception to this rule -- all versions of the
-    /// framework packages exist at the same ID, at increasing versions.
-    ///
-    /// In all cases, packages are referred to by move calls using just their
-    /// ID, and they are always loaded at their latest version.
-    pub(crate) version: SequenceNumber,
-    // TODO use session cache
-    #[serde_as(as = "BTreeMap<_, Bytes>")]
-    pub(crate) module_map: BTreeMap<String, Vec<u8>>,
-
-    /// Maps struct/module to a package version where it was first defined,
-    /// stored as a vector for simple serialization and deserialization.
-    pub(crate) type_origin_table: Vec<TypeOrigin>,
-
-    // For each dependency, maps original package ID to the info about the (upgraded) dependency
-    // version that this package is using
-    pub(crate) linkage_table: BTreeMap<ObjectID, UpgradeInfo>,
-}
 
 // NB: do _not_ add `Serialize` or `Deserialize` to this enum. Convert to u8
 // first  or use the associated constants before storing in any serialization
@@ -174,89 +153,82 @@ pub struct UpgradeReceipt {
     pub package: ID,
 }
 
-impl MovePackage {
-    /// Create a package with all required data (including serialized modules,
-    /// type origin and linkage tables) already supplied.
-    pub fn new(
-        id: ObjectID,
-        version: SequenceNumber,
-        module_map: BTreeMap<String, Vec<u8>>,
-        max_move_package_size: u64,
-        type_origin_table: Vec<TypeOrigin>,
-        linkage_table: BTreeMap<ObjectID, UpgradeInfo>,
-    ) -> Result<Self, ExecutionError> {
-        let pkg = Self {
-            id,
-            version,
-            module_map,
-            type_origin_table,
-            linkage_table,
-        };
-        let object_size = pkg.size() as u64;
-        if object_size > max_move_package_size {
-            return Err(ExecutionErrorKind::MovePackageTooBig {
-                object_size,
-                max_object_size: max_move_package_size,
-            }
-            .into());
-        }
-        Ok(pkg)
-    }
+mod move_package_ext {
+    pub trait Sealed {}
+    impl Sealed for super::MovePackage {}
+}
 
-    pub fn digest(&self) -> [u8; 32] {
-        Self::compute_digest_for_modules_and_deps(
-            self.module_map.values(),
-            self.linkage_table
-                .values()
-                .map(|UpgradeInfo { upgraded_id, .. }| upgraded_id),
-        )
-    }
-
-    /// It is important that this function is shared across both the calculation
-    /// of the digest for the package, and the calculation of the digest
-    /// on-chain.
-    pub fn compute_digest_for_modules_and_deps<'a>(
-        modules: impl IntoIterator<Item = &'a Vec<u8>>,
-        object_ids: impl IntoIterator<Item = &'a ObjectID>,
-    ) -> [u8; 32] {
-        let mut components = object_ids
-            .into_iter()
-            .map(|o| ***o)
-            .chain(
-                modules
-                    .into_iter()
-                    .map(|module| DefaultHash::digest(module).digest),
-            )
-            .collect::<Vec<_>>();
-
-        // NB: sorting so the order of the modules and the order of the dependencies
-        // does not matter.
-        components.sort();
-
-        let mut digest = DefaultHash::default();
-        for c in components {
-            digest.update(c);
-        }
-        digest.finalize().digest
-    }
-
-    /// Create an initial version of the package along with this version's type
-    /// origin and linkage tables.
-    pub fn new_initial<'p>(
+pub trait MovePackageExt: Sized + move_package_ext::Sealed {
+    fn new_initial<'p>(
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,
         transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
-    ) -> Result<Self, ExecutionError> {
+    ) -> Result<MovePackage, ExecutionError>;
+
+    fn new_upgraded<'p>(
+        &self,
+        storage_id: ObjectId,
+        modules: &[CompiledModule],
+        protocol_config: &ProtocolConfig,
+        transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
+    ) -> Result<MovePackage, ExecutionError>;
+
+    fn new_system(
+        version: SequenceNumber,
+        modules: &[CompiledModule],
+        dependencies: impl IntoIterator<Item = ObjectId>,
+    ) -> MovePackage;
+
+    fn from_module_iter_with_type_origin_table<'p>(
+        storage_id: ObjectId,
+        self_id: ObjectId,
+        version: SequenceNumber,
+        modules: &[CompiledModule],
+        protocol_config: &ProtocolConfig,
+        type_origin_table: Vec<TypeOrigin>,
+        transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
+    ) -> Result<MovePackage, ExecutionError>;
+
+    fn original_package_id(&self) -> ObjectId;
+
+    fn deserialize_module(
+        &self,
+        module: &Identifier,
+        binary_config: &BinaryConfig,
+    ) -> IotaResult<CompiledModule>;
+
+    fn normalize<S: Hash + Eq + Clone + ToString, Pool: normalized::StringPool<String = S>>(
+        &self,
+        pool: &mut Pool,
+        binary_config: &BinaryConfig,
+        include_code: bool,
+    ) -> IotaResult<BTreeMap<String, normalized::Module<S>>>;
+}
+
+impl MovePackageExt for MovePackage {
+    /// Create an initial version of the package along with this version's type
+    /// origin and linkage tables.
+    ///
+    /// # Undefined behavior
+    ///
+    /// All passed modules must have the same `Runtime ID` or the behavior is
+    /// undefined.
+    fn new_initial<'p>(
+        modules: &[CompiledModule],
+        protocol_config: &ProtocolConfig,
+        transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
+    ) -> Result<MovePackage, ExecutionError> {
         let module = modules
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
-        let runtime_id = ObjectID::from(*module.address());
+        let runtime_id = ObjectId::new(module.address().into_bytes());
         let storage_id = runtime_id;
         let type_origin_table = build_initial_type_origin_table(modules);
-        Self::from_module_iter_with_type_origin_table(
+
+        MovePackage::from_module_iter_with_type_origin_table(
             storage_id,
             runtime_id,
-            OBJECT_START_VERSION,
+            Version::OBJECT_START,
             modules,
             protocol_config,
             type_origin_table,
@@ -266,21 +238,27 @@ impl MovePackage {
 
     /// Create an upgraded version of the package along with this version's type
     /// origin and linkage tables.
-    pub fn new_upgraded<'p>(
+    ///
+    /// # Undefined behavior
+    ///
+    /// All passed modules must have the same `Runtime ID` or the behavior is
+    /// undefined.
+    fn new_upgraded<'p>(
         &self,
-        storage_id: ObjectID,
+        storage_id: ObjectId,
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,
         transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
-    ) -> Result<Self, ExecutionError> {
+    ) -> Result<MovePackage, ExecutionError> {
         let module = modules
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
-        let runtime_id = ObjectID::from(*module.address());
+        let runtime_id = ObjectId::new(module.address().into_bytes());
         let type_origin_table = build_upgraded_type_origin_table(self, modules, storage_id)?;
         let mut new_version = self.version();
-        new_version.increment();
-        Self::from_module_iter_with_type_origin_table(
+        new_version.increment().unwrap();
+
+        MovePackage::from_module_iter_with_type_origin_table(
             storage_id,
             runtime_id,
             new_version,
@@ -291,16 +269,16 @@ impl MovePackage {
         )
     }
 
-    pub fn new_system(
+    fn new_system(
         version: SequenceNumber,
         modules: &[CompiledModule],
-        dependencies: impl IntoIterator<Item = ObjectID>,
-    ) -> Self {
+        dependencies: impl IntoIterator<Item = ObjectId>,
+    ) -> MovePackage {
         let module = modules
             .first()
             .expect("Tried to build a Move package from an empty iterator of Compiled modules");
 
-        let storage_id = ObjectID::from(*module.address());
+        let storage_id = ObjectId::new(module.address().into_bytes());
         let type_origin_table = build_initial_type_origin_table(modules);
 
         let linkage_table = BTreeMap::from_iter(dependencies.into_iter().map(|dep| {
@@ -317,13 +295,13 @@ impl MovePackage {
                 //
                 // This reason, coupled with the fact that system packages can only depend on each
                 // other, mean that their own linkage tables always report a version of zero.
-                upgraded_version: SequenceNumber::new(),
+                upgraded_version: SequenceNumber::default(),
             };
             (dep, info)
         }));
 
         let module_map = BTreeMap::from_iter(modules.iter().map(|module| {
-            let name = module.name().to_string();
+            let name = Identifier::new_unchecked(module.name().as_str());
             let mut bytes = Vec::new();
             module
                 .serialize_with_version(module.version, &mut bytes)
@@ -331,7 +309,7 @@ impl MovePackage {
             (name, bytes)
         }));
 
-        Self::new(
+        MovePackage::new(
             storage_id,
             version,
             module_map,
@@ -343,25 +321,25 @@ impl MovePackage {
     }
 
     fn from_module_iter_with_type_origin_table<'p>(
-        storage_id: ObjectID,
-        self_id: ObjectID,
+        storage_id: ObjectId,
+        self_id: ObjectId,
         version: SequenceNumber,
         modules: &[CompiledModule],
         protocol_config: &ProtocolConfig,
         type_origin_table: Vec<TypeOrigin>,
         transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
-    ) -> Result<Self, ExecutionError> {
+    ) -> Result<MovePackage, ExecutionError> {
         let mut module_map = BTreeMap::new();
         let mut immediate_dependencies = BTreeSet::new();
 
         for module in modules {
-            let name = module.name().to_string();
+            let name = Identifier::new_unchecked(module.name().as_str());
 
             immediate_dependencies.extend(
                 module
                     .immediate_dependencies()
                     .into_iter()
-                    .map(|dep| ObjectID::from(*dep.address())),
+                    .map(|dep| ObjectId::new(dep.address().into_bytes())),
             );
 
             let mut bytes = Vec::new();
@@ -380,131 +358,52 @@ impl MovePackage {
             transitive_dependencies,
             protocol_config,
         )?;
-        Self::new(
+
+        Ok(MovePackage::new(
             storage_id,
             version,
             module_map,
             protocol_config.max_move_package_size(),
             type_origin_table,
             linkage_table,
-        )
+        )?)
     }
 
-    // Retrieve the module with `ModuleId` in the given package.
-    // The module must be the `storage_id` or the call will return `None`.
-    // Check if the address of the module is the same of the package
-    // and return `None` if that is not the case.
-    // All modules in a package share the address with the package.
-    pub fn get_module(&self, storage_id: &ModuleId) -> Option<&Vec<u8>> {
-        if self.id != ObjectID::from(*storage_id.address()) {
-            None
-        } else {
-            self.module_map.get(&storage_id.name().to_string())
-        }
-    }
-
-    /// Return the size of the package in bytes
-    pub fn size(&self) -> usize {
-        let module_map_size = self
-            .module_map
-            .iter()
-            .map(|(name, module)| name.len() + module.len())
-            .sum::<usize>();
-        let type_origin_table_size = self
-            .type_origin_table
-            .iter()
-            .map(
-                |TypeOrigin {
-                     module_name,
-                     datatype_name: struct_name,
-                     ..
-                 }| module_name.len() + struct_name.len() + ObjectID::LENGTH,
-            )
-            .sum::<usize>();
-
-        let linkage_table_size = self.linkage_table.len()
-            * (ObjectID::LENGTH
-                + (
-                    ObjectID::LENGTH + 8
-                    // SequenceNumber
-                ));
-
-        8 /* SequenceNumber */ + module_map_size + type_origin_table_size + linkage_table_size
-    }
-
-    pub fn id(&self) -> ObjectID {
-        self.id
-    }
-
-    pub fn version(&self) -> SequenceNumber {
-        self.version
-    }
-
-    pub fn decrement_version(&mut self) {
-        self.version.decrement();
-    }
-
-    pub fn increment_version(&mut self) {
-        self.version.increment();
-    }
-
-    /// Approximate size of the package in bytes. This is used for gas metering.
-    pub fn object_size_for_gas_metering(&self) -> usize {
-        self.size()
-    }
-
-    pub fn serialized_module_map(&self) -> &BTreeMap<String, Vec<u8>> {
-        &self.module_map
-    }
-
-    pub fn type_origin_table(&self) -> &Vec<TypeOrigin> {
-        &self.type_origin_table
-    }
-
-    pub fn type_origin_map(&self) -> BTreeMap<(String, String), ObjectID> {
-        self.type_origin_table
-            .iter()
-            .map(
-                |TypeOrigin {
-                     module_name,
-                     datatype_name: struct_name,
-                     package,
-                 }| { ((module_name.clone(), struct_name.clone()), *package) },
-            )
-            .collect()
-    }
-
-    pub fn linkage_table(&self) -> &BTreeMap<ObjectID, UpgradeInfo> {
-        &self.linkage_table
-    }
-
-    /// The ObjectID that this package's modules believe they are from, at
-    /// runtime (can differ from `MovePackage::id()` in the case of package
-    /// upgrades).
-    pub fn original_package_id(&self) -> ObjectID {
-        if self.version == OBJECT_START_VERSION {
+    /// The `Package ID` of the first version of this package.
+    ///
+    /// Also referred to as `Runtime ID`.
+    ///
+    /// Regardless of which version of the package we are working with, this
+    /// function will always return the `Package ID`/`Storage ID` of the first
+    /// package version in the version chain.
+    fn original_package_id(&self) -> ObjectId {
+        if self.version == SequenceNumber::OBJECT_START {
             // for a non-upgraded package, original ID is just the package ID
             return self.id;
         }
 
-        let bytes = self.module_map.values().next().expect("Empty module map");
+        let bytes = self.modules.values().next().expect("Empty module map");
+        // Remember, that all modules will contain the `Package ID` of the first
+        // deployed package. This is why taking any of them will produce the
+        // original package id.
         let module = CompiledModule::deserialize_with_defaults(bytes)
             .expect("A Move package contains a module that cannot be deserialized");
-        (*module.address()).into()
+        ObjectId::new(module.address().into_bytes())
     }
 
-    pub fn deserialize_module(
+    fn deserialize_module(
         &self,
         module: &Identifier,
         binary_config: &BinaryConfig,
     ) -> IotaResult<CompiledModule> {
         // TODO use the session's cache
-        let bytes = self
-            .serialized_module_map()
-            .get(module.as_str())
-            .ok_or_else(|| IotaError::ModuleNotFound {
-                module_name: module.to_string(),
-            })?;
+        let bytes =
+            self.serialized_module_map()
+                .get(module)
+                .ok_or_else(|| IotaError::ModuleNotFound {
+                    module_name: module.to_string(),
+                })?;
+
         CompiledModule::deserialize_with_config(bytes, binary_config).map_err(|error| {
             IotaError::ModuleDeserializationFailure {
                 error: error.to_string(),
@@ -512,27 +411,22 @@ impl MovePackage {
         })
     }
 
-    pub fn normalize(
+    /// If `include_code` is set to `false`, the normalized module will skip
+    /// function bodies but still include the signatures.
+    fn normalize<S: Hash + Eq + Clone + ToString, Pool: normalized::StringPool<String = S>>(
         &self,
+        pool: &mut Pool,
         binary_config: &BinaryConfig,
-    ) -> IotaResult<BTreeMap<String, normalized::Module>> {
-        normalize_modules(self.module_map.values(), binary_config)
+        include_code: bool,
+    ) -> IotaResult<BTreeMap<String, normalized::Module<S>>> {
+        normalize_modules(pool, self.modules.values(), binary_config, include_code)
     }
 }
 
 impl UpgradeCap {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADECAP_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-
     /// Create an `UpgradeCap` for the newly published package at `package_id`,
     /// and associate it with the fresh `uid`.
-    pub fn new(uid: ObjectID, package_id: ObjectID) -> Self {
+    pub fn new(uid: ObjectId, package_id: ObjectId) -> Self {
         UpgradeCap {
             id: UID::new(uid),
             package: ID::new(package_id),
@@ -542,30 +436,10 @@ impl UpgradeCap {
     }
 }
 
-impl UpgradeTicket {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADETICKET_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 impl UpgradeReceipt {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_MODULE_NAME.to_owned(),
-            name: UPGRADERECEIPT_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-
     /// Create an `UpgradeReceipt` for the upgraded package at `package_id`
     /// using the `UpgradeTicket` and newly published package id.
-    pub fn new(upgrade_ticket: UpgradeTicket, upgraded_package_id: ObjectID) -> Self {
+    pub fn new(upgrade_ticket: UpgradeTicket, upgraded_package_id: ObjectId) -> Self {
         UpgradeReceipt {
             cap: upgrade_ticket.cap,
             package: ID::new(upgraded_package_id),
@@ -574,21 +448,64 @@ impl UpgradeReceipt {
 }
 
 /// Checks if a function is annotated with one of the test-related annotations
-pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
-    let fn_name = name.to_string();
+pub fn is_test_fun(name: &str, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
     let mod_handle = module.self_handle();
-    let mod_addr = *module.address_identifier_at(mod_handle.address);
-    let fn_info_key = FnInfoKey { fn_name, mod_addr };
+    let mod_addr = IotaAddress::new(
+        module
+            .address_identifier_at(mod_handle.address)
+            .into_bytes(),
+    );
+    let mod_name = module.name().to_string();
+    let fn_info_key = FnInfoKey {
+        fn_name: name.to_string(),
+        mod_name,
+        mod_addr,
+    };
     match fn_info_map.get(&fn_info_key) {
         Some(fn_info) => fn_info.is_test,
         None => false,
     }
 }
 
-pub fn normalize_modules<'a, I>(
+pub fn get_authenticator_version_from_fun(
+    name: &str,
+    module: &CompiledModule,
+    fn_info_map: &FnInfoMap,
+) -> Option<u8> {
+    let mod_handle = module.self_handle();
+    let mod_addr = IotaAddress::from(
+        module
+            .address_identifier_at(mod_handle.address)
+            .into_bytes(),
+    );
+    let mod_name = module.name().to_string();
+    let fn_info_key = FnInfoKey {
+        fn_name: name.to_string(),
+        mod_name,
+        mod_addr,
+    };
+    match fn_info_map.get(&fn_info_key) {
+        Some(FnInfo {
+            is_test: _,
+            authenticator_version: Some(v),
+        }) => Some(*v),
+        _ => None,
+    }
+}
+
+/// If `include_code` is set to `false`, the normalized module will skip
+/// function bodies but still include the signatures.
+pub fn normalize_modules<
+    'a,
+    S: Hash + Eq + Clone + ToString,
+    Pool: normalized::StringPool<String = S>,
+    I,
+>(
+    pool: &mut Pool,
     modules: I,
     binary_config: &BinaryConfig,
-) -> IotaResult<BTreeMap<String, normalized::Module>>
+    include_code: bool,
+) -> IotaResult<BTreeMap<String, normalized::Module<S>>>
 where
     I: Iterator<Item = &'a Vec<u8>>,
 {
@@ -600,29 +517,40 @@ where
                     error: error.to_string(),
                 }
             })?;
-        let normalized_module = normalized::Module::new(&module);
-        normalized_modules.insert(normalized_module.name.to_string(), normalized_module);
+        let normalized_module = normalized::Module::new(pool, &module, include_code);
+        normalized_modules.insert(normalized_module.name().to_string(), normalized_module);
     }
     Ok(normalized_modules)
 }
 
-pub fn normalize_deserialized_modules<'a, I>(modules: I) -> BTreeMap<String, normalized::Module>
+/// If `include_code` is set to `false`, the normalized module will skip
+/// function bodies but still include the signatures.
+pub fn normalize_deserialized_modules<
+    'a,
+    S: Hash + Eq + Clone + ToString,
+    Pool: normalized::StringPool<String = S>,
+    I,
+>(
+    pool: &mut Pool,
+    modules: I,
+    include_code: bool,
+) -> BTreeMap<String, normalized::Module<S>>
 where
     I: Iterator<Item = &'a CompiledModule>,
 {
     let mut normalized_modules = BTreeMap::new();
     for module in modules {
-        let normalized_module = normalized::Module::new(module);
-        normalized_modules.insert(normalized_module.name.to_string(), normalized_module);
+        let normalized_module = normalized::Module::new(pool, module, include_code);
+        normalized_modules.insert(normalized_module.name().to_string(), normalized_module);
     }
     normalized_modules
 }
 
 fn build_linkage_table<'p>(
-    mut immediate_dependencies: BTreeSet<ObjectID>,
+    mut immediate_dependencies: BTreeSet<ObjectId>,
     transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
     protocol_config: &ProtocolConfig,
-) -> Result<BTreeMap<ObjectID, UpgradeInfo>, ExecutionError> {
+) -> Result<BTreeMap<ObjectId, UpgradeInfo>, ExecutionError> {
     let mut linkage_table = BTreeMap::new();
     let mut dep_linkage_tables = vec![];
 
@@ -630,7 +558,7 @@ fn build_linkage_table<'p>(
         // original_package_id will deserialize a module but only for the purpose of
         // obtaining "original ID" of the package containing it so using max
         // Move binary version during deserialization is OK
-        let original_id = transitive_dep.original_package_id();
+        let original_id = MovePackage::original_package_id(transitive_dep);
 
         let imm_dep = immediate_dependencies.remove(&original_id);
 
@@ -694,10 +622,10 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
                     let struct_handle = m.datatype_handle_at(struct_def.struct_handle);
                     let module_name = m.name().to_string();
                     let struct_name = m.identifier_at(struct_handle.name).to_string();
-                    let package: ObjectID = (*m.self_id().address()).into();
+                    let package = ObjectId::new(m.self_id().address().into_bytes());
                     TypeOrigin {
-                        module_name,
-                        datatype_name: struct_name,
+                        module_name: Identifier::new_unchecked(module_name),
+                        datatype_name: Identifier::new_unchecked(struct_name),
                         package,
                     }
                 })
@@ -705,10 +633,10 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
                     let enum_handle = m.datatype_handle_at(enum_def.enum_handle);
                     let module_name = m.name().to_string();
                     let enum_name = m.identifier_at(enum_handle.name).to_string();
-                    let package: ObjectID = (*m.self_id().address()).into();
+                    let package = ObjectId::new(m.self_id().address().into_bytes());
                     TypeOrigin {
-                        module_name,
-                        datatype_name: enum_name,
+                        module_name: Identifier::new_unchecked(module_name),
+                        datatype_name: Identifier::new_unchecked(enum_name),
                         package,
                     }
                 }))
@@ -719,15 +647,16 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
 fn build_upgraded_type_origin_table(
     predecessor: &MovePackage,
     modules: &[CompiledModule],
-    storage_id: ObjectID,
+    storage_id: ObjectId,
 ) -> Result<Vec<TypeOrigin>, ExecutionError> {
     let mut new_table = vec![];
     let mut existing_table = predecessor.type_origin_map();
     for m in modules {
         for struct_def in m.struct_defs() {
             let struct_handle = m.datatype_handle_at(struct_def.struct_handle);
-            let module_name = m.name().to_string();
-            let struct_name = m.identifier_at(struct_handle.name).to_string();
+            let module_name = Identifier::new_unchecked(m.name().as_str());
+            let struct_name =
+                Identifier::new_unchecked(m.identifier_at(struct_handle.name).as_str());
             let mod_key = (module_name.clone(), struct_name.clone());
             // if id exists in the predecessor's table, use it, otherwise use the id of the
             // upgraded module
@@ -741,8 +670,8 @@ fn build_upgraded_type_origin_table(
 
         for enum_def in m.enum_defs() {
             let enum_handle = m.datatype_handle_at(enum_def.enum_handle);
-            let module_name = m.name().to_string();
-            let enum_name = m.identifier_at(enum_handle.name).to_string();
+            let module_name = Identifier::new_unchecked(m.name().as_str());
+            let enum_name = Identifier::new_unchecked(m.identifier_at(enum_handle.name).as_str());
             let mod_key = (module_name.clone(), enum_name.clone());
             // if id exists in the predecessor's table, use it, otherwise use the id of the
             // upgraded module
@@ -758,10 +687,304 @@ fn build_upgraded_type_origin_table(
     if !existing_table.is_empty() {
         Err(ExecutionError::from_kind(
             ExecutionErrorKind::PackageUpgradeError {
-                upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                kind: PackageUpgradeError::IncompatibleUpgrade,
             },
         ))
     } else {
         Ok(new_table)
     }
+}
+
+/// IOTA specific metadata attached to the metadata section of file_format.
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeModuleMetadataWrapper {
+    pub version: u64,
+    #[serde_as(as = "Bytes")]
+    pub inner: Vec<u8>,
+}
+
+impl RuntimeModuleMetadataWrapper {
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataWrapper struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+impl From<RuntimeModuleMetadata> for RuntimeModuleMetadataWrapper {
+    fn from(metadata: RuntimeModuleMetadata) -> Self {
+        match metadata {
+            RuntimeModuleMetadata::V1(inner) => RuntimeModuleMetadataWrapper {
+                version: 1,
+                inner: inner.to_bcs_bytes(),
+            },
+        }
+    }
+}
+
+/// IOTA specific metadata attached to the metadata section of file_format.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RuntimeModuleMetadata {
+    V1(RuntimeModuleMetadataV1),
+}
+
+impl RuntimeModuleMetadata {
+    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
+        match self {
+            RuntimeModuleMetadata::V1(metadata) => {
+                metadata.add_function_attribute(function_name, attribute)
+            }
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            RuntimeModuleMetadata::V1(metadata) => metadata.is_empty(),
+        }
+    }
+
+    pub fn fun_attributes_iter(
+        &self,
+    ) -> Box<dyn Iterator<Item = (&String, &Vec<IotaAttribute>)> + '_> {
+        match self {
+            RuntimeModuleMetadata::V1(metadata) => Box::new(metadata.fun_attributes.iter()),
+        }
+    }
+}
+
+impl Default for RuntimeModuleMetadata {
+    fn default() -> Self {
+        RuntimeModuleMetadata::V1(RuntimeModuleMetadataV1::default())
+    }
+}
+
+impl TryFrom<RuntimeModuleMetadataWrapper> for RuntimeModuleMetadata {
+    type Error = IotaError;
+
+    fn try_from(wrapper: RuntimeModuleMetadataWrapper) -> Result<Self, Self::Error> {
+        match wrapper.version {
+            1 => {
+                let inner: RuntimeModuleMetadataV1 =
+                    bcs::from_bytes(&wrapper.inner).map_err(|e| {
+                        IotaError::RuntimeModuleMetadataDeserialization {
+                            error: e.to_string(),
+                        }
+                    })?;
+                Ok(RuntimeModuleMetadata::V1(inner))
+            }
+            _ => Err(IotaError::RuntimeModuleMetadataDeserialization {
+                error: format!(
+                    "Unsupported runtime module metadata version: {}",
+                    wrapper.version
+                ),
+            }),
+        }
+    }
+}
+
+/// The list of iota attribute types recognized by the compiler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum IotaAttribute {
+    Authenticator(AuthenticatorAttribute),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct AuthenticatorAttribute {
+    pub version: u8,
+}
+
+impl IotaAttribute {
+    pub fn authenticator_attribute(version: u8) -> Self {
+        IotaAttribute::Authenticator(AuthenticatorAttribute { version })
+    }
+}
+
+/// V1 of IOTA specific metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RuntimeModuleMetadataV1 {
+    /// Attributes attached to functions, by definition index.
+    pub fun_attributes: BTreeMap<String, Vec<IotaAttribute>>,
+}
+
+impl RuntimeModuleMetadataV1 {
+    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
+        self.fun_attributes
+            .entry(function_name)
+            .or_default()
+            .push(attribute);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fun_attributes.is_empty()
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the RuntimeModuleMetadataV1 struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+/// Enum for handling the PackageMetadata framework type. The PackageMetadata is
+/// IOTA specific metadata derived from a package and readable on-chain. This
+/// enums helps with the versioning, which is actually used as the object
+/// content, i.e., PackageMetadataV1 is the type used on-chain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PackageMetadata {
+    V1(PackageMetadataV1),
+}
+
+impl PackageMetadata {
+    /// Create a `PackageMetadata` for the newly
+    /// published/upgraded package at `package_id`
+    pub fn new_v1(
+        uid: ObjectId,
+        storage_id: ObjectId,
+        runtime_id: ObjectId,
+        package_version: u64,
+        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
+    ) -> Self {
+        PackageMetadata::V1(PackageMetadataV1::new(
+            uid,
+            storage_id,
+            runtime_id,
+            package_version,
+            modules_metadata_map,
+        ))
+    }
+
+    pub fn type_(&self) -> StructTag {
+        match self {
+            PackageMetadata::V1(_) => PackageMetadataV1::type_(),
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        match self {
+            PackageMetadata::V1(inner) => inner.to_bcs_bytes(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct PackageMetadataKey {
+    // This field is required to make a Rust struct compatible with an empty Move one.
+    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+    // allowed in the bytecode.
+    dummy_field: bool,
+}
+
+impl PackageMetadataKey {
+    pub fn tag() -> StructTag {
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_KEY_STRUCT_NAME,
+            Vec::new(),
+        )
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataKey struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+pub fn derive_package_metadata_id(package_storage_id: ObjectId) -> ObjectId {
+    derived_object::derive_object_id(
+        package_storage_id,
+        &PackageMetadataKey::tag().into(),
+        &PackageMetadataKey::default().to_bcs_bytes(),
+    )
+    .unwrap() // safe because type tag is known
+}
+
+/// V1 of IOTA specific package metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageMetadataV1 {
+    // The package metadata object UID
+    pub uid: UID,
+    /// Storage ID of the package represented by this metadata
+    /// The object id of the runtime package metadata object is derived from
+    /// this value.
+    pub storage_id: ID,
+    /// Runtime ID of the package represented by this metadata. Runtime ID is
+    /// the Storage ID of the first version of a package.
+    pub runtime_id: ID,
+    /// Version of the package represented by this metadata
+    pub package_version: u64,
+    // Handles to internal package modules
+    pub modules_metadata: VecMap<String, ModuleMetadataV1>,
+}
+
+impl PackageMetadataV1 {
+    fn new(
+        uid: ObjectId,
+        storage_id: ObjectId,
+        runtime_id: ObjectId,
+        package_version: u64,
+        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
+    ) -> Self {
+        let mut modules_metadata = VecMap { contents: vec![] };
+
+        for (module_name, module_metadata_map) in modules_metadata_map {
+            let mut module_metadata = ModuleMetadataV1 {
+                authenticator_metadata: vec![],
+            };
+            for (function_name, account_type) in module_metadata_map {
+                module_metadata
+                    .authenticator_metadata
+                    .push(AuthenticatorMetadataV1 {
+                        function_name,
+                        account_type,
+                    });
+            }
+            modules_metadata.contents.push(Entry {
+                key: module_name,
+                value: module_metadata,
+            });
+        }
+
+        Self {
+            uid: UID::new(uid),
+            storage_id: ID::new(storage_id),
+            runtime_id: ID::new(runtime_id),
+            package_version,
+            modules_metadata,
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_V1_STRUCT_NAME,
+            vec![],
+        )
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        // Safe unwrap as the PackageMetadataV1 struct is always serializable
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+/// V1 of IOTA specific module metadata. Only includes authenticator info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleMetadataV1 {
+    pub authenticator_metadata: Vec<AuthenticatorMetadataV1>,
+}
+
+impl ModuleMetadataV1 {
+    pub fn is_empty(&self) -> bool {
+        self.authenticator_metadata.is_empty()
+    }
+}
+
+/// V1 of IOTA specific authenticator info metadata.
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticatorMetadataV1 {
+    pub function_name: String,
+    #[serde_as(as = "TypeName")]
+    pub account_type: TypeTag,
 }

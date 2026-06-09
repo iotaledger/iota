@@ -3,11 +3,14 @@
 
 //! This module includes helper wrappers for building and starting a REST API
 //! server.
-
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use axum::{Router, response::IntoResponse, routing::get};
+use axum::{
+    Router,
+    response::IntoResponse,
+    routing::{get, post},
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -15,6 +18,7 @@ use crate::{
     bigtable::KvStoreClient,
     errors::ApiError,
     routes::{health, kv_store},
+    types::RestServerAppState,
 };
 
 /// A wrapper which builds the components needed for the REST API server and
@@ -33,10 +37,14 @@ impl Server {
     pub async fn new(config: RestApiConfig, token: CancellationToken) -> Result<Self> {
         let kv_store_client = KvStoreClient::new(config.kv_store_config).await?;
 
-        let shared_state = Arc::new(kv_store_client);
+        let shared_state = Arc::new(RestServerAppState {
+            kv_store_client: Arc::new(kv_store_client),
+            multiget_max_items: config.multiget_max_items,
+        });
 
         let router = Router::new()
             .route("/health", get(health::health))
+            .route("/{item_type}", post(kv_store::multi_get_data))
             .route("/{item_type}/{key}", get(kv_store::data_as_bytes))
             .with_state(shared_state)
             .fallback(fallback);

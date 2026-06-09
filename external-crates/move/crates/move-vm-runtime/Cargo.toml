@@ -6,10 +6,10 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 description = "Core Move execution logic"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# external dependencies
 better_any.workspace = true
 fail.workspace = true
 once_cell.workspace = true
@@ -17,6 +17,7 @@ parking_lot.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 
+# internal dependencies
 # referred to via path for execution versioning
 move-binary-format.workspace = true
 move-bytecode-verifier = { path = "../move-bytecode-verifier" }
@@ -28,10 +29,12 @@ move-vm-profiler.workspace = true
 move-vm-types = { path = "../move-vm-types" }
 
 [dev-dependencies]
+# external dependencies
 anyhow.workspace = true
 hex.workspace = true
 proptest.workspace = true
 
+# internal dependencies
 move-binary-format = { workspace = true, features = ["fuzzing"] }
 
 [features]

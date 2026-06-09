@@ -2,115 +2,41 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
-use iota_common::metrics::{MetricsPushClient, push_metrics};
-use iota_metrics::RegistryService;
-use iota_network::tonic::Code;
+use iota_grpc_server::metrics::{LATENCY_SEC_BUCKETS, SPAM_LABEL, grpc_code_to_str};
+use iota_network::{api::VALIDATOR_METHOD_PATHS, tonic::Code};
 use iota_network_stack::metrics::MetricsCallbackProvider;
 use prometheus::{
-    HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
+    HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
-/// Starts a task to periodically push metrics to a configured endpoint if a
-/// metrics push endpoint is configured.
-pub fn start_metrics_push_task(config: &iota_config::NodeConfig, registry: RegistryService) {
-    use fastcrypto::traits::KeyPair;
-    use iota_config::node::MetricsConfig;
-
-    const DEFAULT_METRICS_PUSH_INTERVAL: Duration = Duration::from_secs(60);
-
-    let (interval, url) = match &config.metrics {
-        Some(MetricsConfig {
-            push_interval_seconds,
-            push_url: Some(url),
-        }) => {
-            let interval = push_interval_seconds
-                .map(Duration::from_secs)
-                .unwrap_or(DEFAULT_METRICS_PUSH_INTERVAL);
-            let url = reqwest::Url::parse(url).expect("unable to parse metrics push url");
-            (interval, url)
-        }
-        _ => return,
-    };
-
-    // make a copy so we can make a new client later when we hit errors posting
-    // metrics
-    let config_copy = config.clone();
-    let mut client = MetricsPushClient::new(config_copy.network_key_pair().copy());
-
-    tokio::spawn(async move {
-        tracing::info!(push_url =% url, interval =? interval, "Started Metrics Push Service");
-
-        let mut interval = tokio::time::interval(interval);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-        let mut errors = 0;
-        loop {
-            interval.tick().await;
-
-            if let Err(error) = push_metrics(&client, &url, &registry).await {
-                errors += 1;
-                if errors >= 10 {
-                    // If we hit 10 failures in a row, start logging errors.
-                    tracing::error!("unable to push metrics: {error}; new client will be created");
-                } else {
-                    tracing::warn!("unable to push metrics: {error}; new client will be created");
-                }
-                // aggressively recreate our client connection if we hit an error
-                client = MetricsPushClient::new(config_copy.network_key_pair().copy());
-            } else {
-                errors = 0;
-            }
-        }
-    });
-}
-
 pub struct IotaNodeMetrics {
-    pub jwk_requests: IntCounterVec,
-    pub jwk_request_errors: IntCounterVec,
-
-    pub total_jwks: IntCounterVec,
-    pub invalid_jwks: IntCounterVec,
-    pub unique_jwks: IntCounterVec,
+    pub current_protocol_version: IntGauge,
+    pub binary_max_protocol_version: IntGauge,
+    pub configured_max_protocol_version: IntGauge,
 }
 
 impl IotaNodeMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
-            jwk_requests: register_int_counter_vec_with_registry!(
-                "jwk_requests",
-                "Total number of JWK requests",
-                &["provider"],
+            current_protocol_version: register_int_gauge_with_registry!(
+                "iota_current_protocol_version",
+                "Current protocol version in this epoch",
                 registry,
             )
             .unwrap(),
-            jwk_request_errors: register_int_counter_vec_with_registry!(
-                "jwk_request_errors",
-                "Total number of JWK request errors",
-                &["provider"],
+            binary_max_protocol_version: register_int_gauge_with_registry!(
+                "iota_binary_max_protocol_version",
+                "Max protocol version supported by this binary",
                 registry,
             )
             .unwrap(),
-            total_jwks: register_int_counter_vec_with_registry!(
-                "total_jwks",
-                "Total number of JWKs",
-                &["provider"],
-                registry,
-            )
-            .unwrap(),
-            invalid_jwks: register_int_counter_vec_with_registry!(
-                "invalid_jwks",
-                "Total number of invalid JWKs",
-                &["provider"],
-                registry,
-            )
-            .unwrap(),
-            unique_jwks: register_int_counter_vec_with_registry!(
-                "unique_jwks",
-                "Total number of unique JWKs",
-                &["provider"],
+            configured_max_protocol_version: register_int_gauge_with_registry!(
+                "iota_configured_max_protocol_version",
+                "Max protocol version configured in the node config",
                 registry,
             )
             .unwrap(),
@@ -120,40 +46,60 @@ impl IotaNodeMetrics {
 
 #[derive(Clone)]
 pub struct GrpcMetrics {
-    inflight_grpc: IntGaugeVec,
-    grpc_requests: IntCounterVec,
-    grpc_request_latency: HistogramVec,
+    inflight_requests: IntGaugeVec,
+    num_requests: IntCounterVec,
+    /// Counts gRPC requests that failed at the transport/middleware level
+    /// (e.g. service panic, connection drop, timeout). gRPC application
+    /// errors are NOT counted here — they are already in `num_requests`.
+    num_errors: IntCounterVec,
+    request_latency: HistogramVec,
+    /// Known gRPC method paths. Paths not in this set are labelled as `"SPAM"`
+    /// to prevent unbounded metric cardinality from arbitrary HTTP traffic.
+    known_methods: HashSet<&'static str>,
 }
-
-const LATENCY_SEC_BUCKETS: &[f64] = &[
-    0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
-];
 
 impl GrpcMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
-            inflight_grpc: register_int_gauge_vec_with_registry!(
-                "inflight_grpc",
-                "Total in-flight GRPC requests per route",
-                &["path"],
+            inflight_requests: register_int_gauge_vec_with_registry!(
+                "authority_grpc_inflight_requests",
+                "Total in-flight authority gRPC requests per method",
+                &["method"],
                 registry,
             )
             .unwrap(),
-            grpc_requests: register_int_counter_vec_with_registry!(
-                "grpc_requests",
-                "Total GRPC requests per route",
-                &["path", "status"],
+            num_requests: register_int_counter_vec_with_registry!(
+                "authority_grpc_requests",
+                "Total authority gRPC requests per method and status code",
+                &["method", "status"],
                 registry,
             )
             .unwrap(),
-            grpc_request_latency: register_histogram_vec_with_registry!(
-                "grpc_request_latency",
-                "Latency of GRPC requests per route",
-                &["path"],
+            num_errors: register_int_counter_vec_with_registry!(
+                "authority_grpc_errors",
+                "Total authority gRPC transport/middleware failures by status code (service panics, connection drops, timeouts)",
+                &["status"],
+                registry,
+            )
+            .unwrap(),
+            request_latency: register_histogram_vec_with_registry!(
+                "authority_grpc_request_latency",
+                "Latency of authority gRPC requests per method in seconds",
+                &["method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
+            known_methods: VALIDATOR_METHOD_PATHS.iter().copied().collect(),
+        }
+    }
+
+    /// Returns the path if it is a known gRPC method, or `"SPAM"` otherwise.
+    fn sanitize_path<'a>(&self, path: &'a str) -> &'a str {
+        if self.known_methods.contains(path) {
+            path
+        } else {
+            SPAM_LABEL
         }
     }
 }
@@ -162,20 +108,29 @@ impl MetricsCallbackProvider for GrpcMetrics {
     fn on_request(&self, _path: String) {}
 
     fn on_response(&self, path: String, latency: Duration, _status: u16, grpc_status_code: Code) {
-        self.grpc_requests
-            .with_label_values(&[path.as_str(), format!("{grpc_status_code:?}").as_str()])
+        let method = self.sanitize_path(&path);
+        self.num_requests
+            .with_label_values(&[method, grpc_code_to_str(grpc_status_code)])
             .inc();
-        self.grpc_request_latency
-            .with_label_values(&[path.as_str()])
+        self.request_latency
+            .with_label_values(&[method])
             .observe(latency.as_secs_f64());
     }
 
+    fn on_error(&self, _latency: Duration, grpc_status_code: Code) {
+        self.num_errors
+            .with_label_values(&[grpc_code_to_str(grpc_status_code)])
+            .inc();
+    }
+
     fn on_start(&self, path: &str) {
-        self.inflight_grpc.with_label_values(&[path]).inc();
+        let method = self.sanitize_path(path);
+        self.inflight_requests.with_label_values(&[method]).inc();
     }
 
     fn on_drop(&self, path: &str) {
-        self.inflight_grpc.with_label_values(&[path]).dec();
+        let method = self.sanitize_path(path);
+        self.inflight_requests.with_label_values(&[method]).dec();
     }
 }
 

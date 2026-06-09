@@ -293,10 +293,11 @@ mod tests {
     use arc_swap::ArcSwap;
     use async_trait::async_trait;
     use iota_macros::sim_test;
+    use iota_sdk_types::ObjectId;
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, ObjectID, TransactionDigest},
+        base_types::{AuthorityName, IotaAddress, TransactionDigest},
         committee::{CommitteeTrait, StakeUnit},
         crypto::{AccountKeyPair, get_account_key_pair},
         effects::{TransactionEffectsAPI, TransactionEvents},
@@ -305,6 +306,7 @@ mod tests {
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
         messages_grpc::{
+            HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
             HandleCertificateRequestV1, HandleCertificateResponseV1,
             HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
             HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
@@ -363,9 +365,11 @@ mod tests {
                 None,
                 &epoch_store,
             )?;
-            let events = match effects.events_digest() {
-                None => TransactionEvents::default(),
-                Some(digest) => self.authority.get_transaction_events(digest)?,
+            let events = if effects.events_digest().is_some() {
+                self.authority
+                    .get_transaction_events(effects.transaction_digest())?
+            } else {
+                TransactionEvents::default()
             };
             let signed_effects = self
                 .authority
@@ -413,6 +417,13 @@ mod tests {
             &self,
             _request: SystemStateRequest,
         ) -> Result<IotaSystemState, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_capability_notification_v1(
+            &self,
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
             unimplemented!()
         }
     }
@@ -664,13 +675,9 @@ mod tests {
         state: &Arc<AuthorityState>,
         sender: IotaAddress,
         keypair: &AccountKeyPair,
-        gas_object_id: ObjectID,
+        gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
-        let gas_object_ref = state
-            .get_object(&gas_object_id)
-            .await
-            .unwrap()
-            .compute_object_reference();
+        let gas_object_ref = state.get_object(&gas_object_id).await.unwrap().object_ref();
         let tx_data = TestTransactionBuilder::new(
             sender,
             gas_object_ref,

@@ -2,34 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::hash::{Hash, Hasher};
 
 use fastcrypto::{
     error::FastCryptoError,
-    hash::{HashFunction, Sha256},
+    hash::HashFunction,
     rsa::{Base64UrlUnpadded, Encoding},
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
-    traits::{ToFromBytes, VerifyingKey},
+    traits::ToFromBytes,
 };
+use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
+use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
-use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
-use shared_crypto::intent::IntentMessage;
 
 use crate::{
-    base_types::{EpochId, IotaAddress},
+    base_types::IotaAddress,
     crypto::{
         DefaultHash, IotaSignature, IotaSignatureInner, PublicKey, Secp256r1IotaSignature,
         Signature, SignatureScheme,
     },
-    digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    signature_verification::VerifiedDigestCache,
 };
 
 #[cfg(test)]
@@ -38,7 +33,7 @@ mod passkey_authenticator_test;
 
 /// An passkey authenticator with parsed fields. See field definition below. Can
 /// be initialized from [struct RawPasskeyAuthenticator].
-#[derive(Debug, Clone, JsonSchema)]
+#[derive(Debug, Clone)]
 pub struct PasskeyAuthenticator {
     /// `authenticatorData` is a bytearray that encodes
     /// [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data)
@@ -54,21 +49,17 @@ pub struct PasskeyAuthenticator {
 
     /// Normalized r1 signature returned by passkey.
     /// Initialized from `user_signature` in `RawPasskeyAuthenticator`.
-    #[serde(skip)]
     signature: Secp256r1Signature,
 
     /// Compact r1 public key upon passkey creation.
     /// Initialized from `user_signature` in `RawPasskeyAuthenticator`.
-    #[serde(skip)]
     pk: Secp256r1PublicKey,
 
     /// Decoded `client_data_json.challenge` which is expected to be the signing
     /// message `hash(Intent | bcs_message)`
-    #[serde(skip)]
-    challenge: [u8; DefaultHash::OUTPUT_SIZE],
+    _challenge: [u8; DefaultHash::OUTPUT_SIZE],
 
     /// Initialization of bytes for passkey in serialized form.
-    #[serde(skip)]
     bytes: OnceCell<Vec<u8>>,
 }
 
@@ -131,7 +122,7 @@ impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
             client_data_json: raw.client_data_json,
             signature,
             pk,
-            challenge,
+            _challenge: challenge,
             bytes: OnceCell::new(),
         })
     }
@@ -232,50 +223,29 @@ impl Hash for PasskeyAuthenticator {
 }
 
 impl AuthenticatorTrait for PasskeyAuthenticator {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Ok(())
-    }
-
     /// Verify an intent message of a transaction with an passkey authenticator.
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
         author: IotaAddress,
         _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        // Check if author is derived from the public key.
-        if author != IotaAddress::from(&self.get_pk()?) {
-            return Err(IotaError::InvalidSignature {
-                error: "Invalid author".to_string(),
-            });
-        };
+        let digest = intent_msg.signing_digest();
 
-        // Check the intent and signing is consisted from what's parsed from
-        // client_data_json.challenge
-        if self.challenge != to_signing_message(intent_msg) {
-            return Err(IotaError::InvalidSignature {
-                error: "Invalid challenge".to_string(),
-            });
-        };
-
-        // Construct msg = authenticator_data || sha256(client_data_json).
-        let mut message = self.authenticator_data.clone();
-        let client_data_hash = Sha256::digest(self.client_data_json.as_bytes()).digest;
-        message.extend_from_slice(&client_data_hash);
-
-        // Verify the signature against pk and message.
-        self.pk
-            .verify(&message, &self.signature)
+        // TODO https://github.com/iotaledger/iota/issues/11607
+        let authenticator = iota_sdk_types::PasskeyAuthenticator::from_bytes(self.as_bytes())
             .map_err(|_| IotaError::InvalidSignature {
-                error: "Fails to verify".to_string(),
+                error: "Invalid passkey authenticator bytes".to_string(),
+            })?;
+
+        PasskeyVerifier::new()
+            .with_address(author)
+            .verify(&*digest, &authenticator)
+            .map_err(|e| IotaError::InvalidSignature {
+                error: format!("Invalid passkey authentication: {e}"),
             })
     }
 }

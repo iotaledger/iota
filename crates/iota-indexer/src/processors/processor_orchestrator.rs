@@ -35,8 +35,7 @@ where
                 if let Err(e) = network_metrics_res {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     error!(
-                        "Indexer network metrics processor failed with error {:?}, retrying in 5s...",
-                        e
+                        "indexer network metrics processor failed with error {e:?}, retrying in 5s..."
                     );
                 }
             }
@@ -50,8 +49,7 @@ where
                 if let Err(e) = addr_metrics_res {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     error!(
-                        "Indexer address metrics processor failed with error {:?}, retrying in 5s...",
-                        e
+                        "indexer address metrics processor failed with error {e:?}, retrying in 5s..."
                     );
                 }
             }
@@ -65,8 +63,7 @@ where
                 if let Err(e) = move_call_metrics_res {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     error!(
-                        "Indexer move call metrics processor failed with error {:?}, retrying in 5s...",
-                        e
+                        "indexer move call metrics processor failed with error {e:?}, retrying in 5s..."
                     );
                 }
             }
@@ -78,6 +75,6 @@ where
             move_call_metrics_handle,
         ])
         .await
-        .expect("Processor orchestrator should not run into errors.");
+        .expect("processor orchestrator should not run into errors.");
     }
 }

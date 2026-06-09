@@ -43,14 +43,14 @@ impl TriggerExchangeRatesTask {
                     info!("Detected epoch boundary, triggering call to exchange rates");
                     let latest_iota_system_state = self.db.inner.spawn_blocking(move |this|
                         this.get_latest_iota_system_state()
-                    ).await.map_err(|_| error!("Failed to fetch latest IOTA system state"));
+                    ).await.map_err(|_| error!("failed to fetch latest IOTA system state"));
 
                     if let Ok(latest_iota_system_state) = latest_iota_system_state {
                         let db = self.db.clone();
                         let governance_api = GovernanceReadApi::new(db.inner) ;
                         governance_api.exchange_rates( &latest_iota_system_state)
                             .await
-                            .map_err(|e| error!("Failed to fetch exchange rates: {:?}", e))
+                            .map_err(|e| error!("failed to fetch exchange rates: {e:?}"))
                             .ok();
                         info!("Finished fetching exchange rates");
                     }

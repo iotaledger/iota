@@ -18,26 +18,25 @@ dashmap.workspace = true
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
 futures.workspace = true
-governor.workspace = true
+governor = "0.6.0"
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
 tap.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
 tonic.workspace = true
 tower.workspace = true
 tracing.workspace = true
 
 # internal dependencies
 iota-archival.workspace = true
-iota-common.workspace = true
 iota-config.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
+iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
-shared-crypto.workspace = true
 
 [build-dependencies]
 anemo-build.workspace = true
@@ -46,10 +45,18 @@ tonic-build.workspace = true
 [dev-dependencies]
 # external dependencies
 ed25519-consensus.workspace = true
-tempfile = "3.3.0"
+tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
+iota-common.workspace = true
 iota-macros.workspace = true
+iota-protocol-config.workspace = true
 iota-swarm-config.workspace = true
 telemetry-subscribers.workspace = true
+
+[target.'cfg(msim)'.dependencies]
+iota-simulator.workspace = true
+
+[lints]
+workspace = true

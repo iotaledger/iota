@@ -20,7 +20,7 @@ impl<'a> ProcessPayload<'a, &'a GetAllBalances> for RpcCommandProcessor {
         _signer_info: &Option<SignerInfo>,
     ) -> Result<()> {
         if op.addresses.is_empty() {
-            panic!("No addresses provided, skipping query");
+            panic!("no addresses provided, skipping query");
         }
         let clients = self.get_clients().await?;
         let chunked = chunk_entities(&op.addresses, Some(op.chunk_size));

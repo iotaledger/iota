@@ -1,0 +1,14 @@
+[package]
+name = "whitelist_sponsorship"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+iotaccount = { local = "../iotaccount" }
+
+[addresses]
+whitelist_sponsorship = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]

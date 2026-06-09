@@ -6,27 +6,30 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_json_rpc_types::DevInspectArgs;
-use iota_sdk::IotaClient;
+use iota_indexer::apis::ReadApi;
+use iota_json::IotaJsonValue;
+use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
+use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
+use iota_sdk_types::{TransactionKind, TypeTag};
 use iota_types::{
-    TypeTag,
+    base_types::ObjectRef,
     gas_coin::GAS,
-    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
+    supported_protocol_versions::Chain,
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    config::ServiceConfig,
+    config::{DEFAULT_PAGE_SIZE, ServiceConfig},
     connection::ScanConnection,
     error::Error,
     mutation::Mutation,
-    server::watermark_task::Watermark,
+    server::{builder::get_write_api, watermark_task::Watermark},
     types::{
         address::Address,
         available_range::AvailableRange,
-        base64::Base64 as GraphQLBase64,
-        chain_identifier::ChainIdentifier,
+        chain_identifier::ChainIdentifierCache,
         checkpoint::{self, Checkpoint, CheckpointId},
         coin::Coin,
         coin_metadata::CoinMetadata,
@@ -39,31 +42,35 @@ use crate::{
         iota_names_registration::{IotaNames, Name},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
         move_type::MoveType,
+        move_view_result::MoveViewResult,
         object::{self, Object, ObjectFilter},
         owner::Owner,
         protocol_config::ProtocolConfigs,
+        subscription::Subscription,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         transaction_metadata::TransactionMetadata,
         type_filter::ExactTypeFilter,
         uint53::UInt53,
-        zklogin_verify_signature::{
-            ZkLoginIntentScope, ZkLoginVerifyResult, verify_zklogin_signature,
-        },
     },
 };
 
 pub(crate) struct Query;
-pub(crate) type IotaGraphQLSchema = async_graphql::Schema<Query, Mutation, EmptySubscription>;
+pub(crate) type IotaGraphQLSchema = async_graphql::Schema<Query, Mutation, Subscription>;
 
 #[Object]
 impl Query {
     /// First four bytes of the network's genesis checkpoint digest (uniquely
     /// identifies the network).
     async fn chain_identifier(&self, ctx: &Context<'_>) -> Result<String> {
-        Ok(ChainIdentifier::query(ctx.data_unchecked())
+        // the chain identifier cache is added to the context during server
+        // initialization, if it panics it's a bug, it should be always present.
+        let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
+
+        chain_id_cache
+            .read(ctx.data_unchecked(), ctx.data_unchecked())
             .await
-            .extend()?
-            .to_string())
+            .map(|id| id.into_inner().to_string())
+            .extend()
     }
 
     /// Range of checkpoints that the RPC has data available for (for data
@@ -81,6 +88,46 @@ impl Query {
             .map_err(|_| Error::Internal("Unable to fetch service configuration.".to_string()))
             .cloned()
             .extend()
+    }
+
+    async fn move_view_call(
+        &self,
+        ctx: &Context<'_>,
+        function_name: String,
+        type_args: Option<Vec<String>>,
+        arguments: Option<Vec<serde_json::Value>>,
+    ) -> Result<MoveViewResult> {
+        let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
+
+        let db = ctx.data_unchecked();
+        let metrics = ctx.data_unchecked();
+        let chain = chain_id_cache
+            .read(db, metrics)
+            .await
+            .extend()?
+            .into_inner()
+            .chain();
+        if !matches!(chain, Chain::Unknown) {
+            return Err(Error::UnsupportedFeature(format!(
+                "View calls are not yet supported on {}",
+                chain.as_str()
+            )))
+            .extend();
+        }
+        let type_args = type_args.map(|args| args.into_iter().map(IotaTypeTag::new).collect());
+        let call_args = arguments
+            .unwrap_or_default()
+            .into_iter()
+            .map(IotaJsonValue::new)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Error::Client(e.to_string()))
+            .extend()?;
+        let write_api = get_write_api(ctx).extend()?;
+        let results = write_api
+            .view_function_call(function_name, type_args, call_args)
+            .await?;
+
+        results.try_into().extend()
     }
 
     /// Simulate running a transaction to inspect its effects without
@@ -109,15 +156,7 @@ impl Query {
     ) -> Result<DryRunResult> {
         let skip_checks = skip_checks.unwrap_or(false);
 
-        let iota_sdk_client: &Option<IotaClient> = ctx
-            .data()
-            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
-            .extend()?;
-        let iota_sdk_client = iota_sdk_client
-            .as_ref()
-            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
-            .extend()?;
-
+        let write_api = get_write_api(ctx).extend()?;
         let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
             if let Some(TransactionMetadata {
                 sender,
@@ -137,7 +176,13 @@ impl Query {
 
                 let gas_objects = gas_objects.map(|objs| {
                     objs.into_iter()
-                        .map(|obj| (obj.address.into(), obj.version.into(), obj.digest.into()))
+                        .map(|obj| {
+                            ObjectRef::new(
+                                obj.address.into(),
+                                obj.version.into(),
+                                obj.digest.into(),
+                            )
+                        })
                         .collect()
                 });
 
@@ -158,7 +203,7 @@ impl Query {
                     tx_data.clone().into_kind(),
                     Some(tx_data.gas_price().into()),
                     Some(tx_data.gas_owner()),
-                    Some(tx_data.gas_budget().into()),
+                    Some(tx_data.gas_budget()),
                     Some(tx_data.gas().to_vec()),
                 )
             };
@@ -171,11 +216,15 @@ impl Query {
             skip_checks: Some(skip_checks),
         };
 
-        let res = iota_sdk_client
-            .read_api()
+        let tx_bytes = Base64::from_bytes(
+            &bcs::to_bytes(&tx_kind)
+                .map_err(|e| Error::Internal(e.to_string()))
+                .extend()?,
+        );
+        let res = write_api
             .dev_inspect_transaction_block(
                 sender_address,
-                tx_kind,
+                tx_bytes,
                 gas_price,
                 None,
                 Some(dev_inspect_args),
@@ -183,6 +232,18 @@ impl Query {
             .await?;
 
         DryRunResult::try_from(res).extend()
+    }
+
+    /// Check if a transaction is indexed on the fullnode.
+    async fn is_transaction_indexed_on_node(
+        &self,
+        ctx: &Context<'_>,
+        digest: Digest,
+    ) -> Result<bool> {
+        Ok(ctx
+            .data::<ReadApi>()?
+            .is_transaction_indexed_on_node(digest.into())
+            .await?)
     }
 
     /// Look up an Owner by its IotaAddress.
@@ -326,9 +387,37 @@ impl Query {
         digest: Digest,
     ) -> Result<Option<TransactionBlock>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
-        TransactionBlock::query(ctx, digest, checkpoint)
+        let key = transaction_block::DigestKey::new(digest, checkpoint);
+        TransactionBlock::query(ctx, key.into()).await.extend()
+    }
+
+    /// Fetch multiple transaction blocks by their digests.
+    /// This includes all transactions, even if they are not checkpointed yet.
+    async fn transaction_blocks_by_digests(
+        &self,
+        ctx: &Context<'_>,
+        digests: Vec<Digest>,
+    ) -> Result<Vec<Option<TransactionBlock>>> {
+        let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
+        if digests.len() > limits.max_transaction_ids as usize {
+            return Err(Error::Client(format!(
+                "Transaction IDs exceed max limit of '{}'",
+                limits.max_transaction_ids
+            ))
+            .into());
+        }
+
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let mut result = TransactionBlock::multi_query(ctx, digests.clone(), checkpoint)
             .await
-            .extend()
+            .extend()?;
+
+        // Map each input digest to Some(transaction) if found, None otherwise
+        // This maintains the same order and length as the input vector
+        Ok(digests
+            .into_iter()
+            .map(|digest| result.remove(&digest))
+            .collect())
     }
 
     /// The coin objects that exist in the network.
@@ -405,10 +494,14 @@ impl Query {
     /// direction of pagination, and so on until all transactions in the
     /// scanning range have been visited.
     ///
-    /// By default, the scanning range includes all transactions known to
-    /// GraphQL, but it can be restricted by the `after` and `before`
+    /// By default, the scanning range includes all checkpointed transactions
+    /// known to GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-    /// `atCheckpoint` filters.
+    /// `atCheckpoint` filters. Transactions that don't have a checkpoint yet
+    /// are always omitted.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -438,6 +531,9 @@ impl Query {
     /// We currently do not support filtering by emitting module and event type
     /// at the same time so if both are provided in one filter, the query will
     /// error.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn events(
         &self,
         ctx: &Context<'_>,
@@ -567,33 +663,6 @@ impl Query {
     ) -> Result<Option<CoinMetadata>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         CoinMetadata::query(ctx.data_unchecked(), coin_type.0, checkpoint)
-            .await
-            .extend()
-    }
-
-    /// Verify a zkLogin signature based on the provided transaction or personal
-    /// message based on current epoch, chain id, and latest JWKs fetched
-    /// on-chain. If the signature is valid, the function returns a
-    /// `ZkLoginVerifyResult` with success as true and an empty list of
-    /// errors. If the signature is invalid, the function returns
-    /// a `ZkLoginVerifyResult` with success as false with a list of errors.
-    ///
-    /// - `bytes` is either the personal message in raw bytes or transaction
-    ///   data bytes in BCS-encoded and then Base64-encoded.
-    /// - `signature` is a serialized zkLogin signature that is Base64-encoded.
-    /// - `intentScope` is an enum that specifies the intent scope to be used to
-    ///   parse bytes.
-    /// - `author` is the address of the signer of the transaction or personal
-    ///   msg.
-    async fn verify_zklogin_signature(
-        &self,
-        ctx: &Context<'_>,
-        bytes: GraphQLBase64,
-        signature: GraphQLBase64,
-        intent_scope: ZkLoginIntentScope,
-        author: IotaAddress,
-    ) -> Result<ZkLoginVerifyResult> {
-        verify_zklogin_signature(ctx, bytes, signature, intent_scope, author)
             .await
             .extend()
     }

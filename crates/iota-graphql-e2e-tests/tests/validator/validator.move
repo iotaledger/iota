@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Test heavy transactions.
+// Test validator info, before IIP8 (protocol-version < 20). So `effectiveCommissionRate` should equal the `commissionRate`.
 
-//# init --protocol-version 5 --simulator --accounts A --addresses P0=0x0
+//# init --protocol-version 13 --simulator --accounts A --addresses P0=0x0
 
 //# advance-epoch
 
@@ -56,6 +56,9 @@ module P0::m {
       activeValidators {
         nodes {
           name
+          commissionRate
+          votingPower
+          effectiveCommissionRate
         }
       }
     }

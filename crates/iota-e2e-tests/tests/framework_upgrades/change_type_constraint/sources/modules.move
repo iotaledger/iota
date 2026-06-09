@@ -3,9 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::msim_extra_1 {
-    use iota::object::UID;
-    use iota::tx_context::TxContext;
-
     public struct Type has drop {
         x: u64,
     }

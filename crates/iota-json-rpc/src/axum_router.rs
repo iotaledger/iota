@@ -13,13 +13,11 @@ use axum::{
     response::Response,
 };
 use hyper::{HeaderMap, header::HeaderValue};
-use iota_core::traffic_controller::{
-    TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
-};
+use iota_core::traffic_controller::{TrafficController, parse_ip, policies::TrafficTally};
 use iota_json_rpc_api::{
     CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
 };
-use iota_types::traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight};
+use iota_types::traffic_control::{ClientIdSource, PolicyConfig, Weight};
 use jsonrpsee::{
     BoundedSubscriptions, ConnectionId, Extensions, MethodCallback, MethodKind, MethodResponse,
     core::server::{Methods, helpers::MethodSink},
@@ -59,9 +57,8 @@ impl<L> JsonRpcService<L> {
         methods: Methods,
         rpc_router: RpcRouter,
         logger: L,
-        remote_fw_config: Option<RemoteFirewallConfig>,
+        traffic_controller: Option<Arc<TrafficController>>,
         policy_config: Option<PolicyConfig>,
-        traffic_controller_metrics: TrafficControllerMetrics,
         extensions: Extensions,
     ) -> Self {
         Self {
@@ -70,13 +67,7 @@ impl<L> JsonRpcService<L> {
             logger,
             extensions,
             id_provider: Arc::new(RandomIntegerIdProvider),
-            traffic_controller: policy_config.clone().map(|policy| {
-                Arc::new(TrafficController::init(
-                    policy,
-                    traffic_controller_metrics,
-                    remote_fw_config,
-                ))
-            }),
+            traffic_controller,
             client_id_source: policy_config.map(|policy| policy.client_id_source),
         }
     }
@@ -125,9 +116,9 @@ fn from_template<S: Into<axum::body::Body>>(
             hyper::header::HeaderValue::from_static(content_type),
         )
         .body(body.into())
-        // Parsing `StatusCode` and `HeaderValue` is infalliable but
+        // Parsing `StatusCode` and `HeaderValue` is infallible but
         // parsing body content is not.
-        .expect("Unable to parse response body for type conversion")
+        .expect("unable to parse response body for type conversion")
 }
 
 /// Create a valid JSON response.
@@ -174,21 +165,17 @@ async fn process_raw_request<L: Logger>(
                     let header_contents = header_val.split(',').map(str::trim).collect::<Vec<_>>();
                     if num_hops == 0 {
                         error!(
-                            "x-forwarded-for: 0 specified. x-forwarded-for contents: {:?}. Please assign nonzero value for \
+                            "x-forwarded-for: 0 specified. x-forwarded-for contents: {header_contents:?}. Please assign nonzero value for \
                                 number of hops here, or use `socket-addr` client-id-source type if requests are not being proxied \
                                 to this node. Skipping traffic controller request handling.",
-                            header_contents,
                         );
                         return None;
                     }
                     let contents_len = header_contents.len();
                     let Some(client_ip) = header_contents.get(contents_len - num_hops) else {
                         error!(
-                            "x-forwarded-for header value of {:?} contains {} values, but {} hops were specified. \
+                            "x-forwarded-for header value of {header_contents:?} contains {contents_len} values, but {num_hops} hops were specified. \
                                 Expected {} values. Skipping traffic controller request handling.",
-                            header_contents,
-                            contents_len,
-                            num_hops,
                             num_hops + 1,
                         );
                         return None;
@@ -196,7 +183,7 @@ async fn process_raw_request<L: Logger>(
                     parse_ip(client_ip)
                 }
                 Err(e) => {
-                    error!("Invalid UTF-8 in x-forwarded-for header: {:?}", e);
+                    error!("invalid UTF-8 in x-forwarded-for header: {e:?}");
                     None
                 }
             };

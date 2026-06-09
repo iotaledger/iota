@@ -4,32 +4,30 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
-use iota_sdk::{
-    U256,
-    types::block::{
-        address::Address,
-        output::{self as sdk_output, NativeTokens, OutputId, TokenId},
-    },
+use iota_sdk_types::{ObjectId, Owner, TypeTag};
+use iota_stardust_types::block::{
+    address::Address,
+    output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
-    object::{Object, Owner},
-    stardust::{
-        output::{Alias, Nft, unlock_conditions},
-        stardust_to_iota_address,
-    },
+    object::Object,
+    stardust::output::{Alias, Nft},
 };
+use primitive_types::U256;
 use tracing::warn;
 
 use crate::stardust::{
     migration::executor::FoundryLedgerData,
-    types::{address_swap_map::AddressSwapMap, token_scheme::MAX_ALLOWED_U64_SUPPLY},
+    types::{
+        address::stardust_to_iota_address, address_swap_map::AddressSwapMap,
+        output::unlock_conditions, token_scheme::MAX_ALLOWED_U64_SUPPLY,
+    },
 };
 
 pub const BASE_TOKEN_KEY: &str = "base_token";
@@ -81,7 +79,7 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     native_tokens_bag: impl Into<Option<Bag>>,
-    created_native_tokens: Option<&[ObjectID]>,
+    created_native_tokens: Option<&[ObjectId]>,
     storage: &InMemoryStorage,
     tokens_counter: &mut TokensAmountCounter,
 ) -> Result<()> {
@@ -341,9 +339,7 @@ pub(super) fn verify_address_owner(
 }
 
 pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
-    let expected_owner = Owner::Shared {
-        initial_shared_version: Default::default(),
-    };
+    let expected_owner = Owner::Shared(Default::default());
     ensure!(
         obj.owner.is_shared(),
         "{name} shared owner mismatch: found {}, expected {}",
@@ -361,23 +357,23 @@ pub(super) fn verify_parent(
     address: &Address,
     storage: &InMemoryStorage,
 ) -> Result<()> {
-    let object_id = ObjectID::from(stardust_to_iota_address(address)?);
+    let object_id = ObjectId::from(stardust_to_iota_address(address)?);
     let parent = storage.get_object(&object_id);
     match address {
         Address::Alias(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Alias>().is_none() {
+                if let Err(e) = parent_obj.to_rust::<Alias>() {
                     warn!(
-                        "verification failed for output id {output_id}: unexpected parent found for alias address {address}"
+                        "verification failed for output id {output_id}: unexpected parent found for alias address {address}: {e}"
                     );
                 }
             }
         }
         Address::Nft(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Nft>().is_none() {
+                if let Err(e) = parent_obj.to_rust::<Nft>() {
                     warn!(
-                        "verification failed for output id {output_id}: unexpected parent found for nft address {address}"
+                        "verification failed for output id {output_id}: unexpected parent found for nft address {address}: {e}"
                     );
                 }
             }
@@ -423,7 +419,8 @@ impl NativeTokenKind for (TypeTag, Coin) {
     }
 
     fn from_object(obj: &Object) -> Result<Self> {
-        obj.coin_type_maybe()
+        obj.coin_type_opt()
+            .cloned()
             .zip(obj.as_coin_maybe())
             .ok_or_else(|| anyhow!("expected a native token coin, found {:?}", obj.type_()))
     }
@@ -439,8 +436,12 @@ impl NativeTokenKind for Field<String, Balance> {
     }
 
     fn from_object(obj: &Object) -> Result<Self> {
-        obj.to_rust::<Field<String, Balance>>()
-            .ok_or_else(|| anyhow!("expected a native token field, found {:?}", obj.type_()))
+        obj.to_rust::<Field<String, Balance>>().map_err(|e| {
+            anyhow!(
+                "expected a native token field, found {:?}: {e}",
+                obj.type_()
+            )
+        })
     }
 }
 

@@ -20,18 +20,18 @@ use tracing::error;
 
 use crate::{Checkpoint, KeyValueStoreReader, KeyValueStoreWriter, TransactionData};
 
-const OBJECTS_TABLE: &str = "objects";
-const TRANSACTIONS_TABLE: &str = "transactions";
-const CHECKPOINTS_TABLE: &str = "checkpoints";
-const CHECKPOINTS_BY_DIGEST_TABLE: &str = "checkpoints_by_digest";
+pub const OBJECTS_TABLE: &str = "objects";
+pub const TRANSACTIONS_TABLE: &str = "transactions";
+pub const CHECKPOINTS_TABLE: &str = "checkpoints";
+pub const CHECKPOINTS_BY_DIGEST_TABLE: &str = "checkpoints_by_digest";
 
-const DEFAULT_COLUMN_QUALIFIER: &str = "";
-const CHECKPOINT_SUMMARY_COLUMN_QUALIFIER: &str = "cs";
-const CHECKPOINT_CONTENTS_COLUMN_QUALIFIER: &str = "cc";
-const TRANSACTION_COLUMN_QUALIFIER: &str = "tx";
-const EFFECTS_COLUMN_QUALIFIER: &str = "fx";
-const EVENTS_COLUMN_QUALIFIER: &str = "evtx";
-const TRANSACTION_TO_CHECKPOINT: &str = "tx2c";
+pub const DEFAULT_COLUMN_QUALIFIER: &str = "";
+pub const CHECKPOINT_SUMMARY_COLUMN_QUALIFIER: &str = "cs";
+pub const CHECKPOINT_CONTENTS_COLUMN_QUALIFIER: &str = "cc";
+pub const TRANSACTION_COLUMN_QUALIFIER: &str = "tx";
+pub const EFFECTS_COLUMN_QUALIFIER: &str = "fx";
+pub const EVENTS_COLUMN_QUALIFIER: &str = "evtx";
+pub const TRANSACTION_TO_CHECKPOINT: &str = "tx2c";
 
 #[async_trait]
 impl KeyValueStoreWriter for BigTableClient {
@@ -124,8 +124,8 @@ impl KeyValueStoreReader for BigTableClient {
     async fn get_objects(&mut self, object_keys: &[ObjectKey]) -> Result<Vec<Object>, Self::Error> {
         let keys = object_keys.iter().map(raw_object_key).collect();
         let mut objects = vec![];
-        for row_cells in self.multi_get(OBJECTS_TABLE, keys, None).await? {
-            for cell in row_cells {
+        for row in self.multi_get(OBJECTS_TABLE, keys, None).await? {
+            for cell in row.cells {
                 let obj = bcs::from_bytes::<Object>(&cell.value)?;
                 objects.push(obj);
             }
@@ -139,13 +139,13 @@ impl KeyValueStoreReader for BigTableClient {
     ) -> Result<Vec<TransactionData>, Self::Error> {
         let keys = transactions.iter().map(|tx| tx.inner().to_vec()).collect();
         let mut result = vec![];
-        for row_cells in self.multi_get(TRANSACTIONS_TABLE, keys, None).await? {
+        for row in self.multi_get(TRANSACTIONS_TABLE, keys, None).await? {
             let mut transaction = None;
             let mut effects = None;
             let mut events = None;
             let mut checkpoint_number = 0;
 
-            for Cell { name, value } in row_cells {
+            for Cell { name, value } in row.cells {
                 match std::str::from_utf8(&name)? {
                     TRANSACTION_COLUMN_QUALIFIER => {
                         transaction = Some(bcs::from_bytes::<Transaction>(&value)?)
@@ -184,10 +184,10 @@ impl KeyValueStoreReader for BigTableClient {
             .map(|sq| sq.to_be_bytes().to_vec())
             .collect();
         let mut checkpoints = vec![];
-        for row_cells in self.multi_get(CHECKPOINTS_TABLE, keys, None).await? {
+        for row in self.multi_get(CHECKPOINTS_TABLE, keys, None).await? {
             let mut summary = None;
             let mut contents = None;
-            for Cell { name, value } in row_cells {
+            for Cell { name, value } in row.cells {
                 match std::str::from_utf8(&name)? {
                     CHECKPOINT_SUMMARY_COLUMN_QUALIFIER => {
                         summary = Some(bcs::from_bytes::<CertifiedCheckpointSummary>(&value)?)
@@ -204,34 +204,37 @@ impl KeyValueStoreReader for BigTableClient {
                 summary: summary.ok_or_else(|| anyhow::anyhow!("summary field is missing"))?,
                 contents: contents.ok_or_else(|| anyhow::anyhow!("contents field is missing"))?,
             };
+
             checkpoints.push(checkpoint);
         }
         Ok(checkpoints)
     }
 
-    async fn get_checkpoint_by_digest(
+    async fn get_checkpoints_by_digest(
         &mut self,
-        digest: CheckpointDigest,
-    ) -> Result<Option<Checkpoint>, Self::Error> {
-        let key = digest.inner().to_vec();
-        let latest_row_cells = self
-            .multi_get(CHECKPOINTS_BY_DIGEST_TABLE, vec![key], None)
+        digests: &[CheckpointDigest],
+    ) -> Result<Vec<Checkpoint>, Self::Error> {
+        let keys = digests
+            .iter()
+            .map(|digest| digest.inner().to_vec())
+            .collect::<Vec<_>>();
+        let seq_nums = self
+            .multi_get(CHECKPOINTS_BY_DIGEST_TABLE, keys, None)
             .await?
-            .pop();
-        if let Some(cells) = latest_row_cells {
-            if let Some(cell) = cells.into_iter().next() {
-                let sequence_number = u64::from_be_bytes(cell.value.as_slice().try_into()?);
-                if let Some(chk) = self.get_checkpoints(&[sequence_number]).await?.pop() {
-                    return Ok(Some(chk));
-                }
-            }
-        }
-        Ok(None)
+            .into_iter()
+            .filter_map(|row| {
+                row.cells
+                    .into_iter()
+                    .next()
+                    .map(|cell| cell.value.as_slice().try_into().map(u64::from_be_bytes))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.get_checkpoints(&seq_nums).await
     }
 }
 
-fn raw_object_key(object_key: &ObjectKey) -> Vec<u8> {
-    let mut raw_key = object_key.0.to_vec();
-    raw_key.extend(object_key.1.value().to_be_bytes());
+pub fn raw_object_key(object_key: &ObjectKey) -> Vec<u8> {
+    let mut raw_key = object_key.0.as_bytes().to_vec();
+    raw_key.extend(object_key.1.as_u64().to_be_bytes());
     raw_key
 }

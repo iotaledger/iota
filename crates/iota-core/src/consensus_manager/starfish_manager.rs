@@ -15,7 +15,9 @@ use iota_types::{
 };
 use prometheus::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use starfish_core::{CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority};
+use starfish_core::{
+    Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
+};
 use tokio::sync::Mutex;
 use tracing::info;
 
@@ -37,8 +39,6 @@ pub struct StarfishManager {
     protocol_keypair: ProtocolKeyPair,
     network_keypair: NetworkKeyPair,
     storage_base_path: PathBuf,
-    // TODO: https://github.com/iotaledger/iota/issues/8351
-    // Consider switching to parking_lot::Mutex as it has less overhead.
     running: Mutex<Running>,
     metrics: Arc<ConsensusManagerMetrics>,
     registry_service: RegistryService,
@@ -47,8 +47,6 @@ pub struct StarfishManager {
     // Use a shared lazy starfish client so we can update the internal starfish
     // client that gets created for every new epoch.
     client: Arc<LazyStarfishClient>,
-    // TODO: https://github.com/iotaledger/iota/issues/8351
-    // Consider switching to parking_lot::Mutex as it has less overhead.
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
 }
@@ -93,13 +91,13 @@ impl ConsensusManagerTrait for StarfishManager {
     /// Starts the Starfish consensus manager for the current epoch.
     async fn start(
         &self,
-        _config: &NodeConfig,
+        config: &NodeConfig,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_handler_initializer: ConsensusHandlerInitializer,
         tx_validator: IotaTxValidator,
     ) {
         let system_state = epoch_store.epoch_start_state();
-        let committee: Committee = system_state.get_starfish_committee();
+        let committee: Committee = system_state.get_consensus_committee();
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
 
@@ -114,12 +112,13 @@ impl ConsensusManagerTrait for StarfishManager {
             return;
         };
 
-        // TODO: https://github.com/iotaledger/iota/issues/8353
-        // We might need to get consensus parameters from the node config in the future
-        // and use them for creating parameters.
+        let consensus_config = config
+            .consensus_config()
+            .expect("consensus_config should exist");
+
         let parameters = Parameters {
             db_path: self.get_store_path(epoch),
-            ..Default::default()
+            ..consensus_config.parameters.clone().unwrap_or_default()
         };
 
         let own_protocol_key = self.protocol_keypair.public();
@@ -133,10 +132,11 @@ impl ConsensusManagerTrait for StarfishManager {
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 
         let consensus_handler = consensus_handler_initializer.new_consensus_handler();
-        let consumer = CommitConsumer::new(
-            commit_sender,
-            consensus_handler.last_processed_subdag_index() as CommitIndex,
-        );
+
+        let num_prior_commits = protocol_config.consensus_num_requested_prior_commits_at_startup();
+        let last_processed_commit = consensus_handler.last_processed_subdag_index() as CommitIndex;
+        let starting_commit = last_processed_commit.saturating_sub(num_prior_commits);
+        let consumer = CommitConsumer::new(commit_sender, starting_commit);
         let monitor = consumer.monitor();
 
         // If there is a previous consumer monitor, it indicates that the consensus
@@ -170,12 +170,14 @@ impl ConsensusManagerTrait for StarfishManager {
         }
 
         let authority = ConsensusAuthority::start(
+            epoch_store.epoch_start_config().epoch_start_timestamp_ms(),
             own_index,
             committee.clone(),
             parameters.clone(),
             protocol_config.clone(),
             self.protocol_keypair.clone(),
             self.network_keypair.clone(),
+            Arc::new(Clock::default()),
             Arc::new(tx_validator.clone()),
             consumer,
             registry.clone(),
@@ -193,13 +195,20 @@ impl ConsensusManagerTrait for StarfishManager {
         self.client.set(client);
 
         // spin up the new starfish consensus handler to listen for committed sub dags
-        let handler = StarfishConsensusHandler::new(consensus_handler, commit_receiver, monitor);
+        let handler = StarfishConsensusHandler::new(
+            last_processed_commit,
+            consensus_handler,
+            commit_receiver,
+            monitor,
+        );
 
         let mut consensus_handler = self.consensus_handler.lock().await;
         *consensus_handler = Some(handler);
 
         // Wait until all locally available commits have been processed
+        info!("replaying commits at startup");
         registered_authority.0.replay_complete().await;
+        info!("Startup commit replay complete");
     }
 
     async fn shutdown(&self) {

@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use iota_grpc_api::EventSubscriber;
 use iota_json_rpc_types::{
     EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
@@ -123,15 +122,5 @@ impl SubscriptionHandler {
         filter: TransactionFilter,
     ) -> impl Stream<Item = IotaTransactionBlockEffects> {
         self.transaction_streamer.subscribe(filter)
-    }
-}
-
-// Implement EventSubscriber trait for gRPC integration
-impl EventSubscriber for SubscriptionHandler {
-    fn subscribe_events(
-        &self,
-        filter: EventFilter,
-    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
-        Box::new(Box::pin(self.event_streamer.subscribe(filter)))
     }
 }

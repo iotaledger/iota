@@ -8,8 +8,8 @@ use move_core_types::{metadata::Metadata, vm_status::StatusCode};
 use crate::{
     binary_config::BinaryConfig,
     file_format::{
-        basic_test_module, basic_test_module_with_enum, Bytecode, CodeUnit, CompiledModule,
-        SignatureIndex, VariantJumpTableIndex,
+        Bytecode, CodeUnit, CompiledModule, SignatureIndex, VariantJumpTableIndex,
+        basic_test_module, basic_test_module_with_enum,
     },
     file_format_common::*,
 };
@@ -335,6 +335,72 @@ fn no_metadata() {
         v
     };
     test(&test2);
+}
+
+#[test]
+fn iota_metadata() {
+    let test_success = |bytes| {
+        CompiledModule::deserialize_with_config(
+            bytes,
+            &BinaryConfig::with_extraneous_bytes_check(true),
+        )
+        .unwrap();
+    };
+    let test_fail = |bytes| {
+        // error with flag true
+        let status_code = CompiledModule::deserialize_with_config(
+            bytes,
+            &BinaryConfig::with_extraneous_bytes_check(true),
+        )
+        .unwrap_err()
+        .major_status();
+        assert_eq!(status_code, StatusCode::MALFORMED);
+    };
+
+    // empty metadata
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: vec![],
+        value: vec![],
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_fail(&test2);
+
+    // malformed key metadata
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: IOTA_METADATA_KEY.to_ascii_uppercase().to_vec(),
+        value: vec![],
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_fail(&test2);
+
+    // iota metadata
+    let metadata_bytes = {
+        let module = basic_test_module();
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: IOTA_METADATA_KEY.to_vec(),
+        value: metadata_bytes.clone(),
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_success(&test2);
 }
 
 #[test]

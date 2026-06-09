@@ -2,16 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{ObjectId, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A,
     annotated_visitor::{self, StructDriver, ValueDriver, VariantDriver, VecDriver, Visitor},
-    language_storage::TypeTag,
     u256::U256,
 };
 
 use super::{DynamicFieldInfo, DynamicFieldType};
-use crate::{base_types::ObjectID, id::UID};
+use crate::{
+    id::UID,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
+};
 
 /// Visitor to deserialize the outer structure of a `0x2::dynamic_field::Field`
 /// while leaving its name and value untouched.
@@ -19,7 +22,7 @@ pub struct FieldVisitor;
 
 #[derive(Debug, Clone)]
 pub struct Field<'b, 'l> {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub kind: DynamicFieldType,
     pub name_layout: &'l A::MoveTypeLayout,
     pub name_bytes: &'b [u8],
@@ -29,7 +32,7 @@ pub struct Field<'b, 'l> {
 
 pub enum ValueMetadata {
     DynamicField(TypeTag),
-    DynamicObjectField(ObjectID),
+    DynamicObjectField(ObjectId),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -62,12 +65,14 @@ impl Field<'_, '_> {
     /// points to (which must be fetched to extract its type).
     pub fn value_metadata(&self) -> Result<ValueMetadata, Error> {
         match self.kind {
-            DynamicFieldType::DynamicField => Ok(ValueMetadata::DynamicField(TypeTag::from(
-                self.value_layout,
-            ))),
+            DynamicFieldType::DynamicField => {
+                Ok(ValueMetadata::DynamicField(type_tag_core_to_sdk(
+                    &move_core_types::language_storage::TypeTag::from(self.value_layout),
+                )))
+            }
 
             DynamicFieldType::DynamicObject => {
-                let id: ObjectID =
+                let id: ObjectId =
                     bcs::from_bytes(self.value_bytes).map_err(|_| Error::NotADynamicObjectField)?;
                 Ok(ValueMetadata::DynamicObjectField(id))
             }
@@ -83,7 +88,9 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
         &mut self,
         driver: &mut StructDriver<'_, 'b, 'l>,
     ) -> Result<Self::Value, Error> {
-        if !DynamicFieldInfo::is_dynamic_field(&driver.struct_layout().type_) {
+        if !DynamicFieldInfo::is_dynamic_field(&struct_tag_core_to_sdk(
+            &driver.struct_layout().type_,
+        )) {
             return Err(Error::NotADynamicField);
         }
 
@@ -107,7 +114,7 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
 
                     // HACK: Bypassing `id`'s layout to deserialize its bytes as a Rust type.
                     let bytes = &driver.bytes()[lo..hi];
-                    id = Some(ObjectID::from_bytes(bytes).map_err(|_| Error::NotADynamicField)?);
+                    id = Some(ObjectId::from_bytes(bytes).map_err(|_| Error::NotADynamicField)?);
                 }
 
                 "name" => {
@@ -215,7 +222,7 @@ fn extract_name_layout(
         return Ok((DynamicFieldType::DynamicField, layout));
     };
 
-    if !DynamicFieldInfo::is_dynamic_object_field_wrapper(&struct_.type_) {
+    if !DynamicFieldInfo::is_dynamic_object_field_wrapper(&struct_tag_core_to_sdk(&struct_.type_)) {
         return Ok((DynamicFieldType::DynamicField, layout));
     }
 
@@ -242,7 +249,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::ObjectID,
         dynamic_field,
         id::UID,
         object::bounded_visitor::tests::{enum_, layout_, value_, variant_},
@@ -491,8 +497,8 @@ mod tests {
         (value, layout, bytes)
     }
 
-    fn oid_(rep: &str) -> ObjectID {
-        ObjectID::from_str(rep).unwrap()
+    fn oid_(rep: &str) -> ObjectId {
+        ObjectId::from_str(rep).unwrap()
     }
 
     fn serialized_df(id: &str, name: A::MoveValue, value: A::MoveValue) -> Vec<u8> {

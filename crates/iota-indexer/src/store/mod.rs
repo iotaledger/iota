@@ -5,7 +5,7 @@
 pub(crate) use indexer_analytics_store::IndexerAnalyticalStore;
 pub(crate) use indexer_store::*;
 pub use pg_indexer_analytical_store::PgIndexerAnalyticalStore;
-pub use pg_indexer_store::PgIndexerStore;
+pub use pg_indexer_store::{PgIndexerStore, TxGlobalOrderCursor};
 
 mod indexer_analytics_store;
 pub mod indexer_store;
@@ -17,6 +17,14 @@ pub mod pg_partition_manager;
 pub mod diesel_macro {
     thread_local! {
         pub static CALLED_FROM_BLOCKING_POOL: std::cell::RefCell<bool> = const { std::cell::RefCell::new(false) };
+    }
+
+    /// Marks the current thread as being in a blocking pool.
+    ///
+    /// Call this at the start of any `spawn_blocking` closure that will perform
+    /// blocking DB operations.
+    pub fn mark_in_blocking_pool() {
+        CALLED_FROM_BLOCKING_POOL.with(|in_blocking_pool| *in_blocking_pool.borrow_mut() = true);
     }
 
     #[macro_export]
@@ -38,6 +46,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{
@@ -56,6 +67,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! transactional_blocking_with_retry {
         ($pool:expr, $query:expr, $max_elapsed:expr) => {{
@@ -79,7 +93,7 @@ pub mod diesel_macro {
                     .read_write()
                     .run($query)
                     .map_err(|e| {
-                        tracing::error!("Error with persisting data into DB: {:?}, retrying...", e);
+                        tracing::error!("error with persisting data into DB: {e:?}, retrying...");
                         backoff::Error::Transient {
                             err: IndexerError::PostgresWrite(e.to_string()),
                             retry_after: None,
@@ -95,6 +109,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! transactional_blocking_with_retry_with_conditional_abort {
         ($pool:expr, $query:expr, $abort_condition:expr, $max_elapsed:expr) => {{
@@ -118,7 +135,7 @@ pub mod diesel_macro {
                     .read_write()
                     .run($query)
                     .map_err(|e| {
-                        tracing::error!("Error with persisting data into DB: {:?}, retrying...", e);
+                        tracing::error!("error with persisting data into DB: {e:?}, retrying...");
                         if $abort_condition(&e) {
                             backoff::Error::Permanent(e)
                         } else {
@@ -138,6 +155,7 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs an async SQL query wrapped in a spawn blocking task.
     #[macro_export]
     macro_rules! spawn_read_only_blocking {
         ($pool:expr, $query:expr, $repeatable_read:expr) => {{
@@ -145,12 +163,11 @@ pub mod diesel_macro {
             use $crate::{
                 db::{PoolConnection, get_pool_connection},
                 errors::IndexerError,
-                store::diesel_macro::CALLED_FROM_BLOCKING_POOL,
+                store::diesel_macro::mark_in_blocking_pool,
             };
             let current_span = tracing::Span::current();
             tokio::task::spawn_blocking(move || {
-                CALLED_FROM_BLOCKING_POOL
-                    .with(|in_blocking_pool| *in_blocking_pool.borrow_mut() = true);
+                mark_in_blocking_pool();
                 let _guard = current_span.enter();
                 let mut pool_conn = get_pool_connection($pool).unwrap();
 
@@ -176,7 +193,7 @@ pub mod diesel_macro {
                 }
             })
             .await
-            .expect("Blocking call failed")
+            .expect("blocking call failed")
         }};
     }
 
@@ -184,7 +201,7 @@ pub mod diesel_macro {
     macro_rules! insert_or_ignore_into {
         ($table:expr, $values:expr, $conn:expr) => {{
             use diesel::RunQueryDsl;
-            let error_message = concat!("Failed to write to ", stringify!($table), " DB");
+            let error_message = concat!("failed to write to ", stringify!($table), " DB");
 
             diesel::insert_into($table)
                 .values($values)
@@ -224,6 +241,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! run_query {
         ($pool:expr, $query:expr) => {{
@@ -232,6 +252,9 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
     #[macro_export]
     macro_rules! run_query_repeatable {
         ($pool:expr, $query:expr) => {{
@@ -240,6 +263,34 @@ pub mod diesel_macro {
         }};
     }
 
+    /// Runs a blocking SQL query.
+    ///
+    /// In an async context, it must be wrapped in an spawn blocking task.
+    #[macro_export]
+    macro_rules! run_query_with_retry {
+        ($pool:expr, $query:expr, $max_elapsed:expr) => {{
+            blocking_call_is_ok_or_panic!();
+            let mut backoff = backoff::ExponentialBackoff::default();
+            backoff.max_elapsed_time = Some($max_elapsed);
+            let result = match backoff::retry(backoff, || {
+                read_only_blocking!($pool, $query).map_err(|e| {
+                    tracing::error!("error with reading data from DB: {e:?}, retrying...");
+                    backoff::Error::Transient {
+                        err: e,
+                        retry_after: None,
+                    }
+                })
+            }) {
+                Ok(v) => Ok(v),
+                Err(backoff::Error::Transient { err, .. }) => Err(err),
+                Err(backoff::Error::Permanent(err)) => Err(err),
+            };
+
+            result
+        }};
+    }
+
+    /// Runs an async SQL query wrapped in a spawn blocking task.
     #[macro_export]
     macro_rules! run_query_async {
         ($pool:expr, $query:expr) => {{ spawn_read_only_blocking!($pool, $query, false) }};
@@ -266,7 +317,7 @@ pub mod diesel_macro {
                 && !CALLED_FROM_BLOCKING_POOL.with(|in_blocking_pool| *in_blocking_pool.borrow())
             {
                 panic!(
-                    "You are calling a blocking DB operation directly on an async thread. \
+                    "you are calling a blocking DB operation directly on an async thread. \
                         Please use IndexerReader::spawn_blocking instead to move the \
                         operation to a blocking thread"
                 );
@@ -344,7 +395,7 @@ pub mod diesel_macro {
                 );
             })
             .tap_err(|e| {
-                tracing::error!("Failed to persist {} with error: {}", stringify!($table), e);
+                tracing::error!("failed to persist {} with error: {e}", stringify!($table));
             })
         }};
     }

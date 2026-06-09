@@ -14,7 +14,6 @@ This is a comprehensive guide to the DeFi Lend Borrow DApp, a decentralized appl
 
 - [Node.js](https://nodejs.org) = v18.0
 - [React.js](https://react.dev/) >= v18.2.0
-- [npx](https://www.npmjs.com/package/npx) >= v7.1.0.
 - [Metamask](https://metamask.io/) : Set up a Metamask wallet with some IOTA EVM testnet tokens.
 
 ## Set Up

@@ -10,7 +10,7 @@ use move_bytecode_verifier_meter::{Meter, dummy::DummyMeter};
 
 use crate::{
     entry_points_verifier, global_storage_access_verifier, id_leak_verifier,
-    one_time_witness_verifier, private_generics, struct_with_key_verifier,
+    one_time_witness_verifier, private_generics, runtime_module_metadata, struct_with_key_verifier,
 };
 
 /// Helper for a "canonical" verification of a module.
@@ -24,7 +24,8 @@ pub fn iota_verify_module_metered(
     id_leak_verifier::verify_module(module, meter)?;
     private_generics::verify_module(module)?;
     entry_points_verifier::verify_module(module, fn_info_map)?;
-    one_time_witness_verifier::verify_module(module, fn_info_map)
+    one_time_witness_verifier::verify_module(module, fn_info_map)?;
+    runtime_module_metadata::verify_module(module)
 }
 
 /// Runs the IOTA verifier and checks if the error counts as an IOTA verifier
@@ -39,7 +40,7 @@ pub fn iota_verify_module_metered_check_timeout_only(
     if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter) {
         if matches!(
             error.kind(),
-            iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimeout
+            iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
         ) {
             return Err(error);
         }
@@ -57,7 +58,7 @@ pub fn iota_verify_module_unmetered(
         debug_assert!(
             !matches!(
                 err.kind(),
-                iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimeout
+                iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
             ),
             "Unexpected timeout error in execution"
         );

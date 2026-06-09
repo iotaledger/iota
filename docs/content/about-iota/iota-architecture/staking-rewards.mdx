@@ -7,7 +7,7 @@ tags:
 ---
 import StakingPoolReqs from "../../_snippets/staking-pool-reqs.mdx";
 import Quiz from '@site/src/components/Quiz';
-import {questions} from '../../../site/static/json/about-iota/iota-architecture/staking-reward.json';
+import quizData from '../../../site/static/json/about-iota/iota-architecture/staking-reward.json';
 
 # Staking and Rewards
 
@@ -66,4 +66,4 @@ Validators can call
 the [`0x3::iota_system::request_withdraw_stake`](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-system/sources/iota_system.move#L260)
 function to withdraw their stake and receive their rewards.
 
-<Quiz questions={questions} />
+<Quiz questions={quizData.questions} />

@@ -9,9 +9,10 @@ use hyper::header::InvalidHeaderValue;
 use iota_json_rpc_api::{
     TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE, error_object_from_rpc,
 };
+use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
 use iota_types::{
-    error::{IotaError, IotaObjectResponseError, UserInputError},
+    error::{IotaError, UserInputError},
     quorum_driver_types::QuorumDriverError,
 };
 use jsonrpsee::{
@@ -86,7 +87,6 @@ impl From<IotaError> for Error {
     fn from(e: IotaError) -> Self {
         match e {
             IotaError::UserInput { error } => Self::UserInput(error),
-            IotaError::IotaObjectResponse { error } => Self::IotaObjectResponse(error),
             IotaError::UnsupportedFeature { error } => Self::UnsupportedFeature(error),
             IotaError::IndexStoreNotAvailable => Self::UnsupportedFeature(
                 "Required indexes are not available on this node".to_string(),
@@ -161,6 +161,7 @@ impl From<Error> for RpcError {
 
                 match err {
                     QuorumDriverError::InvalidUserSignature { .. }
+                    | QuorumDriverError::InvalidTransaction { .. }
                     | QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures
                     | QuorumDriverError::NonRecoverableTransactionError { .. } => {
                         let error_object = ErrorObject::owned::<()>(
@@ -278,8 +279,9 @@ impl From<IotaRpcInputError> for ErrorObjectOwned {
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
-        base_types::{AuthorityName, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{AuthorityName, ObjectRef, SequenceNumber},
         committee::StakeUnit,
         crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
         digests::{ObjectDigest, TransactionDigest},
@@ -288,8 +290,8 @@ mod tests {
     use super::*;
 
     fn test_object_ref() -> ObjectRef {
-        (
-            ObjectID::ZERO,
+        ObjectRef::new(
+            ObjectId::ZERO,
             SequenceNumber::from_u64(0),
             ObjectDigest::new([0; 32]),
         )
@@ -461,7 +463,7 @@ mod tests {
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect![
-                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0x0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 0xa"
+                "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 10"
             ];
             expected_message.assert_eq(error_object.message());
         }
@@ -473,7 +475,7 @@ mod tests {
                     (
                         IotaError::UserInput {
                             error: UserInputError::ObjectNotFound {
-                                object_id: test_object_ref().0,
+                                object_id: test_object_ref().object_id,
                                 version: None,
                             },
                         },

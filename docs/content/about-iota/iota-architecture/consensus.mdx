@@ -6,17 +6,18 @@ tags: [core-protocol]
 ---
 
 import Quiz from '@site/src/components/Quiz';
-import {questions} from '../../../site/static/json/about-iota/iota-architecture/consensus.json';
+import quizData from '../../../site/static/json/about-iota/iota-architecture/consensus.json';
 import ThemedImage from '@theme/ThemedImage';
 
-The primary goal of consensus in distributed systems is to establish a consistent order of transactions and ensure their availability. In IOTA, consensus is achieved through a combination of Delegated Proof-of-Stake (dPoS) and the Mysticeti Byzantine Fault Tolerant (BFT) consensus protocol.
+The primary goal of consensus in distributed systems is to establish a consistent order of transactions and ensure their availability. In IOTA, consensus is achieved through a combination of Delegated Proof-of-Stake (dPoS) and a Byzantine Fault Tolerant (BFT) protocol. All IOTA networks — Devnet, Testnet, and Mainnet — run the **Starfish** BFT consensus protocol.
+
 
 IOTA's consensus mechanism ensures:
 
 - **Low latency**: Transactions are confirmed quickly due to efficient leader election and consensus mechanisms.
 - **High throughput**: The protocol can process a large number of transactions per second, ensuring scalability.
 - **Fast finality**: Transactions reach finality in a short time, reducing the risk of rollbacks.
-- **Energy efficiency**: Unlike Proof-of-Work (PoW), Mysticeti's consensus mechanism requires minimal computational resources.
+- **Energy efficiency**: Unlike Proof-of-Work (PoW), a BFT consensus mechanism requires minimal computational resources.
 - **Security & decentralization**: The protocol resists common attacks by relying on an honest majority of validators while maintaining a decentralized structure.
 
 ## Delegated Proof-of-Stake (dPoS) in IOTA
@@ -24,7 +25,7 @@ IOTA's consensus mechanism ensures:
 IOTA employs Delegated Proof-of-Stake (dPoS) as the overarching consensus mechanism. In this model:
 
 - Token holders delegate their voting power to validators.
-- Validators participate in block production and execute the Mysticeti protocol to finalize transactions.
+- Validators participate in block production and execute the Starfish protocol to finalize transactions.
 - Staking rewards serve as the main incentive for validators to behave honestly and secure the network.
 - This structure ensures security and decentralization while maintaining scalability.
 
@@ -43,17 +44,37 @@ Validators that participate in the consensus protocol collectively form the **Co
 
 For more details on validator staking, refer to the [Validators Staking](../tokenomics/validators-staking.mdx) page. To understand epoch transitions, see the [Epochs](./epochs.mdx) documentation.
 
-## The Mysticeti Protocol
+## The Starfish Protocol
 
-The **Mysticeti** protocol is a _BFT_ consensus protocol optimized for **low-latency** and **high-throughput** using an uncertified _DAG_ structure. It is designed to facilitate efficient and parallel transaction processing while maintaining strong security guarantees.
+**Starfish** is a _BFT_ consensus protocol optimized for **low latency** and **high throughput** using an uncertified _DAG_ structure. It is designed for robust operation under disrupted connections, uneven network latency, and adversarial validator behavior.
 
-### Key Features of Mysticeti
+### Key Features of Starfish
 
-- **Parallel Block Proposals**: Multiple validators can propose blocks simultaneously, maximizing network bandwidth and ensuring censorship resistance. This is a core advantage of DAG-based protocols.
-- **Three-Round Commit Rule**: Transactions achieve finality in just three rounds of messages, matching the efficiency of pBFT and reaching the theoretical minimum for BFT consensus.
-- **Optimized Voting**: Unlike traditional leader-based protocols, Mysticeti allows validators to vote on blocks and certify them in parallel, significantly reducing median and tail latencies.
-- **Fault Tolerance**: The protocol tolerates unavailable or faulty validators without significantly increasing commit latencies.
+- **Parallel Block Proposals**
+Multiple validators can propose blocks simultaneously, maximizing network bandwidth and improving censorship resistance — a core advantage of DAG-based protocols.
 
-For more technical details, including correctness proofs, refer to the [Mysticeti paper](https://arxiv.org/pdf/2310.14821).
+- **Three-Round Finality Rule**
+Blocks reach finality in only three rounds of communication, matching the efficiency of pBFT and achieving the theoretical minimum for BFT consensus.
 
-<Quiz questions={questions} />
+- **Optimized Voting**
+Validators vote and certify blocks in parallel rather than sequentially behind a single leader, significantly reducing median and tail latencies.
+
+- **Decoupled Block Headers and Transaction Payloads**
+Block header metadata is separated from transaction data, enabling efficient and flexible dissemination of headers.
+
+- **Cordial Dissemination of Block Headers**
+Even if multiple network routes are unavailable, a single functioning connection is sufficient to propagate block headers — without retries or request–response cycles.
+This ensures deterministic and predictable commit performance.
+
+- **Push-based Header Dissemination**
+Block headers are propagated between validators by push rather than on-demand pull. Validators at the edge of the network — with long round-trip times or a single reliable peer — achieve stable p95 commit latency, because no chain of request–response round-trips is needed to assemble a block's history.
+
+- **Linear Communication Cost for Transaction Data**
+Transactions are encoded into shards using Reed–Solomon erasure coding. Nodes can reconstruct missing data from partial shards, removing redundant broadcasts and enabling scalable throughput.
+
+- **Fault Tolerance**
+The protocol tolerates up to one-third of validators by stake being offline, crashed, or actively misbehaving, without substantially impacting commit latency.
+
+🔗 **Reference:** [Starfish Paper](https://eprint.iacr.org/2025/567)
+
+<Quiz questions={quizData.questions} />

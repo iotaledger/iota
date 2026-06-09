@@ -12,10 +12,6 @@ task 2, lines 34-46:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6N30",
@@ -41,7 +37,11 @@ Response: {
             "sequenceNumber": 10
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": true
+      }
     }
   }
 }
@@ -51,10 +51,6 @@ task 3, lines 48-60:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6N30",
@@ -62,7 +58,11 @@ Response: {
             "sequenceNumber": 7
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": true
+      }
     }
   }
 }
@@ -72,10 +72,6 @@ task 4, lines 62-74:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6MH0",
@@ -101,7 +97,11 @@ Response: {
             "sequenceNumber": 3
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false
+      }
     }
   }
 }
@@ -111,10 +111,6 @@ task 5, lines 76-88:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6NH0",
@@ -128,7 +124,11 @@ Response: {
             "sequenceNumber": 5
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": true
+      }
     }
   }
 }
@@ -138,10 +138,6 @@ task 6, lines 90-102:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6MH0",
@@ -161,7 +157,11 @@ Response: {
             "sequenceNumber": 2
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false
+      }
     }
   }
 }
@@ -171,10 +171,6 @@ task 7, lines 104-116:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": false
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6OX0",
@@ -200,7 +196,11 @@ Response: {
             "sequenceNumber": 12
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": true
+      }
     }
   }
 }
@@ -210,10 +210,6 @@ task 8, lines 118-130:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6MH0",
@@ -239,7 +235,11 @@ Response: {
             "sequenceNumber": 3
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false
+      }
     }
   }
 }
@@ -249,10 +249,6 @@ task 9, lines 132-144:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": false
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6NX0",
@@ -302,7 +298,11 @@ Response: {
             "sequenceNumber": 12
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": true
+      }
     }
   }
 }
@@ -312,10 +312,6 @@ task 10, lines 146-158:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6Mn0",
@@ -341,7 +337,11 @@ Response: {
             "sequenceNumber": 5
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": true
+      }
     }
   }
 }
@@ -351,10 +351,6 @@ task 11, lines 160-172:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6NH0",
@@ -368,7 +364,11 @@ Response: {
             "sequenceNumber": 5
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": true
+      }
     }
   }
 }
@@ -378,10 +378,6 @@ task 12, lines 174-186:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": false
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6MTB9",
@@ -401,7 +397,11 @@ Response: {
             "sequenceNumber": 12
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": true
+      }
     }
   }
 }
@@ -411,10 +411,6 @@ task 13, lines 188-200:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": false
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6MH0",
@@ -494,7 +490,11 @@ Response: {
             "sequenceNumber": 12
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false
+      }
     }
   }
 }
@@ -504,10 +504,6 @@ task 14, lines 202-214:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6MH0",
@@ -533,7 +529,11 @@ Response: {
             "sequenceNumber": 3
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false
+      }
     }
   }
 }
@@ -543,10 +543,6 @@ task 15, lines 216-228:
 Response: {
   "data": {
     "checkpoints": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": false
-      },
       "edges": [
         {
           "cursor": "eyJjIjoxMiwicyI6OX0",
@@ -572,7 +568,11 @@ Response: {
             "sequenceNumber": 12
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": true
+      }
     }
   }
 }

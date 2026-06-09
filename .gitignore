@@ -29,6 +29,10 @@ Move.lock
 .trace
 .coverage_map.mvcov
 
+# Flamegraph output
+flamegraph.svg
+flamegraph-mem.svg
+
 # Thumbnails
 ._*
 
@@ -39,6 +43,7 @@ Move.lock
 # Python
 .pyc
 **/__pycache__/
+**/.venv*/
 
 # Node.js
 node_modules/
@@ -74,6 +79,7 @@ yarn-error.log*
 checkpoints_dir/*
 light_client.yaml
 **/.cache/
+Dockerfile.cache
 
 lcov.info
 **/venv/
@@ -85,6 +91,10 @@ dev-tools/iota-private-network/data
 dev-tools/iota-private-network/configs/validators/validator*
 dev-tools/iota-private-network/configs/genesis/genesis.blob
 dev-tools/iota-private-network/configs/temp/
+dev-tools/iota-private-network/experiments/logs/
+dev-tools/iota-private-network/.env.tmp
+dev-tools/iota-private-network/configs/faucet/*.migrated
+**/*.egg-info/
 
 # iota-data-ingestion
 dev-tools/iota-data-ingestion/*/output/
@@ -95,3 +105,6 @@ docs/generated-docs/**
 # https://github.com/wclr/yalc
 .yalc
 yalc.lock
+
+# ignore explorer files
+apps/explorer/public/*.wasm

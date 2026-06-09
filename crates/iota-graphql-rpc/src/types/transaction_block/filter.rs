@@ -12,24 +12,35 @@ use crate::types::{
     transaction_block::TransactionBlockKindInput, type_filter::FqNameFilter, uint53::UInt53,
 };
 
+/// Represents optional available filters for transaction blocks.
 #[derive(InputObject, Debug, Default, Clone)]
 pub(crate) struct TransactionBlockFilter {
+    /// Filter transactions by move function called.
+    ///
+    /// Calls can be filtered by the `package`, `package::module`, or the
+    /// `package::module::name` of their function.
     pub function: Option<FqNameFilter>,
 
     /// An input filter selecting for either system or programmable
     /// transactions.
     pub kind: Option<TransactionBlockKindInput>,
+    /// Limit to transactions that occurred strictly after the given checkpoint.
     pub after_checkpoint: Option<UInt53>,
+    /// Limit to transactions in the given checkpoint.
     pub at_checkpoint: Option<UInt53>,
+    /// Limit to transaction that occurred strictly before the given checkpoint.
     pub before_checkpoint: Option<UInt53>,
-
-    pub sign_address: Option<IotaAddress>,
+    /// Limit to transactions that were sent by the given address.
+    pub sent_address: Option<IotaAddress>,
+    /// Limit to transactions that sent an object to the given address.
     pub recv_address: Option<IotaAddress>,
-
+    /// Limit to transactions that accepted the given object as an input.
     pub input_object: Option<IotaAddress>,
+    /// Limit to transactions that output a version of this object.
     pub changed_object: Option<IotaAddress>,
+    /// Limit to transactions that wrapped or deleted the given object.
     pub wrapped_or_deleted_object: Option<IotaAddress>,
-
+    /// Select transactions by their digest.
     pub transaction_ids: Option<Vec<Digest>>,
 }
 
@@ -54,7 +65,7 @@ impl TransactionBlockFilter {
             at_checkpoint: intersect!(at_checkpoint, intersect::by_eq)?,
             before_checkpoint: intersect!(before_checkpoint, intersect::by_min)?,
 
-            sign_address: intersect!(sign_address, intersect::by_eq)?,
+            sent_address: intersect!(sent_address, intersect::by_eq)?,
             recv_address: intersect!(recv_address, intersect::by_eq)?,
             input_object: intersect!(input_object, intersect::by_eq)?,
             changed_object: intersect!(changed_object, intersect::by_eq)?,
@@ -88,8 +99,10 @@ impl TransactionBlockFilter {
             > 1
     }
 
-    /// If we don't query a lookup table that has a denormalized sender column,
-    /// we need to explicitly sp
+    /// Returns the transaction sender to query `tx_sender`.
+    ///
+    /// If there are other filters set that would query tables with a `sender`
+    /// column, then this returns `None`.
     pub(crate) fn explicit_sender(&self) -> Option<IotaAddress> {
         if self.function.is_none()
             && self.kind.is_none()
@@ -98,7 +111,7 @@ impl TransactionBlockFilter {
             && self.changed_object.is_none()
             && self.wrapped_or_deleted_object.is_none()
         {
-            self.sign_address
+            self.sent_address
         } else {
             None
         }
@@ -109,7 +122,7 @@ impl TransactionBlockFilter {
     pub(crate) fn has_filters(&self) -> bool {
         self.function.is_some()
             || self.kind.is_some()
-            || self.sign_address.is_some()
+            || self.sent_address.is_some()
             || self.recv_address.is_some()
             || self.input_object.is_some()
             || self.changed_object.is_some()
@@ -133,10 +146,10 @@ impl TransactionBlockFilter {
             )
             // If SystemTx, sender if specified must be 0x0. Conversely, if sender is 0x0, kind must be SystemTx.
             || matches!(
-                (self.kind, self.sign_address),
-                (Some(kind), Some(signer))
+                (self.kind, self.sent_address),
+                (Some(kind), Some(sender))
                     if (kind == TransactionBlockKindInput::SystemTx)
-                        != (signer == IotaAddress::from(NativeIotaAddress::ZERO))
+                        != (sender == IotaAddress::from(NativeIotaAddress::ZERO))
             )
     }
 }

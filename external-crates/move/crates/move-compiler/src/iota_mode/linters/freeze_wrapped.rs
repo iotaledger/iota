@@ -6,33 +6,35 @@
 //! or not) other structs with the key ability. In other words flags freezing of
 //! structs whose fields (directly or not) wrap objects.
 
+use std::{collections::BTreeMap, sync::Arc};
+
+use move_core_types::account_address::AccountAddress;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+
 use crate::{
     diag,
     diagnostics::{
-        codes::{custom, DiagnosticInfo, Severity},
-        warning_filters::WarningFilters,
         Diagnostic, DiagnosticReporter, Diagnostics,
+        codes::{DiagnosticInfo, Severity, custom},
+        warning_filters::WarningFilters,
     },
     expansion::ast as E,
-    naming::ast as N,
-    parser::ast::{self as P, Ability_},
-    shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
     iota_mode::{
+        IOTA_ADDR_VALUE,
         linters::{
-            LinterDiagnosticCategory, LinterDiagnosticCode, FREEZE_FUN, LINT_WARNING_PREFIX,
+            FREEZE_FUN, LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode,
             PUBLIC_FREEZE_FUN, TRANSFER_MOD_NAME,
         },
-        IOTA_ADDR_VALUE,
     },
+    naming::ast as N,
+    parser::ast::{self as P, Ability_},
+    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
     typing::{
         ast as T,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
-use move_core_types::account_address::AccountAddress;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::{collections::BTreeMap, sync::Arc};
 
 const FREEZE_WRAPPING_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
@@ -164,8 +166,9 @@ impl TypingVisitorContext for Context<'_> {
 }
 
 impl Context<'_> {
-    /// Checks if a given field (identified by ftype and fname) wraps other objects and, if so,
-    /// returns its location and information on whether wrapping is direct or indirect.
+    /// Checks if a given field (identified by ftype and fname) wraps other
+    /// objects and, if so, returns its location and information on whether
+    /// wrapping is direct or indirect.
     fn wraps_object(
         &mut self,
         sp!(_, ftype_): &N::Type,

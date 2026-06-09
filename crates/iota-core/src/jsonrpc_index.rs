@@ -7,7 +7,7 @@
 
 use std::{
     cmp::{max, min},
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -15,40 +15,51 @@ use std::{
     },
 };
 
+use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
+use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
-        TransactionDigest, TxSequenceNumber,
+        IotaAddress, ObjectDigest, ObjectInfo, ObjectRef, SequenceNumber, TransactionDigest,
+        TxSequenceNumber,
     },
     digests::TransactionEventsDigest,
     dynamic_field::{self, DynamicFieldInfo},
     effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
     inner_temporary_store::TxCoins,
-    object::{Object, Owner},
+    object::Object,
     parse_iota_struct_tag,
 };
 use itertools::Itertools;
-use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+};
 use parking_lot::ArcMutexGuard;
-use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use prometheus::{
+    IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry,
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    rocks::{DBBatch, DBMap, DBOptions, MetricConf, default_db_options, read_size_from_env},
-    traits::{Map, TableSummary, TypedStoreDebug},
+    rocks::{
+        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
+        read_size_from_env,
+    },
+    rocksdb::compaction_filter::Decision,
+    traits::Map,
 };
 
 type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
 
-type OwnerIndexKey = (IotaAddress, ObjectID);
-type CoinIndexKey = (IotaAddress, String, ObjectID);
-type DynamicFieldKey = (ObjectID, ObjectID);
+type OwnerIndexKey = (IotaAddress, ObjectId);
+type CoinIndexKey = (IotaAddress, String, ObjectId);
+type DynamicFieldKey = (ObjectId, ObjectId);
 type EventId = (TxSequenceNumber, usize);
 type EventIndex = (TransactionEventsDigest, TransactionDigest, u64);
 type AllBalance = HashMap<TypeTag, TotalBalance>;
@@ -153,34 +164,27 @@ pub struct IndexStoreCacheUpdates {
 #[derive(DBMapUtils)]
 pub struct IndexStoreTables {
     /// Index from iota address to transactions initiated by that address.
-    #[default_options_override_fn = "transactions_from_addr_table_default_config"]
     transactions_from_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
 
     /// Index from iota address to transactions that were sent to that address.
-    #[default_options_override_fn = "transactions_to_addr_table_default_config"]
     transactions_to_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that used that object id as input.
-    #[deprecated]
-    transactions_by_input_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
+    transactions_by_input_object_id: DBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that modified/created that object
     /// id.
-    #[deprecated]
-    transactions_by_mutated_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
+    transactions_by_mutated_object_id: DBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
 
     /// Index from package id, module and function identifier to transactions
     /// that used that moce function call as input.
-    #[default_options_override_fn = "transactions_by_move_function_table_default_config"]
     transactions_by_move_function:
-        DBMap<(ObjectID, String, String, TxSequenceNumber), TransactionDigest>,
+        DBMap<(ObjectId, String, String, TxSequenceNumber), TransactionDigest>,
 
     /// Ordering of all indexed transactions.
-    #[default_options_override_fn = "transactions_order_table_default_config"]
     transaction_order: DBMap<TxSequenceNumber, TransactionDigest>,
 
     /// Index from transaction digest to sequence number.
-    #[default_options_override_fn = "transactions_seq_table_default_config"]
     transactions_seq: DBMap<TransactionDigest, TxSequenceNumber>,
 
     /// This is an index of object references to currently existing objects,
@@ -188,10 +192,8 @@ pub struct IndexStoreTables {
     /// the object ID of the object. This composite index allows an
     /// efficient iterator to list all objected currently owned
     /// by a specific user, and their object reference.
-    #[default_options_override_fn = "owner_index_table_default_config"]
     owner_index: DBMap<OwnerIndexKey, ObjectInfo>,
 
-    #[default_options_override_fn = "coin_index_table_default_config"]
     coin_index: DBMap<CoinIndexKey, CoinInfo>,
 
     /// This is an index of object references to currently existing dynamic
@@ -199,26 +201,21 @@ pub struct IndexStoreTables {
     /// parent and the object ID of the dynamic field object. This composite
     /// index allows an efficient iterator to list all objects currently owned
     /// by a specific object, and their object reference.
-    #[default_options_override_fn = "dynamic_field_index_table_default_config"]
     dynamic_field_index: DBMap<DynamicFieldKey, DynamicFieldInfo>,
 
-    #[default_options_override_fn = "index_table_default_config"]
     event_order: DBMap<EventId, EventIndex>,
 
-    #[default_options_override_fn = "index_table_default_config"]
     event_by_move_module: DBMap<(ModuleId, EventId), EventIndex>,
 
-    #[default_options_override_fn = "index_table_default_config"]
     event_by_move_event: DBMap<(StructTag, EventId), EventIndex>,
 
-    #[default_options_override_fn = "index_table_default_config"]
     event_by_event_module: DBMap<(ModuleId, EventId), EventIndex>,
 
-    #[default_options_override_fn = "index_table_default_config"]
     event_by_sender: DBMap<(IotaAddress, EventId), EventIndex>,
 
-    #[default_options_override_fn = "index_table_default_config"]
     event_by_time: DBMap<(u64, EventId), EventIndex>,
+
+    pruner_watermark: DBMap<(), TxSequenceNumber>,
 }
 
 impl IndexStoreTables {
@@ -240,34 +237,89 @@ pub struct IndexStore {
     caches: IndexStoreCaches,
     metrics: Arc<IndexStoreMetrics>,
     max_type_length: u64,
-    remove_deprecated_tables: bool,
+    pruner_watermark: Arc<AtomicU64>,
 }
 
-// These functions are used to initialize the DB tables
-fn transactions_order_table_default_config() -> DBOptions {
-    default_db_options().disable_write_throttling()
+struct JsonRpcCompactionMetrics {
+    key_removed: IntCounterVec,
+    key_kept: IntCounterVec,
+    key_error: IntCounterVec,
 }
-fn transactions_seq_table_default_config() -> DBOptions {
-    default_db_options().disable_write_throttling()
+
+impl JsonRpcCompactionMetrics {
+    pub fn new(registry: &Registry) -> Arc<Self> {
+        Arc::new(Self {
+            key_removed: register_int_counter_vec_with_registry!(
+                "json_rpc_compaction_filter_key_removed",
+                "Compaction key removed",
+                &["cf"],
+                registry
+            )
+            .unwrap(),
+            key_kept: register_int_counter_vec_with_registry!(
+                "json_rpc_compaction_filter_key_kept",
+                "Compaction key kept",
+                &["cf"],
+                registry
+            )
+            .unwrap(),
+            key_error: register_int_counter_vec_with_registry!(
+                "json_rpc_compaction_filter_key_error",
+                "Compaction error",
+                &["cf"],
+                registry
+            )
+            .unwrap(),
+        })
+    }
 }
-fn transactions_from_addr_table_default_config() -> DBOptions {
-    default_db_options().disable_write_throttling()
+
+fn compaction_filter_config<T: DeserializeOwned>(
+    name: &str,
+    metrics: Arc<JsonRpcCompactionMetrics>,
+    mut db_options: DBOptions,
+    pruner_watermark: Arc<AtomicU64>,
+    extractor: impl Fn(T) -> TxSequenceNumber + Send + Sync + 'static,
+    by_key: bool,
+) -> DBOptions {
+    let cf = name.to_string();
+    db_options
+        .options
+        .set_compaction_filter(name, move |_, key, value| {
+            let bytes = if by_key { key } else { value };
+            let deserializer = bincode::DefaultOptions::new()
+                .with_big_endian()
+                .with_fixint_encoding();
+            match deserializer.deserialize(bytes) {
+                Ok(key_data) => {
+                    let sequence_number = extractor(key_data);
+                    if sequence_number < pruner_watermark.load(Ordering::Relaxed) {
+                        metrics.key_removed.with_label_values(&[&cf]).inc();
+                        Decision::Remove
+                    } else {
+                        metrics.key_kept.with_label_values(&[&cf]).inc();
+                        Decision::Keep
+                    }
+                }
+                Err(_) => {
+                    metrics.key_error.with_label_values(&[&cf]).inc();
+                    Decision::Keep
+                }
+            }
+        });
+    db_options
 }
-fn transactions_to_addr_table_default_config() -> DBOptions {
-    default_db_options().disable_write_throttling()
+
+fn compaction_filter_config_by_key<T: DeserializeOwned>(
+    name: &str,
+    metrics: Arc<JsonRpcCompactionMetrics>,
+    db_options: DBOptions,
+    pruner_watermark: Arc<AtomicU64>,
+    extractor: impl Fn(T) -> TxSequenceNumber + Send + Sync + 'static,
+) -> DBOptions {
+    compaction_filter_config(name, metrics, db_options, pruner_watermark, extractor, true)
 }
-fn transactions_by_move_function_table_default_config() -> DBOptions {
-    default_db_options().disable_write_throttling()
-}
-fn owner_index_table_default_config() -> DBOptions {
-    default_db_options().disable_write_throttling()
-}
-fn dynamic_field_index_table_default_config() -> DBOptions {
-    default_db_options().disable_write_throttling()
-}
-fn index_table_default_config() -> DBOptions {
-    default_db_options().disable_write_throttling()
-}
+
 fn coin_index_table_default_config() -> DBOptions {
     default_db_options()
         .optimize_for_write_throughput()
@@ -278,19 +330,121 @@ fn coin_index_table_default_config() -> DBOptions {
 }
 
 impl IndexStore {
-    pub fn new(
-        path: PathBuf,
-        registry: &Registry,
-        max_type_length: Option<u64>,
-        remove_deprecated_tables: bool,
-    ) -> Self {
-        let tables = IndexStoreTables::open_tables_read_write_with_deprecation_option(
+    pub fn new(path: PathBuf, registry: &Registry, max_type_length: Option<u64>) -> Self {
+        let db_options = default_db_options().disable_write_throttling();
+        let pruner_watermark = Arc::new(AtomicU64::new(0));
+        let compaction_metrics = JsonRpcCompactionMetrics::new(registry);
+        let table_options = DBMapTableConfigMap::new(BTreeMap::from([
+            (
+                "transactions_from_addr".to_string(),
+                compaction_filter_config_by_key(
+                    "transactions_from_addr",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |(_, id): (IotaAddress, TxSequenceNumber)| id,
+                ),
+            ),
+            (
+                "transactions_to_addr".to_string(),
+                compaction_filter_config_by_key(
+                    "transactions_to_addr",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |(_, sequence_number): (IotaAddress, TxSequenceNumber)| sequence_number,
+                ),
+            ),
+            (
+                "transactions_by_move_function".to_string(),
+                compaction_filter_config_by_key(
+                    "transactions_by_move_function",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |(_, _, _, id): (ObjectId, String, String, TxSequenceNumber)| id,
+                ),
+            ),
+            (
+                "transaction_order".to_string(),
+                compaction_filter_config_by_key(
+                    "transaction_order",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |sequence_number: TxSequenceNumber| sequence_number,
+                ),
+            ),
+            (
+                "transactions_seq".to_string(),
+                compaction_filter_config(
+                    "transactions_seq",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |sequence_number: TxSequenceNumber| sequence_number,
+                    false,
+                ),
+            ),
+            ("coin_index".to_string(), coin_index_table_default_config()),
+            (
+                "event_order".to_string(),
+                compaction_filter_config_by_key(
+                    "event_order",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |event_id: EventId| event_id.0,
+                ),
+            ),
+            (
+                "event_by_move_module".to_string(),
+                compaction_filter_config_by_key(
+                    "event_by_move_module",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |(_, event_id): (ModuleId, EventId)| event_id.0,
+                ),
+            ),
+            (
+                "event_by_event_module".to_string(),
+                compaction_filter_config_by_key(
+                    "event_by_event_module",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |(_, event_id): (ModuleId, EventId)| event_id.0,
+                ),
+            ),
+            (
+                "event_by_sender".to_string(),
+                compaction_filter_config_by_key(
+                    "event_by_sender",
+                    compaction_metrics.clone(),
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |(_, event_id): (IotaAddress, EventId)| event_id.0,
+                ),
+            ),
+            (
+                "event_by_time".to_string(),
+                compaction_filter_config_by_key(
+                    "event_by_time",
+                    compaction_metrics,
+                    db_options.clone(),
+                    pruner_watermark.clone(),
+                    |(_, event_id): (u64, EventId)| event_id.0,
+                ),
+            ),
+        ]));
+        let tables = IndexStoreTables::open_tables_read_write(
             path,
             MetricConf::new("index"),
-            None,
-            None,
-            remove_deprecated_tables,
+            Some(db_options.options),
+            Some(table_options),
         );
+
         let metrics = IndexStoreMetrics::new(registry);
         let caches = IndexStoreCaches {
             per_coin_type_balance: ShardedLruCache::new(1_000_000, 1000),
@@ -307,6 +461,12 @@ impl IndexStore {
             .map(|(seq, _)| seq + 1)
             .unwrap_or(0)
             .into();
+        let pruner_watermark_value = tables
+            .pruner_watermark
+            .get(&())
+            .expect("failed to initialize index tables")
+            .unwrap_or(0);
+        pruner_watermark.store(pruner_watermark_value, Ordering::Relaxed);
 
         Self {
             tables,
@@ -314,7 +474,7 @@ impl IndexStore {
             caches,
             metrics: Arc::new(metrics),
             max_type_length: max_type_length.unwrap_or(128),
-            remove_deprecated_tables,
+            pruner_watermark,
         }
     }
 
@@ -363,9 +523,9 @@ impl IndexStore {
             .iter()
             .filter_map(|(owner, obj_id)| {
                 let object = input_coins.get(obj_id).or(written_coins.get(obj_id))?;
-                let coin_type_tag = object.coin_type_maybe().unwrap_or_else(|| {
+                let coin_type_tag = object.coin_type_opt().unwrap_or_else(|| {
                     panic!(
-                        "object_id: {obj_id:?} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                        "object_id: {obj_id} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest}"
                     )
                 });
                 let map = balance_changes.entry(*owner).or_default();
@@ -384,7 +544,7 @@ impl IndexStore {
             "coin_delete_keys: {:?}",
             coin_delete_keys,
         );
-        batch.delete_batch(&self.tables.coin_index, coin_delete_keys.into_iter())?;
+        batch.delete_batch(&self.tables.coin_index, coin_delete_keys)?;
 
         // 2. Upsert new owner, by looking at `object_index_changes.new_owners`.
         // For a object to appear in `new_owners`, it must be owned by `Owner::Address`
@@ -400,14 +560,14 @@ impl IndexStore {
         .filter_map(|((owner, obj_id), obj_info)| {
             // If it's in written_coins, then it's not a coin. Skip it.
             let obj = written_coins.get(obj_id)?;
-            let coin_type_tag = obj.coin_type_maybe().unwrap_or_else(|| {
+            let coin_type_tag = obj.coin_type_opt().cloned().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {obj_id:?} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                    "object_id: {obj_id} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest}"
                 )
             });
             let coin = obj.as_coin_maybe().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {obj_id:?} in written_coins cannot be deserialized as a Coin, written_coins: {written_coins:?}, tx_digest: {digest:?}"
+                    "object_id: {obj_id} in written_coins cannot be deserialized as a Coin, written_coins: {written_coins:?}, tx_digest: {digest}"
                 )
             });
             let map = balance_changes.entry(*owner).or_default();
@@ -431,7 +591,7 @@ impl IndexStore {
             coin_add_keys,
         );
 
-        batch.insert_batch(&self.tables.coin_index, coin_add_keys.into_iter())?;
+        batch.insert_batch(&self.tables.coin_index, coin_add_keys)?;
 
         let per_coin_type_balance_changes: Vec<_> = balance_changes
             .iter()
@@ -466,9 +626,9 @@ impl IndexStore {
     pub fn index_tx(
         &self,
         sender: IotaAddress,
-        active_inputs: impl Iterator<Item = ObjectID>,
+        active_inputs: impl Iterator<Item = ObjectId>,
         mutated_objects: impl Iterator<Item = (ObjectRef, Owner)> + Clone,
-        move_functions: impl Iterator<Item = (ObjectID, String, String)> + Clone,
+        move_functions: impl Iterator<Item = (ObjectId, String, String)> + Clone,
         events: &TransactionEvents,
         object_index_changes: ObjectIndexChanges,
         digest: &TransactionDigest,
@@ -493,20 +653,17 @@ impl IndexStore {
             std::iter::once(((sender, sequence), *digest)),
         )?;
 
-        #[allow(deprecated)]
-        if !self.remove_deprecated_tables {
-            batch.insert_batch(
-                &self.tables.transactions_by_input_object_id,
-                active_inputs.map(|id| ((id, sequence), *digest)),
-            )?;
+        batch.insert_batch(
+            &self.tables.transactions_by_input_object_id,
+            active_inputs.map(|id| ((id, sequence), *digest)),
+        )?;
 
-            batch.insert_batch(
-                &self.tables.transactions_by_mutated_object_id,
-                mutated_objects
-                    .clone()
-                    .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
-            )?;
-        }
+        batch.insert_batch(
+            &self.tables.transactions_by_mutated_object_id,
+            mutated_objects
+                .clone()
+                .map(|(obj_ref, _)| ((obj_ref.object_id, sequence), *digest)),
+        )?;
 
         batch.insert_batch(
             &self.tables.transactions_by_move_function,
@@ -518,8 +675,7 @@ impl IndexStore {
             &self.tables.transactions_to_addr,
             mutated_objects.filter_map(|(_, owner)| {
                 owner
-                    .get_address_owner_address()
-                    .ok()
+                    .into_address_opt()
                     .map(|addr| ((addr, sequence), digest))
             }),
         )?;
@@ -530,21 +686,18 @@ impl IndexStore {
         // Owner index
         batch.delete_batch(
             &self.tables.owner_index,
-            object_index_changes.deleted_owners.into_iter(),
+            object_index_changes.deleted_owners,
         )?;
         batch.delete_batch(
             &self.tables.dynamic_field_index,
-            object_index_changes.deleted_dynamic_fields.into_iter(),
+            object_index_changes.deleted_dynamic_fields,
         )?;
 
-        batch.insert_batch(
-            &self.tables.owner_index,
-            object_index_changes.new_owners.into_iter(),
-        )?;
+        batch.insert_batch(&self.tables.owner_index, object_index_changes.new_owners)?;
 
         batch.insert_batch(
             &self.tables.dynamic_field_index,
-            object_index_changes.new_dynamic_fields.into_iter(),
+            object_index_changes.new_dynamic_fields,
         )?;
 
         // events
@@ -552,7 +705,6 @@ impl IndexStore {
         batch.insert_batch(
             &self.tables.event_order,
             events
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, _)| ((sequence, i), (event_digest, *digest, timestamp_ms))),
@@ -560,20 +712,22 @@ impl IndexStore {
         batch.insert_batch(
             &self.tables.event_by_move_module,
             events
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, e)| {
                     (
                         i,
-                        ModuleId::new(e.package_id.into(), e.transaction_module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.package_id.into_bytes()),
+                            Identifier::new(e.module.as_str()).unwrap(),
+                        ),
                     )
                 })
                 .map(|(i, m)| ((m, (sequence, i)), (event_digest, *digest, timestamp_ms))),
         )?;
         batch.insert_batch(
             &self.tables.event_by_sender,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (e.sender, (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -582,7 +736,7 @@ impl IndexStore {
         )?;
         batch.insert_batch(
             &self.tables.event_by_move_event,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (e.type_.clone(), (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -592,7 +746,7 @@ impl IndexStore {
 
         batch.insert_batch(
             &self.tables.event_by_time,
-            events.data.iter().enumerate().map(|(i, _)| {
+            events.iter().enumerate().map(|(i, _)| {
                 (
                     (timestamp_ms, (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
@@ -602,10 +756,13 @@ impl IndexStore {
 
         batch.insert_batch(
             &self.tables.event_by_event_module,
-            events.data.iter().enumerate().map(|(i, e)| {
+            events.iter().enumerate().map(|(i, e)| {
                 (
                     (
-                        ModuleId::new(e.type_.address, e.type_.module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.type_.address().into_bytes()),
+                            Identifier::new(e.type_.module().as_str()).unwrap(),
+                        ),
                         (sequence, i),
                     ),
                     (event_digest, *digest, timestamp_ms),
@@ -707,13 +864,13 @@ impl IndexStore {
                     let iter = self
                         .tables
                         .transaction_order
-                        .iter_with_bounds(Some(cursor.unwrap_or(TxSequenceNumber::MIN)), None)
+                        .safe_iter_with_bounds(Some(cursor.unwrap_or(TxSequenceNumber::MIN)), None)
                         .skip(usize::from(cursor.is_some()))
-                        .map(|(_, digest)| digest);
+                        .map(|result| result.map(|(_, digest)| digest));
                     if let Some(limit) = limit {
-                        Ok(iter.take(limit).collect())
+                        Ok(iter.take(limit).collect::<Result<Vec<_>, _>>()?)
                     } else {
-                        Ok(iter.collect())
+                        Ok(iter.collect::<Result<Vec<_>, _>>()?)
                     }
                 }
             }
@@ -747,15 +904,11 @@ impl IndexStore {
 
     pub fn get_transactions_by_input_object(
         &self,
-        input_object: ObjectID,
+        input_object: ObjectId,
         cursor: Option<TxSequenceNumber>,
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        if self.remove_deprecated_tables {
-            return Ok(vec![]);
-        }
-        #[allow(deprecated)]
         Self::get_transactions_from_index(
             &self.tables.transactions_by_input_object_id,
             input_object,
@@ -767,15 +920,11 @@ impl IndexStore {
 
     pub fn get_transactions_by_mutated_object(
         &self,
-        mutated_object: ObjectID,
+        mutated_object: ObjectId,
         cursor: Option<TxSequenceNumber>,
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        if self.remove_deprecated_tables {
-            return Ok(vec![]);
-        }
-        #[allow(deprecated)]
         Self::get_transactions_from_index(
             &self.tables.transactions_by_mutated_object_id,
             mutated_object,
@@ -803,7 +952,7 @@ impl IndexStore {
 
     pub fn get_transactions_by_move_function(
         &self,
-        package: ObjectID,
+        package: ObjectId,
         module: Option<String>,
         function: Option<String>,
         cursor: Option<TxSequenceNumber>,
@@ -834,7 +983,7 @@ impl IndexStore {
             TxSequenceNumber::MIN
         });
 
-        let max_string = "Z".repeat(self.max_type_length.try_into().unwrap());
+        let max_string = "z".repeat(self.max_type_length.try_into().unwrap());
         let module_val = module.clone().unwrap_or(if reverse {
             max_string.clone()
         } else {
@@ -919,12 +1068,14 @@ impl IndexStore {
         } else {
             self.tables
                 .event_order
-                .iter_with_bounds(Some((tx_seq, event_seq)), None)
+                .safe_iter_with_bounds(Some((tx_seq, event_seq)), None)
                 .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
+                .map(|result| {
+                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, _>>()?
         })
     }
 
@@ -1095,16 +1246,42 @@ impl IndexStore {
         }
     }
 
+    pub fn prune(&self, cut_time_ms: u64) -> IotaResult<TxSequenceNumber> {
+        match self
+            .tables
+            .event_by_time
+            .reversed_safe_iter_with_bounds(
+                None,
+                Some((cut_time_ms, (TxSequenceNumber::MAX, usize::MAX))),
+            )?
+            .next()
+            .transpose()?
+        {
+            Some(((_, (watermark, _)), _)) => {
+                if let Some(digest) = self.tables.transaction_order.get(&watermark)? {
+                    info!(
+                        "json rpc index pruning. Watermark is {} with digest {}",
+                        watermark, digest
+                    );
+                }
+                self.pruner_watermark.store(watermark, Ordering::Relaxed);
+                self.tables.pruner_watermark.insert(&(), &watermark)?;
+                Ok(watermark)
+            }
+            None => Ok(0),
+        }
+    }
+
     pub fn get_dynamic_fields_iterator(
         &self,
-        object: ObjectID,
-        cursor: Option<ObjectID>,
-    ) -> IotaResult<impl Iterator<Item = Result<(ObjectID, DynamicFieldInfo), TypedStoreError>> + '_>
+        object: ObjectId,
+        cursor: Option<ObjectId>,
+    ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
     {
         debug!(?object, "get_dynamic_fields");
         // The object id 0 is the smallest possible
-        let iter_lower_bound = (object, cursor.unwrap_or(ObjectID::ZERO));
-        let iter_upper_bound = (object, ObjectID::MAX);
+        let iter_lower_bound = (object, cursor.unwrap_or(ObjectId::ZERO));
+        let iter_upper_bound = (object, ObjectId::MAX);
         Ok(self
             .tables
             .dynamic_field_index
@@ -1117,10 +1294,10 @@ impl IndexStore {
 
     pub fn get_dynamic_field_object_id(
         &self,
-        object: ObjectID,
+        object: ObjectId,
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
-    ) -> IotaResult<Option<ObjectID>> {
+    ) -> IotaResult<Option<ObjectId>> {
         debug!(?object, "get_dynamic_field_object_id");
         let dynamic_field_id =
             dynamic_field::derive_dynamic_field_id(object, &name_type, name_bcs_bytes).map_err(
@@ -1170,13 +1347,13 @@ impl IndexStore {
     pub fn get_owner_objects(
         &self,
         owner: IotaAddress,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<Vec<ObjectInfo>> {
         let cursor = match cursor {
             Some(cursor) => cursor,
-            None => ObjectID::ZERO,
+            None => ObjectId::ZERO,
         };
         Ok(self
             .get_owner_objects_iterator(owner, cursor, filter)?
@@ -1188,15 +1365,16 @@ impl IndexStore {
         coin_index: &DBMap<CoinIndexKey, CoinInfo>,
         owner: IotaAddress,
         coin_type_tag: Option<String>,
-    ) -> IotaResult<impl Iterator<Item = (String, ObjectID, CoinInfo)> + '_> {
+    ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
         let all_coins = coin_type_tag.is_none();
         let starting_coin_type =
             coin_type_tag.unwrap_or_else(|| String::from_utf8([0u8].to_vec()).unwrap());
         Ok(coin_index
-            .iter_with_bounds(
-                Some((owner, starting_coin_type.clone(), ObjectID::ZERO)),
+            .safe_iter_with_bounds(
+                Some((owner, starting_coin_type.clone(), ObjectId::ZERO)),
                 None,
             )
+            .map(|result| result.expect("iterator db error"))
             .take_while(move |((addr, coin_type, _), _)| {
                 if addr != &owner {
                     return false;
@@ -1212,18 +1390,19 @@ impl IndexStore {
     pub fn get_owned_coins_iterator_with_cursor(
         &self,
         owner: IotaAddress,
-        cursor: (String, ObjectID),
+        cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
-    ) -> IotaResult<impl Iterator<Item = (String, ObjectID, CoinInfo)> + '_> {
+    ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
         let (starting_coin_type, starting_object_id) = cursor;
         Ok(self
             .tables
             .coin_index
-            .iter_with_bounds(
+            .safe_iter_with_bounds(
                 Some((owner, starting_coin_type.clone(), starting_object_id)),
                 None,
             )
+            .map(|result| result.expect("iterator db error"))
             .filter(move |((_, _, obj_id), _)| obj_id != &starting_object_id)
             .enumerate()
             .take_while(move |(index, ((addr, coin_type, _), _))| {
@@ -1247,15 +1426,16 @@ impl IndexStore {
     pub fn get_owner_objects_iterator(
         &self,
         owner: IotaAddress,
-        starting_object_id: ObjectID,
+        starting_object_id: ObjectId,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
         Ok(self
             .tables
             .owner_index
             // The object id 0 is the smallest possible
-            .iter_with_bounds(Some((owner, starting_object_id)), None)
-            .skip(usize::from(starting_object_id != ObjectID::ZERO))
+            .safe_iter_with_bounds(Some((owner, starting_object_id)), None)
+            .map(|result| result.expect("iterator db error"))
+            .skip(usize::from(starting_object_id != ObjectId::ZERO))
             .take_while(move |((address_owner, _), _)| address_owner == &owner)
             .filter(move |(_, o)| {
                 if let Some(filter) = filter.as_ref() {
@@ -1269,13 +1449,10 @@ impl IndexStore {
 
     pub fn insert_genesis_objects(&self, object_index_changes: ObjectIndexChanges) -> IotaResult {
         let mut batch = self.tables.owner_index.batch();
-        batch.insert_batch(
-            &self.tables.owner_index,
-            object_index_changes.new_owners.into_iter(),
-        )?;
+        batch.insert_batch(&self.tables.owner_index, object_index_changes.new_owners)?;
         batch.insert_batch(
             &self.tables.dynamic_field_index,
-            object_index_changes.new_dynamic_fields.into_iter(),
+            object_index_changes.new_dynamic_fields,
         )?;
         batch.write()?;
         Ok(())
@@ -1525,17 +1702,16 @@ impl IndexStore {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, env::temp_dir};
+    use std::collections::BTreeMap;
 
+    use iota_sdk_types::{ObjectId, Owner};
     use iota_types::{
         base_types::{IotaAddress, ObjectInfo, ObjectType},
         digests::TransactionDigest,
         effects::TransactionEvents,
         gas_coin::GAS,
         object,
-        object::Owner,
     };
-    use move_core_types::account_address::AccountAddress;
     use prometheus::Registry;
 
     use super::{IndexStore, ObjectIndexChanges};
@@ -1549,8 +1725,13 @@ mod tests {
         // again and read balance. The balance should be 700 and verified from
         // both db and cache. This tests make sure we are invalidating entries
         // in the cache and always reading latest balance.
-        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128), false);
-        let address: IotaAddress = AccountAddress::random().into();
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+        let address = IotaAddress::random();
         let mut written_objects = BTreeMap::new();
         let mut object_map = BTreeMap::new();
 
@@ -1564,7 +1745,7 @@ mod tests {
                     version: object.version(),
                     digest: object.digest(),
                     type_: ObjectType::Struct(object.type_().unwrap().clone()),
-                    owner: Owner::AddressOwner(address),
+                    owner: Owner::Address(address),
                     previous_transaction: object.previous_transaction,
                 },
             ));
@@ -1584,7 +1765,7 @@ mod tests {
             vec![].into_iter(),
             vec![].into_iter(),
             vec![].into_iter(),
-            &TransactionEvents { data: vec![] },
+            &TransactionEvents(vec![]),
             object_index_changes,
             &TransactionDigest::random(),
             1234,
@@ -1626,7 +1807,7 @@ mod tests {
             vec![].into_iter(),
             vec![].into_iter(),
             vec![].into_iter(),
-            &TransactionEvents { data: vec![] },
+            &TransactionEvents(vec![]),
             object_index_changes,
             &TransactionDigest::random(),
             1234,
@@ -1657,5 +1838,81 @@ mod tests {
         assert_eq!(balance.num_coins, 7);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_move_function() {
+        use typed_store::Map;
+
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+        let db = &index_store.tables.transactions_by_move_function;
+        db.insert(
+            &(
+                ObjectId::new([1; 32]),
+                "mod".to_string(),
+                "f".to_string(),
+                0,
+            ),
+            &[0; 32].into(),
+        )
+        .unwrap();
+        db.insert(
+            &(
+                ObjectId::new([1; 32]),
+                "mod".to_string(),
+                "Z".repeat(128),
+                0,
+            ),
+            &[1; 32].into(),
+        )
+        .unwrap();
+        db.insert(
+            &(
+                ObjectId::new([1; 32]),
+                "mod".to_string(),
+                "f".repeat(128),
+                0,
+            ),
+            &[2; 32].into(),
+        )
+        .unwrap();
+        db.insert(
+            &(
+                ObjectId::new([1; 32]),
+                "mod".to_string(),
+                "z".repeat(128),
+                0,
+            ),
+            &[3; 32].into(),
+        )
+        .unwrap();
+
+        let mut v = index_store
+            .get_transactions_by_move_function(
+                ObjectId::new([1; 32]),
+                Some("mod".to_string()),
+                None,
+                None,
+                None,
+                false,
+            )
+            .unwrap();
+        let v_rev = index_store
+            .get_transactions_by_move_function(
+                ObjectId::new([1; 32]),
+                Some("mod".to_string()),
+                None,
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        v.reverse();
+        assert_eq!(v, v_rev);
     }
 }

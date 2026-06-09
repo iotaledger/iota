@@ -19,12 +19,17 @@ tempfile.workspace = true
 bin-version.workspace = true
 iota-framework.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 
 [dev-dependencies]
 # external dependencies
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt", "macros"] }
 
 # internal dependencies
+iota-common.workspace = true
 iota-move-build.workspace = true
 move-package.workspace = true
+
+[lints]
+workspace = true

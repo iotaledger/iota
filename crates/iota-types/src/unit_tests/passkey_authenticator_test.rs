@@ -2,13 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
 use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
     rsa::{Base64UrlUnpadded, Encoding as _},
     traits::ToFromBytes,
+};
+use iota_sdk_types::{
+    ObjectId,
+    crypto::{Intent, IntentMessage},
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -24,19 +28,17 @@ use passkey_types::{
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
 };
-use shared_crypto::intent::{Intent, IntentMessage};
 use url::Url;
 
 use super::to_signing_message;
 use crate::{
-    base_types::{IotaAddress, ObjectID, dbg_addr},
+    base_types::{IotaAddress, dbg_addr},
     crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
     error::IotaError,
     object::Object,
     passkey_authenticator::{PasskeyAuthenticator, RawPasskeyAuthenticator},
     signature::GenericSignature,
-    signature_verification::VerifiedDigestCache,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 
 /// Helper struct to initialize passkey client.
@@ -113,14 +115,14 @@ async fn create_credential_and_sign_test_tx(
     // Derives its iota address and make a test transaction with it as sender.
     let sender = IotaAddress::from(&pk);
     let recipient = dbg_addr(2);
-    let object_id = ObjectID::ZERO;
+    let object_id = ObjectId::ZERO;
     let object = Object::immutable_with_id_for_testing(object_id);
     let gas_price = 1000;
     let tx_data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         None,
-        object.compute_object_reference(),
+        object.object_ref(),
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
@@ -244,13 +246,7 @@ async fn test_passkey_authenticator() {
         .unwrap(),
     );
 
-    let res = sig.verify_authenticator(
-        &response.intent_msg,
-        response.sender,
-        0,
-        &Default::default(),
-        Arc::new(VerifiedDigestCache::new_empty()),
-    );
+    let res = sig.verify_authenticator(&response.intent_msg, response.sender, &Default::default());
     assert!(res.is_ok());
 }
 
@@ -364,9 +360,7 @@ async fn test_real_passkey_output() {
     let res = sig.verify_authenticator(
         &IntentMessage::new(Intent::iota_transaction(), tx_data),
         address,
-        0,
         &Default::default(),
-        Arc::new(VerifiedDigestCache::new_empty()),
     );
     assert!(res.is_ok());
 }

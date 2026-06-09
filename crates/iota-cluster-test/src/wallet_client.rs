@@ -4,12 +4,12 @@
 
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, IotaClientBuilder, wallet_context::WalletContext};
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, address_from_iota_pub_key},
     crypto::{KeypairTraits, Signature},
     transaction::TransactionData,
 };
-use shared_crypto::intent::Intent;
 use tracing::{Instrument, info, info_span};
 
 use super::Cluster;
@@ -25,12 +25,12 @@ pub struct WalletClient {
 impl WalletClient {
     pub async fn new_from_cluster(cluster: &(dyn Cluster + Sync + Send)) -> Self {
         let key = cluster.user_key();
-        let address: IotaAddress = key.public().into();
+        let address = address_from_iota_pub_key(key.public());
         let wallet_context = new_wallet_context_from_cluster(cluster, key)
             .instrument(info_span!("init_wallet_context_for_test_user"));
 
         let rpc_url = String::from(cluster.fullnode_url());
-        info!("Use fullnode rpc: {}", &rpc_url);
+        info!("Use fullnode rpc: {rpc_url}");
         let fullnode_client = IotaClientBuilder::default().build(rpc_url).await.unwrap();
 
         Self {
@@ -61,6 +61,6 @@ impl WalletClient {
             .config()
             .keystore()
             .sign_secure(&self.address, txn_data, Intent::iota_transaction())
-            .unwrap_or_else(|e| panic!("Failed to sign transaction for {desc}. {e}"))
+            .unwrap_or_else(|e| panic!("failed to sign transaction for {desc}. {e}"))
     }
 }

@@ -10,7 +10,7 @@ use crate::{
     annotated_value::{MoveTypeLayout, MoveValue},
     language_storage::TypeTag,
     unit_tests::visitor_test::{
-        enum_layout_, serialize, struct_layout_, struct_value_, variant_value_, PrintVisitor,
+        PrintVisitor, enum_layout_, serialize, struct_layout_, struct_value_, variant_value_,
     },
 };
 
@@ -690,11 +690,12 @@ fn variant_not_found() {
     assert_no_path(test_struct(), vec![E::Field("m"), E::Variant("z")]);
 }
 
-/// Components are used to generate paths. Each component offers a number of options for the
-/// element that goes in the same position in the generated path.
+/// Components are used to generate paths. Each component offers a number of
+/// options for the element that goes in the same position in the generated
+/// path.
 enum C<'p> {
-    /// This element is optional -- paths are geneated with and without this element at the
-    /// component's position.
+    /// This element is optional -- paths are geneated with and without this
+    /// element at the component's position.
     Opt(E<'p>),
 
     /// This element is required, and is picked from the provided list.

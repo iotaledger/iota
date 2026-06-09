@@ -4,14 +4,17 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, TransactionDigest},
+    base_types::TransactionDigest,
     committee::Committee,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
@@ -58,7 +61,7 @@ pub fn extract_verified_effects_and_events(
     Ok((matching_tx.effects.clone(), matching_tx.events.clone()))
 }
 
-pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result<Object> {
+pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result<Object> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
             .build(config.rpc_url.as_str())
@@ -83,7 +86,7 @@ pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result
         .expect("Cannot get effects and events");
 
     // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.compute_object_reference();
+    let target_object_ref = object.object_ref();
     effects
         .all_changed_objects()
         .iter()
@@ -122,9 +125,7 @@ pub async fn get_verified_effects_and_events(
             .await
             .context("Cannot get full checkpoint")?
     } else {
-        // try REST API (for custom networks)
-        let client = iota_rest_api::Client::new(&config.rpc_url);
-        client.get_full_checkpoint(seq).await?
+        bail!("No checkpoint store configured to fetch checkpoint data")
     };
 
     // Load the list of stored checkpoints
@@ -134,8 +135,7 @@ pub async fn get_verified_effects_and_events(
     let prev_ckp_id = checkpoints_list
         .checkpoints
         .iter()
-        .filter(|ckp_id| **ckp_id < seq)
-        .next_back();
+        .rfind(|ckp_id| **ckp_id < seq);
 
     let committee = if let Some(prev_ckp_id) = prev_ckp_id {
         // Read it from the store
@@ -180,7 +180,7 @@ pub async fn get_verified_effects_and_events(
 /// which is signed by the previous committee.
 pub async fn get_verified_checkpoint(
     config: &Config,
-    object_id: ObjectID,
+    object_id: ObjectId,
 ) -> Result<CheckpointSequenceNumber> {
     let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
@@ -210,7 +210,7 @@ pub async fn get_verified_checkpoint(
         .expect("Cannot get effects and events");
 
     // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.compute_object_reference();
+    let target_object_ref = object.object_ref();
     effects
         .all_changed_objects()
         .iter()
@@ -233,8 +233,7 @@ pub async fn get_verified_checkpoint(
     let prev_ckp_id = checkpoints_list
         .checkpoints
         .iter()
-        .filter(|ckp_id| **ckp_id < seq)
-        .next_back();
+        .rfind(|ckp_id| **ckp_id < seq);
 
     let committee = if let Some(prev_ckp_id) = prev_ckp_id {
         // Read it from the store
@@ -285,12 +284,29 @@ pub async fn get_verified_checkpoint(
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
+    use iota_sdk_types::{Identifier, StructTag};
     use iota_types::{
+        base_types::IotaAddress,
         event::Event,
         messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
     };
 
     use super::*;
+
+    fn random_event() -> Event {
+        Event {
+            package_id: ObjectId::random(),
+            module: Identifier::from_static("test"),
+            sender: IotaAddress::random(),
+            type_: StructTag::new(
+                IotaAddress::random(),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
+                vec![],
+            ),
+            contents: vec![],
+        }
+    }
 
     const FIXTURES_DIR: &str = "tests/fixtures";
 
@@ -416,17 +432,11 @@ mod tests {
         let tx0 = &mut full_checkpoint.transactions[0];
         let tx_digest_0 = *tx0.transaction.digest();
 
-        if tx0.events.is_none() {
-            // if there are no events yet, add them
-            tx0.events = Some(TransactionEvents {
-                data: vec![Event::random_for_testing()],
-            });
+        if let Some(events) = tx0.events.as_mut() {
+            events.push(random_event());
         } else {
-            tx0.events
-                .as_mut()
-                .unwrap()
-                .data
-                .push(Event::random_for_testing());
+            // if there are no events yet, add them
+            tx0.events = Some(TransactionEvents(vec![random_event()]));
         }
 
         assert!(

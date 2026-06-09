@@ -1,0 +1,299 @@
+---
+title: Workshop IV Capstone — Build a dApp with IOTA dApp Kit
+description: Ship a minimal React dApp that connects a wallet, reads objects, and calls your Workshop contracts using the IOTA dApp Kit.
+tags:
+  - tutorial
+  - move-sc
+  - typescript
+  - dapp-kit
+---
+
+# Workshop IV Capstone — Build a dApp with IOTA dApp Kit
+
+In this capstone, you will build a small React dApp on top of the contracts you created in Workshops I–III. You’ll wire up wallet connect, display owned objects, and trigger entry functions from the browser using the IOTA dApp Kit.
+
+We will focus purely on functionality, not design, so the UI will be very basic. You can always enhance it later with your own styles or a component library.
+
+## Prerequisites
+
+- Node.js 20+ and a package manager (pnpm or npm)
+- A deployed Move package from prior workshops (PKG_ID)
+- Shared object IDs you plan to use (e.g., Roles/Registry IDs) and any capability IDs, if you plan to call admin-gated entries
+- IOTA CLI configured on Testnet and funded for testing
+
+## Create the app (template)
+
+Use the official scaffolder to start a pre-configured React app with the dApp Kit.
+
+```bash
+npm create @iota/dapp
+```
+
+## Wire up providers
+
+Wrap your app with the IotaClientProvider and WalletProvider and add the CSS for the dApp Kit components.
+
+```tsx
+// src/main.tsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '@iota/dapp-kit/dist/index.css';
+import App from './App';
+
+const { networkConfig } = createNetworkConfig({
+  testnet: { url: getFullnodeUrl('testnet') },
+  // localnet: { url: getFullnodeUrl('localnet') }, // optional
+});
+const queryClient = new QueryClient();
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <IotaClientProvider networks={networkConfig} defaultNetwork="testnet">
+        <WalletProvider>
+          <App />
+        </WalletProvider>
+      </IotaClientProvider>
+    </QueryClientProvider>
+  </React.StrictMode>
+);
+```
+
+## Connect a wallet
+:::tip Login
+This is exactly like a login flow in a traditional web app, except you connect your wallet instead of entering a username/password.
+:::
+Use the prebuilt ConnectButton to handle wallet connect/disconnect.
+
+```tsx
+// src/App.tsx
+import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
+
+export default function App() {
+  const account = useCurrentAccount();
+  return (
+    <div style={{ padding: 16 }}>
+      <ConnectButton />
+      {account && <div style={{ marginTop: 12 }}>Connected: {account.address}</div>}
+    </div>
+  );
+}
+```
+
+## Read objects owned by the user
+
+:::tip Big picture
+Grants are represented as on-chain objects owned by a user’s address. To see your grants, you first need to read all objects owned by the connected address.
+:::
+
+Query the fullnode using dApp Kit’s `useIotaClientQuery`.
+
+```tsx
+// src/components/OwnedObjects.tsx
+import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
+
+export function OwnedObjects() {
+  const account = useCurrentAccount();
+  const { data, isPending, isError, error } = useIotaClientQuery(
+    'getOwnedObjects',
+    account ? { owner: account.address } : undefined,
+  );
+
+  if (!account) return null;
+  if (isPending) return <div>Loading owned objects…</div>;
+  if (isError) return <div>Error: {String(error)}</div>;
+  return <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(data, null, 2)}</pre>;
+}
+```
+
+Add it to `App` to render when connected.
+
+```tsx
+// src/App.tsx (continued)
+import { OwnedObjects } from './components/OwnedObjects';
+
+// … inside App()
+{account && (
+  <>
+    <OwnedObjects />
+  </>
+)}
+```
+
+Now your `App.tsx` should look like:
+
+```tsx
+// src/App.tsx
+import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
+import { OwnedObjects } from './components/OwnedObjects';
+
+export default function App() {
+  const account = useCurrentAccount();
+
+  return (
+    <div style={{ padding: 16 }}>
+      <ConnectButton />
+      {account && (
+        <>
+          <div style={{ marginTop: 12 }}>Connected: {account.address}</div>
+          <OwnedObjects />
+        </>
+      )}
+    </div>
+  );
+}
+```
+
+## Build a call: request a grant (example)
+
+As a concrete example, call your lifecycle entry to request a grant. This is user-driven (no admin cap needed) and writes the request to a shared `Requests` queue. It does not mint a grant yet.
+
+Create a small form that builds a transaction and signs + executes it.
+
+```tsx
+// src/components/RequestGrant.tsx
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { useState } from 'react';
+
+// Configure your package + shared Requests object ID here (or import from a config file)
+const PKG_ID = '0x<your_package_id>'; // replace
+const REQUESTS_ID = '0x<shared_requests_object_id>'; // replace
+
+export function RequestGrant() {
+  const account = useCurrentAccount();
+  const [amount, setAmount] = useState('1000');
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+
+  if (!account) return null;
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const tx = new Transaction();
+        tx.moveCall({
+          target: `${PKG_ID}::lifecycle::request_grant`,
+          arguments: [
+            // requests: &mut Requests
+            tx.object(REQUESTS_ID),
+            // amount: u64
+            tx.pure.u64(BigInt(amount)),
+          ],
+          typeArguments: [],
+        });
+        signAndExecute(
+          { transaction: tx },
+          { onSuccess: (res) => console.log('digest', res.digest) }
+        );
+      }}
+    >
+      <label>
+        Amount
+        <input value={amount} onChange={(e) => setAmount(e.target.value)} />
+      </label>
+      <button type="submit">Request Grant</button>
+    </form>
+  );
+}
+```
+
+Add it to `App` below the wallet connection when connected.
+
+```tsx
+// src/App.tsx (continued)
+import { RequestGrant } from './components/RequestGrant';
+// … inside App()
+{account && <RequestGrant />}
+```
+
+Now your `App.tsx` should look like:
+
+```tsx
+// src/App.tsx
+import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
+import { OwnedObjects } from './components/OwnedObjects';
+import { RequestGrant } from './components/RequestGrant';
+
+export default function App() {
+  const account = useCurrentAccount();
+
+  return (
+    <div style={{ padding: 16 }}>
+      <ConnectButton />
+      {account && (
+        <>
+          <div style={{ marginTop: 12 }}>Connected: {account.address}</div>
+          <OwnedObjects />
+          <RequestGrant />
+        </>
+      )}
+    </div>
+  );
+}
+```
+
+## Approve a request from the CLI
+
+An issuer (admin-gated) should approve a student’s request by calling `lifecycle::approve_grant` from the CLI. This mints and transfers the Grant to the student by calling into the `grant` module.
+
+You need the following IDs:
+- `PKG_ID`: the published package ID
+- `REQUESTS_ID`: the shared Requests object ID
+- `ROLES_ID`: the shared Roles object ID (from Workshop III)
+- `ADMIN_CAP_ID`: the AdminCap object ID held by an issuer/admin
+- `STUDENT_ADDR`: the student’s address that submitted the request
+
+Example using the CLI:
+
+```
+iota client call \
+  --package <PACKAGE-ID> \
+  --module lifecycle \
+  --function approve_grant \
+  --args <REQUESTS_ID> <STUDENT_ADDR> <ROLES_ID> <ADMIN_CAP_ID> \
+  --gas-budget 80000000
+```
+
+Notes:
+- Double-check argument order: `approve_grant(requests, student, roles, cap, ctx)`.
+- The function reads and removes the student’s pending amount from `Requests`, then mints and transfers a `Grant` to the student address.
+
+:::tip Open discussion
+How are we still indexing this grant if we approve it this way?
+:::
+
+## See your grant in the dApp
+
+After a successful `approve_grant` call, refresh your dApp. The `OwnedObjects` section should now list the new `Grant` object owned by the student’s address.
+
+## Optional: Admin panel actions
+
+If you plan to expose admin-only operations (e.g., creating the shared Roles object or indexing grants), gate them in the UI by checking that the connected account is allowed (for example, show the admin panel only for a known publisher address). These calls typically require passing capability object IDs in the move call, which you should store in a config file and never hardcode in public deployments.
+
+- Example admin calls (adjust to your modules):
+  - access::create_roles(&AdminCap)
+  - registry::index_grant(&mut Registry, student, grant_id, &AdminCap)
+
+Reuse the `useSignAndExecuteTransaction` pattern from RequestGrant.
+
+## Run the app
+
+```bash
+npm run dev
+```
+
+Open the local URL and connect a wallet to try reading owned objects and submitting a request. After an issuer approves your request from the CLI, refresh the page to see the minted Grant among your owned objects.
+
+## Next steps
+
+- Add a dashboard for admins/issuers:
+  - List pending requests from the shared `Requests` object.
+  - Approve/deny requests with a single click (backend via dApp Kit calls gated by wallet address, or CLI).
+- Improve the UI:
+  - Replace inline styles with a component library (e.g., Tailwind, Mantine, MUI).
+  - Add success/error toasts, spinners, and empty states.
+  - Surface on-chain events (e.g., `GrantRequested`, `GrantApproved`) in the UI.

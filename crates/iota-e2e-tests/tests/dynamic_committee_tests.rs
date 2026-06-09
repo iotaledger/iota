@@ -11,22 +11,21 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
+use iota_sdk_types::{Argument, Command, ObjectId, Owner};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_system_state::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
+    transaction::{CallArg, ProgrammableTransaction},
 };
-use move_core_types::ident_str;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -38,8 +37,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            ident_str!(stringify!($module_name)).to_owned(),
-            ident_str!(stringify!($func)).to_owned(),
+            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
+            iota_sdk_types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )
@@ -75,9 +74,9 @@ struct StressTestRunner {
     pub active_validators: BTreeSet<IotaAddress>,
     pub preactive_validators: BTreeMap<IotaAddress, u64>,
     pub removed_validators: BTreeSet<IotaAddress>,
-    pub delegation_requests_this_epoch: BTreeMap<ObjectID, IotaAddress>,
+    pub delegation_requests_this_epoch: BTreeMap<ObjectId, IotaAddress>,
     pub delegation_withdraws_this_epoch: u64,
-    pub delegations: BTreeMap<ObjectID, IotaAddress>,
+    pub delegations: BTreeMap<ObjectId, IotaAddress>,
     pub reports: BTreeMap<IotaAddress, BTreeSet<IotaAddress>>,
     pub rng: StdRng,
 }
@@ -157,7 +156,7 @@ impl StressTestRunner {
             .await
             .unwrap();
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -174,7 +173,7 @@ impl StressTestRunner {
         for (obj_ref, _) in effects.created() {
             let object_opt = state
                 .get_object_store()
-                .get_object_by_key(&obj_ref.0, obj_ref.1);
+                .get_object_by_key(&obj_ref.object_id, obj_ref.version);
             let Some(object) = object_opt else { continue };
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =
@@ -186,7 +185,7 @@ impl StressTestRunner {
         for (obj_ref, _) in effects.mutated() {
             let object = state
                 .get_object_store()
-                .get_object_by_key(&obj_ref.0, obj_ref.1)
+                .get_object_by_key(&obj_ref.object_id, obj_ref.version)
                 .unwrap();
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =
@@ -220,7 +219,9 @@ impl StressTestRunner {
         let pre_epoch = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.epoch,
             IotaSystemStateSummary::V2(v2) => v2.epoch,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         self.test_cluster.force_new_epoch().await;
@@ -228,7 +229,9 @@ impl StressTestRunner {
         let post_epoch = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.epoch,
             IotaSystemStateSummary::V2(v2) => v2.epoch,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         info!("Changing epoch from {} to {}", pre_epoch, post_epoch);
@@ -253,7 +256,7 @@ impl StressTestRunner {
 
     fn split_off(builder: &mut ProgrammableTransactionBuilder, amount: u64) -> Argument {
         let amt_arg = builder.pure(amount).unwrap();
-        builder.command(Command::SplitCoins(Argument::GasCoin, vec![amt_arg]))
+        builder.command(Command::new_split_coins(Argument::Gas, vec![amt_arg]))
     }
 
     async fn get_from_effects(&self, effects: &[(ObjectRef, Owner)], name: &str) -> Option<Object> {
@@ -261,9 +264,11 @@ impl StressTestRunner {
         let found: Vec<_> = effects
             .iter()
             .filter_map(|(obj_ref, _)| {
-                let object = db.get_object_by_key(&obj_ref.0, obj_ref.1).unwrap();
+                let object = db
+                    .get_object_by_key(&obj_ref.object_id, obj_ref.version)
+                    .unwrap();
                 let struct_tag = object.struct_tag().unwrap();
-                if struct_tag.name.to_string() == name {
+                if struct_tag.name().as_str() == name {
                     Some(object)
                 } else {
                     None
@@ -310,12 +315,12 @@ mod add_stake {
         async fn run(&mut self, runner: &mut StressTestRunner) -> Result<TransactionEffects> {
             let pt = {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                builder.obj(ObjectArg::IOTA_SYSTEM_MUT).unwrap();
+                builder.obj(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
                 builder.pure(self.staked_with).unwrap();
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
                 move_call! {
                     builder,
-                    (IOTA_SYSTEM_PACKAGE_ID)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
+                    (ObjectId::SYSTEM)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
                 };
                 builder.finish()
             };
@@ -344,7 +349,7 @@ mod add_stake {
             let staked_amount =
                 object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
             assert_eq!(staked_amount, self.stake_amount);
-            assert_eq!(object.owner.get_owner_address().unwrap(), self.sender);
+            assert_eq!(*object.owner.address_or_object().unwrap(), self.sender);
             runner.display_effects(effects);
         }
 

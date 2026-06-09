@@ -7,28 +7,23 @@ use std::{
     fmt,
 };
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tracing::error;
+use tracing::{error, instrument};
 
 use crate::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
-    base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
+    IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
+    base_types::{EpochId, IotaAddress, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::{ID, UID},
-    object::{Object, Owner},
+    object::Object,
     storage::{DenyListResult, ObjectStore},
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
-pub const DENY_LIST_MODULE: &IdentStr = ident_str!("deny_list");
-pub const DENY_LIST_CREATE_FUNC: &IdentStr = ident_str!("create");
+pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
 
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 
@@ -56,20 +51,9 @@ struct ConfigKey {
     per_type_key: Vec<u8>,
 }
 
-impl ConfigKey {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("ConfigKey").to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 impl MoveTypeTagTrait for ConfigKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
     }
 }
 
@@ -77,20 +61,9 @@ impl MoveTypeTagTrait for ConfigKey {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct AddressKey(IotaAddress);
 
-impl AddressKey {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("AddressKey").to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 impl MoveTypeTagTrait for AddressKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
     }
 }
 
@@ -104,29 +77,27 @@ impl GlobalPauseKey {
     pub fn new() -> Self {
         Self(false)
     }
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("GlobalPauseKey").to_owned(),
-            type_params: vec![],
-        }
-    }
 }
 
 impl MoveTypeTagTrait for GlobalPauseKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
     }
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1_during_signing(
     address: IotaAddress,
-    input_objects: &CheckedInputObjects,
-    receiving_objects: &ReceivingObjects,
+    tx_input_objects: &CheckedInputObjects,
+    tx_receiving_objects: &ReceivingObjects,
+    per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
     object_store: &dyn ObjectStore,
 ) -> UserInputResult {
-    let coin_types = input_object_coin_types_for_denylist_check(input_objects, receiving_objects);
+    let coin_types = input_object_coin_types_for_denylist_check(
+        tx_input_objects,
+        tx_receiving_objects,
+        per_authenticator_input_objects,
+    );
     for coin_type in coin_types {
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
             continue;
@@ -145,7 +116,7 @@ pub fn check_coin_deny_list_v1_during_signing(
 ///         2) the deny lists checked
 ///         2) the number of regulated coin owners checked.
 pub fn check_coin_deny_list_v1_during_execution(
-    written_objects: &BTreeMap<ObjectID, Object>,
+    written_objects: &BTreeMap<ObjectId, Object>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> DenyListResult {
@@ -154,16 +125,16 @@ pub fn check_coin_deny_list_v1_during_execution(
         if obj.is_gas_coin() {
             continue;
         }
-        let Some(coin_type) = obj.coin_type_maybe() else {
+        let Some(coin_type) = obj.coin_type_opt() else {
             continue;
         };
-        let Ok(owner) = obj.owner.get_address_owner_address() else {
+        let Some(owner) = obj.owner.as_address_opt() else {
             continue;
         };
         new_coin_owners
             .entry(coin_type.to_canonical_string(false))
             .or_insert_with(BTreeSet::new)
-            .insert(owner);
+            .insert(*owner);
     }
     let num_non_gas_coin_owners = new_coin_owners.values().map(|v| v.len() as u64).sum();
     let new_regulated_coin_owners = new_coin_owners
@@ -215,6 +186,7 @@ fn check_new_regulated_coin_owners(
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn get_per_type_coin_deny_list_v1(
     coin_type: &String,
     object_store: &dyn ObjectStore,
@@ -231,6 +203,7 @@ pub fn get_per_type_coin_deny_list_v1(
     Some(config)
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_address_denied_by_config(
     deny_config: &Config,
     address: IotaAddress,
@@ -241,6 +214,7 @@ pub fn check_address_denied_by_config(
     read_config_setting(object_store, deny_config, address_key, cur_epoch).unwrap_or(false)
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_global_pause(
     deny_config: &Config,
     object_store: &dyn ObjectStore,
@@ -262,11 +236,10 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Objec
 
 pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
     get_deny_list_root_object(object_store)
-        .map(|obj| match obj.owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => initial_shared_version,
-            _ => unreachable!("Deny list object must be shared"),
+        .map(|obj| {
+            obj.owner
+                .into_shared_opt()
+                .expect("Deny list object must be shared")
         })
         .expect("Deny list object must exist")
 }
@@ -297,20 +270,26 @@ where
 /// Returns all unique coin types in canonical string form from the input
 /// objects and receiving objects. It filters out IOTA coins since it's known
 /// that it's not a regulated coin.
+#[instrument(level = "trace", skip_all)]
 fn input_object_coin_types_for_denylist_check(
-    input_objects: &CheckedInputObjects,
-    receiving_objects: &ReceivingObjects,
+    tx_input_objects: &CheckedInputObjects,
+    tx_receiving_objects: &ReceivingObjects,
+    per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
 ) -> BTreeSet<String> {
-    let all_objects = input_objects
-        .inner()
-        .iter_objects()
-        .chain(receiving_objects.iter_objects());
+    let all_objects =
+        tx_input_objects
+            .inner()
+            .iter_objects()
+            .chain(tx_receiving_objects.iter_objects())
+            .chain(per_authenticator_input_objects.iter().flat_map(
+                |authenticator_input_objects| authenticator_input_objects.inner().iter_objects(),
+            ));
     all_objects
         .filter_map(|obj| {
             if obj.is_gas_coin() {
                 None
             } else {
-                obj.coin_type_maybe()
+                obj.coin_type_opt()
                     .map(|type_tag| type_tag.to_canonical_string(false))
             }
         })

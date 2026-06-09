@@ -6,7 +6,7 @@
 //! implementations for the consensus protocol.
 //!
 //! Having an abstract network interface allows
-//! - simplying the semantics of sending data and serving requests over the
+//! - simplifying the semantics of sending data and serving requests over the
 //!   network
 //! - hiding implementation specific types and semantics from the consensus
 //!   protocol
@@ -22,16 +22,17 @@
 //! network outside of this module, so they can be reused easily across network
 //! implementations.
 
-use std::{pin::Pin, time::Duration};
+use std::{collections::BTreeSet, pin::Pin, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Committee};
 
 use crate::{
     Round, VerifiedBlockHeader,
+    authority_set::AuthoritySet,
     block_header::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
@@ -53,6 +54,24 @@ pub(crate) mod tonic_network;
 #[cfg(msim)]
 pub mod tonic_network;
 mod tonic_tls;
+
+use crate::{
+    commit_syncer::CommitSyncType,
+    encoder::ShardEncoder,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
+};
+
+/// Controls transaction fetching truncation behavior for different sync modes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TransactionFetchMode {
+    /// No truncation - used by fast commit sync which fetches all transactions
+    /// referenced by commits in a batch
+    FastCommitSync,
+    /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
+    /// max_transactions_per_regular_sync_fetch- used by regular commit sync
+    /// and transactions synchronizer
+    TransactionSync,
+}
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
@@ -79,7 +98,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        transactions_refs: Vec<GenericTransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
 
@@ -99,7 +118,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Fetches serialized commits in the commit range from a peer.
-    /// Returns a tuple of both the serialized commits, and serialized blocks
+    /// Returns a tuple of both the serialized commits and serialized headers
     /// that contain votes certifying the last commit.
     async fn fetch_commits(
         &self,
@@ -107,6 +126,18 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)>;
+
+    /// Fetches serialized commits in the commit range from a peer, headers
+    /// voting for the last commit, and all transactions from these commits.
+    /// Returns serialized commits, serialized headers voting for the last
+    /// commit, and serialized transactions (as SerializedTransactionsV2 which
+    /// includes TransactionRef). Used in the fast commit syncer.
+    async fn fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+        timeout: Duration,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of
@@ -130,6 +161,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()>;
 
     /// Handles the subscription request from the peer.
@@ -151,11 +183,24 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch commits by index range from the peer.
+    /// Batch size limit depends on the sync type.
     async fn handle_fetch_commits(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
+
+    /// Handles the request to fetch commits and transactions by index range
+    /// from the peer. Used in fast commit sync.
+    /// Returns (commits, certifier_block_headers, transactions) as serialized
+    /// bytes. Each transaction is serialized as SerializedTransactionsV2
+    /// which includes the TransactionRef.
+    async fn handle_fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
 
     /// Handles the request to fetch the latest block headers for the provided
     /// `authorities`.
@@ -165,18 +210,14 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         authorities: Vec<AuthorityIndex>,
     ) -> ConsensusResult<Vec<Bytes>>;
 
-    /// Handles the request to get the latest received & accepted rounds of all
-    /// authorities.
-    async fn handle_get_latest_rounds(
-        &self,
-        peer: AuthorityIndex,
-    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)>;
-
     /// Handles the request to fetch transactions by references from the peer.
+    /// The `fetch_mode` parameter controls whether results should be truncated
+    /// to respect maximum transaction limits.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        block_refs: Vec<GenericTransactionRef>,
+        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 
@@ -243,12 +284,45 @@ impl TryFrom<SerializedBlock> for SerializedHeaderAndTransactions {
 pub(crate) struct BlockBundle {
     pub(crate) verified_block: VerifiedBlock,
     pub(crate) verified_headers: Vec<VerifiedBlockHeader>,
+    pub(crate) serialized_shards: Vec<Bytes>,
+    pub(crate) useful_headers_authors: BTreeSet<AuthorityIndex>,
+    pub(crate) useful_shards_authors: BTreeSet<AuthorityIndex>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SerializedBlockAndHeaders {
+pub(crate) struct SerializedBlockBundleParts {
     pub(crate) serialized_block: Bytes,
     pub(crate) serialized_headers: Vec<Bytes>,
+    pub(crate) serialized_shards: Vec<Bytes>,
+    pub(crate) useful_headers_authors_bitmask: AuthoritySet,
+    pub(crate) useful_shards_authors_bitmask: AuthoritySet,
+}
+
+fn validate_authority_set(set: &AuthoritySet, committee: &Committee) -> ConsensusResult<()> {
+    for index in set.iter() {
+        if !committee.is_valid_index(index) {
+            return Err(ConsensusError::InvalidAuthorityIndex {
+                index,
+                max: committee.size(),
+            });
+        }
+    }
+    Ok(())
+}
+
+impl SerializedBlockBundleParts {
+    pub(crate) fn validate_useful_authorities(&self, committee: &Committee) -> ConsensusResult<()> {
+        validate_authority_set(&self.useful_headers_authors_bitmask, committee)?;
+        validate_authority_set(&self.useful_shards_authors_bitmask, committee)?;
+        Ok(())
+    }
+
+    pub(crate) fn useful_headers_authors(&self) -> BTreeSet<AuthorityIndex> {
+        self.useful_headers_authors_bitmask.to_btreeset()
+    }
+    pub(crate) fn useful_shards_authors(&self) -> BTreeSet<AuthorityIndex> {
+        self.useful_shards_authors_bitmask.to_btreeset()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -256,7 +330,7 @@ pub(crate) struct SerializedBlockBundle {
     pub(crate) serialized_block_bundle: Bytes,
 }
 
-impl TryFrom<VerifiedBlock> for SerializedBlockAndHeaders {
+impl TryFrom<VerifiedBlock> for SerializedBlockBundleParts {
     type Error = ConsensusError;
     fn try_from(verified_block: VerifiedBlock) -> ConsensusResult<Self> {
         let (serialized_block_header, serialized_transactions) = verified_block.serialized();
@@ -269,11 +343,14 @@ impl TryFrom<VerifiedBlock> for SerializedBlockAndHeaders {
         Ok(Self {
             serialized_block: Bytes::from(bytes),
             serialized_headers: vec![],
+            serialized_shards: vec![],
+            useful_headers_authors_bitmask: AuthoritySet::new(),
+            useful_shards_authors_bitmask: AuthoritySet::new(),
         })
     }
 }
 
-impl TryFrom<BlockBundle> for SerializedBlockAndHeaders {
+impl TryFrom<BlockBundle> for SerializedBlockBundleParts {
     type Error = ConsensusError;
     fn try_from(block_bundle: BlockBundle) -> ConsensusResult<Self> {
         let (serialized_block_header, serialized_transactions) =
@@ -285,20 +362,24 @@ impl TryFrom<BlockBundle> for SerializedBlockAndHeaders {
         let bytes = bcs::to_bytes(&serialized_header_and_transactions)
             .map_err(ConsensusError::SerializationFailure)?;
         let mut serialized_block_headers = vec![];
-        for block_header in block_bundle.verified_headers.into_iter() {
+        for block_header in block_bundle.verified_headers.iter() {
             serialized_block_headers.push(block_header.serialized().clone());
         }
-
         Ok(Self {
             serialized_block: Bytes::from(bytes),
             serialized_headers: serialized_block_headers,
+            serialized_shards: block_bundle.serialized_shards,
+            useful_headers_authors_bitmask: AuthoritySet::from(
+                &block_bundle.useful_headers_authors,
+            ),
+            useful_shards_authors_bitmask: AuthoritySet::from(&block_bundle.useful_shards_authors),
         })
     }
 }
 
-impl TryFrom<SerializedBlockAndHeaders> for SerializedBlockBundle {
+impl TryFrom<SerializedBlockBundleParts> for SerializedBlockBundle {
     type Error = ConsensusError;
-    fn try_from(serialized_block_and_headers: SerializedBlockAndHeaders) -> ConsensusResult<Self> {
+    fn try_from(serialized_block_and_headers: SerializedBlockBundleParts) -> ConsensusResult<Self> {
         let bytes = bcs::to_bytes(&serialized_block_and_headers)
             .map_err(ConsensusError::SerializationFailure)?;
         Ok(Self {
@@ -307,7 +388,7 @@ impl TryFrom<SerializedBlockAndHeaders> for SerializedBlockBundle {
     }
 }
 
-impl TryFrom<SerializedBlockBundle> for SerializedBlockAndHeaders {
+impl TryFrom<SerializedBlockBundle> for SerializedBlockBundleParts {
     type Error = ConsensusError;
     fn try_from(bundle: SerializedBlockBundle) -> ConsensusResult<Self> {
         bcs::from_bytes(&bundle.serialized_block_bundle)
@@ -318,19 +399,57 @@ impl TryFrom<SerializedBlockBundle> for SerializedBlockAndHeaders {
 impl TryFrom<VerifiedBlock> for SerializedBlockBundle {
     type Error = ConsensusError;
     fn try_from(verified_block: VerifiedBlock) -> ConsensusResult<Self> {
-        SerializedBlockBundle::try_from(SerializedBlockAndHeaders::try_from(verified_block)?)
+        SerializedBlockBundle::try_from(SerializedBlockBundleParts::try_from(verified_block)?)
     }
 }
 
 impl TryFrom<BlockBundle> for SerializedBlockBundle {
     type Error = ConsensusError;
     fn try_from(block_bundle: BlockBundle) -> ConsensusResult<Self> {
-        SerializedBlockBundle::try_from(SerializedBlockAndHeaders::try_from(block_bundle)?)
+        SerializedBlockBundle::try_from(SerializedBlockBundleParts::try_from(block_bundle)?)
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SerializedTransactions {
+pub(crate) struct SerializedTransactionsV1 {
     pub(crate) block_ref: BlockRef,
     pub(crate) serialized_transactions: Bytes,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SerializedTransactionsV2 {
+    pub(crate) transaction_ref: TransactionRef,
+    pub(crate) serialized_transactions: Bytes,
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::{seq::IteratorRandom, thread_rng};
+
+    use super::*;
+    use crate::TestBlockHeader;
+    #[test]
+    fn test_block_bundle_useful_authorities_set_bitmask_conversion() {
+        let block = VerifiedBlock::new_for_test(TestBlockHeader::new(0u32, 0u8).build());
+        // Generate a random sample of AuthorityIndex values (from 0..=255).
+        let mut rng = thread_rng();
+        let useful_authorities: BTreeSet<AuthorityIndex> = (0u8..=255)
+            .choose_multiple(&mut rng, 50) // pick 50 random distinct authorities
+            .into_iter()
+            .map(AuthorityIndex::from)
+            .collect();
+
+        let block_bundle = BlockBundle {
+            verified_block: block,
+            verified_headers: vec![],
+            serialized_shards: vec![],
+            useful_headers_authors: useful_authorities.clone(),
+            useful_shards_authors: useful_authorities.clone(),
+        };
+        let serialized_bundle = SerializedBlockBundle::try_from(block_bundle).unwrap();
+        let serialized_bundle_parts =
+            SerializedBlockBundleParts::try_from(serialized_bundle).unwrap();
+        let converted_useful_authorities = serialized_bundle_parts.useful_headers_authors();
+        assert_eq!(useful_authorities, converted_useful_authorities);
+    }
 }

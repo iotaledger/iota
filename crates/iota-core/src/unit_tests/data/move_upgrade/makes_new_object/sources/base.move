@@ -3,9 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module base_addr::base {
-    use iota::object::{Self, UID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
     use iota::event;
 
     public struct A<T> {

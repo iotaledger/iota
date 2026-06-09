@@ -100,14 +100,33 @@ test_tls_endpoint() {
     local tls_public_key
     set +e  # Temporarily disable exit on error
     # Extract public key and convert to raw bytes (skip DER ASN.1 structure)
-    tls_public_key=$(echo | openssl s_client -connect "$host:$port" -servername "$NETWORK" 2>/dev/null | \
-        openssl x509 -pubkey -noout 2>/dev/null | \
-        openssl pkey -pubin -text -noout 2>/dev/null | \
-        grep -A 10 "pub:" 2>/dev/null | \
-        tail -n +2 | \
-        tr -d ' :\n' | \
-        sed 's/^/0x/' 2>/dev/null)
-    local openssl_exit_code=$?
+    # Use a temporary file and background job with timeout
+    local tmpfile=$(mktemp)
+    (
+        echo | openssl s_client -connect "$host:$port" -servername "$NETWORK" 2>/dev/null | \
+            openssl x509 -pubkey -noout 2>/dev/null | \
+            openssl pkey -pubin -text -noout 2>/dev/null | \
+            grep -A 10 "pub:" 2>/dev/null | \
+            tail -n +2 | \
+            tr -d ' :\n' | \
+            sed 's/^/0x/' 2>/dev/null > "$tmpfile"
+    ) &
+    local bg_pid=$!
+    local timeout=3
+    local count=0
+    while kill -0 $bg_pid 2>/dev/null && [ $count -lt $((timeout * 10)) ]; do
+        sleep 0.1
+        count=$((count + 1))
+    done
+    local openssl_exit_code=0
+    if kill -0 $bg_pid 2>/dev/null; then
+        kill -9 $bg_pid 2>/dev/null
+        wait $bg_pid 2>/dev/null || openssl_exit_code=$?
+    else
+        wait $bg_pid 2>/dev/null || openssl_exit_code=$?
+    fi
+    tls_public_key=$(cat "$tmpfile" 2>/dev/null || echo "")
+    rm -f "$tmpfile"
     set -e  # Re-enable exit on error
     
     if [[ $openssl_exit_code -ne 0 || -z "$tls_public_key" ]]; then

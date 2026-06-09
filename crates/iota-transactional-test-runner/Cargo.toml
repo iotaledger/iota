@@ -26,17 +26,19 @@ once_cell.workspace = true
 rand.workspace = true
 regex.workspace = true
 tempfile.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 # internal dependencies
+iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-framework.workspace = true
-iota-graphql-rpc.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
+iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true

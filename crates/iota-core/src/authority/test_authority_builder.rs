@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 use fastcrypto::traits::KeyPair;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
-    ExecutionCacheConfig, ExecutionCacheType,
+    ExecutionCacheConfig,
     certificate_deny_config::CertificateDenyConfig,
     genesis::Genesis,
     node::{
@@ -16,18 +16,13 @@ use iota_config::{
     },
     transaction_deny_config::TransactionDenyConfig,
 };
-use iota_macros::nondeterministic;
 use iota_network::randomness;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
-    base_types::{AuthorityName, ObjectID},
-    crypto::AuthorityKeyPair,
-    digests::ChainIdentifier,
-    executable_transaction::VerifiedExecutableTransaction,
-    iota_system_state::IotaSystemStateTrait,
-    object::Object,
-    supported_protocol_versions::SupportedProtocolVersions,
+    base_types::AuthorityName, crypto::AuthorityKeyPair, digests::ChainIdentifier,
+    executable_transaction::VerifiedExecutableTransaction, iota_system_state::IotaSystemStateTrait,
+    object::Object, supported_protocol_versions::SupportedProtocolVersions,
     transaction::VerifiedTransaction,
 };
 use prometheus::Registry;
@@ -48,10 +43,10 @@ use crate::{
         committee_store::CommitteeStore, epoch_metrics::EpochMetrics, randomness::RandomnessManager,
     },
     execution_cache::build_execution_cache,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStore,
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
-    rest_index::RestIndexStore,
     signature_verifier::SignatureVerifierMetrics,
 };
 
@@ -73,9 +68,9 @@ pub struct TestAuthorityBuilder<'a> {
     /// by most tests.
     insert_genesis_checkpoint: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    cache_type: Option<ExecutionCacheType>,
     cache_config: Option<ExecutionCacheConfig>,
     disable_execute_genesis_transactions: bool,
+    chain_override: Option<Chain>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -174,11 +169,6 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
-    pub fn with_cache_type(mut self, cache_type: ExecutionCacheType) -> Self {
-        self.cache_type = Some(cache_type);
-        self
-    }
-
     pub fn with_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
         self.cache_config = Some(config);
         self
@@ -186,6 +176,11 @@ impl<'a> TestAuthorityBuilder<'a> {
 
     pub fn disable_execute_genesis_transactions(mut self) -> Self {
         self.disable_execute_genesis_transactions = true;
+        self
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        self.chain_override = Some(chain);
         self
     }
 
@@ -202,13 +197,9 @@ impl<'a> TestAuthorityBuilder<'a> {
         let local_network_config = local_network_config_builder.build();
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
         let genesis_committee = genesis.committee().unwrap();
-        let path = self.store_base_path.unwrap_or_else(|| {
-            let dir = std::env::temp_dir();
-            let store_base_path =
-                dir.join(format!("DB_{:?}", nondeterministic!(ObjectID::random())));
-            std::fs::create_dir(&store_base_path).unwrap();
-            store_base_path
-        });
+        let storage_dir = self
+            .store_base_path
+            .unwrap_or_else(|| iota_common::tempdir().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
         let registry = Registry::new();
         let mut pruner_db = None;
@@ -216,7 +207,9 @@ impl<'a> TestAuthorityBuilder<'a> {
             .authority_store_pruning_config
             .enable_compaction_filter
         {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(&path.join("store"))));
+            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
+                &storage_dir.join("store"),
+            )));
         }
         let compaction_filter = pruner_db
             .clone()
@@ -230,7 +223,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     ..Default::default()
                 };
                 let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-                    &path.join("store"),
+                    &storage_dir.join("store"),
                     Some(perpetual_tables_options),
                 ));
                 // unwrap ok - for testing only.
@@ -243,9 +236,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .unwrap()
             }
         };
-        if let Some(cache_type) = self.cache_type {
-            config.execution_cache = cache_type;
-        }
         if let Some(cache_config) = self.cache_config {
             config.execution_cache_config = cache_config;
         }
@@ -275,38 +265,43 @@ impl<'a> TestAuthorityBuilder<'a> {
         .unwrap();
         let expensive_safety_checks = self.expensive_safety_checks.unwrap_or_default();
 
-        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+        let checkpoint_store = CheckpointStore::new(&storage_dir.join("checkpoints"));
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
         let cache_traits = build_execution_cache(
             &config.execution_cache_config,
-            &epoch_start_configuration,
             &registry,
             &authority_store,
             backpressure_manager.clone(),
         );
 
+        let chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
+        let chain = match self.chain_override {
+            Some(chain) => chain,
+            None => chain_id.chain(),
+        };
+
         let epoch_store = AuthorityPerEpochStore::new(
             name,
             Arc::new(genesis_committee.clone()),
-            &path.join("store"),
+            &storage_dir.join("store"),
             None,
             EpochMetrics::new(&registry),
             epoch_start_configuration,
             cache_traits.backing_package_store.clone(),
-            cache_traits.object_store.clone(),
             cache_metrics,
             signature_verifier_metrics,
             &expensive_safety_checks,
-            ChainIdentifier::from(*genesis.checkpoint().digest()),
+            (chain_id, chain),
             checkpoint_store
                 .get_highest_executed_checkpoint_seq_number()
                 .unwrap()
                 .unwrap_or(0),
-        );
+        )
+        .expect("failed to create authority per epoch store");
         let committee_store = Arc::new(CommitteeStore::new(
-            path.join("epochs"),
+            storage_dir.join("epochs"),
             &genesis_committee,
             None,
         ));
@@ -322,24 +317,24 @@ impl<'a> TestAuthorityBuilder<'a> {
             None
         } else {
             Some(Arc::new(IndexStore::new(
-                path.join("indexes"),
+                storage_dir.join("indexes"),
                 &registry,
                 epoch_store
                     .protocol_config()
                     .max_move_identifier_len_as_option(),
-                false,
             )))
         };
-        let rest_index = if self.disable_indexer {
+        let grpc_indexes_store = if self.disable_indexer {
             None
         } else {
-            Some(Arc::new(RestIndexStore::new(
-                path.join("rest_index"),
-                &authority_store,
-                &checkpoint_store,
-                &epoch_store,
-                &cache_traits.backing_package_store,
-            )))
+            Some(Arc::new(
+                GrpcIndexesStore::new(
+                    storage_dir.join(GRPC_INDEXES_DIR),
+                    Arc::clone(&authority_store),
+                    &checkpoint_store,
+                )
+                .await,
+            ))
         };
 
         let transaction_deny_config = self.transaction_deny_config.unwrap_or_default();
@@ -353,6 +348,8 @@ impl<'a> TestAuthorityBuilder<'a> {
         config.authority_store_pruning_config = pruning_config;
 
         let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
+        let policy_config = config.policy_config.clone();
+        let firewall_config = config.firewall_config.clone();
 
         let state = AuthorityState::new(
             name,
@@ -363,7 +360,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             epoch_store.clone(),
             committee_store,
             index_store,
-            rest_index,
+            grpc_indexes_store,
             checkpoint_store,
             &registry,
             genesis.objects(),
@@ -373,6 +370,9 @@ impl<'a> TestAuthorityBuilder<'a> {
             None,
             chain_identifier,
             pruner_db,
+            None,
+            policy_config,
+            firewall_config,
         )
         .await;
 
@@ -415,9 +415,15 @@ impl<'a> TestAuthorityBuilder<'a> {
                 )
                 .unwrap();
 
-            state
+            let batch = state
                 .get_cache_commit()
-                .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
+                .build_db_batch(epoch_store.epoch(), &[*genesis.transaction().digest()]);
+
+            state.get_cache_commit().commit_transaction_outputs(
+                epoch_store.epoch(),
+                batch,
+                &[*genesis.transaction().digest()],
+            );
         }
 
         // We want to insert these objects directly instead of relying on genesis

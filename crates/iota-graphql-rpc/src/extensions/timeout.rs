@@ -70,7 +70,7 @@ impl Extension for TimeoutExt {
     ) -> Response {
         let cfg: &ServiceConfig = ctx
             .data()
-            .expect("No service config provided in schema data");
+            .expect("no service config provided in schema data");
 
         // increase the timeout if the request is a mutation
         let is_mutation = self.is_mutation.load(Ordering::Relaxed);

@@ -4,19 +4,14 @@
 
 #![recursion_limit = "256"]
 
-use std::time::Duration;
-
 use anyhow::Result;
 use errors::IndexerError;
+use iota_grpc_client::Client as GrpcClient;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
-use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use iota_metrics::spawn_monitored_task;
-use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
 use prometheus::Registry;
-use system_package_task::SystemPackageTask;
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
 
 use crate::{
     apis::{
@@ -24,8 +19,8 @@ use crate::{
         ReadApi, TransactionBuilderApi, WriteApi,
     },
     config::JsonRpcConfig,
-    indexer_reader::IndexerReader,
     optimistic_indexing::OptimisticTransactionExecutor,
+    read::IndexerReader,
     store::PgIndexerStore,
 };
 
@@ -34,105 +29,53 @@ pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;
-pub mod handlers;
+pub mod historical_fallback;
 pub mod indexer;
-pub mod indexer_reader;
+pub mod ingestion;
 pub mod metrics;
 pub mod models;
-mod optimistic_indexing;
+pub mod optimistic_indexing;
 pub mod processors;
-pub(crate) mod rolling;
+pub mod pruning;
+pub mod read;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;
 pub mod test_utils;
 pub mod types;
 
-async fn build_common_json_rpc_server(
-    prometheus_registry: &Registry,
-    reader: IndexerReader,
-    config: &JsonRpcConfig,
-    register_api_fn: impl FnOnce(JsonRpcServerBuilder) -> Result<JsonRpcServerBuilder, IndexerError>,
-) -> Result<ServerHandle, IndexerError> {
-    let mut builder = register_api_fn(JsonRpcServerBuilder::new(
-        env!("CARGO_PKG_VERSION"),
-        prometheus_registry,
-        None,
-        None,
-    ))?;
-
-    // Register common modules
-    builder.register_module(IndexerApi::new(
-        reader.clone(),
-        config.iota_names_options.clone().into(),
-    ))?;
-    builder.register_module(TransactionBuilderApi::new(reader.clone()))?;
-    builder.register_module(MoveUtilsApi::new(reader.clone()))?;
-    builder.register_module(GovernanceReadApi::new(reader.clone()))?;
-    builder.register_module(ReadApi::new(reader.clone()))?;
-    builder.register_module(CoinReadApi::new(reader.clone())?)?;
-    builder.register_module(ExtendedApi::new(reader.clone()))?;
-
-    let cancel = CancellationToken::new();
-    let system_package_task =
-        SystemPackageTask::new(reader.clone(), cancel.clone(), Duration::from_secs(10));
-
-    tracing::info!("Starting system package task");
-    spawn_monitored_task!(async move { system_package_task.run().await });
-
-    Ok(builder
-        .start(config.rpc_address, None, ServerType::Http, Some(cancel))
-        .await?)
-}
-
 pub async fn build_json_rpc_server(
-    prometheus_registry: &Registry,
-    reader: IndexerReader,
-    config: &JsonRpcConfig,
-) -> Result<ServerHandle, IndexerError> {
-    build_common_json_rpc_server(prometheus_registry, reader, config, |mut builder| {
-        let http_client = get_http_client(&config.rpc_client_url)?;
-        builder.register_module(WriteApi::new(http_client))?;
-        Ok(builder)
-    })
-    .await
-}
-
-pub async fn build_optimistic_json_rpc_server(
     store: PgIndexerStore,
     prometheus_registry: &Registry,
     reader: IndexerReader,
     config: &JsonRpcConfig,
     metrics: IndexerMetrics,
+    cancel: CancellationToken,
 ) -> Result<ServerHandle, IndexerError> {
-    build_common_json_rpc_server(
-        prometheus_registry,
+    let mut builder =
+        JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
+
+    let fullnode_grpc_client = GrpcClient::new(&config.rpc_client_url)?;
+    // Register common modules
+    builder.register_module(IndexerApi::new(
         reader.clone(),
-        config,
-        |mut builder| {
-            let http_client = get_http_client(&config.rpc_client_url)?;
-            builder.register_module(OptimisticWriteApi::new(
-                WriteApi::new(http_client),
-                OptimisticTransactionExecutor::new(&config.rpc_client_url, reader, store, metrics),
-            ))?;
-            Ok(builder)
-        },
-    )
-    .await
-}
+        config.iota_names_options.clone().into(),
+    ))?;
+    builder.register_module(TransactionBuilderApi::from(reader.clone()))?;
+    builder.register_module(MoveUtilsApi::new(reader.clone()))?;
+    builder.register_module(GovernanceReadApi::new(reader.clone()))?;
+    builder.register_module(ReadApi::new(reader.clone(), fullnode_grpc_client.clone()))?;
+    builder.register_module(CoinReadApi::new(reader.clone())?)?;
+    builder.register_module(ExtendedApi::new(reader.clone()))?;
+    builder.register_module(OptimisticWriteApi::new(
+        WriteApi::new(fullnode_grpc_client.clone(), reader.clone()),
+        OptimisticTransactionExecutor::new(fullnode_grpc_client, reader.clone(), store, metrics)
+            .await?,
+    ))?;
 
-fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
-    let mut headers = HeaderMap::new();
-    headers.insert(CLIENT_SDK_TYPE_HEADER, HeaderValue::from_static("indexer"));
+    let handle = builder
+        .start(config.rpc_address, None, ServerType::Http, Some(cancel))
+        .await?;
 
-    HttpClientBuilder::default()
-        .max_request_size(2 << 30)
-        .set_headers(headers.clone())
-        .build(rpc_client_url)
-        .map_err(|e| {
-            warn!("Failed to get new Http client with error: {:?}", e);
-            IndexerError::HttpClientInit(format!(
-                "Failed to initialize fullnode RPC client with error: {e:?}"
-            ))
-        })
+    Ok(handle)
 }

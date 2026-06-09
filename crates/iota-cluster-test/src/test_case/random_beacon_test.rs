@@ -32,11 +32,11 @@ impl TestCaseImpl for RandomBeaconTest {
 
         let package_ref = publish_basics_package(wallet_context).await;
 
-        let response = emit_new_random_u128(wallet_context, package_ref.0).await;
+        let response = emit_new_random_u128(wallet_context, package_ref.object_id).await;
         assert_eq!(
             *response.effects.as_ref().unwrap().status(),
             IotaExecutionStatus::Success,
-            "Generate new random value txn failed: {:?}",
+            "generate new random value txn failed: {:?}",
             *response.effects.as_ref().unwrap().status()
         );
 
@@ -45,12 +45,12 @@ impl TestCaseImpl for RandomBeaconTest {
         assert_eq!(
             1,
             events.data.len(),
-            "Expected 1 event, got {:?}",
+            "expected 1 event, got {:?}",
             events.data.len()
         );
         assert_eq!(
             "RandomU128Event".to_string(),
-            events.data[0].type_.name.to_string()
+            events.data[0].type_.name().to_string()
         );
 
         // Verify fullnode observes the txn

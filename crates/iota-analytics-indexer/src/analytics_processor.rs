@@ -99,7 +99,7 @@ impl<S: Serialize + ParquetSchema + 'static> Worker for AnalyticsProcessor<S> {
             .current_checkpoint_range
             .end
             .checked_add(1)
-            .context("Checkpoint sequence num overflow")?;
+            .context("checkpoint sequence num overflow")?;
         state.num_checkpoint_iterations += 1;
         Ok(())
     }
@@ -190,7 +190,7 @@ impl<S: Serialize + ParquetSchema + 'static> AnalyticsProcessor<S> {
             self.config.checkpoint_dir.to_path_buf(),
             &self.config.file_type.dir_prefix(),
         )?
-        .join(format!("{}{}", EPOCH_DIR_PREFIX, state.current_epoch));
+        .join(format!("{EPOCH_DIR_PREFIX}{}", state.current_epoch));
         Ok(path)
     }
 
@@ -236,7 +236,7 @@ impl<S: Serialize + ParquetSchema + 'static> AnalyticsProcessor<S> {
                 _ = &mut recv => break,
                 file = file_recv.recv() => {
                     if let Some(file_metadata) = file {
-                        info!("Received {name} file with checkpoints: {:?}", &file_metadata.checkpoint_seq_range);
+                        info!("Received {name} file with checkpoints: {:?}", file_metadata.checkpoint_seq_range);
                         let checkpoint_seq_num = file_metadata.checkpoint_seq_range.end;
                         Self::sync_file_to_remote(
                                 local_staging_root_dir.clone(),
@@ -246,7 +246,7 @@ impl<S: Serialize + ParquetSchema + 'static> AnalyticsProcessor<S> {
                                 remote_object_store.clone()
                             )
                             .await
-                            .expect("Syncing checkpoint should not fail");
+                            .expect("syncing checkpoint should not fail");
                         metrics.last_uploaded_checkpoint.with_label_values(&[&name]).set(checkpoint_seq_num as i64);
                     } else {
                         info!("Terminating upload sync loop");
@@ -270,15 +270,14 @@ impl<S: Serialize + ParquetSchema + 'static> AnalyticsProcessor<S> {
                 _ = &mut recv => break,
                  _ = interval.tick() => {
                     let max_checkpoint = max_checkpoint_reader.max_checkpoint().await;
-                    if let Ok(max_checkpoint) = max_checkpoint {
+                    if let Ok(max_checkpoint) = max_checkpoint.inspect_err(|e| {
+                        error!("failed to read max checkpoint for {handler_name} with err: {e}")
+                    }) {
                         analytics_metrics
                             .max_checkpoint_on_store
                             .with_label_values(&[&handler_name])
                             .set(max_checkpoint);
-                    } else {
-                        error!("Failed to read max checkpoint for {} with err: {}", handler_name, max_checkpoint.unwrap_err());
                     }
-
                  }
             }
         }
@@ -293,7 +292,7 @@ impl<S: Serialize + ParquetSchema + 'static> AnalyticsProcessor<S> {
         to: Arc<DynObjectStore>,
     ) -> Result<()> {
         let remote_dest = join_paths(prefix, &path);
-        info!("Syncing file to remote: {:?}", &remote_dest);
+        info!("Syncing file to remote: {remote_dest:?}",);
         copy_file(&path, &remote_dest, &from, &to).await?;
         fs::remove_file(path_to_filesystem(dir, &path)?)?;
         Ok(())

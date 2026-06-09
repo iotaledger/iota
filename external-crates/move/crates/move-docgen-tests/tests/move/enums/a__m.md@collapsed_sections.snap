@@ -8,7 +8,7 @@ info:
   no_collapsed_sections: true
   include_dep_diagrams: false
   include_call_diagrams: false
-input_file: crates/move-docgen-tests/tests/move/enums/Move.toml
+  include_module_toc: true
 ---
 <a name="a_m"></a>
 
@@ -17,26 +17,33 @@ input_file: crates/move-docgen-tests/tests/move/enums/Move.toml
 This is a doc comment above an annotation.
 
 
--  [Struct `X`](#a_m_X)
--  [Struct `Y`](#a_m_Y)
--  [Struct `XG`](#a_m_XG)
--  [Struct `YG`](#a_m_YG)
--  [Struct `XGG`](#a_m_XGG)
--  [Struct `YGG`](#a_m_YGG)
--  [Struct `VecMap`](#a_m_VecMap)
--  [Struct `Entry`](#a_m_Entry)
--  [Enum `Enum`](#a_m_Enum)
--  [Enum `GenericEnum`](#a_m_GenericEnum)
--  [Function `f`](#a_m_f)
+-  [Structs](#@Structs_0)
+    -  [<span class="move-vis move-vis-struct">struct</span> `X`](#a_m_X)
+    -  [<span class="move-vis move-vis-struct">struct</span> `Y`](#a_m_Y)
+    -  [<span class="move-vis move-vis-struct">struct</span> `XG`](#a_m_XG)
+    -  [<span class="move-vis move-vis-struct">struct</span> `YG`](#a_m_YG)
+    -  [<span class="move-vis move-vis-struct">struct</span> `XGG`](#a_m_XGG)
+    -  [<span class="move-vis move-vis-struct">struct</span> `YGG`](#a_m_YGG)
+    -  [<span class="move-vis move-vis-struct">struct</span> `VecMap`](#a_m_VecMap)
+        -  [<span class="move-vis move-vis-private">prv</span> `f`](#a_m_f)
+    -  [<span class="move-vis move-vis-struct">struct</span> `Entry`](#a_m_Entry)
+-  [Enums](#@Enums_1)
+    -  [<span class="move-vis move-vis-enum">enum</span> `Enum`](#a_m_Enum)
+    -  [<span class="move-vis move-vis-enum">enum</span> `GenericEnum`](#a_m_GenericEnum)
 
 
 <pre><code></code></pre>
 
 
 
+<a name="@Structs_0"></a>
+
+## Structs
+
+
 <a name="a_m_X"></a>
 
-## Struct `X`
+### <span class="move-vis move-vis-struct">struct</span> `X`
 
 
 
@@ -59,7 +66,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_Y"></a>
 
-## Struct `Y`
+### <span class="move-vis move-vis-struct">struct</span> `Y`
 
 
 
@@ -82,7 +89,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_XG"></a>
 
-## Struct `XG`
+### <span class="move-vis move-vis-struct">struct</span> `XG`
 
 
 
@@ -105,7 +112,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_YG"></a>
 
-## Struct `YG`
+### <span class="move-vis move-vis-struct">struct</span> `YG`
 
 
 
@@ -128,7 +135,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_XGG"></a>
 
-## Struct `XGG`
+### <span class="move-vis move-vis-struct">struct</span> `XGG`
 
 
 
@@ -151,7 +158,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_YGG"></a>
 
-## Struct `YGG`
+### <span class="move-vis move-vis-struct">struct</span> `YGG`
 
 
 
@@ -174,7 +181,7 @@ This is a doc comment above an annotation.
 
 <a name="a_m_VecMap"></a>
 
-## Struct `VecMap`
+### <span class="move-vis move-vis-struct">struct</span> `VecMap`
 
 
 
@@ -195,9 +202,31 @@ This is a doc comment above an annotation.
 </dl>
 
 
+<a name="a_m_f"></a>
+
+#### <span class="move-vis move-vis-private">prv</span> `f`
+
+Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;</code>
+
+
+<pre><code><b>fun</b> <a href="../a/m.md#a_m_f">f</a>(x: <a href="../a/m.md#a_m_VecMap">a::m::VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">a::m::X</a>&gt;): u64
+</code></pre>
+
+
+
+##### Implementation
+
+
+<pre><code><b>fun</b> <a href="../a/m.md#a_m_f">f</a>(x: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;): u64 {
+    0
+}
+</code></pre>
+
+
+
 <a name="a_m_Entry"></a>
 
-## Struct `Entry`
+### <span class="move-vis move-vis-struct">struct</span> `Entry`
 
 An entry in the map
 
@@ -224,9 +253,14 @@ An entry in the map
 </dl>
 
 
+<a name="@Enums_1"></a>
+
+## Enums
+
+
 <a name="a_m_Enum"></a>
 
-## Enum `Enum`
+### <span class="move-vis move-vis-enum">enum</span> `Enum`
 
 This is a doc comment above an enum
 
@@ -309,7 +343,7 @@ Variant <code>E</code>
 
 <a name="a_m_GenericEnum"></a>
 
-## Enum `GenericEnum`
+### <span class="move-vis move-vis-enum">enum</span> `GenericEnum`
 
 
 
@@ -342,24 +376,3 @@ Variant <code>B</code>
 <dd>
 </dd>
 </dl>
-
-
-<a name="a_m_f"></a>
-
-## Function `f`
-
-Doc comments <code>type_: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;</code>
-
-
-<pre><code><b>fun</b> <a href="../a/m.md#a_m_f">f</a>(x: <a href="../a/m.md#a_m_VecMap">a::m::VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">a::m::X</a>&gt;): u64
-</code></pre>
-
-
-
-##### Implementation
-
-
-<pre><code><b>fun</b> <a href="../a/m.md#a_m_f">f</a>(x: <a href="../a/m.md#a_m_VecMap">VecMap</a>&lt;u64, <a href="../a/m.md#a_m_X">X</a>&gt;): u64 {
-    0
-}
-</code></pre>

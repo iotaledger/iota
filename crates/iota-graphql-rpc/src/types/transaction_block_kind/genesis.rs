@@ -6,11 +6,8 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_types::{
-    digests::TransactionDigest,
-    object::Object as NativeObject,
-    transaction::{GenesisObject, GenesisTransaction as NativeGenesisTransaction},
-};
+use iota_sdk_types::GenesisTransaction as NativeGenesisTransaction;
+use iota_types::{digests::TransactionDigest, object::Object as NativeObject};
 
 use crate::{
     consistency::ConsistentIndexCursor,
@@ -48,19 +45,22 @@ impl GenesisTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cursors)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.objects.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for cursor in cursors {
-            let GenesisObject::RawObject { data, owner } = self.native.objects[cursor.ix].clone();
-            let native =
-                NativeObject::new_from_genesis(data, owner, TransactionDigest::genesis_marker());
+        for cursor in consistent_page.cursors {
+            let genesis_object = self.native.objects[cursor.ix].clone();
+            let native = NativeObject::new_from_genesis(
+                genesis_object.data,
+                genesis_object.owner,
+                TransactionDigest::GENESIS_MARKER,
+            );
 
             let object =
                 Object::from_native(IotaAddress::from(native.id()), native, cursor.c, None);
@@ -84,20 +84,20 @@ impl GenesisTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cursors)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.events.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for cursor in cursors {
+        for cursor in consistent_page.cursors {
             let native_event = self.native.events[cursor.ix].clone();
 
             let event = Event {
-                stored: None,
+                checkpointed_info: None,
                 native: native_event,
                 checkpoint_viewed_at: cursor.c,
             };

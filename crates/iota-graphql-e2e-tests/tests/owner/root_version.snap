@@ -10,42 +10,42 @@ task 1, lines 7-87:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10579200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10579200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 89-90:
 //# run P0::M::new_o
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2249600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2249600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, lines 92-93:
 //# run P0::M::new_w
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2242000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2242000, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, lines 95-96:
 //# run P0::M::new_dof
 created: object(4,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 98-99:
 //# run P0::M::new_dof
 created: object(5,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, lines 102-105:
 //# run P0::M::connect --args object(2,0) object(3,0) object(4,0) object(5,0)
 created: object(6,0), object(6,1)
 mutated: object(0,1), object(2,0), object(4,0), object(5,0)
 wrapped: object(3,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9895200,  storage_rebate: 6064800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9895200, storage_rebate: 6064800, non_refundable_storage_fee: 0
 
 task 7, lines 107-109:
 //# view-object 2,0
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 7
 Contents: P0::M::O {
     id: iota::object::UID {
@@ -71,26 +71,26 @@ Contents: P0::M::O {
 task 8, lines 111-112:
 //# run P0::M::touch_root --args object(2,0)
 mutated: object(0,1), object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2553600,  storage_rebate: 2553600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2553600, storage_rebate: 2553600, non_refundable_storage_fee: 0
 
 task 9, lines 114-115:
 //# run P0::M::touch_wrapped --args object(2,0)
 mutated: object(0,1), object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2553600,  storage_rebate: 2553600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2553600, storage_rebate: 2553600, non_refundable_storage_fee: 0
 
 task 10, lines 117-118:
 //# run P0::M::touch_inner --args object(2,0)
 mutated: object(0,1), object(2,0), object(4,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3830400,  storage_rebate: 3830400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3830400, storage_rebate: 3830400, non_refundable_storage_fee: 0
 
 task 11, lines 120-121:
 //# run P0::M::touch_outer --args object(2,0)
 mutated: object(0,1), object(2,0), object(5,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3830400,  storage_rebate: 3830400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3830400, storage_rebate: 3830400, non_refundable_storage_fee: 0
 
 task 12, line 123:
 //# view-object 2,0
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 11
 Contents: P0::M::O {
     id: iota::object::UID {
@@ -121,71 +121,71 @@ task 14, lines 127-142:
 //# run-graphql
 Response: {
   "data": {
-    "latest": {
+    "beforeBump": {
       "asObject": {
         "asMoveObject": {
-          "version": 11,
           "contents": {
             "json": {
+              "count": "0",
               "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
-              "count": "1",
               "wrapped": {
-                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea",
-                "count": "1"
+                "count": "0",
+                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea"
               }
             }
-          }
-        }
-      }
-    },
-    "versioned": {
-      "asObject": {
-        "asMoveObject": {
-          "version": 10,
-          "contents": {
-            "json": {
-              "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
-              "count": "1",
-              "wrapped": {
-                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea",
-                "count": "1"
-              }
-            }
-          }
+          },
+          "version": 7
         }
       }
     },
     "beforeWrappedBump": {
       "asObject": {
         "asMoveObject": {
-          "version": 8,
           "contents": {
             "json": {
-              "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
               "count": "1",
+              "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
               "wrapped": {
-                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea",
-                "count": "0"
+                "count": "0",
+                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea"
               }
             }
-          }
+          },
+          "version": 8
         }
       }
     },
-    "beforeBump": {
+    "latest": {
       "asObject": {
         "asMoveObject": {
-          "version": 7,
           "contents": {
             "json": {
+              "count": "1",
               "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
-              "count": "0",
               "wrapped": {
-                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea",
-                "count": "0"
+                "count": "1",
+                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea"
               }
             }
-          }
+          },
+          "version": 11
+        }
+      }
+    },
+    "versioned": {
+      "asObject": {
+        "asMoveObject": {
+          "contents": {
+            "json": {
+              "count": "1",
+              "id": "0x4499c0d9b70efe271eb32db1d8b2f054dcadc8c4fcf1a39f269beb70c66feec9",
+              "wrapped": {
+                "count": "1",
+                "id": "0x91f223ce13ca294c9bd33e4760c613b6719734983e8b4b39c0f74bb4a260a2ea"
+              }
+            }
+          },
+          "version": 10
         }
       }
     }
@@ -196,68 +196,68 @@ task 15, lines 144-172:
 //# run-graphql
 Response: {
   "data": {
-    "unversioned": {
-      "dynamicObjectField": {
-        "value": {
-          "version": 7,
-          "contents": {
-            "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "0"
-            }
-          }
-        }
-      }
-    },
-    "latest": {
-      "dynamicObjectField": {
-        "value": {
-          "version": 10,
-          "contents": {
-            "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "1"
-            }
-          }
-        }
-      }
-    },
     "afterFirstInnerBump": {
       "dynamicObjectField": {
         "value": {
-          "version": 10,
           "contents": {
             "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "1"
+              "count": "1",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
             }
-          }
-        }
-      }
-    },
-    "beforeFirstInnerBump": {
-      "dynamicObjectField": {
-        "value": {
-          "version": 7,
-          "contents": {
-            "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "0"
-            }
-          }
+          },
+          "version": 10
         }
       }
     },
     "beforeBumps": {
       "dynamicObjectField": {
         "value": {
-          "version": 7,
           "contents": {
             "json": {
-              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb",
-              "count": "0"
+              "count": "0",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
             }
-          }
+          },
+          "version": 7
+        }
+      }
+    },
+    "beforeFirstInnerBump": {
+      "dynamicObjectField": {
+        "value": {
+          "contents": {
+            "json": {
+              "count": "0",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
+            }
+          },
+          "version": 7
+        }
+      }
+    },
+    "latest": {
+      "dynamicObjectField": {
+        "value": {
+          "contents": {
+            "json": {
+              "count": "1",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
+            }
+          },
+          "version": 10
+        }
+      }
+    },
+    "unversioned": {
+      "dynamicObjectField": {
+        "value": {
+          "contents": {
+            "json": {
+              "count": "0",
+              "id": "0xcb046b48ef417f382a5a2fdf13c7f9acf85cfd22cd2b165bb07ea3f1028c60fb"
+            }
+          },
+          "version": 7
         }
       }
     }
@@ -268,42 +268,42 @@ task 16, lines 174-195:
 //# run-graphql
 Response: {
   "data": {
-    "unversioned": {
+    "beforeInnerBump": {
       "dynamicObjectField": {
         "value": {
-          "version": 7,
           "contents": {
             "json": {
-              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e",
-              "count": "0"
+              "count": "0",
+              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e"
             }
-          }
+          },
+          "version": 7
         }
       }
     },
     "latest": {
       "dynamicObjectField": {
         "value": {
-          "version": 11,
           "contents": {
             "json": {
-              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e",
-              "count": "1"
+              "count": "1",
+              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e"
             }
-          }
+          },
+          "version": 11
         }
       }
     },
-    "beforeInnerBump": {
+    "unversioned": {
       "dynamicObjectField": {
         "value": {
-          "version": 7,
           "contents": {
             "json": {
-              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e",
-              "count": "0"
+              "count": "0",
+              "id": "0x355985113ab2d9e4b9dd1011cacacbe4eb4e182196db4c854284e5a7a19d862e"
             }
-          }
+          },
+          "version": 7
         }
       }
     }

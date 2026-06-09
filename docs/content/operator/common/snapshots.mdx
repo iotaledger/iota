@@ -1,4 +1,5 @@
 import Quiz from '@site/src/components/Quiz';
+import FormalSnapshotPicker from '@site/src/components/FormalSnapshotPicker';
 import questions from '/json/node-operators/snapshots.json';
 
 Snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. 
@@ -108,32 +109,62 @@ To restore from a RocksDB snapshot, follow these steps:
 
 1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
-3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring epoch 10:
+3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring the latest epoch:
 
-  <Tabs groupId="network" queryString>
-      <TabItem label="Mainnet" value="mainnet">
-         ```shell
-            iota-tool download-db-snapshot \
-            --epoch 10 \
-            --network mainnet \
-            --path <TARGET_PATH> \
-            --num-parallel-downloads 25 \
-            --skip-indexes \
-            --no-sign-request \
-            --verbose
-         ```
+   <Tabs groupId="rocksdb-snapshot-command" queryString>
+      <TabItem label="Mainnet (Binary)" value="mainnet-binary">
+      ```shell
+      iota-tool download-db-snapshot \
+         --latest \
+         --network mainnet \
+         --path "<PATH-TO-NODE-DB>" \
+         --num-parallel-downloads 25 \
+         --skip-indexes \
+         --no-sign-request \
+         --verbose
+      ```
       </TabItem>
-      <TabItem label="Testnet" value="testnet">
-         ```shell
-            iota-tool download-db-snapshot \
-            --epoch 10 \
-            --network testnet \
-            --path <TARGET_PATH> \
+      <TabItem label="Mainnet (Docker)" value="mainnet-docker">
+      ```shell
+      docker run --rm \
+         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
+         iotaledger/iota-tools:mainnet \
+         /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
+            --latest \
+            --network mainnet \
+            --path /opt/iota/db \
             --num-parallel-downloads 25 \
             --skip-indexes \
             --no-sign-request \
-            --verbose
-         ```
+            --verbose"
+      ```
+      </TabItem>
+      <TabItem label="Testnet (Binary)" value="testnet-binary">
+      ```shell
+      iota-tool download-db-snapshot \
+         --latest \
+         --network testnet \
+         --path "<PATH-TO-NODE-DB>" \
+         --num-parallel-downloads 25 \
+         --skip-indexes \
+         --no-sign-request \
+         --verbose
+      ```
+      </TabItem>
+      <TabItem label="Testnet (Docker)" value="testnet-docker">
+      ```shell
+      docker run --rm \
+         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
+         iotaledger/iota-tools:testnet \
+         /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
+            --latest \
+            --network testnet \
+            --path /opt/iota/db \
+            --num-parallel-downloads 25 \
+            --skip-indexes \
+            --no-sign-request \
+            --verbose"
+      ```
       </TabItem>
    </Tabs>
 
@@ -166,37 +197,11 @@ See [Install IOTA](../../developer/getting-started/install-iota.mdx#install-from
 The following steps can be used to restore a node from a Formal snapshot:
 
 1. If it's running, stop the node.
-2. Run the command:
-   <Tabs groupId="network" queryString>
-      <TabItem label="Mainnet" value="mainnet">
-      ```shell
-         iota-tool download-formal-snapshot \
-         --latest \
-         --genesis "<PATH-TO-GENESIS-BLOB>" \
-         --network mainnet \
-         --path <PATH-TO-NODE-DB> \
-         --num-parallel-downloads 50 \
-         --verify normal \
-         --no-sign-request \
-         --verbose
-      ```
-      </TabItem>
-      <TabItem label="Testnet" value="testnet">
-      ```shell
-         iota-tool download-formal-snapshot \
-         --latest \
-         --genesis "<PATH-TO-GENESIS-BLOB>" \
-         --network testnet \
-         --path <PATH-TO-NODE-DB> \
-         --num-parallel-downloads 50 \
-         --verify normal \
-         --no-sign-request \
-         --verbose
-      ```
-      </TabItem>
-   </Tabs>
+2. Pick your setup, network, and a snapshot epoch. Copy the resulting command and run it:
 
-   - `--latest`: Download the latest available snapshot.
+   <FormalSnapshotPicker />
+
+   - `--epoch` / `--latest`: Pin a specific snapshot epoch, or always grab the most recent one.
    - `--genesis`: The path to the location of the network's `genesis.blob`.
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.

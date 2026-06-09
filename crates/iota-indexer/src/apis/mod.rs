@@ -7,11 +7,12 @@ pub(crate) use extended_api::ExtendedApi;
 pub use governance_api::GovernanceReadApi;
 pub(crate) use indexer_api::IndexerApi;
 pub(crate) use move_utils::MoveUtilsApi;
-pub(crate) use read_api::ReadApi;
+pub use read_api::ReadApi;
 pub(crate) use transaction_builder_api::TransactionBuilderApi;
-pub(crate) use write_api::{OptimisticWriteApi, WriteApi};
+pub use write_api::{OptimisticWriteApi, WriteApi};
 
 mod coin_api;
+pub(crate) mod error;
 mod extended_api;
 pub mod governance_api;
 mod indexer_api;

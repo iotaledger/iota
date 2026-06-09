@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Check that if the sender and gas sponsor of a tx are the same, that the historical data returned
-// is also the same. Check that the data for an object at version is consistent. Verify that when
-// objects_snapshot has caught up to [0, 3), we can still see all objects since all are live.
+// is also the same. Check that the data for an object at version is consistent. Verify that we can
+// see all objects since all are live across the available consistent range.
 
 
 // cp | version
@@ -72,7 +72,7 @@ module Test::M1 {
       }
     }
   }
-  latest_tx_at_checkpoint_3: transactionBlocks(last: 1, filter: {signAddress: "@{A}"}) {
+  latest_tx_at_checkpoint_3: transactionBlocks(last: 1, filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         objects_consistent_with_address_at_latest_checkpoint_4: objects(filter: {type: "@{Test}"}) {
@@ -136,7 +136,7 @@ module Test::M1 {
 
 //# run-graphql
 {
-  all_transactions: transactionBlocks(first: 4, filter: {signAddress: "@{A}"}) {
+  all_transactions: transactionBlocks(first: 4, filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         objects(filter: {type: "@{Test}"}) {
@@ -196,7 +196,7 @@ module Test::M1 {
       }
     }
   }
-  latest_tx_at_checkpoint_3: transactionBlocks(last: 1, filter: {signAddress: "@{A}"}) {
+  latest_tx_at_checkpoint_3: transactionBlocks(last: 1, filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         objects(filter: {type: "@{Test}"}) {
@@ -263,7 +263,7 @@ module Test::M1 {
 //# run-graphql
 # Regardless of the transaction block, the nested fields should yield the same data.
 {
-  all_transactions: transactionBlocks(first: 4, filter: {signAddress: "@{A}"}) {
+  all_transactions: transactionBlocks(first: 4, filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         objects(filter: {type: "@{Test}"}) {

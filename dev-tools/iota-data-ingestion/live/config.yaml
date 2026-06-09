@@ -5,9 +5,9 @@
 # Using the same path as the Node allows direct file access instead of HTTP requests,
 # significantly improving sync speed.
 path: "./test-checkpoints"
-# IOTA Node Rest API URL
+# IOTA Node gRPC URL
 #
-# The IOTA Node's REST API URL acts as a fallback mechanism for fetching checkpoints
+# The IOTA Node's gRPC URL acts as a fallback mechanism for fetching checkpoints
 # when they are not available in the local ingestion path. This provides redundancy
 # and ensures data availability even when local files are not accessible.
 #
@@ -20,7 +20,7 @@ path: "./test-checkpoints"
 # 1. Running on a different host than the IOTA Node
 # 2. Using a different path than the Node
 # 3. HTTP access is preferred over local filesystem
-remote-store-url: "http://localhost:9000/api/v1"
+remote-store-url: "http://localhost:50051"
 
 # Path to the progress store JSON file.
 #
@@ -78,4 +78,3 @@ tasks:
       # Minimum allowed chunk size is 5MB
       #
       checkpoint-chunk-size-mb: 100
-      node-rest-api-url: "http://localhost:9000/api/v1"

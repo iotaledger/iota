@@ -7,7 +7,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use tonic_build::manual::{Builder, Method, Service};
+use tonic_build::{
+    Method as MethodTrait, Service as ServiceTrait,
+    manual::{Builder, Method, Service},
+};
 
 type Result<T> = ::std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -99,7 +102,19 @@ fn main() -> Result<()> {
                 .codec_path(codec_path)
                 .build(),
         )
+        .method(
+            Method::builder()
+                .name("handle_capability_notification_v1")
+                .route_name("CapabilityNotificationV1")
+                .input_type("iota_types::messages_grpc::HandleCapabilityNotificationRequestV1")
+                .output_type("iota_types::messages_grpc::HandleCapabilityNotificationResponseV1")
+                .codec_path(codec_path)
+                .build(),
+        )
         .build();
+
+    // Generate the method path constants before compiling the service.
+    generate_method_paths(&validator_service, &out_dir);
 
     Builder::new()
         .out_dir(&out_dir)
@@ -111,6 +126,43 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-env-changed=DUMP_GENERATED_GRPC");
 
     Ok(())
+}
+
+/// Generate a Rust source file containing a constant array of all known gRPC
+/// method paths for the given service (plus the standard health check path).
+///
+/// This keeps `VALIDATOR_METHOD_PATHS` in sync with the service definition
+/// automatically — no manual updates needed when methods are added or removed.
+fn generate_method_paths(service: &Service, out_dir: &Path) {
+    let package = ServiceTrait::package(service);
+    let service_name = ServiceTrait::name(service);
+
+    let mut paths = vec![
+        // The health check service is always registered by ServerBuilder.
+        "\"/grpc.health.v1.Health/Check\"".to_string(),
+    ];
+
+    for method in ServiceTrait::methods(service) {
+        paths.push(format!(
+            "\"/{}.{}/{}\"",
+            package,
+            service_name,
+            MethodTrait::identifier(method)
+        ));
+    }
+
+    let count = paths.len();
+    let entries = paths.join(",\n    ");
+    let code = format!(
+        "/// Known gRPC method paths for the {service_name} service and the health\n\
+         /// check service that is always registered alongside it.\n\
+         ///\n\
+         /// Auto-generated from the service definition in `build.rs`.\n\
+         /// Do not edit manually.\n\
+         pub const VALIDATOR_METHOD_PATHS: [&str; {count}] = [\n    {entries}\n];\n"
+    );
+
+    std::fs::write(out_dir.join("validator_method_paths.rs"), code).unwrap();
 }
 
 fn build_anemo_services(out_dir: &Path) {
@@ -168,6 +220,15 @@ fn build_anemo_services(out_dir: &Path) {
                 .route_name("GetCheckpointAvailability")
                 .request_type("()")
                 .response_type("crate::state_sync::GetCheckpointAvailabilityResponse")
+                .codec_path(codec_path)
+                .build(),
+        )
+        .method(
+            anemo_build::manual::Method::builder()
+                .name("exchange_state_sync_handshake")
+                .route_name("ExchangeStateSyncHandshake")
+                .request_type("crate::state_sync::StateSyncHandshake")
+                .response_type("crate::state_sync::StateSyncHandshake")
                 .codec_path(codec_path)
                 .build(),
         )

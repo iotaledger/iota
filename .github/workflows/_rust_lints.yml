@@ -7,6 +7,9 @@ on:
         type: boolean
       isRustExample:
         type: boolean
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -40,31 +43,53 @@ jobs:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted-x64]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check Rust formatting
-        run: cargo +nightly-2025-04-01 ci-fmt
+        run: cargo +nightly-2026-01-07 ci-fmt
+
+  rustfmt-cancel:
+    needs: [rustfmt]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   cargo-sort:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted-x64]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: Check Cargo.toml format and sorting
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check Cargo.toml format and sorting and consolidate dependencies
         run: |
           pushd "scripts/cargo_sort"
-          ./run.sh --skip-dprint
+          ./run_consolidate.sh --skip-dprint
           popd
       - name: Check Cargo.toml diffs after formatting
         run: |
           if git status --porcelain | grep -q "Cargo.toml"; then
-            echo "Cargo.toml files not formatted and/or sorted properly! Please run the 'scripts/cargo_sort/run.sh' script."
+            echo "Cargo.toml files not formatted and/or sorted properly, or dependencies not consolidated! Please run the 'scripts/cargo_sort/run_consolidate.sh' script."
             git diff  # Show the actual diffs
             exit 1    # Fail the workflow
           fi
 
+  cargo-sort-cancel:
+    needs: [cargo-sort]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   examples:
     if: (!cancelled() && inputs.isRustExample)
     uses: ./.github/workflows/_rust_examples.yml
+    with:
+      isNightly: ${{ inputs.isNightly }}
 
   clippy:
     if: (!cancelled() && !failure() && inputs.isRust)
@@ -72,13 +97,7 @@ jobs:
       - rustfmt
     runs-on: [self-hosted-x64]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      # TODO(bradh): debug and re-enable this; the caching is breaking the clippy build
-      # Enable caching of the 'librocksdb-sys' crate by additionally caching the
-      # 'librocksdb-sys' src directory which is managed by cargo
-      # - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-      #   with:
-      #     path: ~/.cargo/registry/src/**/librocksdb-sys-*
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
@@ -88,3 +107,13 @@ jobs:
         run: |
           git clean -fd
           ./scripts/simtest/clippy.sh
+
+  clippy-cancel:
+    needs: [clippy]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

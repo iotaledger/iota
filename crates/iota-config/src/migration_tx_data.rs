@@ -121,7 +121,7 @@ impl MigrationTxData {
                 if &events.digest() != valid_events_digest {
                     anyhow::bail!("invalid events data");
                 }
-            } else if !events.data.is_empty() {
+            } else if !events.is_empty() {
                 anyhow::bail!("invalid events data");
             }
             validation_digests_queue.remove(valid_tx_digest);
@@ -165,7 +165,7 @@ impl MigrationTxData {
         let total_supply: u64 = self
             .get_objects()
             .map(|object| match &object.data {
-                Data::Move(_) => GasCoin::try_from(&object)
+                Data::Struct(_) => GasCoin::try_from(&object)
                     .map(|gas| gas.value())
                     .or_else(|_| {
                         TimeLock::<Balance>::try_from(&object).map(|t| {

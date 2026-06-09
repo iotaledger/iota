@@ -3,12 +3,16 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use move_core_types::u256::U256;
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+
 use crate::{
     debug_display, diag,
     editions::FeatureGate,
     expansion::ast::Value_,
     ice,
-    naming::ast::{BuiltinTypeName_, FunctionSignature, Type, TypeName_, Type_},
+    naming::ast::{BuiltinTypeName_, FunctionSignature, Type, Type_, TypeName_},
     parser::ast::Ability_,
     shared::{ide::IDEAnnotation, string_utils::debug_print},
     typing::{
@@ -16,9 +20,6 @@ use crate::{
         core::{self, Context},
     },
 };
-use move_core_types::u256::U256;
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
 
 //**************************************************************************************************
 // Functions

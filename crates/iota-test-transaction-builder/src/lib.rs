@@ -13,24 +13,24 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
+use iota_sdk_crypto::Signer as SdkSigner;
+use iota_sdk_types::{
+    Identifier, ObjectId, Owner, TypeTag,
+    crypto::{Intent, IntentMessage, SimpleSignature},
+};
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
-    object::Owner,
     signature::GenericSignature,
     transaction::{
-        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ObjectArg, ProgrammableTransaction,
+        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData,
+        Transaction, TransactionData, TransactionDataAPI,
     },
     utils::to_sender_signed_transaction,
 };
-use move_core_types::ident_str;
-use shared_crypto::intent::{Intent, IntentMessage};
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -62,16 +62,16 @@ impl TestTransactionBuilder {
     // Use `with_type_args` below to provide type args if any
     pub fn move_call(
         mut self,
-        package_id: ObjectID,
-        module: &'static str,
-        function: &'static str,
+        package_id: ObjectId,
+        module: &str,
+        function: &str,
         args: Vec<CallArg>,
     ) -> Self {
         assert!(matches!(self.test_data, TestTransactionData::Empty));
         self.test_data = TestTransactionData::Move(MoveData {
             package_id,
-            module,
-            function,
+            module: Identifier::new(module).unwrap(),
+            function: Identifier::new(function).unwrap(),
             args,
             type_args: vec![],
         });
@@ -93,124 +93,122 @@ impl TestTransactionBuilder {
         self
     }
 
-    pub fn call_counter_create(self, package_id: ObjectID) -> Self {
+    pub fn call_counter_create(self, package_id: ObjectId) -> Self {
         self.move_call(package_id, "counter", "create", vec![])
     }
 
     pub fn call_counter_increment(
         self,
-        package_id: ObjectID,
-        counter_id: ObjectID,
+        package_id: ObjectId,
+        counter_id: ObjectId,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: true,
-            })],
+            vec![CallArg::Shared(SharedObjectRef::new(
+                counter_id,
+                counter_initial_shared_version,
+                true,
+            ))],
         )
     }
 
     pub fn call_counter_read(
         self,
-        package_id: ObjectID,
-        counter_id: ObjectID,
+        package_id: ObjectId,
+        counter_id: ObjectId,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "value",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: false,
-            })],
+            vec![CallArg::Shared(SharedObjectRef::new(
+                counter_id,
+                counter_initial_shared_version,
+                false,
+            ))],
         )
     }
 
     pub fn call_counter_delete(
         self,
-        package_id: ObjectID,
-        counter_id: ObjectID,
+        package_id: ObjectId,
+        counter_id: ObjectId,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "delete",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: true,
-            })],
+            vec![CallArg::Shared(SharedObjectRef::new(
+                counter_id,
+                counter_initial_shared_version,
+                true,
+            ))],
         )
     }
 
-    pub fn call_nft_create(self, package_id: ObjectID) -> Self {
+    pub fn call_nft_create(self, package_id: ObjectId) -> Self {
         self.move_call(
             package_id,
             "testnet_nft",
             "mint_to_sender",
             vec![
-                CallArg::Pure(bcs::to_bytes("example_nft_name").unwrap()),
-                CallArg::Pure(bcs::to_bytes("example_nft_description").unwrap()),
-                CallArg::Pure(
-                    bcs::to_bytes("https://iota.org/_nuxt/img/iota-logo.8d3c44e.svg").unwrap(),
-                ),
+                CallArg::pure(&"example_nft_name"),
+                CallArg::pure(&"example_nft_description"),
+                CallArg::pure(&"https://iota.org/_nuxt/img/iota-logo.8d3c44e.svg"),
             ],
         )
     }
 
-    pub fn call_nft_delete(self, package_id: ObjectID, nft_to_delete: ObjectRef) -> Self {
+    pub fn call_nft_delete(self, package_id: ObjectId, nft_to_delete: ObjectRef) -> Self {
         self.move_call(
             package_id,
             "testnet_nft",
             "burn",
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(nft_to_delete))],
+            vec![CallArg::ImmutableOrOwned(nft_to_delete)],
         )
     }
 
     pub fn call_staking(self, stake_coin: ObjectRef, validator: IotaAddress) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.as_str(),
+            ObjectId::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_stake",
             vec![
-                CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(stake_coin)),
-                CallArg::Pure(bcs::to_bytes(&validator).unwrap()),
+                CallArg::IOTA_SYSTEM_MUTABLE,
+                CallArg::ImmutableOrOwned(stake_coin),
+                CallArg::pure(&validator),
             ],
         )
     }
 
     pub fn call_emit_random(
         self,
-        package_id: ObjectID,
+        package_id: ObjectId,
         randomness_initial_shared_version: SequenceNumber,
     ) -> Self {
         self.move_call(
             package_id,
             "random",
             "new",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
-                initial_shared_version: randomness_initial_shared_version,
-                mutable: false,
-            })],
+            vec![CallArg::Shared(SharedObjectRef::new(
+                ObjectId::RANDOMNESS_STATE,
+                randomness_initial_shared_version,
+                false,
+            ))],
         )
     }
 
     pub fn call_request_add_validator(self) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.as_str(),
+            ObjectId::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_validator",
-            vec![CallArg::IOTA_SYSTEM_MUT],
+            vec![CallArg::IOTA_SYSTEM_MUTABLE],
         )
     }
 
@@ -219,34 +217,34 @@ impl TestTransactionBuilder {
         validator: &GenesisValidatorMetadata,
     ) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.as_str(),
+            ObjectId::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_validator_candidate",
             vec![
-                CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Pure(bcs::to_bytes(&validator.authority_public_key).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.network_public_key).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.protocol_public_key).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.proof_of_possession).unwrap()),
-                CallArg::Pure(bcs::to_bytes(validator.name.as_bytes()).unwrap()),
-                CallArg::Pure(bcs::to_bytes(validator.description.as_bytes()).unwrap()),
-                CallArg::Pure(bcs::to_bytes(validator.image_url.as_bytes()).unwrap()),
-                CallArg::Pure(bcs::to_bytes(validator.project_url.as_bytes()).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.network_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.p2p_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.primary_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&DEFAULT_VALIDATOR_GAS_PRICE).unwrap()), // gas_price
-                CallArg::Pure(bcs::to_bytes(&0u64).unwrap()), // commission_rate
+                CallArg::IOTA_SYSTEM_MUTABLE,
+                CallArg::pure(&validator.authority_public_key),
+                CallArg::pure(&validator.network_public_key),
+                CallArg::pure(&validator.protocol_public_key),
+                CallArg::pure(&validator.proof_of_possession),
+                CallArg::pure(&validator.name),
+                CallArg::pure(&validator.description),
+                CallArg::pure(&validator.image_url),
+                CallArg::pure(&validator.project_url),
+                CallArg::pure(&validator.network_address),
+                CallArg::pure(&validator.p2p_address),
+                CallArg::pure(&validator.primary_address),
+                CallArg::pure(&DEFAULT_VALIDATOR_GAS_PRICE), // gas_price
+                CallArg::pure(&0u64),                        // commission_rate
             ],
         )
     }
 
     pub fn call_request_remove_validator(self) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.as_str(),
+            ObjectId::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_remove_validator",
-            vec![CallArg::IOTA_SYSTEM_MUT],
+            vec![CallArg::IOTA_SYSTEM_MUTABLE],
         )
     }
 
@@ -306,8 +304,8 @@ impl TestTransactionBuilder {
             TestTransactionData::Move(data) => TransactionData::new_move_call(
                 self.sender,
                 data.package_id,
-                ident_str!(data.module).to_owned(),
-                ident_str!(data.function).to_owned(),
+                data.module,
+                data.function,
                 data.type_args,
                 self.gas_object,
                 data.args,
@@ -392,23 +390,14 @@ impl TestTransactionBuilder {
     pub fn build_and_sign_multisig(
         self,
         multisig_pk: MultiSigPublicKey,
-        signers: &[&dyn Signer<Signature>],
+        signers: &[&dyn SdkSigner<SimpleSignature>],
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
-        let intent_msg = IntentMessage::new(Intent::iota_transaction(), data.clone());
-
-        let mut signatures = Vec::with_capacity(signers.len());
-        for signer in signers {
-            signatures.push(
-                GenericSignature::from(Signature::new_secure(&intent_msg, *signer))
-                    .to_compressed()
-                    .unwrap(),
-            );
-        }
-
+        let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
+        let signatures = signers.iter().map(|s| s.sign(&*digest).into()).collect();
         let multisig =
-            GenericSignature::MultiSig(MultiSig::insecure_new(signatures, bitmap, multisig_pk));
+            GenericSignature::MultiSig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
 
         Transaction::from_generic_sig_data(data, vec![multisig])
     }
@@ -426,9 +415,9 @@ enum TestTransactionData {
 }
 
 struct MoveData {
-    package_id: ObjectID,
-    module: &'static str,
-    function: &'static str,
+    package_id: ObjectId,
+    module: Identifier,
+    function: Identifier,
     args: Vec<CallArg>,
     type_args: Vec<TypeTag>,
 }
@@ -587,7 +576,7 @@ pub async fn publish_basics_package_and_make_counter(
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let counter_creation_txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
-            .call_counter_create(package_ref.0)
+            .call_counter_create(package_ref.object_id)
             .build(),
     );
     let resp = context
@@ -598,10 +587,9 @@ pub async fn publish_basics_package_and_make_counter(
         .unwrap()
         .created()
         .iter()
-        .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared { .. }))
+        .find(|obj_ref| matches!(obj_ref.owner, Owner::Shared(_)))
         .unwrap()
-        .reference
-        .to_object_ref();
+        .reference;
     (package_ref, counter_ref)
 }
 
@@ -610,9 +598,9 @@ pub async fn publish_basics_package_and_make_counter(
 pub async fn increment_counter(
     context: &WalletContext,
     sender: IotaAddress,
-    gas_object_id: Option<ObjectID>,
-    package_id: ObjectID,
-    counter_id: ObjectID,
+    gas_object_id: Option<ObjectId>,
+    package_id: ObjectId,
+    counter_id: ObjectId,
     initial_shared_version: SequenceNumber,
 ) -> IotaTransactionBlockResponse {
     let gas_object = if let Some(gas_object_id) = gas_object_id {
@@ -637,7 +625,7 @@ pub async fn increment_counter(
 /// emits it as an event.
 pub async fn emit_new_random_u128(
     context: &WalletContext,
-    package_id: ObjectID,
+    package_id: ObjectId,
 ) -> IotaTransactionBlockResponse {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
@@ -646,7 +634,7 @@ pub async fn emit_new_random_u128(
     let random_obj = client
         .read_api()
         .get_object_with_options(
-            IOTA_RANDOMNESS_STATE_OBJECT_ID,
+            ObjectId::RANDOMNESS_STATE,
             IotaObjectDataOptions::new().with_owner(),
         )
         .await
@@ -657,17 +645,14 @@ pub async fn emit_new_random_u128(
         .owner
         .expect("Expect Randomness object to have an owner");
 
-    let Owner::Shared {
-        initial_shared_version,
-    } = random_obj_owner
-    else {
+    let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
-    let random_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    let random_call_arg = CallArg::Shared(SharedObjectRef::new(
+        ObjectId::RANDOMNESS_STATE,
         initial_shared_version,
-        mutable: false,
-    });
+        false,
+    ));
 
     let txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, rgp)
@@ -685,7 +670,7 @@ pub async fn publish_example_package(
     sender_key_pair: &AccountKeyPair,
     sender: IotaAddress,
     gas: ObjectRef,
-) -> (ObjectID, TransactionDigest) {
+) -> (ObjectId, TransactionDigest) {
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let tx = to_sender_signed_transaction(
         TestTransactionBuilder::new(sender, gas, gas_price)
@@ -695,7 +680,7 @@ pub async fn publish_example_package(
     );
 
     let resp = context.execute_transaction_must_succeed(tx).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().0;
+    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
     (package_id, resp.digest)
 }
 
@@ -703,9 +688,9 @@ pub async fn publish_example_package(
 /// id, id of the gas object used, and the digest of the transaction.
 pub async fn publish_nfts_package(
     context: &WalletContext,
-) -> (ObjectID, ObjectID, TransactionDigest) {
+) -> (ObjectId, ObjectId, TransactionDigest) {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
-    let gas_id = gas_object.0;
+    let gas_id = gas_object.object_id;
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
@@ -713,7 +698,7 @@ pub async fn publish_nfts_package(
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().0;
+    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
     (package_id, gas_id, resp.digest)
 }
 
@@ -724,7 +709,7 @@ pub async fn publish_simple_warrior_package(
     sender_key_pair: &AccountKeyPair,
     sender: IotaAddress,
     gas: ObjectRef,
-) -> (ObjectID, TransactionDigest) {
+) -> (ObjectId, TransactionDigest) {
     publish_example_package(context, "simple_warrior", sender_key_pair, sender, gas).await
 }
 
@@ -733,8 +718,8 @@ pub async fn publish_simple_warrior_package(
 /// object id of the NFT, and the digest of the transaction.
 pub async fn create_nft(
     context: &WalletContext,
-    package_id: ObjectID,
-) -> (IotaAddress, ObjectID, TransactionDigest) {
+    package_id: ObjectId,
+) -> (IotaAddress, ObjectId, TransactionDigest) {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
 
@@ -762,7 +747,7 @@ pub async fn create_nft(
 pub async fn delete_nft(
     context: &WalletContext,
     sender: IotaAddress,
-    package_id: ObjectID,
+    package_id: ObjectId,
     nft_to_delete: ObjectRef,
 ) -> IotaTransactionBlockResponse {
     let gas = context

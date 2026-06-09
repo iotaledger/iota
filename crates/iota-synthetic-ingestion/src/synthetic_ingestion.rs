@@ -68,7 +68,7 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
     } = config;
 
     // Simulacrum will generate `0.chk` as the genesis checkpoint.
-    let mut sim = Simulacrum::new();
+    let sim = Simulacrum::new();
     sim.set_data_ingestion_path(ingestion_dir.clone());
 
     let gas_price = sim.reference_gas_price();
@@ -153,8 +153,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_ingestion_from_zero() {
-        let ingestion_tempdir = tempfile::tempdir().unwrap();
-        let ingestion_dir = ingestion_tempdir.path().to_path_buf();
+        let tmp_dir = iota_common::tempdir();
+        let ingestion_dir = tmp_dir.path().to_path_buf();
 
         let config = super::Config {
             ingestion_dir: ingestion_dir.clone(),
@@ -175,8 +175,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_ingestion_from_non_zero() {
-        let ingestion_tempdir = tempfile::tempdir().unwrap();
-        let ingestion_dir = ingestion_tempdir.path().to_path_buf();
+        let tmp_dir = iota_common::tempdir();
+        let ingestion_dir = tmp_dir.path().to_path_buf();
 
         let config = super::Config {
             ingestion_dir: ingestion_dir.clone(),

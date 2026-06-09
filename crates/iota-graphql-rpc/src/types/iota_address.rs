@@ -5,7 +5,8 @@
 use std::str::FromStr;
 
 use async_graphql::*;
-use iota_types::base_types::{IotaAddress as NativeIotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress as NativeIotaAddress;
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +15,7 @@ use crate::error::Error;
 const IOTA_ADDRESS_LENGTH: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy)]
-pub(crate) struct IotaAddress([u8; IOTA_ADDRESS_LENGTH]);
+pub(crate) struct IotaAddress(pub(crate) [u8; IOTA_ADDRESS_LENGTH]);
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub(crate) enum FromStrError {
@@ -104,27 +105,27 @@ impl From<IotaAddress> for AccountAddress {
     }
 }
 
-impl From<ObjectID> for IotaAddress {
-    fn from(value: ObjectID) -> Self {
+impl From<ObjectId> for IotaAddress {
+    fn from(value: ObjectId) -> Self {
         IotaAddress(value.into_bytes())
     }
 }
 
-impl From<IotaAddress> for ObjectID {
+impl From<IotaAddress> for ObjectId {
     fn from(value: IotaAddress) -> Self {
-        ObjectID::new(value.0)
+        ObjectId::new(value.0)
     }
 }
 
 impl From<NativeIotaAddress> for IotaAddress {
     fn from(value: NativeIotaAddress) -> Self {
-        IotaAddress(value.to_inner())
+        IotaAddress(value.into_bytes())
     }
 }
 
 impl From<IotaAddress> for NativeIotaAddress {
     fn from(value: IotaAddress) -> Self {
-        AccountAddress::from(value).into()
+        NativeIotaAddress::new(value.0)
     }
 }
 

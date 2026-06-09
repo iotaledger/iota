@@ -3,17 +3,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    completions::{
-        dot::dot_completions,
-        name_chain::{name_chain_completions, use_decl_completions},
-        snippets::{init_completion, object_completion},
-        utils::{completion_item, PRIMITIVE_TYPE_COMPLETIONS},
-    },
-    context::Context,
-    symbols::{self, CursorContext, PrecomputedPkgInfo, SymbolicatorRunner, Symbols},
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
-use lsp_server::Request;
+
+use lsp_server::{Message, Request, Response};
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionParams, Position};
 use move_command_line_common::files::FileHash;
 use move_compiler::{
@@ -26,27 +22,31 @@ use move_compiler::{
 };
 use move_package::source_package::parsed_manifest::Dependencies;
 use move_symbol_pool::Symbol;
-
 use once_cell::sync::Lazy;
-
-use std::{
-    collections::{BTreeMap, HashSet},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-};
 use vfs::VfsPath;
+
+use crate::{
+    completions::{
+        dot::dot_completions,
+        name_chain::{name_chain_completions, use_decl_completions},
+        snippets::{init_completion, object_completion},
+        utils::{PRIMITIVE_TYPE_COMPLETIONS, completion_item},
+    },
+    context::Context,
+    symbols::{self, CursorContext, PrecomputedPkgInfo, SymbolicatorRunner, Symbols},
+};
 
 mod dot;
 mod name_chain;
 mod snippets;
-mod utils;
+pub mod utils;
 
 /// List of completion items corresponding to each one of Move's keywords.
 ///
-/// Currently, this does not filter keywords out based on whether they are valid at the completion
-/// request's cursor position, but in the future it ought to. For example, this function returns
-/// all specification language keywords, but in the future it should be modified to only do so
-/// within a spec block.
+/// Currently, this does not filter keywords out based on whether they are valid
+/// at the completion request's cursor position, but in the future it ought to.
+/// For example, this function returns all specification language keywords, but
+/// in the future it should be modified to only do so within a spec block.
 static KEYWORD_COMPLETIONS: Lazy<Vec<CompletionItem>> = Lazy::new(|| {
     let mut keywords = KEYWORDS
         .iter()
@@ -65,7 +65,8 @@ static KEYWORD_COMPLETIONS: Lazy<Vec<CompletionItem>> = Lazy::new(|| {
     keywords
 });
 
-/// List of completion items corresponding to each one of Move's builtin functions.
+/// List of completion items corresponding to each one of Move's builtin
+/// functions.
 static BUILTIN_COMPLETIONS: Lazy<Vec<CompletionItem>> = Lazy::new(|| {
     BUILTINS
         .iter()
@@ -82,6 +83,7 @@ pub fn on_completion_request(
     ide_files_root: VfsPath,
     pkg_dependencies: Arc<Mutex<BTreeMap<PathBuf, PrecomputedPkgInfo>>>,
     implicit_deps: Dependencies,
+    auto_import: bool,
 ) {
     eprintln!("handling completion request");
     let parameters = serde_json::from_value::<CompletionParams>(request.params.clone())
@@ -96,8 +98,8 @@ pub fn on_completion_request(
 
     let mut pos = parameters.text_document_position.position;
     if pos.character != 0 {
-        // adjust column to be at the character that has just been inserted rather than right after
-        // it (unless we are at the very first column)
+        // adjust column to be at the character that has just been inserted rather than
+        // right after it (unless we are at the very first column)
         pos = Position::new(pos.line, pos.character - 1);
     }
     let completions = completions(
@@ -107,6 +109,7 @@ pub fn on_completion_request(
         &path,
         pos,
         implicit_deps,
+        auto_import,
     )
     .unwrap_or_default();
     let completions_len = completions.len();
@@ -114,12 +117,8 @@ pub fn on_completion_request(
     let result =
         serde_json::to_value(completions).expect("could not serialize completion response");
     eprintln!("about to send completion response with {completions_len} items");
-    let response = lsp_server::Response::new_ok(request.id.clone(), result);
-    if let Err(err) = context
-        .connection
-        .sender
-        .send(lsp_server::Message::Response(response))
-    {
+    let response = Response::new_ok(request.id.clone(), result);
+    if let Err(err) = context.connection.sender.send(Message::Response(response)) {
         eprintln!("could not send completion response: {:?}", err);
     }
 }
@@ -133,6 +132,7 @@ fn completions(
     path: &Path,
     pos: Position,
     implicit_deps: Dependencies,
+    auto_import: bool,
 ) -> Option<Vec<CompletionItem>> {
     let Some(pkg_path) = SymbolicatorRunner::root_dir(path) else {
         eprintln!("failed completion for {:?} (package root not found)", path);
@@ -147,6 +147,7 @@ fn completions(
         path,
         pos,
         implicit_deps,
+        auto_import,
     ))
 }
 
@@ -159,9 +160,17 @@ pub fn compute_completions(
     path: &Path,
     pos: Position,
     implicit_deps: Dependencies,
+    auto_import: bool,
 ) -> Vec<CompletionItem> {
-    compute_completions_new_symbols(ide_files_root, pkg_dependencies, path, pos, implicit_deps)
-        .unwrap_or_else(|| compute_completions_with_symbols(current_symbols, path, pos))
+    compute_completions_new_symbols(
+        ide_files_root,
+        pkg_dependencies,
+        path,
+        pos,
+        implicit_deps,
+        auto_import,
+    )
+    .unwrap_or_else(|| compute_completions_with_symbols(current_symbols, path, pos, auto_import))
 }
 
 /// Computes a list of auto-completions for a given position in a file,
@@ -173,6 +182,7 @@ fn compute_completions_new_symbols(
     path: &Path,
     cursor_position: Position,
     implicit_deps: Dependencies,
+    auto_import: bool,
 ) -> Option<Vec<CompletionItem>> {
     let Some(pkg_path) = SymbolicatorRunner::root_dir(path) else {
         eprintln!("failed completion for {:?} (package root not found)", path);
@@ -180,7 +190,7 @@ fn compute_completions_new_symbols(
     };
     let cursor_path = path.to_path_buf();
     let cursor_info = Some((&cursor_path, cursor_position));
-    let (symbols, _diags) = symbols::get_symbols(
+    let (symbols, _) = symbols::get_symbols(
         pkg_dependencies,
         ide_files_root,
         &pkg_path,
@@ -195,6 +205,7 @@ fn compute_completions_new_symbols(
         &symbols,
         path,
         cursor_position,
+        auto_import,
     ))
 }
 
@@ -204,6 +215,7 @@ pub fn compute_completions_with_symbols(
     symbols: &Symbols,
     path: &Path,
     pos: Position,
+    auto_import: bool,
 ) -> Vec<CompletionItem> {
     let mut completions = vec![];
 
@@ -223,8 +235,14 @@ pub fn compute_completions_with_symbols(
         match &symbols.cursor_context {
             Some(cursor_context) => {
                 eprintln!("cursor completion");
-                let (cursor_completions, cursor_finalized) =
-                    cursor_completion_items(symbols, path, &file_source, pos, cursor_context);
+                let (cursor_completions, cursor_finalized) = cursor_completion_items(
+                    symbols,
+                    path,
+                    &file_source,
+                    pos,
+                    cursor_context,
+                    auto_import,
+                );
                 completion_finalized = cursor_finalized;
                 completions.extend(cursor_completions);
             }
@@ -257,6 +275,7 @@ fn cursor_completion_items(
     file_source: &str,
     pos: Position,
     cursor: &CursorContext,
+    auto_import: bool,
 ) -> (Vec<CompletionItem>, bool) {
     let cursor_leader = get_cursor_token(file_source, &pos);
     match cursor_leader {
@@ -265,8 +284,12 @@ fn cursor_completion_items(
         Some(Tok::ColonColon) => {
             let mut completions = vec![];
             let mut completion_finalized = false;
-            let (name_chain_completions, name_chain_finalized) =
-                name_chain_completions(symbols, cursor, /* colon_colon_triggered */ true);
+            let (name_chain_completions, name_chain_finalized) = name_chain_completions(
+                symbols,
+                cursor,
+                true, // colon_colon_triggered
+                auto_import,
+            );
             completions.extend(name_chain_completions);
             completion_finalized |= name_chain_finalized;
             if !completion_finalized {
@@ -300,8 +323,12 @@ fn cursor_completion_items(
             eprintln!("no relevant cursor leader");
             let mut completions = vec![];
             let mut completion_finalized = false;
-            let (name_chain_completions, name_chain_finalized) =
-                name_chain_completions(symbols, cursor, /* colon_colon_triggered */ false);
+            let (name_chain_completions, name_chain_finalized) = name_chain_completions(
+                symbols,
+                cursor,
+                false, // colon_colon_triggered
+                auto_import,
+            );
             completions.extend(name_chain_completions);
             completion_finalized |= name_chain_finalized;
             if !completion_finalized {
@@ -327,8 +354,9 @@ fn cursor_completion_items(
     }
 }
 
-/// Returns the token corresponding to the "trigger character" if it is one of `.`, `:`, '{', or
-/// `::`. Otherwise, returns `None` (position points at the potential trigger character itself).
+/// Returns the token corresponding to the "trigger character" if it is one of
+/// `.`, `:`, '{', or `::`. Otherwise, returns `None` (position points at the
+/// potential trigger character itself).
 fn get_cursor_token(buffer: &str, position: &Position) -> Option<Tok> {
     let line = buffer.lines().nth(position.line as usize)?;
     match line.chars().nth(position.character as usize) {
@@ -369,8 +397,8 @@ fn no_cursor_completion_items(
     file_source: &str,
     pos: Position,
 ) -> (Vec<CompletionItem>, bool) {
-    // If the user's cursor is positioned anywhere other than following a `.`, `:`, or `::`,
-    // offer them context-specific autocompletion items and, if needed,
+    // If the user's cursor is positioned anywhere other than following a `.`, `:`,
+    // or `::`, offer them context-specific autocompletion items and, if needed,
     // Move's keywords, and builtins.
     let (mut completions, mut completion_finalized) = dot_completions(symbols, path, &pos);
     if !completion_finalized {
@@ -386,15 +414,16 @@ fn no_cursor_completion_items(
     (completions, true)
 }
 
-/// Lexes the Move source file at the given path and returns a list of completion items
-/// corresponding to the non-keyword identifiers therein.
+/// Lexes the Move source file at the given path and returns a list of
+/// completion items corresponding to the non-keyword identifiers therein.
 ///
-/// Currently, this does not perform semantic analysis to determine whether the identifiers
-/// returned are valid at the request's cursor position. However, this list of identifiers is akin
-/// to what editors like Visual Studio Code would provide as completion items if this language
-/// server did not initialize with a response indicating it's capable of providing completions. In
-/// the future, the server should be modified to return semantically valid completion items, not
-/// simple textual suggestions.
+/// Currently, this does not perform semantic analysis to determine whether the
+/// identifiers returned are valid at the request's cursor position. However,
+/// this list of identifiers is akin to what editors like Visual Studio Code
+/// would provide as completion items if this language server did not initialize
+/// with a response indicating it's capable of providing completions. In
+/// the future, the server should be modified to return semantically valid
+/// completion items, not simple textual suggestions.
 fn identifiers(buffer: &str, symbols: &Symbols, path: &Path) -> Vec<CompletionItem> {
     // TODO thread through package configs
     let mut lexer = Lexer::new(buffer, FileHash::new(buffer), Edition::LEGACY);
@@ -403,15 +432,16 @@ fn identifiers(buffer: &str, symbols: &Symbols, path: &Path) -> Vec<CompletionIt
     }
     let mut ids = HashSet::new();
     while lexer.peek() != Tok::EOF {
-        // Some tokens, such as "phantom", are contextual keywords that are only reserved in
-        // certain contexts. Since for now this language server doesn't analyze semantic context,
-        // tokens such as "phantom" are always present in keyword suggestions. To avoid displaying
-        // these keywords to the user twice in the case that the token "phantom" is present in the
-        // source program (once as a keyword, and once as an identifier), we filter out any
-        // identifier token that has the same text as a keyword.
+        // Some tokens, such as "phantom", are contextual keywords that are only
+        // reserved in certain contexts. Since for now this language server
+        // doesn't analyze semantic context, tokens such as "phantom" are always
+        // present in keyword suggestions. To avoid displaying these keywords to
+        // the user twice in the case that the token "phantom" is present in the
+        // source program (once as a keyword, and once as an identifier), we filter out
+        // any identifier token that has the same text as a keyword.
         if lexer.peek() == Tok::Identifier && !KEYWORDS.contains(&lexer.content()) {
-            // The completion item kind "text" indicates the item is not based on any semantic
-            // context of the request cursor's position.
+            // The completion item kind "text" indicates the item is not based on any
+            // semantic context of the request cursor's position.
             ids.insert(lexer.content());
         }
         if lexer.advance().is_err() {
@@ -421,8 +451,8 @@ fn identifiers(buffer: &str, symbols: &Symbols, path: &Path) -> Vec<CompletionIt
 
     let mods_opt = symbols.file_mods.get(path);
 
-    // The completion item kind "text" indicates that the item is based on simple textual matching,
-    // not any deeper semantic analysis.
+    // The completion item kind "text" indicates that the item is based on simple
+    // textual matching, not any deeper semantic analysis.
     ids.iter()
         .map(|label| {
             if let Some(mods) = mods_opt {

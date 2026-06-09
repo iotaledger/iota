@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod address_derivation;
 mod alias_ownership;
 mod delegator_outputs;
 mod stardust_mix;
@@ -17,22 +18,21 @@ use std::{
 
 use anyhow::anyhow;
 pub(crate) use delegator_outputs::{new_simple_basic_output, new_vested_output};
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
     address::Ed25519Address,
     output::{BasicOutputBuilder, Output, OutputId},
 };
-use iota_types::{
-    gas_coin::STARDUST_TOTAL_SUPPLY_IOTA,
-    stardust::coin_type::CoinType,
-    timelock::timelock::{self},
-};
+use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 use packable::{
     Packable,
     packer::{IoPacker, Packer},
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::stardust::{parse::HornetSnapshotParser, types::output_header::OutputHeader};
+use crate::stardust::{
+    parse::HornetSnapshotParser,
+    types::{output_header::OutputHeader, vested_reward::is_timelocked_vested_reward},
+};
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 const IOTA_OUTPUT_TO_DECREASE_AMOUNT_FROM: &str =
@@ -60,7 +60,7 @@ const PROBABILITY_OF_PICKING_A_BASIC_OUTPUT: f64 = 0.1;
 /// include only test outputs and some outputs dedicated to the delegator. If
 /// `with_sampling` is true, then some samples from the previous snapshot are
 /// taken too.
-pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
+pub fn add_snapshot_test_outputs<const VERIFY: bool>(
     current_path: impl AsRef<Path> + core::fmt::Debug,
     new_path: impl AsRef<Path> + core::fmt::Debug,
     coin_type: CoinType,
@@ -82,22 +82,23 @@ pub async fn add_snapshot_test_outputs<const VERIFY: bool>(
 
     let mut rng = StdRng::seed_from_u64(randomness_seed);
     let mut new_outputs = [
-        alias_ownership::outputs(&mut rng, address_derivation_coin_type).await?,
-        stardust_mix::outputs(&mut rng, &mut vested_index, address_derivation_coin_type).await?,
-        vesting_schedule_entity::outputs(&mut rng, &mut vested_index, address_derivation_coin_type)
-            .await?,
+        alias_ownership::outputs(&mut rng, address_derivation_coin_type)?,
+        stardust_mix::outputs(&mut rng, &mut vested_index, address_derivation_coin_type)?,
+        vesting_schedule_entity::outputs(
+            &mut rng,
+            &mut vested_index,
+            address_derivation_coin_type,
+        )?,
         vesting_schedule_iota_airdrop::outputs(
             &mut rng,
             &mut vested_index,
             address_derivation_coin_type,
-        )
-        .await?,
+        )?,
         vesting_schedule_portfolio_mix::outputs(
             &mut rng,
             &mut vested_index,
             address_derivation_coin_type,
-        )
-        .await?,
+        )?,
     ]
     .concat();
 
@@ -225,7 +226,7 @@ fn with_sampling<R: Read>(
     for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
         match output {
             Output::Basic(ref basic) => {
-                if !timelock::is_timelocked_vested_reward(
+                if !is_timelocked_vested_reward(
                     output_header.output_id(),
                     basic,
                     target_milestone_timestamp,

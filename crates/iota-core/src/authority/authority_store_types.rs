@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Owner, StructTag, move_package::MovePackage};
 use iota_types::{
-    base_types::{MoveObjectType, TransactionDigest},
+    base_types::TransactionDigest,
     coin::Coin,
     error::IotaError,
-    move_package::MovePackage,
-    object::{Data, MoveObject, Object, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner},
     storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
@@ -85,7 +85,7 @@ impl From<StoreObject> for StoreObjectWrapper {
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum StoreObjectV1 {
-    Value(StoreObjectValue),
+    Value(Box<StoreObjectValue>),
     Deleted,
     Wrapped,
 }
@@ -116,8 +116,8 @@ pub fn get_store_object(object: Object) -> StoreObjectWrapper {
 
     let data = match object.data {
         Data::Package(package) => StoreData::Package(package),
-        Data::Move(move_obj) => {
-            if move_obj.type_().is_gas_coin() {
+        Data::Struct(move_obj) => {
+            if move_obj.struct_tag().is_gas_coin() {
                 StoreData::Coin(
                     Coin::from_bcs_bytes(move_obj.contents())
                         .expect("failed to deserialize coin")
@@ -135,7 +135,7 @@ pub fn get_store_object(object: Object) -> StoreObjectWrapper {
         previous_transaction: object.previous_transaction,
         storage_rebate: object.storage_rebate,
     };
-    StoreObject::Value(store_object).into()
+    StoreObject::Value(Box::new(store_object)).into()
 }
 
 pub(crate) fn try_construct_object(
@@ -143,10 +143,10 @@ pub(crate) fn try_construct_object(
     store_object: StoreObjectValue,
 ) -> Result<Object, IotaError> {
     let data = match store_object.data {
-        StoreData::Move(object) => Data::Move(object),
+        StoreData::Move(object) => Data::Struct(object),
         StoreData::Package(package) => Data::Package(package),
-        StoreData::Coin(balance) => Data::Move(MoveObject::new_from_execution_with_limit(
-            MoveObjectType::gas_coin(),
+        StoreData::Coin(balance) => Data::Struct(MoveObject::new_from_execution_with_limit(
+            StructTag::new_gas_coin(),
             object_key.1,
             bcs::to_bytes(&(object_key.0, balance)).expect("serialization failed"),
             u64::MAX,

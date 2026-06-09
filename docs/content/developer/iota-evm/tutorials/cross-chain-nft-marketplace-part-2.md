@@ -18,7 +18,6 @@ In this part, you will manually bridge NFTs from the BNB Testnet to the IOTA EVM
 
 - [Node.js](https://nodejs.org) >= v18.0
 - [Hardhat](https://hardhat.org) >= v2.0.0
-- [npx](https://www.npmjs.com/package/npx) >= v7.1.0.
 - [Project setup from Part I](https://wiki.iota.org/isc/tutorials/cross-chain-nft-marketplace-part-1/)
 
 ## Configuration

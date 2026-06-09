@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
-
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
@@ -11,18 +9,21 @@ use async_graphql::{
 use cursor::EvLookup;
 use diesel::{ExpressionMethods, QueryDsl};
 use iota_indexer::{
-    models::{events::StoredEvent, transactions::StoredTransaction},
+    models::{
+        events::StoredEvent,
+        transactions::{OptimisticTransaction, StoredTransaction},
+    },
     schema::{checkpoints, events},
 };
+use iota_sdk_types::{Identifier, ObjectId};
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
-    event::Event as NativeEvent,
+    base_types::IotaAddress as NativeIotaAddress, event::Event as NativeEvent,
     parse_iota_struct_tag,
 };
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     data::{self, Db, DbConnection, QueryExecutor},
     error::Error,
     query,
@@ -33,6 +34,7 @@ use crate::{
         date_time::DateTime,
         move_module::MoveModule,
         move_value::MoveValue,
+        transaction_block::{SeqKey, TransactionBlock},
     },
 };
 
@@ -41,6 +43,24 @@ mod filter;
 mod lookups;
 pub(crate) use cursor::Cursor;
 pub(crate) use filter::EventFilter;
+
+/// An event emitted in a transaction that has been checkpointed.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CheckpointedEventInfo {
+    /// The sequence number of the parent transaction.
+    tx_sequence_number: u64,
+    /// The timestamp of the parent transaction.
+    timestamp_ms: i64,
+}
+
+impl From<&StoredEvent> for CheckpointedEventInfo {
+    fn from(value: &StoredEvent) -> Self {
+        Self {
+            tx_sequence_number: value.tx_sequence_number as u64,
+            timestamp_ms: value.timestamp_ms,
+        }
+    }
+}
 
 /// An IOTA node emits one of the following events:
 /// Move event
@@ -51,7 +71,7 @@ pub(crate) use filter::EventFilter;
 /// Epoch change event
 #[derive(Clone, Debug)]
 pub(crate) struct Event {
-    pub stored: Option<StoredEvent>,
+    pub checkpointed_info: Option<CheckpointedEventInfo>,
     pub native: NativeEvent,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
@@ -61,16 +81,33 @@ type Query<ST, GB> = data::Query<ST, events::table, GB>;
 
 #[Object]
 impl Event {
+    /// The transaction block that emitted this event. This information is only
+    /// available for events from transactions included in a checkpoint.
+    ///
+    /// For simulated transactions (e.g. dry run), or transactions that have
+    /// been just executed but not yet included in a checkpoint this returns
+    /// null.
+    #[graphql(complexity = "DEFAULT_PAGE_SIZE as usize * (1 + child_complexity)")]
+    async fn transaction_block(&self, ctx: &Context<'_>) -> Result<Option<TransactionBlock>> {
+        let Some(checkpointed) = &self.checkpointed_info else {
+            return Ok(None);
+        };
+        let key = SeqKey::new(checkpointed.tx_sequence_number, self.checkpoint_viewed_at);
+
+        TransactionBlock::query(ctx, key.into()).await.extend()
+    }
+
     /// The Move module containing some function that when called by
     /// a programmable transaction block (PTB) emitted this event.
     /// For example, if a PTB invokes A::m1::foo, which internally
     /// calls A::m2::emit_event to emit an event,
     /// the sending module would be A::m1.
+    #[graphql(complexity = "child_complexity")]
     async fn sending_module(&self, ctx: &Context<'_>) -> Result<Option<MoveModule>> {
         MoveModule::query(
             ctx,
             self.native.package_id.into(),
-            &self.native.transaction_module.to_string(),
+            self.native.module.as_str(),
             self.checkpoint_viewed_at,
         )
         .await
@@ -78,6 +115,7 @@ impl Event {
     }
 
     /// Address of the sender of the event
+    #[graphql(complexity = "child_complexity")]
     async fn sender(&self) -> Result<Option<Address>> {
         if self.native.sender == NativeIotaAddress::ZERO {
             return Ok(None);
@@ -90,9 +128,10 @@ impl Event {
     }
 
     /// UTC timestamp in milliseconds since epoch (1/1/1970)
+    #[graphql(complexity = 0)]
     async fn timestamp(&self) -> Result<Option<DateTime>, Error> {
-        if let Some(stored) = &self.stored {
-            Ok(Some(DateTime::from_ms(stored.timestamp_ms)?))
+        if let Some(checkpointed) = &self.checkpointed_info {
+            Ok(Some(DateTime::from_ms(checkpointed.timestamp_ms)?))
         } else {
             Ok(None)
         }
@@ -243,52 +282,68 @@ impl Event {
             ))
         })?;
 
-        let stored_event = StoredEvent {
-            tx_sequence_number: stored_tx.tx_sequence_number,
-            event_sequence_number: idx as i64,
-            transaction_digest: stored_tx.transaction_digest.clone(),
-            senders: vec![Some(native_event.sender.to_vec())],
-            package: native_event.package_id.to_vec(),
-            module: native_event.transaction_module.to_string(),
-            event_type: native_event
-                .type_
-                .to_canonical_string(/* with_prefix */ true),
-            bcs: native_event.contents.clone(),
+        let checkpointed = CheckpointedEventInfo {
+            tx_sequence_number: stored_tx.tx_sequence_number as u64,
             timestamp_ms: stored_tx.timestamp_ms,
         };
-
         Ok(Self {
-            stored: Some(stored_event),
+            checkpointed_info: Some(checkpointed),
             native: native_event,
             checkpoint_viewed_at,
         })
     }
 
-    fn try_from_stored_event(
+    pub(crate) fn try_from_stored_event(
         stored: StoredEvent,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
         let Some(Some(sender_bytes)) = stored.senders.first() else {
             return Err(Error::Internal("No senders found for event".to_string()));
         };
+        let checkpointed = CheckpointedEventInfo::from(&stored);
         let sender = NativeIotaAddress::from_bytes(sender_bytes)
             .map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =
-            ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
+            ObjectId::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
         let type_ = parse_iota_struct_tag(&stored.event_type)
             .map_err(|e| Error::Internal(e.to_string()))?;
-        let transaction_module =
-            Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
+        let module = Identifier::new(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();
         Ok(Event {
-            stored: Some(stored),
+            checkpointed_info: Some(checkpointed),
             native: NativeEvent {
                 sender,
                 package_id,
-                transaction_module,
+                module,
                 type_,
                 contents,
             },
+            checkpoint_viewed_at,
+        })
+    }
+
+    pub(crate) fn try_from_optimistic_transaction(
+        optimistic_tx: &OptimisticTransaction,
+        idx: usize,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
+        let Some(serialized_event) = &optimistic_tx.get_event_at_idx(idx) else {
+            return Err(Error::Internal(format!(
+                "Could not find event with event_sequence_number {idx} at optimistic transaction {}",
+                optimistic_tx.optimistic_sequence_number
+            )));
+        };
+
+        let native_event: NativeEvent = bcs::from_bytes(serialized_event).map_err(|_| {
+            Error::Internal(format!(
+                "Failed to deserialize event with {idx} at optimistic transaction {}",
+                optimistic_tx.optimistic_sequence_number
+            ))
+        })?;
+
+        Ok(Self {
+            checkpointed_info: None,
+            native: native_event,
             checkpoint_viewed_at,
         })
     }

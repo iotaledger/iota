@@ -47,6 +47,7 @@ use iota_core::{
 use iota_network::default_iota_network_config;
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_types::{ObjectId, Owner};
 use iota_snapshot::{reader::StateSnapshotReaderV1, setup_db_state};
 use iota_storage::{
     object_store::{
@@ -57,17 +58,17 @@ use iota_storage::{
     verify_checkpoint_range,
 };
 use iota_types::{
-    accumulator::Accumulator,
     base_types::*,
     committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
+    global_state_hash::GlobalStateHash,
     messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
         TransactionInfoRequest, TransactionStatus,
     },
     multiaddr::Multiaddr,
-    object::Owner,
+    object::MoveObjectExt,
     storage::{ReadStore, SharedInMemoryStore},
 };
 use itertools::Itertools;
@@ -78,6 +79,9 @@ use tracing::info;
 
 pub mod commands;
 pub mod db_tool;
+pub mod fire_drill;
+pub mod genesis_ceremony;
+pub mod genesis_inspector;
 
 #[derive(
     Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
@@ -112,18 +116,18 @@ async fn make_clients(
         .await?;
 
     for committee_member in state.iter_committee_members() {
-        let net_addr = Multiaddr::try_from(committee_member.net_address.clone()).unwrap();
-        // TODO: Enable TLS on this interface with below config, once support is rolled
-        // out to validators.
-        // ```
-        // let tls_config = iota_tls::create_rustls_client_config(
-        //     iota_types::crypto::NetworkPublicKey::from_bytes(&committee_member.network_pubkey_bytes)?,
-        //     iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
-        //     None,
-        // );
-        // ```
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone())
+            .unwrap()
+            .rewrite_http_to_https();
+        let tls_config = iota_tls::create_rustls_client_config(
+            iota_types::crypto::NetworkPublicKey::from_bytes(
+                &committee_member.network_pubkey_bytes,
+            )?,
+            iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+            None,
+        );
         let channel = net_config
-            .connect_lazy(&net_addr, None)
+            .connect_lazy(&net_addr, Some(tls_config))
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
@@ -136,7 +140,7 @@ async fn make_clients(
 
 type ObjectVersionResponses = (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64);
 pub struct ObjectData {
-    requested_id: ObjectID,
+    requested_id: ObjectId,
     responses: Vec<(AuthorityName, Multiaddr, ObjectVersionResponses)>,
 }
 
@@ -194,7 +198,7 @@ impl GroupedObjectOutput {
             let stake = committee.get(name).unwrap();
             let key = match resp {
                 Ok(r) => {
-                    let obj_digest = r.object.compute_object_reference().2;
+                    let obj_digest = r.object.object_ref().digest;
                     let parent_tx_digest = r.object.previous_transaction;
                     let owner = r.object.owner;
                     let lock = r.lock_for_debugging.as_ref().map(|lock| *lock.digest());
@@ -279,7 +283,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                 f,
                 "{:<20} {:<8}",
                 format!("{:?}", name.concise()),
-                version.map(|s| s.value()).opt_debug("-")
+                version.opt_debug("-")
             )?;
             match resp {
                 Err(_) => writeln!(
@@ -288,7 +292,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                     "object-fetch-failed", "no-cert-available", "no-owner-available"
                 )?,
                 Ok(resp) => {
-                    let obj_digest = resp.object.compute_object_reference().2;
+                    let obj_digest = resp.object.object_ref().digest;
                     let parent = resp.object.previous_transaction;
                     let owner = resp.object.owner;
                     write!(f, " {obj_digest:<66} {parent:<45} {owner:<51}")?;
@@ -318,11 +322,7 @@ impl std::fmt::Display for VerboseObjectOutput {
             match resp {
                 Err(e) => writeln!(f, "Error fetching object: {e}")?,
                 Ok(resp) => {
-                    writeln!(
-                        f,
-                        "  -- object digest: {}",
-                        resp.object.compute_object_reference().2
-                    )?;
+                    writeln!(f, "  -- object digest: {}", resp.object.object_ref().digest)?;
                     if resp.object.is_package() {
                         writeln!(f, "  -- object: <Move Package>")?;
                     } else if let Some(layout) = &resp.layout {
@@ -331,7 +331,7 @@ impl std::fmt::Display for VerboseObjectOutput {
                             "  -- object: Move Object: {}",
                             resp.object
                                 .data
-                                .try_as_move()
+                                .as_struct_opt()
                                 .unwrap()
                                 .to_move_struct(layout)
                                 .unwrap()
@@ -351,7 +351,7 @@ impl std::fmt::Display for VerboseObjectOutput {
 }
 
 pub async fn get_object(
-    obj_id: ObjectID,
+    obj_id: ObjectId,
     version: Option<u64>,
     validator: Option<AuthorityName>,
     clients: Arc<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>>,
@@ -437,7 +437,7 @@ pub async fn get_transaction_block(
             Ok(Some((tx, effects, effects_digest))) => {
                 writeln!(
                     &mut s,
-                    "#{i:<2} tx_digest: {tx_digest:<68?} effects_digest: {effects_digest:?}",
+                    "#{i:<2} tx_digest: {tx_digest:<68} effects_digest: {effects_digest}",
                 )?;
                 writeln!(&mut s, "{effects:#?}")?;
                 if show_input_tx {
@@ -480,7 +480,7 @@ pub async fn get_transaction_block(
 
 async fn get_object_impl(
     client: &NetworkAuthorityClient,
-    id: ObjectID,
+    id: ObjectId,
     version: Option<u64>,
 ) -> (Option<SequenceNumber>, Result<ObjectInfoResponse>, f64) {
     let start = Instant::now();
@@ -497,8 +497,8 @@ async fn get_object_impl(
         .map_err(anyhow::Error::from);
     let elapsed = start.elapsed().as_secs_f64();
 
-    let resp_version = resp.as_ref().ok().map(|r| r.object.version().value());
-    (resp_version.map(SequenceNumber::from), resp, elapsed)
+    let resp_version = resp.as_ref().ok().map(|r| r.object.version());
+    (resp_version, resp, elapsed)
 }
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
@@ -766,6 +766,9 @@ fn start_summary_sync(
             verify_progress_bar.finish_with_message("Checkpoint summary verification is complete");
         }
 
+        // SAFETY: All four watermarks must be set together so the executor
+        // starts from `highest_executed + 1` and never tries to access
+        // checkpoint contents in the restored (summary-only) range.
         checkpoint_store.update_highest_verified_checkpoint(&checkpoint)?;
         checkpoint_store.update_highest_synced_checkpoint(&checkpoint)?;
         checkpoint_store.update_highest_executed_checkpoint(&checkpoint)?;
@@ -790,9 +793,10 @@ pub async fn get_latest_available_epoch(
     let epoch = root_manifest
         .available_epochs
         .iter()
+        .map(|(epoch, _)| *epoch)
         .max()
         .ok_or(anyhow!("No snapshot found in manifest"))?;
-    Ok(*epoch)
+    Ok(epoch)
 }
 
 pub async fn check_completed_snapshot(
@@ -897,11 +901,11 @@ pub async fn download_formal_snapshot(
             .unwrap_or_else(|err| panic!("Failed during read: {err}"));
         Ok::<(), anyhow::Error>(())
     });
-    let mut root_accumulator = Accumulator::default();
+    let mut root_global_state_hash = GlobalStateHash::default();
     let mut num_live_objects = 0;
-    while let Some((partial_acc, num_objects)) = receiver.recv().await {
+    while let Some((partial_hash, num_objects)) = receiver.recv().await {
         num_live_objects += num_objects;
-        root_accumulator.union(&partial_acc);
+        root_global_state_hash.union(&partial_hash);
     }
     summaries_handle
         .await
@@ -936,7 +940,7 @@ pub async fn download_formal_snapshot(
             );
         match commitment {
             CheckpointCommitment::ECMHLiveObjectSetDigest(consensus_digest) => {
-                let local_digest: ECMHLiveObjectSetDigest = root_accumulator.digest().into();
+                let local_digest: ECMHLiveObjectSetDigest = root_global_state_hash.digest().into();
                 assert_eq!(
                     *consensus_digest, local_digest,
                     "End of epoch {} root state digest {} does not match \
@@ -975,7 +979,7 @@ pub async fn download_formal_snapshot(
 
     setup_db_state(
         epoch,
-        root_accumulator.clone(),
+        root_global_state_hash.clone(),
         perpetual_db.clone(),
         checkpoint_store,
         committee_store,
@@ -1034,7 +1038,8 @@ pub async fn download_db_snapshot(
     files.extend(epoch_manifest.filter_by_prefix("epochs").lines);
     files.extend(epoch_manifest.filter_by_prefix("checkpoints").lines);
     if !skip_indexes {
-        files.extend(epoch_manifest.filter_by_prefix("indexes").lines)
+        files.extend(epoch_manifest.filter_by_prefix("indexes").lines);
+        files.extend(epoch_manifest.filter_by_prefix("grpc_indexes").lines);
     }
     let local_store = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),

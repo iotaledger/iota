@@ -67,7 +67,7 @@ impl BackfillRunner {
 
                     // Execute backfill for the range
                     if let Err(e) = backfill.backfill_range(pool, &range).await {
-                        error!("Chunk {start}-{end} failed. Error: {e}",);
+                        error!("chunk {start}-{end} failed. Error: {e}");
                         return Err(e);
                     }
 

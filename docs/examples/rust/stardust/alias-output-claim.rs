@@ -14,18 +14,16 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
-        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::AliasOutput,
-        transaction::{Argument, ObjectArg, Transaction, TransactionData},
+        transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use move_core_types::ident_str;
-use shared_crypto::intent::Intent;
+use iota_sdk_types::{Argument, Identifier, ObjectId, TypeTag, crypto::Intent};
+use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -54,9 +52,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("No coins found for sponsor"))?;
 
     // Get an AliasOutput object.
-    let alias_output_object_id = ObjectID::from_hex_literal(
-        "0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554",
-    )?;
+    let alias_output_object_id =
+        ObjectId::from_hex("0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554")?;
     let alias_output_object = iota_client
         .read_api()
         .get_object_with_options(
@@ -118,12 +115,12 @@ async fn main() -> Result<(), anyhow::Error> {
         // IOTA token or the Gas type tag.
         let type_arguments = vec![GAS::type_tag()];
         // Then pass the AliasOutput object as an input.
-        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
+        let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         // Finally call the alias_output::extract_assets function.
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-            STARDUST_ADDRESS.into(),
-            ident_str!("alias_output").to_owned(),
-            ident_str!("extract_assets").to_owned(),
+            ObjectId::STARDUST,
+            Identifier::from_static("alias_output"),
+            Identifier::from_static("extract_assets"),
             type_arguments,
             arguments,
         ) {
@@ -138,9 +135,9 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("coin").to_owned(),
-                ident_str!("from_balance").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::COIN_MODULE,
+                Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
             );
@@ -155,9 +152,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 // Extract a native token balance.
                 extracted_native_tokens_bag = builder.programmable_move_call(
-                    STARDUST_ADDRESS.into(),
-                    ident_str!("utilities").to_owned(),
-                    ident_str!("extract_and_send_to").to_owned(),
+                    ObjectId::STARDUST,
+                    Identifier::from_static("utilities"),
+                    Identifier::from_static("extract_and_send_to"),
                     type_arguments,
                     arguments,
                 );
@@ -166,9 +163,9 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("bag").to_owned(),
-                ident_str!("destroy_empty").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::BAG_MODULE,
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
             );

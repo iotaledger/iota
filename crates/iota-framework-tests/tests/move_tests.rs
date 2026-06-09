@@ -53,10 +53,10 @@ pub(crate) fn tests(path: &Path) -> datatest_stable::Result<()> {
     config.config.silence_warnings = false;
     config.config.lint_flag = LintFlag::LEVEL_DEFAULT;
 
-    let move_config = config.config.clone();
+    let move_config = config.config;
     // TODO: Remove this when we support per-test gas limits.
     let mut testing_config = UnitTestingConfig::default_with_bound(Some(3_000_000));
-    testing_config.filter = std::env::var("FILTER").ok().map(|s| s.to_string());
+    testing_config.filter = std::env::var("FILTER").ok();
 
     assert_eq!(
         run_move_unit_tests(path, move_config, Some(testing_config), false, false).unwrap(),

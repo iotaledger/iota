@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::PathBuf};
+use std::{fs, num::NonZeroUsize, path::PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
@@ -45,10 +45,20 @@ pub struct RestApiConfig {
     #[serde(flatten)]
     pub kv_store_config: KvStoreConfig,
     pub server_address: std::net::SocketAddr,
+    #[serde(default = "default_multiget_max_items")]
+    pub multiget_max_items: NonZeroUsize,
+}
+
+fn default_multiget_max_items() -> NonZeroUsize {
+    NonZeroUsize::new(100).expect("value should be greater than 0")
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install rustls crypto provider");
+
     let cli = Cli::parse();
 
     init_tracing(cli.log_level);
@@ -77,7 +87,7 @@ fn shutdown_signal_listener(token: CancellationToken) {
         #[cfg(unix)]
         let terminate = async {
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("Cannot listen to SIGTERM signal")
+                .expect("cannot listen to SIGTERM signal")
                 .recv()
                 .await;
         };
@@ -86,8 +96,8 @@ fn shutdown_signal_listener(token: CancellationToken) {
         let terminate = std::future::pending::<()>();
 
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => tracing::info!("CTRL+C signal received, shutting down"),
-            _ = terminate => tracing::info!("SIGTERM signal received, shutting down")
+            _ = tokio::signal::ctrl_c() => tracing::info!("shutting down, CTRL+C signal received"),
+            _ = terminate => tracing::info!("shutting down, SIGTERM signal received")
         };
 
         token.cancel();

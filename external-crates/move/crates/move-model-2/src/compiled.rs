@@ -2,6 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    cell::OnceCell,
+    collections::{BTreeMap, BTreeSet},
+};
+
 use indexmap::IndexMap;
 use move_binary_format::file_format::{
     self, AbilitySet, CodeOffset, CodeUnit, CompiledModule, ConstantPoolIndex, DatatypeHandleIndex,
@@ -16,10 +21,6 @@ use move_core_types::{
     u256::U256,
 };
 use move_symbol_pool::Symbol;
-use std::{
-    cell::OnceCell,
-    collections::{BTreeMap, BTreeSet},
-};
 
 pub type ModuleId = (AccountAddress, Symbol);
 pub type QualifiedMemberId = (ModuleId, Symbol);
@@ -254,8 +255,8 @@ impl Constant {
     }
 
     fn annotated_constant_layout(ty: &Type) -> annotated_value::MoveTypeLayout {
-        use annotated_value::MoveTypeLayout as L;
         use Type as T;
+        use annotated_value::MoveTypeLayout as L;
         match ty {
             T::Bool => L::Bool,
             T::U8 => L::U8,
@@ -357,10 +358,11 @@ impl Packages {
             acc.insert(id, deps);
         }
 
-        assert!(self.packages.values().all(|p| p
-            .modules
-            .values()
-            .all(|m| m.deps.is_empty() && m.used_by.is_empty())));
+        assert!(self.packages.values().all(|p| {
+            p.modules
+                .values()
+                .all(|m| m.deps.is_empty() && m.used_by.is_empty())
+        }));
         let mut module_deps = BTreeMap::new();
         for (a, package) in &self.packages {
             for (m, module) in &package.modules {
@@ -390,10 +392,11 @@ impl Packages {
     }
 
     fn compute_function_dependencies(&mut self) {
-        assert!(self.packages.values().all(|p| p.modules.values().all(|m| m
-            .functions
-            .values()
-            .all(|f| f.calls.is_empty() && f.called_by.is_empty()))));
+        assert!(self.packages.values().all(|p| p.modules.values().all(|m| {
+            m.functions
+                .values()
+                .all(|f| f.calls.is_empty() && f.called_by.is_empty())
+        })));
         let mut function_immediate_deps: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
         let units = self
             .packages
@@ -512,22 +515,25 @@ impl Module {
             .map(|(idx, def)| make_constant(&compiled_module, def, ConstantPoolIndex(idx as u16)))
             .collect();
 
-        debug_assert!(structs
-            .values()
-            .enumerate()
-            .all(|(i, s)| i == s.def_idx.0 as usize));
-        debug_assert!(enums
-            .values()
-            .enumerate()
-            .all(|(i, e)| i == e.def_idx.0 as usize
+        debug_assert!(
+            structs
+                .values()
+                .enumerate()
+                .all(|(i, s)| i == s.def_idx.0 as usize)
+        );
+        debug_assert!(enums.values().enumerate().all(|(i, e)| {
+            i == e.def_idx.0 as usize
                 && e.variants
                     .values()
                     .enumerate()
-                    .all(|(j, v)| j == v.tag as usize)));
-        debug_assert!(functions
-            .values()
-            .enumerate()
-            .all(|(i, f)| i == f.def_idx.0 as usize));
+                    .all(|(j, v)| j == v.tag as usize)
+        }));
+        debug_assert!(
+            functions
+                .values()
+                .enumerate()
+                .all(|(i, f)| i == f.def_idx.0 as usize)
+        );
         Self {
             name,
             package,
@@ -897,7 +903,6 @@ fn make_bytecode(
     }
 }
 
-//
 // Utility functions
 //
 

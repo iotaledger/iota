@@ -6,14 +6,15 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 description = "Types for Move IR"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# external dependencies
 hex.workspace = true
 once_cell.workspace = true
 serde.workspace = true
 
+# internal dependencies
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-symbol-pool.workspace = true

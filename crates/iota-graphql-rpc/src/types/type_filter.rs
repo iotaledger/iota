@@ -5,11 +5,11 @@
 use std::{fmt, result::Result, str::FromStr};
 
 use async_graphql::*;
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_types::{
-    TypeTag, parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
+    parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
     parse_iota_type_tag,
 };
-use move_core_types::language_storage::StructTag;
 
 use crate::{
     filter,
@@ -98,13 +98,13 @@ impl TypeFilter {
 
             // A type filter without type parameters is interpreted as either an exact match, or a
             // match for all generic instantiations of the type.
-            TypeFilter::ByType(tag) if tag.type_params.is_empty() => {
-                let m = tag.module.to_string();
-                let n = tag.name.to_string();
+            TypeFilter::ByType(tag) if tag.type_params().is_empty() => {
+                let m = tag.module().to_string();
+                let n = tag.name().to_string();
                 let statement = format!(
                     "{} = '\\x{}'::bytea",
                     package_field,
-                    hex::encode(tag.address.to_vec())
+                    tag.address().to_raw_hex()
                 );
                 query = filter!(query, statement);
                 let statement = module_field.to_string() + " = {}";
@@ -114,12 +114,12 @@ impl TypeFilter {
             }
 
             TypeFilter::ByType(tag) => {
-                let m = tag.module.to_string();
-                let n = tag.name.to_string();
+                let m = tag.module().to_string();
+                let n = tag.name().to_string();
                 let statement = format!(
                     "{} = '\\x{}'::bytea",
                     package_field,
-                    hex::encode(tag.address.to_vec())
+                    tag.address().to_raw_hex()
                 );
                 query = filter!(query, statement);
                 let statement = module_field.to_string() + " = {}";
@@ -147,13 +147,13 @@ impl TypeFilter {
         match (&self, &other) {
             (T::ByModule(m), T::ByModule(n)) => m.clone().intersect(n.clone()).map(T::ByModule),
 
-            (T::ByType(s), T::ByType(t)) if s.type_params.is_empty() => {
-                ((&s.address, &s.module, &s.name) == (&t.address, &t.module, &t.name))
+            (T::ByType(s), T::ByType(t)) if s.type_params().is_empty() => {
+                ((&s.address(), &s.module(), &s.name()) == (&t.address(), &t.module(), &t.name()))
                     .then_some(other)
             }
 
-            (T::ByType(s), T::ByType(t)) if t.type_params.is_empty() => {
-                ((&s.address, &s.module, &s.name) == (&t.address, &t.module, &t.name))
+            (T::ByType(s), T::ByType(t)) if t.type_params().is_empty() => {
+                ((&s.address(), &s.module(), &s.name()) == (&t.address(), &t.module(), &t.name()))
                     .then_some(self)
             }
 
@@ -163,20 +163,20 @@ impl TypeFilter {
             (T::ByType(_), T::ByType(_)) => (self == other).then_some(self),
 
             (T::ByType(s), T::ByModule(M::ByPackage(q))) => {
-                (IotaAddress::from(s.address) == *q).then_some(self)
+                (IotaAddress::from(s.address()) == *q).then_some(self)
             }
 
             (T::ByType(s), T::ByModule(M::ByModule(q, n))) => {
-                ((IotaAddress::from(s.address), s.module.as_str()) == (*q, n.as_str()))
+                ((IotaAddress::from(s.address()), s.module().as_str()) == (*q, n.as_str()))
                     .then_some(self)
             }
 
             (T::ByModule(M::ByPackage(p)), T::ByType(t)) => {
-                (IotaAddress::from(t.address) == *p).then_some(other)
+                (IotaAddress::from(t.address()) == *p).then_some(other)
             }
 
             (T::ByModule(M::ByModule(p, m)), T::ByType(t)) => {
-                ((IotaAddress::from(t.address), t.module.as_str()) == (*p, m.as_str()))
+                ((IotaAddress::from(t.address()), t.module().as_str()) == (*p, m.as_str()))
                     .then_some(other)
             }
         }
@@ -318,7 +318,7 @@ impl fmt::Display for TypeFilter {
         match self {
             TypeFilter::ByModule(m) => write!(f, "{m}"),
             TypeFilter::ByType(t) => {
-                write!(f, "{}", t.to_canonical_display(/* with_prefix */ true))
+                write!(f, "{}", t.to_canonical_string(/* with_prefix */ true))
             }
         }
     }
@@ -326,7 +326,7 @@ impl fmt::Display for TypeFilter {
 
 impl fmt::Display for ExactTypeFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.to_canonical_display(/* with_prefix */ true))
+        write!(f, "{}", self.0.to_canonical_string(/* with_prefix */ true))
     }
 }
 
@@ -481,18 +481,18 @@ mod tests {
         assert_eq!(iota.clone().intersect(iota.clone()), Some(iota.clone()));
         assert_eq!(iota.clone().intersect(coin.clone()), Some(coin.clone()));
         assert_eq!(iota.clone().intersect(take.clone()), Some(take.clone()));
-        assert_eq!(take.clone().intersect(coin.clone()), Some(take.clone()));
+        assert_eq!(take.clone().intersect(coin.clone()), Some(take));
 
-        assert_eq!(iota.clone().intersect(std.clone()), None);
-        assert_eq!(iota.clone().intersect(string.clone()), None);
-        assert_eq!(utf8.clone().intersect(coin.clone()), None);
+        assert_eq!(iota.clone().intersect(std), None);
+        assert_eq!(iota.intersect(string), None);
+        assert_eq!(utf8.intersect(coin), None);
     }
 
     #[test]
     fn test_type_intersection() {
         let iota = TypeFilter::from_str("0x2").unwrap();
         let coin_mod = TypeFilter::from_str("0x2::coin").unwrap();
-        let coin_typ = TypeFilter::from_str("0x2::coin::Coin").unwrap();
+        let coin_type = TypeFilter::from_str("0x2::coin::Coin").unwrap();
         let coin_iota = TypeFilter::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap();
         let coin_usd = TypeFilter::from_str("0x2::coin::Coin<0x3::usd::USD>").unwrap();
         let std_utf8 = TypeFilter::from_str("0x1::string::String").unwrap();
@@ -503,18 +503,18 @@ mod tests {
         );
 
         assert_eq!(
-            coin_typ.clone().intersect(coin_mod.clone()),
-            Some(coin_typ.clone())
+            coin_type.clone().intersect(coin_mod),
+            Some(coin_type.clone())
         );
 
         assert_eq!(
-            coin_iota.clone().intersect(coin_typ.clone()),
+            coin_iota.clone().intersect(coin_type.clone()),
             Some(coin_iota.clone())
         );
 
-        assert_eq!(iota.clone().intersect(std_utf8.clone()), None);
-        assert_eq!(coin_iota.clone().intersect(coin_usd.clone()), None);
-        assert_eq!(coin_typ.clone().intersect(std_utf8.clone()), None);
-        assert_eq!(coin_iota.clone().intersect(std_utf8.clone()), None);
+        assert_eq!(iota.intersect(std_utf8.clone()), None);
+        assert_eq!(coin_iota.clone().intersect(coin_usd), None);
+        assert_eq!(coin_type.intersect(std_utf8.clone()), None);
+        assert_eq!(coin_iota.intersect(std_utf8), None);
     }
 }

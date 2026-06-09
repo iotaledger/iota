@@ -4,34 +4,36 @@
 
 use std::{
     collections::BTreeMap,
-    fmt,
-    fmt::{Display, Formatter, Write},
+    fmt::{self, Display, Formatter, Write},
+    str::FromStr,
 };
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    iota_serde::IotaStructTag,
+    base_types::IotaAddress,
+    error::{IotaError, UserInputError},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use itertools::Itertools;
 use move_binary_format::{
     file_format::{Ability, AbilitySet, DatatypeTyParameter, Visibility},
     normalized::{
-        Enum as NormalizedEnum, Field as NormalizedField, Function as IotaNormalizedFunction,
+        self, Enum as NormalizedEnum, Field as NormalizedField, Function as NormalizedFunction,
         Module as NormalizedModule, Struct as NormalizedStruct, Type as NormalizedType,
     },
 };
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveValue, MoveVariant},
-    identifier::Identifier,
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStruct, MoveValue, MoveVariant};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use serde_with::serde_as;
 use tracing::warn;
+
+use crate::iota_primitives::{
+    IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
+};
 
 pub type IotaMoveTypeParameterIndex = u16;
 
@@ -100,12 +102,9 @@ pub enum IotaMoveNormalizedType {
     U256,
     Address,
     Signer,
-    #[serde(rename_all = "camelCase")]
     Struct {
-        address: String,
-        module: String,
-        name: String,
-        type_arguments: Vec<IotaMoveNormalizedType>,
+        #[serde(flatten)]
+        inner: Box<IotaMoveNormalizedStructType>,
     },
     Vector(Box<IotaMoveNormalizedType>),
     TypeParameter(IotaMoveTypeParameterIndex),
@@ -113,6 +112,14 @@ pub enum IotaMoveNormalizedType {
     MutableReference(Box<IotaMoveNormalizedType>),
 }
 
+#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IotaMoveNormalizedStructType {
+    pub address: String,
+    pub module: String,
+    pub name: String,
+    pub type_arguments: Vec<IotaMoveNormalizedType>,
+}
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedFunction {
@@ -127,6 +134,38 @@ pub struct IotaMoveNormalizedFunction {
 pub struct IotaMoveModuleId {
     address: String,
     name: String,
+}
+
+/// Identifies a Move function.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveFunctionName {
+    /// The package ID to which the function belongs.
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub package: ObjectId,
+    /// The module name to which the function belongs.
+    pub module: String,
+    /// The function name.
+    pub function: String,
+}
+
+impl FromStr for MoveFunctionName {
+    type Err = IotaError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (module, name) =
+            iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
+                error: e.to_string(),
+            })?;
+        let package = ObjectId::new(module.address().into_bytes());
+        Ok(Self {
+            package,
+            module: module.name().to_string(),
+            function: name,
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
@@ -150,45 +189,53 @@ impl PartialEq for IotaMoveNormalizedModule {
     }
 }
 
-impl From<NormalizedModule> for IotaMoveNormalizedModule {
-    fn from(module: NormalizedModule) -> Self {
+impl<S: std::hash::Hash + Eq + ToString> From<&NormalizedModule<S>> for IotaMoveNormalizedModule {
+    fn from(module: &NormalizedModule<S>) -> Self {
         Self {
             file_format_version: module.file_format_version,
-            address: module.address.to_hex_literal(),
-            name: module.name.to_string(),
+            address: module.address().to_hex_literal(),
+            name: module.name().to_string(),
             friends: module
                 .friends
-                .into_iter()
+                .iter()
                 .map(|module_id| IotaMoveModuleId {
-                    address: module_id.address().to_hex_literal(),
-                    name: module_id.name().to_string(),
+                    address: module_id.address.to_hex_literal(),
+                    name: module_id.name.to_string(),
                 })
                 .collect::<Vec<IotaMoveModuleId>>(),
             structs: module
                 .structs
-                .into_iter()
-                .map(|(name, struct_)| (name.to_string(), IotaMoveNormalizedStruct::from(struct_)))
+                .iter()
+                .map(|(name, struct_)| {
+                    (name.to_string(), IotaMoveNormalizedStruct::from(&**struct_))
+                })
                 .collect::<BTreeMap<String, IotaMoveNormalizedStruct>>(),
             enums: module
                 .enums
-                .into_iter()
-                .map(|(name, enum_)| (name.to_string(), IotaMoveNormalizedEnum::from(enum_)))
+                .iter()
+                .map(|(name, enum_)| (name.to_string(), IotaMoveNormalizedEnum::from(&**enum_)))
                 .collect(),
             exposed_functions: module
                 .functions
-                .into_iter()
-                .filter_map(|(name, function)| {
+                .iter()
+                .filter(|(_name, function)| {
+                    function.is_entry || function.visibility != Visibility::Private
+                })
+                .map(|(name, function)| {
                     // TODO: Do we want to expose the private functions as well?
-                    (function.is_entry || function.visibility != Visibility::Private)
-                        .then(|| (name.to_string(), IotaMoveNormalizedFunction::from(function)))
+
+                    (
+                        name.to_string(),
+                        IotaMoveNormalizedFunction::from(&**function),
+                    )
                 })
                 .collect::<BTreeMap<String, IotaMoveNormalizedFunction>>(),
         }
     }
 }
 
-impl From<IotaNormalizedFunction> for IotaMoveNormalizedFunction {
-    fn from(function: IotaNormalizedFunction) -> Self {
+impl<S: ToString> From<&NormalizedFunction<S>> for IotaMoveNormalizedFunction {
+    fn from(function: &NormalizedFunction<S>) -> Self {
         Self {
             visibility: match function.visibility {
                 Visibility::Private => IotaMoveVisibility::Private,
@@ -198,53 +245,60 @@ impl From<IotaNormalizedFunction> for IotaMoveNormalizedFunction {
             is_entry: function.is_entry,
             type_parameters: function
                 .type_parameters
-                .into_iter()
+                .iter()
+                .copied()
                 .map(|a| a.into())
                 .collect::<Vec<IotaMoveAbilitySet>>(),
             parameters: function
                 .parameters
-                .into_iter()
-                .map(IotaMoveNormalizedType::from)
+                .iter()
+                .map(|t| IotaMoveNormalizedType::from(&**t))
                 .collect::<Vec<IotaMoveNormalizedType>>(),
             return_: function
                 .return_
-                .into_iter()
-                .map(IotaMoveNormalizedType::from)
+                .iter()
+                .map(|t| IotaMoveNormalizedType::from(&**t))
                 .collect::<Vec<IotaMoveNormalizedType>>(),
         }
     }
 }
 
-impl From<NormalizedStruct> for IotaMoveNormalizedStruct {
-    fn from(struct_: NormalizedStruct) -> Self {
+impl<S: ToString> From<&NormalizedStruct<S>> for IotaMoveNormalizedStruct {
+    fn from(struct_: &NormalizedStruct<S>) -> Self {
         Self {
             abilities: struct_.abilities.into(),
             type_parameters: struct_
                 .type_parameters
-                .into_iter()
+                .iter()
+                .copied()
                 .map(IotaMoveStructTypeParameter::from)
                 .collect::<Vec<IotaMoveStructTypeParameter>>(),
             fields: struct_
                 .fields
-                .into_iter()
-                .map(IotaMoveNormalizedField::from)
+                .iter()
+                .map(|f| IotaMoveNormalizedField::from(&**f))
                 .collect::<Vec<IotaMoveNormalizedField>>(),
         }
     }
 }
 
-impl From<NormalizedEnum> for IotaMoveNormalizedEnum {
-    fn from(value: NormalizedEnum) -> Self {
+impl<S: ToString> From<&NormalizedEnum<S>> for IotaMoveNormalizedEnum {
+    fn from(value: &NormalizedEnum<S>) -> Self {
         Self {
             abilities: value.abilities.into(),
-            type_parameters: value.type_parameters.into_iter().map(Into::into).collect(),
+            type_parameters: value
+                .type_parameters
+                .iter()
+                .copied()
+                .map(Into::into)
+                .collect(),
             variants: value
                 .variants
-                .into_iter()
+                .iter()
                 .map(|variant| {
                     (
                         variant.name.to_string(),
-                        variant.fields.into_iter().map(Into::into).collect(),
+                        variant.fields.iter().map(Into::into).collect(),
                     )
                 })
                 .collect(),
@@ -261,17 +315,17 @@ impl From<DatatypeTyParameter> for IotaMoveStructTypeParameter {
     }
 }
 
-impl From<NormalizedField> for IotaMoveNormalizedField {
-    fn from(normalized_field: NormalizedField) -> Self {
+impl<S: ToString> From<&NormalizedField<S>> for IotaMoveNormalizedField {
+    fn from(normalized_field: &NormalizedField<S>) -> Self {
         Self {
             name: normalized_field.name.to_string(),
-            type_: IotaMoveNormalizedType::from(normalized_field.type_),
+            type_: IotaMoveNormalizedType::from(&normalized_field.type_),
         }
     }
 }
 
-impl From<NormalizedType> for IotaMoveNormalizedType {
-    fn from(type_: NormalizedType) -> Self {
+impl<S: ToString> From<&NormalizedType<S>> for IotaMoveNormalizedType {
+    fn from(type_: &NormalizedType<S>) -> Self {
         match type_ {
             NormalizedType::Bool => IotaMoveNormalizedType::Bool,
             NormalizedType::U8 => IotaMoveNormalizedType::U8,
@@ -282,29 +336,31 @@ impl From<NormalizedType> for IotaMoveNormalizedType {
             NormalizedType::U256 => IotaMoveNormalizedType::U256,
             NormalizedType::Address => IotaMoveNormalizedType::Address,
             NormalizedType::Signer => IotaMoveNormalizedType::Signer,
-            NormalizedType::Struct {
-                address,
-                module,
-                name,
-                type_arguments,
-            } => IotaMoveNormalizedType::Struct {
-                address: address.to_hex_literal(),
-                module: module.to_string(),
-                name: name.to_string(),
-                type_arguments: type_arguments
-                    .into_iter()
-                    .map(IotaMoveNormalizedType::from)
-                    .collect::<Vec<IotaMoveNormalizedType>>(),
-            },
+            NormalizedType::Datatype(dt) => {
+                let normalized::Datatype {
+                    module,
+                    name,
+                    type_arguments,
+                } = &**dt;
+                IotaMoveNormalizedType::new_struct(
+                    module.address.to_hex_literal(),
+                    module.name.to_string(),
+                    name.to_string(),
+                    type_arguments
+                        .iter()
+                        .map(IotaMoveNormalizedType::from)
+                        .collect::<Vec<IotaMoveNormalizedType>>(),
+                )
+            }
             NormalizedType::Vector(v) => {
-                IotaMoveNormalizedType::Vector(Box::new(IotaMoveNormalizedType::from(*v)))
+                IotaMoveNormalizedType::Vector(Box::new(IotaMoveNormalizedType::from(&**v)))
             }
-            NormalizedType::TypeParameter(t) => IotaMoveNormalizedType::TypeParameter(t),
-            NormalizedType::Reference(r) => {
-                IotaMoveNormalizedType::Reference(Box::new(IotaMoveNormalizedType::from(*r)))
+            NormalizedType::TypeParameter(t) => IotaMoveNormalizedType::TypeParameter(*t),
+            NormalizedType::Reference(false, r) => {
+                IotaMoveNormalizedType::Reference(Box::new(IotaMoveNormalizedType::from(&**r)))
             }
-            NormalizedType::MutableReference(mr) => IotaMoveNormalizedType::MutableReference(
-                Box::new(IotaMoveNormalizedType::from(*mr)),
+            NormalizedType::Reference(true, mr) => IotaMoveNormalizedType::MutableReference(
+                Box::new(IotaMoveNormalizedType::from(&**mr)),
             ),
         }
     }
@@ -322,6 +378,24 @@ impl From<AbilitySet> for IotaMoveAbilitySet {
                     Ability::Store => IotaMoveAbility::Store,
                 })
                 .collect::<Vec<IotaMoveAbility>>(),
+        }
+    }
+}
+
+impl IotaMoveNormalizedType {
+    pub fn new_struct(
+        address: String,
+        module: String,
+        name: String,
+        type_arguments: Vec<IotaMoveNormalizedType>,
+    ) -> Self {
+        IotaMoveNormalizedType::Struct {
+            inner: Box::new(IotaMoveNormalizedStructType {
+                address,
+                module,
+                name,
+                type_arguments,
+            }),
         }
     }
 }
@@ -346,10 +420,18 @@ pub enum IotaMoveValue {
     // u64 and u128 are converted to String to avoid overflow
     Number(u32),
     Bool(bool),
-    Address(IotaAddress),
+    Address(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     Vector(Vec<IotaMoveValue>),
     String(String),
-    UID { id: ObjectID },
+    UID {
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        id: ObjectId,
+    },
     Struct(IotaMoveStruct),
     Option(Box<Option<IotaMoveValue>>),
     Variant(IotaMoveVariant),
@@ -412,13 +494,18 @@ impl From<MoveValue> for IotaMoveValue {
             MoveValue::Struct(value) => {
                 // Best effort IOTA core type conversion
                 let MoveStruct { type_, fields } = &value;
-                if let Some(value) = try_convert_type(type_, fields) {
+                let type_ = struct_tag_core_to_sdk(type_);
+                let fields = fields
+                    .iter()
+                    .map(|(id, value)| (Identifier::new_unchecked(id.as_str()), value.clone()))
+                    .collect::<Vec<_>>();
+                if let Some(value) = try_convert_type(&type_, &fields) {
                     return value;
                 }
                 IotaMoveValue::Struct(value.into())
             }
             MoveValue::Signer(value) | MoveValue::Address(value) => {
-                IotaMoveValue::Address(IotaAddress::from(ObjectID::from(value)))
+                IotaMoveValue::Address(IotaAddress::new(value.into_bytes()))
             }
             MoveValue::Variant(MoveVariant {
                 type_,
@@ -426,7 +513,7 @@ impl From<MoveValue> for IotaMoveValue {
                 tag: _,
                 fields,
             }) => IotaMoveValue::Variant(IotaMoveVariant {
-                type_: type_.clone(),
+                type_: struct_tag_core_to_sdk(&type_),
                 variant: variant_name.to_string(),
                 fields: fields
                     .into_iter()
@@ -459,9 +546,9 @@ fn to_bytearray(value: &[MoveValue]) -> Option<Vec<u8>> {
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "MoveVariant")]
 pub struct IotaMoveVariant {
-    #[schemars(with = "String")]
     #[serde(rename = "type")]
-    #[serde_as(as = "IotaStructTag")]
+    #[schemars(with = "StructTagSchema")]
+    #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
     pub variant: String,
     pub fields: BTreeMap<String, IotaMoveValue>,
@@ -514,9 +601,9 @@ impl Display for IotaMoveVariant {
 pub enum IotaMoveStruct {
     Runtime(Vec<IotaMoveValue>),
     WithTypes {
-        #[schemars(with = "String")]
         #[serde(rename = "type")]
-        #[serde_as(as = "IotaStructTag")]
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         type_: StructTag,
         fields: BTreeMap<String, IotaMoveValue>,
     },
@@ -596,10 +683,10 @@ fn try_convert_type(
     fields: &[(Identifier, MoveValue)],
 ) -> Option<IotaMoveValue> {
     let struct_name = format!(
-        "0x{}::{}::{}",
-        type_.address.short_str_lossless(),
-        type_.module,
-        type_.name
+        "{}::{}::{}",
+        type_.address().to_short_hex(),
+        type_.module(),
+        type_.name()
     );
     let mut values = fields
         .iter()
@@ -623,7 +710,7 @@ fn try_convert_type(
             let id = values.remove("id").cloned().map(IotaMoveValue::from);
             if let Some(IotaMoveValue::Address(address)) = id {
                 return Some(IotaMoveValue::UID {
-                    id: ObjectID::from(address),
+                    id: ObjectId::from(address),
                 });
             }
         }
@@ -642,7 +729,7 @@ fn try_convert_type(
     }
     warn!(
         fields =? fields,
-        "Failed to convert {struct_name} to IotaMoveValue"
+        "failed to convert {struct_name} to IotaMoveValue"
     );
     None
 }
@@ -650,7 +737,7 @@ fn try_convert_type(
 impl From<MoveStruct> for IotaMoveStruct {
     fn from(move_struct: MoveStruct) -> Self {
         IotaMoveStruct::WithTypes {
-            type_: move_struct.type_,
+            type_: struct_tag_core_to_sdk(&move_struct.type_),
             fields: move_struct
                 .fields
                 .into_iter()
@@ -658,4 +745,9 @@ impl From<MoveStruct> for IotaMoveStruct {
                 .collect(),
         }
     }
+}
+
+#[test]
+fn enum_size() {
+    assert_eq!(std::mem::size_of::<IotaMoveNormalizedType>(), 16);
 }

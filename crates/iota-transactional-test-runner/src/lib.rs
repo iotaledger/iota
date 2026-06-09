@@ -19,11 +19,12 @@ use iota_core::authority::{
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
+use iota_sdk_types::{ObjectId, TransactionKind};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, VersionNumber},
+    base_types::{IotaAddress, VersionNumber},
     committee::EpochId,
-    digests::{TransactionDigest, TransactionEventsDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::Event,
@@ -35,9 +36,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{
-        InputObjects, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{InputObjects, Transaction, TransactionData},
 };
 pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,
@@ -122,11 +121,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         &mut self,
         transaction: Transaction,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
-        let with_shared = transaction
-            .data()
-            .intent_message()
-            .value
-            .contains_shared_object();
+        let with_shared = transaction.contains_shared_object();
         let (_, effects, execution_error) = send_and_confirm_transaction_with_execution_error(
             &self.validator,
             Some(&self.fullnode),
@@ -147,11 +142,9 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         );
 
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
-        self.validator.read_objects_for_execution(
-            &CertLockGuard::guard_for_tests(),
-            &tx,
-            &epoch_store,
-        )
+        self.validator
+            .read_objects_for_execution(&CertLockGuard::guard_for_tests(), &tx, &epoch_store)
+            .map(|(tx_input_objects, _)| tx_input_objects)
     }
 
     fn prepare_txn(
@@ -262,7 +255,9 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         let active_validators = match system_state_summary {
             IotaSystemStateSummary::V1(inner) => inner.active_validators,
             IotaSystemStateSummary::V2(inner) => inner.active_validators,
-            _ => unimplemented!(),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         };
 
         Ok(active_validators
@@ -373,11 +368,11 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.validator
             .get_transaction_cache_reader()
-            .try_get_events(event_digest)
+            .try_get_events(digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
 
@@ -403,14 +398,14 @@ impl ReadStore for ValidatorWithFullnode {
 impl ObjectStore for ValidatorWithFullnode {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator.get_object_store().try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.validator
@@ -462,26 +457,25 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         tx_digest: &TransactionDigest,
         _limit: usize,
     ) -> IotaResult<Vec<Event>> {
-        Ok(self
-            .store()
-            .get_transaction_events_by_tx_digest(tx_digest)
-            .map(|x| x.data)
-            .unwrap_or_default())
+        match self.try_get_events(tx_digest)? {
+            Some(events) => Ok(events.0),
+            None => Ok(Vec::new()),
+        }
     }
 
     async fn create_checkpoint(&mut self) -> anyhow::Result<VerifiedCheckpoint> {
-        Ok(self.create_checkpoint())
+        Ok(Simulacrum::create_checkpoint(self))
     }
 
     async fn advance_clock(
         &mut self,
         duration: std::time::Duration,
     ) -> anyhow::Result<TransactionEffects> {
-        Ok(self.advance_clock(duration))
+        Ok(Simulacrum::advance_clock(self, duration))
     }
 
     async fn advance_epoch(&mut self) -> anyhow::Result<()> {
-        self.advance_epoch();
+        Simulacrum::advance_epoch(self);
         Ok(())
     }
 
@@ -490,7 +484,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         address: IotaAddress,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects> {
-        self.request_gas(address, amount)
+        Simulacrum::request_gas(self, address, amount)
     }
 
     async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {

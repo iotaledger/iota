@@ -52,7 +52,10 @@ const identity = [
             {
                 type: 'category',
                 label: 'Verifiable Presentations',
-                items: ['developer/iota-identity/how-tos/verifiable-presentations/create-and-validate'],
+                items: [
+                    'developer/iota-identity/how-tos/verifiable-presentations/create-and-validate',
+                    'developer/iota-identity/how-tos/verifiable-presentations/linked-vp',
+                ],
             },
             {
                 type: 'category',
@@ -60,6 +63,7 @@ const identity = [
                 items: ['developer/iota-identity/how-tos/domain-linkage/create-and-verify'],
             },
             'developer/iota-identity/how-tos/key-storage',
+            'developer/iota-identity/how-tos/post-quantum'
         ],
     },
     {
@@ -94,6 +98,7 @@ const identity = [
                     'developer/iota-identity/references/iota-did-method-spec',
                     'developer/iota-identity/references/revocation-bitmap-2022',
                     'developer/iota-identity/references/revocation-timeframe-2024',
+                    'developer/iota-identity/references/iota-resource-locator',
                 ],
             },
         ],

@@ -8,6 +8,7 @@ use axum::{
     Router,
     extract::{Query, State},
     http::StatusCode,
+    response::{IntoResponse as _, Response},
     routing::{get, post},
 };
 use base64::Engine;
@@ -16,6 +17,7 @@ use iota_types::{
     base_types::AuthorityName,
     crypto::{RandomnessPartialSignature, RandomnessRound, RandomnessSignature},
     error::IotaError,
+    traffic_control::TrafficControlReconfigParams,
 };
 use serde::Deserialize;
 use telemetry_subscribers::{TelemetryError, TracingHandle};
@@ -69,6 +71,10 @@ use crate::IotaNode;
 // Inject a full signature from another node, bypassing validity checks.
 //
 //  $ curl 'http://127.0.0.1:1337/randomness-inject-full-sig?round=123&sigs=base64encodedsig'
+//
+// Reconfigure traffic control policy
+//
+//  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true'
 
 const LOGGING_ROUTE: &str = "/logging";
 const TRACING_ROUTE: &str = "/enable-tracing";
@@ -81,6 +87,8 @@ const NODE_CONFIG: &str = "/node-config";
 const RANDOMNESS_PARTIAL_SIGS_ROUTE: &str = "/randomness-partial-sigs";
 const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-sigs";
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
+const FLAMEGRAPH_ROUTE: &str = "/flamegraph";
+const TRAFFIC_CONTROL: &str = "/traffic-control";
 
 struct AppState {
     node: Arc<IotaNode>,
@@ -124,6 +132,8 @@ pub async fn run_admin_server(
             RANDOMNESS_INJECT_FULL_SIG_ROUTE,
             post(randomness_inject_full_sig),
         )
+        .route(FLAMEGRAPH_ROUTE, get(flamegraph))
+        .route(TRAFFIC_CONTROL, post(traffic_control))
         .with_state(Arc::new(app_state));
 
     info!(
@@ -356,7 +366,7 @@ async fn randomness_partial_sigs(
     state
         .node
         .randomness_handle()
-        .admin_get_partial_signatures(RandomnessRound(round), tx);
+        .admin_get_partial_signatures(RandomnessRound::new(round), tx);
 
     let sigs = match rx.await {
         Ok(sigs) => sigs,
@@ -407,7 +417,12 @@ async fn randomness_inject_partial_sigs(
     state
         .node
         .randomness_handle()
-        .admin_inject_partial_signatures(authority_name, RandomnessRound(round), sigs, tx_result);
+        .admin_inject_partial_signatures(
+            authority_name,
+            RandomnessRound::new(round),
+            sigs,
+            tx_result,
+        );
 
     match rx_result.await {
         Ok(Ok(())) => (StatusCode::OK, "partial signatures injected\n".to_string()),
@@ -440,7 +455,7 @@ async fn randomness_inject_full_sig(
 
     let (tx_result, rx_result) = oneshot::channel();
     state.node.randomness_handle().admin_inject_full_signature(
-        RandomnessRound(round),
+        RandomnessRound::new(round),
         sig,
         tx_result,
     );
@@ -449,5 +464,120 @@ async fn randomness_inject_full_sig(
         Ok(Ok(())) => (StatusCode::OK, "full signature injected\n".to_string()),
         Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+struct Flamegraph {
+    /// Toggle SVG response, otherwise return nested set model for Grafana.
+    #[serde(default)]
+    svg: bool,
+    /// SVG width in pixels (when missing or set to 0 will default to 1920).
+    #[serde(default)]
+    width: usize,
+    /// Select still running call graphs.
+    #[serde(default)]
+    running: bool,
+    /// Select already completed call graphs.
+    #[serde(default)]
+    completed: bool,
+    /// Select call graph with the given ID.
+    #[serde(default)]
+    graph_id: String,
+    /// Use memory allocations as span measure rather than duration.
+    #[serde(default)]
+    mem: bool,
+}
+
+async fn flamegraph(State(state): State<Arc<AppState>>, query: Query<Flamegraph>) -> Response {
+    if let Some(sub) = state.tracing_handle.get_flamegraph() {
+        let Query(Flamegraph {
+            svg,
+            width,
+            mut running,
+            mut completed,
+            graph_id,
+            mem,
+        }) = query;
+        if !running && !completed {
+            running = true;
+            completed = true;
+        }
+        if svg {
+            #[cfg(not(all(feature = "flamegraph-alloc", nightly)))]
+            {
+                if mem {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        "memory flamegraphs are not supported (re-run iota-node with 'flamegraph-alloc' feature enabled and on nightly Rust toolchain)",
+                    )
+                        .into_response();
+                }
+            }
+
+            // draw an svg
+            let width = if width == 0 { Some(1920) } else { Some(width) };
+            let config = telemetry_subscribers::flamegraph::SvgConfig {
+                width,
+                #[cfg(all(feature = "flamegraph-alloc", nightly))]
+                measure_mem: mem,
+                ..Default::default()
+            };
+            let svg = if !graph_id.is_empty() {
+                sub.get_svg(&graph_id, running, completed, &config)
+            } else {
+                sub.get_combined_svg("iota-node", running, completed, &config)
+            };
+            if let Some(svg) = svg {
+                (
+                    [(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::HeaderValue::from_static("image/svg+xml"),
+                    )],
+                    svg.into_string(),
+                )
+                    .into_response()
+            } else {
+                (StatusCode::NOT_FOUND, "Flamegraphs not found\n").into_response()
+            }
+        } else {
+            // default nested set model for grafana
+            let nested_frames = if !graph_id.is_empty() {
+                sub.get_nested_set(&graph_id, running, completed)
+            } else {
+                sub.get_nested_sets("iota-node", running, completed)
+            };
+            if !nested_frames.is_empty() {
+                axum::Json(nested_frames).into_response()
+            } else {
+                (StatusCode::NOT_FOUND, "Flamegraphs not found\n").into_response()
+            }
+        }
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            "Flamegraphs are not enabled (re-run iota-node with TRACE_FLAMEGRAPH=1)\n",
+        )
+            .into_response()
+    }
+}
+
+async fn traffic_control(
+    State(state): State<Arc<AppState>>,
+    args: Query<TrafficControlReconfigParams>,
+) -> (StatusCode, String) {
+    let Query(params) = args;
+    match state.node.state().reconfigure_traffic_control(params).await {
+        Ok(updated_state) => (
+            StatusCode::OK,
+            format!(
+                "Traffic control configured with:\n\
+                 Error threshold: {:?}\n\
+                 Spam threshold: {:?}\n\
+                 Dry run: {:?}\n",
+                updated_state.error_threshold, updated_state.spam_threshold, updated_state.dry_run
+            ),
+        ),
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     }
 }

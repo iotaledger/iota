@@ -11,28 +11,34 @@ workspace = true
 
 [dependencies]
 # external dependencies
-anemo.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
+once_cell.workspace = true
+rand.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+# internal dependencies
+iota-sdk-types.workspace = true
+iota-types.workspace = true
+move-vm-config.workspace = true
+
+# Heavy node-side deps (network, file IO, key management). Gated so they're
+# excluded from the wasm32 build.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# external dependencies
+anemo.workspace = true
 bcs.workspace = true
 clap.workspace = true
 csv.workspace = true
 dirs.workspace = true
 fastcrypto.workspace = true
 object_store.workspace = true
-once_cell.workspace = true
 prometheus.workspace = true
-rand.workspace = true
 reqwest.workspace = true
-serde = { workspace = true, features = ["derive", "rc"] }
 serde_yaml.workspace = true
-tracing.workspace = true
 
 # internal dependencies
-consensus-config.workspace = true
 iota-genesis-common.workspace = true
-iota-grpc-api.workspace = true
 iota-keys.workspace = true
 iota-names.workspace = true
-iota-rest-api.workspace = true
-iota-types.workspace = true
-move-vm-config.workspace = true
+starfish-config.workspace = true

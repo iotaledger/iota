@@ -3,9 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module test_functions::test_module {
-    use iota::object::{Self, UID};
-    use iota::tx_context::TxContext;
-    use iota::transfer;
     use std::ascii::String as AS;
     use std::string::String as US;
 

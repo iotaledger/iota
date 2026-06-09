@@ -4,9 +4,12 @@
 
 use std::collections::VecDeque;
 
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID, SequenceNumber},
-    object::Owner,
+    account_abstraction::account::AuthenticatorFunctionRefV1Key,
+    base_types::{IotaAddress, SequenceNumber},
+    dynamic_field::derive_dynamic_field_id,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -31,6 +34,9 @@ const E_RECEIVING_OBJECT_TYPE_MISMATCH: u64 = 2;
 // Represents both the case where the object does not exist and the case where
 // the object is not able to be accessed through the parent that is passed-in.
 const E_UNABLE_TO_RECEIVE_OBJECT: u64 = 3;
+// Represents the case where it is trying to receive an object owned by an
+// account.
+const E_ACCOUNT_CANNOT_RECEIVE_OBJECT: u64 = 5;
 
 #[derive(Clone, Debug)]
 pub struct TransferReceiveObjectInternalCostParams {
@@ -63,13 +69,15 @@ pub fn receive_object_internal(
     let child_ty = ty_args.pop().unwrap();
     let child_receiver_sequence_number: SequenceNumber = pop_arg!(args, u64).into();
     let child_receiver_object_id = args.pop_back().unwrap();
-    let parent = pop_arg!(args, AccountAddress).into();
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
-    let child_id: ObjectID = get_receiver_object_id(child_receiver_object_id.copy_value().unwrap())
-        .unwrap()
-        .value_as::<AccountAddress>()
-        .unwrap()
-        .into();
+    let child_id = ObjectId::new(
+        get_receiver_object_id(child_receiver_object_id.copy_value().unwrap())
+            .unwrap()
+            .value_as::<AccountAddress>()
+            .unwrap()
+            .into_bytes(),
+    );
     assert!(ty_args.is_empty());
 
     let Some((tag, layout, annotated_layout)) = get_tag_and_layouts(context, &child_ty)? else {
@@ -78,8 +86,31 @@ pub fn receive_object_internal(
             E_BCS_SERIALIZATION_FAILURE,
         ));
     };
+    let tag = struct_tag_core_to_sdk(&tag);
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
+    if object_runtime.protocol_config.enable_move_authentication() {
+        // If Move-based authentication is enabled, we need to check that the
+        // parent is not an account object, i.e., that it does not already
+        // have an authenticator function ref as a child-object/dynamic-field.
+        let authenticator_fun_ref_id = derive_dynamic_field_id(
+            parent,
+            &AuthenticatorFunctionRefV1Key::tag().into(),
+            &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        )
+        .expect("should not fail this serialization");
+        if object_runtime.child_object_exists(parent, authenticator_fun_ref_id)? {
+            // parent is an account object
+            return Ok(NativeResult::err(
+                context.gas_used(),
+                E_ACCOUNT_CANNOT_RECEIVE_OBJECT,
+            ));
+        }
+        // If the parent is not an account, proceed with receiving the object.
+        // It might still fail if the object does not exist or the type
+        // mismatches.
+    }
+
     let child = match object_runtime.receive_object(
         parent,
         child_id,
@@ -87,7 +118,7 @@ pub fn receive_object_internal(
         &child_ty,
         &layout,
         &annotated_layout,
-        MoveObjectType::from(tag),
+        tag,
     ) {
         // NB: Loaded and doesn't exist and inauthenticated read should lead to the exact same error
         Ok(None) => {
@@ -142,7 +173,7 @@ pub fn transfer_internal(
     let recipient = pop_arg!(args, AccountAddress);
     let obj = args.pop_back().unwrap();
 
-    let owner = Owner::AddressOwner(recipient.into());
+    let owner = Owner::Address(IotaAddress::new(recipient.into_bytes()));
     object_runtime_transfer(context, owner, ty, obj)?;
     let cost = context.gas_used();
     Ok(NativeResult::ok(cost, smallvec![]))
@@ -220,9 +251,7 @@ pub fn share_object(
         context,
         // Dummy version, to be filled with the correct initial version when the effects of the
         // transaction are written to storage.
-        Owner::Shared {
-            initial_shared_version: SequenceNumber::new(),
-        },
+        Owner::Shared(Default::default()),
         ty,
         obj,
     )?;
