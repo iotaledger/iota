@@ -257,6 +257,13 @@ fun validate_multisig_public_key(raw_bytes: &vector<u8>) {
 
 // === Test Functions ===
 
+/// Constructs a `PublicKey` from `scheme` and `raw_bytes` without any validation.
+/// For testing error paths that require an unrecognized or structurally invalid key.
+#[test_only]
+public fun create_for_testing(scheme: SignatureScheme, raw_bytes: vector<u8>): PublicKey {
+    PublicKey { scheme, raw_bytes }
+}
+
 #[test_only]
 public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
     from_prefixed_bytes(*prefixed_bytes).to_iota_address()

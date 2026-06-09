@@ -46,7 +46,7 @@ const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
 
 #[error(code = 10)]
-const EInvalidSignatureScheme: vector<u8> = b"Invalid signature scheme.";
+const EUnsupportedSignatureScheme: vector<u8> = b"Unsupported signature scheme.";
 
 // === Structs ===
 
@@ -340,7 +340,7 @@ public fun rotate_auth_function_ref_v1(
 
 /// Maps a `SignatureScheme` to the corresponding built-in `AuthenticatorFunctionRefV1`.
 ///
-/// Aborts with `EInvalidSignatureScheme` for any scheme not supported by the built-in authenticators.
+/// Aborts with `EUnsupportedSignatureScheme` for any scheme not supported by smart accounts.
 fun resolve_builtin_authenticator(
     signature_scheme: SignatureScheme,
 ): AuthenticatorFunctionRefV1<SmartAccount> {
@@ -355,7 +355,7 @@ fun resolve_builtin_authenticator(
     } else if (signature_scheme == signature_scheme::passkey()) {
         builtin_authenticator_functions::passkey_authenticator_function_ref_v1<SmartAccount>()
     } else {
-        abort EInvalidSignatureScheme
+        abort EUnsupportedSignatureScheme
     }
 }
 
