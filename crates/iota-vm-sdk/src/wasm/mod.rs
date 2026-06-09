@@ -6,28 +6,21 @@
 //!
 //! The browser flow:
 //!
-//! 1. JS hands us the base-64 BCS-encoded [`TransactionData`] (and, for signed
-//!    simulation, the raw signature blobs the wallet holds).
-//! 2. [`decode_transaction`](decode::decode_transaction) returns the object IDs
-//!    the transaction touches. For a [`MoveAuthenticator`] signature, JS
-//!    additionally calls
-//!    [`decode_move_authenticator_objects`](decode::decode_move_authenticator_objects)
-//!    to learn which auth-related objects to fetch.
-//! 3. JS fetches those objects via the node's GraphQL/JSON-RPC, base-64
-//!    encoding the BCS objects.
-//! 4. JS calls [`simulate`](simulate::simulate) with the chain info + objects +
-//!    (optionally) signatures; the wasm side runs them through the local Move
-//!    VM.
+//! 1. JS builds the transaction with the TS SDK and serializes it to base-64
+//!    BCS (and, for signed simulation, holds the raw signature blobs).
+//! 2. JS calls [`simulate`](simulate::simulate) with the chain info and
+//!    (optionally) signatures, handing it a `fetch_object` callback.
+//! 3. The wasm side runs the transaction through the local Move VM, calling
+//!    back into `fetch_object` for any object it needs — resolved on demand
+//!    (e.g. from the node's GraphQL/JSON-RPC) as base-64 BCS.
 //!
 //! Every [`VmSdkError`] is mapped to a thrown JS exception via [`JsError`].
 //!
 //! The surface is split across submodules:
-//! - [`decode`] — the static, VM-free decode helpers.
 //! - [`types`] — the serde request/result types for
 //!   [`simulate`](simulate::simulate).
 //! - [`simulate`] — the [`simulate`](simulate::simulate) entry point.
 
-mod decode;
 mod simulate;
 mod types;
 
