@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TransactionKind, TypeTag};
 use tap::Pipe;
 
 use crate::{
@@ -28,7 +28,7 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
-        TransactionData, TransactionDataAPI, TransactionKind,
+        TransactionData, TransactionDataAPI,
     },
 };
 
@@ -148,12 +148,7 @@ impl TestCheckpointDataBuilder {
             self.live_objects.insert(id, gas);
             id
         });
-        let gas_ref = self
-            .live_objects
-            .get(gas_id)
-            .cloned()
-            .unwrap()
-            .compute_object_reference();
+        let gas_ref = self.live_objects.get(gas_id).cloned().unwrap().object_ref();
         self.checkpoint_builder.next_transaction =
             Some(TransactionBuilder::new(sender_idx, gas_ref));
         self
@@ -356,9 +351,7 @@ impl TestCheckpointDataBuilder {
             .expect("Frozen object not found");
 
         assert!(obj.owner().is_immutable());
-        tx_builder
-            .frozen_objects
-            .insert(obj.compute_object_reference());
+        tx_builder.frozen_objects.insert(obj.object_ref());
         self
     }
 

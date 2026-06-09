@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag, gas::GasCostSummary};
 use iota_types::{
     balance::Supply,
     base_types::{
@@ -38,7 +38,6 @@ use iota_types::{
     digests::TransactionEventsDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     event::EventID,
-    gas::GasCostSummary,
     gas_coin::GasCoin,
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,

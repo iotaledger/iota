@@ -347,7 +347,7 @@ impl Executor {
             &self.tx_context.borrow(),
             version,
         )?;
-        let move_alias_object_ref = move_alias_object.compute_object_reference();
+        let move_alias_object_ref = move_alias_object.object_ref();
 
         self.store.insert_object(move_alias_object);
 
@@ -366,7 +366,7 @@ impl Executor {
             version,
             coin_type,
         )?;
-        let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
+        let move_alias_output_object_ref = move_alias_output_object.object_ref();
 
         created_objects.set_output(move_alias_output_object.id())?;
         self.store.insert_object(move_alias_output_object);
@@ -425,7 +425,7 @@ impl Executor {
                 else {
                     anyhow::bail!("foundry coin should exist");
                 };
-                let object_ref = foundry_coin.compute_object_reference();
+                let object_ref = foundry_coin.object_ref();
 
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
@@ -523,7 +523,7 @@ impl Executor {
                 else {
                     anyhow::bail!("foundry coin should exist");
                 };
-                let object_ref = foundry_coin.compute_object_reference();
+                let object_ref = foundry_coin.object_ref();
                 foundry_coins.push(foundry_coin.id());
 
                 object_deps.push(object_ref);
@@ -696,7 +696,7 @@ impl Executor {
             version,
         )?;
 
-        let move_nft_object_ref = move_nft_object.compute_object_reference();
+        let move_nft_object_ref = move_nft_object.object_ref();
         self.store.insert_object(move_nft_object);
 
         let (bag, version, fields) = self.create_bag_with_pt(nft.native_tokens())?;
@@ -713,7 +713,7 @@ impl Executor {
             version,
             coin_type,
         )?;
-        let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
+        let move_nft_output_object_ref = move_nft_output_object.object_ref();
         created_objects.set_output(move_nft_output_object.id())?;
         self.store.insert_object(move_nft_output_object);
 

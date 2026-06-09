@@ -237,7 +237,7 @@ impl Scenario {
         let object = Self::new_child(*owner_id);
         self.outputs
             .new_live_object_markers_to_init
-            .push(object.compute_object_reference());
+            .push(object.object_ref());
         let id = object.id();
         assert!(self.id_map.insert(short_id, id).is_none());
         self.outputs.written.insert(id, object.clone());
@@ -250,7 +250,7 @@ impl Scenario {
             let object = Self::new_object();
             self.outputs
                 .new_live_object_markers_to_init
-                .push(object.compute_object_reference());
+                .push(object.object_ref());
             let id = object.id();
             assert!(self.id_map.insert(*short_id, id).is_none());
             self.outputs.written.insert(id, object.clone());
@@ -291,12 +291,12 @@ impl Scenario {
             let object = self.objects.get(id).cloned().expect("object not found");
             self.outputs
                 .live_object_markers_to_delete
-                .push(object.compute_object_reference());
+                .push(object.object_ref());
             let object = Self::inc_version_by(object, delta);
             self.objects.insert(*id, object.clone());
             self.outputs
                 .new_live_object_markers_to_init
-                .push(object.compute_object_reference());
+                .push(object.object_ref());
             self.outputs.written.insert(object.id(), object);
         }
     }
@@ -307,7 +307,7 @@ impl Scenario {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("object not found");
             let object = self.objects.remove(id).expect("object not found");
-            let mut object_ref = object.compute_object_reference();
+            let mut object_ref = object.object_ref();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
             object_ref.version.increment().unwrap();
@@ -321,7 +321,7 @@ impl Scenario {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("object not found");
             let object = self.objects.get(id).cloned().expect("object not found");
-            let mut object_ref = object.compute_object_reference();
+            let mut object_ref = object.object_ref();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
             object_ref.version.increment().unwrap();
@@ -339,12 +339,11 @@ impl Scenario {
             self.outputs
                 .new_live_object_markers_to_init
                 .iter()
-                .find(|o| **o == object.compute_object_reference())
+                .find(|o| **o == object.object_ref())
                 .expect("received object must have new lock");
-            self.outputs.markers.push((
-                object.compute_object_reference().into(),
-                MarkerValue::Received,
-            ));
+            self.outputs
+                .markers
+                .push((object.object_ref().into(), MarkerValue::Received));
         }
     }
 
@@ -425,7 +424,7 @@ impl Scenario {
             // TODO: enable after lock caching is implemented
             // assert!(!self
             //  .cache()
-            //  .get_lock(expected.compute_object_reference(), 1)
+            //  .get_lock(expected.object_ref(), 1)
             //  .unwrap()
             //  .is_locked());
         }
@@ -534,7 +533,7 @@ impl Scenario {
     }
 
     pub fn obj_ref(&self, short_id: u32) -> ObjectRef {
-        self.object(short_id).compute_object_reference()
+        self.object(short_id).object_ref()
     }
 
     pub fn make_signed_transaction(&self, tx: &VerifiedTransaction) -> VerifiedSignedTransaction {
@@ -990,12 +989,7 @@ async fn test_concurrent_readers() {
         s.with_deleted(&[child_id]);
         let tx2 = s.take_outputs();
 
-        txns.push((
-            tx1,
-            tx2,
-            s.object(parent_id).compute_object_reference(),
-            child_full_id,
-        ));
+        txns.push((tx1, tx2, s.object(parent_id).object_ref(), child_full_id));
     }
 
     let barrier = Arc::new(tokio::sync::Barrier::new(2));

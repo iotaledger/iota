@@ -15,6 +15,7 @@ use iota_indexer::{
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
 use iota_json_rpc_api::ReadApiServer;
+use iota_sdk_types::TransactionExpiration;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
@@ -22,7 +23,7 @@ use iota_types::{
     message_envelope::Message,
     transaction::{
         SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
-        TransactionDataAPI, TransactionExpiration,
+        TransactionDataAPI,
     },
 };
 use serde::{Deserialize, Serialize};

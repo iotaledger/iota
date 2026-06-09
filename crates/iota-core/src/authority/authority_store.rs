@@ -694,7 +694,7 @@ impl AuthorityStore {
     pub(crate) fn insert_genesis_object(&self, object: Object) -> IotaResult {
         // We only side load objects with a genesis parent transaction.
         debug_assert!(object.previous_transaction == TransactionDigest::GENESIS_MARKER);
-        let object_ref = object.compute_object_reference();
+        let object_ref = object.object_ref();
         self.insert_object_direct(object_ref, &object)
     }
 
@@ -712,7 +712,7 @@ impl AuthorityStore {
         )?;
 
         // Update the index
-        if object.get_single_owner().is_some() {
+        if object.single_owner().is_some() {
             // Only initialize live object markers for address owned objects.
             if !object.is_child_object() {
                 self.initialize_live_object_markers_impl(&mut write_batch, &[object_ref])?;
@@ -729,10 +729,7 @@ impl AuthorityStore {
     #[instrument(level = "debug", skip_all)]
     pub(crate) fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult<()> {
         let mut batch = self.perpetual_tables.objects.batch();
-        let ref_and_objects: Vec<_> = objects
-            .iter()
-            .map(|o| (o.compute_object_reference(), o))
-            .collect();
+        let ref_and_objects: Vec<_> = objects.iter().map(|o| (o.object_ref(), o)).collect();
 
         batch.insert_batch(
             &self.perpetual_tables.objects,
@@ -769,7 +766,7 @@ impl AuthorityStore {
                     batch.insert_batch(
                         &perpetual_db.objects,
                         std::iter::once((
-                            ObjectKey::from(object.compute_object_reference()),
+                            ObjectKey::from(object.object_ref()),
                             store_object_wrapper,
                         )),
                     )?;
@@ -777,7 +774,7 @@ impl AuthorityStore {
                         Self::initialize_live_object_markers(
                             &perpetual_db.live_owned_object_markers,
                             &mut batch,
-                            &[object.compute_object_reference()],
+                            &[object.object_ref()],
                         )?;
                     }
                 }
@@ -1268,7 +1265,7 @@ impl AuthorityStore {
                             return None;
                         }
 
-                        let obj_ref = obj.compute_object_reference();
+                        let obj_ref = obj.object_ref();
                         Some(obj.is_address_owned().then_some(obj_ref))
                     })
             };

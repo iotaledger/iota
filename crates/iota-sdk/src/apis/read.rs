@@ -21,13 +21,13 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
     TransactionBlocksPage, TransactionFilter,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionKind};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber, TransactionDigest},
     dynamic_field::DynamicFieldName,
     iota_serde::BigInt,
     messages_checkpoint::CheckpointSequenceNumber,
-    transaction::{TransactionData, TransactionKind},
+    transaction::TransactionData,
 };
 use jsonrpsee::core::client::Subscription;
 

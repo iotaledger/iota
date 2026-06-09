@@ -18,15 +18,15 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, Identifier, Input, MakeMoveVector, MergeCoins,
-    MoveCall, ObjectId, Owner, Publish, SplitCoins, TransferObjects, TypeTag, Upgrade,
+    ConsensusDeterminedVersionAssignments, Digest, GenesisObject, GenesisTransaction, Identifier,
+    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, Publish, SplitCoins,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
-    EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
-    ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
-    SystemPackage, Transaction as TransactionData, TransactionExpiration, TransactionKind,
-    TransactionV1 as TransactionDataV1,
+    EndOfEpochTransactionKind, GasPayment as GasData, ProgrammableTransaction,
+    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
+    Transaction as TransactionData, TransactionV1 as TransactionDataV1,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
@@ -2849,7 +2849,7 @@ impl std::fmt::Debug for ObjectReadResultKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectReadResultKind::Object(obj) => {
-                write!(f, "Object({:?})", obj.compute_object_reference())
+                write!(f, "Object({:?})", obj.object_ref())
             }
             ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
                 write!(f, "DeletedSharedObject({seq}, {digest})")
@@ -2904,7 +2904,7 @@ impl ObjectReadResult {
     }
 
     pub fn new_from_gas_object(gas: &Object) -> Self {
-        let objref = gas.compute_object_reference();
+        let objref = gas.object_ref();
         Self {
             input_object_kind: InputObjectKind::ImmOrOwnedMoveObject(objref),
             object: ObjectReadResultKind::Object(gas.clone()),
@@ -2980,9 +2980,7 @@ impl ObjectReadResult {
             InputObjectKind::MovePackage(_) => None,
             InputObjectKind::ImmOrOwnedMoveObject(_) => None,
             InputObjectKind::SharedMoveObject { id, mutable, .. } => Some(match &self.object {
-                ObjectReadResultKind::Object(obj) => {
-                    SharedInput::Existing(obj.compute_object_reference())
-                }
+                ObjectReadResultKind::Object(obj) => SharedInput::Existing(obj.object_ref()),
                 ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
                     SharedInput::Deleted((id, *seq, mutable, *digest))
                 }
@@ -3172,7 +3170,7 @@ impl InputObjects {
                         ObjectReadResultKind::Object(object),
                     ) => {
                         if *mutable {
-                            let oref = object.compute_object_reference();
+                            let oref = object.object_ref();
                             Some((oref.object_id, ((oref.version, oref.digest), object.owner)))
                         } else {
                             None

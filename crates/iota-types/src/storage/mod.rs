@@ -514,7 +514,7 @@ pub enum ObjectOrTombstone {
 impl ObjectOrTombstone {
     pub fn as_objref(&self) -> ObjectRef {
         match self {
-            ObjectOrTombstone::Object(obj) => obj.compute_object_reference(),
+            ObjectOrTombstone::Object(obj) => obj.object_ref(),
             ObjectOrTombstone::Tombstone(obref) => *obref,
         }
     }

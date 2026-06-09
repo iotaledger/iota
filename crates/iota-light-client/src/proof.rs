@@ -211,7 +211,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
 
         for (object_ref, object) in &proof.targets.objects {
             // Is the given reference correct?
-            if object_ref != &object.compute_object_reference() {
+            if object_ref != &object.object_ref() {
                 bail!("Object reference does not match the object");
             }
 

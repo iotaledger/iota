@@ -114,8 +114,7 @@ impl LocalDBPackageStore {
                 .into_iter()
                 .next()
                 .ok_or(PackageResolverError::PackageNotFound(id))?;
-            let sdk_obj = proto_obj.object().map_err(grpc_err)?;
-            let object: Object = sdk_obj.try_into().map_err(grpc_err)?;
+            let object = proto_obj.object().map_err(grpc_err)?.into();
             self.update(&object)?;
             object
         };

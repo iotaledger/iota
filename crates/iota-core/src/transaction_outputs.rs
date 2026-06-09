@@ -112,7 +112,7 @@ impl TransactionOutputs {
             .values()
             .filter_map(|new_object| {
                 if new_object.is_address_owned() {
-                    Some(new_object.compute_object_reference())
+                    Some(new_object.object_ref())
                 } else {
                     None
                 }

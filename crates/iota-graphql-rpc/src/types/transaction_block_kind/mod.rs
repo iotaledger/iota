@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::transaction::TransactionKind as NativeTransactionKind;
+use iota_sdk_types::TransactionKind as NativeTransactionKind;
 
 use self::{
     consensus_commit_prologue::ConsensusCommitPrologueTransaction, genesis::GenesisTransaction,

@@ -33,10 +33,11 @@ use crate::storage::rocksdb_store::RocksDBStore;
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
 use crate::{
     Transaction,
+    authority_set::AuthoritySet,
     block_header::{
-        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedOwnShard, VerifiedTransactions,
+        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
+        GENESIS_ROUND, Round, SignedBlockHeader, Slot, StrongVote, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, CommitAPI, PendingSubDag},
@@ -110,6 +111,14 @@ pub(crate) struct Core {
     /// Encoder is used to encode transactions into a longer vector of shards
     encoder: Box<dyn ShardEncoder + Send + Sync>,
     commit_vote_monitor: Arc<CommitVoteMonitor>,
+    /// Clock round for which the wait for a strong-vote quorum has timed out.
+    /// Any subsequent block-creation attempt at that same round skips the
+    /// strong-vote quorum check, regardless of the reason that triggered it.
+    strong_vote_timed_out_round: Option<Round>,
+    /// First moment in the current clock round at which the ordinary (base
+    /// Starfish) propose condition was satisfied. Used to measure the extra
+    /// wait imposed by StarfishSpeed's strong-vote condition.
+    ordinary_propose_ready_at: Option<(Round, Instant)>,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -117,6 +126,7 @@ pub(crate) enum ReasonToCreateBlock {
     MinBlockDelayTimeout,
     AddBlock,
     AddBlockHeader,
+    SoftTimeout,
     MaxLeaderTimeout,
     Recover,
     QuorumSubscribersExist,
@@ -132,6 +142,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::AddBlock => "AddBlock",
             ReasonToCreateBlock::MaxLeaderTimeout => "MaxLeaderTimeout",
             ReasonToCreateBlock::AddBlockHeader => "AddBlockHeader",
+            ReasonToCreateBlock::SoftTimeout => "SoftTimeout",
             ReasonToCreateBlock::Recover => "Recover",
             ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
             ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
@@ -147,6 +158,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::AddBlock => false,
             ReasonToCreateBlock::MaxLeaderTimeout => true,
             ReasonToCreateBlock::AddBlockHeader => false,
+            ReasonToCreateBlock::SoftTimeout => false,
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
@@ -252,6 +264,8 @@ impl Core {
             last_known_proposed_round: min_propose_round,
             encoder,
             commit_vote_monitor,
+            strong_vote_timed_out_round: None,
+            ordinary_propose_ready_at: None,
         }
         .recover()
     }
@@ -411,6 +425,15 @@ impl Core {
         let (accepted_block_headers, missing_block_refs) = self
             .block_manager
             .try_accept_block_headers(block_headers, source);
+
+        if !accepted_block_headers.is_empty()
+            && self.context.protocol_config.consensus_starfish_speed()
+        {
+            self.record_strong_vote_complaints(
+                &mut self.dag_state.write(),
+                &accepted_block_headers,
+            );
+        }
 
         let missing_committed_txns = if !accepted_block_headers.is_empty() {
             debug!(
@@ -791,15 +814,75 @@ impl Core {
         // upstream in `should_propose`.
         let clock_round = self.dag_state.read().threshold_clock_round();
 
+        // Record when the wait for a strong-vote quorum has timed out for
+        // this clock round. Every subsequent attempt at the same round then
+        // skips the strong-vote check regardless of reason. A stale value
+        // from an earlier round is inert because only an exact match with
+        // the current clock_round below triggers the skip.
+        if matches!(reason, ReasonToCreateBlock::SoftTimeout) {
+            self.strong_vote_timed_out_round = Some(clock_round);
+        }
+        let strong_vote_timed_out = self.strong_vote_timed_out_round == Some(clock_round);
+
         // There must be a quorum of blocks from the previous round.
         let quorum_round = clock_round.saturating_sub(1);
+
+        // Fetch the leader block header at quorum_round once; reused for the
+        // leader-existence check, the strong-vote readiness check, and the
+        // block header's strong_vote field.
+        let leader_header = self.leader_header(quorum_round);
+
+        // If an ordinary-ready moment was recorded for an earlier clock round
+        // but we never proposed in it (the round advanced first), the
+        // strong-vote wait still counts toward the extra-wait metric.
+        if let Some((recorded_round, start)) = self.ordinary_propose_ready_at {
+            if recorded_round != clock_round {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .strong_vote_extra_wait_seconds
+                    .observe(start.elapsed().as_secs_f64());
+                self.ordinary_propose_ready_at = None;
+            }
+        }
+
+        // Record the first moment in this clock round at which the ordinary
+        // (base Starfish) propose condition was satisfied. Used to observe the
+        // extra wait imposed by the StarfishSpeed strong-vote condition.
+        if self.context.protocol_config.consensus_starfish_speed()
+            && !reason.is_forced()
+            && leader_header.is_some()
+            && Duration::from_millis(
+                self.context
+                    .clock
+                    .timestamp_utc_ms()
+                    .saturating_sub(self.last_proposed_timestamp_ms()),
+            ) >= self.context.parameters.min_block_delay
+            && self
+                .ordinary_propose_ready_at
+                .is_none_or(|(r, _)| r != clock_round)
+        {
+            self.ordinary_propose_ready_at = Some((clock_round, Instant::now()));
+        }
 
         // Create a new block either because we want to "forcefully" propose a block due
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
         if !reason.is_forced() {
-            if !self.leaders_exist(quorum_round) {
-                return None;
+            leader_header.as_ref()?;
+
+            // Strong-vote readiness check 1 (StarfishSpeed only, bypassed on
+            // soft-timeout): 2f+1 strong votes at quorum_round pinned to the
+            // leader at quorum_round - 1.
+            if !strong_vote_timed_out
+                && self.context.protocol_config.consensus_starfish_speed()
+                && quorum_round > GENESIS_ROUND
+            {
+                if let Some(prev_leader) = self.leader_header(quorum_round - 1) {
+                    if !self.has_strong_vote_quorum(quorum_round, prev_leader.author()) {
+                        return None;
+                    }
+                }
             }
 
             if Duration::from_millis(
@@ -811,6 +894,27 @@ impl Core {
             {
                 return None;
             }
+        }
+
+        // Compute the strong_vote once; reused for readiness check 2 and
+        // the block header below.
+        let strong_vote = if self.context.protocol_config.consensus_starfish_speed() {
+            leader_header
+                .as_ref()
+                .map(|h| Self::compute_strong_vote(&self.dag_state.read(), h))
+        } else {
+            None
+        };
+
+        // Strong-vote readiness check 2 (StarfishSpeed only, bypassed on
+        // soft-timeout): our block would itself be a strong vote for the
+        // leader at clock_round-1.
+        if !reason.is_forced()
+            && !strong_vote_timed_out
+            && self.context.protocol_config.consensus_starfish_speed()
+            && !strong_vote.as_ref().is_some_and(|sv| sv.is_strong_vote())
+        {
+            return None;
         }
 
         // Determine the ancestors to be included in proposal. A quorum of ancestor must
@@ -843,6 +947,43 @@ impl Core {
             .block_proposal_leader_wait_count
             .with_label_values(&[leader_authority])
             .inc();
+
+        // The strong-vote wait for this clock round ends with this proposal.
+        // Observe it for non-forced proposals; forced proposals (e.g. max
+        // leader timeout) are excluded. Clear it either way so the wait is not
+        // re-counted as an abandoned round on a later call.
+        if let Some((r, start)) = self.ordinary_propose_ready_at {
+            if r == clock_round {
+                if !reason.is_forced() && self.context.protocol_config.consensus_starfish_speed() {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .strong_vote_extra_wait_seconds
+                        .observe(start.elapsed().as_secs_f64());
+                }
+                self.ordinary_propose_ready_at = None;
+            }
+        }
+
+        // Strong-vote payload metrics: distribution of the `missing` set size,
+        // and per-leader counter when the payload is a blame (non-empty).
+        if let Some(sv) = strong_vote.as_ref() {
+            let node_metrics = &self.context.metrics.node_metrics;
+            node_metrics
+                .strong_vote_missing_authorities
+                .observe(sv.missing.len() as f64);
+            if !sv.missing.is_empty() {
+                let leader = &self
+                    .context
+                    .committee
+                    .authority(sv.leader_authority)
+                    .hostname;
+                node_metrics
+                    .strong_blames_emitted_for_leader
+                    .with_label_values(&[leader])
+                    .inc();
+            }
+        }
 
         self.context
             .metrics
@@ -880,6 +1021,26 @@ impl Core {
             .proposed_block_transactions
             .observe(transactions.len() as f64);
 
+        // Adaptive acknowledgment filtering: only applied to leader blocks,
+        // where included refs feed the optimistic-commit path.
+        let am_leader_at_clock_round = self
+            .leaders(clock_round)
+            .iter()
+            .any(|slot| slot.authority == self.context.own_index);
+        let exclude = if am_leader_at_clock_round
+            && self.context.protocol_config.consensus_starfish_speed()
+            && self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            self.dag_state
+                .read()
+                .starfish_speed_excluded_ack_authorities()
+        } else {
+            AuthoritySet::new()
+        };
+
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
         let max_acknowledgments = self
@@ -889,7 +1050,7 @@ impl Core {
         let acknowledgments = self
             .dag_state
             .write()
-            .take_acknowledgments(max_acknowledgments);
+            .take_acknowledgments(max_acknowledgments, exclude);
 
         self.context
             .metrics
@@ -934,16 +1095,31 @@ impl Core {
         });
 
         // Create the block and insert to storage.
-        let block_header = BlockHeader::V1(BlockHeaderV1::new(
-            self.context.committee.epoch(),
-            clock_round,
-            self.context.own_index,
-            now,
-            ancestors.iter().map(|b| b.reference()).collect(),
-            acknowledgments,
-            commit_votes,
-            transactions_commitment,
-        ));
+        let ancestor_refs = ancestors.iter().map(|b| b.reference()).collect();
+        let block_header = if self.context.protocol_config.consensus_starfish_speed() {
+            BlockHeader::V2(BlockHeaderV2::new(
+                self.context.committee.epoch(),
+                clock_round,
+                self.context.own_index,
+                now,
+                ancestor_refs,
+                acknowledgments,
+                commit_votes,
+                transactions_commitment,
+                strong_vote,
+            ))
+        } else {
+            BlockHeader::V1(BlockHeaderV1::new(
+                self.context.committee.epoch(),
+                clock_round,
+                self.context.own_index,
+                now,
+                ancestor_refs,
+                acknowledgments,
+                commit_votes,
+                transactions_commitment,
+            ))
+        };
 
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
@@ -1119,7 +1295,10 @@ impl Core {
                 sequenced_leaders.len(),
                 sequenced_leaders
                     .iter()
-                    .map(|b| b.reference().to_string())
+                    .map(|(b, m, _)| match m {
+                        Some(state) => format!("{}({state})", b.reference()),
+                        None => b.reference().to_string(),
+                    })
                     .join(",")
             );
 
@@ -1383,20 +1562,98 @@ impl Core {
         included_ancestors
     }
 
-    /// Checks whether the leaders of the round exist.
-    fn leaders_exist(&self, round: Round) -> bool {
-        let dag_state = self.dag_state.read();
-        for leader in self.leaders(round) {
-            // Search for all the leaders. If at least one is not found, then return false.
-            // A linear search should be fine here as the set of elements is not expected to
-            // be small enough and more sophisticated data structures might not
-            // give us much here.
-            if !dag_state.contains_cached_block_header_at_slot(leader) {
-                return false;
+    /// Builds the `StrongVote` payload for a block voting on `leader_header`:
+    /// pins the leader's authority and records the set of authorities (the
+    /// leader itself and those it acknowledges) whose transactions are not
+    /// locally available. An empty `missing` set means a strong vote; a
+    /// non-empty set means strong blame.
+    pub(crate) fn compute_strong_vote(
+        dag_state: &DagState,
+        leader_header: &VerifiedBlockHeader,
+    ) -> StrongVote {
+        let mut missing = AuthoritySet::new();
+
+        let leader_ref = leader_header.reference();
+        if !dag_state.are_transactions_available(&leader_ref) {
+            missing.insert(leader_ref.author);
+        }
+
+        for ack_ref in leader_header.acknowledgments() {
+            if !dag_state.are_transactions_available(ack_ref) {
+                missing.insert(ack_ref.author);
             }
         }
 
-        true
+        StrongVote {
+            leader_authority: leader_header.author(),
+            missing,
+        }
+    }
+
+    /// Records strong-vote complaints from each freshly-accepted block into
+    /// DagState's per-leader-round hint tables. Caller passes a write-locked
+    /// DagState. Called only when Starfish-Speed flag is on.
+    fn record_strong_vote_complaints(
+        &self,
+        dag_state: &mut DagState,
+        blocks: &[VerifiedBlockHeader],
+    ) {
+        let own_index = self.context.own_index;
+        for block in blocks {
+            // Use the producer's pinned leader (in the strong-vote payload),
+            // not the local canonical leader. The local view can disagree
+            // across schedule rotations — same misattribution surface fixed
+            // for the commit path in StarfishSpeed.
+            if !block.is_strong_blame_for(own_index) {
+                continue;
+            }
+            let leader_round = block.round().saturating_sub(1);
+            if leader_round == GENESIS_ROUND {
+                continue;
+            }
+            let Some(strong_vote) = block.strong_vote() else {
+                continue;
+            };
+            let voter = &self.context.committee.authority(block.author()).hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .strong_blames_received_from_voter
+                .with_label_values(&[voter])
+                .inc();
+            dag_state.record_strong_vote_complaint(
+                block.author(),
+                leader_round,
+                strong_vote.missing,
+            );
+        }
+    }
+
+    /// Returns true when 2f+1 stake of blocks at `voting_round` carry a strong
+    /// vote pinned to `expected_leader`. A block at round R with
+    /// `is_strong_vote` certifies the leader at R-1, so a quorum at
+    /// `voting_round` certifies `expected_leader` at `voting_round - 1`.
+    /// Strong votes whose pinned leader doesn't match are ignored.
+    fn has_strong_vote_quorum(&self, voting_round: Round, expected_leader: AuthorityIndex) -> bool {
+        let dag_state = self.dag_state.read();
+        let blocks = dag_state.get_last_cached_block_header_per_authority(voting_round + 1);
+        let mut strong_votes = StakeAggregator::<QuorumThreshold>::new();
+        for (block, _equivocating) in &blocks {
+            if block.round() == voting_round && block.is_strong_vote_for(expected_leader) {
+                strong_votes.add(block.author(), &self.context.committee);
+            }
+        }
+        strong_votes.reached_threshold(&self.context.committee)
+    }
+
+    /// Returns the leader block header for `round` if it is present in the
+    /// DAG. Starfish has exactly one leader per round, so this is either
+    /// `Some(leader_block)` or `None`.
+    fn leader_header(&self, round: Round) -> Option<VerifiedBlockHeader> {
+        let leader = self.leaders(round).into_iter().next()?;
+        self.dag_state
+            .read()
+            .get_cached_block_header_at_slot(Slot::new(round, leader.authority))
     }
 
     /// Returns the leaders of the provided round.
@@ -3473,5 +3730,147 @@ mod test {
             received_notifications, expected_notifications,
             "Expected {expected_notifications} notifications but only received {received_notifications}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_compute_strong_vote() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(true);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context, store)));
+
+        // Round-1 ack targets at authorities 2 and 3.
+        let r1_a2 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 2).build());
+        let r1_a3 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 3).build());
+
+        // Leader at round=2, author=1, acknowledging the two round-1 blocks.
+        let leader = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(2, 1)
+                .set_acknowledgments(vec![r1_a2.reference(), r1_a3.reference()])
+                .build(),
+        );
+
+        let add_data_for = |block: &VerifiedBlock| {
+            let mut s = dag_state.write();
+            s.accept_block_header(block.verified_block_header.clone(), DataSource::Test);
+            s.add_transactions(block.verified_transactions.clone(), DataSource::Test);
+        };
+
+        let a1 = AuthorityIndex::new_for_test(1);
+        let a2 = AuthorityIndex::new_for_test(2);
+        let a3 = AuthorityIndex::new_for_test(3);
+
+        // Empty DagState: leader and both acks are missing.
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(sv.missing.contains(a1));
+            assert!(sv.missing.contains(a2));
+            assert!(sv.missing.contains(a3));
+            assert_eq!(sv.missing.len(), 3);
+            assert!(!sv.is_strong_vote());
+        }
+
+        // Leader and ack at author 2 present; ack at author 3 still missing.
+        add_data_for(&leader);
+        add_data_for(&r1_a2);
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(!sv.missing.contains(a1));
+            assert!(!sv.missing.contains(a2));
+            assert!(sv.missing.contains(a3));
+            assert_eq!(sv.missing.len(), 1);
+            assert!(!sv.is_strong_vote());
+        }
+
+        // All data present: empty missing, strong vote.
+        add_data_for(&r1_a3);
+        {
+            let sv = Core::compute_strong_vote(&dag_state.read(), &leader.verified_block_header);
+            assert_eq!(sv.leader_authority, a1);
+            assert!(sv.missing.is_empty());
+            assert!(sv.is_strong_vote());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_has_strong_vote_quorum() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let fixture = CoreTextFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+        );
+
+        let leader = AuthorityIndex::new_for_test(1);
+        let strong_vote = StrongVote {
+            leader_authority: leader,
+            missing: AuthoritySet::new(),
+        };
+        let mut blame_missing = AuthoritySet::new();
+        blame_missing.insert(AuthorityIndex::new_for_test(3));
+        let strong_blame = StrongVote {
+            leader_authority: leader,
+            missing: blame_missing,
+        };
+
+        let add_block = |round: Round, author: u8, sv: StrongVote| {
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author)
+                    .set_strong_vote(Some(sv))
+                    .build(),
+            );
+            fixture
+                .core
+                .dag_state
+                .write()
+                .accept_block_header(header, DataSource::Test);
+        };
+
+        // Empty DagState at round 5 -> no quorum.
+        assert!(!fixture.core.has_strong_vote_quorum(5, leader));
+
+        // 3 strong votes for `leader` at round 5 -> quorum.
+        for author in [0u8, 1, 2] {
+            add_block(5, author, strong_vote);
+        }
+        assert!(fixture.core.has_strong_vote_quorum(5, leader));
+
+        // 2 strong votes for `leader` at round 6 -> below quorum.
+        for author in [0u8, 1] {
+            add_block(6, author, strong_vote);
+        }
+        assert!(!fixture.core.has_strong_vote_quorum(6, leader));
+
+        // 2 strong votes + 1 strong blame for `leader` at round 7 -> below
+        // quorum (blame does not count as vote).
+        add_block(7, 0, strong_vote);
+        add_block(7, 1, strong_vote);
+        add_block(7, 2, strong_blame);
+        assert!(!fixture.core.has_strong_vote_quorum(7, leader));
+
+        // 3 strong votes at round 8 pinned to a different leader -> the
+        // pinning filter rejects them and the quorum check returns false.
+        let other = AuthorityIndex::new_for_test(2);
+        let strong_vote_other = StrongVote {
+            leader_authority: other,
+            missing: AuthoritySet::new(),
+        };
+        for author in [0u8, 1, 2] {
+            add_block(8, author, strong_vote_other);
+        }
+        assert!(!fixture.core.has_strong_vote_quorum(8, leader));
     }
 }

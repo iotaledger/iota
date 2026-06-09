@@ -11,7 +11,10 @@ use std::{
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentScope};
+use iota_sdk_types::{
+    crypto::{Intent, IntentScope},
+    gas::GasCostSummary,
+};
 use once_cell::sync::OnceCell;
 #[cfg(not(target_arch = "wasm32"))]
 use prometheus::Histogram;
@@ -36,7 +39,6 @@ use crate::{
     digests::Digest,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
-    gas::GasCostSummary,
     global_state_hash::GlobalStateHash,
     iota_serde::{AsProtocolVersion, BigInt, Readable},
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},

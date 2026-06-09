@@ -38,7 +38,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
                     .get_object(obj_id)
                     .await
                     .unwrap()
-                    .compute_object_reference(),
+                    .object_ref(),
             )
             .unwrap()
     }
@@ -65,7 +65,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
                 .get_object(&all_ids[N])
                 .await
                 .unwrap()
-                .compute_object_reference(),
+                .object_ref(),
         ],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * (N as u64),
@@ -123,7 +123,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
                     .get_object(obj_id)
                     .await
                     .unwrap()
-                    .compute_object_reference(),
+                    .object_ref(),
             )
             .unwrap()
     }
@@ -143,7 +143,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
                 .get_object(&all_ids[N])
                 .await
                 .unwrap()
-                .compute_object_reference(),
+                .object_ref(),
         ],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -200,7 +200,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     }
     let data = TransactionData::new_programmable(
         sender,
-        vec![gas_object.compute_object_reference()],
+        vec![gas_object.object_ref()],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         rgp,

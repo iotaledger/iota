@@ -412,7 +412,7 @@ async fn execute_pay_iota(
 
     let input_coin_refs: Vec<ObjectRef> = input_coin_objects
         .iter()
-        .map(|coin_obj| coin_obj.compute_object_reference())
+        .map(|coin_obj| coin_obj.object_ref())
         .collect();
     let handles: Vec<_> = input_coin_objects
         .into_iter()
@@ -467,7 +467,7 @@ async fn execute_pay_all_iota(
             .iter()
             .find(|o| o.id() == id)
             .unwrap()
-            .compute_object_reference();
+            .object_ref();
         input_coins.push(object_ref);
     }
 

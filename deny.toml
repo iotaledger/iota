@@ -65,6 +65,9 @@ ignore = [
   # seed derives from the stack pointer and cannot be controlled by msim,
   # breaking simtest determinism (e.g. test_passive_reconfig_determinism).
   "RUSTSEC-2026-0002",
+  # proc-macro-error2 is unmaintained
+  # Can be removed once `getset` updates: https://github.com/jbaublitz/getset/issues/132
+  "RUSTSEC-2026-0173",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories

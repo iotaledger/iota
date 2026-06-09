@@ -71,7 +71,11 @@ pub(crate) struct ConsensusCommitOutput {
     dkg_confirmations: BTreeMap<PartyId, VersionedDkgConfirmation>,
     dkg_processed_messages: BTreeMap<PartyId, VersionedProcessedMessage>,
     dkg_used_message: Option<VersionedUsedProcessedMessages>,
-    dkg_output: Option<dkg_v1::Output<PkG, EncG>>,
+    // DKG state, the inner Option value persisted to `dkg_output_v2`:
+    // - `Some(Some(out))` -- DKG success
+    // - `Some(None)` -- terminal DKG failure
+    // - `None` -- DKG pending (default value)
+    dkg_output: Option<Option<dkg_v1::Output<PkG, EncG>>>,
 
     // misbehavior report state — per-authority post-merge snapshot captured
     // at `process_report` time. The on-disk row for commit N is exactly the
@@ -203,7 +207,7 @@ impl ConsensusCommitOutput {
         self.dkg_used_message = Some(used_messages);
     }
 
-    pub fn set_dkg_output(&mut self, output: dkg_v1::Output<PkG, EncG>) {
+    pub fn set_dkg_output(&mut self, output: Option<dkg_v1::Output<PkG, EncG>>) {
         self.dkg_output = Some(output);
     }
 
@@ -300,7 +304,7 @@ impl ConsensusCommitOutput {
                 .map(|used_msgs| (SINGLETON_KEY, used_msgs)),
         )?;
         if let Some(output) = self.dkg_output {
-            batch.insert_batch(&tables.dkg_output, [(SINGLETON_KEY, output)])?;
+            batch.insert_batch(&tables.dkg_output_v2, [(SINGLETON_KEY, output)])?;
         }
 
         batch.insert_batch(

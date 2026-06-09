@@ -8,12 +8,13 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
     use iota_protocol_config::*;
+    use iota_sdk_types::gas::GasCostSummary;
     use move_core_types::vm_status::StatusCode;
 
     use crate::{
         ObjectId,
         error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
-        gas::{self, GasCostSummary, IotaGasStatusAPI},
+        gas::{self, IotaGasStatusAPI},
         gas_model::{
             gas_predicates::cost_table_for_version,
             tables::{GasStatus, ZERO_COST_SCHEDULE},

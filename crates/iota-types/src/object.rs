@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{MoveStruct as MoveObject, ObjectData as Data};
+pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner, ObjectData as Data};
 use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -20,11 +20,9 @@ use serde::{Deserialize, Serialize};
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectRef, SequenceNumber, TransactionDigest,
-    },
+    base_types::{IotaAddress, MoveObjectType, ObjectRef, SequenceNumber, TransactionDigest},
     coin::{Coin, CoinMetadata, TreasuryCap},
-    crypto::{default_hash, deterministic_random_account_key},
+    crypto::deterministic_random_account_key,
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
@@ -335,21 +333,6 @@ impl MoveObjectExt for MoveObject {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-#[serde(rename = "Object")]
-pub struct ObjectInner {
-    /// The meat of the object
-    pub data: Data,
-    /// The owner that unlocks this object
-    pub owner: Owner,
-    /// The digest of the transaction that created or last mutated this object
-    pub previous_transaction: TransactionDigest,
-    /// The amount of IOTA we would rebate if this object gets deleted.
-    /// This number is re-calculated each time the object is mutated based on
-    /// the present storage gas price.
-    pub storage_rebate: u64,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 #[serde(from = "ObjectInner")]
 pub struct Object(Arc<ObjectInner>);
 
@@ -369,10 +352,6 @@ impl Object {
 
     pub fn as_inner(&self) -> &ObjectInner {
         &self.0
-    }
-
-    pub fn owner(&self) -> &Owner {
-        &self.0.owner
     }
 
     pub fn new_from_genesis(
@@ -493,89 +472,14 @@ impl std::ops::DerefMut for Object {
     }
 }
 
-impl ObjectInner {
-    /// Returns true if the object is a system package.
-    pub fn is_system_package(&self) -> bool {
-        self.is_package() && self.id().is_system_package()
-    }
-
-    pub fn is_immutable(&self) -> bool {
-        self.owner.is_immutable()
-    }
-
-    pub fn is_address_owned(&self) -> bool {
-        self.owner.is_address()
-    }
-
-    pub fn is_child_object(&self) -> bool {
-        self.owner.is_object()
-    }
-
-    pub fn is_shared(&self) -> bool {
-        self.owner.is_shared()
-    }
-
-    pub fn get_single_owner(&self) -> Option<IotaAddress> {
-        self.owner.address_or_object().copied()
-    }
-
-    // It's a common pattern to retrieve both the owner and object ID
-    // together, if it's owned by a single owner.
-    pub fn get_owner_and_id(&self) -> Option<(Owner, ObjectId)> {
-        Some((self.owner, self.id()))
-    }
-
-    /// Return true if this object is a Move package, false if it is a Move
-    /// value
-    pub fn is_package(&self) -> bool {
-        matches!(&self.data, Data::Package(_))
-    }
-
-    pub fn compute_object_reference(&self) -> ObjectRef {
-        ObjectRef::new(self.id(), self.version(), self.digest())
-    }
-
-    pub fn digest(&self) -> ObjectDigest {
-        ObjectDigest::new(default_hash(self))
-    }
-
-    pub fn id(&self) -> ObjectId {
-        use Data::*;
-
-        match &self.data {
-            Struct(v) => v.id(),
-            Package(m) => m.id(),
-        }
-    }
-
-    pub fn version(&self) -> SequenceNumber {
-        use Data::*;
-
-        match &self.data {
-            Struct(o) => o.version(),
-            Package(p) => p.version(),
-        }
-    }
-
+impl Object {
     pub fn type_(&self) -> Option<&MoveObjectType> {
         self.data.object_type()
-    }
-
-    pub fn struct_tag(&self) -> Option<StructTag> {
-        self.data.struct_tag()
     }
 
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.as_struct_opt() {
             move_object.struct_tag().is_coin()
-        } else {
-            false
-        }
-    }
-
-    pub fn is_gas_coin(&self) -> bool {
-        if let Some(move_object) = self.data.as_struct_opt() {
-            move_object.struct_tag().is_gas_coin()
         } else {
             false
         }
@@ -595,14 +499,6 @@ impl ObjectInner {
     pub fn as_timelock_balance_maybe(&self) -> Option<TimeLock<Balance>> {
         if let Some(move_object) = self.data.as_struct_opt() {
             Some(TimeLock::from_bcs_bytes(move_object.contents()).ok()?)
-        } else {
-            None
-        }
-    }
-
-    pub fn coin_type_opt(&self) -> Option<&TypeTag> {
-        if let Some(move_object) = self.data.as_struct_opt() {
-            move_object.struct_tag().coin_type_opt()
         } else {
             None
         }
@@ -630,11 +526,6 @@ impl ObjectInner {
             Data::Package(p) => p.size(),
         };
         meta_data_size + data_size
-    }
-
-    /// Change the owner of `self` to `new_owner`.
-    pub fn transfer(&mut self, new_owner: IotaAddress) {
-        self.owner = Owner::Address(new_owner);
     }
 
     /// Get a `MoveStructLayout` for `self`.
@@ -668,13 +559,6 @@ impl ObjectInner {
         // Index access safe due to checks above.
         let type_tag = move_struct.type_params()[0].clone();
         Ok(type_tag)
-    }
-
-    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Result<T, bcs::Error> {
-        self.data
-            .as_struct_opt()
-            .ok_or_else(|| bcs::Error::Custom("Object is not a struct".to_string()))?
-            .to_rust()
     }
 }
 
@@ -1033,7 +917,7 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
-        let objref = o.compute_object_reference();
+        let objref = o.object_ref();
 
         assert_eq!(objref.object_id, ObjectId::ZERO);
         assert_eq!(objref.version, 1);

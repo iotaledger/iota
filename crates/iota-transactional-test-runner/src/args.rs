@@ -543,7 +543,7 @@ impl IotaValue {
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
-        Ok(CallArg::Receiving(obj.compute_object_reference()))
+        Ok(CallArg::Receiving(obj.object_ref()))
     }
 
     fn read_shared_arg(
@@ -578,7 +578,7 @@ impl IotaValue {
                 true,
             ))),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
-                let obj_ref = obj.compute_object_reference();
+                let obj_ref = obj.object_ref();
                 Ok(CallArg::ImmutableOrOwned(obj_ref))
             }
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),

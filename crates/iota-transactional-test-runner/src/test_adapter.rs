@@ -33,7 +33,8 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Argument, Command, ExecutionStatus, Identifier, ObjectId, TypeTag, move_package::MovePackage,
+    Argument, Command, ExecutionStatus, Identifier, ObjectId, TransactionKind, TypeTag,
+    gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -46,7 +47,6 @@ use iota_types::{
     digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
-    gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
@@ -59,7 +59,7 @@ use iota_types::{
     storage::{ObjectStore, ReadStore},
     transaction::{
         CallArg, ProgrammableTransaction, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind, VerifiedTransaction,
+        VerifiedTransaction,
     },
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
@@ -1687,11 +1687,7 @@ impl IotaTestAdapter {
 
         payments
             .into_iter()
-            .map(|payment| {
-                self.get_object(&payment, None)
-                    .unwrap()
-                    .compute_object_reference()
-            })
+            .map(|payment| self.get_object(&payment, None).unwrap().object_ref())
             .collect()
     }
 
@@ -2283,9 +2279,7 @@ impl IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                object
-                    .as_coin_maybe()
-                    .map(|_| object.compute_object_reference())
+                object.as_coin_maybe().map(|_| object.object_ref())
             })
             .expect("Abstract account creation must have a gas coin");
 

@@ -5,13 +5,13 @@
 use std::mem;
 
 use fastcrypto::traits::Signer;
+use iota_sdk_types::gas::GasCostSummary;
 
 use crate::{
     base_types::{AuthorityName, VerifiedExecutionData},
     committee::Committee,
     crypto::{AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature},
     effects::{TransactionEffects, TransactionEffectsAPI},
-    gas::GasCostSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
         CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,

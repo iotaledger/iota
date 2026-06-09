@@ -177,7 +177,7 @@ impl StoredHistoryObject {
         }
 
         let object: Object = self.try_into()?;
-        let object_ref = object.compute_object_reference();
+        let object_ref = object.object_ref();
 
         let Some(move_object) = object.data.as_struct_opt().cloned() else {
             return Ok(PastObjectRead::VersionFound(object_ref, object, None));
