@@ -196,7 +196,39 @@ impl Env {
             } else {
                 None
             };
-            vec![Arc::new(
+            // Build N proxies (one per worker when `PROXIES_PER_PROC` is set)
+            // so each spammer worker gets its own gRPC channel and HTTP/2
+            // frame writer. With 1 proxy (default) all workers share one
+            // connection — the per-connection writer serializes their
+            // requests. With N proxies workers dispatch in parallel via
+            // independent connections, tightening the synchronized burst
+            // arrival at the validator gate.
+            //
+            // Cost: ~few MB / proxy (AuthorityAggregator state + TLS
+            // contexts), plus extra TLS handshakes at setup.
+            let proxies_per_proc: usize = std::env::var("PROXIES_PER_PROC")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .filter(|&n: &usize| n > 0)
+                .unwrap_or(1);
+            if proxies_per_proc > 1 {
+                info!(
+                    "Building {} proxies (PROXIES_PER_PROC={}) — one independent gRPC channel per worker",
+                    proxies_per_proc, proxies_per_proc
+                );
+            }
+            let mut proxies_vec: Vec<Arc<dyn ValidatorProxy + Send + Sync>> =
+                Vec::with_capacity(proxies_per_proc);
+            // First proxy uses the shared registry so its metrics show up
+            // in the process's prometheus endpoint. Subsequent proxies use
+            // fresh per-proxy registries — `register_*_with_registry!` would
+            // otherwise panic with `AlreadyReg` since they all register the
+            // same metric names. The extra registries' metrics aren't
+            // exposed externally, but we only need validator-side metrics
+            // for the load-shedding experiment, not spammer-internals.
+            let owned_registries: Vec<Registry> =
+                (1..proxies_per_proc).map(|_| Registry::new()).collect();
+            proxies_vec.push(Arc::new(
                 LocalValidatorAggregatorProxy::from_genesis(
                     genesis,
                     registry,
@@ -204,7 +236,19 @@ impl Env {
                     num_validators_to_target,
                 )
                 .await,
-            )]
+            ));
+            for reg in &owned_registries {
+                proxies_vec.push(Arc::new(
+                    LocalValidatorAggregatorProxy::from_genesis(
+                        genesis,
+                        reg,
+                        reconfig_fullnode_rpc_url.map(|x| &**x),
+                        num_validators_to_target,
+                    )
+                    .await,
+                ));
+            }
+            proxies_vec
         };
         let proxy = proxies
             .choose(&mut rand::thread_rng())

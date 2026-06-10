@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use async_trait::async_trait;
 use futures::{
     FutureExt, StreamExt,
@@ -34,7 +34,6 @@ use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_with_registry,
 };
-use rand::seq::SliceRandom;
 use sysinfo::System;
 use tokio::{
     sync::{
@@ -384,7 +383,7 @@ impl BenchDriver {
         &self,
         id: &mut u64,
         workload_info: &WorkloadInfo,
-        proxy: Arc<dyn ValidatorProxy + Sync + Send>,
+        proxies: &[Arc<dyn ValidatorProxy + Sync + Send>],
         system_state_observer: Arc<SystemStateObserver>,
     ) -> Vec<BenchWorker> {
         let mut workers = vec![];
@@ -392,9 +391,20 @@ impl BenchDriver {
         if qps == 0 {
             return vec![];
         }
+        // Per-worker gRPC channel: when `proxies` contains > 1 element, each
+        // worker gets its OWN `Arc<dyn ValidatorProxy>` (round-robin assigned
+        // by worker id below). This gives each worker an independent TCP
+        // connection and HTTP/2 frame-writer to the validator, eliminating
+        // per-connection serialization that bottlenecks the synchronized-
+        // burst dispatch across all workers in a proc. With 1 element it
+        // falls back to the original shared-proxy behavior.
+        let setup_proxy = proxies
+            .first()
+            .expect("at least one proxy required")
+            .clone();
         let mut payloads = workload_info
             .workload
-            .make_test_payloads(proxy.clone(), system_state_observer.clone())
+            .make_test_payloads(setup_proxy, system_state_observer.clone())
             .await;
         // Compute a SHARED first barrier deadline ONCE before the worker
         // creation loop, so every worker in this driver run fires its first
@@ -428,11 +438,16 @@ impl BenchDriver {
             if target_qps > 0 {
                 let chunk_size = payloads.len() / total_workers as usize;
                 let remaining = payloads.split_off(chunk_size);
+                // Round-robin assign one proxy from the pool to this
+                // worker. With 1-element pool, all workers share the same
+                // proxy (legacy behavior); with N-element pool, each worker
+                // gets its own independent gRPC channel.
+                let worker_proxy = proxies[(*id as usize) % proxies.len()].clone();
                 workers.push(BenchWorker {
                     id: *id,
                     target_qps,
                     payload: payloads,
-                    proxy: proxy.clone(),
+                    proxy: worker_proxy,
                     group: workload_info.workload_params.group,
                     duration: workload_info.workload_params.duration,
                     burst_size: self.burst_size,
@@ -493,14 +508,14 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
             let mut workers = vec![];
 
             for workload in workloads {
-                let proxy = proxies
-                    .choose(&mut rand::thread_rng())
-                    .context("Failed to get proxy for bench driver")?;
+                // Pass the full proxies pool — `make_workers` will assign
+                // one per worker (round-robin) so each worker gets its own
+                // gRPC channel when the pool has > 1 element.
                 workers.extend(
                     self.make_workers(
                         &mut worker_id,
                         workload,
-                        proxy.clone(),
+                        &proxies,
                         system_state_observer.clone(),
                     )
                     .await,
@@ -1128,14 +1143,9 @@ async fn run_bench_worker(
     // Cache per-worker metric handles. All payloads from a worker share the
     // same workload type (and thus the same Display label), so resolving
     // `metrics.<name>.with_label_values(&[&payload.to_string()])` once at
-    // setup and reusing the resulting `Gauge` / `IntCounter` handle eliminates
-    // ~500ns of HashMap lookup AND a String allocation per dispatch. Across
-    // BURST × num_barriers dispatches per iter × 384 workers, this saves
-    // hundreds of ms of cumulative CPU work — keeping the fire loop in the
-    // microseconds range where the synchronized-burst race window can fire.
+    // setup and reusing the resulting `Gauge` / `IntCounter` handle skips
+    // a HashMap lookup AND a String allocation per dispatch.
     let (worker_inflight_gauge, worker_submitted_counter): (Gauge, IntCounter) = {
-        // Use the first payload's label if present; otherwise an empty
-        // string (no dispatches will happen with an empty pool anyway).
         let label = free_pool.front().map(|p| p.to_string()).unwrap_or_default();
         (
             metrics_cloned.num_in_flight.with_label_values(&[&label]),
@@ -1369,8 +1379,6 @@ async fn run_bench_worker(
                         let (payload, tx) = prebuilt_batch.pop().unwrap();
                         num_in_flight += 1;
                         num_submitted += 1;
-                        // Use cached per-worker metric handles — see comment
-                        // at `worker_inflight_gauge` declaration.
                         worker_inflight_gauge.inc();
                         worker_submitted_counter.inc();
                         let start = Arc::new(Instant::now());
