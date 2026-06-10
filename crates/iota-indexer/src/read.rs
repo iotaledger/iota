@@ -1239,58 +1239,49 @@ impl IndexerReader {
             .query_transactions_by_affected_addresses(address, cursor, limit, is_descending)
             .await;
 
-        let stored_txs = match (db_res, self.fallback_reader()) {
-            // top-up: a short DESC page during active pruning indicates we've crossed
-            // the watermark. Fetch the remaining pre-watermark rows from KV.
-            (Ok(mut rows), Some(kv_reader))
-                if is_descending && rows.len() < limit && watermark > 0 =>
-            {
-                // determine the KV cursor: use the last DB row to continue pagination,
-                // or fall back to the original cursor if the DB returned no results.
-                // Avoids restarting KV from the top of history (which would re-fetch
-                // rows the user already saw).
-                let kv_cursor = rows
-                    .last()
-                    .map(|tx| -> IndexerResult<TransactionDigest> {
-                        let digest = TransactionDigest::from_bytes(&tx.transaction_digest)
-                            .map_err(|e| {
-                                IndexerError::PersistentStorageDataCorruption(format!(
-                                    "failed to decode transaction digest: {:?} with err: {e:?}",
-                                    tx.transaction_digest
-                                ))
-                            })?;
-                        kv_reader
-                            .cursor_cache
-                            .insert(digest, tx.tx_sequence_number as u64);
-                        Ok(digest)
-                    })
-                    .transpose()?
-                    .or(cursor);
-
-                let remaining = limit - rows.len();
-                let kv_rows = kv_reader
-                    .transactions_by_address(address, kv_cursor, remaining, !is_descending)
-                    .await?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<StoredTransaction>>();
-
-                rows.extend(kv_rows);
-                Ok(rows)
-            }
-
-            (Err(IndexerError::DataPruned(_)), Some(kv_reader)) => Ok(kv_reader
-                .transactions_by_address(address, cursor, limit, !is_descending)
-                .await?
-                .into_iter()
-                .flatten()
-                .collect()),
-
-            (Ok(rows), _) => Ok(rows),
-            (Err(e), _) => Err(e),
+        let Some(kv_reader) = self.fallback_reader() else {
+            return self
+                .stored_transaction_to_transaction_block(db_res?, options)
+                .await;
         };
 
-        self.stored_transaction_to_transaction_block(stored_txs?, options)
+        let (mut rows, id_db_pruned) = match db_res {
+            Err(IndexerError::DataPruned(_)) => (vec![], true),
+            res => (res?, false),
+        };
+
+        // Fill from KV: either the whole page (`id_db_pruned`) or a top-up when
+        // a short DESC page during active pruning indicates we've crossed the
+        // watermark.
+        if id_db_pruned || (is_descending && rows.len() < limit && watermark > 0) {
+            // Continue pagination from the last DB row, or from the original
+            // cursor if the DB returned nothing. Avoids restarting KV from the
+            // top of history and re-fetching rows the user already saw.
+            let kv_cursor = if let Some(tx) = rows.last() {
+                let digest =
+                    TransactionDigest::from_bytes(&tx.transaction_digest).map_err(|e| {
+                        IndexerError::PersistentStorageDataCorruption(format!(
+                            "failed to decode transaction digest: {:?} with err: {e:?}",
+                            tx.transaction_digest
+                        ))
+                    })?;
+                kv_reader
+                    .cursor_cache
+                    .insert(digest, tx.tx_sequence_number as u64);
+                Some(digest)
+            } else {
+                cursor
+            };
+
+            let kv_rows = kv_reader
+                .transactions_by_address(address, kv_cursor, limit - rows.len(), !is_descending)
+                .await?
+                .into_iter()
+                .flatten();
+            rows.extend(kv_rows);
+        }
+
+        self.stored_transaction_to_transaction_block(rows, options)
             .await
     }
 
