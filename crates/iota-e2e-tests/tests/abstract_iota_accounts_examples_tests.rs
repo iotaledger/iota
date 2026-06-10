@@ -11,9 +11,12 @@
 //! observed outcomes are compared against the matrix in
 //! [`expected_outcome`].
 //!
-//! The single entry point
-//! [`test_abstract_iota_accounts_examples_across_all_max_auth_gas_budgets`]
-//! exercises every variant of [`MaxAuthGas`] (full sweep).
+//! Two test entry points are exposed:
+//! - [`test_abstract_iota_accounts_examples_across_all_max_auth_gas_budgets`]
+//!   exercises every variant of [`MaxAuthGas`] (full sweep).
+//! - [`test_abstract_iota_accounts_examples_across_network_max_auth_gas_budgets`]
+//!   exercises only the fixed budgets that match the `max_auth_gas` values
+//!   currently configured for live IOTA networks ([`MaxAuthGas::NETWORKS`]).
 //!
 //! The dials a developer typically wants to tweak live near the top of the
 //! file under "Tunable test parameters": the [`MaxAuthGas`] enum, the
@@ -78,7 +81,8 @@ enum MaxAuthGas {
 }
 
 impl MaxAuthGas {
-    /// Budgets currently used our live networks.
+    /// Fixed budgets matching the `max_auth_gas` values currently configured
+    /// for live IOTA networks.
     const NETWORKS: &'static [MaxAuthGas] = &[MaxAuthGas::G20k, MaxAuthGas::G250k];
 
     /// Every fixed numeric budget the test sweeps over.
@@ -203,7 +207,7 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
         // ~140-byte message (tx digest + sender auth digest + bcs of the
         // sender's authenticator function info) and runs ed25519_verify over
         // it — the vector-append + bcs::to_bytes + per-byte verify cost
-        // doesn't fit the two tightest budgets under simtest.
+        // doesn't fit the tightest budget under simtest.
         "sponsorship_ed25519" => {
             if simtest && matches!(budget, G10k) {
                 Fail
@@ -212,19 +216,13 @@ fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
             }
         }
 
-        // Policy-driven gas sponsor. The sponsor's authenticator pairs a
-        // small PTB scan with `type_name::get<WhitelistSponsorshipAccount>()`
-        // and `ascii::string(...)` constants — those natives dominate the
-        // budget. Under simtest the combined cost (upstream whitelist /
-        // allowance checks + the per-command name comparisons + the rest of
-        // the scan) overruns the two tightest budgets.
-        // The authenticator reads `expected_package_addr` from the account's
-        // cached `package_addr` field (set once at `create` time via
-        // `type_name::get`) and compares the module/function names against
-        // byte constants, so the per-call PTB scan never calls
-        // `type_name::get` or `address::from_ascii_bytes`. That keeps the
-        // hot path cheap enough to fit at G20k under simtest — only G10k
-        // is still too tight.
+        // Policy-driven gas sponsor. The sponsor's authenticator reads
+        // `expected_package_addr` from the account's cached `package_addr`
+        // field (set once at `create` time via `type_name::get`) and compares
+        // the module/function names against byte constants, so the per-call
+        // PTB scan never calls `type_name::get` or `address::from_ascii_bytes`.
+        // Even so, the PTB scan plus the upstream whitelist / allowance checks
+        // overrun the tightest budget under simtest — only G10k is too tight.
         "whitelist_sponsorship" => {
             if simtest && matches!(budget, G10k) {
                 Fail
@@ -1274,7 +1272,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
     // example). We therefore keep using the original `account_ref` even
     // though `link_auth` bumped the object's current version.
 
-    // Build a trivial PTB sent FROM the AA and authenticate it with the six
+    // Build a trivial PTB sent FROM the AA and authenticate it with the five
     // magic auth-call-args plus the shared Clock.
     let aa_sender: IotaAddress = account_ref.object_id.into();
     let rgp = env.test_cluster.get_reference_gas_price().await;
@@ -1520,8 +1518,9 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
     }
 
     // 4. Build the sponsored PTB: a trivial sender action + the required
-    //    `deduct_user_gas_allowance(sponsor, sender, gas_budget)` move call so the
-    //    sponsor authenticator's PTB scan finds and accepts it.
+    //    `deduct_user_gas_allowance(sponsor)` move call (it reads the sender and
+    //    gas budget from the `TxContext`) so the sponsor authenticator's PTB scan
+    //    finds and accepts it.
     let sponsor_gas = env
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
@@ -2280,7 +2279,6 @@ fn simple_sender_clock_ptb() -> ProgrammableTransaction {
     b.finish()
 }
 
-/// Build a `MoveAuthenticator` v1 from extra args and the account ref.
 /// Rust mirror of `onesig::merkle::build_merkle_tree_with_proofs` — a
 /// sorted-pair keccak Merkle tree. Each leaf is `keccak256(leaf_bytes)`,
 /// internal nodes are `keccak256(min(l,r) || max(l,r))`, and odd unpaired
@@ -2346,6 +2344,7 @@ fn build_sorted_keccak_merkle_tree(leaves: &[Vec<u8>]) -> (Vec<u8>, Vec<Vec<Vec<
     (current_level.remove(0), proofs)
 }
 
+/// Build a `MoveAuthenticator` v1 from extra args and the account ref.
 fn make_move_authenticator(
     account_ref: ObjectRef,
     extra_args: Vec<CallArg>,
