@@ -3375,6 +3375,9 @@ impl AuthorityPerEpochStore {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
+            // In the white-flag flow, randomness transactions are separated
+            // later in the flow to preserve ordering in conflict resolution, so
+            // should be included with the regular transactions here.
             } else if !enable_white_flag && tx.0.is_user_tx_with_randomness() {
                 // Only user-originated transactions are eligible for load shedding
                 if drop_percentage > 0 {
