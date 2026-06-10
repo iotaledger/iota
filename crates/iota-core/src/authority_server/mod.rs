@@ -313,14 +313,25 @@ fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
 pub(super) fn normalize(err: &IotaError) -> Weight {
     match err {
         IotaError::UserInput {
-            error: UserInputError::IncorrectUserSignature { .. },
+            error:
+                UserInputError::IncorrectUserSignature { .. }
+                | UserInputError::MoveAuthenticatorNotFound { .. }
+                | UserInputError::UnableToGetMoveAuthenticatorId { .. }
+                | UserInputError::InvalidAuthenticatorFunctionRefField { .. }
+                | UserInputError::PackageIsInMoveAuthenticatorInput { .. }
+                | UserInputError::AddressOwnedIsInMoveAuthenticatorInput { .. }
+                | UserInputError::ObjectOwnedIsInMoveAuthenticatorInput { .. }
+                | UserInputError::MutableSharedIsInMoveAuthenticatorInput { .. },
         } => Weight::one(),
         IotaError::InvalidSignature { .. }
         | IotaError::SignerSignatureAbsent { .. }
         | IotaError::SignerSignatureNumberMismatch { .. }
         | IotaError::IncorrectSigner { .. }
         | IotaError::UnknownSigner { .. }
-        | IotaError::WrongEpoch { .. } => Weight::one(),
+        | IotaError::WrongEpoch { .. }
+        | IotaError::MoveAuthenticatorExecutionFailure { .. }
+        | IotaError::InvalidMoveAuthenticatorDigest
+        | IotaError::InvalidAuthenticator => Weight::one(),
         _ => Weight::zero(),
     }
 }
