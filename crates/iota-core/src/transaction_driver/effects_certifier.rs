@@ -993,7 +993,9 @@ impl EffectsCertifier {
 
 /// Verifies that the full effects content received from a validator is
 /// consistent with the quorum-certified effects digest: the effects must hash
-/// to the certified digest. Returns a description of the mismatch on failure.
+/// to the certified digest, and the events must match the events digest
+/// declared in the (now trusted) effects. Returns a description of the
+/// mismatch on failure.
 fn verify_executed_data(
     executed_data: &ExecutedData,
     certified_digest: TransactionEffectsDigest,
@@ -1004,7 +1006,20 @@ fn verify_executed_data(
             "effects hash to {actual_effects_digest} instead of the certified digest"
         ));
     }
-    Ok(())
+    match (executed_data.effects.events_digest(), &executed_data.events) {
+        (None, None) => Ok(()),
+        (Some(events_digest), Some(events)) => {
+            let actual_events_digest = events.digest();
+            if actual_events_digest != *events_digest {
+                return Err(format!(
+                    "events hash to {actual_events_digest} instead of {events_digest} declared in effects"
+                ));
+            }
+            Ok(())
+        }
+        (None, Some(_)) => Err("events returned but effects declare no events".to_string()),
+        (Some(_), None) => Err("effects declare events but none were returned".to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -1015,6 +1030,7 @@ mod tests {
     use iota_types::{
         committee::Committee,
         digests::TransactionDigest,
+        effects::TransactionEvents,
         error::{IotaError, UserInputError},
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
@@ -1456,6 +1472,31 @@ mod tests {
         assert!(
             result.is_err(),
             "certifier accepted full effects whose content does not hash to the certified digest"
+        );
+        assert!(
+            metrics.effects_digest_mismatches.get() >= 1,
+            "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_events_inconsistent_with_effects() {
+        let mut executed_data = ExecutedData::default();
+        // The empty test effects declare no events digest, so returning any
+        // events object is inconsistent with the certified effects.
+        assert!(executed_data.effects.events_digest().is_none());
+        executed_data.events = Some(TransactionEvents(vec![]));
+        let certified_digest = executed_data.effects.digest();
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "certifier accepted events inconsistent with the certified effects"
         );
         assert!(
             metrics.effects_digest_mismatches.get() >= 1,
