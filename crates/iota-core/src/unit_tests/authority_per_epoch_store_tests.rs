@@ -33,6 +33,10 @@ fn flush_overload_notification(
     let mut batch: DBBatch = store.db_batch_for_test();
     output.write_to_batch(store, &mut batch).unwrap();
     batch.write().unwrap();
+    // The commit flush loop updates the in-memory cache in lockstep with the
+    // table write; this helper writes the table directly, so update the cache
+    // explicitly to keep the two consistent.
+    store.apply_overload_notification_to_cache_for_test(authority, percentage);
 }
 
 #[tokio::test]

@@ -1196,6 +1196,15 @@ impl AuthorityPerEpochStore {
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
+        // Seed the quarantine's in-memory overload-notification cache from the
+        // persisted table. This is the only point we iterate the table; all
+        // subsequent reads are served from memory.
+        let cached_overload_notifications: HashMap<AuthorityName, u8> = tables
+            .authority_overload_notifications
+            .safe_iter()
+            .collect::<Result<HashMap<AuthorityName, u8>, _>>()
+            .expect("AuthorityEpochTables should contain valid overload notifications");
+
         let committee_size = committee.num_members();
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
@@ -1224,6 +1233,7 @@ impl AuthorityPerEpochStore {
             consensus_output_cache,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
+                cached_overload_notifications,
                 metrics.clone(),
             )),
             parent_path: parent_path.to_path_buf(),
@@ -2842,23 +2852,16 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Loads the current overload notifications keyed by authority. Reads the
-    /// persisted `authority_overload_notifications` DBMap, then overlays every
-    /// queued (processed-but-not-yet-flushed) `ConsensusCommitOutput`'s
-    /// notifications on top. Without the overlay, the read would lag behind
-    /// the logical state by however many commits are sitting in
-    /// `ConsensusOutputQuarantine::output_queue` waiting for the checkpoint
-    /// builder to catch up.
+    /// Loads the current overload notifications keyed by authority. Served from
+    /// the consensus quarantine's in-memory cache of the persisted
+    /// `authority_overload_notifications` table, with every queued
+    /// (processed-but-not-yet-flushed) `ConsensusCommitOutput`'s notifications
+    /// overlaid on top.
     pub(crate) fn load_overload_notifications(&self) -> IotaResult<HashMap<AuthorityName, u8>> {
-        let mut notifications: HashMap<AuthorityName, u8> = self
-            .tables()?
-            .authority_overload_notifications
-            .safe_iter()
-            .collect::<Result<HashMap<AuthorityName, u8>, _>>()?;
-        self.consensus_quarantine
+        Ok(self
+            .consensus_quarantine
             .read()
-            .overlay_queued_overload_notifications(&mut notifications);
-        Ok(notifications)
+            .current_overload_notifications())
     }
 
     /// Returns the load shedding percentage `authority` last broadcasted or 0
@@ -2971,6 +2974,21 @@ impl AuthorityPerEpochStore {
             .write()
             .push_consensus_output(output, self)
             .expect("push_consensus_output should not fail");
+    }
+
+    /// Advances the quarantine's in-memory overload-notification cache, as the
+    /// commit flush loop does for a real commit. Tests that write the
+    /// `authority_overload_notifications` table directly (bypassing the flush
+    /// loop) must call this to keep the cache consistent with the table.
+    #[cfg(test)]
+    pub(crate) fn apply_overload_notification_to_cache_for_test(
+        &self,
+        authority: AuthorityName,
+        percentage: u8,
+    ) {
+        self.consensus_quarantine
+            .write()
+            .apply_cached_overload_notification_for_test(authority, percentage);
     }
 
     fn process_user_signatures<'a>(
@@ -3329,11 +3347,7 @@ impl AuthorityPerEpochStore {
                 for tx in &verified_transactions {
                     if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
                         kind:
-                            ConsensusTransactionKind::OverloadNotificationV1(
-                                authority,
-                                _,
-                                percentage,
-                            ),
+                            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
                         ..
                     }) = &tx.0.transaction
                     {

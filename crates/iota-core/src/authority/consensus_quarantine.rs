@@ -567,12 +567,23 @@ pub(crate) struct ConsensusOutputQuarantine {
     // White flag owned object locks (aggregate across all quarantined commits)
     owned_object_locks: HashMap<ObjectRef, LockDetails>,
 
+    // In-memory cache of the `authority_overload_notifications` table: the most
+    // recent load-shedding percentage each authority has broadcast, for the
+    // commits that have already been flushed to disk. Loaded once from the
+    // table when the epoch store is constructed and updated as commits are
+    // flushed, so the per-commit read path never has to iterate RocksDB. The
+    // disk table only exists for persistence across restarts. Notifications
+    // from commits still in `output_queue` are layered on top by
+    // `current_overload_notifications`.
+    cached_overload_notifications: HashMap<AuthorityName, u8>,
+
     metrics: Arc<EpochMetrics>,
 }
 
 impl ConsensusOutputQuarantine {
     pub(super) fn new(
         highest_executed_checkpoint: CheckpointSequenceNumber,
+        cached_overload_notifications: HashMap<AuthorityName, u8>,
         authority_metrics: Arc<EpochMetrics>,
     ) -> Self {
         Self {
@@ -586,6 +597,7 @@ impl ConsensusOutputQuarantine {
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
             owned_object_locks: HashMap::new(),
+            cached_overload_notifications,
             metrics: authority_metrics,
         }
     }
@@ -742,6 +754,11 @@ impl ConsensusOutputQuarantine {
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
                 self.remove_owned_object_locks(&output);
+                // Advance the in-memory cache in lockstep with the table write
+                // below, so it stays equal to the persisted state once this
+                // commit leaves the queue.
+                self.cached_overload_notifications
+                    .extend(&output.overload_notifications);
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
@@ -939,21 +956,30 @@ impl ConsensusOutputQuarantine {
             .any(|output| output.pending_checkpoint_exists(index))
     }
 
-    /// Overlay every queued (processed-but-not-yet-flushed) commit's overload
-    /// notifications onto the provided map, in commit (queue) order. Later
-    /// commits overwrite earlier ones, matching the "most recent wins"
-    /// semantics of the persisted `authority_overload_notifications` table.
-    /// Used by `load_overload_notifications` to make reads reflect the logical
-    /// state across the disk/queue split, not just the lagging persisted half.
-    pub(super) fn overlay_queued_overload_notifications(
-        &self,
-        notifications: &mut HashMap<AuthorityName, u8>,
-    ) {
+    /// Returns the current overload notifications keyed by authority: the
+    /// in-memory cache of the persisted table with every queued
+    /// (processed-but-not-yet-flushed) commit's notifications layered on top,
+    /// in commit (queue) order. Later commits overwrite earlier ones. This
+    /// reflects the logical state across the disk/queue split without
+    /// iterating the persisted state.
+    pub(super) fn current_overload_notifications(&self) -> HashMap<AuthorityName, u8> {
+        let mut notifications = self.cached_overload_notifications.clone();
         for output in &self.output_queue {
             for (authority, percentage) in &output.overload_notifications {
                 notifications.insert(*authority, *percentage);
             }
         }
+        notifications
+    }
+
+    #[cfg(test)]
+    pub(super) fn apply_cached_overload_notification_for_test(
+        &mut self,
+        authority: AuthorityName,
+        percentage: u8,
+    ) {
+        self.cached_overload_notifications
+            .insert(authority, percentage);
     }
 
     pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
