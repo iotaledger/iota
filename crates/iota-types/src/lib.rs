@@ -9,9 +9,14 @@
     rust_2021_compatibility
 )]
 
-use base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag};
+use base_types::{IotaAddress, SequenceNumber};
+#[cfg(not(target_arch = "wasm32"))]
 pub use iota_network_stack::multiaddr;
+#[cfg(target_arch = "wasm32")]
+#[path = "wasm_multiaddr.rs"]
+pub mod multiaddr;
 pub use iota_sdk_types as sdk_types;
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
@@ -51,7 +56,6 @@ pub mod event;
 pub mod executable_transaction;
 pub mod execution;
 pub mod execution_config_utils;
-pub mod execution_status;
 pub mod full_checkpoint_content;
 pub mod gas;
 pub mod gas_coin;
@@ -67,7 +71,11 @@ pub mod iota_system_state;
 pub mod layout_resolver;
 pub mod message_envelope;
 pub mod messages_checkpoint;
+// Consensus message types (and the gRPC API types that carry them) are
+// node-only and pull in fastcrypto-tbls / tonic, which don't build on wasm32.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod messages_consensus;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod messages_grpc;
 pub mod messages_safe_client;
 pub mod metrics;
@@ -102,7 +110,7 @@ macro_rules! built_in_ids {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         $(
             pub const $addr: AccountAddress = builtin_address($init);
-            pub const $id: ObjectID = ObjectID::new($addr.into_bytes());
+            pub const $id: ObjectId = ObjectId::new($addr.into_bytes());
         )*
     }
 }
@@ -242,7 +250,7 @@ impl MoveTypeTagTrait for u64 {
     }
 }
 
-impl MoveTypeTagTrait for ObjectID {
+impl MoveTypeTagTrait for ObjectId {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }

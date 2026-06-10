@@ -4,13 +4,12 @@
 
 use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
+use iota_sdk_types::{Command, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointTransaction,
-    object::Owner,
-    transaction::{Command, TransactionDataAPI},
+    transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +80,7 @@ pub enum CommandFilter {
     /// Match a MoveCall command.
     /// Package is required; module and function are optional.
     MoveCall {
-        package: ObjectID,
+        package: ObjectId,
         module: Option<String>,
         function: Option<String>,
     },
@@ -97,7 +96,7 @@ pub enum CommandFilter {
     MakeMoveVec,
     /// Match an Upgrade command.
     /// Optionally filter by the specific package being upgraded.
-    Upgrade { package: Option<ObjectID> },
+    Upgrade { package: Option<ObjectId> },
 }
 
 impl CommandFilter {
@@ -143,7 +142,7 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                     .package_id
                     .ok_or("package_id is missing")?
                     .object_id;
-                let package = ObjectID::from_bytes(&package_bytes)
+                let package = ObjectId::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {e}"))?;
                 Ok(CommandFilter::MoveCall {
                     package,
@@ -160,7 +159,7 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                 let package = upgrade_filter
                     .package_id
                     .map(|addr| {
-                        ObjectID::from_bytes(&addr.object_id)
+                        ObjectId::from_bytes(&addr.object_id)
                             .map_err(|e| format!("invalid package_id: {e}"))
                     })
                     .transpose()?;
@@ -219,7 +218,7 @@ pub enum TransactionFilter {
     Receiver(IotaAddress),
 
     /// Filter for transactions that touch this object.
-    AffectedObject(ObjectID),
+    AffectedObject(ObjectId),
 
     /// Filter by command type with optional criteria.
     Command(CommandFilter),
@@ -295,7 +294,7 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
             }
             ProtoFilter::AffectedObject(obj_filter) => {
                 let object_ref = obj_filter.object_ref.ok_or("object_ref is missing")?;
-                let object_id: ObjectID = object_ref
+                let object_id: ObjectId = object_ref
                     .object_id
                     .as_ref()
                     .ok_or("object_id is missing")?
@@ -372,11 +371,10 @@ impl TransactionFilter {
                 _ => false,
             },
 
-            TransactionFilter::Events(event_filter) => item.events.as_ref().is_some_and(|evts| {
-                evts.data
-                    .iter()
-                    .any(|event| event_filter.matches_event(event))
-            }),
+            TransactionFilter::Events(event_filter) => item
+                .events
+                .as_ref()
+                .is_some_and(|evts| evts.iter().any(|event| event_filter.matches_event(event))),
 
             TransactionFilter::ExecutionStatus(status_filter) => {
                 status_filter.matches_status(item.effects.status())
@@ -480,10 +478,7 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::{
-        base_types::{Identifier, ObjectID},
-        transaction::{Argument, Command},
-    };
+    use iota_sdk_types::{Argument, Command, Identifier};
 
     use super::*;
 
@@ -498,9 +493,9 @@ mod tests {
         let nested_filter = TransactionFilter::All(vec![
             TransactionFilter::Sender(IotaAddress::random()),
             TransactionFilter::Any(vec![
-                TransactionFilter::AffectedObject(ObjectID::random()),
+                TransactionFilter::AffectedObject(ObjectId::random()),
                 TransactionFilter::Not(Box::new(TransactionFilter::AffectedObject(
-                    ObjectID::random(),
+                    ObjectId::random(),
                 ))),
             ]),
         ]);
@@ -528,7 +523,7 @@ mod tests {
             TransactionFilter::Sender(IotaAddress::random()),
             TransactionFilter::Any(vec![
                 TransactionFilter::Receiver(IotaAddress::random()),
-                TransactionFilter::AffectedObject(ObjectID::random()),
+                TransactionFilter::AffectedObject(ObjectId::random()),
             ]),
         ]);
         assert!(complex_filter.validate_complexity().is_ok());
@@ -571,7 +566,7 @@ mod tests {
             ]),
             TransactionFilter::Not(Box::new(TransactionFilter::All(vec![
                 TransactionFilter::Sender(IotaAddress::random()),
-                TransactionFilter::AffectedObject(ObjectID::random()),
+                TransactionFilter::AffectedObject(ObjectId::random()),
             ]))),
         ]);
 
@@ -581,7 +576,7 @@ mod tests {
 
     // --- CommandFilter matching tests ---
 
-    fn make_move_call_cmd(package: ObjectID, module: &str, function: &str) -> Command {
+    fn make_move_call_cmd(package: ObjectId, module: &str, function: &str) -> Command {
         Command::new_move_call(
             package,
             Identifier::new_unchecked(module),
@@ -593,7 +588,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_move_call_exact() {
-        let pkg = ObjectID::random();
+        let pkg = ObjectId::random();
         let commands = vec![make_move_call_cmd(pkg, "my_module", "my_func")];
 
         // Exact match
@@ -622,7 +617,7 @@ mod tests {
 
         // Wrong package
         let filter = CommandFilter::MoveCall {
-            package: ObjectID::random(),
+            package: ObjectId::random(),
             module: None,
             function: None,
         };
@@ -631,7 +626,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_move_call_optional_fields() {
-        let pkg = ObjectID::random();
+        let pkg = ObjectId::random();
         let commands = vec![make_move_call_cmd(pkg, "my_module", "my_func")];
 
         // Package only — matches any module/function
@@ -705,7 +700,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_upgrade_any() {
-        let pkg = ObjectID::random();
+        let pkg = ObjectId::random();
         let commands = vec![Command::new_upgrade(
             vec![vec![1, 2, 3]],
             vec![],
@@ -720,8 +715,8 @@ mod tests {
 
     #[test]
     fn test_command_filter_upgrade_specific_package() {
-        let pkg = ObjectID::random();
-        let other_pkg = ObjectID::random();
+        let pkg = ObjectId::random();
+        let other_pkg = ObjectId::random();
         let commands = vec![Command::new_upgrade(
             vec![vec![1, 2, 3]],
             vec![],
@@ -748,7 +743,7 @@ mod tests {
         assert!(!CommandFilter::TransferObjects.matches_commands(&commands));
         assert!(
             !CommandFilter::MoveCall {
-                package: ObjectID::random(),
+                package: ObjectId::random(),
                 module: None,
                 function: None,
             }
@@ -758,7 +753,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_multiple_commands() {
-        let pkg = ObjectID::random();
+        let pkg = ObjectId::random();
         let commands = vec![
             Command::new_split_coins(Argument::Input(0), vec![Argument::Input(1)]),
             make_move_call_cmd(pkg, "m", "f"),
@@ -824,7 +819,7 @@ mod tests {
 
         assert!(filter.matches_status(&ExecutionStatus::Success));
         assert!(!filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::InsufficientGas,
+            error: iota_sdk_types::ExecutionError::InsufficientGas,
             command: None,
         }));
     }
@@ -837,13 +832,13 @@ mod tests {
 
         // Regular failure
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::InsufficientGas,
+            error: iota_sdk_types::ExecutionError::InsufficientGas,
             command: None,
         }));
 
         // Cancelled due to congestion
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+            error: iota_sdk_types::ExecutionError::ExecutionCancelledDueToSharedObjectCongestion {
                 congested_objects: vec![],
             },
             command: None,
@@ -851,7 +846,7 @@ mod tests {
 
         // Cancelled due to randomness
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToRandomnessUnavailable,
+            error: iota_sdk_types::ExecutionError::ExecutionCancelledDueToRandomnessUnavailable,
             command: None,
         }));
     }

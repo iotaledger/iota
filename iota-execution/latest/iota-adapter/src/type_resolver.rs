@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{base_types::TypeTag, error::ExecutionError};
+use iota_sdk_types::TypeTag;
+use iota_types::error::ExecutionError;
 use move_vm_types::loaded_data::runtime_types::Type;
 
 pub trait TypeTagResolver {

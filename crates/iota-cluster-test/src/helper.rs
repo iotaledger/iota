@@ -7,12 +7,8 @@ use iota_json_rpc_types::{
     BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions, IotaObjectResponseError,
 };
 use iota_sdk::IotaClient;
-use iota_types::{
-    base_types::{ObjectID, TypeTag},
-    gas_coin::GasCoin,
-    object::Owner,
-    parse_iota_type_tag,
-};
+use iota_sdk_types::{ObjectId, Owner, TypeTag};
+use iota_types::{gas_coin::GasCoin, parse_iota_type_tag};
 use tracing::{debug, trace};
 
 /// A util struct that helps verify IOTA Object.
@@ -24,14 +20,14 @@ use tracing::{debug, trace};
 /// respectfully.
 #[derive(Debug)]
 pub struct ObjectChecker {
-    object_id: ObjectID,
+    object_id: ObjectId,
     owner: Option<Owner>,
     is_deleted: bool,
     is_iota_coin: Option<bool>,
 }
 
 impl ObjectChecker {
-    pub fn new(object_id: ObjectID) -> ObjectChecker {
+    pub fn new(object_id: ObjectId) -> ObjectChecker {
         Self {
             object_id,
             owner: None,
@@ -176,10 +172,8 @@ impl CheckerResultObject {
 macro_rules! assert_eq_if_present {
     ($left:expr, $right:expr, $($arg:tt)+) => {
         match (&$left, &$right) {
-            (Some(left_val), right_val) => {
-                 if !(&left_val == right_val) {
-                    panic!("{} does not match, left: {left_val:?}, right: {right_val:?}", $($arg)+);
-                }
+            (Some(left_val), right_val) if !(&left_val == right_val) => {
+                panic!("{} does not match, left: {left_val:?}, right: {right_val:?}", $($arg)+);
             }
             _ => ()
         }

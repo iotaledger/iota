@@ -77,8 +77,9 @@ use self::{
 };
 use crate::{
     auth_context::{
-        AuthContextDigestCostParams, AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
-        AuthContextTxInputsCostParams,
+        AuthContextAuthenticatorFunctionInfoV1CostParams, AuthContextDigestCostParams,
+        AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
+        AuthContextTxDataBytesCostParams, AuthContextTxInputsCostParams,
     },
     crypto::{
         group_ops::{self, GroupOpsCostParams},
@@ -161,10 +162,12 @@ pub struct NativesCostTable {
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
-    pub auth_context_tx_data_bytes_cost_params: auth_context::AuthContextTxDataBytesCostParams,
+    pub auth_context_tx_data_bytes_cost_params: AuthContextTxDataBytesCostParams,
     pub auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams,
     pub auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams,
     pub auth_context_replace_cost_params: AuthContextReplaceCostParams,
+    pub auth_context_authenticator_function_info_v1_cost_params:
+        AuthContextAuthenticatorFunctionInfoV1CostParams,
 
     // Type
     pub type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams,
@@ -474,15 +477,14 @@ impl NativesCostTable {
                     .auth_context_digest_cost_base_as_option()
                     .map(Into::into),
             },
-            auth_context_tx_data_bytes_cost_params:
-                auth_context::AuthContextTxDataBytesCostParams {
-                    auth_context_tx_data_bytes_cost_base: protocol_config
-                        .auth_context_tx_data_bytes_cost_base_as_option()
-                        .map(Into::into),
-                    auth_context_tx_data_bytes_cost_per_byte: protocol_config
-                        .auth_context_tx_data_bytes_cost_per_byte_as_option()
-                        .map(Into::into),
-                },
+            auth_context_tx_data_bytes_cost_params: AuthContextTxDataBytesCostParams {
+                auth_context_tx_data_bytes_cost_base: protocol_config
+                    .auth_context_tx_data_bytes_cost_base_as_option()
+                    .map(Into::into),
+                auth_context_tx_data_bytes_cost_per_byte: protocol_config
+                    .auth_context_tx_data_bytes_cost_per_byte_as_option()
+                    .map(Into::into),
+            },
             auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams {
                 auth_context_tx_commands_cost_base: protocol_config
                     .auth_context_tx_commands_cost_base_as_option()
@@ -507,6 +509,12 @@ impl NativesCostTable {
                     .auth_context_replace_cost_per_byte_as_option()
                     .map(Into::into),
             },
+            auth_context_authenticator_function_info_v1_cost_params:
+                AuthContextAuthenticatorFunctionInfoV1CostParams {
+                    auth_context_authenticator_function_info_v1_cost_base: protocol_config
+                        .auth_context_authenticator_function_info_v1_cost_base_as_option()
+                        .map(Into::into),
+                },
             type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams {
                 types_is_one_time_witness_cost_base: protocol_config
                     .types_is_one_time_witness_cost_base()
@@ -948,6 +956,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "auth_context",
             "native_sponsor_auth_digest",
             make_native!(auth_context::native_sponsor_auth_digest),
+        ),
+        (
+            "auth_context",
+            "native_sender_authenticator_function_info_v1",
+            make_native!(auth_context::native_sender_authenticator_function_info_v1),
+        ),
+        (
+            "auth_context",
+            "native_sponsor_authenticator_function_info_v1",
+            make_native!(auth_context::native_sponsor_authenticator_function_info_v1),
         ),
         (
             "auth_context",

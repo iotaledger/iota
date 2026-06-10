@@ -19,7 +19,6 @@ use iota_sdk_types::{
     },
     crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
     digest::Digest,
-    events::TransactionEvents,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::Object,
     transaction::SignedTransaction,
@@ -200,7 +199,7 @@ impl TryFrom<crate::full_checkpoint_content::CheckpointTransaction> for Checkpoi
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
                 transaction: value.transaction.try_into()?,
                 effects: value.effects,
-                events: value.events.map(Into::into),
+                events: value.events,
                 input_objects,
                 output_objects,
             }),
@@ -228,7 +227,7 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
                 transaction: value.transaction.try_into()?,
                 effects: value.effects,
-                events: value.events.map(Into::into),
+                events: value.events,
                 input_objects,
                 output_objects,
             }),
@@ -250,18 +249,6 @@ impl TryFrom<UserSignature> for crate::signature::GenericSignature {
 
     fn try_from(value: UserSignature) -> Result<Self, Self::Error> {
         bcs::from_bytes(&bcs::to_bytes(&value)?)
-    }
-}
-
-impl From<crate::effects::TransactionEvents> for TransactionEvents {
-    fn from(value: crate::effects::TransactionEvents) -> Self {
-        Self(value.data)
-    }
-}
-
-impl From<TransactionEvents> for crate::effects::TransactionEvents {
-    fn from(value: TransactionEvents) -> Self {
-        Self { data: value.0 }
     }
 }
 

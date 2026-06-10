@@ -5,12 +5,9 @@ use std::collections::{HashMap, HashSet};
 
 use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
 use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
-use iota_sdk_types::{Digest, ExecutionStatus, SignedTransaction, Transaction};
+use iota_sdk_types::{Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    effects::TransactionEffectsAPI,
-};
+use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 // --- Shared example package names used by filter tests ---
@@ -65,7 +62,6 @@ where
     }
 
     let mut client = iota_grpc_client::Client::new(test_cluster.grpc_url())
-        .await
         .expect("Failed to connect to gRPC service");
 
     if let Some(max_size) = client_max_message_size_bytes {
@@ -78,7 +74,7 @@ where
 /// Helper to create a proto `ObjectId` from a hex literal (e.g. "0x5").
 pub fn object_id_from_hex(hex: &str) -> ProtoObjectId {
     ProtoObjectId::default().with_object_id(
-        ObjectID::from_prefixed_short_hex(hex)
+        ObjectId::from_prefixed_short_hex(hex)
             .unwrap()
             .into_bytes()
             .to_vec(),
@@ -91,14 +87,14 @@ pub fn address_proto(addr: IotaAddress) -> ProtoAddress {
 }
 
 /// Publish an example Move package from the `iota-test-transaction-builder`
-/// examples directory and return the published package's `ObjectID`.
+/// examples directory and return the published package's `ObjectId`.
 ///
 /// The `sender` signs and executes the publish transaction on `cluster`.
 pub async fn publish_example_package(
     cluster: &TestCluster,
     sender: IotaAddress,
     package_name: &'static str,
-) -> ObjectID {
+) -> ObjectId {
     let tx = cluster
         .test_transaction_builder_with_sender(sender)
         .await

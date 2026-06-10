@@ -7,7 +7,8 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tracing::warn;
@@ -48,16 +49,16 @@ pub struct IotaNamesOptions {
     pub package_address: IotaAddress,
     #[arg(default_value_t = IotaNamesConfig::default().object_id)]
     #[arg(long = "iota-names-object-id")]
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().payments_package_address)]
     #[arg(long = "iota-names-payments-package-address")]
     pub payments_package_address: IotaAddress,
     #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
     #[arg(long = "iota-names-registry-id")]
-    pub registry_id: ObjectID,
+    pub registry_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().reverse_registry_id)]
     #[arg(long = "iota-names-reverse-registry-id")]
-    pub reverse_registry_id: ObjectID,
+    pub reverse_registry_id: ObjectId,
 }
 
 impl From<IotaNamesOptions> for IotaNamesConfig {
@@ -305,8 +306,8 @@ pub enum Command {
 
 #[derive(Args, Default, Debug, Clone)]
 pub struct PruningOptions {
-    /// Argument left for backward compatibility, users are encouraged to use
-    /// pruning_config_path
+    /// DEPRECATED: will be removed in v1.28.0. Use `--pruning-config-path`
+    /// pointing at a TOML retention config instead.
     #[arg(long, env = "EPOCHS_TO_KEEP")]
     pub epochs_to_keep: Option<u64>,
     /// Path to TOML file containing configuration for retention policies.
@@ -340,6 +341,7 @@ impl PruningOptions {
             };
             warn!(
                 "using the deprecated --epochs-to-keep argument for pruning configuration. \
+                 This argument will be removed in v1.28.0. \
                  Please use --pruning-config-path to specify a TOML configuration file instead."
             );
             return Ok(Some(RetentionConfig::new(
@@ -350,7 +352,8 @@ impl PruningOptions {
 
         if self.epochs_to_keep.is_some() {
             warn!(
-                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided."
+                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided. \
+                 Note that --epochs-to-keep is deprecated and will be removed in v1.28.0."
             );
         };
 
@@ -427,33 +430,24 @@ impl RetentionConfig {
     }
 }
 
-#[derive(Args, Debug, Clone)]
+/// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline has
+/// been removed; these flags are now no-ops.
+#[derive(Args, Default, Debug, Clone)]
 pub struct SnapshotLagConfig {
     #[arg(
         long = "objects-snapshot-min-checkpoint-lag",
-        default_value_t = Self::DEFAULT_MIN_LAG,
-        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG",
+        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG"
     )]
-    pub snapshot_min_lag: usize,
+    pub snapshot_min_lag: Option<usize>,
 
-    #[arg(
-        long = "objects-snapshot-sleep-duration",
-        default_value_t = Self::DEFAULT_SLEEP_DURATION_SEC,
-    )]
-    pub sleep_duration: u64,
+    #[arg(long = "objects-snapshot-sleep-duration")]
+    pub sleep_duration: Option<u64>,
 }
 
 impl SnapshotLagConfig {
-    pub const DEFAULT_MIN_LAG: usize = 300;
-    pub const DEFAULT_SLEEP_DURATION_SEC: u64 = 5;
-}
-
-impl Default for SnapshotLagConfig {
-    fn default() -> Self {
-        SnapshotLagConfig {
-            snapshot_min_lag: Self::DEFAULT_MIN_LAG,
-            sleep_duration: Self::DEFAULT_SLEEP_DURATION_SEC,
-        }
+    /// Returns `true` if any deprecated flag was explicitly provided.
+    pub fn is_set(&self) -> bool {
+        self.snapshot_min_lag.is_some() || self.sleep_duration.is_some()
     }
 }
 

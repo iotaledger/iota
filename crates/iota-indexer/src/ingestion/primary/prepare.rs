@@ -12,17 +12,20 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
-    object::{Object, Owner},
+    object::Object,
     transaction::{TransactionData, TransactionDataAPI},
 };
 use itertools::Itertools;
@@ -46,9 +49,9 @@ use crate::{
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
-        IndexedObject, IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult,
-        TxIndex,
+        EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedDeletedObject,
+        IndexedEpochInfoEvent, IndexedEvent, IndexedObject, IndexedObjectChange, IndexedPackage,
+        IndexedTransaction, IndexerResult, TxIndex,
     },
 };
 
@@ -158,7 +161,7 @@ impl PrimaryWorker {
 
         let event = transactions
             .iter()
-            .flat_map(|t| t.events.as_ref().map(|e| &e.data))
+            .flat_map(|t| t.events.as_ref().map(|events| events.iter()))
             .flatten()
             .find(|ev| ev.is_system_epoch_info_event_v1() || ev.is_system_epoch_info_event_v2())
             .map(|ev| {
@@ -389,10 +392,7 @@ impl PrimaryWorker {
 
         let tx_digest = sender_signed_data.digest();
         let tx = sender_signed_data.transaction_data();
-        let events = events
-            .as_ref()
-            .map(|events| events.data.clone())
-            .unwrap_or_default();
+        let events = events.clone().unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx.kind());
 
@@ -467,7 +467,7 @@ impl PrimaryWorker {
         let move_calls = tx
             .move_calls()
             .iter()
-            .map(|(p, m, f)| (*<&ObjectID>::clone(p), m.to_string(), f.to_string()))
+            .map(|(p, m, f)| (*<&ObjectId>::clone(p), m.to_string(), f.to_string()))
             .collect();
 
         let db_tx_indices = TxIndex {
@@ -507,7 +507,7 @@ impl PrimaryWorker {
         let events = tx
             .events
             .as_ref()
-            .map(|events| events.data.clone())
+            .map(|TransactionEvents(events)| events.clone())
             .unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx_data.kind());
@@ -549,39 +549,6 @@ impl PrimaryWorker {
         data.try_into()
     }
 
-    pub(crate) async fn index_objects(
-        data: &CheckpointData,
-        metrics: &IndexerMetrics,
-    ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
-        let _timer = metrics.indexing_objects_latency.start_timer();
-        let checkpoint_seq = data.checkpoint_summary.sequence_number;
-
-        let eventually_removed_object_refs_post_version =
-            data.eventually_removed_object_refs_post_version();
-        let indexed_eventually_removed_objects = eventually_removed_object_refs_post_version
-            .into_iter()
-            .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.object_id,
-                object_version: obj_ref.version.as_u64(),
-                checkpoint_sequence_number: checkpoint_seq,
-            })
-            .collect();
-
-        let latest_live_output_objects = data.latest_live_output_objects();
-        let changed_objects = latest_live_output_objects
-            .into_iter()
-            .map(|o| {
-                let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(Some(checkpoint_seq), o.clone(), df_kind)
-            })
-            .collect::<Vec<_>>();
-        Ok(TransactionObjectChangesToCommit {
-            changed_objects,
-            deleted_objects: indexed_eventually_removed_objects,
-        })
-    }
-
-    // similar to index_objects, but objects_history keeps all versions of objects
     async fn index_objects_history(
         data: &CheckpointData,
     ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
@@ -651,7 +618,7 @@ impl PrimaryWorker {
             // 1. Input objects that were mutated or removed (deleted/wrapped) had an active
             //    prior state — record it from input_objects. Collect the affected IDs so we
             //    can iterate input_objects once.
-            let superseded_ids: HashSet<ObjectID> = effects
+            let superseded_ids: HashSet<ObjectId> = effects
                 .mutated()
                 .into_iter()
                 .map(|(r, _)| r.object_id)
@@ -677,11 +644,13 @@ impl PrimaryWorker {
                 }
             }
 
-            // 2. Created objects did not exist before this transaction.
+            // 2. Created objects did not exist before this transaction. Use lamport version
+            //    - 1 so the version is monotonic with other backward-history rows for the
+            //    same object.
             for (r, _) in effects.created() {
                 result.push(StoredBackwardHistoryObject::from_empty(
                     r.object_id,
-                    -1,
+                    r.version.as_u64() as i64 - 1,
                     BackwardHistoryObjectStatus::NotYetCreated,
                     checkpoint_seq,
                 ));
@@ -744,8 +713,8 @@ impl PrimaryWorker {
 }
 
 pub struct InMemObjectCache {
-    id_map: HashMap<ObjectID, Object>,
-    seq_map: HashMap<(ObjectID, SequenceNumber), Object>,
+    id_map: HashMap<ObjectId, Object>,
+    seq_map: HashMap<(ObjectId, SequenceNumber), Object>,
 }
 
 impl InMemObjectCache {
@@ -761,7 +730,7 @@ impl InMemObjectCache {
         self.seq_map.insert((obj.id(), obj.version()), obj);
     }
 
-    pub fn get(&self, id: &ObjectID, version: Option<&SequenceNumber>) -> Option<&Object> {
+    pub fn get(&self, id: &ObjectId, version: Option<&SequenceNumber>) -> Option<&Object> {
         if let Some(version) = version {
             self.seq_map.get(&(*id, *version))
         } else {
@@ -801,10 +770,7 @@ impl InMemTxChanges {
         tx: &TransactionData,
         effects: &TransactionEffects,
         tx_digest: &TransactionDigest,
-    ) -> IndexerResult<(
-        Vec<iota_json_rpc_types::BalanceChange>,
-        Vec<IndexedObjectChange>,
-    )> {
+    ) -> IndexerResult<(Vec<IndexedBalanceChange>, Vec<IndexedObjectChange>)> {
         let _timer = self
             .metrics
             .indexing_tx_object_changes_latency
@@ -828,7 +794,10 @@ impl InMemTxChanges {
             }),
             None,
         )
-        .await?;
+        .await?
+        .into_iter()
+        .map(IndexedBalanceChange::from)
+        .collect();
         Ok((balance_change, object_change))
     }
 }
@@ -839,7 +808,7 @@ impl ObjectProvider for InMemTxChanges {
 
     async fn get_object(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error> {
         let object = self
@@ -859,7 +828,7 @@ impl ObjectProvider for InMemTxChanges {
 
     async fn find_object_lt_or_eq_version(
         &self,
-        id: &ObjectID,
+        id: &ObjectId,
         version: &SequenceNumber,
     ) -> Result<Option<Object>, Self::Error> {
         // First look up the exact version in object_cache.
@@ -918,7 +887,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
 impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self
             .objects
@@ -930,7 +899,7 @@ impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self

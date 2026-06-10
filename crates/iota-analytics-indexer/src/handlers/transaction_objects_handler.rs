@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectID,
     effects::TransactionEffects,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
 };
@@ -146,7 +146,7 @@ impl TransactionObjectsHandler {
         checkpoint: u64,
         timestamp_ms: u64,
         transaction_digest: String,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: Option<u64>,
         input_object_tracker: &InputObjectTracker,
         object_status_tracker: &ObjectStatusTracker,

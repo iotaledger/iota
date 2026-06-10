@@ -5,12 +5,12 @@
 use std::{str::FromStr, sync::Arc};
 
 use clap::*;
+use iota_sdk_types::ObjectId;
 use iota_storage::{
     http_key_value_store::*, key_value_store::TransactionKeyValueStore,
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_types::{
-    base_types::ObjectID,
     digests::{CheckpointDigest, TransactionDigest},
     messages_checkpoint::CheckpointSequenceNumber,
 };
@@ -116,7 +116,7 @@ async fn main() {
         }
 
         "ob" => {
-            let object_id = ObjectID::from_str(&options.digest[0]).expect("invalid object id");
+            let object_id = ObjectId::from_str(&options.digest[0]).expect("invalid object id");
             let object = kv.get_object(object_id, seqs[0].into()).await.unwrap();
             println!("fetched object {object:?}");
         }

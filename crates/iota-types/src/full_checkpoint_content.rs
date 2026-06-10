@@ -4,11 +4,12 @@
 
 use std::collections::BTreeMap;
 
+use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::ObjectRef,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
@@ -200,7 +201,7 @@ impl CheckpointTransaction {
 impl BackingPackageStore for CheckpointData {
     fn get_package_object(
         &self,
-        package_id: &ObjectID,
+        package_id: &ObjectId,
     ) -> crate::error::IotaResult<Option<crate::storage::PackageObject>> {
         self.transactions
             .iter()

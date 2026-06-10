@@ -117,7 +117,7 @@ tx_senders = 3
 > [!NOTE]
 > All retention values must be greater than 0.
 
-The legacy `--epochs-to-keep` CLI argument is still supported but deprecated. If both `--pruning-config-path` and `--epochs-to-keep` are provided, the config file takes precedence.
+The legacy `--epochs-to-keep` CLI argument is still supported but deprecated, and will be removed in v1.28.0. If both `--pruning-config-path` and `--epochs-to-keep` are provided, the config file takes precedence.
 
 #### Default behavior
 
@@ -208,6 +208,10 @@ To view help information:
 ```sh
 cargo run --bin iota-indexer -- help
 ```
+
+#### Deprecated flags
+
+`--objects-snapshot-min-checkpoint-lag` / `--objects-snapshot-sleep-duration` (and the `OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG` env var) are deprecated and will be removed in v1.31.0. The `objects_snapshot` pipeline has been removed; these flags are now no-ops.
 
 ### Experimental Features
 

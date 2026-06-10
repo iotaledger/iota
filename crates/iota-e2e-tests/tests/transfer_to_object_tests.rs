@@ -5,13 +5,13 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use iota_macros::*;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::ObjectRef,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
-    object::Owner,
     transaction::{CallArg, Transaction},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -105,7 +105,7 @@ fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectR
     let (child, parent_id) = created
         .iter()
         .find_map(|child @ (_, owner)| match owner {
-            Owner::Address(j) if created_addrs.contains(&ObjectID::from(*j)) => {
+            Owner::Address(j) if created_addrs.contains(&ObjectId::from(*j)) => {
                 Some((child, (*j).into()))
             }
             _ => None,
@@ -120,7 +120,7 @@ fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectR
 
 struct TestEnvironment {
     pub test_cluster: TestCluster,
-    move_package: ObjectID,
+    move_package: ObjectId,
 }
 
 impl TestEnvironment {

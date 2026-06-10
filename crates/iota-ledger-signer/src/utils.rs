@@ -7,11 +7,12 @@ use iota_sdk::{
     IotaClient,
     rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse},
     types::{
-        base_types::{ObjectID, ObjectType},
+        base_types::ObjectType,
         object::{MoveObject, MoveObjectExt, Object},
         transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
     },
 };
+use iota_sdk_types::ObjectId;
 
 use crate::LedgerSignerError;
 
@@ -40,7 +41,7 @@ pub(crate) async fn load_objects_with_client(
 
 fn object_ids_from_transaction(
     transaction: &TransactionData,
-) -> Result<Vec<ObjectID>, LedgerSignerError> {
+) -> Result<Vec<ObjectId>, LedgerSignerError> {
     let object_ids = transaction
         .gas_data()
         .objects

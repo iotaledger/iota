@@ -8,7 +8,7 @@ use iota_sdk_types::Digest;
 
 use super::{
     EffectsObjectChange, EpochId, ExecutionStatus, GasCostSummary, IDOperation, InputSharedObject,
-    ObjectChange, ObjectID, ObjectIn, ObjectOut, ObjectRef, Owner, TransactionEffectsV1,
+    ObjectChange, ObjectId, ObjectIn, ObjectOut, ObjectRef, Owner, TransactionEffectsV1,
     UnchangedSharedKind, UnchangedSharedObject, Version,
 };
 use crate::{
@@ -32,7 +32,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         self.epoch
     }
 
-    fn modified_at_versions(&self) -> Vec<(ObjectID, Version)> {
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
         self.changed_objects
             .iter()
             .filter_map(|change| {
@@ -302,7 +302,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             }
         } else {
             (
-                ObjectRef::new(ObjectID::ZERO, Version::default(), Digest::MIN),
+                ObjectRef::new(ObjectId::ZERO, Version::default(), Digest::MIN),
                 Owner::Address(IotaAddress::ZERO),
             )
         }
@@ -324,7 +324,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         &self.gas_cost_summary
     }
 
-    fn unchanged_shared_objects(&self) -> Vec<(ObjectID, UnchangedSharedKind)> {
+    fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)> {
         self.unchanged_shared_objects
             .iter()
             .map(|unchanged| (unchanged.object_id, unchanged.kind.clone()))
@@ -432,11 +432,11 @@ pub(crate) fn new_from_execution(
     epoch: EpochId,
     gas_cost_summary: GasCostSummary,
     shared_objects: Vec<SharedInput>,
-    loaded_per_epoch_config_objects: BTreeSet<ObjectID>,
+    loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
     transaction_digest: TransactionDigest,
     lamport_version: Version,
-    changed_objects: BTreeMap<ObjectID, EffectsObjectChange>,
-    gas_object: Option<ObjectID>,
+    changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
+    gas_object: Option<ObjectId>,
     events_digest: Option<TransactionEventsDigest>,
     dependencies: Vec<TransactionDigest>,
 ) -> TransactionEffectsV1 {

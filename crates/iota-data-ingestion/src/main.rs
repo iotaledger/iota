@@ -155,7 +155,7 @@ async fn main() -> Result<()> {
                     .as_ref()
                     .ok_or(anyhow!("Blob worker type requires remote store URL"))?;
 
-                let grpc_client = Client::new(url).await?;
+                let grpc_client = Client::new(url)?;
                 let watermark = executor.read_watermark(task_config.name.clone()).await?;
                 let (current_epoch, current_epoch_first_checkpoint_seq_num) =
                     common::epoch_info(&grpc_client, None).await?;

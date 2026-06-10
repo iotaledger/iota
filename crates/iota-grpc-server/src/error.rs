@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo};
-use iota_types::{base_types::ObjectID, digests::TransactionDigest};
+use iota_sdk_types::ObjectId;
+use iota_types::digests::TransactionDigest;
 use tonic::{Code, Status};
 
 /// Main RPC error type
@@ -188,19 +189,19 @@ impl ErrorDetails {
 
 #[derive(Debug, Clone)]
 pub struct ObjectNotFoundError {
-    object_id: ObjectID,
+    object_id: ObjectId,
     version: Option<u64>,
 }
 
 impl ObjectNotFoundError {
-    pub fn new(object_id: ObjectID) -> Self {
+    pub fn new(object_id: ObjectId) -> Self {
         Self {
             object_id,
             version: None,
         }
     }
 
-    pub fn new_with_version(object_id: ObjectID, version: u64) -> Self {
+    pub fn new_with_version(object_id: ObjectId, version: u64) -> Self {
         Self {
             object_id,
             version: Some(version),

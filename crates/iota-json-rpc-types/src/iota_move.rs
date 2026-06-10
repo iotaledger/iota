@@ -10,8 +10,9 @@ use std::{
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
+    base_types::IotaAddress,
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
@@ -31,7 +32,7 @@ use serde_with::serde_as;
 use tracing::warn;
 
 use crate::iota_primitives::{
-    IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema, StructTag as StructTagSchema,
+    IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
 };
 
 pub type IotaMoveTypeParameterIndex = u16;
@@ -141,8 +142,9 @@ pub struct IotaMoveModuleId {
 #[serde(rename_all = "camelCase")]
 pub struct MoveFunctionName {
     /// The package ID to which the function belongs.
-    #[schemars(with = "ObjectIDSchema")]
-    pub package: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub package: ObjectId,
     /// The module name to which the function belongs.
     pub module: String,
     /// The function name.
@@ -157,7 +159,7 @@ impl FromStr for MoveFunctionName {
             iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
                 error: e.to_string(),
             })?;
-        let package = ObjectID::new(module.address().into_bytes());
+        let package = ObjectId::new(module.address().into_bytes());
         Ok(Self {
             package,
             module: module.name().to_string(),
@@ -418,12 +420,17 @@ pub enum IotaMoveValue {
     // u64 and u128 are converted to String to avoid overflow
     Number(u32),
     Bool(bool),
-    Address(#[schemars(with = "IotaAddressSchema")] IotaAddress),
+    Address(
+        #[serde_as(as = "IotaAddressSchema")]
+        #[schemars(with = "IotaAddressSchema")]
+        IotaAddress,
+    ),
     Vector(Vec<IotaMoveValue>),
     String(String),
     UID {
-        #[schemars(with = "ObjectIDSchema")]
-        id: ObjectID,
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        id: ObjectId,
     },
     Struct(IotaMoveStruct),
     Option(Box<Option<IotaMoveValue>>),
@@ -703,7 +710,7 @@ fn try_convert_type(
             let id = values.remove("id").cloned().map(IotaMoveValue::from);
             if let Some(IotaMoveValue::Address(address)) = id {
                 return Some(IotaMoveValue::UID {
-                    id: ObjectID::from(address),
+                    id: ObjectId::from(address),
                 });
             }
         }

@@ -4,12 +4,10 @@
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{Result, anyhow, ensure};
+use iota_sdk_types::{Identifier, Owner};
 use iota_stardust_types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
-    base_types::{Identifier, IotaAddress},
-    coin_manager::CoinManager,
-    in_memory_storage::InMemoryStorage,
-    object::Owner,
+    base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
 };
 
 use crate::stardust::{
@@ -162,7 +160,7 @@ pub(super) fn verify_foundry_output(
             .and_then(|obj| {
                 verify_shared_object(obj, "coin manager").map(|_| {
                     obj.to_rust::<CoinManager>()
-                        .ok_or(anyhow!("expected a coin manager"))
+                        .map_err(|e| anyhow!("expected a coin manager: {e}"))
                 })?
             })
     })?;

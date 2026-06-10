@@ -12,6 +12,10 @@ use super::{
         IotaSystemStateSummary, IotaSystemStateSummaryV2, IotaValidatorSummary,
     },
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::iota_system_state::epoch_start_iota_system_state::{
+    EpochStartSystemState, convert_validator_to_epoch_start_info,
+};
 use crate::{
     balance::Balance,
     base_types::IotaAddress,
@@ -19,12 +23,7 @@ use crate::{
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
-    iota_system_state::{
-        epoch_start_iota_system_state::{
-            EpochStartSystemState, convert_validator_to_epoch_start_info,
-        },
-        iota_system_state_inner_v1::SystemParametersV1,
-    },
+    iota_system_state::iota_system_state_inner_v1::SystemParametersV1,
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
 };
@@ -174,6 +173,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             .collect())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn into_epoch_start_state(self) -> EpochStartSystemState {
         // Convert all active validators to epoch start info, maintaining the same order
         // as in ValidatorSetV2

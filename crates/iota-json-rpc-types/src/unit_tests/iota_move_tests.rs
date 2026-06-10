@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_enum_compat_util::*;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 
 use crate::{IotaMoveStruct, IotaMoveValue, MoveFunctionName};
 
@@ -22,7 +22,7 @@ fn enforce_order_test() {
 fn parse_move_function_name() {
     let name = "0x03::wat::call";
     let parsed: MoveFunctionName = name.parse().unwrap();
-    assert_eq!(parsed.package, ObjectID::SYSTEM);
+    assert_eq!(parsed.package, ObjectId::SYSTEM);
     assert_eq!(parsed.module.as_str(), "wat");
     assert_eq!(parsed.function.as_str(), "call");
 }

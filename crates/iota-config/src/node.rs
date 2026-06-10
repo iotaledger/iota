@@ -215,14 +215,14 @@ pub struct NodeConfig {
     pub run_with_range: Option<RunWithRange>,
 
     // For killswitch use None
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default = "default_traffic_controller_policy_config"
+    )]
     pub policy_config: Option<PolicyConfig>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub firewall_config: Option<RemoteFirewallConfig>,
-
-    #[serde(default)]
-    pub execution_cache: ExecutionCacheType,
 
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
@@ -411,53 +411,6 @@ impl GrpcApiConfig {
                 Self::GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES,
                 self.max_message_size_bytes(),
             )
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ExecutionCacheType {
-    #[default]
-    WritebackCache,
-    PassthroughCache,
-}
-
-impl From<ExecutionCacheType> for u8 {
-    fn from(cache_type: ExecutionCacheType) -> Self {
-        match cache_type {
-            ExecutionCacheType::WritebackCache => 0,
-            ExecutionCacheType::PassthroughCache => 1,
-        }
-    }
-}
-
-impl From<&u8> for ExecutionCacheType {
-    fn from(cache_type: &u8) -> Self {
-        match cache_type {
-            0 => ExecutionCacheType::WritebackCache,
-            1 => ExecutionCacheType::PassthroughCache,
-            _ => unreachable!("Invalid value for ExecutionCacheType"),
-        }
-    }
-}
-
-/// Type alias for atomic representation of ExecutionCacheType for lock-free
-/// operations
-pub type ExecutionCacheTypeAtomicU8 = std::sync::atomic::AtomicU8;
-
-impl From<ExecutionCacheType> for ExecutionCacheTypeAtomicU8 {
-    fn from(cache_type: ExecutionCacheType) -> Self {
-        ExecutionCacheTypeAtomicU8::new(u8::from(cache_type))
-    }
-}
-
-impl ExecutionCacheType {
-    pub fn cache_type(self) -> Self {
-        if std::env::var("DISABLE_WRITEBACK_CACHE").is_ok() {
-            Self::PassthroughCache
-        } else {
-            self
-        }
     }
 }
 
@@ -1280,6 +1233,10 @@ impl Default for AuthorityOverloadConfig {
 
 fn default_authority_overload_config() -> AuthorityOverloadConfig {
     AuthorityOverloadConfig::default()
+}
+
+fn default_traffic_controller_policy_config() -> Option<PolicyConfig> {
+    Some(PolicyConfig::default_dos_protection_policy())
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]

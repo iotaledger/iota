@@ -9,10 +9,8 @@ use iota_grpc_client::{Client, ReadMask, read_mask_fields::ObjectField};
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    object::Object,
-};
+use iota_sdk_types::ObjectId;
+use iota_types::{base_types::IotaAddress, object::Object};
 use thiserror::Error;
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
@@ -40,7 +38,7 @@ impl From<Error> for PackageResolverError {
 
 #[derive(DBMapUtils)]
 pub struct PackageStoreTables {
-    pub(crate) packages: DBMap<ObjectID, Object>,
+    pub(crate) packages: DBMap<ObjectId, Object>,
 }
 
 impl PackageStoreTables {
@@ -92,7 +90,7 @@ impl LocalDBPackageStore {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
-            .get(&ObjectID::new(id.into_bytes()))
+            .get(&ObjectId::new(id.into_bytes()))
             .map_err(Error::TypedStore)?
         {
             object
@@ -106,7 +104,7 @@ impl LocalDBPackageStore {
             let objects = self
                 .fallback_client
                 .get_objects(
-                    &[(ObjectID::new(id.into_bytes()), None)],
+                    &[(ObjectId::new(id.into_bytes()), None)],
                     Some(ReadMask::from(ObjectField::BCS)),
                 )
                 .await

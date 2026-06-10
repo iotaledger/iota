@@ -7,13 +7,13 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
-    base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
+    base_types::{EpochId, IotaAddress, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
@@ -116,7 +116,7 @@ pub fn check_coin_deny_list_v1_during_signing(
 ///         2) the deny lists checked
 ///         2) the number of regulated coin owners checked.
 pub fn check_coin_deny_list_v1_during_execution(
-    written_objects: &BTreeMap<ObjectID, Object>,
+    written_objects: &BTreeMap<ObjectId, Object>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> DenyListResult {

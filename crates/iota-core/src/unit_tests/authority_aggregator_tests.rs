@@ -14,17 +14,19 @@ use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    ExecutionError, ExecutionStatus, Identifier,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
-    base_types::{AuthorityName, EpochId, Identifier},
+    base_types::{AuthorityName, EpochId},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
     },
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsExt, TransactionEvents},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
@@ -90,7 +92,7 @@ pub fn create_object_move_transaction(
     secret: &dyn Signer<Signature>,
     dest: IotaAddress,
     value: u64,
-    package_id: ObjectID,
+    package_id: ObjectId,
     gas_object_ref: ObjectRef,
     gas_price: u64,
 ) -> Transaction {
@@ -122,7 +124,7 @@ pub fn delete_object_move_transaction(
     src: IotaAddress,
     secret: &dyn Signer<Signature>,
     object_ref: ObjectRef,
-    framework_obj_id: ObjectID,
+    framework_obj_id: ObjectId,
     gas_object_ref: ObjectRef,
     gas_price: u64,
 ) -> Transaction {
@@ -148,7 +150,7 @@ pub fn set_object_move_transaction(
     secret: &dyn Signer<Signature>,
     object_ref: ObjectRef,
     value: u64,
-    framework_obj_id: ObjectID,
+    framework_obj_id: ObjectId,
     gas_object_ref: ObjectRef,
     gas_price: u64,
 ) -> Transaction {
@@ -256,7 +258,7 @@ where
     }
 }
 
-pub async fn get_latest_ref<A>(authority: Arc<SafeClient<A>>, object_id: ObjectID) -> ObjectRef
+pub async fn get_latest_ref<A>(authority: Arc<SafeClient<A>>, object_id: ObjectId) -> ObjectRef
 where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
@@ -786,7 +788,7 @@ async fn test_handle_transaction_fork() {
     // Validator 0 and 1 return failed effects
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -966,7 +968,7 @@ async fn test_handle_transaction_response() {
         status: TransactionStatus::Executed(
             Some(cert_epoch_0.auth_sig().clone()),
             sign_tx_effects(effects, 0, *name_0, key_0),
-            TransactionEvents { data: vec![] },
+            TransactionEvents(vec![]),
         ),
     };
     clients
@@ -1058,7 +1060,7 @@ async fn test_handle_transaction_response() {
     // Validators 3 returns tx-cert with epoch 1
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -1098,7 +1100,7 @@ async fn test_handle_transaction_response() {
     // Validators 2 returns tx-cert and tx-effects with epoch 1
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -1112,7 +1114,7 @@ async fn test_handle_transaction_response() {
                 &authority_keys[1].1,
                 authority_keys[1].0,
             ),
-            TransactionEvents { data: vec![] },
+            TransactionEvents(vec![]),
         ),
     };
     clients
@@ -1124,7 +1126,7 @@ async fn test_handle_transaction_response() {
     // (simulating byzantine behavior)
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InvalidGasObject,
+            error: ExecutionError::InvalidGasObject,
             command: None,
         })
         .build();
@@ -1138,7 +1140,7 @@ async fn test_handle_transaction_response() {
                 &authority_keys[2].1,
                 authority_keys[2].0,
             ),
-            TransactionEvents { data: vec![] },
+            TransactionEvents(vec![]),
         ),
     };
     clients
@@ -1185,7 +1187,7 @@ async fn test_handle_transaction_response() {
     // Validators 2 returns tx-cert and tx-effects with epoch 1
     let effects = TestEffectsBuilder::new(cert_epoch_0.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -1199,7 +1201,7 @@ async fn test_handle_transaction_response() {
                 &authority_keys[1].1,
                 authority_keys[1].0,
             ),
-            TransactionEvents { data: vec![] },
+            TransactionEvents(vec![]),
         ),
     };
     clients
@@ -1211,7 +1213,7 @@ async fn test_handle_transaction_response() {
     // byzantine behavior)
     let effects = TestEffectsBuilder::new(cert_epoch_0_2.data())
         .with_status(ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InsufficientGas,
+            error: ExecutionError::InsufficientGas,
             command: None,
         })
         .build();
@@ -1225,7 +1227,7 @@ async fn test_handle_transaction_response() {
                 &authority_keys[2].1,
                 authority_keys[2].0,
             ),
-            TransactionEvents { data: vec![] },
+            TransactionEvents(vec![]),
         ),
     };
     clients
@@ -1819,7 +1821,7 @@ async fn test_handle_conflicting_transaction_response() {
         status: TransactionStatus::Executed(
             Some(cert_epoch_0.auth_sig().clone()),
             sign_tx_effects(effects.clone(), 0, *name_0, key_0),
-            TransactionEvents { data: vec![] },
+            TransactionEvents(vec![]),
         ),
     };
     clients.get_mut(name_0).unwrap().set_tx_info_response(resp);
@@ -2453,7 +2455,7 @@ async fn process_with_cert(
             status: TransactionStatus::Executed(
                 None,
                 SignedTransactionEffects::new_from_data_and_sig(effects.clone(), auth_signature),
-                TransactionEvents { data: vec![] },
+                TransactionEvents(vec![]),
             ),
         };
 
@@ -2523,7 +2525,7 @@ fn set_tx_info_response_with_cert_and_effects<'a>(
             status: TransactionStatus::Executed(
                 cert.map(|c| c.auth_sig().clone()),
                 SignedTransactionEffects::new(epoch, effects.clone(), key, *name),
-                TransactionEvents { data: vec![] },
+                TransactionEvents(vec![]),
             ),
         };
         clients.get_mut(name).unwrap().set_tx_info_response(resp);
