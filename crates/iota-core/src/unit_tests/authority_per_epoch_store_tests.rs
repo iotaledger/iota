@@ -258,10 +258,13 @@ async fn test_compute_quorum_load_shedding_percentage_uses_overlay() {
 /// fed into `compute_quorum_load_shedding_percentage` regardless of where the
 /// flush boundary happens to fall when the read is taken.
 ///
-/// The test puts the same authority's value first in (a), then in (b), then
-/// back in (a) (mirroring what a fresh start sees after a queued commit has
-/// been flushed). All three reads must agree, and the derived
-/// `get_quorum_load_shedding_percentage` must match.
+/// The test reads a value through path (b) — a queued, not-yet-flushed commit —
+/// and through path (a) — held fully on disk with an empty quarantine, on a
+/// second independent authority that models the freshly started / drained
+/// state. Both reads must agree, and the derived
+/// `get_quorum_load_shedding_percentage` must match. A single authority can't
+/// test path (a) cleanly: its queued entry lingers, making the read a tautology
+/// of disk overlaid by the identical queued value.
 #[tokio::test]
 async fn test_load_overload_notifications_invariant_under_disk_queue_split() {
     let authority_state = TestAuthorityBuilder::new().build().await;
@@ -301,20 +304,31 @@ async fn test_load_overload_notifications_invariant_under_disk_queue_split() {
         "queued notifications must be visible via load_overload_notifications",
     );
 
-    // Now the same logical state sits fully on disk (as it would after the
-    // queued commit drains to RocksDB). The read must produce the same
-    // notification map as before.
-    flush_overload_notification(&store, authority_name, 80);
-    let from_disk = store
+    // The other end of the split: the same logical state held fully on disk
+    // with nothing queued, as a freshly started authority sees it once the
+    // queued commit has drained. A second, independent authority — empty
+    // quarantine — with 80 persisted must read back the same value as the
+    // queued case above. (Reusing the first authority would not test this:
+    // its queued entry lingers, so the read would be disk(80)
+    // overlaid by queue(80).)
+    let fresh_state = TestAuthorityBuilder::new().build().await;
+    let fresh_store = fresh_state.epoch_store_for_testing();
+    let fresh_authority = fresh_store.name;
+    flush_overload_notification(&fresh_store, fresh_authority, 80);
+
+    let from_disk = fresh_store
         .load_overload_notifications()
         .unwrap()
-        .get(&authority_name)
+        .get(&fresh_authority)
         .copied();
     assert_eq!(
         from_queue, from_disk,
         "load_overload_notifications must be invariant under the disk/queue split",
     );
 
-    // The derived quorum percentage must agree with the union view.
-    assert_eq!(store.get_quorum_load_shedding_percentage().unwrap(), 80);
+    // The derived quorum percentage must agree with the disk-only view.
+    assert_eq!(
+        fresh_store.get_quorum_load_shedding_percentage().unwrap(),
+        80,
+    );
 }
