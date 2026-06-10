@@ -3350,6 +3350,12 @@ impl AuthorityPerEpochStore {
             .set(drop_percentage as i64);
         let drop_seed = consensus_commit_info.round;
 
+        // Transactions dropped by post-consensus load shedding in this commit.
+        // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
+        // the submitter's `await_consensus_or_checkpoint` wait is woken and its
+        // consensus-submission semaphore slot is released.
+        let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
+
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
                 end_of_publish_transactions.push(tx);
@@ -3363,6 +3369,14 @@ impl AuthorityPerEpochStore {
                             authority_metrics
                                 .consensus_handler_load_shedding_dropped_transactions
                                 .inc();
+                            // The retry-after hint matches the pre-consensus
+                            // load-shedding window in `overload_monitor.rs`.
+                            load_shedding_dropped.push((
+                                digest,
+                                IotaError::ValidatorOverloadedRetryAfter {
+                                    retry_after_secs: 30,
+                                },
+                            ));
                             continue;
                         }
                     }
@@ -3376,12 +3390,24 @@ impl AuthorityPerEpochStore {
                             authority_metrics
                                 .consensus_handler_load_shedding_dropped_transactions
                                 .inc();
+                            // The retry-after hint matches the pre-consensus
+                            // load-shedding window in `overload_monitor.rs`.
+                            load_shedding_dropped.push((
+                                digest,
+                                IotaError::ValidatorOverloadedRetryAfter {
+                                    retry_after_secs: 30,
+                                },
+                            ));
                             continue;
                         }
                     }
                 }
                 current_commit_sequenced_consensus_transactions.push(tx);
             }
+        }
+        if !load_shedding_dropped.is_empty() {
+            self.dropped_tx_status_cache
+                .insert_and_notify(&load_shedding_dropped);
         }
 
         let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
