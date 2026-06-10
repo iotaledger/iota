@@ -3267,7 +3267,7 @@ impl<'a> DBReader<'a> {
     ///
     /// * [`IndexerError::DataPruned`] — signals the caller to fall back to the
     ///   historical store. Two triggers:
-    ///   * `cursor` resolves to a sequence number at or below the pruning
+    ///   * `cursor` resolves to a sequence number below the pruning
     ///     min_available_tx.
     ///   * `cursor = None && is_descending = false && min_available_tx > 0`:
     ///     the DB cannot tell whether the address has pre-watermark history.
