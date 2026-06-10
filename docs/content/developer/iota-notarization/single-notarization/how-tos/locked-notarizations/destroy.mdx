@@ -18,8 +18,7 @@ This guide demonstrates how to destroy Locked Notarizations based on their delet
 ### Prerequisites
 
 - A Locked Notarization owned by your address
-- Sufficient funds for gas costs
-- Understanding of the notarization's delete lock status
+- Understanding of the notarization's lock status
 
 ### Understanding Delete Lock Rules
 
@@ -38,6 +37,7 @@ Once destroyed, a locked notarization cannot be recovered. This is permanent del
 ### 1. Get the Notarization Client
 
 First, ensure you have a funded notarization client with ownership of the notarization.
+See [Get Funded Notarization Client](./create#1-get-funded-notarization-client) for used utility functions.
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
@@ -90,14 +90,14 @@ Before attempting to destroy, check if destruction is allowed:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L132-L139
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L134-L139
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L112-L114
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L112-L113
 ```
 
 </TabItem>
@@ -113,7 +113,7 @@ Destroy the locked notarization with no delete lock (should succeed):
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L140-L152
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L140-L151
 ```
 
 </TabItem>
@@ -121,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notariz
 
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L117-L120
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L115-L123
 ```
 
 </TabItem>
@@ -160,7 +160,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L109-L119
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L109-L118
 ```
 
 </TabItem>

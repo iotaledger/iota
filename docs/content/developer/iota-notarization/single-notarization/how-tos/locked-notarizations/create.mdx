@@ -26,11 +26,12 @@ In the current implementation, it isn't possible to create infinitely permanent 
 The delete lock must either be set to `None` (allowing immediate deletion) or to `UnlockAt(timestamp)` (restricting deletion until a specified time).
 This design ensures that storage deposits can be reclaimed in the future. To have a nearly infinitely permanent record choose a very distant future timestamp for the delete lock.
 
-### 1. Get Funds to cover the gas costs
+### 1. Get Funded Notarization Client
+To create a Locked Notarization, you need access to an [IOTA network](../../../../network-overview) or run a
+[local IOTA network](../../getting-started/local-network-setup).
 
-To create a Locked Notarization, you will need to have an IOTA network node running. You will also need an address with enough funds to cover the gas cost of the whole procedure.
-
-In test networks as well as local ones, you can use a faucet to request funds.
+In test networks as well as local ones, you can use a [faucet](../../../../getting-started/get-coins) to request funds.
+In the IOTA mainnet you will need an address with enough funds to cover the gas cost of the whole procedure.
 
 :::tip
 
@@ -38,6 +39,9 @@ If you want to use the main IOTA network,
 you will need an address with actual IOTA funds to create a new Locked Notarization.
 
 :::
+
+The example code below demonstrates using a faucet to receive funds before the example code is run.
+
 
 This is how to create a notarization client and call a utility function explained below to fund the test account.
 
@@ -93,20 +97,21 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 </Tabs>
 </div>
 
-Note:
+:::note
 * The TypeScript implementation uses the TypeScript SDK function [requestIotaFromFaucetV0](https://docs.iota.org/developer/ts-sdk/typescript/faucet)
 * The Rust implementation uses the local installed IOTA client via [std::process::Command](https://doc.rust-lang.org/std/process/struct.Command.html).
+:::
 
 ### 2. Create a Locked Notarization with Delete Lock
 
-The `Notarization` uses builder pattern to create a new `Locked Notarization` object with delete lock controls.
+The `NotarizationClient` uses the builder pattern to create a new `Locked Notarization` object with delete lock controls.
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/01_create_locked_notarization.rs#L22-L37
+https://github.com/iotaledger/notarization/tree/v0.1/examples/01_create_locked_notarization.rs#L22-L40
 ```
 
 </TabItem>
@@ -120,28 +125,11 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 </Tabs>
 </div>
 
-### 3. Publish the Locked Notarization
-
-To publish the Locked Notarization, you will need to call the `build_and_execute` method.
-
-<div className={'hide-code-block-extras'}>
-<Tabs groupId="language" queryString>
-<TabItem value="rust" label="Rust">
-
-```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/01_create_locked_notarization.rs#L34-L37
-```
-
-</TabItem>
-<TabItem value="typescript-node" label="Typescript (Node.js)">
-
-```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/01_create_locked.ts#L35-L37
-```
-
-</TabItem>
-</Tabs>
-</div>
+:::note
+* The `build_and_execute()` (resp. `buildAndExecute()`) method is called to publish the Locked Notarization.
+* The `finish()` method is called to build the transaction which will create the Locked Notarization when being
+processed by an IOTA node.
+:::
 
 ### End Result
 

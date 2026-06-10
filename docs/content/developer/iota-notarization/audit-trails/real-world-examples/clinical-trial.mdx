@@ -15,6 +15,16 @@ import TabItem from '@theme/TabItem';
 
 This real-world example models a Phase III clinical trial where an immutable audit trail guarantees data integrity, role-scoped access, time-constrained oversight, and regulatory verification. The trail supports mid-study protocol amendments (adding new tags) and uses multiple locking dimensions to protect the dataset.
 
+:::warning Clinical-trial and health data carry strong legal obligations
+
+This page is a **technical example only**. Clinical-trial data and health records are subject to strict confidentiality requirements and data-protection regulations (e.g., ICH-GCP, 21 CFR Part 11, HIPAA, GDPR), which may govern how such data is processed, stored, transferred across jurisdictions, retained, and erased.
+
+These obligations can apply **even when only hash values of documents are stored on-chain** — a hash committed to an immutable, publicly readable ledger cannot be deleted or modified, which may conflict with confidentiality, data-minimization, or right-to-erasure requirements. Never place personal data, identifiers, or any content that could reveal sensitive information directly on-chain.
+
+Before applying this pattern to real data, carefully review the legal and regulatory requirements for your use case and jurisdiction, and consult qualified legal and compliance advisors.
+
+:::
+
 ## Business Context
 
 Clinical trials are governed by strict regulatory requirements (ICH-GCP, 21 CFR Part 11) that mandate tamper-proof audit trails for all trial data. A blockchain-based audit trail provides:

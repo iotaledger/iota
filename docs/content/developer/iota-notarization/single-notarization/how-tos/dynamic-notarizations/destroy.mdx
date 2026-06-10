@@ -18,7 +18,6 @@ This guide demonstrates how to destroy Dynamic Notarizations and explains the di
 ### Prerequisites
 
 - A Dynamic Notarization owned by your address
-- Sufficient funds for gas costs
 - Understanding of the notarization's lock status
 
 ### Understanding Destruction Rules
@@ -38,6 +37,7 @@ Once destroyed, a notarization cannot be recovered. Ensure you really want to de
 ### 1. Get the Notarization Client
 
 First, ensure you have a funded notarization client with ownership of the notarization.
+See [Get Funded Notarization Client](./create#1-get-funded-notarization-client) for used utility functions.
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
@@ -145,7 +145,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notariz
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L50-L59
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L49-L59
 ```
 
 </TabItem>
@@ -166,7 +166,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notariz
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L64-L71
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L63-L71
 ```
 
 </TabItem>

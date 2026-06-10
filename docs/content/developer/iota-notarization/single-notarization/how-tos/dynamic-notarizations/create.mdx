@@ -15,11 +15,13 @@ tags:
 
 This guide will walk you through the process of creating a Dynamic Notarization and publishing it to an IOTA network. Dynamic notarizations are mutable, allowing you to update their state and metadata after creation, and they can be transferred between addresses.
 
-### 1. Get Funds to cover the gas costs
+### 1. Get Funded Notarization Client
 
-To create a Dynamic Notarization, you will need to have an IOTA network node running. You will also need an address with enough funds to cover the gas cost of the whole procedure.
+To create a Dynamic Notarization, you need access to an [IOTA network](../../../../network-overview) or run a
+[local IOTA network](../../getting-started/local-network-setup).
 
-In test networks as well as local ones, you can use a faucet to request funds.
+In test networks as well as local ones, you can use a [faucet](../../../../getting-started/get-coins) to request funds.
+In the IOTA mainnet you will need an address with enough funds to cover the gas cost of the whole procedure.
 
 :::tip
 
@@ -27,6 +29,8 @@ If you want to use the main IOTA network,
 you will need an address with actual IOTA funds to create a new Dynamic Notarization.
 
 :::
+
+The example code below demonstrates using a faucet to receive funds before the example code is run.
 
 This is how to create a notarization client and call a utility function explained below to fund the test account.
 
@@ -37,6 +41,19 @@ This is how to create a notarization client and call a utility function explaine
             ```rust reference
             https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L39-L50
             ```
+
+            ```rust
+            pub async fn get_notarization_read_only_client() -> anyhow::Result<NotarizationClientReadOnly> {
+                let iota_client = get_iota_client().await?;
+
+                let package_id = get_package_id_from_env("IOTA_NOTARIZATION_PKG_ID")?;
+
+                NotarizationClientReadOnly::new_with_pkg_id(iota_client, package_id)
+                .await
+                .context("failed to create a read-only NotarizationClient")
+            }
+            ```
+
 
         </TabItem>
         <TabItem value="typescript-node" label="Typescript (Node.js)">
@@ -95,7 +112,7 @@ The simplest form of a Dynamic Notarization can be created without any locks, ma
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L20-L32
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L20-L35
 ```
 
 </TabItem>
@@ -120,6 +137,12 @@ const { output: notarization } = await notarizationClient
 </Tabs>
 </div>
 
+:::note
+* The `build_and_execute()` (resp. `buildAndExecute()`) method is called to publish the Dynamic Notarization.
+* The `finish()` method is called to build the transaction which will create the Dynamic Notarization when being
+  processed by an IOTA node.
+:::
+
 ### 3. Create a Dynamic Notarization with Transfer Lock
 
 You can also create a Dynamic Notarization with a transfer lock to prevent transfers until a specified time.
@@ -129,7 +152,7 @@ You can also create a Dynamic Notarization with a transfer lock to prevent trans
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L43-L53
+https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L43-L59
 ```
 
 </TabItem>
@@ -137,29 +160,6 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_
 
 ```ts reference
 https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L21-L34
-```
-
-</TabItem>
-</Tabs>
-</div>
-
-### 4. Publish the Dynamic Notarization
-
-To publish the Dynamic Notarization, you will need to call the `build_and_execute` method.
-
-<div className={'hide-code-block-extras'}>
-<Tabs groupId="language" queryString>
-<TabItem value="rust" label="Rust">
-
-```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/02_create_dynamic_notarization.rs#L29-L32
-```
-
-</TabItem>
-<TabItem value="typescript-node" label="Typescript (Node.js)">
-
-```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/02_create_dynamic.ts#L33-L34
 ```
 
 </TabItem>

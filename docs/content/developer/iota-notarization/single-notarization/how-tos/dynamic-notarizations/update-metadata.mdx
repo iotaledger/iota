@@ -19,7 +19,6 @@ This guide demonstrates how to update the updatable metadata of a Dynamic Notari
 
 - A Dynamic Notarization already created and published to the IOTA network
 - The notarization must not be update-locked
-- Sufficient funds for gas costs
 
 ### Understanding Metadata Types
 
@@ -31,6 +30,7 @@ Dynamic notarizations have two types of metadata:
 ### 1. Get the Notarization Client
 
 First, ensure you have a funded notarization client with the necessary permissions.
+See [Get Funded Notarization Client](./create#1-get-funded-notarization-client) for used utility functions.
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
@@ -67,7 +67,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/06_update_metadata
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L16-L24
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L14-L24
 ```
 
 </TabItem>
@@ -114,7 +114,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/06_update_metadata
 
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L59-L61
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L57-L61
 ```
 
 </TabItem>
@@ -123,21 +123,27 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 
 ### 5. Clear Metadata
 
-You can also clear the metadata by setting it to `None`:
+You can also clear the metadata by setting it to `None` resp. `undefined`:
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/06_update_metadata.rs#L56
+```rust
+let _ = notarization_client
+    .update_metadata(nNone, *notarization_id.object_id())
+    .build_and_execute(&notarization_client)
+    .await?;
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
-```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L49
+```ts
+// Clear metadata, you can set it to null alternatively
+await notarizationClient
+    .updateMetadata(undefined, notarization.id)
+    .buildAndExecute(notarizationClient);
 ```
 
 </TabItem>

@@ -37,9 +37,8 @@ Locked notarizations make ALL fields immutable after creation, providing compreh
 
 ## Prerequisites
 
-- A funded IOTA account
-- Access to an IOTA network (testnet, devnet, or local)
-- Notarization client packages installed
+- A funded notarization client with the necessary permissions to create and update a Dynamic Notarization
+as been described in [Get Funded Notarization Client](../how-tos/dynamic-notarizations/create#1-get-funded-notarization-client)
 - Legal document content (contract, agreement, etc.)
 - Understanding of applicable retention requirements
 
@@ -77,14 +76,14 @@ Set deletion locks to comply with legal document retention requirements:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L90-L122
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L90-L126
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L99-L129
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L99-L134
 ```
 
 </TabItem>
@@ -146,14 +145,14 @@ Access contract details for legal proceedings and compliance audits:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L180-L200
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/02_legal_contract.rs#L192-L242
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L155-L175
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/02_legal_contract.ts#L198-L241
 ```
 
 </TabItem>

@@ -18,14 +18,15 @@ This guide demonstrates how to use the three independent locking dimensions to c
 ## Prerequisites
 
 - An existing `AuditTrail` object on the IOTA network
-- A capability with locking permissions (e.g., a `LockingAdmin` role)
 - Familiarity with [creating an `AuditTrail` object](./create-audit-trails.mdx)
+- An admin address owning an admin role capability as been shown in [Create an Audit Trail](./create-audit-trails)
 
 ## Steps
 
 ### 1. Set Up Multiple Wallets
 
 Create an admin wallet, a locking-admin wallet, and a record-admin wallet to separate locking administration from record writing.
+The capabilities granting the needed permissions will be issued to the wallet addresses later on.
 
 <details closed>
     <summary>Used Utility Functions</summary>

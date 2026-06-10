@@ -75,30 +75,7 @@ https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_
 </Tabs>
 </div>
 
-### 3. Inspect the Built-in Admin Role
-
-Every new trail has a built-in Admin role automatically assigned to the creator. Fetch the on-chain trail object to inspect it.
-
-<div className={'hide-code-block-extras'}>
-<Tabs groupId="language" queryString>
-<TabItem value="rust" label="Rust">
-
-```rust reference
-https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/01_create_audit_trail.rs#L67-L73
-```
-
-</TabItem>
-<TabItem value="typescript-node" label="Typescript (Node.js)">
-
-```ts reference
-https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/01_create_audit_trail.ts#L55-L58
-```
-
-</TabItem>
-</Tabs>
-</div>
-
-### 4. Define a Custom Role
+### 3. Define a Custom Role
 
 Use the Admin capability to create new roles. `PermissionSet::record_admin_permissions()` grants `AddRecord`, `DeleteRecord`, and `CorrectRecord` permissions.
 
@@ -121,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_
 </Tabs>
 </div>
 
-### 5. Issue a Capability
+### 4. Issue a Capability
 
 Mint an on-chain `Capability` object for the role and send it to the target address. The holder can then perform the actions permitted by the role.
 
@@ -147,7 +124,7 @@ https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_
 ## Expected Behavior
 
 - A new `AuditTrail` object is created on-chain with a unique trail ID.
-- The creator automatically receives an Admin capability with full permissions.
+- The creator automatically receives an Admin capability with full permissions to administer the trail.
 - Custom roles can be defined and capabilities issued using the Admin capability.
 - Each capability is an on-chain object that can be transferred to other addresses.
 

@@ -19,7 +19,6 @@ This guide demonstrates how to transfer ownership of a Dynamic Notarization to a
 
 - A Dynamic Notarization owned by your address
 - The notarization must not be transfer-locked
-- Sufficient funds for gas costs
 - Target recipient address
 
 ### Understanding Transfer Locks
@@ -39,6 +38,7 @@ Locked notarizations can **never** be transferred, regardless of any settings.
 ### 1. Get the Notarization Client
 
 First, ensure you have a funded notarization client with ownership of the notarization.
+See [Get Funded Notarization Client](./create#1-get-funded-notarization-client) for used utility functions.
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
@@ -98,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynami
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L26-L33
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L25-L33
 ```
 
 </TabItem>
@@ -144,7 +144,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynami
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L44-L47
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L41-L50
 ```
 
 </TabItem>
@@ -194,7 +194,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/07_transfer_dynami
 
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L87-L110
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/07_transfer_notarization.ts#L83-L110
 ```
 
 </TabItem>

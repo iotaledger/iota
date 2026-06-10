@@ -52,6 +52,12 @@ https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_
 </Tabs>
 </div>
 
+:::note
+In this example we expect the record-admin address to already own a capability granting the `AddRecord` permission
+and the admin address to own full admin permissions as been shown in the [Create an Audit Trail](./create-audit-trails)
+how-to page.
+:::
+
 ### 2. Add Records
 
 Each record contains **data** (text or binary) and optional **metadata** (a string describing the event context). Records are appended sequentially and each receives an auto-incrementing sequence number.

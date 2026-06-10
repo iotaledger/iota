@@ -37,9 +37,8 @@ This separation enables efficient updates while maintaining clear data categoriz
 
 ## Prerequisites
 
-- A funded IOTA account
-- Access to an IOTA network (testnet, devnet, or local)
-- Notarization client packages installed
+- A funded notarization client with the necessary permissions to create and update a Dynamic Notarization
+  as been described in [Get Funded Notarization Client](../how-tos/dynamic-notarizations/create#1-get-funded-notarization-client)
 - IoT device with environmental sensors (or simulated data)
 
 ## Implementation Overview
@@ -99,14 +98,14 @@ Periodically update operational metadata like battery level and signal strength:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/01_iot_weather_station.rs#L120-L140
+https://github.com/iotaledger/notarization/tree/v0.1/examples/real-world/01_iot_weather_station.rs#L120-L141
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/01_iot_weather_station.ts#L135-L148
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/real-world/01_iot_weather_station.ts#L133-L145
 ```
 
 </TabItem>

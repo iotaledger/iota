@@ -17,7 +17,10 @@ This guide demonstrates how to use all available read-only methods to inspect an
 ### Prerequisites
 
 - An existing notarization (dynamic or locked) on the IOTA network
-- Access to a notarization client (read-only access is sufficient)
+
+In the examples below an admin-client owning an admin role capability is used to create the `Notarization` object as been
+shown in [Create a Dynamic Notarization](./dynamic-notarizations/create) or [Create a Locked Notarization](./locked-notarizations/create) .
+It is not necessarily needed to access `Notarization` objects for read only purposes.
 
 ### Available Read-Only Methods
 
@@ -31,7 +34,8 @@ All notarizations support the same comprehensive read-only interface:
 
 ### 1. Set Up Read-Only Client
 
-You can use either a full client or a read-only client for inspection:
+You can use either a full client or a read-only client for inspection. The example code below creates a full client
+as been explained in [Get Funded Notarization Client](./create#1-get-funded-notarization-client).
 
 <div className={'hide-code-block-extras'}>
 <Tabs groupId="language" queryString>
@@ -69,7 +73,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_onl
 
 ```ts reference
 
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L20-L26
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L18-L26
 ```
 
 </TabItem>
@@ -94,7 +98,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_onl
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L34-L42
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L32-L42
 ```
 
 </TabItem>
@@ -117,7 +121,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_onl
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L45-L47
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L43-L47
 ```
 
 </TabItem>
@@ -167,7 +171,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_onl
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L60-L70
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L61-L70
 ```
 
 </TabItem>
@@ -185,7 +189,7 @@ Verify transfer, update, and destruction permissions:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L83-L95
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L82-L95
 ```
 
 </TabItem>
@@ -208,7 +212,7 @@ Access detailed information about applied locks:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L168-L171
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L96-L101
 ```
 
 </TabItem>
@@ -233,7 +237,7 @@ For dynamic notarizations, demonstrate how version tracking works:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L103-L128
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L102-L136
 ```
 
 </TabItem>

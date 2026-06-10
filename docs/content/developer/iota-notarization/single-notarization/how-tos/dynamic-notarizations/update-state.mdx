@@ -19,29 +19,29 @@ This guide demonstrates how to update the state of a Dynamic Notarization. Unlik
 
 - A Dynamic Notarization already created and published to the IOTA network
 - The notarization must not be update-locked
-- Sufficient funds for gas costs
 
 ### 1. Get the Notarization Client
 
 First, ensure you have a funded notarization client with the necessary permissions to update the notarization.
+See [Get Funded Notarization Client](./create#1-get-funded-notarization-client) for used utility functions.
 
 <div className={'hide-code-block-extras'}>
-<Tabs groupId="language" queryString>
-<TabItem value="rust" label="Rust">
+    <Tabs groupId="language" queryString>
+        <TabItem value="rust" label="Rust">
 
-```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L39-L50
-```
+            ```rust reference
+            https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L39-L50
+            ```
 
-</TabItem>
-<TabItem value="typescript-node" label="Typescript (Node.js)">
+        </TabItem>
+        <TabItem value="typescript-node" label="Typescript (Node.js)">
 
-```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26-L57
-```
+            ```ts reference
+            https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26-L57
+            ```
 
-</TabItem>
-</Tabs>
+        </TabItem>
+    </Tabs>
 </div>
 
 ### 2. Create a Dynamic Notarization for Testing
@@ -106,7 +106,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/examples/05_update_state.rs
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts#L49-L54
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts#L47-L54
 ```
 
 </TabItem>
@@ -122,14 +122,14 @@ After updating, verify that the changes were applied successfully:
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/05_update_state.rs#L83
+https://github.com/iotaledger/notarization/tree/v0.1/examples/05_update_state.rs#L78-L87
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts#L59
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts#L57-L65
 ```
 
 </TabItem>
