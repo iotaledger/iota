@@ -31,12 +31,15 @@ pub struct AuthorityOverloadInfo {
     pub is_overload: AtomicBool,
 
     /// The locally computed percentage of transactions this authority would
-    /// drop. This is the *output* of this authority's overload monitor; it is
-    /// distinct from the quorum-determined percentage actually enforced in the
-    /// post-consensus load-shedding path. It is also read back on the next
-    /// iteration of `check_execution_overload` as the feedback term for the
-    /// latency-based controller.
+    /// drop. This is the *output* of this authority's overload monitor (the max
+    /// of the latency-, queue-, and cache-based signals); it is distinct from
+    /// the quorum-determined percentage actually enforced in the post-consensus
+    /// load-shedding path.
     pub local_load_shedding_percentage: AtomicU32,
+
+    /// The latency-based controller's own previous output, kept separately so
+    /// it can be fed back as that controller's input on the next iteration.
+    pub latency_load_shedding_percentage: AtomicU32,
 }
 
 impl AuthorityOverloadInfo {
@@ -49,6 +52,8 @@ impl AuthorityOverloadInfo {
     pub fn clear_overload(&self) {
         self.is_overload.store(false, Ordering::Relaxed);
         self.local_load_shedding_percentage
+            .store(0, Ordering::Relaxed);
+        self.latency_load_shedding_percentage
             .store(0, Ordering::Relaxed);
     }
 }
@@ -150,24 +155,26 @@ fn check_execution_overload(
         queueing_latency, txn_ready_rate, execution_rate, inflight_queue_len, cache_pending_count
     );
 
-    // Feedback term: the locally computed percentage this monitor produced on
-    // its previous iteration. We use the *local* value (not the quorum value
-    // enforced post-consensus) because `txn_ready_rate` reflects the load this
-    // authority itself admitted, so the controller must close the loop on its
-    // own last decision to compound shedding over multiple iterations and to
-    // ratchet down gradually as latency recovers.
-    let current_local_load_shedding_percentage = authority
+    // Feedback term: the latency controller's *own* previous output.
+    let previous_latency_based_percentage = authority
         .overload_info
-        .local_load_shedding_percentage
+        .latency_load_shedding_percentage
         .load(Ordering::Relaxed);
 
     let (_, latency_based_percentage) = compute_latency_load_shedding_percentage(
         config,
-        current_local_load_shedding_percentage,
+        previous_latency_based_percentage,
         queueing_latency,
         txn_ready_rate,
         execution_rate,
     );
+
+    // Persist the latency controller's own output for next iteration's feedback,
+    // independent of the combined max stored via `set_overload` below.
+    authority
+        .overload_info
+        .latency_load_shedding_percentage
+        .store(latency_based_percentage, Ordering::Relaxed);
 
     let queue_based_percentage = compute_graduated_load_shedding_percentage(
         inflight_queue_len,
@@ -470,12 +477,23 @@ mod tests {
             );
         }
 
+        // `clear_overload` also resets the latency controller's feedback term,
+        // keeping it aligned with `local_load_shedding_percentage`.
         {
+            overload_info
+                .latency_load_shedding_percentage
+                .store(30, Ordering::Relaxed);
             overload_info.clear_overload();
             assert!(!overload_info.is_overload.load(Ordering::Relaxed));
             assert_eq!(
                 overload_info
                     .local_load_shedding_percentage
+                    .load(Ordering::Relaxed),
+                0
+            );
+            assert_eq!(
+                overload_info
+                    .latency_load_shedding_percentage
                     .load(Ordering::Relaxed),
                 0
             );
