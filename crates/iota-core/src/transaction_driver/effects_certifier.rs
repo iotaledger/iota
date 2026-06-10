@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -11,12 +11,13 @@ use std::{
 use futures::{StreamExt as _, future::BoxFuture, stream::FuturesUnordered};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName as _},
+    base_types::{AuthorityName, ConciseableName as _, ObjectRef},
     committee::StakeUnit,
     digests::{TransactionDigest, TransactionEffectsDigest},
-    effects::TransactionEffectsAPI as _,
+    effects::{TransactionEffectsAPI as _, TransactionEffectsExt as _},
     error::{IotaError, IotaResult},
     messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusQuery, TxStatusUpdate},
+    object::Object,
     transaction_driver_types::{EffectsFinalityInfo, FinalizedEffects},
 };
 use tokio::{
@@ -993,9 +994,9 @@ impl EffectsCertifier {
 
 /// Verifies that the full effects content received from a validator is
 /// consistent with the quorum-certified effects digest: the effects must hash
-/// to the certified digest, and the events must match the events digest
-/// declared in the (now trusted) effects. Returns a description of the
-/// mismatch on failure.
+/// to the certified digest, and the events and input/output objects must
+/// match the digests declared in the (now trusted) effects. Returns a
+/// description of the mismatch on failure.
 fn verify_executed_data(
     executed_data: &ExecutedData,
     certified_digest: TransactionEffectsDigest,
@@ -1007,7 +1008,7 @@ fn verify_executed_data(
         ));
     }
     match (executed_data.effects.events_digest(), &executed_data.events) {
-        (None, None) => Ok(()),
+        (None, None) => {}
         (Some(events_digest), Some(events)) => {
             let actual_events_digest = events.digest();
             if actual_events_digest != *events_digest {
@@ -1015,22 +1016,78 @@ fn verify_executed_data(
                     "events hash to {actual_events_digest} instead of {events_digest} declared in effects"
                 ));
             }
-            Ok(())
         }
-        (None, Some(_)) => Err("events returned but effects declare no events".to_string()),
-        (Some(_), None) => Err("effects declare events but none were returned".to_string()),
+        (None, Some(_)) => return Err("events returned but effects declare no events".to_string()),
+        (Some(_), None) => {
+            return Err("effects declare events but none were returned".to_string());
+        }
     }
+    // Validators return input/output objects best-effort (they may already be
+    // pruned), so only verify that every object actually returned matches an
+    // object reference recorded in the trusted effects. The expected sets
+    // mirror how validators derive these fields in `build_executed_data`
+    // (via `get_transaction_input_objects` / `get_transaction_output_objects`):
+    // inputs are the objects modified by the transaction, outputs are the
+    // changed objects. If that derivation ever widens (e.g. to include
+    // read-only inputs), this check must widen with it, or honest responses
+    // will be rejected.
+    let expected_input_refs = executed_data
+        .effects
+        .old_object_metadata()
+        .into_iter()
+        .map(|(object_ref, _owner)| object_ref)
+        .collect();
+    verify_objects_recorded(&executed_data.input_objects, expected_input_refs, "input")?;
+    let expected_output_refs = executed_data
+        .effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(object_ref, _owner, _kind)| object_ref)
+        .collect();
+    verify_objects_recorded(
+        &executed_data.output_objects,
+        expected_output_refs,
+        "output",
+    )?;
+    Ok(())
+}
+
+/// Checks that every returned object hashes to an object reference present in
+/// `expected_refs`. `object_kind` ("input"/"output") only shapes the error
+/// message.
+fn verify_objects_recorded(
+    objects: &[Object],
+    expected_refs: HashSet<ObjectRef>,
+    object_kind: &str,
+) -> Result<(), String> {
+    for object in objects {
+        let object_ref = object.object_ref();
+        if !expected_refs.contains(&object_ref) {
+            return Err(format!(
+                "{object_kind} object {object_ref:?} does not match any object recorded in effects"
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, net::SocketAddr};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        net::SocketAddr,
+    };
 
     use async_trait::async_trait;
+    use iota_sdk_types::{ExecutionStatus, GasCostSummary, ObjectId, Owner};
     use iota_types::{
+        base_types::{IotaAddress, SequenceNumber},
         committee::Committee,
         digests::TransactionDigest,
-        effects::TransactionEvents,
+        effects::{
+            EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
+            TransactionEffectsExt as _, TransactionEvents,
+        },
         error::{IotaError, UserInputError},
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
@@ -1042,6 +1099,7 @@ mod tests {
             TransactionInfoRequest, TransactionInfoResponse, TxStatusUpdate,
             ValidatorHealthRequest, ValidatorHealthResponse,
         },
+        object::Object,
         transaction::Transaction,
     };
 
@@ -1501,6 +1559,127 @@ mod tests {
         assert!(
             metrics.effects_digest_mismatches.get() >= 1,
             "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_input_objects_not_recorded_in_effects() {
+        // The empty test effects record no modified objects, so any returned
+        // input object is inconsistent with the certified effects.
+        let executed_data = ExecutedData {
+            input_objects: vec![Object::new_gas_for_testing()],
+            ..Default::default()
+        };
+        let certified_digest = executed_data.effects.digest();
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "certifier accepted input objects not recorded in the certified effects"
+        );
+        assert!(
+            metrics.effects_digest_mismatches.get() >= 1,
+            "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_output_objects_not_recorded_in_effects() {
+        // The empty test effects record no changed objects, so any returned
+        // output object is inconsistent with the certified effects.
+        let executed_data = ExecutedData {
+            output_objects: vec![Object::new_gas_for_testing()],
+            ..Default::default()
+        };
+        let certified_digest = executed_data.effects.digest();
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "certifier accepted output objects not recorded in the certified effects"
+        );
+        assert!(
+            metrics.effects_digest_mismatches.get() >= 1,
+            "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn accepts_objects_recorded_in_effects() {
+        // The same object before the transaction (input, version 1) and after
+        // it (output, at the lamport version 2).
+        let object_id = ObjectId::random();
+        let owner = Owner::Address(IotaAddress::ZERO);
+        let input_object = Object::with_id_owner_version_for_testing(
+            object_id,
+            SequenceNumber::from_u64(1),
+            owner,
+        );
+        let output_object = Object::with_id_owner_version_for_testing(
+            object_id,
+            SequenceNumber::from_u64(2),
+            owner,
+        );
+        let input_ref = input_object.object_ref();
+        let output_ref = output_object.object_ref();
+        let effects = TransactionEffects::new_from_execution_v1(
+            ExecutionStatus::Success,
+            0,
+            GasCostSummary::default(),
+            vec![],
+            BTreeSet::new(),
+            TransactionDigest::random(),
+            output_ref.version(),
+            BTreeMap::from([(
+                object_id,
+                EffectsObjectChange {
+                    object_id,
+                    input_state: ObjectIn::Data {
+                        version: input_ref.version(),
+                        digest: *input_ref.digest(),
+                        owner,
+                    },
+                    output_state: ObjectOut::ObjectWrite {
+                        digest: *output_ref.digest(),
+                        owner,
+                    },
+                    id_operation: IDOperation::None,
+                },
+            )]),
+            None,
+            None,
+            vec![],
+        );
+        let certified_digest = effects.digest();
+        let executed_data = ExecutedData {
+            effects,
+            events: None,
+            input_objects: vec![input_object],
+            output_objects: vec![output_object],
+        };
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        let response = result.expect("objects matching the certified effects should certify");
+        assert_eq!(response.effects.effects.digest(), certified_digest);
+        assert_eq!(
+            metrics.effects_digest_mismatches.get(),
+            0,
+            "consistent objects must not be flagged as a mismatch"
         );
     }
 
