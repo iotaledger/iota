@@ -321,8 +321,12 @@ const config = {
             },
             {
               from: '/about-iota/iota-wallet/how-to/integrate-ledger',
-              to: '/users/iota-wallet/how-to/import/ledger'
-            }
+              to: '/users/iota-wallet/how-to/import/ledger',
+            },
+            {
+              from: '/operator/extensions/indexer-functions',
+              to: '/operator/extended-data-services/iota-indexer',
+            },
           ];
           let paths = [];
           for (const redirect of redirects) {
