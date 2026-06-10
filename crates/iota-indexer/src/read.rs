@@ -1217,12 +1217,12 @@ impl IndexerReader {
         // fast path: cursor is known to KV (cached) and in pruned territory
         // (below watermark). Serve directly from KV until pagination crosses
         // into the unpruned DB range.
-        if let Some(kv_reader) = self
-            .fallback_reader()
-            .filter(|kv| matches!(cursor, Some(c) if kv.cached_cursor(&c).is_some_and(|s| (s as i64) < watermark)))
+        if let Some((cursor, kv_reader)) = cursor
+            .zip(self.fallback_reader())
+            .filter(|(c, kv)| kv.cached_cursor(&c).is_some_and(|s| (s as i64) < watermark))
         {
             let stored_txs = kv_reader
-                .transactions_by_address(address, cursor, limit, !is_descending)
+                .transactions_by_address(address, Some(cursor), limit, !is_descending)
                 .await?
                 .into_iter()
                 .flatten()
