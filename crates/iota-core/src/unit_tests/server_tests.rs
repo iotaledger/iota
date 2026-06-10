@@ -9,13 +9,13 @@ use iota_network::api::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::ProgrammableTransaction;
-// Additional imports for white flag tests
+// Additional imports for P-COOL tests
 use iota_sdk_types::{
     Argument, Command, Identifier, ObjectId, SplitCoins,
     crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities},
 };
 use iota_types::digests::TransactionDigest;
-// Additional imports for white flag tests
+// Additional imports for P-COOL tests
 use iota_types::{
     base_types::{AuthorityName, IotaAddress, dbg_addr, dbg_object_id, random_object_ref},
     crypto::{
@@ -424,7 +424,7 @@ async fn test_v2_submit_tx_success() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -494,7 +494,7 @@ async fn test_v2_submit_tx_invalid_signature() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -619,9 +619,9 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
     match result {
         Err(err) => assert!(
             err.message()
-                .contains("White flag flow is not enabled in this protocol version"),
+                .contains("P-COOL flow is not enabled in this protocol version"),
         ),
-        Ok(_) => panic!("Expected error when white flag is disabled"),
+        Ok(_) => panic!("Expected error when P-COOL is disabled"),
     }
 }
 
@@ -630,7 +630,7 @@ async fn test_v2_submit_tx_already_executed() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -703,7 +703,7 @@ async fn test_v2_submit_tx_multiple_transactions() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -762,7 +762,7 @@ async fn test_v2_submit_tx_invalid_transaction() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -834,7 +834,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -894,13 +894,13 @@ async fn test_v2_submit_tx_gas_object_validation() {
 
 /// V2 mirror of `test_submit_transactions_different_gas_prices_accepted`:
 /// transactions with different gas prices are processed independently in
-/// white-flag mode.
+/// P-COOL mode.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_different_gas_prices_accepted() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -983,7 +983,7 @@ async fn test_v2_submit_tx_oversized_transaction() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1114,7 +1114,7 @@ async fn test_v2_get_tx_status_already_executed() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1197,7 +1197,7 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1274,7 +1274,7 @@ async fn test_v2_get_tx_status_multiple_queries() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1381,7 +1381,7 @@ async fn test_v2_get_tx_status_too_many_queries() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1425,7 +1425,7 @@ async fn test_v2_get_tx_status_empty_queries_ping() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1463,7 +1463,7 @@ async fn test_v2_get_tx_status_dropped_digest_rejected() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1514,7 +1514,7 @@ async fn test_v2_get_tx_status_unknown_digest_expires() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 

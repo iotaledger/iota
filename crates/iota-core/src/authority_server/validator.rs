@@ -75,12 +75,12 @@ impl ValidatorService {
         let transaction = request.into_inner();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
-        // Reject if white flag flow is enabled - transactions should use
+        // Reject if P-COOL flow is enabled - transactions should use
         // submit_transaction instead
         fp_ensure!(
-            !epoch_store.protocol_config().enable_white_flag_flow(),
+            !epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_transaction is disabled when white flag flow is enabled. Use submit_transaction instead.".to_string()
+                error: "handle_transaction is disabled when P-COOL flow is enabled. Use submit_transaction instead.".to_string()
             }
             .into()
         );
@@ -396,12 +396,12 @@ impl ValidatorService {
     ) -> WrappedServiceResponse<SubmitCertificateResponse> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
-        // Reject if white flag flow is enabled - certificates are not used in white
-        // flag flow
+        // Reject if P-COOL flow is enabled - certificates are not used in
+        // P-COOL flow
         fp_ensure!(
-            !epoch_store.protocol_config().enable_white_flag_flow(),
+            !epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_certificate_v1 is disabled when white flag flow is enabled. Transactions go directly to consensus.".to_string()
+                error: "handle_certificate_v1 is disabled when P-COOL flow is enabled. Transactions go directly to consensus.".to_string()
             }
             .into()
         );
@@ -437,12 +437,12 @@ impl ValidatorService {
     ) -> WrappedServiceResponse<HandleCertificateResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
-        // Reject if white flag flow is enabled - certificates are not used in white
-        // flag flow
+        // Reject if P-COOL flow is enabled - certificates are not used in
+        // P-COOL flow
         fp_ensure!(
-            !epoch_store.protocol_config().enable_white_flag_flow(),
+            !epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_certificate_v1 is disabled when white flag flow is enabled. Transactions go directly to consensus.".to_string()
+                error: "handle_certificate_v1 is disabled when P-COOL flow is enabled. Transactions go directly to consensus.".to_string()
             }
             .into()
         );
@@ -575,12 +575,12 @@ impl ValidatorService {
     ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
-        // Reject if white flag flow is enabled - certificates are not used in white
-        // flag flow
+        // Reject if P-COOL flow is enabled - certificates are not used in
+        // P-COOL flow
         fp_ensure!(
-            !epoch_store.protocol_config().enable_white_flag_flow(),
+            !epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_soft_bundle_certificates_v1 is disabled when white flag flow is enabled. Use batch submission via submit_transaction instead.".to_string()
+                error: "handle_soft_bundle_certificates_v1 is disabled when P-COOL flow is enabled. Use batch submission via submit_transaction instead.".to_string()
             }
             .into()
         );

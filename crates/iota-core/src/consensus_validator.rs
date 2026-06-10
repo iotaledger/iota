@@ -102,7 +102,7 @@ impl IotaTxValidator {
                 }
 
                 ConsensusTransactionKind::UserTransactionV1(transaction) => {
-                    if !self.epoch_store.protocol_config().enable_white_flag_flow() {
+                    if !self.epoch_store.protocol_config().enable_pcool_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error: "UserTransactionV1 not supported at current protocol version"
                                 .into(),
@@ -399,10 +399,8 @@ mod tests {
                 | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
-                // Gated behind `enable_white_flag_flow`.
-                ConsensusTransactionKind::UserTransactionV1(_) => {
-                    Some(config.enable_white_flag_flow())
-                }
+                // Gated behind `enable_pcool_flow`.
+                ConsensusTransactionKind::UserTransactionV1(_) => Some(config.enable_pcool_flow()),
 
                 // Gated behind `calculate_validator_scores`.
                 ConsensusTransactionKind::MisbehaviorReport(_) => {

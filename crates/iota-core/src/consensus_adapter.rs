@@ -332,7 +332,7 @@ impl ConsensusAdapter {
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
         let is_pending_consensus_certificates_empty =
-            if epoch_store.protocol_config().enable_white_flag_flow() {
+            if epoch_store.protocol_config().enable_pcool_flow() {
                 // In the certificate-less mode, the list of pending consensus
                 // certificates is always empty.
                 true
@@ -386,7 +386,7 @@ impl ConsensusAdapter {
                     Some(certificate.digest())
                 }
                 ConsensusTransactionKind::UserTransactionV1(_) => {
-                    // White flag: no submit delay needed (number of submitting validators
+                    // P-COOL: no submit delay needed (number of submitting validators
                     // controlled through another mechanism)
                     None
                 }
@@ -579,7 +579,7 @@ impl ConsensusAdapter {
         if transactions.len() > 1 {
             // Soft-bundle batches must be homogeneous: either all
             // CertifiedTransaction (certificate flow) or all
-            // UserTransactionV1 (white-flag flow). submit_and_wait_inner
+            // UserTransactionV1 (P-COOL flow). submit_and_wait_inner
             // assumes a single transaction kind across the batch.
             for transaction in transactions {
                 fp_ensure!(
@@ -853,7 +853,7 @@ impl ConsensusAdapter {
             .expect("Storage error when removing consensus transaction");
 
         let is_user_tx = is_soft_bundle
-            || if epoch_store.protocol_config().enable_white_flag_flow() {
+            || if epoch_store.protocol_config().enable_pcool_flow() {
                 // In the certificate-less mode, `UserTransactionV1` kind corresponds
                 // to user transactions.
                 matches!(
@@ -869,7 +869,7 @@ impl ConsensusAdapter {
                 )
             };
         let send_end_of_publish = if is_user_tx {
-            if epoch_store.protocol_config().enable_white_flag_flow() {
+            if epoch_store.protocol_config().enable_pcool_flow() {
                 // In certificate-less mode, `EndOfPublish` is sent solely from
                 // `close_epoch`. There is no pending certificate drain to
                 // monitor here, and sending from this per-transaction callback
@@ -1222,7 +1222,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
                 return;
             }
 
-            let send_end_of_publish = if epoch_store.protocol_config().enable_white_flag_flow() {
+            let send_end_of_publish = if epoch_store.protocol_config().enable_pcool_flow() {
                 // In certificate-less mode, there are no pending consensus
                 // certificates, so `EndOfPublish` is always sent immediately.
                 debug!(epoch=?epoch_store.epoch(), "Closing epoch in certificate-less mode");

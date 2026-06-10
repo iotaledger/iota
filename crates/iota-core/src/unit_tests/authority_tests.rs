@@ -4667,18 +4667,18 @@ async fn test_shared_object_transaction_ok() {
 // consensus commit. It will be the first transaction in the batch and the first
 // one that updates the system clock object.
 //
-// When `white_flag` is true, transactions are submitted as UserTransactionV1
+// When `pcool` is true, transactions are submitted as UserTransactionV1
 // (the certificate-free path) with white-flag conflict resolution enabled.
-// This verifies that the white-flag merge/split logic produces the same
+// This verifies that the P-COOL merge/split logic produces the same
 // prologue generation and shared-object version assignment behaviour.
 #[rstest::rstest]
 #[tokio::test]
-async fn test_consensus_commit_prologue_generation(#[values(false, true)] white_flag: bool) {
+async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool: bool) {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = white_flag.then(|| {
+    let _guard = pcool.then(|| {
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_white_flag_flow_for_testing(true);
+            config.set_enable_pcool_flow_for_testing(true);
             config
         })
     });
@@ -4737,7 +4737,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] white_
     .unwrap();
     let clock_tx = to_sender_signed_transaction(clock_tx_data, &sender_key);
 
-    let processed_consensus_transactions = if white_flag {
+    let processed_consensus_transactions = if pcool {
         // Submit as UserTransactionV1 — no certificates needed.
         let transactions = vec![
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
@@ -6699,7 +6699,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
 }
 
 // ============================================================================
-// White Flag Flow Integration Tests
+// White-flag conflict resolution integration tests
 // ============================================================================
 
 /// Helper function to check if an object is locked, checking both quarantine
@@ -6725,9 +6725,9 @@ fn get_object_lock(
 async fn test_post_consensus_white_flag_simple_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable white flag flow
+    // Enable P-COOL flow
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -6836,9 +6836,9 @@ async fn test_post_consensus_white_flag_simple_conflict() {
 async fn test_post_consensus_white_flag_no_conflict() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable white flag flow
+    // Enable P-COOL flow
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -6950,9 +6950,9 @@ async fn test_post_consensus_white_flag_no_conflict() {
 async fn test_post_consensus_white_flag_conflict_different_commits() {
     telemetry_subscribers::init_for_testing();
 
-    // Enable white flag flow
+    // Enable P-COOL flow
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
