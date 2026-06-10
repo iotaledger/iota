@@ -34,7 +34,6 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) tx_indices: Vec<TxIndex>,
     pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
     pub(crate) object_changes: CheckpointObjectChanges,
-    pub(crate) object_history_changes: TransactionObjectChangesToCommit,
     pub(crate) backward_history_changes: Vec<StoredBackwardHistoryObject>,
     pub(crate) object_versions: Vec<StoredObjectVersion>,
     pub(crate) packages: Vec<IndexedPackage>,
@@ -107,7 +106,6 @@ impl PrimaryWriter {
         let mut event_indices_batch = Vec::with_capacity(batch_len);
         let mut display_updates_batch = BTreeMap::new();
         let mut object_changes_batch = Vec::with_capacity(batch_len);
-        let mut object_history_changes_batch = Vec::with_capacity(batch_len);
         let mut backward_history_batch = Vec::new();
         let mut object_versions_batch = Vec::with_capacity(batch_len);
         let mut packages_batch = Vec::with_capacity(batch_len);
@@ -121,7 +119,6 @@ impl PrimaryWriter {
                 tx_indices,
                 display_updates,
                 object_changes,
-                object_history_changes,
                 backward_history_changes,
                 object_versions,
                 packages,
@@ -134,7 +131,6 @@ impl PrimaryWriter {
             event_indices_batch.push(event_indices);
             display_updates_batch.extend(display_updates.into_iter());
             object_changes_batch.push(object_changes);
-            object_history_changes_batch.push(object_history_changes);
             backward_history_batch.extend(backward_history_changes);
             object_versions_batch.push(object_versions);
             packages_batch.push(packages);
@@ -173,8 +169,6 @@ impl PrimaryWriter {
                 self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(display_updates_batch),
                 self.state.persist_packages(packages_batch),
-                self.state
-                    .persist_object_history(object_history_changes_batch.clone()),
                 self.state
                     .persist_object_versions(object_versions_batch.clone()),
                 Box::pin({

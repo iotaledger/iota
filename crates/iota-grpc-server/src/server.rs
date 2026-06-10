@@ -6,12 +6,13 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
+use iota_core::traffic_controller::TrafficController;
 use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
     service_methods, state_service as grpc_state_service,
     transaction_execution_service as grpc_tx_service,
 };
-use iota_types::transaction_executor::TransactionExecutor;
+use iota_types::{traffic_control::ClientIdSource, transaction_executor::TransactionExecutor};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
@@ -20,7 +21,7 @@ use tonic::transport::{Identity, Server, ServerTlsConfig};
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
     MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
-    metrics::GrpcMetricsLayer,
+    metrics::GrpcMetricsLayer, traffic_control::TrafficControlLayer,
 };
 
 /// Handle to control a running gRPC server
@@ -130,6 +131,8 @@ pub async fn start_grpc_server(
     shutdown_token: CancellationToken,
     chain_id: iota_types::digests::ChainIdentifier,
     metrics: Option<GrpcServerMetrics>,
+    traffic_controller: Option<Arc<TrafficController>>,
+    client_id_source: Option<ClientIdSource>,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
     let (checkpoint_data_tx, _) = broadcast::channel(config.broadcast_buffer_size as usize);
@@ -207,40 +210,31 @@ pub async fn start_grpc_server(
             .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
     }
 
-    // Add services and spawn the server, optionally wrapping with metrics layer
-    let server_handle = if let Some(metrics) = metrics {
-        // Use the auto-generated exact method path whitelist so the metrics
-        // layer can label unrecognized/non-gRPC traffic under a single "SPAM"
-        // bucket instead of creating unbounded cardinality from arbitrary HTTP
-        // paths.
-        let mut layered_builder = server_builder.layer(GrpcMetricsLayer::new(
-            Arc::new(metrics),
-            &service_methods::ALL_METHOD_PATHS,
-        ));
-        build_and_spawn!(
-            layered_builder,
-            ledger_service,
-            tx_service,
-            state_service,
-            move_package_service,
-            config,
-            listener,
-            actual_addr,
-            shutdown_token
-        )
-    } else {
-        build_and_spawn!(
-            server_builder,
-            ledger_service,
-            tx_service,
-            state_service,
-            move_package_service,
-            config,
-            listener,
-            actual_addr,
-            shutdown_token
-        )
-    };
+    // Order matters: the metrics layer is outermost so it observes blocked requests
+    // too.
+    let mut layered_builder = server_builder.layer(
+        tower::ServiceBuilder::new()
+            .option_layer(
+                metrics.map(|m| {
+                    GrpcMetricsLayer::new(Arc::new(m), &service_methods::ALL_METHOD_PATHS)
+                }),
+            )
+            .option_layer(
+                traffic_controller
+                    .map(|tc| TrafficControlLayer::new(tc, client_id_source.unwrap_or_default())),
+            ),
+    );
+    let server_handle = build_and_spawn!(
+        layered_builder,
+        ledger_service,
+        tx_service,
+        state_service,
+        move_package_service,
+        config,
+        listener,
+        actual_addr,
+        shutdown_token
+    );
 
     Ok(GrpcServerHandle {
         server_handle,

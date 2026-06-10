@@ -13,21 +13,13 @@
 //! │      sha3 <32 bytes>         │
 //! └──────────────────────────────┘
 
-use std::{
-    io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
-    num::NonZeroUsize,
-    ops::Range,
-};
+use std::{num::NonZeroUsize, ops::Range};
 
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
-use fastcrypto::hash::{HashFunction, Sha3_256};
 use iota_config::{
     node::ArchiveReaderConfig as HistoricalReaderConfig, object_storage_config::ObjectStoreConfig,
 };
 use iota_storage::{
-    SHA3_BYTES,
-    blob::{Blob, BlobEncoding},
     compute_sha3_checksum, compute_sha3_checksum_for_bytes,
     object_store::{
         ObjectStoreGetExt, ObjectStorePutExt,
@@ -39,11 +31,10 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{
-    IngestionError,
     errors::IngestionResult as Result,
     history::{
-        CHECKPOINT_FILE_SUFFIX, MAGIC_BYTES, MANIFEST_FILE_MAGIC, MANIFEST_FILENAME,
-        reader::HistoricalReader,
+        CHECKPOINT_FILE_SUFFIX, MANIFEST_FILE_MAGIC, MANIFEST_FILENAME, finalize_magic_blob,
+        read_magic_blob, reader::HistoricalReader,
     },
 };
 
@@ -171,55 +162,12 @@ pub async fn read_manifest<S: ObjectStoreGetExt>(remote_store: S) -> Result<Mani
 /// Reads the manifest file from the given byte vector and verifies the
 /// integrity of the file.
 pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
-    let manifest_file_size = vec.len();
-    let mut manifest_reader = Cursor::new(vec);
-
-    // Reads from the beginning of the file and verifies the magic byte
-    // is MANIFEST_FILE_MAGIC
-    manifest_reader.rewind()?;
-    let magic = manifest_reader.read_u32::<BigEndian>()?;
-    if magic != MANIFEST_FILE_MAGIC {
-        return Err(IngestionError::HistoryRead(format!(
-            "unexpected magic byte in manifest: {magic}",
-        )));
-    }
-
-    // Reads from the end of the file and gets the SHA3 checksum
-    // of the content.
-    manifest_reader.seek(SeekFrom::End(-(SHA3_BYTES as i64)))?;
-    let mut sha3_digest = [0u8; SHA3_BYTES];
-    manifest_reader.read_exact(&mut sha3_digest)?;
-
-    // Reads the content of the file and verifies the SHA3 checksum
-    // of the content matches the stored checksum.
-    manifest_reader.rewind()?;
-    let mut content_buf = vec![0u8; manifest_file_size - SHA3_BYTES];
-    manifest_reader.read_exact(&mut content_buf)?;
-    let mut hasher = Sha3_256::default();
-    hasher.update(&content_buf);
-    let computed_digest = hasher.finalize().digest;
-    if computed_digest != sha3_digest {
-        return Err(IngestionError::HistoryRead(format!(
-            "manifest corrupted, computed checksum: {computed_digest:?}, stored checksum: {sha3_digest:?}"
-        )));
-    }
-    manifest_reader.rewind()?;
-    manifest_reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
-    Ok(Blob::read(&mut manifest_reader)?.decode()?)
+    read_magic_blob(vec, MANIFEST_FILE_MAGIC, MANIFEST_FILENAME)
 }
 
 /// Computes the SHA3 checksum of the Manifest and writes it to a byte vector.
 pub fn finalize_manifest(manifest: Manifest) -> Result<Bytes> {
-    let mut buf = BufWriter::new(vec![]);
-    buf.write_u32::<BigEndian>(MANIFEST_FILE_MAGIC)?;
-    let blob = Blob::encode(&manifest, BlobEncoding::Bcs)?;
-    blob.write(&mut buf)?;
-    buf.flush()?;
-    let mut hasher = Sha3_256::default();
-    hasher.update(buf.get_ref());
-    let computed_digest = hasher.finalize().digest;
-    buf.write_all(&computed_digest)?;
-    Ok(Bytes::from(buf.into_inner().map_err(|e| e.into_error())?))
+    finalize_magic_blob(&manifest, MANIFEST_FILE_MAGIC)
 }
 
 /// Writes the Manifest to the remote store.

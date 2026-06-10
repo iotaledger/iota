@@ -18,7 +18,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     errors::IndexerError,
-    schema::{checkpointed_objects, objects, objects_backward_history, objects_history},
+    schema::{checkpointed_objects, objects, objects_backward_history},
     types::{IndexedDeletedObject, IndexedObject, ObjectStatus, owner_to_owner_info},
 };
 
@@ -133,8 +133,10 @@ impl From<IndexedDeletedObject> for StoredCheckpointedObject {
     }
 }
 
-#[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
-#[diesel(table_name = objects_history, primary_key(object_id, object_version, checkpoint_sequence_number))]
+/// General "Object row" type used as the result type for raw SQL reads that
+/// join `checkpointed_objects` and `objects_backward_history`.
+#[derive(Queryable, Debug, Clone, QueryableByName)]
+#[diesel(table_name = checkpointed_objects)]
 pub struct StoredHistoryObject {
     pub object_id: Vec<u8>,
     pub object_version: i64,
@@ -230,7 +232,7 @@ impl TryFrom<StoredHistoryObject> for Object {
     }
 }
 
-impl TryFrom<IndexedObject> for StoredHistoryObject {
+impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
     type Error = IndexerError;
 
     fn try_from(o: IndexedObject) -> Result<Self, Self::Error> {
@@ -241,7 +243,8 @@ impl TryFrom<IndexedObject> for StoredHistoryObject {
         } = o;
         let checkpoint_sequence_number = checkpoint_sequence_number.ok_or_else(|| {
             IndexerError::InvalidArgument(
-                "checkpoint_sequence_number is required for StoredHistoryObject".to_string(),
+                "checkpoint_sequence_number is required for StoredBackwardHistoryObject"
+                    .to_string(),
             )
         })? as i64;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
@@ -257,9 +260,9 @@ impl TryFrom<IndexedObject> for StoredHistoryObject {
         Ok(Self {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
-            object_status: ObjectStatus::Active as i16,
+            object_status: BackwardHistoryObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
-            checkpoint_sequence_number,
+            superseded_at_checkpoint: checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
             object_type: object
@@ -279,28 +282,6 @@ impl TryFrom<IndexedObject> for StoredHistoryObject {
     }
 }
 
-impl From<IndexedDeletedObject> for StoredHistoryObject {
-    fn from(o: IndexedDeletedObject) -> Self {
-        Self {
-            object_id: o.object_id.as_bytes().to_vec(),
-            object_version: o.object_version as i64,
-            object_status: ObjectStatus::WrappedOrDeleted as i16,
-            object_digest: None,
-            checkpoint_sequence_number: o.checkpoint_sequence_number as i64,
-            owner_type: None,
-            owner_id: None,
-            object_type: None,
-            object_type_package: None,
-            object_type_module: None,
-            object_type_name: None,
-            serialized_object: None,
-            coin_type: None,
-            coin_balance: None,
-            df_kind: None,
-        }
-    }
-}
-
 #[derive(Queryable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
 #[diesel(table_name = objects, primary_key(object_id))]
 pub struct StoredDeletedObject {
@@ -315,15 +296,6 @@ impl From<IndexedDeletedObject> for StoredDeletedObject {
             object_version: o.object_version as i64,
         }
     }
-}
-
-#[derive(Queryable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
-#[diesel(table_name = objects_history, primary_key(object_id, object_version, checkpoint_sequence_number))]
-pub(crate) struct StoredDeletedHistoryObject {
-    pub object_id: Vec<u8>,
-    pub object_version: i64,
-    pub object_status: i16,
-    pub checkpoint_sequence_number: i64,
 }
 
 /// Snapshot of the `objects` table written exclusively by checkpoint ingestion.
@@ -744,36 +716,6 @@ pub struct StoredBackwardHistoryObject {
     pub coin_type: Option<String>,
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
-}
-
-impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
-    type Error = IndexerError;
-
-    /// Builds a backward history entry for an active object.
-    ///
-    /// Reuses `StoredHistoryObject::try_from(IndexedObject)` for field
-    /// conversion, then maps `checkpoint_sequence_number` to
-    /// `superseded_at_checkpoint` and sets the status to `Active`.
-    fn try_from(o: IndexedObject) -> Result<Self, Self::Error> {
-        let h = StoredHistoryObject::try_from(o)?;
-        Ok(Self {
-            object_id: h.object_id,
-            object_version: h.object_version,
-            object_status: BackwardHistoryObjectStatus::Active as i16,
-            object_digest: h.object_digest,
-            superseded_at_checkpoint: h.checkpoint_sequence_number,
-            owner_type: h.owner_type,
-            owner_id: h.owner_id,
-            object_type: h.object_type,
-            object_type_package: h.object_type_package,
-            object_type_module: h.object_type_module,
-            object_type_name: h.object_type_name,
-            serialized_object: h.serialized_object,
-            coin_type: h.coin_type,
-            coin_balance: h.coin_balance,
-            df_kind: h.df_kind,
-        })
-    }
 }
 
 impl StoredBackwardHistoryObject {

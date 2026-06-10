@@ -32,20 +32,24 @@ pub mod module_cache_metrics;
 pub mod overload_monitor;
 mod par_index_live_object_set;
 pub(crate) mod post_consensus_tx_reorder;
+pub(crate) mod post_consensus_validation;
 pub mod quorum_driver;
 pub mod safe_client;
 mod scoring_decision;
 mod stake_aggregator;
 pub mod starfish_adapter;
+pub mod status_aggregator;
 pub mod storage;
 pub mod streamer;
 pub mod subscription_handler;
 pub mod test_utils;
 pub mod traffic_controller;
+pub mod transaction_driver;
 mod transaction_input_loader;
 mod transaction_manager;
 pub mod transaction_orchestrator;
 mod transaction_outputs;
+pub mod validator_client_monitor;
 pub mod validator_tx_finalizer;
 pub mod verify_indexes;
 
@@ -73,6 +77,7 @@ mod pay_iota_tests;
 #[cfg(test)]
 #[path = "unit_tests/shared_object_deletion_tests.rs"]
 mod shared_object_deletion_tests;
+pub mod signature_verifier;
 pub mod test_authority_clients;
 #[cfg(test)]
 #[path = "unit_tests/transfer_to_object_tests.rs"]
@@ -83,8 +88,6 @@ mod type_param_tests;
 #[cfg(test)]
 #[path = "unit_tests/unit_test_utils.rs"]
 mod unit_test_utils;
-
-pub mod signature_verifier;
 
 pub mod runtime;
 mod transaction_signing_filter;

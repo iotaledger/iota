@@ -1085,6 +1085,10 @@ pub trait ExecutionCacheWrite: Send + Sync {
         self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
             .expect("storage access failed")
     }
+
+    /// Validates that all owned input objects exist and their versions/digests
+    /// match the live objects. Does not acquire any locks.
+    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult;
 }
 
 pub trait CheckpointCache: Send + Sync {

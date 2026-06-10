@@ -238,12 +238,12 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)>;
 }
 
-/// Test-only mutators and unchecked builders for [`TransactionEffects`] that
-/// bypass the normal invariants. Not for production use.
+/// Test-only mutators for [`TransactionEffects`] that bypass the normal
+/// invariants. Not for production use.
 pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
     // All of these should be #[cfg(test)], but they are used by tests in other
-    // crates, and dependencies don't get built with cfg(test) set as far as I
-    // can tell.
+    // crates.
+
     /// Returns a mutable reference to the execution status, for tests.
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
 
@@ -293,11 +293,6 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
     ) -> Self;
-
-    /// Build empty V1 effects for `transaction_digest`: success status, no
-    /// object changes, and no gas object. For tests that need a placeholder
-    /// whose effects content is irrelevant, e.g. system transactions.
-    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self;
 
     /// Returns the `(transaction_digest, effects_digest)` pair identifying
     /// this execution.
@@ -356,6 +351,17 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
 
         fixed_sizes + approx_change_entry_size + deps_size
     }
+}
+
+/// Test-only counterpart to [`TransactionEffectsExt`]. Not for production use.
+pub trait TransactionEffectsExtForTesting: transaction_effects_ext::Sealed {
+    // All of these should be #[cfg(test)], but they are used by tests in other
+    // crates.
+
+    /// Build empty V1 effects for `transaction_digest`: success status, no
+    /// object changes, and no gas object. For tests that need a placeholder
+    /// whose effects content is irrelevant, e.g. system transactions.
+    fn new_empty_v1_for_testing(transaction_digest: TransactionDigest) -> Self;
 }
 
 // Helper macro to reduce boilerplate code
@@ -511,22 +517,6 @@ impl TransactionEffectsExt for TransactionEffects {
         )))
     }
 
-    fn new_empty_v1(transaction_digest: TransactionDigest) -> Self {
-        Self::new_from_execution_v1(
-            ExecutionStatus::Success,
-            0,
-            GasCostSummary::default(),
-            vec![],
-            BTreeSet::new(),
-            transaction_digest,
-            SequenceNumber::default(),
-            BTreeMap::new(),
-            None,
-            None,
-            vec![],
-        )
-    }
-
     fn execution_digests(&self) -> ExecutionDigests {
         ExecutionDigests {
             transaction: *self.transaction_digest(),
@@ -631,6 +621,24 @@ impl TransactionEffectsExt for TransactionEffects {
     }
 }
 
+impl TransactionEffectsExtForTesting for TransactionEffects {
+    fn new_empty_v1_for_testing(transaction_digest: TransactionDigest) -> Self {
+        Self::new_from_execution_v1(
+            ExecutionStatus::Success,
+            0,
+            GasCostSummary::default(),
+            vec![],
+            BTreeSet::new(),
+            transaction_digest,
+            SequenceNumber::default(),
+            BTreeMap::new(),
+            None,
+            None,
+            vec![],
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct TransactionEffectsDebugSummary {
     /// Size of bcs serialized bytes of the effects.
@@ -685,7 +693,7 @@ mod tests {
     /// divergence would split-brain storage and consensus digests.
     #[test]
     fn message_trait_and_effects_digest_match() {
-        let effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
+        let effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
         let message_digest = <TransactionEffects as Message>::digest(&effects);
         let effects_digest = effects.digest();
         assert_eq!(message_digest, effects_digest);
