@@ -185,6 +185,17 @@ impl EffectsCertifier {
                         // This validator is byzantine, record the error and try to get full effects
                         // from another validator.
                         client_monitor.record_interaction_result(feedback_builder.err_now());
+                    } else if let Err(mismatch) =
+                        verify_executed_data(&executed_data, certified_digest)
+                    {
+                        tracing::warn!(
+                            ?current_target,
+                            "Full effects content inconsistent with certified digest {certified_digest}: {mismatch}"
+                        );
+                        // This validator is byzantine, record the error and try to get full effects
+                        // from another validator.
+                        self.metrics.effects_digest_mismatches.inc();
+                        client_monitor.record_interaction_result(feedback_builder.err_now());
                     } else {
                         if let Some(start_time) = full_effects_start_time {
                             let latency = start_time.elapsed();
@@ -980,17 +991,51 @@ impl EffectsCertifier {
     }
 }
 
+/// Verifies that the full effects content received from a validator is
+/// consistent with the quorum-certified effects digest: the effects must hash
+/// to the certified digest. Returns a description of the mismatch on failure.
+fn verify_executed_data(
+    executed_data: &ExecutedData,
+    certified_digest: TransactionEffectsDigest,
+) -> Result<(), String> {
+    let actual_effects_digest = executed_data.effects.digest();
+    if actual_effects_digest != certified_digest {
+        return Err(format!(
+            "effects hash to {actual_effects_digest} instead of the certified digest"
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use std::{collections::BTreeMap, net::SocketAddr};
+
+    use async_trait::async_trait;
     use iota_types::{
+        committee::Committee,
         digests::TransactionDigest,
         error::{IotaError, UserInputError},
-        messages_grpc::TxStatusUpdate,
+        iota_system_state::IotaSystemState,
+        messages_checkpoint::{CheckpointRequest, CheckpointResponse},
+        messages_grpc::{
+            HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
+            HandleCertificateRequestV1, HandleCertificateResponseV1,
+            HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
+            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
+            TransactionInfoRequest, TransactionInfoResponse, TxStatusUpdate,
+            ValidatorHealthRequest, ValidatorHealthResponse,
+        },
+        transaction::Transaction,
     };
 
     use super::*;
     use crate::{
-        authority_aggregator::AuthorityAggregatorBuilder, test_authority_clients::MockAuthorityApi,
+        authority_aggregator::AuthorityAggregatorBuilder,
+        authority_client::{
+            validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
+        },
+        test_authority_clients::MockAuthorityApi,
         validator_client_monitor::ValidatorClientMonitor,
     };
 
@@ -1232,5 +1277,209 @@ mod tests {
             "expected SubmittedButFetchFailed, got {err:?}"
         );
         assert_eq!(metrics.skip_cert_corroboration_unreachable.get(), 1);
+    }
+    /// A validator client where every validator acknowledges
+    /// `acked_effects_digest`, and serves `executed_data` when full effects
+    /// are requested. With consistent data it behaves honestly; with
+    /// inconsistent data it models a byzantine validator that helps certify
+    /// a digest and then serves unrelated content under it.
+    #[derive(Clone)]
+    struct MockStatusClient {
+        acked_effects_digest: TransactionEffectsDigest,
+        executed_data: ExecutedData,
+    }
+
+    #[async_trait]
+    impl ValidatorV2API for MockStatusClient {
+        async fn submit_tx(
+            &self,
+            _transactions: Vec<Transaction>,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+            unimplemented!()
+        }
+
+        async fn get_tx_status(
+            &self,
+            request: GetTxStatusRequest,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+            let query = request
+                .queries
+                .first()
+                .expect("test sends exactly one query");
+            let details = query
+                .include_details
+                .then(|| Box::new(self.executed_data.clone()));
+            Ok(vec![(
+                query.transaction_digest,
+                TxStatusUpdate::Executed {
+                    effects_digest: self.acked_effects_digest,
+                    details,
+                },
+            )])
+        }
+
+        async fn notify_capabilities_v2(
+            &self,
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+            unimplemented!()
+        }
+
+        async fn health_check(
+            &self,
+            _request: ValidatorHealthRequest,
+        ) -> Result<ValidatorHealthResponse, IotaError> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait]
+    impl ValidatorPeerAPI for MockStatusClient {
+        async fn get_checkpoint_v2(
+            &self,
+            _request: CheckpointRequest,
+        ) -> Result<CheckpointResponse, IotaError> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait]
+    impl ValidatorAPI for MockStatusClient {
+        async fn handle_transaction(
+            &self,
+            _transaction: Transaction,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<HandleTransactionResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_certificate_v1(
+            &self,
+            _request: HandleCertificateRequestV1,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<HandleCertificateResponseV1, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_soft_bundle_certificates_v1(
+            &self,
+            _request: HandleSoftBundleCertificatesRequestV1,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_object_info_request(
+            &self,
+            _request: ObjectInfoRequest,
+        ) -> Result<ObjectInfoResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_transaction_info_request(
+            &self,
+            _request: TransactionInfoRequest,
+        ) -> Result<TransactionInfoResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_checkpoint(
+            &self,
+            _request: CheckpointRequest,
+        ) -> Result<CheckpointResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_system_state_object(
+            &self,
+            _request: SystemStateRequest,
+        ) -> Result<IotaSystemState, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_capability_notification_v1(
+            &self,
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+            unimplemented!()
+        }
+    }
+
+    /// Runs effects certification against a 4-validator committee where
+    /// every validator behaves like `mock`.
+    async fn run_certifier(
+        mock: MockStatusClient,
+    ) -> (
+        Result<QuorumTransactionResponse, TransactionDriverError>,
+        Arc<TransactionDriverMetrics>,
+    ) {
+        let (committee, _keypairs) = Committee::new_simple_test_committee_of_size(4);
+        let clients: BTreeMap<_, _> = committee
+            .names()
+            .map(|name| (*name, mock.clone()))
+            .collect();
+        let auth_agg =
+            AuthorityAggregatorBuilder::from_committee(committee).build_custom_clients(clients);
+        let client_monitor = ValidatorClientMonitor::new_for_test();
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let current_target = *auth_agg.committee.names().next().unwrap();
+        let result = certifier
+            .get_certified_finalized_effects(
+                &auth_agg,
+                &client_monitor,
+                Some(TransactionDigest::random()),
+                current_target,
+                TxStatusUpdate::Submitted,
+                &SubmitTransactionOptions::default(),
+            )
+            .await;
+        (result, metrics)
+    }
+
+    #[tokio::test]
+    async fn rejects_full_effects_whose_content_does_not_hash_to_certified_digest() {
+        // Every validator acks one digest but serves full effects whose
+        // content hashes to a different one.
+        let executed_data = ExecutedData::default();
+        let claimed_digest = TransactionEffectsDigest::new([42; 32]);
+        assert_ne!(executed_data.effects.digest(), claimed_digest);
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: claimed_digest,
+            executed_data,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "certifier accepted full effects whose content does not hash to the certified digest"
+        );
+        assert!(
+            metrics.effects_digest_mismatches.get() >= 1,
+            "expected the content/digest mismatch to be the rejection reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn accepts_full_effects_whose_content_hashes_to_certified_digest() {
+        let executed_data = ExecutedData::default();
+        let certified_digest = executed_data.effects.digest();
+
+        let (result, metrics) = run_certifier(MockStatusClient {
+            acked_effects_digest: certified_digest,
+            executed_data,
+        })
+        .await;
+
+        let response = result.expect("consistent full effects should certify");
+        assert_eq!(response.effects.effects.digest(), certified_digest);
+        assert_eq!(
+            metrics.effects_digest_mismatches.get(),
+            0,
+            "consistent full effects must not be flagged as a mismatch"
+        );
     }
 }
