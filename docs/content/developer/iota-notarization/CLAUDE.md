@@ -60,7 +60,7 @@ iota-notarization
 │   │   ├── rust.mdx
 │   │   ├── wasm.mdx
 │   │   └── local-network-setup.mdx
-│   ├── explanations/    │      # Conceptual deep-dives
+│   ├── explanations/           # Conceptual deep-dives
 │   ├── how-tos/                # Goal-oriented step-by-step guides
 │   ├── real-world-examples/    # End-to-end scenario guides
 │   └── references/             # API docs (auto-generated Wasm, external Rust link)
@@ -114,7 +114,7 @@ The introduction page is the product's front door. Pattern:
 2. Banner image: Following banners exist:
    - `![IOTA Notarization Toolkit](/img/banner/banner_notarization.png)`
    - `![Single Notarization](/img/banner/banner_single_notarization.png)`
-   - `![Audit Trails](/img/banner/banner_audit_trail.png)`
+   - `![Audit Trails](/img/banner/banner_audit_trails.png)`
 3. One-paragraph product summary.
 4. Subsections covering: what the product solves, key use cases (with `:::info` admonitions for highlights), comparison to
    related products (e.g., Audit Trails vs. Dynamic Notarization), why IOTA, key actors, and a brief mention of RBAC linking to the explanation page.
