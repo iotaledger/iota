@@ -160,8 +160,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             round passes) even with no fresh inbound traffic, e.g. after a
 //             validator restart. Without this it can stay pending forever and
 //             block epoch close.
-//             devnet. Start publishing package metadata using the V2 layout
-//             when the package requires it.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2902,10 +2902,6 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
-                    if cfg.feature_flags.publish_package_metadata {
-                        cfg.feature_flags
-                            .package_metadata_with_dynamic_module_metadata = true;
-                    }
                 }
                 28 => {
                     // AuthenticatorFunctionInfoV1 max BCS size:
@@ -2944,6 +2940,12 @@ impl ProtocolConfig {
                     // fresh inbound traffic -- e.g. after a validator restart -- instead of
                     // staying pending forever and blocking epoch close.
                     cfg.feature_flags.always_advance_dkg_to_resolution = true;
+                    // Publish package metadata with the module metadata stored as a
+                    // dynamic field.
+                    if cfg.feature_flags.publish_package_metadata {
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
