@@ -2323,6 +2323,9 @@ multisig_authenticator_function_ref_v1
 passkey_authenticator_function_ref_v1
 	public fun
 	0x2::builtin_authenticator_functions
+from_signature_scheme
+	public fun
+	0x2::builtin_authenticator_functions
 attach_public_key
 	public fun
 	0x2::builtin_authenticator_functions
@@ -3690,9 +3693,6 @@ rotate_builtin_auth_public_key
 	0x2::smart_account
 rotate_auth_function_ref_v1
 	public fun
-	0x2::smart_account
-resolve_builtin_authenticator
-	fun
 	0x2::smart_account
 ensure_tx_sender_is_smart_account
 	fun

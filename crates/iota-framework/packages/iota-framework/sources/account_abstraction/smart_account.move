@@ -37,16 +37,12 @@ use iota::builtin_authenticator_functions;
 use iota::claim_registry::ClaimRegistry;
 use iota::dynamic_field;
 use iota::public_key::PublicKey;
-use iota::signature_scheme::{Self, SignatureScheme};
 
 // === Errors ===
 
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
-
-#[error(code = 10)]
-const EUnsupportedSignatureScheme: vector<u8> = b"Unsupported signature scheme.";
 
 // === Structs ===
 
@@ -107,7 +103,9 @@ public fun builtin_auth_builder_v1(
 
     SmartAccountBuilder {
         account,
-        authenticator: resolve_builtin_authenticator(public_key.scheme()),
+        authenticator: builtin_authenticator_functions::from_signature_scheme<
+            SmartAccount,
+        >(public_key.scheme()),
     }
 }
 
@@ -130,7 +128,9 @@ public fun claim_builder_v1(
 
     SmartAccountBuilder {
         account,
-        authenticator: resolve_builtin_authenticator(public_key.scheme()),
+        authenticator: builtin_authenticator_functions::from_signature_scheme<
+            SmartAccount,
+        >(public_key.scheme()),
     }
 }
 
@@ -337,27 +337,6 @@ public fun rotate_auth_function_ref_v1(
 // === Package Functions ===
 
 // === Private Functions ===
-
-/// Maps a `SignatureScheme` to the corresponding built-in `AuthenticatorFunctionRefV1`.
-///
-/// Aborts with `EUnsupportedSignatureScheme` for any scheme not supported by smart accounts.
-fun resolve_builtin_authenticator(
-    signature_scheme: SignatureScheme,
-): AuthenticatorFunctionRefV1<SmartAccount> {
-    if (signature_scheme == signature_scheme::ed25519()) {
-        builtin_authenticator_functions::ed25519_authenticator_function_ref_v1<SmartAccount>()
-    } else if (signature_scheme == signature_scheme::secp256k1()) {
-        builtin_authenticator_functions::secp256k1_authenticator_function_ref_v1<SmartAccount>()
-    } else if (signature_scheme == signature_scheme::secp256r1()) {
-        builtin_authenticator_functions::secp256r1_authenticator_function_ref_v1<SmartAccount>()
-    } else if (signature_scheme == signature_scheme::multisig()) {
-        builtin_authenticator_functions::multisig_authenticator_function_ref_v1<SmartAccount>()
-    } else if (signature_scheme == signature_scheme::passkey()) {
-        builtin_authenticator_functions::passkey_authenticator_function_ref_v1<SmartAccount>()
-    } else {
-        abort EUnsupportedSignatureScheme
-    }
-}
 
 /// Check that the sender of this transaction is the account itself.
 fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {

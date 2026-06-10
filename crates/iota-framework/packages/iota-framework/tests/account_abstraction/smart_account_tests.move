@@ -62,18 +62,6 @@ fun builtin_auth_builder_v1_attaches_public_key_and_authenticator() {
     });
 }
 
-#[test]
-#[expected_failure(abort_code = iota::smart_account::EUnsupportedSignatureScheme)]
-fun builtin_auth_builder_v1_aborts_on_unsupported_scheme() {
-    let mut scenario = test_scenario::begin(@0x0);
-
-    let unsupported_scheme = signature_scheme::from_flag_for_testing(0x04);
-    let public_key = public_key::create_for_testing(unsupported_scheme, x"00");
-    smart_account::builtin_auth_builder_v1(public_key, scenario.ctx()).build_v1();
-
-    scenario.end();
-}
-
 // === claim_builder_v1 ===
 
 #[test]
