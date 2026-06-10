@@ -43,6 +43,7 @@ feature_flags:
   publish_package_metadata: true
   enable_move_authentication: true
   enable_move_authentication_for_sponsor: true
+  enable_mutable_shared_in_move_authenticator: true
   pass_validator_scores_to_advance_epoch: true
   calculate_validator_scores: true
   adjust_rewards_by_score: true

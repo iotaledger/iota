@@ -14,10 +14,16 @@ use crate::{
 };
 
 /// Helper for a "canonical" verification of a module.
+///
+/// `enable_mutable_shared_in_authenticator` relaxes the authenticator verifier
+/// to accept mutable references to object types (see
+/// [`crate::authenticator_verifier::verify_authenticate_func_v1`]); it is gated
+/// by the `enable_mutable_shared_in_move_authenticator` protocol feature flag.
 pub fn iota_verify_module_metered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
+    enable_mutable_shared_in_authenticator: bool,
 ) -> Result<(), ExecutionError> {
     struct_with_key_verifier::verify_module(module)?;
     global_storage_access_verifier::verify_module(module)?;
@@ -25,7 +31,7 @@ pub fn iota_verify_module_metered(
     private_generics::verify_module(module)?;
     entry_points_verifier::verify_module(module, fn_info_map)?;
     one_time_witness_verifier::verify_module(module, fn_info_map)?;
-    runtime_module_metadata::verify_module(module)
+    runtime_module_metadata::verify_module(module, enable_mutable_shared_in_authenticator)
 }
 
 /// Runs the IOTA verifier and checks if the error counts as an IOTA verifier
@@ -35,9 +41,15 @@ pub fn iota_verify_module_metered_check_timeout_only(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
+    enable_mutable_shared_in_authenticator: bool,
 ) -> Result<(), ExecutionError> {
     // Checks if the error counts as an IOTA verifier timeout
-    if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter) {
+    if let Err(error) = iota_verify_module_metered(
+        module,
+        fn_info_map,
+        meter,
+        enable_mutable_shared_in_authenticator,
+    ) {
         if matches!(
             error.kind(),
             iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
@@ -52,8 +64,15 @@ pub fn iota_verify_module_metered_check_timeout_only(
 pub fn iota_verify_module_unmetered(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
+    enable_mutable_shared_in_authenticator: bool,
 ) -> Result<(), ExecutionError> {
-    iota_verify_module_metered(module, fn_info_map, &mut DummyMeter).inspect_err(|err| {
+    iota_verify_module_metered(
+        module,
+        fn_info_map,
+        &mut DummyMeter,
+        enable_mutable_shared_in_authenticator,
+    )
+    .inspect_err(|err| {
         // We must never see timeout error in execution
         debug_assert!(
             !matches!(

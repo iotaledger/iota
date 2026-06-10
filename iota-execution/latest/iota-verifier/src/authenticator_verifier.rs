@@ -36,9 +36,16 @@ use crate::verification_failure;
 /// - the last two arguments in order are AuthContext and TxContext
 /// - AuthContext has to be an immutable reference
 /// - TxContext has to be an immutable reference
+///
+/// When `enable_mutable_shared` is set, object parameters may also be passed by
+/// mutable reference (`&mut T`). The verifier only sees the Move type, so it
+/// cannot distinguish shared from owned objects here; restricting mutable
+/// references to *shared* objects is enforced at runtime when checking the
+/// authenticator input objects.
 pub fn verify_authenticate_func_v1(
     module: &CompiledModule,
     function_identifier: &IdentStr,
+    enable_mutable_shared: bool,
 ) -> Result<(), ExecutionError> {
     let module_name = module.name();
 
@@ -83,16 +90,22 @@ pub fn verify_authenticate_func_v1(
 
     // Check params 2nd to N-2th /////////////////////////////
 
-    // Apart from AuthContext and TxContext we only require that the arguments are
-    // not mutable references. They can be mutable pure values, as their mutability
-    // cannot affect outside state.
+    // Apart from AuthContext and TxContext, object arguments must be passed by
+    // immutable reference — unless `enable_mutable_shared` is set, in which case
+    // they may also be passed by mutable reference. Pure values are always
+    // allowed, as their mutability cannot affect outside state.
     for param in function_signature
         .0
         .iter()
         .take(function_signature.len() - 2)
     {
-        verify_authenticate_param_type(module, &function_handle.type_parameters, param)
-            .map_err(verification_failure)?;
+        verify_authenticate_param_type(
+            module,
+            &function_handle.type_parameters,
+            param,
+            enable_mutable_shared,
+        )
+        .map_err(verification_failure)?;
     }
 
     // Check params N-1th and Nth ////////////////////////////
@@ -184,13 +197,15 @@ fn verify_authenticate_account_type(
 /// Verify that the parameter type is a valid type for an authenticator
 /// function. Check that:
 /// - no Receiving objects are passed at all;
-/// - no objects are passed by value or by mutable reference, but only by
-///   immutable reference;
+/// - objects are passed by immutable reference (and, when
+///   `enable_mutable_shared` is set, also by mutable reference), never by
+///   value;
 /// - only primitive types are allowed by value.
 fn verify_authenticate_param_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
     param: &SignatureToken,
+    enable_mutable_shared: bool,
 ) -> Result<(), String> {
     use SignatureToken::*;
 
@@ -213,12 +228,22 @@ fn verify_authenticate_param_type(
                 ))
             }
         }
+        MutableReference(inner) if enable_mutable_shared => {
+            if is_object_struct(module, function_type_args, inner)? {
+                Ok(())
+            } else {
+                Err(format!(
+                    "Invalid parameter type for authenticator function: {}. Non object mutable references are invalid. Valid types are references to objects or primitive types.",
+                    format_signature_token(module, param)
+                ))
+            }
+        }
         _ => {
             if is_primitive_strict(module, function_type_args, param) {
                 Ok(())
             } else {
                 Err(format!(
-                    "Invalid parameter type for authenticator function: {}. Valid types are immutable references to objects or primitive types.",
+                    "Invalid parameter type for authenticator function: {}. Valid types are references to objects or primitive types.",
                     format_signature_token(module, param)
                 ))
             }

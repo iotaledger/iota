@@ -467,6 +467,12 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication_for_sponsor: bool,
 
+    // If true, Move authenticator functions may take mutable references (`&mut T`)
+    // to shared objects, and such objects may appear as mutable inputs in a
+    // `MoveAuthenticator`.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_mutable_shared_in_move_authenticator: bool,
+
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
     pass_validator_scores_to_advance_epoch: bool,
@@ -1699,6 +1705,17 @@ impl ProtocolConfig {
         enable_move_authentication_for_sponsor
     }
 
+    pub fn enable_mutable_shared_in_move_authenticator(&self) -> bool {
+        let enable_mutable_shared_in_move_authenticator = self
+            .feature_flags
+            .enable_mutable_shared_in_move_authenticator;
+        assert!(
+            !enable_mutable_shared_in_move_authenticator || self.enable_move_authentication(),
+            "enable_mutable_shared_in_move_authenticator requires enable_move_authentication to be set"
+        );
+        enable_mutable_shared_in_move_authenticator
+    }
+
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
         self.feature_flags.pass_validator_scores_to_advance_epoch
     }
@@ -2914,6 +2931,13 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Allow mutable references to shared objects in Move
+                        // authenticators on devnet first.
+                        cfg.feature_flags
+                            .enable_mutable_shared_in_move_authenticator = true;
+                    }
                 }
                 29 => {
                     // Keep advancing the random beacon DKG state machine on every commit
@@ -3147,6 +3171,11 @@ impl ProtocolConfig {
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
+    }
+
+    pub fn set_enable_mutable_shared_in_move_authenticator_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .enable_mutable_shared_in_move_authenticator = val;
     }
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {

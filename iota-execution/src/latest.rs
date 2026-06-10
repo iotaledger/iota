@@ -310,10 +310,16 @@ impl verifier::Verifier for Verifier<'_> {
 
     fn meter_compiled_modules(
         &mut self,
-        _protocol_config: &ProtocolConfig,
+        protocol_config: &ProtocolConfig,
         modules: &[CompiledModule],
         meter: &mut dyn Meter,
     ) -> IotaResult<()> {
-        run_metered_move_bytecode_verifier(modules, &self.config, meter, self.metrics)
+        run_metered_move_bytecode_verifier(
+            modules,
+            &self.config,
+            protocol_config,
+            meter,
+            self.metrics,
+        )
     }
 }

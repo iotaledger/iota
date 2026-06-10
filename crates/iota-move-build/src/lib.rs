@@ -402,7 +402,12 @@ fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaRe
                 error: err.to_string(),
             }
         })?;
-        iota_bytecode_verifier::iota_verify_module_unmetered(m, fn_info)?;
+        // TEMPORARY: hardcode `true` to allow mutable references to objects in
+        // authenticator functions at build time. This should instead be derived
+        // from the target network's `enable_mutable_shared_in_move_authenticator`
+        // protocol feature flag (e.g. threaded in via `BuildConfig`). The
+        // network re-verifies at publish time under its own protocol config.
+        iota_bytecode_verifier::iota_verify_module_unmetered(m, fn_info, true)?;
     }
     // Don't change the link components to iota. It is correct as it is.
     // TODO(https://github.com/MystenLabs/sui/issues/69): Run Move linker

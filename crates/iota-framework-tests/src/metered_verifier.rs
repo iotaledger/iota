@@ -49,6 +49,7 @@ fn test_metered_move_bytecode_verifier() {
     let r = run_metered_move_bytecode_verifier(
         &compiled_modules,
         &verifier_config,
+        &protocol_config,
         &mut meter,
         &bytecode_verifier_metrics,
     );
@@ -128,6 +129,7 @@ fn test_metered_move_bytecode_verifier() {
     let r = run_metered_move_bytecode_verifier(
         &compiled_modules,
         &verifier_config,
+        &protocol_config,
         &mut meter,
         &bytecode_verifier_metrics,
     );
@@ -219,6 +221,7 @@ fn test_metered_move_bytecode_verifier() {
         run_metered_move_bytecode_verifier(
             modules,
             &verifier_config,
+            &protocol_config,
             &mut meter,
             &bytecode_verifier_metrics,
         )
@@ -246,6 +249,7 @@ fn test_meter_system_packages() {
         run_metered_move_bytecode_verifier(
             &system_package.modules(),
             &verifier_config,
+            &protocol_config,
             &mut meter,
             &bytecode_verifier_metrics,
         )
@@ -318,6 +322,7 @@ fn test_build_and_verify_programmability_examples() {
         run_metered_move_bytecode_verifier(
             &modules,
             &verifier_config,
+            &protocol_config,
             &mut meter,
             &bytecode_verifier_metrics,
         )

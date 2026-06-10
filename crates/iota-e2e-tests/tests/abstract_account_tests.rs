@@ -67,6 +67,7 @@ const AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER: &str =
     "authenticate_with_sponsor_and_sender";
 const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST: &str =
     "authenticate_ed25519_via_signing_digest";
+const AA_AUTHENTICATE_FN_NAME_ED25519_AND_INCREMENT: &str = "authenticate_ed25519_and_increment";
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
@@ -114,6 +115,86 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     test_env
         .execute_and_check_tx_correctness(aa_simple_tx)
         .await
+}
+
+/// Test that a Move authenticator can take a *mutable* shared object (`&mut
+/// Counter`) as input and mutate it during authentication, gated by the
+/// `enable_mutable_shared_in_move_authenticator` protocol feature flag.
+///
+/// This exercises the full path:
+/// - publish: the verifier accepts the `&mut Counter` authenticator parameter;
+/// - signing / consensus / input checks: the mutable shared object is accepted
+///   as a `MoveAuthenticator` input;
+/// - execution: the authenticator's mutation of the shared counter is committed
+///   to effects (the counter is incremented from 0 to 1).
+#[sim_test]
+async fn test_authenticator_with_mutable_shared_object() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Allow mutable shared objects in Move authenticators (both at publish time
+    // for the verifier and at execution time for the input checks).
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_mutable_shared_in_move_authenticator_for_testing(true);
+        config
+    });
+
+    // Build a test environment and create an AbstractAccount whose authenticator
+    // mutates a shared `Counter`.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_AND_INCREMENT)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    // Request faucet coins for the AbstractAccount.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+
+    // Create the shared `Counter` (starts at 0).
+    let counter_ref = test_env.create_shared_counter().await?;
+    let counter_id = counter_ref.object_id;
+    assert_eq!(
+        test_env.read_counter_value(counter_id).await?,
+        0,
+        "counter should start at zero"
+    );
+
+    // Build a simple AA transaction.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Authenticate with the MoveAuthenticator that takes the mutable shared
+    // counter as an input and increments it.
+    let signature =
+        test_env.create_move_authenticator_ed25519_and_increment(counter_ref, &tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+    test_env.execute_and_check_tx_correctness(tx).await?;
+
+    // The authenticator must have incremented (i.e. mutated) the shared counter,
+    // proving the mutation was committed to effects.
+    assert_eq!(
+        test_env.read_counter_value(counter_id).await?,
+        1,
+        "the authenticator should have incremented the shared counter"
+    );
+    assert!(
+        test_env
+            .test_cluster
+            .get_latest_object_ref(&counter_id)
+            .await
+            .version
+            > counter_ref.version,
+        "the shared counter version should have been bumped by the mutation"
+    );
+
+    Ok(())
 }
 
 /// Test that the AuthContext byte fields are correctly populated during
@@ -2345,6 +2426,117 @@ impl TestEnvironment {
             .authority_client()
             .handle_transaction(tx, Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
             .await
+    }
+
+    /// Create and share a `Counter` (initialised to zero) and return its object
+    /// reference.
+    async fn create_shared_counter(&self) -> anyhow::Result<ObjectRef> {
+        let Some(aa_package_id) = self.aa_package_id else {
+            anyhow::bail!("Account abstraction package not published yet");
+        };
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.programmable_move_call(
+                aa_package_id,
+                Identifier::from_static(AA_CREATE_MODULE_NAME),
+                Identifier::from_static("create_counter"),
+                vec![],
+                vec![],
+            );
+            builder.finish()
+        };
+
+        let tx_data = self
+            .test_cluster
+            .test_transaction_builder()
+            .await
+            .programmable(pt)
+            .build();
+        let transaction = self.test_cluster.wallet.sign_transaction(&tx_data);
+        let (effects, _) = self
+            .test_cluster
+            .execute_transaction_return_raw_effects(transaction)
+            .await?;
+
+        // The transaction creates exactly one shared object: the `Counter`.
+        Ok(effects
+            .all_changed_objects()
+            .iter()
+            .find_map(|(obj_ref, owner, kind)| {
+                matches!((owner, kind), (Owner::Shared(_), WriteKind::Create)).then_some(*obj_ref)
+            })
+            .expect("expected a created shared Counter object"))
+    }
+
+    /// Read the `value` field of a `Counter` shared object.
+    async fn read_counter_value(&self, counter_id: ObjectId) -> anyhow::Result<u64> {
+        let object = self
+            .test_cluster
+            .get_object_from_fullnode_store(&counter_id)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("counter object not found"))?;
+        let move_object = object
+            .data
+            .as_struct_opt()
+            .ok_or_else(|| anyhow::anyhow!("counter is not a Move object"))?;
+        // `Counter { id: UID, value: u64 }`: `value` is the trailing 8 bytes.
+        let contents = move_object.contents();
+        let value = u64::from_le_bytes(<[u8; 8]>::try_from(&contents[contents.len() - 8..])?);
+        Ok(value)
+    }
+
+    /// Build a `MoveAuthenticator` for `authenticate_ed25519_and_increment`,
+    /// passing the `Counter` as a *mutable* shared call argument.
+    // public fun authenticate_ed25519_and_increment(
+    //    account: &AbstractAccount,
+    //    counter: &mut Counter,
+    //    signature: vector<u8>,
+    //    _: &AuthContext,
+    //    _: &TxContext,
+    // )
+    fn create_move_authenticator_ed25519_and_increment(
+        &self,
+        counter_ref: ObjectRef,
+        tx_digest: &[u8; 32],
+    ) -> anyhow::Result<GenericSignature> {
+        let (Some(aa_ref), Some(owner)) = (self.aa_ref, self.owner) else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let signature = self
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_hashed(&owner, tx_digest)?;
+
+        // `object_to_authenticate`: the account, as an immutable shared object.
+        let account_call_arg = CallArg::Shared(SharedObjectRef::new(
+            aa_ref.object_id,
+            aa_ref.version,
+            false,
+        ));
+        // First call arg: the counter, as a *mutable* shared object.
+        let counter_call_arg = CallArg::Shared(SharedObjectRef::new(
+            counter_ref.object_id,
+            counter_ref.version,
+            true,
+        ));
+        // Second call arg: the hex-encoded ed25519 signature.
+        let hex_encoded_signature: String = Hex::encode(signature)
+            .chars()
+            .skip(2) // flag prefix length
+            .take(Ed25519Signature::LENGTH * 2)
+            .collect();
+        let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
+
+        Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_v1(
+                vec![counter_call_arg, signature_call_arg],
+                vec![],
+                account_call_arg,
+            ),
+        ))
     }
 }
 

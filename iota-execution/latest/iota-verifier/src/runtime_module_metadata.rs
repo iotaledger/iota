@@ -28,7 +28,10 @@ use crate::{authenticator_verifier::verify_authenticate_func_v1, verification_fa
 ///    `RuntimeModuleMetadataWrapper`.
 /// 3. The deserialized metadata must satisfy any additional checks imposed by
 ///    the runtime metadata version.
-pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
+pub fn verify_module(
+    module: &CompiledModule,
+    enable_mutable_shared_in_authenticator: bool,
+) -> Result<(), ExecutionError> {
     if !module.metadata.is_empty() {
         if module.metadata.len() > 1 {
             return Err(verification_failure(
@@ -55,7 +58,7 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
                     "Failed to deserialize runtime IOTA module metadata from wrapper: {err}",
                 ))
             })?;
-        verify_runtime_metadata(module, &metadata)?;
+        verify_runtime_metadata(module, &metadata, enable_mutable_shared_in_authenticator)?;
     }
 
     Ok(())
@@ -64,6 +67,7 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
 fn verify_runtime_metadata(
     module: &CompiledModule,
     metadata: &RuntimeModuleMetadata,
+    enable_mutable_shared_in_authenticator: bool,
 ) -> Result<(), ExecutionError> {
     for (fn_name, fn_attributes) in metadata.fun_attributes_iter() {
         let mut seen = BTreeSet::new();
@@ -87,6 +91,7 @@ fn verify_runtime_metadata(
                                         "Failed to read function name: {err}",
                                     ))
                                 })?,
+                                enable_mutable_shared_in_authenticator,
                             )?;
                         }
                         _ => {

@@ -13,6 +13,13 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 
 // === Structs ===
 
+/// A simple shared counter used to exercise a Move authenticator that takes a
+/// *mutable* shared object (see `authenticate_ed25519_and_increment`).
+public struct Counter has key {
+    id: UID,
+    value: u64,
+}
+
 // === Events ===
 
 // === Method Aliases ===
@@ -143,7 +150,43 @@ public fun authenticate_with_sponsor_and_sender(
     assert!(ctx.sponsor().borrow() == sponsor.account_address());
 }
 
+/// Create and share a `Counter` initialised to zero.
+public fun create_counter(ctx: &mut TxContext) {
+    transfer::share_object(Counter { id: object::new(ctx), value: 0 });
+}
+
+/// Ed25519 authenticator that *mutates* a shared `Counter` while authenticating.
+///
+/// This requires the `enable_mutable_shared_in_move_authenticator` protocol
+/// feature flag to be enabled, both to publish (the verifier must accept the
+/// `&mut Counter` parameter) and to execute (the mutable shared object is
+/// allowed as an authenticator input).
+#[authenticator]
+public fun authenticate_ed25519_and_increment(
+    account: &AbstractAccount,
+    counter: &mut Counter,
+    signature: vector<u8>,
+    actx: &AuthContext,
+    ctx: &TxContext,
+) {
+    // Mutate the shared object as part of authentication.
+    counter.value = counter.value + 1;
+
+    // Verify the ed25519 signature against the account public key.
+    basic_keyed_aa::authenticate_ed25519(
+        &signature,
+        borrow_public_key(account),
+        actx,
+        ctx,
+    );
+}
+
 // === View Functions ===
+
+/// Read the current value of a `Counter`.
+public fun counter_value(counter: &Counter): u64 {
+    counter.value
+}
 
 /// An utility function to borrow the account-related public key.
 public fun borrow_public_key(account: &AbstractAccount): &vector<u8> {

@@ -332,7 +332,9 @@ mod checked {
 
         // Input objects come from both authentication and transaction inputs
         let input_objects = authenticator_and_transaction_input_objects.into_inner();
-        // Mutable inputs come only from the transaction inputs
+        // Mutable inputs come from the transaction inputs and, when
+        // `enable_mutable_shared_in_move_authenticator` is set, also from
+        // authenticator inputs (mutable shared objects).
         let mutable_inputs = if enable_expensive_checks {
             input_objects.mutable_inputs().keys().copied().collect()
         } else {
@@ -607,12 +609,13 @@ mod checked {
             "Only programmable transactions are allowed"
         );
         debug_assert!(
-            authenticator_input_objects
-                .mutable_inputs()
-                .keys()
-                .copied()
-                .collect::<HashSet<_>>()
-                .is_empty(),
+            protocol_config.enable_mutable_shared_in_move_authenticator()
+                || authenticator_input_objects
+                    .mutable_inputs()
+                    .keys()
+                    .copied()
+                    .collect::<HashSet<_>>()
+                    .is_empty(),
             "No mutable inputs are allowed"
         );
         debug_assert!(
@@ -732,7 +735,7 @@ mod checked {
                 trace_builder_opt,
             )
             .and_then(|ok_result| {
-                temporary_store.check_move_authenticator_results_consistency()?;
+                temporary_store.check_move_authenticator_results_consistency(protocol_config)?;
                 Ok(ok_result)
             })
         })

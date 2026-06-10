@@ -214,8 +214,9 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     pub fn check_move_authenticator_input_for_validation(
         authenticator_input_objects: InputObjects,
+        protocol_config: &ProtocolConfig,
     ) -> IotaResult<CheckedInputObjects> {
-        check_move_authenticator_objects(&authenticator_input_objects)?;
+        check_move_authenticator_objects(&authenticator_input_objects, protocol_config)?;
 
         Ok(authenticator_input_objects.into_checked())
     }
@@ -262,7 +263,7 @@ mod checked {
         // Check Move authenticator inputs first
         per_authenticator_input_objects
             .iter()
-            .try_for_each(check_move_authenticator_objects)?;
+            .try_for_each(|objects| check_move_authenticator_objects(objects, protocol_config))?;
 
         // Check certificate inputs next
         let transaction = cert.data().transaction_data();
@@ -720,13 +721,18 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     fn check_move_authenticator_objects(
         authenticator_objects: &InputObjects,
+        protocol_config: &ProtocolConfig,
     ) -> UserInputResult<()> {
         for object in authenticator_objects.iter() {
             let input_object_kind = object.input_object_kind;
 
             match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    check_one_move_authenticator_object(input_object_kind, object)?;
+                    check_one_move_authenticator_object(
+                        input_object_kind,
+                        object,
+                        protocol_config,
+                    )?;
                 }
                 // We skip checking a deleted shared object because it no longer exists.
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
@@ -743,6 +749,7 @@ mod checked {
     fn check_one_move_authenticator_object(
         object_kind: InputObjectKind,
         object: &Object,
+        protocol_config: &ProtocolConfig,
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
@@ -814,7 +821,7 @@ mod checked {
             }
             InputObjectKind::SharedMoveObject {
                 id, mutable: true, ..
-            } => {
+            } if !protocol_config.enable_mutable_shared_in_move_authenticator() => {
                 return Err(UserInputError::MutableSharedIsInMoveAuthenticatorInput {
                     object_id: id,
                 });

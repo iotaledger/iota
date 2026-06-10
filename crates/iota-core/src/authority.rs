@@ -5720,6 +5720,7 @@ impl AuthorityState {
                     let authenticator_checked_input_objects =
                         iota_transaction_checks::check_move_authenticator_input_for_validation(
                             authenticator_input_objects,
+                            protocol_config,
                         )?;
 
                     Ok((
