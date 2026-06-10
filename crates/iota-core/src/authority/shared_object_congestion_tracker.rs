@@ -1066,19 +1066,18 @@ mod object_cost_tests {
         let shared_obj_1 = ObjectID::random();
 
         let (max_execution_duration_per_commit, max_overshoot_per_commit) = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => (12, 0),
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => (12, 0),
             PerObjectCongestionControlMode::TotalTxCount => (3, 0),
         };
 
         let (initial_debt_obj_0, initial_debt_obj_1) = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => {
-                // Initial debts for TotalGasBudget/TotalComputationCost mode are
-                // set such that the object execution slots are constructed as
-                // follows:
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => {
+                // Initial debts for TotalGasBudget mode are set such that
+                // the object execution slots are constructed as follows:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
@@ -1125,7 +1124,8 @@ mod object_cost_tests {
         shared_object_congestion_tracker.bump_object_execution_slots(
             &tx,
             match mode {
-                PerObjectCongestionControlMode::None => unreachable!(),
+                PerObjectCongestionControlMode::None
+                | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
                 // in TotalGasBudget mode, the object execution slots becomes:
                 //    object 0       object 1
                 //  0| xxxxxxxx     | xxxxxxxx
@@ -1137,8 +1137,7 @@ mod object_cost_tests {
                 // 11|______________|____________ max_execution_duration_per_commit = 12
                 // 12|              |
                 // 13|              |
-                PerObjectCongestionControlMode::TotalGasBudget
-                | PerObjectCongestionControlMode::TotalComputationCost => 9,
+                PerObjectCongestionControlMode::TotalGasBudget => 9,
                 // in TotalTxCount mode, the object execution slots becomes:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
@@ -1423,9 +1422,9 @@ mod object_cost_tests {
         .expect("start time should be computable");
         shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_time);
         let expected_object_0_duration = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => 20,
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 20,
             PerObjectCongestionControlMode::TotalTxCount => 11,
         };
         assert_eq!(
@@ -1461,9 +1460,9 @@ mod object_cost_tests {
             TEST_ONLY_GAS_PRICE,
         );
         let expected_object_duration = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => 30,
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 30,
             PerObjectCongestionControlMode::TotalTxCount => 12,
         };
         let cert_duration = shared_object_congestion_tracker
@@ -1719,16 +1718,16 @@ mod object_cost_tests {
         let tx_gas_budget = 100;
 
         let max_execution_duration_per_commit = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => 100,
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 100,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
         let max_overshoot_per_commit = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => 200,
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 200,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
@@ -1746,9 +1745,9 @@ mod object_cost_tests {
         // touching object 1 can be scheduled with some overshoot, but nothing touching
         // object 0 can be scheduled.
         let shared_object_congestion_tracker = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => {
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => {
                 // Construct object execution cost as following
                 //          object 0    object 1
                 //       0| xxxxxxxx   | xxxxxxxx
@@ -1860,16 +1859,16 @@ mod object_cost_tests {
         // Set max_accumulated_txn_cost_per_object_in_commit  and initial_object_debt
         // such that a single transaction will cause an overshoot.
         let max_execution_duration_per_commit = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => 90,
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 90,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
         let initial_object_debt = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => 70,
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 70,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
@@ -1913,9 +1912,9 @@ mod object_cost_tests {
             shared_object_congestion_tracker.accumulated_debts(max_execution_duration_per_commit);
         assert_eq!(accumulated_debts.len(), 1);
         match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => {
+            PerObjectCongestionControlMode::None
+            | PerObjectCongestionControlMode::TotalComputationCost => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => {
                 assert_eq!(accumulated_debts[0], (shared_obj_0, 80)); // overshoot = initial_debt (70) + tx_duration (100) - max_execution_duration_per_commit (90) = 80
             }
             PerObjectCongestionControlMode::TotalTxCount => {

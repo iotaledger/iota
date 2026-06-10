@@ -112,6 +112,22 @@ fn test_get_estimated_execution_duration_total_computation_cost_mode() {
         params.get_estimated_execution_duration(&unattested_tx),
         gas_budget / TEST_ONLY_GAS_PRICE,
     );
+
+    // Unattested transaction with a zero gas price: the `gas_budget / gas_price`
+    // fallback must not divide by zero.
+    let zero_gas_price_tx = build_transaction(&[], gas_budget, 0);
+    assert_eq!(
+        params.get_estimated_execution_duration(&zero_gas_price_tx),
+        0,
+    );
+
+    // An attestation with a zero computation cost should not use the gas-budget
+    // fallback.
+    let zero_cost_attested_tx = attest(build_transaction(&[], gas_budget, TEST_ONLY_GAS_PRICE), 0);
+    assert_eq!(
+        params.get_estimated_execution_duration(&zero_cost_attested_tx),
+        0,
+    );
 }
 
 /// Attaches a validator attestation with the given `estimated_computation_cost`
