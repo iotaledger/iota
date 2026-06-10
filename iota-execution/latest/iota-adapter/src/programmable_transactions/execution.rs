@@ -33,10 +33,9 @@ mod checked {
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
-            IotaAttribute, MovePackageExt, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
-            UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket, derive_package_metadata_id,
-            derive_package_metadata_v2_id, normalize_deserialized_modules_with_metadata,
-            normalize_modules_with_metadata,
+            IotaAttribute, MovePackageExt, PackageMetadata, RuntimeModuleMetadata,
+            RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            normalize_deserialized_modules_with_metadata, normalize_modules_with_metadata,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -84,8 +83,8 @@ mod checked {
         programmable_transactions::context::*,
     };
 
-    const CREATE_PACKAGE_METADATA_V1_FN_NAME: &IdentStr = ident_str!("create_package_metadata_v1");
-    const CREATE_PACKAGE_METADATA_V2_FN_NAME: &IdentStr = ident_str!("create_package_metadata_v2");
+    const CREATE_PACKAGE_METADATA_V1_WITH_DYNAMIC_METADATA_FN_NAME: &IdentStr =
+        ident_str!("create_package_metadata_v1_with_dynamic_metadata");
     const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
 
     /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
@@ -973,20 +972,20 @@ mod checked {
     #[derive(Copy, Clone)]
     enum PackageMetadataHandler {
         V1,
-        V2,
+        Dynamic,
     }
 
     impl PackageMetadataHandler {
         fn from_protocol_config(protocol_config: &ProtocolConfig) -> Self {
-            if protocol_config.package_metadata_v2() {
-                Self::V2
+            if protocol_config.package_metadata_with_dynamic_module_metadata() {
+                Self::Dynamic
             } else {
                 Self::V1
             }
         }
 
         fn supports_view_function_metadata(self) -> bool {
-            matches!(self, Self::V2)
+            matches!(self, Self::Dynamic)
         }
 
         fn should_publish_package(
@@ -997,7 +996,7 @@ mod checked {
                 Self::V1 => modules_metadata
                     .values()
                     .any(|md| !md.authenticator_metadata.is_empty()),
-                Self::V2 => modules_metadata.values().any(|md| !md.is_empty()),
+                Self::Dynamic => modules_metadata.values().any(|md| !md.is_empty()),
             }
         }
 
@@ -1017,9 +1016,8 @@ mod checked {
                     storage_id,
                     runtime_id,
                     package_version,
-                    trace_builder_opt,
                 ),
-                Self::V2 => self.publish_v2(
+                Self::Dynamic => self.publish_v1_with_dynamic_metadata(
                     context,
                     modules_metadata,
                     storage_id,
@@ -1037,32 +1035,37 @@ mod checked {
             storage_id: ObjectId,
             runtime_id: ObjectId,
             package_version: u64,
-            trace_builder_opt: &mut Option<MoveTraceBuilder>,
         ) -> Result<(), ExecutionError> {
-            let (modules, auth_functions, type_names, _) =
-                package_metadata_constructor_args(modules_metadata);
-            let metadata_id = derive_package_metadata_v2_id(storage_id);
-            let args = vec![
-                to_bcs_argument(
-                    &AccountAddress::new(metadata_id.into_bytes()),
-                    "package metadata ID",
-                )?,
-                to_bcs_argument(&ID::new(storage_id), "package metadata storage ID")?,
-                to_bcs_argument(&ID::new(runtime_id), "package metadata runtime ID")?,
-                to_bcs_argument(&package_version, "package metadata version")?,
-                to_bcs_argument(&modules, "package metadata modules")?,
-                to_bcs_argument(&auth_functions, "package metadata authenticator functions")?,
-                to_bcs_argument(&type_names, "package metadata type names")?,
-            ];
-            execute_package_metadata_constructor(
-                context,
-                CREATE_PACKAGE_METADATA_V1_FN_NAME,
-                args,
-                trace_builder_opt,
-            )
+            let metadata_uid = context.package_derived_metadata_id(storage_id)?;
+            // Create the package metadata object content
+            let modules_metadata_v1 = modules_metadata
+                .iter()
+                .map(|(mod_name, pending_metadata)| {
+                    (
+                        mod_name.clone(),
+                        pending_metadata.authenticator_metadata.clone(),
+                    )
+                })
+                .collect();
+            let metadata = PackageMetadata::new_v1(
+                metadata_uid,
+                storage_id,
+                runtime_id,
+                package_version,
+                modules_metadata_v1,
+            );
+            // Turn the content into an object
+            let package_metadata = context.make_object_value(
+                metadata.type_(),
+                // used_in_non_entry_move_call
+                false,
+                &metadata.to_bcs_bytes(),
+            )?;
+            // Freeze the package metadata object
+            context.freeze_object(package_metadata)
         }
 
-        fn publish_v2(
+        fn publish_v1_with_dynamic_metadata(
             self,
             context: &mut ExecutionContext<'_, '_, '_>,
             modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
@@ -1073,12 +1076,11 @@ mod checked {
         ) -> Result<(), ExecutionError> {
             let (modules, auth_functions, type_names, view_function_names) =
                 package_metadata_constructor_args(modules_metadata);
-            let metadata_id = derive_package_metadata_id(storage_id);
+            // The Move constructor derives both the package metadata object address
+            // and the per-module metadata object addresses from the package storage
+            // ID, so we pass the storage ID as the package ID.
             let args = vec![
-                to_bcs_argument(
-                    &AccountAddress::new(metadata_id.into_bytes()),
-                    "package metadata ID",
-                )?,
+                to_bcs_argument(&ID::new(storage_id), "package metadata package ID")?,
                 to_bcs_argument(&ID::new(storage_id), "package metadata storage ID")?,
                 to_bcs_argument(&ID::new(runtime_id), "package metadata runtime ID")?,
                 to_bcs_argument(&package_version, "package metadata version")?,
@@ -1089,7 +1091,7 @@ mod checked {
             ];
             execute_package_metadata_constructor(
                 context,
-                CREATE_PACKAGE_METADATA_V2_FN_NAME,
+                CREATE_PACKAGE_METADATA_V1_WITH_DYNAMIC_METADATA_FN_NAME,
                 args,
                 trace_builder_opt,
             )

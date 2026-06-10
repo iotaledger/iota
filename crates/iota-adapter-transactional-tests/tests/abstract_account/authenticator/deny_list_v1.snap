@@ -32,17 +32,17 @@ task 3, line 36:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(4,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10161200, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4, lines 38-51:
 //# publish --sender A --dependencies test_coin simple_abstract_account
-created: object(5,0), object(5,1), object(5,2)
+created: object(5,0), object(5,1), object(5,2), object(5,3), object(5,4), object(5,5)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12448800, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 20292000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 5, line 53:
-//# init-abstract-account --sender A --package-metadata object(5,2) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
-events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [67, 168, 106, 219, 173, 204, 45, 251, 73, 224, 109, 111, 174, 125, 196, 102, 191, 93, 210, 80, 0, 16, 85, 116, 32, 208, 52, 154, 202, 57, 47, 73, 65, 13, 237, 249, 66, 104, 240, 70, 105, 215, 63, 157, 155, 214, 142, 169, 164, 198, 135, 0, 20, 71, 191, 157, 112, 176, 151, 235, 104, 83, 95, 218, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
+//# init-abstract-account --sender A --package-metadata object(5,5) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [225, 200, 213, 71, 140, 49, 96, 240, 61, 144, 165, 228, 10, 31, 250, 133, 26, 216, 18, 52, 72, 133, 183, 217, 120, 211, 59, 12, 168, 7, 167, 236, 38, 86, 158, 254, 253, 100, 248, 20, 27, 181, 51, 68, 83, 188, 180, 20, 161, 104, 106, 234, 127, 224, 137, 157, 192, 93, 128, 2, 176, 0, 186, 28, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
 created: object(6,0), object(6,1), object(6,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6847600, storage_rebate: 980400, non_refundable_storage_fee: 0
@@ -56,7 +56,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 8, lines 63-65:
 //# run iota::coin::deny_list_v1_add --args object(0x403) object(1,2) @account_addr --type-args test_coin::regulated_coin::REGULATED_COIN --sender C
-events: Event { package_id: ObjectId("iota"), module: Identifier("coin"), sender: Address("C"), type_: StructTag { address: Address("iota"), module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0, 96, 48, 55, 54, 98, 97, 56, 56, 97, 49, 55, 52, 50, 57, 52, 55, 55, 52, 49, 53, 57, 53, 101, 99, 99, 49, 97, 101, 97, 101, 48, 56, 55, 101, 101, 57, 98, 55, 100, 97, 57, 97, 52, 49, 48, 101, 100, 53, 48, 57, 54, 57, 48, 50, 57, 102, 52, 51, 98, 52, 99, 52, 100, 52, 99, 58, 58, 114, 101, 103, 117, 108, 97, 116, 101, 100, 95, 99, 111, 105, 110, 58, 58, 82, 69, 71, 85, 76, 65, 84, 69, 68, 95, 67, 79, 73, 78, 44, 234, 253, 18, 33, 60, 255, 53, 24, 195, 134, 163, 57, 97, 135, 190, 35, 54, 88, 97, 200, 40, 4, 113, 185, 158, 31, 244, 22, 175, 174, 95] }
+events: Event { package_id: ObjectId("iota"), module: Identifier("coin"), sender: Address("C"), type_: StructTag { address: Address("iota"), module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0, 96, 48, 55, 54, 98, 97, 56, 56, 97, 49, 55, 52, 50, 57, 52, 55, 55, 52, 49, 53, 57, 53, 101, 99, 99, 49, 97, 101, 97, 101, 48, 56, 55, 101, 101, 57, 98, 55, 100, 97, 57, 97, 52, 49, 48, 101, 100, 53, 48, 57, 54, 57, 48, 50, 57, 102, 52, 51, 98, 52, 99, 52, 100, 52, 99, 58, 58, 114, 101, 103, 117, 108, 97, 116, 101, 100, 95, 99, 111, 105, 110, 58, 58, 82, 69, 71, 85, 76, 65, 84, 69, 68, 95, 67, 79, 73, 78, 62, 180, 18, 129, 167, 130, 75, 198, 142, 98, 68, 249, 73, 204, 132, 77, 35, 87, 84, 30, 174, 232, 203, 169, 185, 177, 243, 194, 29, 183, 177, 60] }
 created: object(9,0), object(9,1), object(9,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,1), object(1,2)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12144800, storage_rebate: 2758800, non_refundable_storage_fee: 0

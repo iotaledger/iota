@@ -6,7 +6,7 @@ module abstract_account_with_pub_key::abstract_account;
 use iota::account;
 use iota::authenticator_function;
 use iota::dynamic_field;
-use iota::package_metadata::PackageMetadataV2;
+use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
 
 public struct AbstractAccount has key {
@@ -16,15 +16,13 @@ public struct AbstractAccount has key {
 public struct OwnerPublicKey has copy, drop, store {}
 
 public fun create(
-    package_metadata: &PackageMetadataV2,
+    package_metadata: &PackageMetadataV1,
     module_name: ascii::String,
     function_name: ascii::String,
     public_key: vector<u8>,
     ctx: &mut TxContext,
 ): address {
-    let authenticator = authenticator_function::create_auth_function_ref_v1_from_package_metadata_v2<
-        AbstractAccount,
-    >(
+    let authenticator = authenticator_function::create_auth_function_ref_v1<AbstractAccount>(
         package_metadata,
         module_name,
         function_name,

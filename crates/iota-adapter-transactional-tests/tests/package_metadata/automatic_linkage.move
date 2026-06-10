@@ -4,7 +4,7 @@
 //# init --addresses test=0x0 --accounts A
 
 //# publish --sender A
-module test::view_metadata;
+module test::automatic_linkage;
 
 #[view]
 public fun answer(): u64 {

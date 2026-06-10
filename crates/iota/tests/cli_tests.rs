@@ -6683,7 +6683,7 @@ async fn setup_move_authenticator_account(
                 object_type,
                 object_id,
                 ..
-            } if object_type.to_string() == "0x2::package_metadata::PackageMetadata" => {
+            } if object_type.to_string() == "0x2::package_metadata::PackageMetadataV1" => {
                 Some(*object_id)
             }
             _ => None,

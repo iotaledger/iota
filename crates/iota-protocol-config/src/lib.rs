@@ -528,10 +528,11 @@ struct FeatureFlags {
     // Conflicts are resolved deterministically post-consensus using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_white_flag_flow: bool,
-    // If true, package metadata can be published as PackageMetadataV2 when the
-    // package requires the V2 layout. If false, PackageMetadataV1 is used.
+
+    // If true, package metadata can be published with ModuleMetadata as a dynamic
+    // field.
     #[serde(skip_serializing_if = "is_false")]
-    package_metadata_v2: bool,
+    package_metadata_with_dynamic_module_metadata: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1789,11 +1790,14 @@ impl ProtocolConfig {
     pub fn enable_white_flag_flow(&self) -> bool {
         self.feature_flags.enable_white_flag_flow
     }
-    pub fn package_metadata_v2(&self) -> bool {
-        let res = self.feature_flags.package_metadata_v2;
+
+    pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
+        let res = self
+            .feature_flags
+            .package_metadata_with_dynamic_module_metadata;
         assert!(
             !res || self.publish_package_metadata(),
-            "package_metadata_v2 requires publish_package_metadata to be enabled"
+            "package_metadata_with_dynamic_module_metadata requires publish_package_metadata to be enabled"
         );
         res
     }
@@ -2899,7 +2903,8 @@ impl ProtocolConfig {
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
                     if cfg.feature_flags.publish_package_metadata {
-                        cfg.feature_flags.package_metadata_v2 = true;
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
                     }
                 }
                 28 => {
@@ -3191,8 +3196,9 @@ impl ProtocolConfig {
         self.feature_flags.enable_white_flag_flow = val;
     }
 
-    pub fn set_package_metadata_v2_for_testing(&mut self, val: bool) {
-        self.feature_flags.package_metadata_v2 = val;
+    pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .package_metadata_with_dynamic_module_metadata = val;
     }
 }
 

@@ -6,82 +6,25 @@ processed 5 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-27:
+task 1, lines 6-29:
 //# publish --sender A
-created: object(1,0), object(1,1), object(1,2)
+created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12654000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 19972800, storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 29:
-//# run test::view_metadata::assert_view_metadata --sender A --args object(1,1)
+task 2, line 31:
+//# run test::view_metadata::assert_view_metadata --sender A --args object(1,4)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 31:
-//# view-object 1,0
-Owner: Object(fake(1,1))
-Version: 2
-Contents: iota::dynamic_field::Field<iota::package_metadata::PackageMetadataV2Key, iota::package_metadata_inner::PackageMetadataV2Inner> {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(1,0),
-        },
-    },
-    name: iota::package_metadata::PackageMetadataV2Key {
-        dummy_field: false,
-    },
-    value: iota::package_metadata_inner::PackageMetadataV2Inner {
-        modules_metadata: iota::vec_map::VecMap<std::ascii::String, iota::package_metadata_inner::ModuleMetadataV2> {
-            contents: vector[
-                iota::vec_map::Entry<std::ascii::String, iota::package_metadata_inner::ModuleMetadataV2> {
-                    key: std::ascii::String {
-                        bytes: vector[
-                            118u8,
-                            105u8,
-                            101u8,
-                            119u8,
-                            95u8,
-                            109u8,
-                            101u8,
-                            116u8,
-                            97u8,
-                            100u8,
-                            97u8,
-                            116u8,
-                            97u8,
-                        ],
-                    },
-                    value: iota::package_metadata_inner::ModuleMetadataV2 {
-                        authenticator_metadata: vector[],
-                        view_functions_metadata: vector[
-                            iota::package_metadata_inner::ViewFunctionMetadataV1 {
-                                function_name: std::ascii::String {
-                                    bytes: vector[
-                                        97u8,
-                                        110u8,
-                                        115u8,
-                                        119u8,
-                                        101u8,
-                                        114u8,
-                                    ],
-                                },
-                            },
-                        ],
-                    },
-                },
-            ],
-        },
-    },
-}
-
-task 4, line 33:
-//# view-object 1,1
+task 3, line 33:
+//# view-object 1,4
 Owner: Immutable
 Version: 2
-Contents: iota::package_metadata::PackageMetadataV2 {
+Contents: iota::package_metadata::PackageMetadataV1 {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(1,1),
+            bytes: fake(1,4),
         },
     },
     storage_id: iota::object::ID {
@@ -91,4 +34,34 @@ Contents: iota::package_metadata::PackageMetadataV2 {
         bytes: test,
     },
     package_version: 1u64,
+    modules_metadata: iota::vec_map::VecMap<std::ascii::String, iota::package_metadata::ModuleMetadataV1> {
+        contents: vector[],
+    },
+}
+
+task 4, line 35:
+//# view-object 1,0
+Owner: Object(_)
+Version: 2
+Contents: iota::dynamic_field::Field<iota::module_metadata::ViewFunctionMetadataV1FieldName, vector<std::ascii::String>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,0),
+        },
+    },
+    name: iota::module_metadata::ViewFunctionMetadataV1FieldName {
+        dummy_field: false,
+    },
+    value: vector[
+        std::ascii::String {
+            bytes: vector[
+                97u8,
+                110u8,
+                115u8,
+                119u8,
+                101u8,
+                114u8,
+            ],
+        },
+    ],
 }

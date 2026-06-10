@@ -8,7 +8,7 @@ module iota::package_metadata;
 
 use iota::derived_object;
 use iota::dynamic_field;
-use iota::module_metadata_dynamic::{Self, ModuleMetadataDynamic, ViewFunctionMetadataV1};
+use iota::module_metadata::{Self, ModuleMetadata};
 use iota::vec_map::VecMap;
 use std::ascii;
 use std::type_name::TypeName;
@@ -31,8 +31,8 @@ const EWrongPackageVersion: vector<u8> =
 public struct PackageMetadataKey has copy, drop, store {}
 /// Key types for dynamic field keys
 public struct PackageMetadataVersionFieldName has copy, drop, store {}
-public struct ModulesMetadataDynamicFieldName has copy, drop, store {}
-public struct AuthenticatorMetadataFieldName has copy, drop, store {}
+public struct ModuleMetadataV1FieldName has copy, drop, store {}
+public struct ModuleMetadataFieldName has copy, drop, store {}
 
 public struct ModuleName(ascii::String) has copy, drop, store;
 
@@ -52,12 +52,6 @@ public struct PackageMetadataV1 has key {
     package_version: u64,
     // Handles to internal package modules
     modules_metadata: VecMap<ascii::String, ModuleMetadataV1>,
-    // package_view_function: VecMap<ascii::String, vector<ViewFunctionMetadataV1>>,
-}
-
-public struct ModuleMetadataKey has copy, drop, store {
-    module_name: ascii::String,
-    version: u8,
 }
 
 /// Represents metadata associated with a module in the package.
@@ -75,46 +69,18 @@ public struct AuthenticatorMetadataV1 has copy, drop, store {
 }
 // ===  Constructors ===
 
-public(package) fun create_package_metadata_v1(
-    package_id: ID,
-    storage_id: ID,
-    runtime_id: ID,
-    package_version: u64,
-    modules: vector<ascii::String>,
-    auth_functions: vector<vector<ascii::String>>,
-    type_names: vector<vector<TypeName>>,
-) {
-    let modules_metadata = create_modules_metadata_v1(
-        modules,
-        auth_functions,
-        type_names,
-    );
-    let id_address = derived_object::derive_address(package_id, PackageMetadataKey {});
-    let id = object::new_uid_from_hash(id_address);
-
-    let package_metadata = PackageMetadataV1 {
-        id,
-        storage_id,
-        runtime_id,
-        package_version,
-        modules_metadata,
-    };
-    transfer::freeze_object(package_metadata);
-}
-
 public(package) fun create_package_metadata_v1_with_dynamic_metadata(
     package_id: ID,
     storage_id: ID,
     runtime_id: ID,
     package_version: u64,
-    module_id: ID,
     modules: vector<ascii::String>,
     auth_functions: vector<vector<ascii::String>>,
     type_names: vector<vector<TypeName>>,
     view_function_names: vector<vector<ascii::String>>,
 ) {
-    let modules_metadata = create_modules_metadata_dynamic(
-        module_id,
+    let modules_metadata = create_modules_metadata(
+        package_id,
         modules,
         auth_functions,
         type_names,
@@ -140,7 +106,7 @@ public(package) fun create_package_metadata_v1_with_dynamic_metadata(
 
     dynamic_field::add(
         &mut package_metadata.id,
-        ModulesMetadataDynamicFieldName {},
+        ModuleMetadataFieldName {},
         modules_metadata,
     );
     transfer::freeze_object(package_metadata);
@@ -176,21 +142,21 @@ public(package) fun create_modules_metadata_v1(
     modules_metadata
 }
 
-public(package) fun create_modules_metadata_dynamic(
-    module_id: ID,
+public(package) fun create_modules_metadata(
+    package_id: ID,
     modules: vector<ascii::String>,
     auth_functions: vector<vector<ascii::String>>,
     type_names: vector<vector<TypeName>>,
     view_function_names: vector<vector<ascii::String>>,
-): VecMap<ModuleName, ModuleMetadataDynamic> {
+): VecMap<ModuleName, ModuleMetadata> {
     assert!(modules.length() == auth_functions.length());
     assert!(modules.length() == type_names.length());
     assert!(modules.length() == view_function_names.length());
-    let mut modules_metadata = iota::vec_map::empty<ModuleName, ModuleMetadataDynamic>();
+    let mut modules_metadata = iota::vec_map::empty<ModuleName, ModuleMetadata>();
     let mut i = 0;
     while (i < modules.length()) {
         let module_name = modules[i];
-        let mut module_metadata = module_metadata_dynamic::new(module_id);
+        let mut module_metadata = module_metadata::new(package_id, module_name);
         let mut authenticator_metadata = vector[];
         let mut j = 0;
         while (j < auth_functions[i].length()) {
@@ -201,9 +167,11 @@ public(package) fun create_modules_metadata_dynamic(
             );
             j = j + 1;
         };
-        module_metadata.add(AuthenticatorMetadataFieldName {}, authenticator_metadata);
-        let view_function_names = view_function_names[i];
-        module_metadata.add_view_function_metadata_v1(view_function_names);
+        module_metadata.add(
+            ModuleMetadataV1FieldName {},
+            create_module_metadata_v1(authenticator_metadata),
+        );
+        module_metadata.add_view_function_metadata_v1(view_function_names[i]);
 
         modules_metadata.insert(ModuleName(module_name), module_metadata);
         i = i + 1;
@@ -252,7 +220,26 @@ public fun try_get_modules_metadata_v1(
     self: &PackageMetadataV1,
     module_name: &ascii::String,
 ): Option<ModuleMetadataV1> {
-    self.modules_metadata.try_get(module_name)
+    if (
+        dynamic_field::exists_<PackageMetadataVersionFieldName>(
+            &self.id,
+            PackageMetadataVersionFieldName {},
+        )
+    ) {
+        let package_metadata_version = dynamic_field::borrow<PackageMetadataVersionFieldName, u64>(
+            &self.id,
+            PackageMetadataVersionFieldName {},
+        );
+        assert!(package_metadata_version == 2, EWrongPackageVersion);
+        let modules_metadata = self.modules_metadata(module_name);
+        if (modules_metadata.contains(ModuleMetadataV1FieldName {})) {
+            option::some(*modules_metadata.borrow(ModuleMetadataV1FieldName {}))
+        } else {
+            option::none()
+        }
+    } else {
+        self.modules_metadata.try_get(module_name)
+    }
 }
 
 /// Borrow the module metadata list of the package represented by this metadata.
@@ -263,13 +250,20 @@ public fun modules_metadata_v1(
     module_name: &ascii::String,
 ): &ModuleMetadataV1 {
     if (
-        dynamic_field::exists_<ModulesMetadataDynamicFieldName>(
+        dynamic_field::exists_<PackageMetadataVersionFieldName>(
             &self.id,
-            ModulesMetadataDynamicFieldName {},
+            PackageMetadataVersionFieldName {},
         )
     ) {
-        abort (EWrongPackageVersion)
+        let package_metadata_version = dynamic_field::borrow<PackageMetadataVersionFieldName, u64>(
+            &self.id,
+            PackageMetadataVersionFieldName {},
+        );
+        assert!(package_metadata_version == 2, EWrongPackageVersion);
+        let modules_metadata = self.modules_metadata(module_name);
+        modules_metadata.borrow(ModuleMetadataV1FieldName {})
     } else {
+        assert!(self.modules_metadata.contains(module_name), EModuleMetadataNotFound);
         self.modules_metadata.get(module_name)
     }
 }
@@ -277,54 +271,39 @@ public fun modules_metadata_v1(
 public fun modules_metadata(
     self: &PackageMetadataV1,
     module_name: &ascii::String,
-): &ModuleMetadataDynamic {
-    dynamic_field::borrow<
-        ModulesMetadataDynamicFieldName,
-        VecMap<ModuleName, ModuleMetadataDynamic>,
-    >(
+): &ModuleMetadata {
+    let modules_metadata = dynamic_field::borrow<ModuleMetadataFieldName, VecMap<_, _>>(
         &self.id,
-        ModulesMetadataDynamicFieldName {},
-    ).get(&ModuleName(*module_name))
+        ModuleMetadataFieldName {},
+    );
+    let name = ModuleName(*module_name);
+    assert!(modules_metadata.contains(&name), EModuleMetadataNotFound);
+    let idx = modules_metadata.get_idx(&name);
+    let (_, metadata) = modules_metadata.get_entry_by_idx(idx);
+    metadata
 }
 
 public fun view_function_metadata_v1(
-    self: &ModuleMetadataDynamic,
+    self: &ModuleMetadata,
     function_name: &ascii::String,
-): &ViewFunctionMetadataV1 {
-    self.view_function_metadata_v1(function_name)
+): &ascii::String {
+    self.borrow_view_function_metadata_v1(function_name)
 }
 
 public fun authenticator_function_metadata_v1(
-    self: &ModuleMetadataDynamic,
+    self: &ModuleMetadata,
     function_name: &ascii::String,
 ): &AuthenticatorMetadataV1 {
-    let authenticator_metadata = self.borrow<
-        AuthenticatorMetadataFieldName,
-        vector<AuthenticatorMetadataV1>,
-    >(AuthenticatorMetadataFieldName {});
-    let mut index = authenticator_metadata.find_index!(|m| m.function_name() == *function_name);
-    assert!(index.is_some(), EAuthenticatorMetadataNotFound);
-    authenticator_metadata.borrow(index.extract())
+    let module_metadata_v1 = self.borrow<
+        ModuleMetadataV1FieldName,
+        ModuleMetadataV1,
+    >(ModuleMetadataV1FieldName {});
+    module_metadata_v1.authenticator_metadata_v1(function_name)
 }
-
-// public fun try_get_modules_metadata_v2(
-//     self: &PackageMetadataV1,
-//     module_name: &ascii::String,
-// ): Option<ModuleMetadataV2> {
-//     assert!(self.package_version == 2, EWrongPackageVersion);
-//     load_inner_package_metadata(self).try_get_module_metadata_v2(module_name)
-// }
-
-// public fun modules_metadata_v2(
-//     self: &PackageMetadataV1,
-//     module_name: &ascii::String,
-// ): &ModuleMetadataV2 {
-//     assert!(self.package_version == 2, EWrongPackageVersion);
-//     load_inner_package_metadata(self).modules_metadata_v2(module_name)
-// }
 
 /// Safely get the `AuthenticatorMetadataV1` associated with the specified
 /// `function_name` within the module metadata.
+/// TO BE DEPRECATED?
 public fun try_get_authenticator_metadata_v1(
     self: &ModuleMetadataV1,
     function_name: &ascii::String,
@@ -337,6 +316,7 @@ public fun try_get_authenticator_metadata_v1(
 /// Borrow the `AuthenticatorMetadataV1` associated with the specified
 /// `function_name`.
 /// Aborts if the authenticator metadata is not found for that function.
+/// TO BE DEPRECATED?
 public fun authenticator_metadata_v1(
     self: &ModuleMetadataV1,
     function_name: &ascii::String,
@@ -356,7 +336,6 @@ public fun function_name(self: &AuthenticatorMetadataV1): &ascii::String {
 }
 
 // === Test functions ===
-
 #[test_only]
 public fun create_package_metadata_v1_for_testing(
     storage_id: ID,
@@ -394,7 +373,7 @@ public fun create_package_metadata_v1_with_dynamic_metadata_for_testing(
     type_names: vector<vector<TypeName>>,
     view_functions: vector<vector<ascii::String>>,
 ): PackageMetadataV1 {
-    let modules_metadata = create_modules_metadata_dynamic(
+    let modules_metadata = create_modules_metadata(
         storage_id,
         modules,
         auth_functions,
@@ -422,7 +401,7 @@ public fun create_package_metadata_v1_with_dynamic_metadata_for_testing(
     );
     dynamic_field::add(
         &mut package_metadata.id,
-        ModulesMetadataDynamicFieldName {},
+        ModuleMetadataFieldName {},
         modules_metadata,
     );
     package_metadata

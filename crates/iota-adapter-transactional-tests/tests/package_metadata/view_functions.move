@@ -6,7 +6,7 @@
 //# publish --sender A
 module test::view_metadata;
 
-use iota::package_metadata::PackageMetadataV2;
+use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
 
 #[view]
@@ -14,20 +14,22 @@ public fun answer(): u64 {
     42
 }
 
-public fun assert_view_metadata(metadata: &PackageMetadataV2) {
+public fun assert_view_metadata(metadata: &PackageMetadataV1) {
     let module_name = ascii::string(b"view_metadata");
     let view_function_name = ascii::string(b"answer");
-    let module_metadata = metadata.modules_metadata_v2(&module_name);
-    let view_functions_metadata = module_metadata.view_functions_metadata_v1();
+    let module_metadata = metadata.modules_metadata(&module_name);
+    let view_functions_metadata = module_metadata.borrow_view_functions_metadata_v1();
 
     assert!(view_functions_metadata.length() == 1, 0);
 
-    let view_function_metadata = module_metadata.view_function_metadata_v1(&view_function_name);
-    assert!(*view_function_metadata.view_function_name() == view_function_name, 1);
+    let view_function_metadata = module_metadata.borrow_view_function_metadata_v1(
+        &view_function_name,
+    );
+    assert!(*view_function_metadata == view_function_name, 1);
 }
 
-//# run test::view_metadata::assert_view_metadata --sender A --args object(1,1)
+//# run test::view_metadata::assert_view_metadata --sender A --args object(1,4)
+
+//# view-object 1,4
 
 //# view-object 1,0
-
-//# view-object 1,1
