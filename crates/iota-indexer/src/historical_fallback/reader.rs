@@ -65,7 +65,9 @@ pub(crate) struct HistoricalFallbackReader {
     /// storage through REST API interface.
     client: HttpRestKVClient,
     package_resolver: PackageResolver,
-    cursor_cache: MokaCache<TransactionDigest, TransactionSequenceNumber>,
+    /// Caches transaction sequence numbers to enable efficient pagination
+    /// cursors for "transactions by address" queries.
+    pub(crate) cursor_cache: MokaCache<TransactionDigest, TransactionSequenceNumber>,
 }
 
 impl HistoricalFallbackReader {
@@ -94,14 +96,6 @@ impl HistoricalFallbackReader {
             package_resolver,
             cursor_cache,
         })
-    }
-
-    /// Returns the cached sequence number for a transaction digest.
-    pub(crate) fn cached_cursor(
-        &self,
-        cursor: &TransactionDigest,
-    ) -> Option<TransactionSequenceNumber> {
-        self.cursor_cache.get(cursor)
     }
 
     /// Resolves the input and output objects from a given transaction effects.
@@ -522,10 +516,15 @@ impl HistoricalFallbackReader {
     ///
     /// # Errors
     ///
-    /// Returns `IndexerError::HistoricalFallbackInput` if:
-    /// * The checkpoint data associated with the digest cannot be retrieved
-    ///   from the fallback store.
-    /// * The transaction digest is not found within the retrieved checkpoint.
+    /// Returns [`IndexerError::HistoricalFallbackInput`] when the checkpoint
+    /// data associated with the digest is not found in the historical fallback
+    /// store.
+    ///
+    /// # Panics
+    ///
+    /// If the resolved checkpoint's contents do not contain the digest,
+    /// which would indicate inconsistency between the historical store's index
+    /// and its checkpoint contents.
     async fn resolve_transaction_sequence_number(
         &self,
         digest: TransactionDigest,
@@ -539,13 +538,12 @@ impl HistoricalFallbackReader {
 
         let transaction_sequence_number = contents
             .enumerate_transactions(&summary)
-            .find_map(|(seq, ed)| (ed.transaction == digest).then_some(seq));
+            .find_map(|(seq, ed)| (ed.transaction == digest).then_some(seq))
+            .expect(
+                "historical fallback store inconsistency: checkpoint resolved via transaction digest does not contain the transaction digest in its contents",
+            );
 
-        transaction_sequence_number.ok_or_else(|| {
-            IndexerError::HistoricalFallbackInput(format!(
-                "transaction digest {digest} not found in fallback storage",
-            ))
-        })
+        Ok(transaction_sequence_number)
     }
 
     /// Fetches a paginated list of transaction digests that affect a given

@@ -1217,10 +1217,11 @@ impl IndexerReader {
         // fast path: cursor is known to KV (cached) and in pruned territory
         // (below watermark). Serve directly from KV until pagination crosses
         // into the unpruned DB range.
-        if let Some((cursor, kv_reader)) = cursor
-            .zip(self.fallback_reader())
-            .filter(|(c, kv)| kv.cached_cursor(&c).is_some_and(|s| (s as i64) < watermark))
-        {
+        if let Some((cursor, kv_reader)) = cursor.zip(self.fallback_reader()).filter(|(c, kv)| {
+            kv.cursor_cache
+                .get(c)
+                .is_some_and(|s| (s as i64) < watermark)
+        }) {
             let stored_txs = kv_reader
                 .transactions_by_address(address, Some(cursor), limit, !is_descending)
                 .await?
@@ -1238,59 +1239,55 @@ impl IndexerReader {
             .query_transactions_by_affected_addresses(address, cursor, limit, is_descending)
             .await;
 
-        let stored_txs = match db_res {
+        let stored_txs = match (db_res, self.fallback_reader()) {
             // top-up: a short DESC page during active pruning indicates we've crossed
             // the watermark. Fetch the remaining pre-watermark rows from KV.
-            //
-            // note: 'watermark > 0' is essential, without pruning, a short page
-            // simply signals end-of-data.
-            Ok(mut rows) => match self
-                .fallback_reader()
-                .filter(|_| is_descending && rows.len() < limit && watermark > 0)
+            (Ok(mut rows), Some(kv_reader))
+                if is_descending && rows.len() < limit && watermark > 0 =>
             {
-                Some(kv_reader) => {
-                    // determine the KV cursor: use the last DB row to continue pagination,
-                    // or fall back to the original cursor if the DB returned no results.
-                    // Avoids restarting KV from the top of history (which would re-fetch
-                    // rows the user already saw).
-                    let cursor = rows
-                        .last()
-                        .map(|tx| {
-                            TransactionDigest::from_bytes(&tx.transaction_digest).map_err(|e| {
+                // determine the KV cursor: use the last DB row to continue pagination,
+                // or fall back to the original cursor if the DB returned no results.
+                // Avoids restarting KV from the top of history (which would re-fetch
+                // rows the user already saw).
+                let kv_cursor = rows
+                    .last()
+                    .map(|tx| -> IndexerResult<TransactionDigest> {
+                        let digest = TransactionDigest::from_bytes(&tx.transaction_digest)
+                            .map_err(|e| {
                                 IndexerError::PersistentStorageDataCorruption(format!(
                                     "failed to decode transaction digest: {:?} with err: {e:?}",
                                     tx.transaction_digest
                                 ))
-                            })
-                        })
-                        .transpose()?
-                        .or(cursor);
+                            })?;
+                        kv_reader
+                            .cursor_cache
+                            .insert(digest, tx.tx_sequence_number as u64);
+                        Ok(digest)
+                    })
+                    .transpose()?
+                    .or(cursor);
 
-                    let remaining = limit - rows.len();
-                    let kv_rows = kv_reader
-                        .transactions_by_address(address, cursor, remaining, !is_descending)
-                        .await?
-                        .into_iter()
-                        .flatten()
-                        .collect::<Vec<StoredTransaction>>();
-
-                    rows.extend(kv_rows);
-                    Ok(rows)
-                }
-                None => Ok(rows),
-            },
-            Err(e) => match self
-                .fallback_reader()
-                .filter(|_| matches!(e, IndexerError::DataPruned(_)))
-            {
-                Some(kv_reader) => Ok(kv_reader
-                    .transactions_by_address(address, cursor, limit, !is_descending)
+                let remaining = limit - rows.len();
+                let kv_rows = kv_reader
+                    .transactions_by_address(address, kv_cursor, remaining, !is_descending)
                     .await?
                     .into_iter()
                     .flatten()
-                    .collect::<Vec<StoredTransaction>>()),
-                None => Err(e),
-            },
+                    .collect::<Vec<StoredTransaction>>();
+
+                rows.extend(kv_rows);
+                Ok(rows)
+            }
+
+            (Err(IndexerError::DataPruned(_)), Some(kv_reader)) => Ok(kv_reader
+                .transactions_by_address(address, cursor, limit, !is_descending)
+                .await?
+                .into_iter()
+                .flatten()
+                .collect()),
+
+            (Ok(rows), _) => Ok(rows),
+            (Err(e), _) => Err(e),
         };
 
         self.stored_transaction_to_transaction_block(stored_txs?, options)
@@ -3228,9 +3225,11 @@ impl<'a> DBReader<'a> {
     /// Returns a list of [`StoredTransaction`]s by their corresponding sequence
     /// numbers.
     ///
+    /// `is_descending` controls the result order by `tx_sequence_number`:
     /// - `true` or `Some(true)` for DESC.
     /// - `false` or `Some(false)` for ASC.
-    /// - `None` for undefined order.
+    /// - `None` for unspecified order (rows returned in whatever order the DB
+    ///   yields).
     async fn get_transactions_by_sequence_numbers<I>(
         &self,
         tx_sequence_numbers: I,
