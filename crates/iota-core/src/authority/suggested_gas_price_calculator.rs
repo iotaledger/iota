@@ -3,15 +3,16 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use iota_types::{
-    base_types::ObjectID, executable_transaction::VerifiedExecutableAttestedTransaction,
-};
+use iota_types::base_types::ObjectID;
 use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
-use crate::authority::{
-    authority_per_epoch_store::CongestionControlParameters,
-    shared_object_congestion_tracker::BumpObjectExecutionSlotsResult,
+use crate::{
+    authority::{
+        authority_per_epoch_store::CongestionControlParameters,
+        shared_object_congestion_tracker::BumpObjectExecutionSlotsResult,
+    },
+    transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 /// Holds shared object congestion info for a single scheduled shared-object
@@ -352,21 +353,23 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-    use iota_types::{
-        base_types::ObjectID, executable_transaction::VerifiedExecutableAttestedTransaction,
-    };
+    use iota_types::base_types::ObjectID;
     use rstest::rstest;
 
     use super::SuggestedGasPriceCalculator;
-    use crate::authority::{
-        authority_per_epoch_store::CongestionControlParameters,
-        shared_object_congestion_tracker::{
-            BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
-            SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
+    use crate::{
+        authority::{
+            authority_per_epoch_store::CongestionControlParameters,
+            shared_object_congestion_tracker::{
+                BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
+                SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
+            },
+            suggested_gas_price_calculator::{
+                PerCommitCongestionInfo, PerObjectCongestionInfo,
+                ScheduledTransactionCongestionInfo,
+            },
         },
-        suggested_gas_price_calculator::{
-            PerCommitCongestionInfo, PerObjectCongestionInfo, ScheduledTransactionCongestionInfo,
-        },
+        transaction_manager::VerifiedExecutableAttestedTransaction,
     };
 
     const REFERENCE_GAS_PRICE: u64 = 1_000;

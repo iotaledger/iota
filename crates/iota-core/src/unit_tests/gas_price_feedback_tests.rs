@@ -11,7 +11,6 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
-    executable_transaction::VerifiedExecutableAttestedTransaction,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_consensus::{
         CancelledTransaction, ConsensusDeterminedVersionAssignments, VersionAssignment,
@@ -37,6 +36,7 @@ use crate::{
         transaction_deferral::DeferralKey,
     },
     move_call,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 /// Reference gas price used in gas price feedback mechanism tests.

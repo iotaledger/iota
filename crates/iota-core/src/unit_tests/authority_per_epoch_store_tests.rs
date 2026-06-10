@@ -8,18 +8,20 @@ use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
     attestation::{Attestation, AttestationData},
     base_types::{ObjectID, TransactionDigest},
-    executable_transaction::VerifiedExecutableAttestedTransaction,
 };
 use starfish_config::AuthorityIndex;
 use tokio::time::timeout;
 
-use crate::authority::{
-    authority_per_epoch_store::CongestionControlParameters,
-    shared_object_congestion_tracker::{
-        SequencingResult, SharedObjectCongestionTracker,
-        shared_object_test_utils::{TEST_ONLY_GAS_PRICE, build_transaction},
+use crate::{
+    authority::{
+        authority_per_epoch_store::CongestionControlParameters,
+        shared_object_congestion_tracker::{
+            SequencingResult, SharedObjectCongestionTracker,
+            shared_object_test_utils::{TEST_ONLY_GAS_PRICE, build_transaction},
+        },
+        test_authority_builder::TestAuthorityBuilder,
     },
-    test_authority_builder::TestAuthorityBuilder,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 #[tokio::test]

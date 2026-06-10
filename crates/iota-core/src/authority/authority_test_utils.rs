@@ -8,13 +8,15 @@ use core::default::Default;
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_types::{
     crypto::{AccountKeyPair, AuthorityKeyPair},
-    executable_transaction::VerifiedExecutableAttestedTransaction,
     messages_consensus::ConsensusTransaction,
     utils::to_sender_signed_transaction,
 };
 
 use super::{test_authority_builder::TestAuthorityBuilder, *};
-use crate::{checkpoints::CheckpointServiceNoop, consensus_handler::SequencedConsensusTransaction};
+use crate::{
+    checkpoints::CheckpointServiceNoop, consensus_handler::SequencedConsensusTransaction,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
+};
 
 pub async fn send_and_confirm_transaction(
     authority: &AuthorityState,

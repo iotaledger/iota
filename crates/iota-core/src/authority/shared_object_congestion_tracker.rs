@@ -6,7 +6,6 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use iota_types::{
     base_types::{CommitRound, ObjectID},
-    executable_transaction::VerifiedExecutableAttestedTransaction,
     transaction::{SharedObjectRef, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
@@ -15,7 +14,10 @@ use tracing::instrument;
 use super::{
     authority_per_epoch_store::PreviouslyDeferredTransactions, transaction_deferral::DeferralKey,
 };
-use crate::authority::authority_per_epoch_store::CongestionControlParameters;
+use crate::{
+    authority::authority_per_epoch_store::CongestionControlParameters,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
+};
 
 /// Represents execution slot boundaries
 pub(super) type ExecutionTime = u64;

@@ -16,10 +16,7 @@ use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_mon
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
     digests::ConsensusCommitDigest,
-    executable_transaction::{
-        TrustedExecutableTransaction, VerifiedExecutableAttestedTransaction,
-        VerifiedExecutableTransaction,
-    },
+    executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{
         CancelledTransaction, ConsensusTransaction, ConsensusTransactionKey,
@@ -45,7 +42,7 @@ use crate::{
     consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     scoring_decision::update_low_scoring_authorities,
-    transaction_manager::TransactionManager,
+    transaction_manager::{TransactionManager, VerifiedExecutableAttestedTransaction},
 };
 
 pub struct ConsensusHandlerInitializer {
