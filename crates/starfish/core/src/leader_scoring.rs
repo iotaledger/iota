@@ -242,19 +242,6 @@ impl ScoringSubdag {
     }
 }
 
-/// Per-commit score contribution for the sliding-window leader scorer.
-/// All deltas are non-negative; they are added to a running aggregate.
-pub(crate) struct ContributionEntry {
-    /// Per-authority score delta, indexed by `AuthorityIndex`.
-    pub(crate) scores: Vec<u64>,
-    /// Number of leader-round blocks in the scored commit (C-3). Always 1 in
-    /// Starfish's single-leader regime; carried for forward-compatibility and
-    /// metrics.
-    pub(crate) num_leaders: usize,
-    /// Sum of stake of leader-round block authors in the scored commit (C-3).
-    pub(crate) leader_stakes: u64,
-}
-
 /// Walks `[c_minus_2, c_minus_1, c]` in order, returning every commit up to and
 /// **including** the first whose leader round is strictly greater than `upper`.
 fn scan_until_leader_round_above<'a>(
@@ -277,7 +264,8 @@ fn scan_until_leader_round_above<'a>(
 }
 
 /// Compute the per-commit score contribution for the new commit `c`, scoring
-/// the oldest of the 3 pending commits (`c_minus_3`).
+/// the oldest of the 3 pending commits (`c_minus_3`). Returns per-authority
+/// score deltas indexed by `AuthorityIndex`.
 ///
 /// V2's distributed-vote semantics with propagation lookahead bounded at r+2:
 /// for each authority A, `contribution[A]` is the sum of stake of authorities
@@ -298,7 +286,7 @@ pub(crate) fn compute_per_commit_contribution(
     c_minus_2: &SubDagBase,
     c_minus_1: &SubDagBase,
     c: &SubDagBase,
-) -> ContributionEntry {
+) -> Vec<u64> {
     assert!(
         c_minus_3.leader.round < c_minus_2.leader.round
             && c_minus_2.leader.round < c_minus_1.leader.round
@@ -316,9 +304,6 @@ pub(crate) fn compute_per_commit_contribution(
     let r = leader_ref.round;
     let vote_round = r + 1;
     let certify_round = r + 2;
-
-    let num_leaders = 1;
-    let leader_stakes = committee.stake(leader_ref.author);
 
     // Voting blocks at round r+1 that strongly link to the leader block, grouped by
     // author. Multiple blocks per author indicates equivocation in the lookback
@@ -367,11 +352,7 @@ pub(crate) fn compute_per_commit_contribution(
         scores[author.value()] = certifying_stake;
     }
 
-    ContributionEntry {
-        scores,
-        num_leaders,
-        leader_stakes,
-    }
+    scores
 }
 
 #[cfg(test)]
@@ -498,38 +479,9 @@ mod tests {
         // contribution equals the full committee stake.
         let expected_per_authority: u64 = context.committee.total_stake();
         assert_eq!(
-            contribution.scores,
+            contribution,
             vec![expected_per_authority; context.committee.size()],
             "expected each authority to get full committee stake as contribution"
-        );
-        assert_eq!(contribution.num_leaders, 1);
-        assert_eq!(
-            contribution.leader_stakes,
-            context.committee.stake(subdags[0].leader.author),
-        );
-    }
-
-    #[tokio::test]
-    async fn test_compute_per_commit_contribution_leader_fields() {
-        telemetry_subscribers::init_for_testing();
-        let context = Arc::new(Context::new_for_test(4).0);
-        let subdags = build_four_commits(context.clone());
-
-        let contribution = compute_per_commit_contribution(
-            &context,
-            &subdags[0],
-            &subdags[1],
-            &subdags[2],
-            &subdags[3],
-        );
-
-        // num_leaders is always 1 in Starfish single-leader regime.
-        assert_eq!(contribution.num_leaders, 1);
-        // leader_stakes equals the stake of C-3's leader author.
-        let leader_author = subdags[0].leader.author;
-        assert_eq!(
-            contribution.leader_stakes,
-            context.committee.stake(leader_author),
         );
     }
 
