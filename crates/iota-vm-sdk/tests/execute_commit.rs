@@ -35,13 +35,7 @@ const GAS_PRICE: u64 = 1000;
 const GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 
 fn chain_context() -> ChainContext {
-    ChainContext {
-        protocol_version: ProtocolVersion::MAX,
-        reference_gas_price: GAS_PRICE,
-        epoch_id: 0,
-        epoch_timestamp_ms: 0,
-        chain: Chain::Unknown,
-    }
+    ChainContext::new(ProtocolVersion::MAX, GAS_PRICE, 0, 0, Chain::Unknown)
 }
 
 /// A fresh, well-funded gas coin owned by `owner`.

@@ -17,6 +17,15 @@ It is built around a four-part surface:
 Typical uses: simulating a transaction before signing, estimating gas,
 debugging a Move call, or verifying a `MoveAuthenticator` — in a CLI or a test.
 
+Signed runs report a `SignatureStatus` next to the execution status: standard
+schemes are verified cryptographically up front, a `MoveAuthenticator` by
+running its function in the VM — so a failing transaction body never shows up
+as a signature failure.
+
+Object references are resolved against the versions the store holds, so a
+simulation keeps working with objects fetched at "latest" — but a stale
+version or digest that a node would reject at signing time is not detected.
+
 ## Features
 
 All features are off by default:

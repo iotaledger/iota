@@ -10,21 +10,20 @@ description = "Local IOTA Move VM SDK: decode, store, execute and introspect tra
 [features]
 default = []
 grpc = ["dep:tonic", "dep:iota-grpc-client", "dep:iota-grpc-types"]
-graphql = ["dep:reqwest", "dep:iota-graphql-rpc-client"]
+graphql = ["dep:chrono", "dep:reqwest", "dep:iota-graphql-rpc-client"]
 
 [dependencies]
 # external dependencies
 base64.workspace = true
 bcs.workspace = true
+chrono = { workspace = true, optional = true }
 fastcrypto.workspace = true
 prometheus.workspace = true
 reqwest = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"] }
 tonic = { workspace = true, optional = true }
-tracing.workspace = true
 
 # internal dependencies
 iota-config.workspace = true

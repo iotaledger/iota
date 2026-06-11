@@ -20,12 +20,31 @@ use crate::debug::{DebugArtifacts, DebugConfig};
 
 /// The chain parameters a [`LocalVm`](super::LocalVm) needs.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ChainContext {
     pub protocol_version: ProtocolVersion,
     pub reference_gas_price: u64,
     pub epoch_id: u64,
     pub epoch_timestamp_ms: u64,
     pub chain: Chain,
+}
+
+impl ChainContext {
+    pub fn new(
+        protocol_version: ProtocolVersion,
+        reference_gas_price: u64,
+        epoch_id: u64,
+        epoch_timestamp_ms: u64,
+        chain: Chain,
+    ) -> Self {
+        Self {
+            protocol_version,
+            reference_gas_price,
+            epoch_id,
+            epoch_timestamp_ms,
+            chain,
+        }
+    }
 }
 
 /// How a transaction is run.
@@ -36,6 +55,11 @@ pub enum ExecutionMode {
     DevInspect,
     /// Full sign-time checks; the store is never modified. The default: full
     /// validation without committing.
+    ///
+    /// Object references in the transaction (gas payments and owned inputs)
+    /// are resolved against whatever versions the store holds, so a stale
+    /// version or digest that a node would reject at signing time still runs
+    /// here.
     #[default]
     DryRun,
     /// Full sign-time checks; on success, effects are applied back to the
@@ -60,6 +84,7 @@ pub enum SignatureStatus {
 
 /// Options for a single run: the [`ExecutionMode`] plus a [`DebugConfig`].
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct ExecuteOptions {
     pub mode: ExecutionMode,
     pub debug: DebugConfig,
@@ -106,6 +131,9 @@ pub struct ExecutionResult {
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
     /// Per-PTB-command `(mutable_reference_outputs, return_values)`.
+    ///
+    /// Empty for `MoveAuthenticator`-signed runs: the authenticator engine
+    /// entry point does not return per-command results.
     pub command_results: Vec<iota_types::execution::ExecutionResult>,
     pub input_objects: Vec<Object>,
     pub output_objects: Vec<Object>,
@@ -114,8 +142,8 @@ pub struct ExecutionResult {
     pub mock_gas_id: Option<ObjectId>,
     pub status: iota_sdk_types::ExecutionStatus,
     pub signature_status: SignatureStatus,
-    /// `true` iff [`ExecutionMode::Execute`] ran successfully and the effects
-    /// were applied back to the store.
+    /// `true` if and only if [`ExecutionMode::Execute`] ran successfully and
+    /// the effects were applied back to the store.
     pub committed: bool,
     pub debug: Option<DebugArtifacts>,
 }

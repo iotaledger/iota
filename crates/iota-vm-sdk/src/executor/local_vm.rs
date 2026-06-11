@@ -68,8 +68,19 @@ pub struct LocalVm {
 impl LocalVm {
     /// Build a `LocalVm` for the given chain context, taking ownership of the
     /// store.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::UnsupportedProtocolVersion`] when this build does
+    /// not know the requested protocol version (e.g. the chain context was
+    /// fetched from a node running a newer protocol).
     pub fn new(ctx: ChainContext, store: impl Store + 'static) -> Result<Self, VmSdkError> {
-        let protocol_config = ProtocolConfig::get_for_version(ctx.protocol_version, ctx.chain);
+        let protocol_config =
+            ProtocolConfig::get_for_version_if_supported(ctx.protocol_version, ctx.chain).ok_or(
+                VmSdkError::UnsupportedProtocolVersion {
+                    version: ctx.protocol_version,
+                },
+            )?;
         Ok(Self {
             protocol_config,
             reference_gas_price: ctx.reference_gas_price,
@@ -114,6 +125,10 @@ impl LocalVm {
     /// Standard schemes are verified cryptographically before execution; a
     /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
     /// is verified by running its function inside the VM during execution.
+    /// When an authenticator-signed run fails, the authenticator function is
+    /// executed once more on its own to tell an authenticator rejection apart
+    /// from a failure in the transaction body (the function is side-effect
+    /// free, so the re-run cannot change state).
     pub fn execute_signed(
         &mut self,
         signed: SenderSignedData,
@@ -151,32 +166,37 @@ impl LocalVm {
         };
         let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
 
-        let sim = {
+        let (sim, signature_status) = {
             let backend = StoreBackend::new(self.store.as_ref());
             match move_authenticator {
-                Some(authenticator) => execute_with_move_authenticator(
-                    &env,
-                    &backend,
-                    prepared,
-                    authenticator,
-                    auth_digests,
-                    &mut trace_builder,
-                )?,
-                None => execute_prepared(&env, &backend, prepared, opts.mode)?,
+                Some(authenticator) => {
+                    let (sim, verdict) = execute_with_move_authenticator(
+                        &env,
+                        &backend,
+                        prepared,
+                        authenticator,
+                        auth_digests,
+                        authenticator_gas_budget,
+                        &mut trace_builder,
+                    )?;
+                    let status = match verdict {
+                        Ok(()) => SignatureStatus::Verified,
+                        Err(e) => SignatureStatus::Failed(crate::error::SignatureError::new(
+                            format!("authenticator function rejected the transaction: {e}"),
+                        )),
+                    };
+                    (sim, status)
+                }
+                // Standard schemes were verified cryptographically above; the
+                // run's outcome cannot retroactively invalidate them.
+                None => (
+                    execute_prepared(&env, &backend, prepared, opts.mode)?,
+                    SignatureStatus::Verified,
+                ),
             }
         };
         let artifacts = env.collect_artifacts(trace_builder);
 
-        // Signatures cleared verification above. For a `MoveAuthenticator`, the
-        // authenticator function's verdict is the run's overall status, so a
-        // successful run means the authenticator accepted.
-        let signature_status = if sim.effects.status().is_success() {
-            SignatureStatus::Verified
-        } else {
-            SignatureStatus::Failed(crate::error::SignatureError::new(
-                "authenticator function rejected the signature",
-            ))
-        };
         self.finish(sim, opts.mode, signature_status, artifacts)
     }
 

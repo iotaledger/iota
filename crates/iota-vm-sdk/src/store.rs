@@ -113,13 +113,16 @@ impl Store for InMemoryStore {
 
     fn get_child_object(
         &self,
-        _parent: &ObjectId,
+        parent: &ObjectId,
         child: &ObjectId,
         version_upper_bound: Version,
     ) -> Option<Object> {
+        // Match the node's resolver: an object only counts as a child of
+        // `parent` if `parent` actually owns it.
         self.objects
             .get(child)
             .filter(|o| o.version() <= version_upper_bound)
+            .filter(|o| o.owner == iota_sdk_types::Owner::Object(*parent))
             .cloned()
     }
 
@@ -194,5 +197,40 @@ impl ChildObjectResolver for StoreBackend<'_> {
         Ok(self
             .inner
             .get_object(receiving_object_id, Some(receive_object_at_version)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{ObjectId, Owner};
+    use iota_types::{
+        base_types::SequenceNumber,
+        digests::TransactionDigest,
+        object::{MoveObject, MoveObjectExt, Object},
+    };
+
+    use super::{InMemoryStore, Store};
+
+    #[test]
+    fn get_child_object_requires_parent_ownership() {
+        let parent = ObjectId::random();
+        let stranger = ObjectId::random();
+        let child = Object::new_move(
+            MoveObject::new_gas_coin(SequenceNumber::from(3), ObjectId::random(), 1),
+            Owner::Object(parent),
+            TransactionDigest::ZERO,
+        );
+        let child_id = child.id();
+
+        let mut store = InMemoryStore::new();
+        store.insert(child);
+
+        let high = SequenceNumber::from(10);
+        assert!(store.get_child_object(&parent, &child_id, high).is_some());
+        // A different parent must not be able to read the child.
+        assert!(store.get_child_object(&stranger, &child_id, high).is_none());
+        // A version bound below the child's version hides it.
+        let low = SequenceNumber::from(2);
+        assert!(store.get_child_object(&parent, &child_id, low).is_none());
     }
 }

@@ -3,10 +3,9 @@
 
 //! Per-run execution environment.
 //!
-//! [`ExecutionEnv`] holds the debug-configured Move engine, built fresh for
-//! each `execute*` call because `iota_execution::executor` bakes the `silent`
-//! flag and profiler path in at construction. This module also owns the
-//! executor/metrics constructors and the native-only gas-profile capture.
+//! [`ExecutionEnv`] holds the debug-configured Move engine for a single
+//! `execute*` call. This module also owns the executor/metrics constructors and
+//! the gas-profile capture.
 
 use std::sync::Arc;
 
@@ -17,13 +16,12 @@ use move_trace_format::format::MoveTraceBuilder;
 
 use super::local_vm::LocalVm;
 use crate::{
-    debug::{DebugArtifacts, DebugConfig},
+    debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink},
     error::{VmError, VmSdkError},
 };
 
 /// Per-run engine + debug wiring, built fresh for each `execute*` call because
-/// `iota_execution::executor` bakes the `silent` flag and profiler path in at
-/// construction.
+/// `iota_execution::executor` bakes the profiler path in at construction.
 pub(super) struct ExecutionEnv {
     pub(super) protocol_config: ProtocolConfig,
     pub(super) reference_gas_price: u64,
@@ -33,17 +31,13 @@ pub(super) struct ExecutionEnv {
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     debug: DebugConfig,
-    #[cfg(not(target_arch = "wasm32"))]
     capture_profile_dir: Option<std::path::PathBuf>,
 }
 
 impl ExecutionEnv {
     pub(super) fn new(vm: &LocalVm, debug: &DebugConfig) -> Result<Self, VmSdkError> {
-        #[cfg(not(target_arch = "wasm32"))]
         let (executor, capture_profile_dir) =
             build_executor_with_profile(&vm.protocol_config, debug)?;
-        #[cfg(target_arch = "wasm32")]
-        let executor = build_executor(&vm.protocol_config, debug)?;
 
         Ok(Self {
             protocol_config: vm.protocol_config.clone(),
@@ -54,7 +48,6 @@ impl ExecutionEnv {
             limits_metrics: vm.limits_metrics.clone(),
             bytecode_verifier_metrics: vm.bytecode_verifier_metrics.clone(),
             debug: debug.clone(),
-            #[cfg(not(target_arch = "wasm32"))]
             capture_profile_dir,
         })
     }
@@ -63,8 +56,8 @@ impl ExecutionEnv {
         self.debug.trace
     }
 
-    /// Materialise captured artifacts: the gas profile (native only) and the
-    /// finished trace. Returns `None` when no debug capture was requested.
+    /// Materialise captured artifacts: the gas profile and the finished trace.
+    /// Returns `None` when no debug capture was requested.
     pub(super) fn collect_artifacts(
         &self,
         trace_builder: Option<MoveTraceBuilder>,
@@ -72,23 +65,15 @@ impl ExecutionEnv {
         if !self.debug.any_enabled() {
             return None;
         }
-        #[cfg(not(target_arch = "wasm32"))]
         let profile = collect_profile(&self.debug, self.capture_profile_dir.as_deref());
-        #[cfg(target_arch = "wasm32")]
-        let profile = None;
 
         Some(DebugArtifacts {
-            // The in-memory `debug::print` sink is not available in this build;
-            // with `capture_debug_prints` set, prints are forwarded to stdout
-            // by the (non-silent) executor instead.
-            prints: Vec::new(),
             profile,
             trace: trace_builder.map(|b| b.into_trace()),
         })
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl Drop for ExecutionEnv {
     fn drop(&mut self) {
         if let Some(dir) = self.capture_profile_dir.take() {
@@ -97,27 +82,21 @@ impl Drop for ExecutionEnv {
     }
 }
 
-/// Build a Move executor with the `silent` flag derived from
-/// [`DebugConfig::capture_debug_prints`] and no profiler.
+/// Build a Move executor with no profiler.
 pub(super) fn build_executor(
     protocol_config: &ProtocolConfig,
-    debug: &DebugConfig,
+    _debug: &DebugConfig,
 ) -> Result<Arc<dyn Executor + Send + Sync>, VmSdkError> {
-    let silent = !debug.capture_debug_prints;
-    iota_execution::executor(protocol_config, silent, None).map_err(|e| VmError::new(e).into())
+    // `silent = true`: the Move `debug::print` natives are compiled out of this
+    // build (they need `move-stdlib-natives`'s `testing` feature), so a
+    // non-silent executor would only route the same gas charge through a no-op.
+    iota_execution::executor(protocol_config, true, None).map_err(|e| VmError::new(e).into())
 }
 
-// ---------------------------------------------------------------------------
-// Native-only: gas-profile capture (uses std::fs + serde_json)
-// ---------------------------------------------------------------------------
-
-#[cfg(not(target_arch = "wasm32"))]
 fn build_executor_with_profile(
     protocol_config: &ProtocolConfig,
     debug: &DebugConfig,
 ) -> Result<(Arc<dyn Executor + Send + Sync>, Option<std::path::PathBuf>), VmSdkError> {
-    use crate::debug::ProfileSink;
-
     let (profile_path, capture_dir) = match &debug.profile {
         Some(ProfileSink::Path(p)) => (Some(p.clone()), None),
         Some(ProfileSink::Capture) => {
@@ -126,21 +105,19 @@ fn build_executor_with_profile(
                 .map_err(|e| VmError::new(format!("create profile dir: {e}")))?;
             (Some(dir.join("profile.json")), Some(dir))
         }
-        None => (None, None),
+        _ => (None, None),
     };
 
-    let silent = !debug.capture_debug_prints;
+    // See `build_executor` for why the executor is always silent.
     let executor =
-        iota_execution::executor(protocol_config, silent, profile_path).map_err(VmError::new)?;
+        iota_execution::executor(protocol_config, true, profile_path).map_err(VmError::new)?;
     Ok((executor, capture_dir))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn collect_profile(
     debug: &DebugConfig,
     capture_dir: Option<&std::path::Path>,
-) -> Option<crate::debug::ProfileOutput> {
-    use crate::debug::{ProfileOutput, ProfileSink};
+) -> Option<ProfileOutput> {
     match (&debug.profile, capture_dir) {
         (Some(ProfileSink::Path(p)), _) => Some(ProfileOutput::Path(p.clone())),
         (Some(ProfileSink::Capture), Some(dir)) => merge_profile_dir(dir),
@@ -148,7 +125,6 @@ fn collect_profile(
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn profile_capture_dir() -> std::path::PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -161,9 +137,7 @@ fn profile_capture_dir() -> std::path::PathBuf {
 /// document. The profiler writes one file per VM invocation (e.g. an
 /// authenticator call + the PTB body), each with its own frames table; the
 /// merge concatenates `profiles` and rebuilds a de-duplicated `shared.frames`.
-#[cfg(not(target_arch = "wasm32"))]
-fn merge_profile_dir(dir: &std::path::Path) -> Option<crate::debug::ProfileOutput> {
-    use crate::debug::ProfileOutput;
+fn merge_profile_dir(dir: &std::path::Path) -> Option<ProfileOutput> {
     let entries = std::fs::read_dir(dir).ok()?;
     let mut docs: Vec<serde_json::Value> = Vec::new();
     for entry in entries.flatten() {
@@ -227,23 +201,10 @@ fn merge_profile_dir(dir: &std::path::Path) -> Option<crate::debug::ProfileOutpu
     serde_json::to_vec(&merged).ok().map(ProfileOutput::Json)
 }
 
-// ---------------------------------------------------------------------------
-// Target-gated metrics constructors
-// ---------------------------------------------------------------------------
-
-#[cfg(target_arch = "wasm32")]
-pub(super) fn new_limits_metrics() -> LimitsMetrics {
-    LimitsMetrics::new_stub()
-}
-#[cfg(target_arch = "wasm32")]
-pub(super) fn new_bytecode_verifier_metrics() -> BytecodeVerifierMetrics {
-    BytecodeVerifierMetrics::new_stub()
-}
-#[cfg(not(target_arch = "wasm32"))]
 pub(super) fn new_limits_metrics() -> LimitsMetrics {
     LimitsMetrics::new(&prometheus::Registry::new())
 }
-#[cfg(not(target_arch = "wasm32"))]
+
 pub(super) fn new_bytecode_verifier_metrics() -> BytecodeVerifierMetrics {
     BytecodeVerifierMetrics::new(&prometheus::Registry::new())
 }
