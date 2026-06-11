@@ -220,6 +220,69 @@ fn address_error_on_wrong_length_bytes() {
     );
 }
 
+// === Cross-language pin tests (Move ↔ Rust address parity) ===
+
+// Key material shared with the Move test vectors in public_key_tests.move and
+// claim_registry_tests.move.
+const ED25519_PK_HEX: &str =
+    "cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+const SECP256K1_PK_HEX: &str =
+    "02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+
+#[test]
+fn address_multisig_ed25519_only_matches_move_vector() {
+    // 1-of-1 Ed25519 MultiSig. Ed25519 members have no scheme-flag prefix in
+    // the hash input — the IOTA legacy rule mirrored by update_hasher_with_flag.
+    let ed25519_pk =
+        PublicKey::try_from_bytes(SignatureScheme::ED25519, &hex::decode(ED25519_PK_HEX).unwrap())
+            .unwrap();
+    let multisig_pk = MultiSigPublicKey::new(vec![ed25519_pk], vec![1], 1).unwrap();
+
+    let addr = IotaAddress::from(&multisig_pk);
+    let expected = IotaAddress::new(
+        hex::decode("1cc23b51b2e3c8641eea35b29114a53ad7a76643dcb2763d12290a7b83cac525")
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    );
+    assert_eq!(addr, expected);
+
+    let move_pk =
+        MovePublicKey::new(SignatureScheme::MultiSig, bcs::to_bytes(&multisig_pk).unwrap())
+            .unwrap();
+    assert_eq!(move_pk.address().unwrap(), expected);
+}
+
+#[test]
+fn address_multisig_mixed_matches_move_vector() {
+    // Mixed Ed25519 + Secp256k1 MultiSig: pins the per-scheme flag behaviour for
+    // both member types (Ed25519 = no flag, Secp256k1 = flag 0x01).
+    let ed25519_pk =
+        PublicKey::try_from_bytes(SignatureScheme::ED25519, &hex::decode(ED25519_PK_HEX).unwrap())
+            .unwrap();
+    let secp256k1_pk = PublicKey::try_from_bytes(
+        SignatureScheme::Secp256k1,
+        &hex::decode(SECP256K1_PK_HEX).unwrap(),
+    )
+    .unwrap();
+    let multisig_pk =
+        MultiSigPublicKey::new(vec![ed25519_pk, secp256k1_pk], vec![1, 1], 1).unwrap();
+
+    let addr = IotaAddress::from(&multisig_pk);
+    let expected = IotaAddress::new(
+        hex::decode("2e6c30799340fef9d382542ff0cad8e2a20f766da8b71a25c2443eda658104e4")
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    );
+    assert_eq!(addr, expected);
+
+    let move_pk =
+        MovePublicKey::new(SignatureScheme::MultiSig, bcs::to_bytes(&multisig_pk).unwrap())
+            .unwrap();
+    assert_eq!(move_pk.address().unwrap(), expected);
+}
+
 // === Helpers ===
 
 fn seeded_rng() -> StdRng {
