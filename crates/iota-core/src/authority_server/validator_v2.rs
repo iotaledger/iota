@@ -311,6 +311,9 @@ impl ValidatorService {
         // entirely. The legacy path calls the validation-only function.
         let (attestation_data, owned_objects, verified_tx) =
             if epoch_store.protocol_config().enable_validator_attestation() {
+                // Times the pre-consensus dry-run; records on drop, including
+                // the early-return error paths below.
+                let _attest_guard = metrics.validator_attestation_latency.start_timer();
                 let state_for_attest = state.clone();
                 let epoch_store_for_attest = epoch_store.clone();
                 let governance_for_attest = governance_rules.clone();
@@ -344,6 +347,7 @@ impl ValidatorService {
                         // arithmetic panic in Move VM dry-run) surfaces here
                         // as a `JoinError`. Convert to a rejection rather
                         // than re-panicking on the per-tx task.
+                        metrics.validator_attestation_task_panics.inc();
                         tracing::error!(?tx_digest, "attest_transaction task failed: {join_err}");
                         let err = IotaError::GenericAuthority {
                             error: format!("attest_transaction task failed: {join_err}"),
@@ -352,6 +356,7 @@ impl ValidatorService {
                         return (TxStatusUpdate::Rejected { error: err }, weight);
                     }
                 };
+                metrics.validator_attestations_total.inc();
                 match result {
                     Ok((data, objs)) => (Some(data), objs, verified_tx),
                     Err(e) => {

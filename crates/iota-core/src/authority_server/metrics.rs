@@ -39,6 +39,17 @@ pub struct ValidatorServiceMetrics {
     pub num_rejected_tx_soft_lock_conflict: IntCounter,
     pub soft_lock_table_size: IntGauge,
     pub num_rejected_tx_recently_resubmitted: IntCounter,
+
+    /// Latency of `attest_transaction` (the pre-consensus dry-run) for
+    /// `UserTransactionV2` transactions. `tx_verification_latency` covers only
+    /// signature verification, so this isolates the attestation cost.
+    pub validator_attestation_latency: Histogram,
+    /// Number of attestations performed (dry-runs that completed without
+    /// panicking). Pairs with the latency to give CPU-per-attestation / rate.
+    pub validator_attestations_total: IntCounter,
+    /// Number of attestation dry-runs that panicked (surfaced as a `JoinError`
+    /// in the spawned task). A robustness signal for the attestation path.
+    pub validator_attestation_task_panics: IntCounter,
 }
 
 impl ValidatorServiceMetrics {
@@ -216,6 +227,25 @@ impl ValidatorServiceMetrics {
             soft_lock_table_size: register_int_gauge_with_registry!(
                 "validator_service_soft_lock_table_size",
                 "Current number of object refs held in the pre-consensus soft lock table",
+                registry,
+            )
+                .unwrap(),
+            validator_attestation_latency: register_histogram_with_registry!(
+                "validator_attestation_latency",
+                "Latency of attest_transaction (the pre-consensus dry-run) for UserTransactionV2 transactions",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
+            validator_attestations_total: register_int_counter_with_registry!(
+                "validator_attestations_total",
+                "Number of attestations performed (dry-runs that completed without panicking)",
+                registry,
+            )
+                .unwrap(),
+            validator_attestation_task_panics: register_int_counter_with_registry!(
+                "validator_attestation_task_panics",
+                "Number of attestation dry-runs that panicked (surfaced as a JoinError)",
                 registry,
             )
                 .unwrap(),
