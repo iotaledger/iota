@@ -56,13 +56,13 @@ impl Restore for AuthorityPerpetualTables {
 /// `GrpcIndexesStore::finalize_restore`.
 pub struct RestoreWithGrpcIndexes<'a> {
     perpetual_tables: &'a AuthorityPerpetualTables,
-    grpc_restorer: &'a GrpcLiveObjectRestorer,
+    grpc_restorer: &'a GrpcLiveObjectRestorer<'a>,
 }
 
 impl<'a> RestoreWithGrpcIndexes<'a> {
     pub fn new(
         perpetual_tables: &'a AuthorityPerpetualTables,
-        grpc_restorer: &'a GrpcLiveObjectRestorer,
+        grpc_restorer: &'a GrpcLiveObjectRestorer<'a>,
     ) -> Self {
         Self {
             perpetual_tables,

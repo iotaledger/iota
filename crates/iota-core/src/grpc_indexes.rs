@@ -18,7 +18,9 @@ use iota_types::{
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
+    },
     move_package::MovePackageExt,
     object::Object,
     storage::{
@@ -493,23 +495,21 @@ impl IndexStoreTables {
         Ok(!contents_pruned && !objects_pruned)
     }
 
+    /// See [`GrpcIndexesStore::live_object_restorer`].
+    fn live_object_restorer(&self) -> GrpcLiveObjectRestorer<'_> {
+        GrpcLiveObjectRestorer {
+            tables: self,
+            coin_index: Mutex::new(HashMap::new()),
+        }
+    }
+
     /// Phase 2 of `init`: rebuild the live-state indexes by scanning the
     /// current live object set in parallel. Must re-run on any drift to keep
     /// them consistent.
     fn index_live_object_set(&self, authority_store: &AuthorityStore) -> Result<(), StorageError> {
-        let coin_index = Mutex::new(HashMap::new());
-
-        let make_live_object_indexer = GrpcParLiveObjectSetIndexer {
-            tables: self,
-            coin_index: &coin_index,
-        };
-
-        crate::par_index_live_object_set::par_index_live_object_set(
-            authority_store,
-            &make_live_object_indexer,
-        )?;
-
-        self.coin.multi_insert(coin_index.into_inner().unwrap())?;
+        let restorer = self.live_object_restorer();
+        crate::par_index_live_object_set::par_index_live_object_set(authority_store, &restorer)?;
+        restorer.finish()?;
         Ok(())
     }
 
@@ -558,23 +558,29 @@ impl IndexStoreTables {
         // Phase 2 — live-state indexes from the current live object set.
         self.index_live_object_set(authority_store)?;
 
-        // `Watermark::Indexed` and `meta` are written last so a crash
-        // before this point leaves a recoverably-inconsistent on-disk
-        // state that the next `new` call wipes and re-inits.
-        self.watermark.insert(
-            &Watermark::Indexed,
-            &highest_executed_checkpoint.unwrap_or(0),
-        )?;
+        self.finalize(highest_executed_checkpoint.unwrap_or(0))?;
+
+        info!("Finished initializing gRPC indexes");
+
+        Ok(())
+    }
+
+    /// Mark the store fully initialized: set `Watermark::Indexed` to
+    /// `indexed_checkpoint` and write `meta` last, so a crash before the
+    /// `meta` write leaves a store the next `new` call wipes and re-inits.
+    /// The final step of both `init` and a formal-snapshot restore.
+    fn finalize(
+        &self,
+        indexed_checkpoint: CheckpointSequenceNumber,
+    ) -> Result<(), TypedStoreError> {
+        self.watermark
+            .insert(&Watermark::Indexed, &indexed_checkpoint)?;
         self.meta.insert(
             &(),
             &MetadataInfo {
                 version: CURRENT_DB_VERSION,
             },
-        )?;
-
-        info!("Finished initializing gRPC indexes");
-
-        Ok(())
+        )
     }
 
     /// Index history-derived indexes by replaying every checkpoint in
@@ -1159,6 +1165,8 @@ impl GrpcIndexesStore {
         }
     }
 
+    /// Open the store without the wipe/init logic of [`Self::new`] — for the
+    /// restore tool, which populates and finalizes the store itself.
     pub fn new_without_init(path: PathBuf) -> Self {
         let tables = Arc::new(IndexStoreTables::open(path));
 
@@ -1303,22 +1311,17 @@ impl GrpcIndexesStore {
     }
 
     /// Restorer that builds the live-state indexes (owner, coin, dynamic
-    /// field, package version) from an externally supplied object stream — a
-    /// formal-snapshot restore — the way `init` builds them from a scan of
-    /// the local store.
-    pub fn live_object_restorer(&self) -> GrpcLiveObjectRestorer {
-        GrpcLiveObjectRestorer {
-            tables: self.tables.clone(),
-            coin_index: Mutex::new(HashMap::new()),
-        }
+    /// field, package version) from a stream of live objects. A
+    /// formal-snapshot restore feeds it the downloaded partitions; `init`
+    /// uses the same machinery fed by a scan of the local store.
+    pub fn live_object_restorer(&self) -> GrpcLiveObjectRestorer<'_> {
+        self.tables.live_object_restorer()
     }
 
-    /// Mark a restore-built store fully initialized, so the node's
-    /// `GrpcIndexesStore::new` opens it in place instead of wiping and
-    /// re-indexing. Sets `Watermark::Indexed` to `restore_checkpoint` (the
-    /// restore's highest executed checkpoint) and writes `meta` last — a
-    /// crash before the `meta` write leaves a store the next `new` safely
-    /// wipes and re-inits.
+    /// Mark a restore-built store fully initialized (the same final step as
+    /// `init`), so the node's `GrpcIndexesStore::new` opens it in place
+    /// instead of wiping and re-indexing. `restore_checkpoint` is the
+    /// restore's highest executed checkpoint.
     ///
     /// Callers must have restored the complete state first: every live object
     /// through [`Self::live_object_restorer`] and the epoch rows through
@@ -1327,15 +1330,7 @@ impl GrpcIndexesStore {
         &self,
         restore_checkpoint: CheckpointSequenceNumber,
     ) -> Result<(), TypedStoreError> {
-        self.tables
-            .watermark
-            .insert(&Watermark::Indexed, &restore_checkpoint)?;
-        self.tables.meta.insert(
-            &(),
-            &MetadataInfo {
-                version: CURRENT_DB_VERSION,
-            },
-        )
+        self.tables.finalize(restore_checkpoint)
     }
 
     /// Seed the current (open) epoch's `epochs_v2` row if still missing. No-op
@@ -1525,33 +1520,49 @@ fn try_create_package_version_info(
 // Live object set indexer
 // ---------------------------------------------------------------------------
 
-/// Builds the live-state indexes from an externally supplied object stream
-/// (a formal-snapshot restore), the way `init`'s `index_live_object_set`
-/// builds them from a local store scan.
+/// Builds the live-state indexes from a stream of live objects: `init`'s
+/// `index_live_object_set` feeds it a parallel scan of the local store, and a
+/// formal-snapshot restore feeds it the downloaded partitions.
 ///
 /// Partitions may be indexed concurrently via [`Self::begin_partition`]; call
 /// [`Self::finish`] once after all partitions to flush the cross-partition
-/// coin aggregation, then [`GrpcIndexesStore::finalize_restore`].
-pub struct GrpcLiveObjectRestorer {
-    tables: Arc<IndexStoreTables>,
+/// coin aggregation (a restore then ends with
+/// [`GrpcIndexesStore::finalize_restore`]).
+pub struct GrpcLiveObjectRestorer<'a> {
+    tables: &'a IndexStoreTables,
     coin_index: Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
 }
 
-impl GrpcLiveObjectRestorer {
+impl GrpcLiveObjectRestorer<'_> {
     /// Indexer for one partition's slice of the object stream; feed it every
     /// object of the partition, then call [`GrpcPartitionIndexer::finish`].
     pub fn begin_partition(&self) -> GrpcPartitionIndexer<'_> {
-        GrpcPartitionIndexer(GrpcLiveObjectIndexer {
-            tables: &self.tables,
+        GrpcPartitionIndexer(self.live_object_indexer())
+    }
+
+    fn live_object_indexer(&self) -> GrpcLiveObjectIndexer<'_> {
+        GrpcLiveObjectIndexer {
+            tables: self.tables,
             batch: self.tables.owner.batch(),
             coin_index: &self.coin_index,
-        })
+        }
     }
 
     /// Flush the coin index aggregated across all partitions.
     pub fn finish(&self) -> Result<(), TypedStoreError> {
         let coin_index = std::mem::take(&mut *self.coin_index.lock().unwrap());
         self.tables.coin.multi_insert(coin_index)
+    }
+}
+
+impl ParMakeLiveObjectIndexer for GrpcLiveObjectRestorer<'_> {
+    type ObjectIndexer<'a>
+        = GrpcPartitionIndexer<'a>
+    where
+        Self: 'a;
+
+    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_> {
+        self.begin_partition()
     }
 }
 
@@ -1569,27 +1580,20 @@ impl GrpcPartitionIndexer<'_> {
     }
 }
 
-struct GrpcParLiveObjectSetIndexer<'a> {
-    tables: &'a IndexStoreTables,
-    coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
+impl LiveObjectIndexer for GrpcPartitionIndexer<'_> {
+    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+        GrpcPartitionIndexer::index_object(self, object)
+    }
+
+    fn finish(self) -> Result<(), StorageError> {
+        GrpcPartitionIndexer::finish(self)
+    }
 }
 
 struct GrpcLiveObjectIndexer<'a> {
     tables: &'a IndexStoreTables,
     batch: typed_store::rocks::DBBatch,
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
-}
-
-impl<'a> ParMakeLiveObjectIndexer for GrpcParLiveObjectSetIndexer<'a> {
-    type ObjectIndexer = GrpcLiveObjectIndexer<'a>;
-
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer {
-        GrpcLiveObjectIndexer {
-            tables: self.tables,
-            batch: self.tables.owner.batch(),
-            coin_index: self.coin_index,
-        }
-    }
 }
 
 impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
@@ -1662,7 +1666,7 @@ fn first_open_epoch(checkpoint_store: &CheckpointStore) -> Result<Option<EpochId
 }
 
 /// The open epoch as of `checkpoint`: its own epoch, plus one if it closed it.
-fn open_epoch_of(checkpoint: &iota_types::messages_checkpoint::CheckpointSummary) -> EpochId {
+fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
     if checkpoint.is_last_checkpoint_of_epoch() {
         checkpoint.epoch + 1
     } else {

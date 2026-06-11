@@ -860,6 +860,11 @@ pub async fn download_formal_snapshot(
     // from the same object stream that restores the perpetual tables, so a
     // fullnode started with gRPC enabled opens it in place instead of
     // re-indexing the whole restored state.
+    //
+    // Like every other store of this restore, it lives under `staging/`,
+    // which replaces `live/` wholesale at the end — so a pre-existing gRPC
+    // index store (whatever its watermarks claim) can never survive into the
+    // restored node and compete with the one built here.
     let grpc_indexes = (!skip_grpc_indexes).then(|| {
         Arc::new(GrpcIndexesStore::new_without_init(
             path.join(GRPC_INDEXES_DIR),
