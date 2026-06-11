@@ -81,13 +81,13 @@ fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
         .collect();
     let signed = SenderSignedData::new(tx, sigs);
 
-    let ctx = ChainContext {
-        protocol_version: ProtocolVersion::new(f.protocol_version),
-        reference_gas_price: f.reference_gas_price,
-        epoch_id: f.epoch_id,
-        epoch_timestamp_ms: f.epoch_timestamp_ms,
-        chain: Chain::Unknown,
-    };
+    let ctx = ChainContext::new(
+        ProtocolVersion::new(f.protocol_version),
+        f.reference_gas_price,
+        f.epoch_id,
+        f.epoch_timestamp_ms,
+        Chain::Unknown,
+    );
     let mut vm = LocalVm::new(ctx, store).expect("build LocalVm");
 
     let result = vm
@@ -108,6 +108,75 @@ fn move_authenticator_accepts() {
     assert!(
         matches!(signature_status, SignatureStatus::Verified),
         "expected SignatureStatus::Verified, got {signature_status:?}"
+    );
+}
+
+/// An accepting `MoveAuthenticator` paired with a transaction body that aborts
+/// must still report `SignatureStatus::Verified` — a body failure is not an
+/// authentication failure. This exercises the verdict re-run in
+/// `execute_with_move_authenticator`: run the free-access fixture once (the
+/// `add_field` body succeeds), seed the created dynamic field back into the
+/// store, then replay the identical transaction so `add_field` aborts on the
+/// now-existing field while the free-access authenticator still accepts.
+#[test]
+fn move_authenticator_accepts_but_aborting_body_stays_verified() {
+    let f = load("move_auth_free_access_valid.json");
+    let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
+    let sigs: Vec<GenericSignature> = f
+        .signatures
+        .iter()
+        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
+        .collect();
+
+    let mut store = InMemoryStore::with_framework();
+    for obj in &f.objects {
+        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
+        store.insert(object);
+    }
+    let ctx = ChainContext::new(
+        ProtocolVersion::new(f.protocol_version),
+        f.reference_gas_price,
+        f.epoch_id,
+        f.epoch_timestamp_ms,
+        Chain::Unknown,
+    );
+    let mut vm = LocalVm::new(ctx, store).expect("build LocalVm");
+
+    // First run: the free-access authenticator accepts and `add_field` succeeds.
+    let first = vm
+        .execute_signed(
+            SenderSignedData::new(tx.clone(), sigs.clone()),
+            ExecuteOptions::dev_inspect(),
+        )
+        .expect("first run returns Ok");
+    assert!(
+        first.status.is_success(),
+        "the first add_field must succeed, got {:?}",
+        first.status
+    );
+
+    // Seed the objects the run produced (the new dynamic field) so the same
+    // `add_field` aborts the second time around.
+    for obj in first.output_objects {
+        vm.store_mut().insert(obj);
+    }
+
+    // Second run: the body aborts (field already exists) but the free-access
+    // authenticator still accepts.
+    let second = vm
+        .execute_signed(
+            SenderSignedData::new(tx, sigs),
+            ExecuteOptions::dev_inspect(),
+        )
+        .expect("second run returns Ok (the abort is carried in the status)");
+    assert!(
+        !second.status.is_success(),
+        "re-adding the field must abort the transaction body"
+    );
+    assert!(
+        matches!(second.signature_status, SignatureStatus::Verified),
+        "an accepting authenticator with an aborting body must stay Verified, got {:?}",
+        second.signature_status
     );
 }
 

@@ -21,24 +21,18 @@ fn main() -> Result<()> {
     // Framework packages (0x1, 0x2, …) are compiled into the binary.
     let store = InMemoryStore::with_framework();
 
-    let ctx = ChainContext {
-        protocol_version: ProtocolVersion::MAX,
-        reference_gas_price: 1000,
-        epoch_id: 0,
-        epoch_timestamp_ms: 0,
-        chain: Chain::Unknown,
-    };
+    let ctx = ChainContext::new(ProtocolVersion::MAX, 1000, 0, 0, Chain::Unknown);
     let mut vm = LocalVm::new(ctx, store)?;
 
     // Base64-encoded BCS for: 0x2::hash::blake2b256([0, 1, 2]).
     let tx_b64 = "AAABAAQDAAECAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgRoYXNoCmJsYWtlMmIyNTYAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6AMAAAAAAAAAypo7AAAAAAA=";
     let tx_bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, tx_b64)?;
     let tx: TransactionData = bcs::from_bytes(&tx_bytes)?;
-    println!("Sender: {}", tx.sender());
+    println!("Sender:    {}", tx.sender());
 
     let result = vm.execute(tx, ExecuteOptions::dev_inspect())?;
 
-    println!("Status:    {:?}", result.effects.status());
+    println!("Status:  {:?}", result.effects.status());
     println!("Committed: {}", result.committed);
     println!("Commands:  {}", result.command_results.len());
     for (i, (mut_refs, returns)) in result.command_results.iter().enumerate() {

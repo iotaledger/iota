@@ -65,11 +65,17 @@ impl GraphqlStore {
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<u64>().ok())
             .ok_or_else(|| ValidationError::new("GraphQL epoch", "missing referenceGasPrice"))?;
-        let epoch_timestamp_ms = epoch
+        let start_timestamp = epoch
             .get("startTimestamp")
             .and_then(|v| v.as_str())
-            .and_then(parse_start_timestamp_millis)
             .ok_or_else(|| ValidationError::new("GraphQL epoch", "missing startTimestamp"))?;
+        let epoch_timestamp_ms =
+            parse_start_timestamp_millis(start_timestamp).ok_or_else(|| {
+                ValidationError::new(
+                    "GraphQL epoch",
+                    format!("invalid startTimestamp {start_timestamp:?}"),
+                )
+            })?;
         let protocol_version = epoch
             .pointer("/protocolConfigs/protocolVersion")
             .and_then(|v| v.as_u64())
@@ -158,16 +164,15 @@ impl GraphqlStore {
     }
 }
 
-/// Parse the GraphQL `startTimestamp` (integer ms, or float seconds) to
-/// milliseconds since epoch.
+/// Parse the GraphQL `startTimestamp` scalar — an RFC 3339 datetime string
+/// (`YYYY-MM-DDTHH:MM:SS.mmmZ`), or plain integer milliseconds — to
+/// milliseconds since the Unix epoch.
 fn parse_start_timestamp_millis(s: &str) -> Option<u64> {
     if let Ok(ms) = s.parse::<u64>() {
         return Some(ms);
     }
-    if let Ok(secs) = s.parse::<f64>() {
-        return Some((secs * 1000.0) as u64);
-    }
-    None
+    let datetime = chrono::DateTime::parse_from_rfc3339(s).ok()?;
+    u64::try_from(datetime.timestamp_millis()).ok()
 }
 
 impl Store for GraphqlStore {
@@ -191,5 +196,27 @@ impl Store for GraphqlStore {
 
     fn remove(&mut self, id: &ObjectId) {
         self.inner.remove(id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_start_timestamp_millis;
+
+    #[test]
+    fn start_timestamp_parses_rfc3339_and_integer_millis() {
+        assert_eq!(
+            parse_start_timestamp_millis("2023-08-19T15:37:24.761Z"),
+            Some(1_692_459_444_761)
+        );
+        assert_eq!(
+            parse_start_timestamp_millis("2023-08-19T15:37:24Z"),
+            Some(1_692_459_444_000)
+        );
+        assert_eq!(
+            parse_start_timestamp_millis("1692459444761"),
+            Some(1_692_459_444_761)
+        );
+        assert_eq!(parse_start_timestamp_millis("not a date"), None);
     }
 }

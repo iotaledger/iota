@@ -41,6 +41,12 @@ pub enum VmSdkError {
     /// violation, executor construction failure, …).
     #[error(transparent)]
     Vm(#[from] VmError),
+    /// This build of the SDK does not know the requested protocol version
+    /// (typically a node running a newer protocol than this binary supports).
+    #[error("unsupported protocol version {}", version.as_u64())]
+    UnsupportedProtocolVersion {
+        version: iota_protocol_config::ProtocolVersion,
+    },
 }
 
 impl VmSdkError {

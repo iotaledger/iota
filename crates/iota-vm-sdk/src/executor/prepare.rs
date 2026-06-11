@@ -44,7 +44,7 @@ use super::{
 use crate::error::{ExecutionError, ValidationError, VmSdkError};
 
 /// Value the VM stuffs into a mock gas coin when a transaction has no explicit
-/// gas payment. One IOTA's worth of NANOs — wide enough to cover any realistic
+/// gas payment. One billion IOTA in NANOs — wide enough to cover any realistic
 /// single-tx gas budget.
 const MOCK_GAS_COIN_NANOS: u64 = 1_000_000_000 * NANOS_PER_IOTA;
 
@@ -202,6 +202,13 @@ pub(super) fn execute_prepared(
     })
 }
 
+/// Run a `MoveAuthenticator`-signed transaction and return the simulation
+/// together with the authenticator's verdict.
+///
+/// A successful run implies the authenticator accepted. On a failed run the
+/// failure may come from either the authenticator or the transaction body, so
+/// the authenticator function is re-executed on its own (it is side-effect
+/// free) to obtain an unambiguous verdict.
 pub(super) fn execute_with_move_authenticator(
     env: &ExecutionEnv,
     store: &dyn BackingStore,
@@ -211,8 +218,9 @@ pub(super) fn execute_with_move_authenticator(
         iota_types::digests::Digest,
         Option<iota_types::digests::Digest>,
     ),
+    authenticator_gas_budget: u64,
     trace_builder_opt: &mut Option<MoveTraceBuilder>,
-) -> Result<SimulateTransactionResult, VmSdkError> {
+) -> Result<(SimulateTransactionResult, Result<(), String>), VmSdkError> {
     use iota_types::{
         account_abstraction::authenticator_function::extract_auth_fun_refs,
         auth_context::AuthContextData,
@@ -237,7 +245,9 @@ pub(super) fn execute_with_move_authenticator(
         }
     }
     let union_checked = CheckedInputObjects::new_with_checked_transaction_inputs(union_inputs);
-    let auth_checked = CheckedInputObjects::new_with_checked_transaction_inputs(auth_input_objects);
+    // `CheckedInputObjects` is not `Clone`; rebuild it for each engine call.
+    let auth_checked =
+        || CheckedInputObjects::new_with_checked_transaction_inputs(auth_input_objects.clone());
 
     let authenticator_fn_ref = resolve_authenticator_function_ref(store, &authenticator)?;
     let tx_data_bytes =
@@ -275,26 +285,75 @@ pub(super) fn execute_with_move_authenticator(
             &HashSet::new(),
             &env.epoch_id,
             env.epoch_timestamp_ms,
-            gas_data,
+            gas_data.clone(),
             gas_status,
-            vec![(authenticator, authenticator_fn_ref, auth_checked)],
+            vec![(
+                authenticator.clone(),
+                authenticator_fn_ref.clone(),
+                auth_checked(),
+            )],
             union_checked,
-            kind,
+            kind.clone(),
             signer,
             transaction.digest(),
-            auth_context_data,
+            auth_context_data.clone(),
             trace_builder_opt,
         );
 
-    Ok(SimulateTransactionResult {
-        input_objects: inner_temp_store.input_objects,
-        output_objects: inner_temp_store.written,
-        events: effects.events_digest().map(|_| inner_temp_store.events),
-        effects,
-        execution_result: execution_result.map(|_| Vec::new()),
-        mock_gas_id,
-        suggested_gas_price: None,
-    })
+    let verdict = if effects.status().is_success() {
+        Ok(())
+    } else {
+        // The combined run failed; re-run the authenticator alone to learn
+        // whether it was the authenticator or the transaction body that failed.
+        // Meter it with the authenticator budget the engine's signing phase
+        // uses (`max_auth_gas`), not the transaction budget — otherwise a tx
+        // budget smaller than the authenticator's needs would make the re-run
+        // run out of gas and look like a rejection.
+        let verdict_gas_status = IotaGasStatus::new(
+            authenticator_gas_budget,
+            transaction.gas_price(),
+            env.reference_gas_price,
+            &env.protocol_config,
+        )
+        .map_err(|e| ValidationError::new("authenticator verdict gas status", e))?;
+        env.executor
+            .authenticate_transaction(
+                store,
+                &env.protocol_config,
+                env.limits_metrics.clone(),
+                &env.epoch_id,
+                env.epoch_timestamp_ms,
+                gas_data,
+                verdict_gas_status,
+                vec![(
+                    authenticator,
+                    authenticator_fn_ref.authenticator_function_ref,
+                    auth_checked(),
+                )],
+                auth_checked(),
+                kind,
+                signer,
+                transaction.digest(),
+                auth_context_data,
+                &mut None,
+            )
+            .map_err(|e| e.to_string())
+    };
+
+    Ok((
+        SimulateTransactionResult {
+            input_objects: inner_temp_store.input_objects,
+            output_objects: inner_temp_store.written,
+            events: effects.events_digest().map(|_| inner_temp_store.events),
+            effects,
+            // The authenticator engine entry point does not return per-command
+            // results, so a signed `MoveAuthenticator` run carries none.
+            execution_result: execution_result.map(|_| Vec::new()),
+            mock_gas_id,
+            suggested_gas_price: None,
+        },
+        verdict,
+    ))
 }
 
 /// Load the [`AuthenticatorFunctionRefForExecution`] from the account object's
@@ -356,7 +415,7 @@ fn build_input_objects(
             .get_object(&kind.object_id())
             .ok_or(VmSdkError::MissingObject {
                 id: kind.object_id(),
-                version: None,
+                version: kind.version(),
             })?;
 
         let updated_kind = match kind {

@@ -31,13 +31,7 @@ fn blake2b_tx_bytes() -> Vec<u8> {
 
 fn chain_context() -> ChainContext {
     // Dev-inspect does not need these to match any real network state.
-    ChainContext {
-        protocol_version: ProtocolVersion::MAX,
-        reference_gas_price: 1000,
-        epoch_id: 0,
-        epoch_timestamp_ms: 0,
-        chain: Chain::Unknown,
-    }
+    ChainContext::new(ProtocolVersion::MAX, 1000, 0, 0, Chain::Unknown)
 }
 
 #[test]

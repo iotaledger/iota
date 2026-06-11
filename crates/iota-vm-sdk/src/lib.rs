@@ -37,7 +37,7 @@ pub mod graphql;
 
 // --- SDK surface ---------------------------------------------------------
 
-pub use debug::{DebugArtifacts, DebugConfig, DebugPrint, ProfileOutput, ProfileSink};
+pub use debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink};
 pub use decode::{
     DecodedTransaction, auth_function_field_id, decode_move_authenticator, decode_transaction,
     derive_field_id,
