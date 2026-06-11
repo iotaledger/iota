@@ -36,8 +36,7 @@ use iota_storage::{
         ObjectStoreGetExt, ObjectStoreListExt, ObjectStorePutExt,
         http::HttpDownloaderBuilder,
         util::{
-            MANIFEST_FILENAME, Manifest as RootManifest, copy_file, copy_files, get_path,
-            path_to_filesystem,
+            MANIFEST_FILENAME, RootManifest, copy_file, copy_files, get_path, path_to_filesystem,
         },
     },
 };

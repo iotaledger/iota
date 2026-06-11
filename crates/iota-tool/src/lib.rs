@@ -56,7 +56,7 @@ use iota_storage::{
     object_store::{
         ObjectStoreGetExt,
         http::HttpDownloaderBuilder,
-        util::{MANIFEST_FILENAME, Manifest, PerEpochManifest, copy_file, exists, get_path},
+        util::{MANIFEST_FILENAME, PerEpochManifest, RootManifest, copy_file, exists, get_path},
     },
     verify_checkpoint_range,
 };
@@ -1062,7 +1062,7 @@ pub async fn download_db_snapshot(
 
     // We rely on the top level MANIFEST file which contains all valid epochs
     let manifest_contents = remote_store.get_bytes(&get_path(MANIFEST_FILENAME)).await?;
-    let root_manifest: Manifest = serde_json::from_slice(&manifest_contents)
+    let root_manifest = RootManifest::from_bytes(&manifest_contents)
         .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {}", err))?;
 
     if !root_manifest.epoch_exists(epoch) {
