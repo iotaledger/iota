@@ -78,6 +78,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "public_key",
             "random",
             "signature_scheme",
+            "smart_account",
             "system_admin_cap",
             "table",
             "table_vec",
