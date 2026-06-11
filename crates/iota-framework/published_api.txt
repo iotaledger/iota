@@ -2323,6 +2323,9 @@ multisig_authenticator_function_ref_v1
 passkey_authenticator_function_ref_v1
 	public fun
 	0x2::builtin_authenticator_functions
+from_signature_scheme
+	public fun
+	0x2::builtin_authenticator_functions
 attach_public_key
 	public fun
 	0x2::builtin_authenticator_functions
@@ -3625,6 +3628,75 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
+SmartAccount
+	public struct
+	0x2::smart_account
+SmartAccountBuilder
+	public struct
+	0x2::smart_account
+builder_v1
+	public fun
+	0x2::smart_account
+builtin_auth_builder_v1
+	public fun
+	0x2::smart_account
+claim_builder_v1
+	public fun
+	0x2::smart_account
+with_field
+	public fun
+	0x2::smart_account
+build_v1
+	public fun
+	0x2::smart_account
+build_immutable_v1
+	public fun
+	0x2::smart_account
+account_address
+	public fun
+	0x2::smart_account
+has_field
+	public fun
+	0x2::smart_account
+has_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+borrow_field
+	public fun
+	0x2::smart_account
+borrow_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+borrow_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+add_field
+	public fun
+	0x2::smart_account
+attach_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+remove_field
+	public fun
+	0x2::smart_account
+detach_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+borrow_field_mut
+	public fun
+	0x2::smart_account
+rotate_field
+	public fun
+	0x2::smart_account
+rotate_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+rotate_auth_function_ref_v1
+	public fun
+	0x2::smart_account
+ensure_tx_sender_is_smart_account
+	fun
+	0x2::smart_account
 IotaSystemAdminCap
 	public struct
 	0x2::system_admin_cap
