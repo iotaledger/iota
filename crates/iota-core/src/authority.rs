@@ -340,6 +340,15 @@ pub struct AuthorityMetrics {
     /// disabled.
     pub consensus_handler_load_shedding_percentage: IntGauge,
     pub consensus_handler_max_object_costs: IntGaugeVec,
+    /// Per shared object, how many transactions were admitted (scheduled) to
+    /// that object in a single consensus commit. One observation per object per
+    /// commit; the tail shows hot objects that concentrate scheduling.
+    pub consensus_handler_scheduled_transactions_per_object_per_commit: Histogram,
+    /// For each transaction that finishes deferral (scheduled after having been
+    /// deferred, or cancelled for exceeding the deferral limit), how many
+    /// consensus rounds it spent deferred (`commit_round -
+    /// deferred_from_round`).
+    pub consensus_handler_transaction_deferral_rounds: Histogram,
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
     pub consensus_committed_user_transactions: IntGaugeVec,
@@ -821,6 +830,18 @@ impl AuthorityMetrics {
                 "consensus_handler_max_congestion_control_object_costs",
                 "Max object costs for congestion control in the current consensus commit",
                 &["commit_type"],
+                registry,
+            ).unwrap(),
+            consensus_handler_scheduled_transactions_per_object_per_commit: register_histogram_with_registry!(
+                "consensus_handler_scheduled_transactions_per_object_per_commit",
+                "Number of transactions admitted (scheduled) to a shared object in a single consensus commit (one observation per object per commit)",
+                POSITIVE_INT_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            consensus_handler_transaction_deferral_rounds: register_histogram_with_registry!(
+                "consensus_handler_transaction_deferral_rounds",
+                "Number of consensus rounds a transaction spent deferred before it was scheduled or cancelled",
+                POSITIVE_INT_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             consensus_committed_subdags: register_int_counter_vec_with_registry!(
