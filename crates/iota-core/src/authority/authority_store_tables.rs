@@ -320,9 +320,7 @@ impl AuthorityPerpetualTables {
         &self,
         object_id: ObjectId,
     ) -> Result<Option<ObjectRef>, IotaError> {
-        let mut iterator = self.objects.safe_range_iter_reversed(
-            ObjectKey::min_for_id(&object_id)..=ObjectKey::max_for_id(&object_id),
-        );
+        let mut iterator = self.objects.safe_iter_with_prefix_reversed(&object_id);
 
         if let Some(Ok((object_key, value))) = iterator.next() {
             if object_key.0 == object_id {
@@ -336,9 +334,7 @@ impl AuthorityPerpetualTables {
         &self,
         object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
-        let mut iterator = self.objects.safe_range_iter_reversed(
-            ObjectKey::min_for_id(&object_id)..=ObjectKey::max_for_id(&object_id),
-        );
+        let mut iterator = self.objects.safe_iter_with_prefix_reversed(&object_id);
 
         if let Some(Ok((object_key, value))) = iterator.next() {
             if object_key.0 == object_id {
@@ -508,7 +504,7 @@ impl ObjectStore for AuthorityPerpetualTables {
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         let obj_entry = self
             .objects
-            .safe_range_iter_reversed(..=ObjectKey::max_for_id(object_id))
+            .safe_iter_with_prefix_reversed(object_id)
             .next();
 
         match obj_entry.transpose()? {

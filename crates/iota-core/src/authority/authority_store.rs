@@ -424,7 +424,7 @@ impl AuthorityStore {
         let data = self
             .perpetual_tables
             .events
-            .safe_range_iter((*event_digest, 0)..=(*event_digest, usize::MAX))
+            .safe_iter_with_prefix(event_digest)
             .map_ok(|(_, event)| event)
             .collect::<Result<Vec<_>, TypedStoreError>>()?;
         Ok(data.is_empty().not().then_some(TransactionEvents(data)))
@@ -660,15 +660,12 @@ impl AuthorityStore {
         version: VersionNumber,
         epoch_id: EpochId,
     ) -> Result<bool, IotaError> {
-        let object_key = ObjectKey::max_for_id(object_id);
-        let marker_key = (epoch_id, object_key);
-
         // Find the most recent version of the object that was deleted or wrapped.
         // Return true if the version is >= `version`. Otherwise return false.
         let marker_entry = self
             .perpetual_tables
             .object_per_epoch_marker_table
-            .safe_range_iter_reversed(..=marker_key)
+            .safe_iter_with_prefix_reversed(&(epoch_id, *object_id))
             .next();
         match marker_entry.transpose()? {
             Some(((epoch, key), marker)) => {
@@ -1063,9 +1060,7 @@ impl AuthorityStore {
         let mut iterator = self
             .perpetual_tables
             .live_owned_object_markers
-            .safe_range_iter_reversed(
-                ..=ObjectRef::new(object_id, SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX),
-            );
+            .safe_iter_with_prefix_reversed(&object_id);
         Ok(iterator
             .next()
             .transpose()?
@@ -1701,10 +1696,7 @@ impl AuthorityStore {
     pub fn count_object_versions(&self, object_id: ObjectId) -> usize {
         self.perpetual_tables
             .objects
-            .safe_iter_with_bounds(
-                Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
-                Some(ObjectKey(object_id, VersionNumber::MAX_VALID_EXCL)),
-            )
+            .safe_iter_with_prefix(&object_id)
             .collect::<Result<Vec<_>, _>>()
             .unwrap()
             .len()
