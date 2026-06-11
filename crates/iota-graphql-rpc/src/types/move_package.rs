@@ -37,10 +37,7 @@ use crate::{
         iota_names_registration::{NameFormat, NameRegistration},
         move_module::MoveModule,
         move_object::MoveObject,
-        object::{
-            self, Object, ObjectFilter, ObjectImpl, ObjectKind, ObjectOwner, ObjectStatus,
-            is_active,
-        },
+        object::{self, Object, ObjectFilter, ObjectImpl, ObjectKind, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
@@ -828,9 +825,6 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            if !is_active(&stored.object) {
-                continue;
-            }
             let kind = ObjectKind::try_from(stored.object)?;
             let package = MovePackage::from_object_kind(kind, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
@@ -885,9 +879,6 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            if !is_active(&stored.object) {
-                continue;
-            }
             let kind = ObjectKind::try_from(stored.object)?;
             let package = MovePackage::from_object_kind(kind, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));

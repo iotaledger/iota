@@ -26,7 +26,7 @@ use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backward_view::{BACKWARD_HISTORY_WATERMARK_ENTITY, HistoricalFilter, consistent, historical},
+    backward_view::{HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::Checkpointed,
@@ -853,8 +853,7 @@ impl Object {
                     checkpoint_viewed_at,
                     backward_objects_query(&filter, checkpoint_viewed_at, &page),
                 )?;
-                let results = results_iter.collect();
-                let results = resolve_tombstone_versions(conn, results)?;
+                let results: Vec<StoredBackwardObject> = results_iter.collect();
                 Ok(Some((prev, next, results)))
             })
             .await?
@@ -871,9 +870,6 @@ impl Object {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            if !is_active(&stored_history) {
-                continue;
-            }
             let kind = ObjectKind::try_from(stored_history)?;
             let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
             conn.edges.push(Edge::new(cursor, downcast(object)?));
@@ -1021,30 +1017,32 @@ impl Object {
     }
 }
 
-/// Whether a stored history row represents a live object, as opposed to a
-/// wrapped or deleted tombstone (or an unrecognized status).
-///
-/// Callers skip tombstones with this before converting a row into an
-/// [`ObjectKind`].
-pub(crate) fn is_active(stored: &StoredHistoryObject) -> bool {
-    matches!(
-        NativeObjectStatus::try_from(stored.object_status),
-        Ok(NativeObjectStatus::Active)
-    )
-}
-
 impl TryFrom<StoredHistoryObject> for ObjectKind {
     type Error = Error;
 
-    /// Builds an `ObjectKind` from a stored history row by deserializing its
-    /// native object.
-    ///
-    /// Callers skip wrapped or deleted tombstones with [`is_active`] first.
+    /// Builds an `ObjectKind` from an active stored history row by
+    /// deserializing its native object.
     ///
     /// # Errors
-    /// The row has no serialized object, or it fails to deserialize — either
-    /// way a corrupted index entry, surfaced by the indexer's conversion.
+    ///
+    /// Fails in the following cases:
+    ///
+    /// - The row is not active (a wrapped or deleted tombstone, or an
+    ///   unrecognized status).
+    /// - The row has no serialized object, or it fails to deserialize.
     fn try_from(stored: StoredHistoryObject) -> Result<Self, Self::Error> {
+        if !matches!(
+            NativeObjectStatus::try_from(stored.object_status),
+            Ok(NativeObjectStatus::Active)
+        ) {
+            return Err(Error::Internal(format!(
+                "Expected active object 0x{} at version {}, but found status {}",
+                hex::encode(&stored.object_id),
+                stored.object_version,
+                stored.object_status,
+            )));
+        }
+
         let native = NativeObject::try_from(&stored)?;
         Ok(ObjectKind {
             native,
@@ -1321,12 +1319,6 @@ pub(crate) struct StoredBackwardObject {
     pub coin_balance: Option<i64>,
     #[diesel(sql_type = sql_types::Nullable<sql_types::SmallInt>)]
     pub df_kind: Option<i16>,
-    /// `TRUE` when the row came from `objects_backward_history`, `FALSE`
-    /// otherwise (from `checkpointed_objects` or `objects_version`). Used to
-    /// decide whether version correction is needed for `WrappedOrDeleted`
-    /// entries, since backward history stores a lamport-1 approximation.
-    #[diesel(sql_type = sql_types::Bool)]
-    pub from_backward_history: bool,
 }
 
 impl StoredBackwardObject {
@@ -1353,91 +1345,6 @@ impl StoredBackwardObject {
             df_kind: self.df_kind,
         }
     }
-}
-
-/// Resolves real tombstone versions for `WrappedOrDeleted` entries from
-/// `objects_backward_history`.
-///
-/// The backward history stores a lamport-1 version approximation which may be
-/// higher than the actual tombstone version. This function looks up the real
-/// version from `objects_version` using a single batch query that unnests
-/// bound `bytea[]` / `bigint[]` parameter arrays into `(object_id, version)`
-/// pairs and joins them via `MAX(object_version) <= backward_history_version`.
-/// Only entries tagged with `from_backward_history = true` are resolved;
-/// entries from `checkpointed_objects` already have the correct version.
-pub(crate) fn resolve_tombstone_versions(
-    conn: &mut crate::data::pg::PgConnection<'_>,
-    results: Vec<StoredBackwardObject>,
-) -> Result<Vec<StoredBackwardObject>, diesel::result::Error> {
-    let (ids, versions): (Vec<Vec<u8>>, Vec<i64>) = results
-        .iter()
-        .filter(|r| {
-            r.from_backward_history
-                && r.object_status == NativeObjectStatus::WrappedOrDeleted as i16
-        })
-        .map(|r| (r.object_id.clone(), r.object_version))
-        .unzip();
-
-    if ids.is_empty() {
-        return Ok(results);
-    }
-
-    // Bound `unnest` arrays (rather than an inlined `VALUES` list) keep the
-    // SQL text constant across calls so Postgres can reuse a cached plan,
-    // and skip the parser cost of every `::bytea` / `::bigint` cast.
-    let sql = "SELECT pairs.object_id, pairs.backward_history_version, \
-                      MAX(ov.object_version) AS real_version \
-               FROM unnest($1::bytea[], $2::bigint[]) \
-                    AS pairs(object_id, backward_history_version) \
-               LEFT JOIN objects_version ov \
-                 ON ov.object_id = pairs.object_id \
-                AND ov.object_version <= pairs.backward_history_version \
-               GROUP BY pairs.object_id, pairs.backward_history_version";
-
-    #[derive(diesel::QueryableByName)]
-    struct ResolvedVersion {
-        #[diesel(sql_type = sql_types::Binary)]
-        object_id: Vec<u8>,
-        #[diesel(sql_type = sql_types::BigInt)]
-        backward_history_version: i64,
-        #[diesel(sql_type = sql_types::Nullable<sql_types::BigInt>)]
-        real_version: Option<i64>,
-    }
-
-    let rows: Vec<ResolvedVersion> = conn.results(|| {
-        diesel::sql_query(sql)
-            .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
-            .bind::<sql_types::Array<sql_types::BigInt>, _>(versions.clone())
-    })?;
-
-    // Key by (object_id, backward_history_version) → real_version
-    let resolved_map: HashMap<Vec<u8>, HashMap<i64, i64>> = rows
-        .into_iter()
-        .filter_map(|r| {
-            r.real_version
-                .map(|real| (r.object_id, r.backward_history_version, real))
-        })
-        .fold(HashMap::new(), |mut acc, (id, ver, real)| {
-            acc.entry(id).or_default().insert(ver, real);
-            acc
-        });
-
-    Ok(results
-        .into_iter()
-        .map(|mut r| {
-            if r.from_backward_history
-                && r.object_status == NativeObjectStatus::WrappedOrDeleted as i16
-            {
-                if let Some(&real_version) = resolved_map
-                    .get(&r.object_id)
-                    .and_then(|versions| versions.get(&r.object_version))
-                {
-                    r.object_version = real_version;
-                }
-            }
-            r
-        })
-        .collect())
 }
 
 impl RawPaginated<Cursor> for StoredBackwardObject {
@@ -1495,32 +1402,22 @@ impl Loader<HistoricalKey> for Db {
             .into_iter()
             .unzip();
 
-        let wrapped_or_deleted = NativeObjectStatus::WrappedOrDeleted as i16;
+        let active = NativeObjectStatus::Active as i16;
 
         // For each `(object_id, object_version)` pair, locate the row content
-        // in `checkpointed_objects` (current state of the object, which may
-        // be a `WrappedOrDeleted` tombstone) or `objects_backward_history`.
+        // in `checkpointed_objects` (current state of the object) or
+        // `objects_backward_history` (a superseded prior state). The
+        // `objects_version` join confirms the version is real and supplies the
+        // checkpoint at which it became current.
         //
-        // Non-real tombstone versions from `objects_backward_history` are naturally
-        // excluded because we fetch only real versions that exist in
-        // `objects_version`.
-        //
-        // `object_status` is taken from whichever source matched, falling
-        // back to `WrappedOrDeleted` only when `objects_version` knows the
-        // version but neither table has a row for it. This mirrors
-        // the tombstone synthesis in
-        // `backward_view::historical::tombstones_from_objects_version`.
-        //
-        // The synthetic `WrappedOrDeleted` fallback is only safe when the
-        // version's `cp_sequence_number` is at or above the backward-history
-        // watermark — outside that window the backward-history rows have
-        // been pruned, so a missing match might mean "pruned out" rather
-        // than "tombstone".
+        // Only active rows are returned: wrapped or deleted tombstones (and
+        // versions present only in `objects_version`) fail the active status
+        // check, so such versions resolve as non-existent.
         let sql = "SELECT \
                 v.object_id, \
                 v.object_version, \
                 v.cp_sequence_number AS checkpoint_sequence_number, \
-                COALESCE(co.object_status, bh.object_status, $3::int2) AS object_status, \
+                COALESCE(co.object_status, bh.object_status) AS object_status, \
                 COALESCE(co.object_digest, bh.object_digest) AS object_digest, \
                 COALESCE(co.owner_type, bh.owner_type) AS owner_type, \
                 COALESCE(co.owner_id, bh.owner_id) AS owner_id, \
@@ -1542,11 +1439,7 @@ impl Loader<HistoricalKey> for Db {
             LEFT JOIN objects_backward_history bh \
                    ON bh.object_id = v.object_id \
                   AND bh.object_version = v.object_version \
-            WHERE co.object_id IS NOT NULL \
-               OR bh.object_id IS NOT NULL \
-               OR v.cp_sequence_number >= COALESCE(\
-                      (SELECT min_available_cp FROM watermarks \
-                       WHERE entity = $4), 0)";
+            WHERE COALESCE(co.object_status, bh.object_status) = $3";
 
         let objects: Vec<StoredHistoryObject> = self
             .execute(move |conn| {
@@ -1554,8 +1447,7 @@ impl Loader<HistoricalKey> for Db {
                     diesel::sql_query(sql)
                         .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
                         .bind::<sql_types::Array<sql_types::BigInt>, _>(versions.clone())
-                        .bind::<sql_types::SmallInt, _>(wrapped_or_deleted)
-                        .bind::<sql_types::Text, _>(BACKWARD_HISTORY_WATERMARK_ENTITY)
+                        .bind::<sql_types::SmallInt, _>(active)
                 })
             })
             .await
@@ -1580,9 +1472,6 @@ impl Loader<HistoricalKey> for Db {
                 continue;
             }
 
-            if !is_active(stored) {
-                continue;
-            }
             let kind = ObjectKind::try_from(stored.clone())?;
             // This conversion will use the object's own version as the
             // `Object::root_version`.
@@ -1699,29 +1588,18 @@ impl Loader<ParentVersionKey> for Db {
                 .insert(key.id.into_vec());
         }
 
-        let wrapped_or_deleted = NativeObjectStatus::WrappedOrDeleted as i16;
+        let active = NativeObjectStatus::Active as i16;
 
         // For each id, pick the largest version `≤ parent_version` from
         // `objects_version` (versions table contains all current and past versions of
         // objects), then locate the row content in `checkpointed_objects`
-        // (current state of the object, which may be a `WrappedOrDeleted`
-        // tombstone) or `objects_backward_history`.
+        // (current state of the object) or `objects_backward_history` (a
+        // superseded prior state).
         //
-        // Non-real tombstone versions from `objects_backward_history` are naturally
-        // excluded because we fetch only real versions that exist in
-        // `objects_version`.
-        //
-        // `object_status` is taken from whichever source matched, falling
-        // back to `WrappedOrDeleted` only when `objects_version` knows the
-        // version but neither table has a row for it. This mirrors the
-        // tombstone synthesis in
-        // `backward_view::historical::tombstones_from_objects_version`.
-        //
-        // The synthetic `WrappedOrDeleted` fallback is only safe when the
-        // version's `cp_sequence_number` is at or above the backward-history
-        // watermark — outside that window the backward-history rows have
-        // been pruned, so a missing match might mean "pruned out" rather
-        // than "tombstone".
+        // Only active rows are returned: when the latest version `≤
+        // parent_version` is a wrapped or deleted tombstone (or exists only in
+        // `objects_version`), it fails the active status check and the object
+        // resolves as non-existent at `parent_version`.
         let sql = "WITH ids AS (SELECT unnest($1::bytea[]) AS object_id), \
                         latest_per_id AS (\
                        SELECT i.object_id, o.object_version, o.cp_sequence_number \
@@ -1737,7 +1615,7 @@ impl Loader<ParentVersionKey> for Db {
                        v.object_id, \
                        v.object_version, \
                        v.cp_sequence_number AS checkpoint_sequence_number, \
-                       COALESCE(co.object_status, bh.object_status, $3::int2) AS object_status, \
+                       COALESCE(co.object_status, bh.object_status) AS object_status, \
                        COALESCE(co.object_digest, bh.object_digest) AS object_digest, \
                        COALESCE(co.owner_type, bh.owner_type) AS owner_type, \
                        COALESCE(co.owner_id, bh.owner_id) AS owner_id, \
@@ -1756,11 +1634,7 @@ impl Loader<ParentVersionKey> for Db {
                    LEFT JOIN objects_backward_history bh \
                           ON bh.object_id = v.object_id \
                          AND bh.object_version = v.object_version \
-                   WHERE co.object_id IS NOT NULL \
-                      OR bh.object_id IS NOT NULL \
-                      OR v.cp_sequence_number >= COALESCE(\
-                             (SELECT min_available_cp FROM watermarks \
-                              WHERE entity = $4), 0)";
+                   WHERE COALESCE(co.object_status, bh.object_status) = $3";
 
         // Issue concurrent reads for each group of keys.
         let futures = keys_by_cursor_and_parent_version
@@ -1774,8 +1648,7 @@ impl Loader<ParentVersionKey> for Db {
                         diesel::sql_query(sql)
                             .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
                             .bind::<sql_types::BigInt, _>(parent_version)
-                            .bind::<sql_types::SmallInt, _>(wrapped_or_deleted)
-                            .bind::<sql_types::Text, _>(BACKWARD_HISTORY_WATERMARK_ENTITY)
+                            .bind::<sql_types::SmallInt, _>(active)
                     })?;
 
                     Ok::<_, diesel::result::Error>(
@@ -1801,9 +1674,6 @@ impl Loader<ParentVersionKey> for Db {
                     continue;
                 }
 
-                if !is_active(&stored) {
-                    continue;
-                }
                 let kind = ObjectKind::try_from(stored)?;
                 // If `LatestAtKey::parent_version` is set, it must have been correctly
                 // propagated from the `Object::root_version` of some object.
@@ -1874,7 +1744,6 @@ impl Loader<LatestAtKey> for Db {
                             )
                             .into_boxed()
                         })?;
-                        let results = resolve_tombstone_versions(conn, results)?;
 
                         Ok(results
                             .into_iter()
@@ -1896,9 +1765,6 @@ impl Loader<LatestAtKey> for Db {
             for (checkpoint_viewed_at, stored) in
                 group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
             {
-                if !is_active(&stored) {
-                    continue;
-                }
                 let kind = ObjectKind::try_from(stored)?;
                 let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
 
@@ -1993,8 +1859,7 @@ fn backward_objects_query(
         }
         .try_into()
         .expect("object_keys is Some by match-arm guard");
-        let (key_query, key_bindings) =
-            historical::query(checkpoint_viewed_at, page, &keys_filter).finish();
+        let (key_query, key_bindings) = historical::query(page, &keys_filter).finish();
 
         RawQuery::new(
             format!("SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",),
@@ -2003,7 +1868,7 @@ fn backward_objects_query(
         .order_by("object_id")
         .limit(page.limit() as i64)
     } else if let Ok(keys_filter) = HistoricalFilter::try_from(filter.clone()) {
-        historical::query(checkpoint_viewed_at, page, &keys_filter)
+        historical::query(page, &keys_filter)
     } else {
         consistent::query(checkpoint_viewed_at, page, move |query| filter.apply(query))
     }

@@ -32,7 +32,7 @@ use crate::{
         move_value::MoveValue,
         object::{
             self, Object, ObjectFilter, ObjectImpl, ObjectKind, ObjectOwner, ObjectStatus,
-            StoredBackwardObject, is_active,
+            StoredBackwardObject,
         },
         owner::OwnerImpl,
         stake::StakedIota,
@@ -381,9 +381,6 @@ impl Coin {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            if !is_active(&stored_history) {
-                continue;
-            }
             let kind = ObjectKind::try_from(stored_history)?;
             let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
 

@@ -41,7 +41,7 @@ use crate::{
     connection::ScanConnection,
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
-    types::object::{ObjectOwner, StoredBackwardObject, is_active},
+    types::object::{ObjectOwner, StoredBackwardObject},
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and
@@ -560,12 +560,6 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            if !is_active(&result) {
-                return Err(Error::Internal(format!(
-                    "Expected NameRecord 0x{} to be active",
-                    hex::encode(&result.object_id)
-                )));
-            }
             let kind = ObjectKind::try_from(result)?;
             let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
             let move_object = MoveObject::try_from(&object).map_err(|_| {
