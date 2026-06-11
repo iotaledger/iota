@@ -65,11 +65,11 @@ pub struct ObjectStoreConfig {
     pub aws_profile: Option<String>,
     /// Enable virtual hosted style requests
     #[serde(default)]
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set, num_args = 0..=1, require_equals = false)]
     pub aws_virtual_hosted_style_request: bool,
     /// Allow unencrypted HTTP connection to AWS.
     #[serde(default)]
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set, num_args = 0..=1, require_equals = false)]
     pub aws_allow_http: bool,
     /// When using Google Cloud Storage as the object store, set this to the
     /// path to the JSON file that contains the Google credentials.

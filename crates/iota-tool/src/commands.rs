@@ -135,6 +135,30 @@ pub enum ToolCommand {
         download_concurrency: usize,
     },
 
+    /// Truncate the data-ingestion checkpoint store at a given checkpoint.
+    ///
+    /// Lists all `.chk` files in the bucket and deletes those whose sequence
+    /// number is >= `--first-bad-checkpoint`. The MANIFEST is rebuilt from the
+    /// intersection of files that exist in the bucket AND are recorded in the
+    /// current MANIFEST (to preserve trusted SHA3 digests). Runs as a dry-run
+    /// by default; pass `--execute` to apply changes.
+    #[command(name = "truncate-ingestion-store")]
+    TruncateIngestionStore {
+        #[command(flatten)]
+        object_store_config: ObjectStoreConfig,
+        /// Path prefix inside the bucket (e.g. "ingestion/historical").
+        /// All operations are scoped to this prefix.
+        #[arg(long)]
+        path_prefix: Option<String>,
+        /// First bad checkpoint — all `.chk` files with start >= this value
+        /// will be deleted and removed from the MANIFEST.
+        #[arg(long)]
+        first_bad_checkpoint: u64,
+        /// Apply deletions and write the updated MANIFEST (default: dry-run).
+        #[arg(long)]
+        execute: bool,
+    },
+
     /// Tool to print the archive manifest
     PrintArchiveManifest {
         #[command(flatten)]
@@ -1054,6 +1078,122 @@ impl ToolCommand {
                 download_concurrency,
             } => {
                 verify_archive(&genesis, object_store_config, download_concurrency, true).await?;
+            }
+            ToolCommand::TruncateIngestionStore {
+                object_store_config,
+                path_prefix,
+                first_bad_checkpoint,
+                execute,
+            } => {
+                use futures::TryStreamExt;
+                use iota_data_ingestion_core::history::manifest::{
+                    Manifest, ManifestV1, read_manifest, write_manifest,
+                };
+                use iota_storage::object_store::{ObjectStoreDeleteExt, ObjectStoreListExt};
+                use object_store::DynObjectStore;
+                use object_store::prefix::PrefixStore;
+
+                let base_store = object_store_config.make()?;
+                let store: std::sync::Arc<DynObjectStore> = match path_prefix {
+                    Some(ref prefix) => std::sync::Arc::new(PrefixStore::new(
+                        base_store,
+                        object_store::path::Path::from(prefix.as_str()),
+                    )),
+                    None => base_store,
+                };
+
+                // Read the existing MANIFEST for trusted SHA3 digests.
+                let manifest = read_manifest(store.clone()).await?;
+                let manifest_entries: std::collections::HashMap<u64, _> = manifest
+                    .to_files()
+                    .into_iter()
+                    .map(|f| (f.checkpoint_seq_range.start, f))
+                    .collect();
+
+                // List every object in the bucket.
+                let all_objects: Vec<_> = store
+                    .list_objects(None)
+                    .await
+                    .try_collect()
+                    .await?;
+
+                // Partition into files to keep and files to delete based on
+                // the numeric prefix of `.chk` files.
+                let mut to_delete: Vec<object_store::path::Path> = Vec::new();
+                let mut starts_to_keep: Vec<u64> = Vec::new();
+
+                for obj in &all_objects {
+                    let filename = obj.location.filename().unwrap_or("");
+                    if let Some(stem) = filename.strip_suffix(".chk") {
+                        if let Ok(start) = stem.parse::<u64>() {
+                            if start >= first_bad_checkpoint {
+                                to_delete.push(obj.location.clone());
+                            } else {
+                                starts_to_keep.push(start);
+                            }
+                        }
+                    }
+                }
+
+                starts_to_keep.sort_unstable();
+
+                // Rebuild MANIFEST entries from the intersection of kept files
+                // and MANIFEST entries (to preserve SHA3 digests we trust).
+                let mut kept_entries: Vec<_> = starts_to_keep
+                    .iter()
+                    .filter_map(|s| manifest_entries.get(s).cloned())
+                    .collect();
+                kept_entries.sort_by_key(|f| f.checkpoint_seq_range.start);
+
+                let next_checkpoint = kept_entries
+                    .last()
+                    .map(|f| f.checkpoint_seq_range.end)
+                    .unwrap_or(0);
+
+                // Report files not covered by the MANIFEST (present in bucket
+                // but unknown — will not appear in the rebuilt MANIFEST).
+                let uncovered: Vec<u64> = starts_to_keep
+                    .iter()
+                    .filter(|s| !manifest_entries.contains_key(*s))
+                    .copied()
+                    .collect();
+                if !uncovered.is_empty() {
+                    println!(
+                        "WARNING: {} `.chk` file(s) exist in the bucket but have no MANIFEST \
+                         entry and will be omitted from the rebuilt MANIFEST: {:?}",
+                        uncovered.len(),
+                        uncovered,
+                    );
+                }
+
+                println!("Files to delete ({}):", to_delete.len());
+                for p in &to_delete {
+                    println!("  {p}");
+                }
+                println!(
+                    "Rebuilt MANIFEST: {} entries, next_checkpoint_seq_num = {} (was {})",
+                    kept_entries.len(),
+                    next_checkpoint,
+                    manifest.next_checkpoint_seq_num(),
+                );
+
+                if !execute {
+                    println!("\nDry-run — pass --execute to apply.");
+                    return Ok(());
+                }
+
+                for path in &to_delete {
+                    store.delete_object(path).await?;
+                    println!("Deleted: {path}");
+                }
+
+                let new_manifest = Manifest::V1(ManifestV1 {
+                    archive_version: 1,
+                    next_checkpoint_seq_num: next_checkpoint,
+                    file_metadata: kept_entries,
+                });
+                write_manifest(new_manifest, store).await?;
+                println!("MANIFEST updated.");
             }
             ToolCommand::PrintArchiveManifest {
                 object_store_config,

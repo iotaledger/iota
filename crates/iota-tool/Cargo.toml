@@ -45,6 +45,7 @@ tracing.workspace = true
 # internal dependencies
 bin-version.workspace = true
 iota-archival.workspace = true
+iota-data-ingestion-core.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-genesis-builder.workspace = true
