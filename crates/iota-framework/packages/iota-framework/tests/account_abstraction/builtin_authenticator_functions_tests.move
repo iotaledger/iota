@@ -73,6 +73,49 @@ fun passkey_auth_function_ref_has_correct_fields() {
     assert_ref_eq(ref.function_name(), &ascii::string(b"passkey_authenticator_function_ref_v1"));
 }
 
+// === from_signature_scheme ===
+
+#[test]
+fun from_signature_scheme_returns_correct_ref_for_all_supported_schemes() {
+    assert_eq(
+        builtin_authenticator_functions::from_signature_scheme<TestAccount>(
+            signature_scheme::ed25519(),
+        ),
+        builtin_authenticator_functions::ed25519_authenticator_function_ref_v1<TestAccount>(),
+    );
+    assert_eq(
+        builtin_authenticator_functions::from_signature_scheme<TestAccount>(
+            signature_scheme::secp256k1(),
+        ),
+        builtin_authenticator_functions::secp256k1_authenticator_function_ref_v1<TestAccount>(),
+    );
+    assert_eq(
+        builtin_authenticator_functions::from_signature_scheme<TestAccount>(
+            signature_scheme::secp256r1(),
+        ),
+        builtin_authenticator_functions::secp256r1_authenticator_function_ref_v1<TestAccount>(),
+    );
+    assert_eq(
+        builtin_authenticator_functions::from_signature_scheme<TestAccount>(
+            signature_scheme::multisig(),
+        ),
+        builtin_authenticator_functions::multisig_authenticator_function_ref_v1<TestAccount>(),
+    );
+    assert_eq(
+        builtin_authenticator_functions::from_signature_scheme<TestAccount>(
+            signature_scheme::passkey(),
+        ),
+        builtin_authenticator_functions::passkey_authenticator_function_ref_v1<TestAccount>(),
+    );
+}
+
+#[test]
+#[expected_failure(abort_code = iota::builtin_authenticator_functions::EUnsupportedSignatureScheme)]
+fun from_signature_scheme_aborts_on_unsupported_scheme() {
+    let unsupported_scheme = signature_scheme::from_flag_for_testing(0x04);
+    builtin_authenticator_functions::from_signature_scheme<TestAccount>(unsupported_scheme);
+}
+
 // === attach_public_key / has_public_key / borrow_public_key / detach_public_key ===
 
 #[test]

@@ -40,12 +40,15 @@ use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::dynamic_field as df;
 use iota::protocol_config;
 use iota::public_key::PublicKey;
+use iota::signature_scheme::{Self, SignatureScheme};
 use std::ascii;
 
 // === Errors ===
 
 #[error(code = 0)]
 const EBuiltinAuthenticatorsNotEnabled: vector<u8> = b"Built-in Move authenticators not enabled.";
+#[error(code = 1)]
+const EUnsupportedSignatureScheme: vector<u8> = b"Unsupported signature scheme.";
 
 #[error(code = 10)]
 const EPublicKeyMissing: vector<u8> = b"Public key missing.";
@@ -208,6 +211,27 @@ public fun passkey_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
         ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
         ascii::string(PASSKEY_AUTHENTICATOR_FUN_NAME_V1),
     )
+}
+
+/// Maps a `SignatureScheme` to the corresponding built-in `AuthenticatorFunctionRefV1`.
+///
+/// Aborts with `EUnsupportedSignatureScheme` for any scheme not supported by built-in authenticators.
+public fun from_signature_scheme<Account: key>(
+    signature_scheme: SignatureScheme,
+): AuthenticatorFunctionRefV1<Account> {
+    if (signature_scheme == signature_scheme::ed25519()) {
+        ed25519_authenticator_function_ref_v1<Account>()
+    } else if (signature_scheme == signature_scheme::secp256k1()) {
+        secp256k1_authenticator_function_ref_v1<Account>()
+    } else if (signature_scheme == signature_scheme::secp256r1()) {
+        secp256r1_authenticator_function_ref_v1<Account>()
+    } else if (signature_scheme == signature_scheme::multisig()) {
+        multisig_authenticator_function_ref_v1<Account>()
+    } else if (signature_scheme == signature_scheme::passkey()) {
+        passkey_authenticator_function_ref_v1<Account>()
+    } else {
+        abort EUnsupportedSignatureScheme
+    }
 }
 
 /// Attaches `public_key` to the account. Aborts if a public key is already attached.
