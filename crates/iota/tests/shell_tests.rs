@@ -2,11 +2,16 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(msim))]
 use std::{fs, path::Path, process::Command};
 
+#[cfg(not(msim))]
 use fs_extra::dir::CopyOptions;
+#[cfg(not(msim))]
 use insta_cmd::get_cargo_bin;
+#[cfg(not(msim))]
 use iota_config::IOTA_CLIENT_CONFIG;
+#[cfg(not(msim))]
 use test_cluster::TestClusterBuilder;
 
 // [test_shell_snapshot] is run on every file matching [TEST_PATTERN] in
@@ -16,8 +21,11 @@ use test_cluster::TestClusterBuilder;
 // These run the files as shell scripts and compares their output to the
 // snapshots; use `cargo insta test --review` to update the snapshots.
 
+#[cfg(not(msim))]
 const TEST_DIR: &str = "tests/shell_tests";
+#[cfg(not(msim))]
 const TEST_NET_DIR: &str = "tests/shell_tests/with_network";
+#[cfg(not(msim))]
 const TEST_PATTERN: &str = r"\.sh$";
 
 /// run the bash script at [path], comparing its output to the insta snapshot of
@@ -27,6 +35,7 @@ const TEST_PATTERN: &str = r"\.sh$";
 ///
 /// If [cluster] is provided, the config file for the cluster is passed as the
 /// `CONFIG` environment variable.
+#[cfg(not(msim))]
 #[tokio::main]
 async fn test_shell_snapshot(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // set up test cluster
@@ -82,6 +91,7 @@ async fn test_shell_snapshot(path: &Path) -> Result<(), Box<dyn std::error::Erro
 }
 
 /// return the path to the `iota` binary that is currently under test
+#[cfg(not(msim))]
 fn get_iota_bin_path() -> String {
     get_cargo_bin("iota")
         .parent()

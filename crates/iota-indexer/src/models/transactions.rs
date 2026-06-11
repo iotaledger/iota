@@ -11,11 +11,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{Event, TypeTag};
 use iota_types::{
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
-    event::Event,
     transaction::SenderSignedData,
 };
 use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};

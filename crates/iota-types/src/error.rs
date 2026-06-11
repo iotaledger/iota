@@ -605,6 +605,8 @@ pub enum IotaError {
     // Unsupported Operations on Fullnode
     #[error("Fullnode does not support handle_certificate")]
     FullNodeCantHandleCertificate,
+    #[error("Fullnode does not support ValidatorV2 endpoints")]
+    FullNodeCantHandleValidatorV2,
     #[error("Fullnode does not support handle_authority_capabilities")]
     FullNodeCantHandleAuthorityCapabilities,
 
@@ -846,6 +848,9 @@ impl IotaError {
             IotaError::TooManyTransactionsPendingConsensus => true,
             IotaError::ValidatorOverloadedRetryAfter { .. } => true,
 
+            // Transient consensus failure — other validators likely unaffected
+            IotaError::FailedToSubmitToConsensus(..) => true,
+
             // Non retryable error
             IotaError::Execution(..) => false,
             IotaError::ByzantineAuthoritySuspicion { .. } => false,
@@ -858,6 +863,21 @@ impl IotaError {
             // limit / blocking of a client. It must be non-retryable otherwise
             // we will make the threat worse through automatic retries.
             IotaError::TooManyRequests => false,
+
+            // Signature errors — non-retryable, invalid input
+            IotaError::InvalidSignature { .. } => false,
+            IotaError::SignerSignatureAbsent { .. } => false,
+            IotaError::SignerSignatureNumberMismatch { .. } => false,
+            IotaError::IncorrectSigner { .. } => false,
+            IotaError::UnknownSigner { .. } => false,
+            IotaError::InvalidAuthenticator => false,
+
+            // Transaction lifecycle — non-retryable
+            IotaError::TransactionExpired => false,
+
+            // Fullnode-internal aggregation errors — non-retryable
+            IotaError::StakeAggregatorRepeatedSigner { .. } => false,
+            IotaError::CertificateRequiresQuorum => false,
 
             // For all un-categorized errors, return here with categorized = false.
             _ => return (false, false),
@@ -893,11 +913,89 @@ impl IotaError {
         matches!(self, IotaError::ValidatorOverloadedRetryAfter { .. })
     }
 
+    /// Returns `true` for errors caused by storage or epoch-lifecycle
+    /// failures (RocksDB, epoch store closed) rather than semantic transaction
+    /// problems. Used by post-consensus validation to distinguish fatal errors
+    /// (halt the commit) from per-transaction drops.
+    pub fn is_storage_or_epoch_error(&self) -> bool {
+        matches!(
+            self,
+            IotaError::Storage(..)
+                | IotaError::EpochEnded(..)
+                | IotaError::ValidatorHaltedAtEpochEnd
+        )
+    }
+
     pub fn retry_after_secs(&self) -> u64 {
         match self {
             IotaError::ValidatorOverloadedRetryAfter { retry_after_secs } => *retry_after_secs,
             _ => 0,
         }
+    }
+}
+
+/// Categorizes IotaError into ErrorCategory.
+pub fn categorize(error: &IotaError) -> ErrorCategory {
+    match error {
+        IotaError::UserInput { error } => match error {
+            UserInputError::ObjectNotFound { .. } => ErrorCategory::Aborted,
+            UserInputError::DependentPackageNotFound { .. } => ErrorCategory::Aborted,
+            _ => ErrorCategory::InvalidTransaction,
+        },
+        IotaError::InvalidSignature { .. }
+        | IotaError::SignerSignatureAbsent { .. }
+        | IotaError::SignerSignatureNumberMismatch { .. }
+        | IotaError::IncorrectSigner { .. }
+        | IotaError::UnknownSigner { .. }
+        | IotaError::TransactionExpired => ErrorCategory::InvalidTransaction,
+
+        IotaError::ObjectLockConflict { .. } => ErrorCategory::LockConflict,
+
+        IotaError::TooManyTransactionsPendingExecution { .. }
+        | IotaError::TooManyTransactionsPendingOnObject { .. }
+        | IotaError::TooOldTransactionPendingOnObject { .. }
+        | IotaError::TooManyTransactionsPendingConsensus
+        | IotaError::ValidatorOverloadedRetryAfter { .. } => ErrorCategory::ValidatorOverloaded,
+
+        _ => ErrorCategory::Aborted,
+    }
+}
+
+/// Types of IotaError categories for retry decisions.
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, IntoStaticStr)]
+pub enum ErrorCategory {
+    /// A generic error that is retriable with new transaction resubmissions.
+    Aborted,
+    /// Any validator or full node can check if a transaction is valid.
+    InvalidTransaction,
+    /// Lock conflict on the transaction input.
+    LockConflict,
+    /// Unexpected client error, for example generating invalid request or
+    /// entering into invalid state. And unexpected error from the remote
+    /// peer.
+    Internal,
+    /// Validator is overloaded.
+    ValidatorOverloaded,
+    /// Target validator is down or there are network issues.
+    Unavailable,
+}
+
+impl ErrorCategory {
+    /// Whether the failure is retriable with new transaction submission.
+    pub fn is_submission_retriable(&self) -> bool {
+        matches!(
+            self,
+            ErrorCategory::Aborted
+                | ErrorCategory::ValidatorOverloaded
+                | ErrorCategory::Unavailable
+        )
+    }
+}
+
+impl IotaError {
+    /// Categorizes this error into an ErrorCategory.
+    pub fn categorize(&self) -> ErrorCategory {
+        categorize(self)
     }
 }
 

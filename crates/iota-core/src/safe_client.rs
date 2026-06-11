@@ -9,14 +9,18 @@ use iota_types::{
     base_types::*,
     committee::*,
     crypto::AuthorityPublicKeyBytes,
+    digests::TransactionDigest,
     effects::{SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     fp_ensure,
     iota_system_state::IotaSystemState,
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
-        HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
-        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionStatus,
-        VerifiedObjectInfoResponse,
+        GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
+        HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
+        HandleCertificateResponseV1, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionStatus, TxStatusUpdate, ValidatorHealthRequest,
+        ValidatorHealthResponse, VerifiedObjectInfoResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
@@ -90,6 +94,11 @@ pub struct SafeClientMetrics {
     handle_certificate_latency: Histogram,
     handle_obj_info_latency: Histogram,
     handle_tx_info_latency: Histogram,
+    submit_tx_latency: Histogram,
+    get_tx_status_latency: Histogram,
+    notify_capabilities_v2_latency: Histogram,
+    health_check_latency: Histogram,
+    get_checkpoint_v2_latency: Histogram,
 }
 
 impl SafeClientMetrics {
@@ -128,6 +137,15 @@ impl SafeClientMetrics {
         let handle_tx_info_latency = metrics_base
             .latency
             .with_label_values(&["handle_transaction_info_request"]);
+        let submit_tx_latency = metrics_base.latency.with_label_values(&["submit_tx"]);
+        let get_tx_status_latency = metrics_base.latency.with_label_values(&["get_tx_status"]);
+        let notify_capabilities_v2_latency = metrics_base
+            .latency
+            .with_label_values(&["notify_capabilities_v2"]);
+        let health_check_latency = metrics_base.latency.with_label_values(&["health_check"]);
+        let get_checkpoint_v2_latency = metrics_base
+            .latency
+            .with_label_values(&["get_checkpoint_v2"]);
 
         Self {
             total_requests_handle_transaction_info_request,
@@ -138,6 +156,11 @@ impl SafeClientMetrics {
             handle_certificate_latency,
             handle_obj_info_latency,
             handle_tx_info_latency,
+            submit_tx_latency,
+            get_tx_status_latency,
+            notify_capabilities_v2_latency,
+            health_check_latency,
+            get_checkpoint_v2_latency,
         }
     }
 
@@ -504,5 +527,80 @@ where
         self.authority_client
             .handle_system_state_object(SystemStateRequest { _unused: false })
             .await
+    }
+
+    // --- ValidatorV2 wrappers ---
+
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn submit_tx(
+        &self,
+        transactions: Vec<Transaction>,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        let _timer = self.metrics.submit_tx_latency.start_timer();
+        check_error!(
+            self.address,
+            self.authority_client
+                .submit_tx(transactions, client_addr)
+                .await,
+            "Client error in submit_tx"
+        )
+    }
+
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn get_tx_status(
+        &self,
+        request: GetTxStatusRequest,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        let _timer = self.metrics.get_tx_status_latency.start_timer();
+        check_error!(
+            self.address,
+            self.authority_client
+                .get_tx_status(request, client_addr)
+                .await,
+            "Client error in get_tx_status"
+        )
+    }
+
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn notify_capabilities_v2(
+        &self,
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        let _timer = self.metrics.notify_capabilities_v2_latency.start_timer();
+        check_error!(
+            self.address,
+            self.authority_client.notify_capabilities_v2(request).await,
+            "Client error in notify_capabilities_v2"
+        )
+    }
+
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn health_check(
+        &self,
+        request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        let _timer = self.metrics.health_check_latency.start_timer();
+        check_error!(
+            self.address,
+            self.authority_client.health_check(request).await,
+            "Client error in health_check"
+        )
+    }
+
+    // --- ValidatorPeer wrappers ---
+
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn get_checkpoint_v2(
+        &self,
+        request: CheckpointRequest,
+    ) -> Result<CheckpointResponse, IotaError> {
+        let _timer = self.metrics.get_checkpoint_v2_latency.start_timer();
+        check_error!(
+            self.address,
+            self.authority_client.get_checkpoint_v2(request).await,
+            "Client error in get_checkpoint_v2"
+        )
     }
 }

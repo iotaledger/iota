@@ -13,9 +13,9 @@ use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
-    Address as IotaAddress, MoveObjectType, ObjectReference as ObjectRef, Version as SequenceNumber,
+    Address as IotaAddress, ObjectReference as ObjectRef, Version as SequenceNumber,
 };
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, MoveObjectType, ObjectId, Owner, StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{

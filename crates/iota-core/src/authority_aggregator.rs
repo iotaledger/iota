@@ -625,6 +625,14 @@ impl<A: Clone> AuthorityAggregator<A> {
         self.authority_clients.get(name)
     }
 
+    /// Gets a human-readable display name for a validator.
+    pub fn get_display_name(&self, name: &AuthorityName) -> String {
+        self.validator_display_names
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.concise().to_string())
+    }
+
     /// Gets the cloned authority client for the given name.
     pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>>
     where
@@ -1922,18 +1930,14 @@ where
             self.committee.clone(),
             self.authority_clients.clone(),
             CapabilityNotificationState::default(),
-            |name, client| {
-                Box::pin(async move {
-                    let concise_name = name.concise_owned();
-                    client
-                        .authority_client()
-                        .handle_capability_notification_v1(request.clone())
-                        .instrument(trace_span!("handle_capability_notification_v1", authority = ?concise_name))
-                        .await
-                })
+            |_name, client| {
+                Box::pin(async move { client.notify_capabilities_v2(request.clone()).await })
             },
             |mut state, name, weight, response| {
-                let display_name = validator_display_names.get(&name).unwrap_or(&name.concise().to_string()).clone();
+                let display_name = validator_display_names
+                    .get(&name)
+                    .unwrap_or(&name.concise().to_string())
+                    .clone();
                 Box::pin(async move {
                     match response {
                         Ok(_) => {
@@ -1958,7 +1962,7 @@ where
                             Self::record_rpc_error_maybe(self.metrics.clone(), &display_name, &err);
 
                             let (retryable, _categorized) = err.is_retryable();
-                            if  retryable {
+                            if retryable {
                                 // Other retryable errors (timeouts, etc.)
                                 state.retryable_errors += weight;
                             } else {
@@ -1967,8 +1971,15 @@ where
                             }
                             state.errors.push((err, vec![name], weight));
 
-                            // Check if we have reached 2f+1 non-retryable errors OR we have reached 2f+1 total errors, and there is still a chance to reach the validity threshold with retryable errors and good responses.
-                            if state.non_retryable_errors >= quorum_threshold || (state.non_retryable_errors + state.retryable_errors  >= quorum_threshold && state.good_responses + state.retryable_errors >= validity_threshold) {
+                            // Check if we have reached 2f+1 non-retryable errors OR we have reached
+                            // 2f+1 total errors, and there is still a chance to reach the validity
+                            // threshold with retryable errors and good responses.
+                            if state.non_retryable_errors >= quorum_threshold
+                                || (state.non_retryable_errors + state.retryable_errors
+                                    >= quorum_threshold
+                                    && state.good_responses + state.retryable_errors
+                                        >= validity_threshold)
+                            {
                                 return ReduceOutput::Failed(state);
                             }
                         }
@@ -1979,7 +1990,8 @@ where
             },
             // Use pre_quorum_timeout for capability notifications
             self.timeouts.pre_quorum_timeout,
-        ).await;
+        )
+        .await;
 
         match result {
             Ok(_) => {
@@ -2057,6 +2069,14 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         }
     }
 
+    /// Creates a new `AuthorityAggregatorBuilder` from a committee of the given
+    /// size (for tests).
+    #[cfg(test)]
+    pub fn from_committee_size(committee_size: usize) -> Self {
+        let (committee, _keypairs) = Committee::new_simple_test_committee_of_size(committee_size);
+        Self::from_committee(committee)
+    }
+
     /// Sets the `CommitteeStore`.
     pub fn with_committee_store(mut self, committee_store: Arc<CommitteeStore>) -> Self {
         self.committee_store = Some(committee_store);
@@ -2106,6 +2126,27 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         );
         let auth_agg = self.build_custom_clients(auth_clients.clone());
         (auth_agg, auth_clients)
+    }
+
+    #[cfg(test)]
+    pub fn build_mock_authority_aggregator(
+        self,
+    ) -> AuthorityAggregator<crate::test_authority_clients::MockAuthorityApi> {
+        use crate::test_authority_clients::MockAuthorityApi;
+        let committee = self.get_committee();
+        let clients = committee
+            .names()
+            .map(|name| {
+                (
+                    *name,
+                    MockAuthorityApi::new(
+                        Duration::from_millis(100),
+                        Arc::new(std::sync::Mutex::new(30)),
+                    ),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        self.build_custom_clients(clients)
     }
 
     pub fn build_custom_clients<C: Clone>(

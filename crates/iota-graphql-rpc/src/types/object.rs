@@ -654,7 +654,7 @@ impl ObjectImpl<'_> {
                 let parent = Object::query(
                     ctx,
                     address.into(),
-                    Object::latest_at(self.0.checkpoint_viewed_at),
+                    Object::under_parent(self.0.root_version, self.0.checkpoint_viewed_at),
                 )
                 .await
                 .ok()
@@ -1690,7 +1690,7 @@ impl Loader<OptimisticKey> for Db {
             }
         }
 
-        // For missing keys, fallback to using the objects_history table
+        // For missing keys, fallback to the backward-history loader
         if !missing_keys.is_empty() {
             let historical_keys: Vec<HistoricalKey> = missing_keys
                 .iter()

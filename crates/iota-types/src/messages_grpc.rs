@@ -8,12 +8,33 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{SequenceNumber, TransactionDigest},
+    committee::EpochId,
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
-    effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
+    digests::TransactionEffectsDigest,
+    effects::{
+        SignedTransactionEffects, TransactionEffects, TransactionEffectsExtForTesting,
+        TransactionEvents, VerifiedSignedTransactionEffects,
+    },
+    error::IotaError,
     messages_consensus::SignedAuthorityCapabilitiesV1,
     object::Object,
     transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction},
 };
+
+/// Request for validator health information.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ValidatorHealthRequest {}
+
+/// Response with validator health metrics.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ValidatorHealthResponse {
+    /// Number of in-flight execution transactions from execution scheduler.
+    pub num_inflight_execution_transactions: u64,
+    /// Number of in-flight consensus transactions.
+    pub num_inflight_consensus_transactions: u64,
+    /// Sequence number of the last locally built checkpoint.
+    pub last_locally_built_checkpoint: u64,
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum ObjectInfoRequestKind {
@@ -284,4 +305,59 @@ pub struct HandleCapabilityNotificationRequestV1 {
 pub struct HandleCapabilityNotificationResponseV1 {
     // This is needed to make gRPC happy.
     pub _unused: bool,
+}
+
+// =========== TransactionDriver types ===========
+
+/// Full executed transaction data returned from validators.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ExecutedData {
+    pub effects: TransactionEffects,
+    pub events: Option<TransactionEvents>,
+    pub input_objects: Vec<Object>,
+    pub output_objects: Vec<Object>,
+}
+
+impl Default for ExecutedData {
+    fn default() -> Self {
+        Self {
+            effects: TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default()),
+            events: None,
+            input_objects: Vec::new(),
+            output_objects: Vec::new(),
+        }
+    }
+}
+
+/// Request to query the finality status of one or more previously submitted
+/// transactions.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GetTxStatusRequest {
+    pub queries: Vec<TxStatusQuery>,
+}
+
+/// A single transaction status query.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TxStatusQuery {
+    pub transaction_digest: TransactionDigest,
+    /// When true, execution details (effects, events, objects) are included
+    /// in the response for this transaction.
+    pub include_details: bool,
+}
+
+/// Streamed status update for ValidatorV2 RPCs (`submit_tx` and
+/// `get_tx_status`). Covers every state a transaction can be in.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum TxStatusUpdate {
+    /// The transaction passed validation and was submitted to consensus.
+    Submitted,
+    /// The transaction was executed and finalized.
+    Executed {
+        effects_digest: TransactionEffectsDigest,
+        details: Option<Box<ExecutedData>>,
+    },
+    /// The transaction was rejected.
+    Rejected { error: IotaError },
+    /// Transaction status has expired from the cache or timed out.
+    Expired { epoch: EpochId },
 }

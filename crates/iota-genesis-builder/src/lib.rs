@@ -31,7 +31,7 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Command, GenesisObject, Identifier, ObjectId, Owner, StructTag,
+    Command, Event, GenesisObject, Identifier, ObjectId, Owner, StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -47,7 +47,6 @@ use iota_types::{
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     epoch_data::EpochData,
-    event::Event,
     gas_coin::{GAS, GasCoin, STARDUST_TOTAL_SUPPLY_NANOS},
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,

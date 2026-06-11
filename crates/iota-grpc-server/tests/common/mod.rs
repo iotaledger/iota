@@ -504,6 +504,8 @@ pub async fn start_test_server(
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
         None,
+        None,
+        None,
     )
     .await
     .expect("Failed to start gRPC server");

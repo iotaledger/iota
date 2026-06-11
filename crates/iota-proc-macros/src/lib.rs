@@ -61,6 +61,12 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                     let mut path = PathBuf::from(env!("SIMTEST_STATIC_INIT_MOVE"));
                     let mut build_config = BuildConfig::new_for_testing();
 
+                    // Resolve the system packages (Iota framework, MoveStdlib, …) from the local
+                    // iota checkout rather than fetching them over the network. This lets the
+                    // static-init package omit an explicit `Iota` dependency; for packages that do
+                    // declare one, this injection is skipped and has no effect.
+                    build_config.config.implicit_dependencies =
+                        iota_simulator::iota_move_build::local_implicit_deps_latest();
                     build_config.config.install_dir = Some(TempDir::new().unwrap().keep());
                     let _all_module_bytes = build_config
                         .build(&path)

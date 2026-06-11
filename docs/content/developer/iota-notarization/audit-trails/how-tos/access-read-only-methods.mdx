@@ -1,0 +1,161 @@
+---
+title: Access Read-Only Methods on an Audit Trail
+sidebar_label: Access Read-Only Methods
+description: How to use read-only methods to inspect and query Audit Trail state, records, and configuration.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+## Access Read-Only Methods
+
+This guide demonstrates how to use the available read-only methods to inspect and query an `AuditTrail` object. These methods provide comprehensive information about trail state, records, metadata, locking configuration, and access control — without requiring any special permissions.
+
+### Prerequisites
+
+- An existing Audit Trail on the IOTA network
+
+In the examples below an admin-client owning an admin role capability is used to create the `AuditTrail` object as been
+shown in [Create an Audit Trail](./create-audit-trails). It is not necessarily needed to access `AuditTrail` objects
+for read only purposes.
+
+### Available Read-Only Methods
+
+Every `AuditTrail` object supports a comprehensive read-only interface:
+
+- **Trail inspection**: Name, description, creator, creation timestamp, updatable metadata
+- **Record access**: Fetch individual records by sequence number, list all records, paginated listing, record count
+- **Locking queries**: Check if a specific record is locked, inspect the locking configuration
+- **Access control**: Inspect roles, permissions, and the revoked capabilities denylist
+- **Tag registry**: View registered tags and their usage counts
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet to create the trail and a record-admin wallet to add a record, so there is on-chain state to inspect.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/07_access_read_only_methods.rs#L28-L29
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/07_access_read_only_methods.ts#L34-L35
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Set Up Read-Only Client
+
+You can use either a full client or a read-only client for inspection:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/utils/utils.rs#L53-L65
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/util.ts#L40-L46
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Fetch Trail State
+
+Load the full on-chain trail object to access metadata, locking configuration, and access control state:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/07_access_read_only_methods.rs#L82-L97
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/07_access_read_only_methods.ts#L70-L80
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. List and Paginate Records
+
+Access records with full pagination support:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/07_access_read_only_methods.rs#L99-L103
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/07_access_read_only_methods.ts#L82-L91
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Read-Only Methods Summary
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `get()` | `OnChainAuditTrail` | Full trail state including metadata, roles, and locking config |
+| `records().get(seq)` | `Record` | Single record by sequence number |
+| `records().list()` | `Record[]` | All records (expensive for large trails) |
+| `records().listWithLimit(n)` | `Record[]` | Records with a cap on the number returned |
+| `records().listPage(cursor, limit)` | `PaginatedRecord` | Paginated record listing (max 1000 per page) |
+| `records().recordCount()` | `u64` | Total number of records in the trail |
+| `locking().isRecordLocked(seq)` | `bool` | Whether a specific record is locked by the locking configuration |
+
+## Use Cases for Read-Only Methods
+
+### Auditing and Compliance
+
+- **Verify trail integrity**: Inspect the complete record history with sequence numbers and timestamps
+- **Track corrections**: Follow correction chains to understand how data has evolved
+- **Compliance checking**: Verify that locking configuration meets regulatory requirements
+
+### Integration and Automation
+
+- **Status monitoring**: Check trail state and record count for operational dashboards
+- **Content verification**: Compare on-chain records against off-chain source data
+- **Lock awareness**: Check whether records are locked before attempting deletion
+
+### User Interfaces
+
+- **Display records**: Show record data, metadata, tags, and timestamps
+- **Pagination**: Navigate large trails with cursor-based pagination
+- **Access control overview**: Display roles, permissions, and capability status

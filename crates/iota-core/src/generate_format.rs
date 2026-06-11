@@ -12,17 +12,16 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, GenesisObject,
-    GenesisTransaction, Identifier, MoveLocation, ObjectId, Owner, PackageUpgradeError,
-    SimpleSignature, StructTag, TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag,
-    UnchangedSharedKind,
+    ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
+    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
+    ObjectId, Owner, PackageUpgradeError, RandomnessStateUpdate, SimpleSignature, StructTag,
+    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
     base_types::{
-        self, ExecutionData, IotaAddress, MoveObjectType, ObjectDigest, TransactionDigest,
-        TransactionEffectsDigest,
+        self, ExecutionData, IotaAddress, ObjectDigest, TransactionDigest, TransactionEffectsDigest,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -31,10 +30,9 @@ use iota_types::{
     },
     digests::ConsensusCommitDigest,
     effects::{
-        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExt,
+        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
         TransactionEvents,
     },
-    event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
@@ -46,8 +44,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        CallArg, EndOfEpochTransactionKind, ProgrammableTransaction, RandomnessStateUpdate,
-        SenderSignedData, SharedObjectRef, Transaction, TransactionData, TransactionDataAPI,
+        CallArg, ProgrammableTransaction, SenderSignedData, SharedObjectRef, Transaction,
+        TransactionData, TransactionDataAPI,
     },
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
@@ -579,7 +577,7 @@ fn get_registry() -> Result<Registry> {
     // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
     // via trace_value (they transitively contain TypeTag).
     let sample_transaction = Transaction::new(sender_data.clone());
-    let sample_effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
+    let sample_effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
     let sample_exec_data = ExecutionData {
         transaction: sample_transaction.clone(),
         effects: sample_effects.clone(),

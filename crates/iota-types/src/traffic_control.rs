@@ -317,7 +317,7 @@ impl PolicyConfig {
             channel_capacity: 6000,
             spam_sample_rate: Weight::new(1.0).unwrap(),
             dry_run: true,
-            ..PolicyConfig::default()
+            ..Self::default()
         }
     }
 }

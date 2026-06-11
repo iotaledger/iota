@@ -13,20 +13,20 @@ use std::{
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, TransactionKind, gas::GasCostSummary};
+use iota_sdk_types::{ObjectId, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     committee::EpochId,
     crypto::KeypairTraits,
     digests::ObjectDigest,
-    effects::{TransactionEffects, TransactionEffectsExt},
+    effects::{TransactionEffects, TransactionEffectsExtForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         CheckpointSummary, SignedCheckpointSummary,
     },
-    transaction::{RandomnessStateUpdate, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::make_committee_key,
 };
 use prometheus::Registry;
@@ -449,7 +449,7 @@ async fn basic_flow_with_custom_callback() {
     );
 
     let transaction = Transaction::from_data(tx_data, vec![]);
-    let effects = TransactionEffects::new_empty_v1(*transaction.digest());
+    let effects = TransactionEffects::new_empty_v1_for_testing(*transaction.digest());
     let ch_tx = CheckpointTransaction {
         transaction,
         effects,

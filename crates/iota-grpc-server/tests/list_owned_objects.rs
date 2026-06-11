@@ -22,9 +22,9 @@ use iota_grpc_types::{
         types::Address as ProtoAddress,
     },
 };
-use iota_sdk_types::{ObjectId, Owner, StructTag};
+use iota_sdk_types::{MoveObjectType, ObjectId, Owner, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType},
+    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GasCoin,

@@ -39,7 +39,7 @@ impl SimAddressManager {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         // If offset ever goes beyond 255, we could use more bytes in the IP.
         assert!(offset <= 255);
-        format!("10.10.0.{}", offset)
+        format!("10.10.0.{offset}")
     }
 
     pub fn get_next_available_port(&self) -> u16 {

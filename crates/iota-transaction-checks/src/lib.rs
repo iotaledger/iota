@@ -212,7 +212,7 @@ mod checked {
     /// checked authenticator input objects, among which we also find the
     /// account object.
     #[instrument(level = "trace", skip_all)]
-    pub fn check_move_authenticator_input_for_signing(
+    pub fn check_move_authenticator_input_for_validation(
         authenticator_input_objects: InputObjects,
     ) -> IotaResult<CheckedInputObjects> {
         check_move_authenticator_objects(&authenticator_input_objects)?;
