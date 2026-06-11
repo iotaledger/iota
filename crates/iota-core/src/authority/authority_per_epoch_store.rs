@@ -410,7 +410,7 @@ pub(crate) enum SchedulingResult {
 /// The legacy name (in the certificate era) was
 /// `CancelConsensusCertificateReason`. It is renamed to
 /// `CancelConsensusTransactionReason` because this type now (in the
-/// certificate-less era) covers more consensus transaction kinds, not just
+/// P-COOL flow) covers more consensus transaction kinds, not just
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum CancelConsensusTransactionReason {
@@ -437,7 +437,7 @@ pub enum CancelConsensusTransactionReason {
 ///
 /// The legacy name (in the certificate era) was `ConsensusCertificateResult`.
 /// It is renamed to `ConsensusTransactionResult` because this type now (in
-/// the certificate-less era) covers all consensus transaction kinds, not just
+/// the P-COOL flow) covers all consensus transaction kinds, not just
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum ConsensusTransactionResult {
@@ -1134,7 +1134,7 @@ impl AuthorityPerEpochStore {
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, chain.1);
 
         let pending_consensus_certificates: HashSet<_> = if protocol_config.enable_pcool_flow() {
-            HashSet::new() // no certificates in certificate-less mode
+            HashSet::new() // no certificates in P-COOL mode
         } else {
             pending_consensus_transactions
                 .iter()
@@ -2333,7 +2333,7 @@ impl AuthorityPerEpochStore {
             .pending_consensus_transactions
             .multi_insert(key_value_pairs)?;
 
-        // NOTE: If the P-COOL flow is enabled (certificate-less mode), we do not
+        // NOTE: If the P-COOL flow is enabled, we do not
         // insert `UserTransactionV1` into the pending set because there is no
         // pre-consensus "promise" (a certificate) that `UserTransactionV1` will be
         // executed before the end of epoch. Thus, the below insertion is only for

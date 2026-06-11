@@ -333,7 +333,7 @@ impl ConsensusAdapter {
 
         let is_pending_consensus_certificates_empty =
             if epoch_store.protocol_config().enable_pcool_flow() {
-                // In the certificate-less mode, the list of pending consensus
+                // In the P-COOL flow, the list of pending consensus
                 // certificates is always empty.
                 true
             } else {
@@ -854,7 +854,7 @@ impl ConsensusAdapter {
 
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_pcool_flow() {
-                // In the certificate-less mode, `UserTransactionV1` kind corresponds
+                // In the P-COOL flow, `UserTransactionV1` kind corresponds
                 // to user transactions.
                 matches!(
                     transactions[0].kind,
@@ -870,7 +870,7 @@ impl ConsensusAdapter {
             };
         let send_end_of_publish = if is_user_tx {
             if epoch_store.protocol_config().enable_pcool_flow() {
-                // In certificate-less mode, `EndOfPublish` is sent solely from
+                // In the P-COOL flow, `EndOfPublish` is sent solely from
                 // `close_epoch`. There is no pending certificate drain to
                 // monitor here, and sending from this per-transaction callback
                 // would produce N duplicate EndOfPublish messages (one per
@@ -1212,7 +1212,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
     /// It transitions the reconfig state to reject new user transactions.
     /// `ConsensusAdapter` will send `EndOfPublish` once all pending
     /// transactions are drained (in the certificate mode) or right away
-    /// (in the certificate-less mode). Submission is asynchronous —
+    /// (in the P-COOL flow). Submission is asynchronous —
     /// a background task handles retries so this method returns promptly.
     fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) {
         let send_end_of_publish = {
@@ -1223,9 +1223,9 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
             }
 
             let send_end_of_publish = if epoch_store.protocol_config().enable_pcool_flow() {
-                // In certificate-less mode, there are no pending consensus
+                // In the P-COOL flow, there are no pending consensus
                 // certificates, so `EndOfPublish` is always sent immediately.
-                debug!(epoch=?epoch_store.epoch(), "Closing epoch in certificate-less mode");
+                debug!(epoch=?epoch_store.epoch(), "Closing epoch in P-COOL mode");
 
                 true
             } else {
