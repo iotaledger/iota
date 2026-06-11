@@ -93,7 +93,7 @@ dependencies = [
 [[package]]
 name = "anemo"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=f8b708601d002a75955dafebae4f75628c6f42b4#f8b708601d002a75955dafebae4f75628c6f42b4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -128,7 +128,7 @@ dependencies = [
 [[package]]
 name = "anemo-tower"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=f8b708601d002a75955dafebae4f75628c6f42b4#f8b708601d002a75955dafebae4f75628c6f42b4"
 dependencies = [
  "anemo",
  "bytes",
@@ -3542,7 +3542,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6e1196560a66eee4a0d4da60e3f5f51b07a57f63#6e1196560a66eee4a0d4da60e3f5f51b07a57f63"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=5d1270bde01ce2ca56f333babf641f32cac38cde#5d1270bde01ce2ca56f333babf641f32cac38cde"
 dependencies = [
  "ed25519-dalek",
  "iota-sdk-types",
@@ -3557,7 +3557,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6e1196560a66eee4a0d4da60e3f5f51b07a57f63#6e1196560a66eee4a0d4da60e3f5f51b07a57f63"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=5d1270bde01ce2ca56f333babf641f32cac38cde#5d1270bde01ce2ca56f333babf641f32cac38cde"
 dependencies = [
  "base64ct",
  "bcs",
