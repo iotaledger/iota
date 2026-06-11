@@ -12,9 +12,11 @@ use crate::authority::AuthorityStore;
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set
 pub trait ParMakeLiveObjectIndexer: Sync {
-    type ObjectIndexer: LiveObjectIndexer;
+    type ObjectIndexer<'a>: LiveObjectIndexer
+    where
+        Self: 'a;
 
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer;
+    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_>;
 }
 
 /// Represents an instance of a indexer that operates on a subset of the live
