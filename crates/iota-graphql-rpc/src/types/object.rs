@@ -92,6 +92,8 @@ pub(crate) struct ObjectKind {
     status: ObjectStatus,
     /// The serialized object as stored in the index. `None` for `NotIndexed`
     /// objects.
+    ///
+    /// Avoids the re-serialization of `native` for `Indexed` objects.
     bcs: Option<Vec<u8>>,
 }
 

@@ -83,7 +83,7 @@ task 14, line 68:
 //# advance-epoch
 Epoch advanced: 1
 
-task 15, lines 70-78:
+task 15, lines 70-84:
 //# run-graphql
 Response: {
   "data": {
@@ -95,6 +95,9 @@ Response: {
         }
       ]
     },
+    "lamport_v6": {
+      "nodes": []
+    },
     "previous_active_v7": {
       "nodes": [
         {
@@ -102,11 +105,14 @@ Response: {
           "version": 7
         }
       ]
+    },
+    "real_tombstone_v3": {
+      "nodes": []
     }
   }
 }
 
-task 16, lines 80-82:
+task 16, lines 86-88:
 //# programmable --sender A --inputs @A
 //> 0: P0::m::create_foo();
 //> TransferObjects([Result(0)], Input(0))
@@ -114,15 +120,15 @@ created: object(16,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 17, line 84:
+task 17, line 90:
 //# create-checkpoint
 Checkpoint created: 7
 
-task 18, line 86:
+task 18, line 92:
 //# advance-epoch
 Epoch advanced: 2
 
-task 19, lines 88-90:
+task 19, lines 94-96:
 //# programmable --sender A --inputs @A
 //> 0: P0::m::create_foo();
 //> TransferObjects([Result(0)], Input(0))
@@ -130,15 +136,15 @@ created: object(19,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2257200, storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 20, line 92:
+task 20, line 98:
 //# create-checkpoint
 Checkpoint created: 9
 
-task 21, line 94:
+task 21, line 100:
 //# advance-epoch
 Epoch advanced: 3
 
-task 22, lines 96-104:
+task 22, lines 102-110:
 //# run-graphql --wait-for-checkpoint-pruned 4
 Response: {
   "data": {
