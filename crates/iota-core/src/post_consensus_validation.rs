@@ -131,6 +131,13 @@ pub async fn validate_and_resolve_conflicts(
     HashMap<ObjectReference, LockDetails>,
     Vec<TransactionDigest>,
 )> {
+    // Times the whole pass; the guard observes the latency on drop, covering
+    // every early return below.
+    let _validation_timer = authority_state
+        .metrics
+        .post_consensus_validation_latency
+        .start_timer();
+
     let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
     // Locks acquired within this commit. Populated for every transaction that

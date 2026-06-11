@@ -349,6 +349,11 @@ pub struct AuthorityMetrics {
     /// consensus rounds it spent deferred (`commit_round -
     /// deferred_from_round`).
     pub consensus_handler_transaction_deferral_rounds: Histogram,
+    /// Wall-clock latency of `validate_and_resolve_conflicts` over one
+    /// consensus commit's worth of user transactions (Checks #0-#3 plus
+    /// owned-object conflict resolution). The drop counter above says how
+    /// many were dropped; this says how long the pass took.
+    pub post_consensus_validation_latency: Histogram,
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
     pub consensus_committed_user_transactions: IntGaugeVec,
@@ -842,6 +847,12 @@ impl AuthorityMetrics {
                 "consensus_handler_transaction_deferral_rounds",
                 "Number of consensus rounds a transaction spent deferred before it was scheduled or cancelled",
                 POSITIVE_INT_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            post_consensus_validation_latency: register_histogram_with_registry!(
+                "post_consensus_validation_latency",
+                "Latency of validate_and_resolve_conflicts over one consensus commit's user transactions (Checks #0-#3 plus owned-object conflict resolution)",
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             consensus_committed_subdags: register_int_counter_vec_with_registry!(
