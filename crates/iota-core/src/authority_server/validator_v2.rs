@@ -162,6 +162,13 @@ impl ValidatorService {
                     let soft_locks = soft_locks.clone();
                     spawn_monitored_task!(async move {
                         let tx_digest = *transaction.digest();
+                        // Stamp when this validator first saw the transaction; read
+                        // once and removed at execution to observe
+                        // `validator_transaction_execution_latency`. First receipt
+                        // wins, so a resubmission does not reset the clock.
+                        state
+                            .tx_receipt_times
+                            .get_with(tx_digest, std::time::Instant::now);
                         let (update, weight) = Self::submit_single_tx(
                             &state,
                             &consensus_adapter,

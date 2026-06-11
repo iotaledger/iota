@@ -298,6 +298,14 @@ pub struct AuthorityMetrics {
     /// Values > 1 mean the attestor under-estimated; < 1 means over-estimation.
     pub(crate) actual_to_attested_computation_cost_ratio: Histogram,
 
+    /// Pure validator-internal latency from when this validator received a
+    /// transaction via `submit_tx` until it finished executing it. Spans the
+    /// pre-consensus check/attestation, consensus, post-consensus validation,
+    /// sequencing (including any congestion deferral), and execution. Excludes
+    /// all client/fullnode time. Observed only on the validator that received
+    /// the transaction directly.
+    pub(crate) validator_transaction_execution_latency: Histogram,
+
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
 
@@ -726,6 +734,13 @@ impl AuthorityMetrics {
                 registry
             )
                 .unwrap(),
+            validator_transaction_execution_latency: register_histogram_with_registry!(
+                "validator_transaction_execution_latency",
+                "Validator-internal latency from receiving a transaction via submit_tx until it finished executing (pre-consensus check, consensus, post-consensus validation, sequencing incl. deferral, execution); excludes client/fullnode time.",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry
+            )
+                .unwrap(),
             skipped_consensus_txns: register_int_counter_with_registry!(
                 "skipped_consensus_txns",
                 "Total number of consensus transactions skipped",
@@ -981,6 +996,15 @@ pub struct AuthorityState {
 
     /// Traffic controller for IOTA core servers (json-rpc, validator service)
     pub traffic_controller: Option<Arc<TrafficController>>,
+
+    /// Per transaction digest, the `Instant` this validator first received the
+    /// transaction via `submit_tx`. Read once at execution to record
+    /// `validator_transaction_execution_latency` (receipt -> executed), then
+    /// removed. TTL-bounded so transactions that are received but never
+    /// executed (dropped, deduped, deferred-then-cancelled) expire instead
+    /// of leaking. Only populated on the validator that received the
+    /// transaction directly.
+    pub(crate) tx_receipt_times: moka::sync::Cache<TransactionDigest, std::time::Instant>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -3331,6 +3355,13 @@ impl AuthorityState {
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
+            // Bounded by capacity and a TTL comfortably larger than any
+            // realistic deferral window, so received-but-never-executed
+            // transactions expire rather than leak.
+            tx_receipt_times: moka::sync::Cache::builder()
+                .max_capacity(1_000_000)
+                .time_to_live(Duration::from_secs(300))
+                .build(),
         });
 
         // Start a task to execute ready transactions.

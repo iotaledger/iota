@@ -159,6 +159,16 @@ pub async fn execution_process(
                 }
             }
 
+            // Pure validator-internal latency: receipt (submit_tx) -> executed.
+            // Present only on the validator that received this transaction
+            // directly; removed so the entry does not linger or double-count.
+            if let Some(received_at) = authority.tx_receipt_times.remove(&digest) {
+                authority
+                    .metrics
+                    .validator_transaction_execution_latency
+                    .observe(received_at.elapsed().as_secs_f64());
+            }
+
             authority
                 .metrics
                 .execution_driver_executed_transactions
