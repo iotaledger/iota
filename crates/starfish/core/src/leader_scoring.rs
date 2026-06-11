@@ -13,7 +13,7 @@ use starfish_config::AuthorityIndex;
 use tracing::instrument;
 
 use crate::{
-    block_header::{BlockHeaderAPI, BlockRef},
+    block_header::{BlockHeaderAPI, BlockRef, Round},
     commit::{CommitRange, SubDagBase},
     context::Context,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -242,6 +242,138 @@ impl ScoringSubdag {
     }
 }
 
+/// Per-commit score contribution for the sliding-window leader scorer.
+/// All deltas are non-negative; they are added to a running aggregate.
+pub(crate) struct ContributionEntry {
+    /// Per-authority score delta, indexed by `AuthorityIndex`.
+    pub(crate) scores: Vec<u64>,
+    /// Number of leader-round blocks in the scored commit (C-3). Always 1 in
+    /// Starfish's single-leader regime; carried for forward-compatibility and
+    /// metrics.
+    pub(crate) num_leaders: usize,
+    /// Sum of stake of leader-round block authors in the scored commit (C-3).
+    pub(crate) leader_stakes: u64,
+}
+
+/// Walks `[c_minus_2, c_minus_1, c]` in order, returning every commit up to and
+/// **including** the first whose leader round is strictly greater than `upper`.
+fn scan_until_leader_round_above<'a>(
+    c_minus_2: &'a SubDagBase,
+    c_minus_1: &'a SubDagBase,
+    c: &'a SubDagBase,
+    upper: Round,
+) -> Vec<&'a SubDagBase> {
+    let mut out = Vec::with_capacity(3);
+    for cmt in [c_minus_2, c_minus_1, c] {
+        out.push(cmt);
+        if cmt.leader.round > upper {
+            return out;
+        }
+    }
+    panic!(
+        "scan must end on a commit with leader.round > {upper}; \
+         strictly-increasing-leader-rounds invariant violated upstream",
+    );
+}
+
+/// Compute the per-commit score contribution for the new commit `c`, scoring
+/// the oldest of the 3 pending commits (`c_minus_3`).
+///
+/// V2's distributed-vote semantics with propagation lookahead bounded at r+2:
+/// for each authority A, `contribution[A]` is the sum of stake of authorities
+/// whose round-(r+2) blocks strongly link to A's round-(r+1) voting block,
+/// where A's voting block strongly links to `c_minus_3`'s leader block (round
+/// r).
+///
+/// Equivocation: if A has multiple voting blocks at r+1 within the lookback
+/// window, `contribution[A] = 0`.
+///
+/// # Panics
+///
+/// Panics if the strictly-increasing-leader-rounds invariant is violated
+/// across `c_minus_3 < c_minus_2 < c_minus_1 < c`.
+pub(crate) fn compute_per_commit_contribution(
+    context: &Context,
+    c_minus_3: &SubDagBase,
+    c_minus_2: &SubDagBase,
+    c_minus_1: &SubDagBase,
+    c: &SubDagBase,
+) -> ContributionEntry {
+    assert!(
+        c_minus_3.leader.round < c_minus_2.leader.round
+            && c_minus_2.leader.round < c_minus_1.leader.round
+            && c_minus_1.leader.round < c.leader.round,
+        "consecutive commits must have strictly increasing leader rounds; \
+         got {}, {}, {}, {}",
+        c_minus_3.leader.round,
+        c_minus_2.leader.round,
+        c_minus_1.leader.round,
+        c.leader.round,
+    );
+
+    let committee = &context.committee;
+    let leader_ref = c_minus_3.leader;
+    let r = leader_ref.round;
+    let vote_round = r + 1;
+    let certify_round = r + 2;
+
+    let num_leaders = 1;
+    let leader_stakes = committee.stake(leader_ref.author);
+
+    // Voting blocks at round r+1 that strongly link to the leader block, grouped by
+    // author. Multiple blocks per author indicates equivocation in the lookback
+    // window.
+    let voting_commits = scan_until_leader_round_above(c_minus_2, c_minus_1, c, vote_round);
+    let mut voting_blocks_by_author: BTreeMap<AuthorityIndex, Vec<BlockRef>> = BTreeMap::new();
+    for commit in &voting_commits {
+        for header in &commit.headers {
+            if header.round() != vote_round {
+                continue;
+            }
+            if !header.ancestors().contains(&leader_ref) {
+                continue;
+            }
+            voting_blocks_by_author
+                .entry(header.author())
+                .or_default()
+                .push(header.reference());
+        }
+    }
+
+    // Round-(r+2) certifying blocks, with their ancestor lists.
+    let certifying_commits = scan_until_leader_round_above(c_minus_2, c_minus_1, c, certify_round);
+    let mut certifying_blocks: Vec<(AuthorityIndex, &[BlockRef])> = Vec::new();
+    for commit in &certifying_commits {
+        for header in &commit.headers {
+            if header.round() == certify_round {
+                certifying_blocks.push((header.author(), header.ancestors()));
+            }
+        }
+    }
+
+    let mut scores = vec![0u64; committee.size()];
+    for (author, voting_refs) in &voting_blocks_by_author {
+        // Equivocation in the lookback window → zero contribution.
+        if voting_refs.len() != 1 {
+            continue;
+        }
+        let voting_ref = voting_refs[0];
+        let mut certifying_stake: u64 = 0;
+        for (cert_author, cert_ancestors) in &certifying_blocks {
+            if cert_ancestors.contains(&voting_ref) {
+                certifying_stake += committee.stake(*cert_author);
+            }
+        }
+        scores[author.value()] = certifying_stake;
+    }
+
+    ContributionEntry {
+        scores,
+        num_leaders,
+        leader_stakes,
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -327,5 +459,119 @@ mod tests {
         let scores = scoring_subdag.calculate_distributed_vote_scores();
         assert_eq!(scores.scores_per_authority, vec![5, 5, 5, 5]);
         assert_eq!(scores.commit_range, (1..=4).into());
+    }
+
+    use crate::{
+        block_header::BlockHeaderDigest,
+        commit::{CommitDigest, CommitRef},
+    };
+
+    /// Helper: build 4 fully-connected commits using `DagBuilder` and return
+    /// their `SubDagBase`s in order [commit_1, commit_2, commit_3, commit_4].
+    fn build_four_commits(context: Arc<Context>) -> Vec<SubDagBase> {
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=4).build();
+        dag_builder
+            .get_sub_dag_and_commits(1..=4)
+            .into_iter()
+            .map(|(sub_dag, _)| sub_dag.base)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn test_compute_per_commit_contribution_full_connectivity() {
+        telemetry_subscribers::init_for_testing();
+        let context = Arc::new(Context::new_for_test(4).0);
+        let subdags = build_four_commits(context.clone());
+        assert_eq!(subdags.len(), 4);
+
+        let contribution = compute_per_commit_contribution(
+            &context,
+            &subdags[0],
+            &subdags[1],
+            &subdags[2],
+            &subdags[3],
+        );
+
+        // In a fully-connected DAG, every authority votes for commit-1's leader and
+        // every round-(r+2) block certifies every voting block. So every authority's
+        // contribution equals the full committee stake.
+        let expected_per_authority: u64 = context.committee.total_stake();
+        assert_eq!(
+            contribution.scores,
+            vec![expected_per_authority; context.committee.size()],
+            "expected each authority to get full committee stake as contribution"
+        );
+        assert_eq!(contribution.num_leaders, 1);
+        assert_eq!(
+            contribution.leader_stakes,
+            context.committee.stake(subdags[0].leader.author),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compute_per_commit_contribution_leader_fields() {
+        telemetry_subscribers::init_for_testing();
+        let context = Arc::new(Context::new_for_test(4).0);
+        let subdags = build_four_commits(context.clone());
+
+        let contribution = compute_per_commit_contribution(
+            &context,
+            &subdags[0],
+            &subdags[1],
+            &subdags[2],
+            &subdags[3],
+        );
+
+        // num_leaders is always 1 in Starfish single-leader regime.
+        assert_eq!(contribution.num_leaders, 1);
+        // leader_stakes equals the stake of C-3's leader author.
+        let leader_author = subdags[0].leader.author;
+        assert_eq!(
+            contribution.leader_stakes,
+            context.committee.stake(leader_author),
+        );
+    }
+
+    /// Construct a `SubDagBase` with the given leader round, leaving headers /
+    /// commit metadata empty. Suitable only for testing assertions that fire
+    /// before the function touches `headers`.
+    fn dummy_subdag_with_leader_round(round: Round, index: u32) -> SubDagBase {
+        SubDagBase {
+            leader: BlockRef::new(
+                round,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::MIN,
+            ),
+            headers: vec![],
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(index, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        }
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "strictly increasing leader rounds")]
+    async fn test_compute_per_commit_contribution_panics_on_non_increasing_rounds() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        // c_minus_2 has the same leader round as c_minus_3 — invariant violated.
+        let c_minus_3 = dummy_subdag_with_leader_round(5, 1);
+        let c_minus_2 = dummy_subdag_with_leader_round(5, 2);
+        let c_minus_1 = dummy_subdag_with_leader_round(6, 3);
+        let c = dummy_subdag_with_leader_round(7, 4);
+        let _ = compute_per_commit_contribution(&context, &c_minus_3, &c_minus_2, &c_minus_1, &c);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "strictly-increasing-leader-rounds invariant violated")]
+    async fn test_scan_panics_when_invariant_violated() {
+        // Build a sequence where leader rounds are flat — the scan won't find a
+        // commit with leader.round > upper, and `scan_until_leader_round_above`
+        // must panic at the end.
+        let c_minus_2 = dummy_subdag_with_leader_round(1, 2);
+        let c_minus_1 = dummy_subdag_with_leader_round(1, 3);
+        let c = dummy_subdag_with_leader_round(1, 4);
+        let _ = scan_until_leader_round_above(&c_minus_2, &c_minus_1, &c, /* upper */ 1);
     }
 }
