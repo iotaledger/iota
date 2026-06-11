@@ -38,3 +38,13 @@ state-archive-read-config:
       no-sign-request: true
     concurrency: 5
     use-for-pruning-watermark: false
+
+# Formal Snapshot Fallback
+# Used to backfill the gRPC epoch metadata when it cannot be rebuilt from local
+# data (see https://docs.iota.org/operator/common/snapshots). Ignored unless
+# the gRPC API is enabled and the metadata is incomplete.
+state-snapshot-read-config:
+  object-store: "S3"
+  aws-endpoint: "https://formal-snapshot.devnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
