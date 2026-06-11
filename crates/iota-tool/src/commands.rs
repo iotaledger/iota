@@ -360,6 +360,13 @@ pub enum ToolCommand {
         /// will be verified via committee signature.
         #[arg(long)]
         all_checkpoints: bool,
+
+        /// Skip building the gRPC index store during the restore. By default
+        /// it is built from the same object stream that restores the state,
+        /// so a fullnode started with gRPC enabled opens it in place instead
+        /// of re-indexing the whole restored state on first start.
+        #[arg(long)]
+        skip_grpc_indexes: bool,
     },
 
     Replay {
@@ -667,6 +674,7 @@ impl ToolCommand {
                 latest,
                 verbose,
                 all_checkpoints,
+                skip_grpc_indexes,
             } => {
                 if !verbose {
                     tracing_handle
@@ -886,6 +894,7 @@ impl ToolCommand {
                     network,
                     verify,
                     all_checkpoints,
+                    skip_grpc_indexes,
                 )
                 .await?;
             }
