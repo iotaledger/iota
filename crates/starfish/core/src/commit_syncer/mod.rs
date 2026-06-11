@@ -266,6 +266,15 @@ pub(crate) fn verify_commits(
         });
     }
 
+    let max_vote_headers = context.committee.size();
+    if serialized_vote_blocks_headers.len() > max_vote_headers {
+        return Err(ConsensusError::TooManyCommitVoteHeaders {
+            peer,
+            count: serialized_vote_blocks_headers.len(),
+            limit: max_vote_headers,
+        });
+    }
+
     // Parse and verify commits.
     let mut commits = Vec::new();
     for serialized in &serialized_commits {
@@ -873,5 +882,32 @@ mod tests {
         assert_eq!(actual, expected_variant);
         assert_eq!(fast_commit_sync, fast_commit_sync_on);
         assert_eq!(starfish_speed, starfish_speed_on);
+    }
+
+    #[test]
+    fn verify_commits_rejects_excessive_vote_headers_before_parsing() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=1),
+            vec![],
+            vec![Bytes::new(); context.committee.size() + 1],
+            10,
+        );
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitVoteHeaders {
+                peer: error_peer,
+                count: 5,
+                limit: 4,
+            }) if error_peer == peer
+        ));
     }
 }
