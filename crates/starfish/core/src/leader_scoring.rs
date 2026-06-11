@@ -244,6 +244,9 @@ impl ScoringSubdag {
 
 /// Walks `[c_minus_2, c_minus_1, c]` in order, returning every commit up to and
 /// **including** the first whose leader round is strictly greater than `upper`.
+/// If none exceed `upper`, returns all three — this only happens if the caller
+/// supplied commits that violate the strictly-increasing-leader-rounds
+/// invariant, in which case the contribution will degrade gracefully to zeros.
 fn scan_until_leader_round_above<'a>(
     c_minus_2: &'a SubDagBase,
     c_minus_1: &'a SubDagBase,
@@ -254,13 +257,10 @@ fn scan_until_leader_round_above<'a>(
     for cmt in [c_minus_2, c_minus_1, c] {
         out.push(cmt);
         if cmt.leader.round > upper {
-            return out;
+            break;
         }
     }
-    panic!(
-        "scan must end on a commit with leader.round > {upper}; \
-         strictly-increasing-leader-rounds invariant violated upstream",
-    );
+    out
 }
 
 /// Compute the per-commit score contribution for the new commit `c`, scoring
@@ -276,10 +276,10 @@ fn scan_until_leader_round_above<'a>(
 /// Equivocation: if A has multiple voting blocks at r+1 within the lookback
 /// window, `contribution[A] = 0`.
 ///
-/// # Panics
-///
-/// Panics if the strictly-increasing-leader-rounds invariant is violated
-/// across `c_minus_3 < c_minus_2 < c_minus_1 < c`.
+/// Assumes consecutive commits have strictly increasing leader rounds
+/// (`c_minus_3 < c_minus_2 < c_minus_1 < c`). The schedule that drives this
+/// function maintains this invariant by construction. If it is violated, the
+/// function returns degraded scores (typically all zeros) rather than crashing.
 pub(crate) fn compute_per_commit_contribution(
     context: &Context,
     c_minus_3: &SubDagBase,
@@ -287,18 +287,6 @@ pub(crate) fn compute_per_commit_contribution(
     c_minus_1: &SubDagBase,
     c: &SubDagBase,
 ) -> Vec<u64> {
-    assert!(
-        c_minus_3.leader.round < c_minus_2.leader.round
-            && c_minus_2.leader.round < c_minus_1.leader.round
-            && c_minus_1.leader.round < c.leader.round,
-        "consecutive commits must have strictly increasing leader rounds; \
-         got {}, {}, {}, {}",
-        c_minus_3.leader.round,
-        c_minus_2.leader.round,
-        c_minus_1.leader.round,
-        c.leader.round,
-    );
-
     let committee = &context.committee;
     let leader_ref = c_minus_3.leader;
     let r = leader_ref.round;
@@ -485,9 +473,9 @@ mod tests {
         );
     }
 
-    /// Construct a `SubDagBase` with the given leader round, leaving headers /
-    /// commit metadata empty. Suitable only for testing assertions that fire
-    /// before the function touches `headers`.
+    /// Construct a `SubDagBase` with the given leader round and empty headers.
+    /// Useful for tests that exercise the leader-round-based scan logic without
+    /// needing a real DAG.
     fn dummy_subdag_with_leader_round(round: Round, index: u32) -> SubDagBase {
         SubDagBase {
             leader: BlockRef::new(
@@ -504,26 +492,28 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "strictly increasing leader rounds")]
-    async fn test_compute_per_commit_contribution_panics_on_non_increasing_rounds() {
+    async fn test_compute_per_commit_contribution_degrades_gracefully_on_invariant_violation() {
+        // Caller supplies 4 commits with non-increasing leader rounds — the
+        // schedule's invariant is broken. The function must not panic; it
+        // returns degraded (all-zero) scores so the node keeps running.
         let context = Arc::new(Context::new_for_test(4).0);
-        // c_minus_2 has the same leader round as c_minus_3 — invariant violated.
         let c_minus_3 = dummy_subdag_with_leader_round(5, 1);
         let c_minus_2 = dummy_subdag_with_leader_round(5, 2);
         let c_minus_1 = dummy_subdag_with_leader_round(6, 3);
         let c = dummy_subdag_with_leader_round(7, 4);
-        let _ = compute_per_commit_contribution(&context, &c_minus_3, &c_minus_2, &c_minus_1, &c);
+        let scores =
+            compute_per_commit_contribution(&context, &c_minus_3, &c_minus_2, &c_minus_1, &c);
+        assert_eq!(scores, vec![0u64; context.committee.size()]);
     }
 
-    #[tokio::test]
-    #[should_panic(expected = "strictly-increasing-leader-rounds invariant violated")]
-    async fn test_scan_panics_when_invariant_violated() {
-        // Build a sequence where leader rounds are flat — the scan won't find a
-        // commit with leader.round > upper, and `scan_until_leader_round_above`
-        // must panic at the end.
+    #[test]
+    fn test_scan_returns_all_three_when_none_exceed_upper() {
+        // Degenerate input: all three commits have the same leader round, so
+        // none exceed `upper`. Helper returns all three rather than panicking.
         let c_minus_2 = dummy_subdag_with_leader_round(1, 2);
         let c_minus_1 = dummy_subdag_with_leader_round(1, 3);
         let c = dummy_subdag_with_leader_round(1, 4);
-        let _ = scan_until_leader_round_above(&c_minus_2, &c_minus_1, &c, /* upper */ 1);
+        let scanned = scan_until_leader_round_above(&c_minus_2, &c_minus_1, &c, /* upper */ 1);
+        assert_eq!(scanned.len(), 3);
     }
 }
