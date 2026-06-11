@@ -18,17 +18,15 @@ where
     db.safe_iter().map(|item| item.unwrap())
 }
 
-fn get_reverse_iter<K, V>(
-    db: &DBMap<K, V>,
-    lower_bound: Option<K>,
-    upper_bound: Option<K>,
-) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + use<'_, K, V>
+fn get_reverse_iter<'a, K, V>(
+    db: &'a DBMap<K, V>,
+    range: impl RangeBounds<K> + 'a,
+) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + 'a
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
 {
-    db.reversed_safe_iter_with_bounds(lower_bound, upper_bound)
-        .unwrap()
+    db.safe_range_iter_reversed(range)
 }
 
 fn get_iter_with_bounds<K, V>(
@@ -195,7 +193,7 @@ async fn test_skip() {
 
     // Skip to last
     assert_eq!(
-        get_reverse_iter(&db, None, None).next(),
+        get_reverse_iter(&db, ..).next(),
         Some(Ok((789, "789".to_string()))),
     );
 
@@ -215,15 +213,15 @@ async fn test_reverse_iter_with_bounds() {
     db.insert(&789, &"789".to_string())
         .expect("Failed to insert");
 
-    let mut iter = get_reverse_iter(&db, None, Some(999));
+    let mut iter = get_reverse_iter(&db, ..=999);
     assert_eq!(iter.next().unwrap(), Ok((789, "789".to_string())));
 
     db.insert(&999, &"999".to_string())
         .expect("Failed to insert");
-    let mut iter = get_reverse_iter(&db, None, Some(999));
+    let mut iter = get_reverse_iter(&db, ..=999);
     assert_eq!(iter.next().unwrap(), Ok((999, "999".to_string())));
 
-    let mut iter = get_reverse_iter(&db, None, None);
+    let mut iter = get_reverse_iter(&db, ..);
     assert_eq!(iter.next().unwrap(), Ok((999, "999".to_string())));
 }
 
@@ -265,7 +263,7 @@ async fn test_iter_reverse() {
     db.insert(&2, &"2".to_string()).expect("Failed to insert");
     db.insert(&3, &"3".to_string()).expect("Failed to insert");
 
-    let mut iter = get_reverse_iter(&db, None, None);
+    let mut iter = get_reverse_iter(&db, ..);
     assert_eq!(Some(Ok((3, "3".to_string()))), iter.next());
     assert_eq!(Some(Ok((2, "2".to_string()))), iter.next());
     assert_eq!(Some(Ok((1, "1".to_string()))), iter.next());
@@ -557,13 +555,13 @@ async fn test_reversed_safe_iter_inclusive_upper_bound_at_max() {
     db.insert(&100u8, &"100".to_string()).unwrap();
     db.insert(&u8::MAX, &"max".to_string()).unwrap();
 
-    let results: Vec<_> = get_reverse_iter(&db, None, Some(u8::MAX))
+    let results: Vec<_> = get_reverse_iter(&db, ..=u8::MAX)
         .map(|item| item.unwrap())
         .collect();
     assert_eq!(
         vec![(u8::MAX, "max".to_string()), (100u8, "100".to_string())],
         results,
-        "reversed_safe_iter_with_bounds upper=u8::MAX must include the entry at u8::MAX",
+        "safe_range_iter_reversed with ..=u8::MAX must include the entry at u8::MAX",
     );
 }
 
@@ -708,17 +706,16 @@ async fn test_safe_iter_with_prefix_at_max() {
 }
 
 #[tokio::test]
-async fn test_reversed_safe_iter_with_bounds_is_inclusive() {
+async fn test_safe_range_iter_reversed_inclusive_ranges() {
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
     for i in 1..100u32 {
         db.insert(&i, &i.to_string()).unwrap();
     }
 
-    // Both bounds inclusive: [10, 20] in descending order (unchanged contract).
+    // Closed range: [10, 20] in descending order.
     let got: Vec<_> = db
-        .reversed_safe_iter_with_bounds(Some(10), Some(20))
-        .unwrap()
+        .safe_range_iter_reversed(10..=20)
         .map(|r| r.unwrap())
         .collect();
     assert_eq!(
@@ -729,10 +726,9 @@ async fn test_reversed_safe_iter_with_bounds_is_inclusive() {
         got,
     );
 
-    // Upper-only stays inclusive: [.., 20] in descending order.
+    // Upper-only inclusive range: [.., 20] in descending order.
     let got: Vec<_> = db
-        .reversed_safe_iter_with_bounds(None, Some(20))
-        .unwrap()
+        .safe_range_iter_reversed(..=20)
         .map(|r| r.unwrap())
         .collect();
     assert_eq!(

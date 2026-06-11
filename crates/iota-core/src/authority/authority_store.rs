@@ -668,7 +668,7 @@ impl AuthorityStore {
         let marker_entry = self
             .perpetual_tables
             .object_per_epoch_marker_table
-            .reversed_safe_iter_with_bounds(None, Some(marker_key))?
+            .safe_range_iter_reversed(..=marker_key)
             .next();
         match marker_entry.transpose()? {
             Some(((epoch, key), marker)) => {
@@ -1063,14 +1063,9 @@ impl AuthorityStore {
         let mut iterator = self
             .perpetual_tables
             .live_owned_object_markers
-            .reversed_safe_iter_with_bounds(
-                None,
-                Some(ObjectRef::new(
-                    object_id,
-                    SequenceNumber::MAX_VALID_EXCL,
-                    ObjectDigest::MAX,
-                )),
-            )?;
+            .safe_range_iter_reversed(
+                ..=ObjectRef::new(object_id, SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX),
+            );
         Ok(iterator
             .next()
             .transpose()?
@@ -1733,7 +1728,7 @@ impl GlobalStateHashStore for AuthorityStore {
         Ok(self
             .perpetual_tables
             .root_state_hash_by_epoch
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?)
     }

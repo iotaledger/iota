@@ -452,8 +452,7 @@ impl IndexStore {
         };
         let next_sequence_number = tables
             .transaction_order
-            .reversed_safe_iter_with_bounds(None, None)
-            .expect("failed to initialize indexes")
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()
             .expect("failed to initialize indexes")
@@ -847,10 +846,7 @@ impl IndexStore {
                     let iter = self
                         .tables
                         .transaction_order
-                        .reversed_safe_iter_with_bounds(
-                            None,
-                            Some(cursor.unwrap_or(TxSequenceNumber::MAX)),
-                        )?
+                        .safe_range_iter_reversed(..=cursor.unwrap_or(TxSequenceNumber::MAX))
                         .skip(usize::from(cursor.is_some()))
                         .map(|result| result.map(|(_, digest)| digest));
                     if let Some(limit) = limit {
@@ -883,10 +879,9 @@ impl IndexStore {
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
         let iter = if reverse {
-            Either::Left(index.reversed_safe_iter_with_bounds(
-                None,
-                Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MAX))),
-            )?)
+            Either::Left(index.safe_range_iter_reversed(
+                ..=(key.clone(), cursor.unwrap_or(TxSequenceNumber::MAX)),
+            ))
         } else {
             Either::Right(index.safe_iter_with_bounds(
                 Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MIN))),
@@ -998,7 +993,7 @@ impl IndexStore {
             Either::Left(
                 self.tables
                     .transactions_by_move_function
-                    .reversed_safe_iter_with_bounds(None, Some(key))?,
+                    .safe_range_iter_reversed(..=key),
             )
         } else {
             Either::Right(
@@ -1055,7 +1050,7 @@ impl IndexStore {
         Ok(if descending {
             self.tables
                 .event_order
-                .reversed_safe_iter_with_bounds(None, Some((tx_seq, event_seq)))?
+                .safe_range_iter_reversed(..=(tx_seq, event_seq))
                 .take(limit)
                 .map(|result| {
                     result.map(|((_, event_seq), (digest, tx_digest, time))| {
@@ -1092,7 +1087,7 @@ impl IndexStore {
             Either::Left(
                 self.tables
                     .event_order
-                    .reversed_safe_iter_with_bounds(None, Some((min(tx_seq, seq), event_seq)))?,
+                    .safe_range_iter_reversed(..=(min(tx_seq, seq), event_seq)),
             )
         } else {
             Either::Right(
@@ -1117,17 +1112,13 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let iter =
-            if descending {
-                Either::Left(index.reversed_safe_iter_with_bounds(
-                    None,
-                    Some((key.clone(), (tx_seq, event_seq))),
-                )?)
-            } else {
-                Either::Right(
-                    index.safe_iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None),
-                )
-            };
+        let iter = if descending {
+            Either::Left(index.safe_range_iter_reversed(..=(key.clone(), (tx_seq, event_seq))))
+        } else {
+            Either::Right(
+                index.safe_iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None),
+            )
+        };
         iter.try_take_map_while_and_collect(
             Some(limit),
             |((m, _), _)| m == key,
@@ -1220,7 +1211,7 @@ impl IndexStore {
         if descending {
             self.tables
                 .event_by_time
-                .reversed_safe_iter_with_bounds(None, Some((end_time, (tx_seq, event_seq))))?
+                .safe_range_iter_reversed(..=(end_time, (tx_seq, event_seq)))
                 .try_take_map_while_and_collect(
                     Some(limit),
                     |((m, _), _)| m >= &start_time,
@@ -1248,10 +1239,7 @@ impl IndexStore {
         match self
             .tables
             .event_by_time
-            .reversed_safe_iter_with_bounds(
-                None,
-                Some((cut_time_ms, (TxSequenceNumber::MAX, usize::MAX))),
-            )?
+            .safe_range_iter_reversed(..=(cut_time_ms, (TxSequenceNumber::MAX, usize::MAX)))
             .next()
             .transpose()?
         {

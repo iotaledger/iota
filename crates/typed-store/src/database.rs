@@ -784,28 +784,6 @@ impl<K, V> DBMap<K, V> {
         let (lower_bound, upper_bound) = prefix_iterator_bounds(prefix);
         self.iter_reversed_raw(lower_bound, upper_bound)
     }
-
-    /// Creates a reversed iterator with optional inclusive bounds.
-    ///
-    /// Both bounds are inclusive: `(Some(lo), Some(hi))` yields `[lo, hi]` in
-    /// descending order. This is a thin wrapper over
-    /// [`Self::safe_range_iter_reversed`] with `lo..=hi`; use the range method
-    /// directly when you need exclusive bounds.
-    pub fn reversed_safe_iter_with_bounds(
-        &self,
-        lower_bound: Option<K>,
-        upper_bound: Option<K>,
-    ) -> Result<DbIterator<'_, (K, V)>, TypedStoreError>
-    where
-        K: Serialize + DeserializeOwned,
-        V: Serialize + DeserializeOwned,
-    {
-        let range = (
-            lower_bound.map(Bound::Included).unwrap_or(Bound::Unbounded),
-            upper_bound.map(Bound::Included).unwrap_or(Bound::Unbounded),
-        );
-        Ok(self.safe_range_iter_reversed(range))
-    }
 }
 
 /// Provides a mutable struct to form a collection of database write operations,
@@ -1218,7 +1196,7 @@ where
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let first_key = self.safe_iter().next().transpose()?.map(|(k, _v)| k);
         let last_key = self
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(k, _v)| k);
