@@ -287,6 +287,17 @@ pub struct AuthorityMetrics {
     pub(crate) prepare_cert_gas_latency_ratio: Histogram,
     pub(crate) execution_gas_latency_ratio: Histogram,
 
+    /// Attestor's pre-consensus estimate of the computation cost (NANOS), for
+    /// transactions that arrived as `UserTransactionV2`.
+    pub(crate) attested_computation_cost: Histogram,
+    /// Actual computation cost (NANOS) of attested transactions, observed after
+    /// execution. Compare against `attested_computation_cost` to evaluate how
+    /// accurate the attestor's estimate was.
+    pub(crate) actual_computation_cost: Histogram,
+    /// Ratio `actual / attested` computation cost for attested transactions.
+    /// Values > 1 mean the attestor under-estimated; < 1 means over-estimation.
+    pub(crate) actual_to_attested_computation_cost_ratio: Histogram,
+
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
 
@@ -385,6 +396,13 @@ const LOW_LATENCY_SEC_BUCKETS: &[f64] = &[
 const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
     10.0, 50.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0, 2000.0,
     3000.0, 4000.0, 5000.0, 6000.0, 7000.0, 8000.0, 9000.0, 10000.0, 50000.0, 100000.0, 1000000.0,
+];
+
+/// Buckets for the attested-vs-actual computation cost ratio
+/// (`actual / attested`). Centered on 1.0 so over- and under-estimates are
+/// visible symmetrically; dense near 1.0 to detect small systematic biases.
+const ATTESTATION_COST_RATIO_BUCKETS: &[f64] = &[
+    0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1.0, 1.01, 1.05, 1.1, 1.25, 1.5, 2.0, 4.0, 10.0,
 ];
 
 impl AuthorityMetrics {
@@ -670,6 +688,27 @@ impl AuthorityMetrics {
                 "execution_gas_latency_ratio",
                 "The ratio of computation gas divided by certificate execution latency, include committing certificate.",
                 GAS_LATENCY_RATIO_BUCKETS.to_vec(),
+                registry
+            )
+                .unwrap(),
+            attested_computation_cost: register_histogram_with_registry!(
+                "attested_computation_cost",
+                "Attestor's pre-consensus estimate of the computation cost (NANOS), for transactions that arrived as UserTransactionV2.",
+                POSITIVE_INT_BUCKETS.to_vec(),
+                registry
+            )
+                .unwrap(),
+            actual_computation_cost: register_histogram_with_registry!(
+                "actual_computation_cost",
+                "Actual computation cost (NANOS) of attested transactions, observed after execution.",
+                POSITIVE_INT_BUCKETS.to_vec(),
+                registry
+            )
+                .unwrap(),
+            actual_to_attested_computation_cost_ratio: register_histogram_with_registry!(
+                "actual_to_attested_computation_cost_ratio",
+                "Ratio actual / attested computation cost for attested transactions.",
+                ATTESTATION_COST_RATIO_BUCKETS.to_vec(),
                 registry
             )
                 .unwrap(),
