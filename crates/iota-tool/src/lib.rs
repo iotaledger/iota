@@ -42,13 +42,14 @@ use iota_core::{
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     storage::RocksDbStore,
 };
 use iota_network::default_iota_network_config;
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{ObjectId, Owner};
-use iota_snapshot::{reader::StateSnapshotReaderV1, setup_db_state};
+use iota_snapshot::{EpochInfo, reader::StateSnapshotReaderV1, setup_db_state};
 use iota_storage::{
     object_store::{
         ObjectStoreGetExt,
@@ -61,6 +62,7 @@ use iota_types::{
     base_types::*,
     committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
+    digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
     messages_grpc::{
@@ -780,23 +782,8 @@ fn start_summary_sync(
 pub async fn get_latest_available_epoch(
     snapshot_store_config: &ObjectStoreConfig,
 ) -> Result<u64, anyhow::Error> {
-    let remote_object_store = if snapshot_store_config.no_sign_request {
-        snapshot_store_config.make_http()?
-    } else {
-        snapshot_store_config.make().map(Arc::new)?
-    };
-    let manifest_contents = remote_object_store
-        .get_bytes(&get_path(MANIFEST_FILENAME))
-        .await?;
-    let root_manifest: Manifest = serde_json::from_slice(&manifest_contents)
-        .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {}", err))?;
-    let epoch = root_manifest
-        .available_epochs
-        .iter()
-        .map(|(epoch, _)| *epoch)
-        .max()
-        .ok_or(anyhow!("No snapshot found in manifest"))?;
-    Ok(epoch)
+    // Thin wrapper over the snapshot library; keeps the existing CLI API.
+    iota_snapshot::reader::latest_available_epoch(snapshot_store_config).await
 }
 
 pub async fn check_completed_snapshot(
@@ -899,7 +886,14 @@ pub async fn download_formal_snapshot(
             .read(&perpetual_db_clone, abort_registration, Some(sender))
             .await
             .unwrap_or_else(|err| panic!("Failed during read: {err}"));
-        Ok::<(), anyhow::Error>(())
+
+        let snapshot_chain_id = reader.chain_id();
+        let epoch_info = reader
+            .read_epoch_info()
+            .await
+            .unwrap_or_else(|err| panic!("Failed to read EPOCH_INFO: {err}"));
+
+        Ok::<(ChainIdentifier, EpochInfo), anyhow::Error>((snapshot_chain_id, epoch_info))
     });
     let mut root_global_state_hash = GlobalStateHash::default();
     let mut num_live_objects = 0;
@@ -966,7 +960,7 @@ pub async fn download_formal_snapshot(
         )?;
     }
 
-    snapshot_handle
+    let (snapshot_chain_id, epoch_info) = snapshot_handle
         .await
         .expect("Task join failed")
         .expect("Snapshot restore task failed");
@@ -988,6 +982,20 @@ pub async fn download_formal_snapshot(
         m,
     )
     .await?;
+
+    // Seed the gRPC `epochs_v2` index from the snapshot's EPOCH_INFO so a
+    // restored fullnode serves historical epoch metadata without replaying from
+    // genesis. The block drops the RocksDB handle before the rename below.
+    {
+        let expected_chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
+        let grpc_indexes = GrpcIndexesStore::new_without_init(path.join(GRPC_INDEXES_DIR));
+        iota_snapshot::verify_and_seed_epochs_v2(
+            &grpc_indexes,
+            epoch_info,
+            snapshot_chain_id,
+            expected_chain_id,
+        )?;
+    }
 
     let new_path = path.parent().unwrap().join("live");
     if new_path.exists() {

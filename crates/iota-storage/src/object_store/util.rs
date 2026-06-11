@@ -39,6 +39,11 @@ impl Manifest {
     pub fn epoch_exists(&self, epoch: u64) -> bool {
         self.available_epochs.iter().any(|(e, _)| *e == epoch)
     }
+
+    /// Parse a root MANIFEST from its JSON bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
+    }
 }
 
 #[derive(Serialize, Deserialize)]

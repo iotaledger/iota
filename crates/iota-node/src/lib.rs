@@ -106,7 +106,10 @@ use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentMessage, IntentScope},
 };
-use iota_snapshot::uploader::StateSnapshotUploader;
+use iota_snapshot::{
+    reader::{StateSnapshotReaderV1, latest_available_epoch},
+    uploader::StateSnapshotUploader,
+};
 use iota_storage::{
     FileCompression, StorageFormat,
     http_key_value_store::HttpKVStore,
@@ -156,6 +159,12 @@ use crate::metrics::{GrpcMetrics, IotaNodeMetrics};
 pub mod admin;
 mod handle;
 pub mod metrics;
+
+/// Retry schedule for the background `epochs_v2` snapshot backfill
+/// (see [`IotaNode::run_epochs_v2_snapshot_backfill`]).
+const EPOCHS_V2_BACKFILL_MAX_ATTEMPTS: u32 = 10;
+const EPOCHS_V2_BACKFILL_INITIAL_BACKOFF: Duration = Duration::from_secs(60);
+const EPOCHS_V2_BACKFILL_MAX_BACKOFF: Duration = Duration::from_secs(600);
 
 pub struct ValidatorComponents {
     validator_server_handle: SpawnOnce,
@@ -530,6 +539,46 @@ impl IotaNode {
             None
         };
 
+        // A gRPC fullnode must serve a complete `epochs_v2` since genesis.
+        // Refuse to start on an unfillable gap unless a snapshot source is
+        // configured to backfill it.
+        if let Some(grpc_indexes_store) = &grpc_indexes_store {
+            if let Some((highest_indexed, last_executed)) = grpc_indexes_store
+                .epochs_v2_gap(&checkpoint_store)
+                .expect("failed to check gRPC epochs_v2 completeness")
+            {
+                assert!(
+                    config.state_snapshot_read_config.is_some(),
+                    "gRPC is enabled but the epochs_v2 index is incomplete (indexed through \
+                     {highest_indexed:?}, executed through epoch {last_executed}); the missing \
+                     epochs cannot be rebuilt from local data because this node is pruned or \
+                     enabled gRPC after them. Set `state-snapshot-read-config` to a \
+                     formal-snapshot bucket so the node backfills them from the snapshot's \
+                     EPOCH_INFO, or re-restore from a V2 snapshot."
+                );
+            }
+        }
+
+        // Opt-in background backfill of `epochs_v2` from the snapshot's
+        // EPOCH_INFO for a fullnode whose local history can't rebuild it.
+        // Lives here rather than in the index store's `init`: the EPOCH_INFO
+        // reader is in `iota-snapshot`, which depends on `iota-core`.
+        if let (Some(grpc_indexes_store), Some(remote_store_config)) =
+            (&grpc_indexes_store, &config.state_snapshot_read_config)
+        {
+            let grpc_indexes_store = grpc_indexes_store.clone();
+            let remote_store_config = remote_store_config.clone();
+            let authority_store = store.clone();
+            let checkpoint_store = checkpoint_store.clone();
+            spawn_monitored_task!(Self::run_epochs_v2_snapshot_backfill(
+                grpc_indexes_store,
+                remote_store_config,
+                chain_identifier,
+                authority_store,
+                checkpoint_store,
+            ));
+        }
+
         info!("creating archive reader");
         // Create network
         // TODO only configure validators as seed/preferred peers for validators and not
@@ -839,6 +888,65 @@ impl IotaNode {
         Ok(node)
     }
 
+    /// Backfills the gRPC `epochs_v2` index from the configured formal-snapshot
+    /// bucket's EPOCH_INFO, retrying with exponential backoff. Best-effort: a
+    /// wrong-network snapshot is rejected before any write, and after
+    /// `EPOCHS_V2_BACKFILL_MAX_ATTEMPTS` failures it gives up and logs.
+    async fn run_epochs_v2_snapshot_backfill(
+        grpc_indexes_store: Arc<GrpcIndexesStore>,
+        remote_store_config: ObjectStoreConfig,
+        expected_chain_id: ChainIdentifier,
+        authority_store: Arc<AuthorityStore>,
+        checkpoint_store: Arc<CheckpointStore>,
+    ) {
+        let mut backoff = EPOCHS_V2_BACKFILL_INITIAL_BACKOFF;
+        for attempt in 1..=EPOCHS_V2_BACKFILL_MAX_ATTEMPTS {
+            let result: anyhow::Result<()> = async {
+                let epoch = latest_available_epoch(&remote_store_config).await?;
+                // Skip the remote read once already covered.
+                if grpc_indexes_store.highest_indexed_epoch()? >= Some(epoch) {
+                    info!(
+                        "gRPC epochs_v2 already covers snapshot epoch {epoch}; backfill not needed"
+                    );
+                    return anyhow::Ok(());
+                }
+                info!("backfilling gRPC epochs_v2 from snapshot EPOCH_INFO up to epoch {epoch}");
+                let (snapshot_chain_id, epoch_info) =
+                    StateSnapshotReaderV1::read_epoch_info_only(epoch, &remote_store_config)
+                        .await?;
+                iota_snapshot::verify_and_seed_epochs_v2(
+                    &*grpc_indexes_store,
+                    epoch_info,
+                    snapshot_chain_id,
+                    expected_chain_id,
+                )?;
+                // With the closed-epoch rows seeded, seed the current (open)
+                // epoch if `init` had to skip it on a pruned node.
+                grpc_indexes_store
+                    .ensure_current_epoch_info(&authority_store, &checkpoint_store)
+                    .map_err(|e| anyhow::anyhow!("seeding current epoch after backfill: {e}"))?;
+                info!("gRPC epochs_v2 backfill complete up to epoch {epoch}");
+                anyhow::Ok(())
+            }
+            .await;
+            match result {
+                Ok(()) => return,
+                Err(e) => warn!(
+                    "snapshot EPOCH_INFO epochs_v2 backfill attempt \
+                     {attempt}/{EPOCHS_V2_BACKFILL_MAX_ATTEMPTS} failed: {e:#}"
+                ),
+            }
+            if attempt < EPOCHS_V2_BACKFILL_MAX_ATTEMPTS {
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(EPOCHS_V2_BACKFILL_MAX_BACKOFF);
+            }
+        }
+        warn!(
+            "snapshot EPOCH_INFO epochs_v2 backfill gave up after \
+             {EPOCHS_V2_BACKFILL_MAX_ATTEMPTS} attempts; restart the node to retry"
+        );
+    }
+
     pub fn subscribe_to_epoch_change(&self) -> broadcast::Receiver<IotaSystemState> {
         self.end_of_epoch_channel.subscribe()
     }
@@ -952,6 +1060,7 @@ impl IotaNode {
                 &config.db_checkpoint_path(),
                 &config.snapshot_path(),
                 remote_store_config.clone(),
+                config.state_snapshot_write_config.concurrency,
                 60,
                 prometheus_registry,
                 checkpoint_store,
