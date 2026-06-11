@@ -193,6 +193,12 @@ pub struct NodeConfig {
     #[serde(default)]
     pub state_snapshot_write_config: StateSnapshotConfig,
 
+    /// Read-side formal-snapshot source. When set, a running fullnode
+    /// background-backfills its gRPC `epochs_v2` table from the snapshot's
+    /// `EPOCH_INFO`. Disabled when `None` (the default).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_snapshot_read_config: Option<ObjectStoreConfig>,
+
     #[serde(default)]
     pub indexer_max_subscriptions: Option<usize>,
 

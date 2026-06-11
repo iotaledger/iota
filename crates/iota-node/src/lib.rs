@@ -106,7 +106,10 @@ use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentMessage, IntentScope},
 };
-use iota_snapshot::uploader::StateSnapshotUploader;
+use iota_snapshot::{
+    reader::{StateSnapshotReaderV1, latest_available_epoch},
+    uploader::StateSnapshotUploader,
+};
 use iota_storage::{
     FileCompression, StorageFormat,
     http_key_value_store::HttpKVStore,
@@ -530,6 +533,42 @@ impl IotaNode {
             None
         };
 
+        // A gRPC fullnode must serve a complete `epochs_v2` since genesis.
+        // When local history can't rebuild the missing rows, backfill them
+        // synchronously from the configured formal-snapshot bucket before any
+        // service starts; refuse to start if no bucket is configured. The
+        // fetch lives here rather than in the index store's `init` because the
+        // EPOCH_INFO reader is in `iota-snapshot`, which depends on
+        // `iota-core`.
+        if let Some(grpc_indexes_store) = &grpc_indexes_store {
+            if let Some((highest_indexed, last_executed)) = grpc_indexes_store
+                .epochs_v2_gap(&checkpoint_store)
+                .expect("failed to check gRPC epochs_v2 completeness")
+            {
+                let Some(remote_store_config) = &config.state_snapshot_read_config else {
+                    panic!(
+                        "gRPC is enabled but the epochs_v2 index is incomplete (indexed through \
+                         {highest_indexed:?}, executed through epoch {last_executed}). Without \
+                         a configured snapshot source, a local rebuild only happens when the \
+                         index store is (re)initialized on a node with unpruned history back \
+                         to genesis. Set `state-snapshot-read-config` to a formal-snapshot \
+                         bucket so the node backfills the missing epochs from the snapshot's \
+                         EPOCH_INFO, re-restore from a V2 formal snapshot, or disable the gRPC \
+                         API (`enable-grpc-api: false`) to run without it."
+                    );
+                };
+                Self::backfill_epochs_v2_from_snapshot(
+                    grpc_indexes_store,
+                    remote_store_config,
+                    chain_identifier,
+                    &store,
+                    &checkpoint_store,
+                )
+                .await
+                .expect("failed to backfill gRPC epochs_v2 from the formal snapshot");
+            }
+        }
+
         info!("creating archive reader");
         // Create network
         // TODO only configure validators as seed/preferred peers for validators and not
@@ -839,6 +878,59 @@ impl IotaNode {
         Ok(node)
     }
 
+    /// Backfills the gRPC `epochs_v2` index from the configured formal-snapshot
+    /// bucket's EPOCH_INFO. Runs synchronously during node creation, before
+    /// live indexing starts, so the node never serves gRPC with an incomplete
+    /// epoch index. A wrong-network snapshot is rejected before any write.
+    async fn backfill_epochs_v2_from_snapshot(
+        grpc_indexes_store: &GrpcIndexesStore,
+        remote_store_config: &ObjectStoreConfig,
+        expected_chain_id: ChainIdentifier,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> anyhow::Result<()> {
+        let epoch = latest_available_epoch(remote_store_config).await?;
+        info!("backfilling gRPC epochs_v2 from snapshot EPOCH_INFO up to epoch {epoch}");
+        let (snapshot_chain_id, epoch_info) =
+            StateSnapshotReaderV1::read_epoch_info_only(epoch, remote_store_config).await?;
+        iota_snapshot::verify_and_restore_epoch_info(
+            grpc_indexes_store,
+            epoch_info,
+            snapshot_chain_id,
+            expected_chain_id,
+        )
+        .await?;
+        // The published snapshot can lag local execution (a delayed snapshot
+        // pipeline); close as much of the residual gap as pruning still
+        // allows by replaying the missing epochs' closing checkpoints.
+        grpc_indexes_store
+            .index_missing_epochs_locally(authority_store, checkpoint_store)
+            .map_err(|e| anyhow::anyhow!("indexing missing epochs locally: {e}"))?;
+
+        // With the closed-epoch rows seeded, seed the current (open) epoch row
+        // that `init` had to skip on a pruned node.
+        grpc_indexes_store
+            .ensure_current_epoch_info(authority_store, checkpoint_store)
+            .map_err(|e| anyhow::anyhow!("seeding current epoch after backfill: {e}"))?;
+
+        // If a residual gap remains even so, refuse to start rather than
+        // serve incomplete epoch data; a newer snapshot is the only fix left.
+        if let Some((highest_indexed, last_executed)) =
+            grpc_indexes_store.epochs_v2_gap(checkpoint_store)?
+        {
+            anyhow::bail!(
+                "epochs_v2 is still incomplete after the backfill (indexed through \
+                 {highest_indexed:?}, executed through epoch {last_executed}): the latest \
+                 published snapshot (epoch {epoch}) is older than this node's history and the \
+                 missing epochs' checkpoint data is already pruned locally; retry once a newer \
+                 snapshot is published, or disable the gRPC API (`enable-grpc-api: false`) to \
+                 run without it until then"
+            );
+        }
+        info!("gRPC epochs_v2 backfill complete up to epoch {epoch}");
+        Ok(())
+    }
+
     pub fn subscribe_to_epoch_change(&self) -> broadcast::Receiver<IotaSystemState> {
         self.end_of_epoch_channel.subscribe()
     }
@@ -952,6 +1044,7 @@ impl IotaNode {
                 &config.db_checkpoint_path(),
                 &config.snapshot_path(),
                 remote_store_config.clone(),
+                config.state_snapshot_write_config.concurrency,
                 60,
                 prometheus_registry,
                 checkpoint_store,
