@@ -39,11 +39,11 @@ Formal snapshots are database-agnostic, minimalistic snapshots containing only e
 
 The formal snapshots have the following properties:
 
-1. **Minimalism:** Formal snapshots currently contain only the end of epoch live object set (the set of all object versions eligible for use as input objects for future transactions). IOTA syncs all other critical chain information from the chain or derives it. Thus, formal snapshots contain only the necessary data required for a node to startup at epoch boundary and participate in the network.
+1. **Minimalism:** Formal snapshots contain the end of epoch live object set (the set of all object versions eligible for use as input objects for future transactions) plus a small per-epoch metadata file covering every epoch since genesis. IOTA syncs all other critical chain information from the chain or derives it. Thus, formal snapshots contain only the necessary data required for a node to startup at epoch boundary and participate in the network.
 2. **Agnosticism:** Formal snapshots are by nature agnostic to the underlying database choice or implementation of the protocol. As the live object set is protocol defined, so is the formal snapshot.
 3. **Verifiability:** Formal snapshots have first-class support in the core IOTA protocol. As such, they must be trustless/verifiable by the node operator upon download. To support this, the protocol signs a commitment to the live object state at end of epoch, which formal snapshots are checked against at restore time. If this verification fails, the node state is moved back to the state before the snapshot restore attempt.
 
-Because these snapshots do not contain indexes, they are most immediately useful for validators and state sync full nodes (SSFNs). You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your full node. With snapshots stored in the cloud, you can recover from catastrophic failures in your system or hardware more efficiently.
+Because these snapshots do not contain transaction history, they are most immediately useful for validators and state sync full nodes (SSFNs). Restoring from a formal snapshot also builds the gRPC index store by default (pass `--skip-grpc-indexes` to opt out), so a full node started with the gRPC API enabled serves it right away without re-indexing the restored state. You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your full node. With snapshots stored in the cloud, you can recover from catastrophic failures in your system or hardware more efficiently.
 
 ## Enabling snapshots
 
@@ -205,6 +205,51 @@ The following steps can be used to restore a node from a Formal snapshot:
    - `--genesis`: The path to the location of the network's `genesis.blob`.
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.
+   - `--skip-grpc-indexes`: Skips building the gRPC index store during the restore. By default it is built from the same object stream that restores the state, so a full node started with the gRPC API enabled opens it in place instead of re-indexing the whole restored state on first start. Skip it only if the node will never serve the gRPC API.
+
+### Backfilling epoch metadata for the gRPC API
+
+A full node serving the gRPC API must hold the epoch metadata of every epoch since genesis. Nodes restored from a formal snapshot (without `--skip-grpc-indexes`) or synced from genesis have it already. If a pruned node enables the gRPC API later, the missing epochs can no longer be rebuilt from local data — the node refuses to start and asks for a formal snapshot bucket to backfill them from. Using the IOTA Foundation managed snapshots:
+
+<Tabs groupId="default-snapshot-endpoint">
+
+<TabItem label="Mainnet" value="mainnet-default-snapshot-endpoint">
+
+```yaml
+state-snapshot-read-config:
+   object-store: "S3"
+   aws-endpoint: "https://formal-snapshot.mainnet.iota.cafe"
+   aws-virtual-hosted-style-request: true
+   no-sign-request: true
+```
+
+</TabItem>
+<TabItem label="Testnet" value="testnet-default-snapshot-endpoint">
+
+```yaml
+state-snapshot-read-config:
+   object-store: "S3"
+   aws-endpoint: "https://formal-snapshot.testnet.iota.cafe"
+   aws-virtual-hosted-style-request: true
+   no-sign-request: true
+```
+
+</TabItem>
+<TabItem label="Devnet" value="devnet-default-snapshot-endpoint">
+
+```yaml
+state-snapshot-read-config:
+   object-store: "S3"
+   aws-endpoint: "https://formal-snapshot.devnet.iota.cafe"
+   aws-virtual-hosted-style-request: true
+   no-sign-request: true
+```
+
+</TabItem>
+
+</Tabs>
+
+With this set, the node downloads the per-epoch metadata from the latest formal snapshot at startup (a few seconds; the large object files are not downloaded) and then starts normally.
 
 ## IOTA Foundation managed snapshots
 

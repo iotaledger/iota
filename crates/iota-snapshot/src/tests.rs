@@ -18,11 +18,12 @@ use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     global_state_hasher::GlobalStateHasher,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
 use iota_node_storage::GrpcIndexes;
 use iota_sdk_types::{GasCostSummary, ObjectId};
 use iota_types::{
+    base_types::IotaAddress,
     committee::EpochId,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{ChainIdentifier, TransactionDigest},
@@ -42,7 +43,7 @@ use iota_types::{
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
     FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
-    reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
+    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes, writer::StateSnapshotWriterV1,
 };
 
 /// In-memory `GrpcIndexes` stub for snapshot tests.
@@ -571,6 +572,110 @@ async fn snapshot_round_trip_populated_zstd() -> Result<(), anyhow::Error> {
 async fn snapshot_epoch_info_backfill_round_trip() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
     epoch_info_backfill_round_trip(dir.path(), 2).await
+}
+
+/// Restoring through [`RestoreWithGrpcIndexes`] must build the gRPC
+/// live-state indexes from the same object stream that fills the perpetual
+/// tables: the restored live object set matches the source, address-owned
+/// objects come back owner-indexed, and `finalize_restore` leaves the store
+/// initialized (the `EpochIndexed` watermark from the seeded epoch rows
+/// included).
+#[tokio::test]
+async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let tmp_dir = dir.path();
+
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("remote_dir")),
+        ..Default::default()
+    };
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        TestGrpcIndexes::with_epochs_through(0),
+        ChainIdentifier::default(),
+        FileCompression::Zstd,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await?;
+
+    // A handful of address-owned objects, so the owner index has something
+    // to prove (the immutable objects of the other round-trip tests are
+    // intentionally not owner-indexed).
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    let owner = IotaAddress::from_u16(7);
+    let mut owned_ids = HashSet::new();
+    let mut id = ObjectId::ZERO;
+    for _ in 0..4 {
+        perpetual_db.insert_store_object_v2_test_only(
+            Object::with_id_owner_for_testing(id, owner),
+            Some(0),
+        )?;
+        owned_ids.insert(id);
+        id = id.next_lexicographical();
+    }
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
+    snapshot_writer
+        .write_internal(0, perpetual_db.clone(), root_accumulator)
+        .await?;
+
+    let local_store_restore_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir_restore")),
+        ..Default::default()
+    };
+    let mut snapshot_reader = StateSnapshotReaderV1::new(
+        0,
+        &remote_store_config,
+        &local_store_restore_config,
+        NonZeroUsize::new(1).unwrap(),
+        MultiProgress::new(),
+        false, // skip_reset_local_store
+    )
+    .await?;
+
+    let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
+    let restored_grpc = GrpcIndexesStore::new_without_init(tmp_dir.join(GRPC_INDEXES_DIR));
+    let grpc_restorer = restored_grpc.live_object_restorer();
+    let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+    snapshot_reader
+        .read_to_db(
+            &RestoreWithGrpcIndexes::new(&restored_perpetual_db, &grpc_restorer),
+            abort_registration,
+            None,
+        )
+        .await?;
+    grpc_restorer.finish()?;
+
+    // The tee must not disturb the perpetual-tables restore.
+    compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
+
+    // Every address-owned object is owner-indexed in the restored gRPC store.
+    let restored_ids: HashSet<ObjectId> = restored_grpc
+        .owner_iter(owner, None, OwnerTypeFilter::None)?
+        .map(|entry| entry.map(|(key, _)| key.object_id))
+        .collect::<Result<_, _>>()?;
+    assert_eq!(restored_ids, owned_ids);
+
+    // The remaining restore-tool steps: seed the epoch rows and finalize.
+    let epoch_info = snapshot_reader.read_epoch_info().await?;
+    crate::verify_and_restore_epoch_info(
+        &restored_grpc,
+        epoch_info,
+        snapshot_reader.chain_id(),
+        ChainIdentifier::default(),
+    )
+    .await?;
+    assert_eq!(restored_grpc.highest_indexed_epoch()?, Some(0));
+    restored_grpc.finalize_restore(0)?;
+    Ok(())
 }
 
 /// Empty-DB case.

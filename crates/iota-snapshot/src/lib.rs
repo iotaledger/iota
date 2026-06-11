@@ -52,7 +52,7 @@ use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 
-use crate::restore::SeedEpochInfo;
+use crate::restore::RestoreEpochInfo;
 
 /// The following describes the format of an object file (*.obj) used for
 /// persisting live iota objects. The maximum size per .obj file is 128MB. State
@@ -342,11 +342,12 @@ impl EpochInfo {
     }
 }
 
-/// Verify the snapshot's `chain_id`, then seed its `EPOCH_INFO` rows into the
-/// given consumer's epoch index; a foreign-chain snapshot is rejected before
-/// any write.
-pub fn verify_and_seed_epochs_v2(
-    seeder: &impl SeedEpochInfo,
+/// Verify the snapshot's `chain_id`, then restore its `EPOCH_INFO` rows into
+/// the given consumer's epoch store; a foreign-chain snapshot is rejected
+/// before any write. Generic over [`RestoreEpochInfo`] so the gRPC index and
+/// an external indexer each provide their own persistence.
+pub async fn verify_and_restore_epoch_info(
+    db: &impl RestoreEpochInfo,
     epoch_info: EpochInfo,
     snapshot_chain_id: ChainIdentifier,
     expected_chain_id: ChainIdentifier,
@@ -358,7 +359,7 @@ pub fn verify_and_seed_epochs_v2(
     );
 
     let rows = epoch_info.into_epoch_info_v2_rows()?;
-    seeder.seed_epoch_info(rows)
+    db.restore_epoch_info(rows).await
 }
 
 impl TryFrom<EpochInfoV1Entry> for EpochInfoV2 {

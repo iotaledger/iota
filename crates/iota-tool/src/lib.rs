@@ -49,7 +49,9 @@ use iota_network::default_iota_network_config;
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{ObjectId, Owner};
-use iota_snapshot::{EpochInfo, reader::StateSnapshotReaderV1, setup_db_state};
+use iota_snapshot::{
+    EpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes, setup_db_state,
+};
 use iota_storage::{
     object_store::{
         ObjectStoreGetExt,
@@ -822,6 +824,7 @@ pub async fn download_formal_snapshot(
     network: Chain,
     verify: SnapshotVerifyMode,
     all_checkpoints: bool,
+    skip_grpc_indexes: bool,
 ) -> Result<(), anyhow::Error> {
     let m = MultiProgress::new();
     m.println(format!(
@@ -853,6 +856,16 @@ pub async fn download_formal_snapshot(
         verify != SnapshotVerifyMode::None,
         all_checkpoints,
     );
+    // Unless `--skip-grpc-indexes` is passed, the gRPC index store is built
+    // from the same object stream that restores the perpetual tables, so a
+    // fullnode started with gRPC enabled opens it in place instead of
+    // re-indexing the whole restored state.
+    let grpc_indexes = (!skip_grpc_indexes).then(|| {
+        Arc::new(GrpcIndexesStore::new_without_init(
+            path.join(GRPC_INDEXES_DIR),
+        ))
+    });
+
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     let perpetual_db_clone = perpetual_db.clone();
     let snapshot_dir = path.parent().unwrap().join("snapshot");
@@ -865,6 +878,7 @@ pub async fn download_formal_snapshot(
     // not pass in a channel to the reader
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads);
     let m_clone = m.clone();
+    let grpc_indexes_clone = grpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {
         let local_store_config = ObjectStoreConfig {
@@ -882,10 +896,22 @@ pub async fn download_formal_snapshot(
         )
         .await
         .unwrap_or_else(|err| panic!("Failed to create reader: {err}"));
-        reader
-            .read(&perpetual_db_clone, abort_registration, Some(sender))
-            .await
-            .unwrap_or_else(|err| panic!("Failed during read: {err}"));
+        if let Some(grpc_indexes) = &grpc_indexes_clone {
+            let grpc_restorer = grpc_indexes.live_object_restorer();
+            let restore_target = RestoreWithGrpcIndexes::new(&perpetual_db_clone, &grpc_restorer);
+            reader
+                .read_to_db(&restore_target, abort_registration, Some(sender))
+                .await
+                .unwrap_or_else(|err| panic!("Failed during read: {err}"));
+            grpc_restorer
+                .finish()
+                .unwrap_or_else(|err| panic!("Failed to flush the gRPC coin index: {err}"));
+        } else {
+            reader
+                .read(&perpetual_db_clone, abort_registration, Some(sender))
+                .await
+                .unwrap_or_else(|err| panic!("Failed during read: {err}"));
+        }
 
         let snapshot_chain_id = reader.chain_id();
         let epoch_info = reader
@@ -975,7 +1001,7 @@ pub async fn download_formal_snapshot(
         epoch,
         root_global_state_hash.clone(),
         perpetual_db.clone(),
-        checkpoint_store,
+        checkpoint_store.clone(),
         committee_store,
         verify == SnapshotVerifyMode::Strict,
         num_live_objects,
@@ -983,18 +1009,26 @@ pub async fn download_formal_snapshot(
     )
     .await?;
 
-    // Seed the gRPC `epochs_v2` index from the snapshot's EPOCH_INFO so a
-    // restored fullnode serves historical epoch metadata without replaying from
-    // genesis. The block drops the RocksDB handle before the rename below.
-    {
+    // Finish the gRPC index store (unless skipped): the live-state indexes
+    // were built while the objects streamed in, so what's left is the epoch
+    // rows from EPOCH_INFO, the open epoch's row, and the finalize that makes
+    // the node open the store in place instead of re-indexing. All RocksDB
+    // handles are dropped before the rename below.
+    if let Some(grpc_indexes) = grpc_indexes {
         let expected_chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
-        let grpc_indexes = GrpcIndexesStore::new_without_init(path.join(GRPC_INDEXES_DIR));
-        iota_snapshot::verify_and_seed_epochs_v2(
-            &grpc_indexes,
+        iota_snapshot::verify_and_restore_epoch_info(
+            &*grpc_indexes,
             epoch_info,
             snapshot_chain_id,
             expected_chain_id,
-        )?;
+        )
+        .await?;
+        let authority_store =
+            AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
+        grpc_indexes.ensure_current_epoch_info(&authority_store, &checkpoint_store)?;
+        grpc_indexes.finalize_restore(last_checkpoint.sequence_number)?;
+        Arc::into_inner(grpc_indexes)
+            .expect("the snapshot task is awaited, so its store handle is gone");
     }
 
     let new_path = path.parent().unwrap().join("live");

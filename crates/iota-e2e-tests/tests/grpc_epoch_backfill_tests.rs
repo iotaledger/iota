@@ -10,14 +10,16 @@ use iota_types::{
 };
 use test_cluster::TestClusterBuilder;
 
-/// A snapshot restore writes `epochs_v2` rows before the store is initialized
-/// (no `meta`). `GrpcIndexesStore::new` must detect that and initialize in
-/// place (skipping `safe_drop_db`) so the restored rows are kept.
+/// A formal-snapshot restore with `--build-grpc-indexes` writes the store's
+/// contents and then `finalize_restore`s it (`Watermark::Indexed` + `meta`).
+/// `GrpcIndexesStore::new` must open such a store in place rather than wipe
+/// and re-index, while an *unfinalized* store (e.g. a restore that crashed
+/// mid-way) must still be wiped.
 ///
 /// Uses a sentinel row at an epoch far beyond the node's range, which `init`
-/// can never recreate: its survival across `new` proves the drop was skipped.
+/// can never recreate: its survival across `new` proves the wipe was skipped.
 #[sim_test]
-async fn restored_epoch_rows_survive_grpc_indexes_store_init() {
+async fn finalized_restore_survives_grpc_indexes_store_init() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let state = test_cluster
@@ -30,22 +32,37 @@ async fn restored_epoch_rows_survive_grpc_indexes_store_init() {
     // An epoch the node will never index, so `init` cannot recreate its row.
     let sentinel_epoch = state.current_epoch_for_testing() + 1_000;
 
-    // Mimic a restore: open an uninitialized store (no `meta`) and write a row,
-    // leaving the rows-without-`meta` state `has_restored_epoch_info` detects.
-    let tmp = tempfile::tempdir().unwrap();
-    let path = tmp.path().to_path_buf();
+    // Mimic a completed restore: write a row, then finalize. The restore tool
+    // finalizes a *stopped* staging DB whose executed watermark can't move
+    // afterwards; the cluster here keeps executing checkpoints, so finalize
+    // far ahead to keep the store's watermark current when `new` runs.
+    let finalized_tmp = tempfile::tempdir().unwrap();
+    let finalized_path = finalized_tmp.path().to_path_buf();
     {
-        let grpc = GrpcIndexesStore::new_without_init(path.clone());
+        let grpc = GrpcIndexesStore::new_without_init(finalized_path.clone());
         grpc.insert_epoch_info(vec![restored_sentinel_row(sentinel_epoch)])
             .unwrap();
-        assert!(grpc.get_epoch_info(sentinel_epoch).unwrap().is_some());
+        grpc.finalize_restore(u64::MAX).unwrap();
     }
-
-    // `new` must initialize in place and preserve the restored row.
-    let grpc = GrpcIndexesStore::new(path, authority_store, &checkpoint_store).await;
+    let grpc =
+        GrpcIndexesStore::new(finalized_path, authority_store.clone(), &checkpoint_store).await;
     assert!(
         grpc.get_epoch_info(sentinel_epoch).unwrap().is_some(),
-        "restored row was discarded — `safe_drop_db` ran instead of in-place init"
+        "finalized restore was discarded — the store was wiped and re-initialized"
+    );
+
+    // Without the finalize (crashed restore), `new` must wipe and re-init.
+    let unfinalized_tmp = tempfile::tempdir().unwrap();
+    let unfinalized_path = unfinalized_tmp.path().to_path_buf();
+    {
+        let grpc = GrpcIndexesStore::new_without_init(unfinalized_path.clone());
+        grpc.insert_epoch_info(vec![restored_sentinel_row(sentinel_epoch)])
+            .unwrap();
+    }
+    let grpc = GrpcIndexesStore::new(unfinalized_path, authority_store, &checkpoint_store).await;
+    assert!(
+        grpc.get_epoch_info(sentinel_epoch).unwrap().is_none(),
+        "an unfinalized restore must be wiped and re-initialized"
     );
 }
 
@@ -83,12 +100,13 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // SUCCESS: a matching chain_id seeds every closed epoch into a fresh store.
     let ok_tmp = tempfile::tempdir().unwrap();
     let ok_grpc = GrpcIndexesStore::new_without_init(ok_tmp.path().to_path_buf());
-    iota_snapshot::verify_and_seed_epochs_v2(
+    iota_snapshot::verify_and_restore_epoch_info(
         &ok_grpc,
         real_epoch_info(&checkpoint_store, &system_state_bytes, current_epoch),
         expected_chain_id,
         expected_chain_id,
     )
+    .await
     .expect("a same-chain snapshot must seed");
     for epoch in 0..current_epoch {
         assert!(
@@ -101,12 +119,13 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // epoch, so the write skips the whole prefix.
     let watermark = ok_grpc.highest_indexed_epoch().unwrap();
     assert_eq!(watermark, Some(current_epoch - 1));
-    iota_snapshot::verify_and_seed_epochs_v2(
+    iota_snapshot::verify_and_restore_epoch_info(
         &ok_grpc,
         real_epoch_info(&checkpoint_store, &system_state_bytes, current_epoch),
         expected_chain_id,
         expected_chain_id,
     )
+    .await
     .expect("re-seeding a covered store must succeed as a no-op");
     assert_eq!(
         ok_grpc.highest_indexed_epoch().unwrap(),
@@ -117,12 +136,13 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // FAILURE: a different chain_id is rejected and NOTHING is written.
     let bad_tmp = tempfile::tempdir().unwrap();
     let bad_grpc = GrpcIndexesStore::new_without_init(bad_tmp.path().to_path_buf());
-    let err = iota_snapshot::verify_and_seed_epochs_v2(
+    let err = iota_snapshot::verify_and_restore_epoch_info(
         &bad_grpc,
         real_epoch_info(&checkpoint_store, &system_state_bytes, current_epoch),
         ChainIdentifier::default(),
         expected_chain_id,
     )
+    .await
     .expect_err("a wrong-network snapshot must be rejected");
     assert!(
         err.to_string().contains("chain_id"),
