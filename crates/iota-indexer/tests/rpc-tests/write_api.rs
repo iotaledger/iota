@@ -1000,8 +1000,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
         None,
         Some(PruningOptions {
             epochs_to_keep: Some(1),
-            pruning_config_path: None,
-            optimistic_pruner_batch_size: None,
+            ..Default::default()
         }),
     )
     .await;
