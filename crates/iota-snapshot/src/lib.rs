@@ -41,15 +41,18 @@ use iota_types::{
     digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
     iota_system_state::{
-        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
-        get_iota_system_state,
+        IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
     messages_checkpoint::ECMHLiveObjectSetDigest,
+    storage::EpochInfoV2,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
+
+use crate::restore::RestoreEpochInfo;
 
 /// The following describes the format of an object file (*.obj) used for
 /// persisting live iota objects. The maximum size per .obj file is 128MB. State
@@ -317,6 +320,79 @@ impl EpochInfo {
         match self {
             Self::V1(info) => &info.entries,
         }
+    }
+
+    /// Convert each on-disk entry into an [`EpochInfoV2`] index row; errors if
+    /// an entry's index doesn't equal its epoch.
+    pub fn into_epoch_info_v2_rows(self) -> anyhow::Result<Vec<EpochInfoV2>> {
+        let Self::V1(info) = self;
+        info.entries
+            .into_iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                let row = EpochInfoV2::try_from(entry)?;
+                anyhow::ensure!(
+                    index as u64 == row.epoch,
+                    "EPOCH_INFO entry at index {index} declares epoch {}",
+                    row.epoch
+                );
+                Ok(row)
+            })
+            .collect()
+    }
+}
+
+/// Verify the snapshot's `chain_id`, then restore its `EPOCH_INFO` rows into
+/// the given consumer's epoch store; a foreign-chain snapshot is rejected
+/// before any write. Generic over [`RestoreEpochInfo`] so the gRPC index and
+/// an external indexer each provide their own persistence.
+pub async fn verify_and_restore_epoch_info(
+    db: &impl RestoreEpochInfo,
+    epoch_info: EpochInfo,
+    snapshot_chain_id: ChainIdentifier,
+    expected_chain_id: ChainIdentifier,
+) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        snapshot_chain_id == expected_chain_id,
+        "snapshot chain_id {snapshot_chain_id} does not match this node's chain \
+         {expected_chain_id} (snapshot from the wrong network's bucket?)"
+    );
+
+    let rows = epoch_info.into_epoch_info_v2_rows()?;
+    db.restore_epoch_info(rows).await
+}
+
+impl TryFrom<EpochInfoV1Entry> for EpochInfoV2 {
+    type Error = anyhow::Error;
+
+    /// Reconstruct the in-memory [`EpochInfoV2`] index row from this on-disk
+    /// entry; errors if `epoch` disagrees with
+    /// `last_checkpoint_summary.epoch()`. `end_timestamp_ms` is not stored on
+    /// disk and is reconstructed from the last checkpoint's timestamp.
+    fn try_from(entry: EpochInfoV1Entry) -> Result<Self> {
+        let system_state: IotaSystemState = bcs::from_bytes(&entry.start_system_state)
+            .map_err(|e| anyhow::anyhow!("decoding start_system_state: {e}"))?;
+        let summary_epoch = entry.last_checkpoint_summary.epoch();
+        anyhow::ensure!(
+            entry.epoch == summary_epoch,
+            "EPOCH_INFO entry declares epoch {} but its summary carries epoch {summary_epoch}",
+            entry.epoch,
+        );
+        let epoch = entry.epoch;
+        let end_checkpoint = *entry.last_checkpoint_summary.data().sequence_number();
+        let end_timestamp_ms = entry.last_checkpoint_summary.data().timestamp_ms;
+        Ok(EpochInfoV2 {
+            epoch,
+            protocol_version: system_state.protocol_version(),
+            start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
+            end_timestamp_ms: Some(end_timestamp_ms),
+            start_checkpoint: entry.start_checkpoint,
+            end_checkpoint: Some(end_checkpoint),
+            reference_gas_price: system_state.reference_gas_price(),
+            system_state,
+            last_checkpoint_summary: Some(entry.last_checkpoint_summary),
+            end_of_epoch_tx_events: Some(entry.end_of_epoch_tx_events),
+        })
     }
 }
 
