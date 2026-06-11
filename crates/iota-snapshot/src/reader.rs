@@ -5,7 +5,7 @@
 use std::{
     collections::BTreeMap,
     fs::{self, File},
-    io::{BufReader, Read, Seek, SeekFrom},
+    io::Read,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
@@ -15,7 +15,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
@@ -35,11 +35,14 @@ use iota_storage::{
     object_store::{
         ObjectStoreGetExt, ObjectStoreListExt, ObjectStorePutExt,
         http::HttpDownloaderBuilder,
-        util::{copy_file, copy_files, path_to_filesystem},
+        util::{
+            MANIFEST_FILENAME, RootManifest, copy_file, copy_files, get_path, path_to_filesystem,
+        },
     },
 };
 use iota_types::{
     base_types::{ObjectDigest, ObjectRef, SequenceNumber},
+    digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
 };
 use object_store::path::Path;
@@ -51,9 +54,9 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
-    OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
-    restore::Restore,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
+    Manifest, OBJECT_FILE_MAGIC, OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC,
+    SEQUENCE_NUM_BYTES, SHA3_BYTES, restore::Restore,
 };
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
@@ -67,6 +70,10 @@ pub struct StateSnapshotReaderV1 {
     local_object_store: Arc<dyn ObjectStorePutExt>,
     ref_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
     object_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
+    epoch_info_metadata: FileMetadata,
+    epoch_info_path: Path,
+    /// Chain identifier recorded in the snapshot's `ManifestV2`.
+    chain_id: ChainIdentifier,
     multi_progress_bar: MultiProgress,
     concurrency: usize,
 }
@@ -83,11 +90,7 @@ impl StateSnapshotReaderV1 {
         skip_reset_local_store: bool,
     ) -> Result<Self> {
         let epoch_dir = format!("epoch_{epoch}");
-        let remote_object_store = if remote_store_config.no_sign_request {
-            remote_store_config.make_http()?
-        } else {
-            remote_store_config.make().map(Arc::new)?
-        };
+        let remote_object_store = make_remote_store(remote_store_config)?;
         let local_object_store: Arc<dyn ObjectStorePutExt> =
             local_store_config.make().map(Arc::new)?;
         let local_object_store_list: Arc<dyn ObjectStoreListExt> =
@@ -117,24 +120,15 @@ impl StateSnapshotReaderV1 {
             local_staging_dir_root.clone(),
             &manifest_file_path,
         )?)?;
-        let snapshot_version = manifest.snapshot_version();
-        if snapshot_version != 2u8 {
-            bail!(
-                "Unsupported snapshot version: {snapshot_version}. \
-                 Only snapshot V2 is supported."
-            );
-        }
+        let chain_id = Self::validate_v2_manifest(&manifest, epoch)?;
         if manifest.address_length() as usize > ObjectId::LENGTH {
             bail!("Max possible address length is: {}", ObjectId::LENGTH);
         }
-        if manifest.epoch() != epoch {
-            bail!("Download manifest is not for epoch: {}", epoch,);
-        }
         // Stores the objects and references FileMetadata in MANIFEST to the local
-        // directory
+        // directory, collecting the EPOCH_INFO entry in the same pass.
         let mut object_files = BTreeMap::new();
         let mut ref_files = BTreeMap::new();
-        let mut epoch_info_seen = false;
+        let mut epoch_info_files = Vec::new();
         for file_metadata in manifest.file_metadata() {
             match file_metadata.file_type {
                 FileType::Object => {
@@ -155,18 +149,12 @@ impl StateSnapshotReaderV1 {
                     // Inserts the reference FileMetadata with the partition number to the bucket.
                     entry.insert(file_metadata.part_num, file_metadata.clone());
                 }
-                FileType::EpochInfo => {
-                    if epoch_info_seen {
-                        bail!("Manifest contains more than one EPOCH_INFO entry");
-                    }
-                    epoch_info_seen = true;
-                }
+                FileType::EpochInfo => epoch_info_files.push(file_metadata.clone()),
             }
         }
-        if !epoch_info_seen {
-            bail!("V2 manifest missing required EPOCH_INFO entry");
-        }
+        let epoch_info_metadata = Self::single_epoch_info_metadata(epoch_info_files)?;
         let epoch_dir_path = Path::from(epoch_dir);
+        let epoch_info_path = epoch_info_metadata.file_path(&epoch_dir_path);
         // Collects the path of all reference files
         let files: Vec<Path> = ref_files
             .values()
@@ -224,6 +212,9 @@ impl StateSnapshotReaderV1 {
             local_object_store,
             ref_files,
             object_files,
+            epoch_info_metadata,
+            epoch_info_path,
+            chain_id,
             multi_progress_bar,
             concurrency: download_concurrency.get(),
         })
@@ -237,6 +228,101 @@ impl StateSnapshotReaderV1 {
     ) -> Result<()> {
         self.read_to_db(perpetual_db, abort_registration, sender)
             .await
+    }
+
+    /// Reads, verifies, and decodes the snapshot's `EPOCH_INFO` file from the
+    /// remote store. Independent of the live-object restore in [`Self::read`].
+    pub async fn read_epoch_info(&self) -> anyhow::Result<EpochInfo> {
+        let bytes = self
+            .remote_object_store
+            .get_bytes(&self.epoch_info_path)
+            .await?;
+        Self::decode_epoch_info(bytes, &self.epoch_info_metadata)
+    }
+
+    /// Chain identifier recorded in this snapshot's manifest.
+    pub fn chain_id(&self) -> ChainIdentifier {
+        self.chain_id
+    }
+
+    /// Checks the manifest is a V2 snapshot for `epoch` and returns its chain
+    /// id.
+    fn validate_v2_manifest(manifest: &Manifest, epoch: u64) -> anyhow::Result<ChainIdentifier> {
+        let snapshot_version = manifest.snapshot_version();
+        if snapshot_version != 2u8 {
+            bail!(
+                "Unsupported snapshot version: {snapshot_version}. Only snapshot V2 is supported."
+            );
+        }
+        if manifest.epoch() != epoch {
+            bail!("Snapshot MANIFEST is not for epoch {epoch}");
+        }
+        manifest.chain_id().context("V2 manifest missing chain_id")
+    }
+
+    /// Validates that a V2 manifest carried exactly one `EPOCH_INFO` entry and
+    /// returns it; errors if it was absent or duplicated. Callers collect the
+    /// entries in their own single pass over the manifest.
+    fn single_epoch_info_metadata(mut found: Vec<FileMetadata>) -> anyhow::Result<FileMetadata> {
+        match found.len() {
+            0 => bail!("V2 manifest missing required EPOCH_INFO entry"),
+            1 => Ok(found.pop().expect("length checked to be 1")),
+            _ => bail!("Manifest contains more than one EPOCH_INFO entry"),
+        }
+    }
+
+    /// Downloads and decodes only the MANIFEST and `EPOCH_INFO` file for
+    /// `epoch`, never the large reference/object files.
+    pub async fn read_epoch_info_only(
+        epoch: u64,
+        remote_store_config: &ObjectStoreConfig,
+    ) -> anyhow::Result<(ChainIdentifier, EpochInfo)> {
+        let epoch_dir = Path::from(format!("epoch_{epoch}"));
+        let remote_object_store = make_remote_store(remote_store_config)?;
+
+        let manifest_bytes = remote_object_store
+            .get_bytes(&epoch_dir.child("MANIFEST"))
+            .await?;
+        let manifest = Self::read_manifest_from_bytes(&manifest_bytes)?;
+        let chain_id = Self::validate_v2_manifest(&manifest, epoch)?;
+
+        let epoch_info_files = manifest
+            .file_metadata()
+            .iter()
+            .filter(|metadata| matches!(metadata.file_type, FileType::EpochInfo))
+            .cloned()
+            .collect();
+        let epoch_info_metadata = Self::single_epoch_info_metadata(epoch_info_files)?;
+        let epoch_info_path = epoch_info_metadata.file_path(&epoch_dir);
+        let bytes = remote_object_store.get_bytes(&epoch_info_path).await?;
+        let epoch_info = Self::decode_epoch_info(bytes, &epoch_info_metadata)?;
+        Ok((chain_id, epoch_info))
+    }
+
+    /// Verifies the sha3 digest against the manifest, strips the 4-byte magic
+    /// header, and BCS-decodes the `EPOCH_INFO` body.
+    fn decode_epoch_info(bytes: Bytes, metadata: &FileMetadata) -> anyhow::Result<EpochInfo> {
+        let mut hasher = Sha3_256::default();
+        hasher.update(&bytes);
+        let computed = hasher.finalize().digest;
+        if computed != metadata.sha3_digest {
+            bail!(
+                "EPOCH_INFO checksum mismatch: computed {computed:?}, expected {:?}",
+                metadata.sha3_digest
+            );
+        }
+        let mut decompressed = metadata.file_compression.bytes_decompress(bytes)?;
+        let mut buf = Vec::new();
+        decompressed.read_to_end(&mut buf)?;
+        if buf.len() < MAGIC_BYTES {
+            bail!("EPOCH_INFO file is shorter than the magic header");
+        }
+        let magic = BigEndian::read_u32(&buf[..MAGIC_BYTES]);
+        if magic != EPOCH_INFO_FILE_MAGIC {
+            bail!("EPOCH_INFO magic mismatch: got {magic:#x}, expected {EPOCH_INFO_FILE_MAGIC:#x}");
+        }
+        let epoch_info: EpochInfo = bcs::from_bytes(&buf[MAGIC_BYTES..])?;
+        Ok(epoch_info)
     }
 
     /// The main entrypoint of the [StateSnapshotReaderV1].
@@ -608,27 +694,25 @@ impl StateSnapshotReaderV1 {
     /// Reads the MANIFEST file, verifies it with the checksum, and returns the
     /// Manifest.
     fn read_manifest(path: PathBuf) -> anyhow::Result<Manifest> {
-        let manifest_file = File::open(path)?;
-        let manifest_file_size = manifest_file.metadata()?.len() as usize;
-        let mut manifest_reader = BufReader::new(manifest_file);
-        // Make sure the file is MANIFEST with correct magic bytes
-        manifest_reader.rewind()?;
-        let magic = manifest_reader.read_u32::<BigEndian>()?;
+        let mut buf = Vec::new();
+        File::open(path)?.read_to_end(&mut buf)?;
+        Self::read_manifest_from_bytes(&buf)
+    }
+
+    /// Parses a snapshot MANIFEST from its raw on-disk bytes: validates the
+    /// magic header, verifies the trailing sha3 digest, and BCS-decodes it.
+    fn read_manifest_from_bytes(buf: &[u8]) -> anyhow::Result<Manifest> {
+        if buf.len() < MAGIC_BYTES + SHA3_BYTES {
+            bail!("MANIFEST is shorter than the magic header plus checksum");
+        }
+        let magic = BigEndian::read_u32(&buf[..MAGIC_BYTES]);
         if magic != MANIFEST_FILE_MAGIC {
             bail!("Unexpected magic byte: {}", magic);
         }
-        // Gets the sha3 digest from the end of the file
-        manifest_reader.seek(SeekFrom::End(-(SHA3_BYTES as i64)))?;
-        let mut sha3_digest = [0u8; SHA3_BYTES];
-        manifest_reader.read_exact(&mut sha3_digest)?;
-        // Rewinds to the beginning of the file and read the contents
-        manifest_reader.rewind()?;
-        let mut content_buf = vec![0u8; manifest_file_size - SHA3_BYTES];
-        manifest_reader.read_exact(&mut content_buf)?;
-        // Computes the sha3 digest of the content and check if it matches the one at
-        // the end
+        // The sha3 digest of the body is the trailing `SHA3_BYTES`.
+        let (content, sha3_digest) = buf.split_at(buf.len() - SHA3_BYTES);
         let mut hasher = Sha3_256::default();
-        hasher.update(&content_buf);
+        hasher.update(content);
         let computed_digest = hasher.finalize().digest;
         if computed_digest != sha3_digest {
             bail!(
@@ -637,11 +721,38 @@ impl StateSnapshotReaderV1 {
                 sha3_digest
             );
         }
-        manifest_reader.rewind()?;
-        manifest_reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
-        let manifest = bcs::from_bytes(&content_buf[MAGIC_BYTES..])?;
+        let manifest = bcs::from_bytes(&content[MAGIC_BYTES..])?;
         Ok(manifest)
     }
+}
+
+/// Builds the remote object store handle, using the unsigned HTTP path when
+/// `no_sign_request` is set.
+fn make_remote_store(config: &ObjectStoreConfig) -> anyhow::Result<Arc<dyn ObjectStoreGetExt>> {
+    if config.no_sign_request {
+        config.make_http()
+    } else {
+        Ok(Arc::new(config.make()?))
+    }
+}
+
+/// The latest formal-snapshot epoch published to `remote_store_config`, read
+/// from the bucket's root MANIFEST. The MANIFEST lists only completed
+/// snapshots, so the returned epoch is always safe to read.
+pub async fn latest_available_epoch(
+    remote_store_config: &ObjectStoreConfig,
+) -> anyhow::Result<u64> {
+    let remote_object_store = make_remote_store(remote_store_config)?;
+    let bytes = remote_object_store
+        .get_bytes(&get_path(MANIFEST_FILENAME))
+        .await?;
+    let manifest = RootManifest::from_bytes(&bytes)?;
+    manifest
+        .available_epochs
+        .iter()
+        .map(|(epoch, _)| *epoch)
+        .max()
+        .ok_or_else(|| anyhow::anyhow!("no snapshot found in root MANIFEST"))
 }
 
 /// An iterator over all object refs in a .ref file.
