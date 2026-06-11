@@ -25,7 +25,7 @@ use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     consensus_handler::{ConsensusHandlerInitializer, StarfishConsensusHandler},
     consensus_manager::{
-        ConsensusManagerMetrics, ConsensusManagerTrait, Running, RunningLockGuard,
+        ConsensusManagerMetrics, ConsensusManagerTrait, ReplayWaiter, Running, RunningLockGuard,
     },
     consensus_validator::IotaTxValidator,
     starfish_adapter::LazyStarfishClient,
@@ -204,11 +204,6 @@ impl ConsensusManagerTrait for StarfishManager {
 
         let mut consensus_handler = self.consensus_handler.lock().await;
         *consensus_handler = Some(handler);
-
-        // Wait until all locally available commits have been processed
-        info!("replaying commits at startup");
-        registered_authority.0.replay_complete().await;
-        info!("Startup commit replay complete");
     }
 
     async fn shutdown(&self) {
@@ -242,5 +237,10 @@ impl ConsensusManagerTrait for StarfishManager {
 
     async fn is_running(&self) -> bool {
         Running::False != *self.running.lock().await
+    }
+
+    fn replay_waiter(&self) -> Option<ReplayWaiter> {
+        let authority = self.authority.load_full()?;
+        Some(ReplayWaiter::new(authority))
     }
 }

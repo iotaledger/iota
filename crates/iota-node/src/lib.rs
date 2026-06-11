@@ -102,7 +102,10 @@ use iota_network::{
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    RandomnessRound,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, StorageFormat,
@@ -113,7 +116,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
-    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits, RandomnessRound},
+    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -170,8 +173,6 @@ pub struct ValidatorComponents {
 #[cfg(msim)]
 mod simulator {
     use std::sync::atomic::AtomicBool;
-
-    use super::*;
 
     pub(super) struct SimState {
         pub sim_node: iota_simulator::runtime::NodeHandle,
@@ -1308,9 +1309,10 @@ impl IotaNode {
                 ),
             )
             .await;
+        let consensus_replay_waiter = consensus_manager.replay_waiter();
 
         info!("Spawning checkpoint service");
-        let checkpoint_service_tasks = checkpoint_service.spawn().await;
+        let checkpoint_service_tasks = checkpoint_service.spawn(consensus_replay_waiter).await;
 
         Ok(ValidatorComponents {
             validator_server_handle,

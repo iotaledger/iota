@@ -139,8 +139,7 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, StructTag};
-    use iota_types::event::Event;
+    use iota_sdk_types::{Event, Identifier, StructTag};
 
     use super::*;
 

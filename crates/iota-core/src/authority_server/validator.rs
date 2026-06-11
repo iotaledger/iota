@@ -323,7 +323,7 @@ impl ValidatorService {
             |certificate| async move {
                 let effects = self
                     .state
-                    .execute_certificate(&certificate, epoch_store)
+                    .wait_for_certificate_execution(&certificate, epoch_store)
                     .await?;
                 let events = if include_events {
                     if effects.events_digest().is_some() {

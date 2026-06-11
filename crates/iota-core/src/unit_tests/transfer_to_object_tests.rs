@@ -239,7 +239,7 @@ impl TestRunner {
         // `execute_certificate_with_execution_error` to make sure we go through TM
         let effects = self
             .authority_state
-            .execute_certificate(&ct, &epoch_store)
+            .wait_for_certificate_execution(&ct, &epoch_store)
             .await
             .unwrap();
 

@@ -13,9 +13,10 @@ use axum::{
 };
 use base64::Engine;
 use humantime::parse_duration;
+use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::AuthorityName,
-    crypto::{RandomnessPartialSignature, RandomnessRound, RandomnessSignature},
+    crypto::{RandomnessPartialSignature, RandomnessSignature},
     error::IotaError,
     traffic_control::TrafficControlReconfigParams,
 };

@@ -173,7 +173,7 @@ impl IndexedEvent {
         event_sequence_number: u64,
         checkpoint_sequence_number: u64,
         transaction_digest: TransactionDigest,
-        event: &iota_types::event::Event,
+        event: &iota_sdk_types::Event,
         timestamp_ms: u64,
     ) -> Self {
         Self {
@@ -214,7 +214,7 @@ impl EventIndex {
     pub fn from_event(
         tx_sequence_number: u64,
         event_sequence_number: u64,
-        event: &iota_types::event::Event,
+        event: &iota_sdk_types::Event,
     ) -> Self {
         let type_instantiation = event
             .type_
@@ -400,7 +400,7 @@ pub struct IndexedTransaction {
     pub timestamp_ms: u64,
     pub object_changes: Vec<IndexedObjectChange>,
     pub balance_change: Vec<IndexedBalanceChange>,
-    pub events: Vec<iota_types::event::Event>,
+    pub events: Vec<iota_sdk_types::Event>,
     pub transaction_kind: IotaTransactionKind,
     pub successful_tx_num: u64,
 }

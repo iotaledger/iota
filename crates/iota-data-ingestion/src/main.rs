@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, path::PathBuf, time::Duration};
+use std::{collections::BTreeSet, env, path::PathBuf, time::Duration};
 
 use anyhow::{Result, anyhow};
 use iota_data_ingestion::{
@@ -10,11 +10,13 @@ use iota_data_ingestion::{
     HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
 };
 use iota_data_ingestion_core::{
-    DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
+    DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionLimit, ReaderOptions,
+    WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 use iota_grpc_client::Client;
-use iota_kvstore::{BigTableClient, KvWorker};
+use iota_kvstore::{BigTableClient, KvWorker, Table};
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -37,6 +39,8 @@ struct BigTableTaskConfig {
     timeout_secs: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     emulator_host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tables: Option<BTreeSet<Table>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -54,6 +58,12 @@ struct IndexerConfig {
     path: PathBuf,
     tasks: Vec<TaskConfig>,
     progress_store_path: String,
+    /// The sequence number of the checkpoint to start ingestion from.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_checkpoint: Option<CheckpointSequenceNumber>,
+    /// The inclusive sequence number of the checkpoint to end ingestion at.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end_checkpoint: Option<CheckpointSequenceNumber>,
     #[serde(skip_serializing_if = "Option::is_none")]
     remote_store_url: Option<String>,
     #[serde(default = "default_remote_read_batch_size")]
@@ -193,6 +203,12 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::BigTableKv(kv_config) => {
+                if let Some(start_checkpoint) = config.start_checkpoint {
+                    executor
+                        .update_watermark(task_config.name.clone(), start_checkpoint)
+                        .await?;
+                }
+
                 let client = if let Some(emulator_host) = kv_config.emulator_host {
                     std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
                     BigTableClient::new_local(
@@ -211,13 +227,23 @@ async fn main() -> Result<()> {
                     )
                     .await?
                 };
+
+                let kv_worker = match kv_config.tables.filter(|s| !s.is_empty()) {
+                    Some(tables) => KvWorker::new_selective(client, tables),
+                    None => KvWorker::new(client),
+                };
+
                 let worker_pool = WorkerPool::new(
-                    KvWorker { client },
+                    kv_worker,
                     task_config.name,
                     task_config.concurrency,
                     Default::default(),
                 );
                 executor.register(worker_pool).await?;
+
+                if let Some(end_checkpoint) = config.end_checkpoint {
+                    executor.with_ingestion_limit(IngestionLimit::MaxCheckpoint(end_checkpoint));
+                }
             }
             Task::Kv(kv_config) => {
                 let worker_pool = WorkerPool::new(

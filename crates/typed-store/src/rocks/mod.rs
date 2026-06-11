@@ -49,18 +49,6 @@ const DB_CORRUPTED_KEY: &[u8] = b"db_corrupted";
 #[cfg(test)]
 mod tests;
 
-// TODO: deprecate macros use
-#[macro_export]
-macro_rules! reopen {
-    ( $db:expr, $($cf:expr;<$K:ty, $V:ty>),*) => {
-        (
-            $(
-                DBMap::<$K, $V>::reopen($db, Some($cf), &ReadWriteOptions::default(), false).expect(&format!("Cannot open {} CF.", $cf)[..])
-            ),*
-        )
-    };
-}
-
 #[derive(Debug)]
 pub(crate) struct RocksDB {
     pub(crate) underlying: rocksdb::DBWithThreadMode<MultiThreaded>,

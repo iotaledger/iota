@@ -19,7 +19,7 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Argument, CommandArgumentError, Identifier, ObjectId, Owner, StructTag, TypeTag,
+        Argument, CommandArgumentError, Event, Identifier, ObjectId, Owner, StructTag, TypeTag,
         move_package::MovePackage,
     };
     use iota_types::{
@@ -27,7 +27,6 @@ mod checked {
         base_types::{IotaAddress, TxContext},
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
-        event::Event,
         execution::{ExecutionResults, ExecutionResultsV1},
         iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,

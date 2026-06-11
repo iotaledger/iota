@@ -160,6 +160,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             round passes) even with no fresh inbound traffic, e.g. after a
 //             validator restart. Without this it can stay pending forever and
 //             block epoch close.
+//             Enable median-based commit timestamp calculation in consensus,
+//             and enforce checkpoint timestamp monotonicity for mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2922,6 +2924,11 @@ impl ProtocolConfig {
                     // fresh inbound traffic -- e.g. after a validator restart -- instead of
                     // staying pending forever and blocking epoch close.
                     cfg.feature_flags.always_advance_dkg_to_resolution = true;
+
+                    // Enable median-based commit timestamp calculation in consensus and
+                    // enforce checkpoint timestamp monotonicity for mainnet.
+                    cfg.feature_flags
+                        .consensus_median_timestamp_with_checkpoint_enforcement = true;
                 }
                 // Use this template when making changes:
                 //

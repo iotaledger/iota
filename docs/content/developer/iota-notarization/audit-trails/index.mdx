@@ -1,0 +1,130 @@
+---
+title: IOTA Audit Trails
+description: Discover how the IOTA Audit Trails component provides tamper-proof, chronological records of activities on the IOTA ledger.
+sidebar_label: Introduction
+tags:
+ - reference
+ - notarization
+ - audit-trails
+---
+# IOTA Audit Trails
+
+![IOTA Audit Trails](/img/banner/banner_audit_trails.png)
+
+IOTA Audit Trails is one of the two components of the [IOTA Notarization Toolkit](../index.mdx), alongside [IOTA Single Notarization](../single-notarization/index.mdx). It provides a powerful Move smart contract and utility libraries for creating secure, chronological records of activities or transactions. Each record captures **who** (user), **what** (action), and **when** (timestamp) an event occurred, anchored immutably to the IOTA ledger. With built-in Role-Based Access Control (RBAC), flexible locking policies, and a tag-based categorization system, Audit Trails is designed for organizations that need verifiable accountability and compliance-ready event logs.
+
+## Introduction to Audit Trails
+
+An audit trail is a sequential, tamper-proof log that records events in the order they occur. In traditional systems, audit logs are stored in centralized databases that can be altered, lost, or disputed. By moving this record to a Distributed Ledger, the IOTA Audit Trails guarantees that once an event is recorded, it cannot be retroactively modified or deleted without authorization — and every change is transparently tracked.
+
+Unlike a simple log file, the IOTA Audit Trail is a first-class on-chain object with:
+- **Sequential ordering**: Every record receives a monotonically increasing sequence number, ensuring a clear chronological order.
+- **Role-Based Access Control**: Fine-grained permissions determine who can add, correct, or delete records, manage roles, or configure locking policies.
+- **Record tags**: Categorize records by type (e.g., `"finance"`, `"legal"`, `"maintenance"`) and restrict which roles can operate on tagged records.
+- **Flexible locking**: Time-based and count-based locking windows protect records from premature deletion, while write locks and trail deletion locks provide additional safeguards.
+- **Correction tracking**: (Planned Feature - Not MVP) Records can be marked as corrections of earlier entries, creating a bidirectional link that preserves the full history while highlighting the authoritative version.
+
+### Audit Trails for International Trade
+
+:::info TRUST
+IOTA Audit Trails enables organizations to create transparent, tamper-proof records of every step in international trade — from order placement to final delivery — building trust between parties across borders.
+:::
+
+International trade involves numerous stakeholders — exporters, importers, customs authorities, logistics providers, banks, and insurers — each maintaining their own records. Discrepancies between these records lead to disputes, delays, and fraud. The cost of reconciling conflicting documentation is a major friction point in global commerce.
+
+IOTA Audit Trails addresses this by providing a shared, immutable event log that all parties can independently verify. When a shipment leaves a warehouse, the event is recorded on-chain with a timestamp and the identity of the recording party. When customs clears the shipment, another record is appended. Each party can verify the complete chain of events without trusting any single intermediary. Role-Based Access Control ensures that only authorized participants — such as the logistics provider or the customs broker — can append records to the trail, while auditors and regulators can verify the full history with read-only access.
+
+### Audit Trails for Digital Product Passports
+
+:::info TRACEABILITY
+IOTA Audit Trails provides the event history layer for Digital Product Passports, recording every lifecycle event from manufacturing to recycling with full traceability.
+:::
+
+A Digital Product Passport (DPP) requires a complete and verifiable history of a product's lifecycle — manufacturing conditions, quality inspections, ownership transfers, maintenance events, and disposal. Regulations such as the EU Digital Product Passport mandate that this information be accessible and trustworthy.
+
+IOTA Audit Trails serves as the event history layer for a DPP. While a [Dynamic Notarization](../single-notarization/explanations/dynamic-notarization.mdx) can capture the *current state* of a product (e.g., its current owner or status), the Audit Trail records *every event* that led to that state. For example, a DPP for an electric vehicle battery could use an Audit Trail to log manufacturing parameters, charge cycles, temperature readings, ownership transfers, and recycling events. Record tags can categorize events by type (`"manufacturing"`, `"maintenance"`, `"transfer"`), and role-based permissions ensure that only the manufacturer can log manufacturing events, only the service provider can log maintenance events, and so on.
+
+The [Digital Product Passport real world example](./real-world-examples/digital-product-passport.mdx) demonstrates how to implement a Digital Product Passport following the example set by the [IOTA DPP demo](https://dpp.demo.iota.org/).
+
+### Audit Trails versus Dynamic Notarization
+
+The Notarization Toolkit offers two complementary options for recording data on-chain. Understanding their differences helps you choose the right tool:
+
+| Aspect | Audit Trails | Dynamic Notarization |
+|--------|-------------|---------------------|
+| **Data model** | Append-only log of sequential records | Single mutable state object |
+| **On-chain visibility** | Full history of all records | Only the latest state |
+| **Access control** | Role-Based Access Control with capabilities and record tags | Owner-only (single address) |
+| **Ownership** | Shared object — multiple authorized users can write | Owned object — only the owner can modify |
+| **Primary use case** | "What happened and when?" — event logs, compliance trails | "What is the current state?" — registries, living documents |
+
+The two complement each other. For example, a Digital Product Passport might use a Dynamic Notarization to store the product's current status and an Audit Trail to record every lifecycle event. The Notarization provides fast lookup of the latest state, while the Audit Trail provides the complete, verifiable history.
+
+### Why IOTA for Audit Trails?
+
+IOTA is uniquely suited for audit trail applications due to several key properties:
+
+* **Cost-Effectiveness**: Creating and maintaining an Audit Trail on IOTA involves a refundable storage deposit for the ledger space occupied. This deposit can be reclaimed when records are deleted or the trail is destroyed, making long-term operation highly affordable.
+* **High Availability**: Audit Trail data is replicated across every node in the IOTA network, ensuring it is always available for verification anywhere in the world.
+* **Shared Object Model**: Unlike owned objects that can only be modified by a single address, an Audit Trail is a shared object. This means multiple authorized parties can write to the same trail concurrently, governed by on-chain Role-Based Access Control — a critical requirement for multi-stakeholder scenarios.
+* **Security**: All write operations require a valid on-chain Capability object with the appropriate permissions. Capabilities can be time-limited, address-bound, and revoked at any time, providing defense-in-depth against unauthorized access.
+* **Integrity**: Every record receives a monotonically increasing sequence number and a timestamp from the on-chain clock. The IOTA consensus mechanism guarantees that records cannot be reordered, backdated, or silently removed.
+
+## Privacy and Off-Chain Documents
+
+Audit Trail records can hold arbitrary data — you could store full documents or raw payloads directly on-chain. However, because the IOTA ledger is public and every node can read every on-chain object, storing sensitive information such as trade invoices, personal health data, or contractual terms directly on the ledger would make it visible to anyone.
+
+For this reason, the recommended approach is an **on-chain/off-chain pattern**: store only a cryptographic hash of the document on-chain and keep the actual content in the organization's private infrastructure. This separation of *proof* from *content* preserves the full verifiability of the ledger — any party holding the original document can confirm its integrity against the on-chain hash — while ensuring that sensitive data is never publicly exposed. The pattern also supports regulatory compliance (e.g., GDPR's "right to erasure"), selective disclosure between parties, and efficient use of ledger storage.
+
+For a detailed explanation of the privacy challenges, the on-chain/off-chain pattern, and a practical step-by-step example, see [Privacy and Off-Chain Documents](./explanations/privacy-and-off-chain-documents.mdx).
+
+## Key Actors in the Audit Trails Process
+
+IOTA Audit Trails provides a flexible and configurable **Role-Based Access Control** ([RBAC](#role-based-access-control-in-audit-trails-rbac)) management that can be used to
+define clear roles for the participants in the audit process:
+
+### Trail Creator (Admin)
+
+The **Trail Creator** is the address that creates the Audit Trail. Upon creation, the creator automatically receives an **Admin Capability** — an on-chain object that grants full administrative control over the trail.
+
+**Key Responsibilities:**
+- Create and configure the Audit Trail with metadata, locking policies, and an initial tag registry
+- Define roles with arbitrary permission sets and tags (e.g., `RecordAdmin`, `Auditor`, `LockingAdmin`)
+- Issue capabilities to other participants, optionally restricting them by address and time window
+- Revoke capabilities when access should be withdrawn
+- Manage the trail's locking configuration and tag registry
+
+Using the Admin Capability the Trail Creator can set up a custom role model to make sure only authorized parties can contribute to the trail.
+This allows organizations to create a secure and compliant audit environment that fits their specific needs.
+For example, in an international trade scenario, the Trail Creator could define roles for exporters, importers, customs authorities, and logistics providers.
+
+### Record Writer Roles
+
+**Record Writers** are participants who hold a Capability with record-management permissions (`AddRecord`, `DeleteRecord`, `CorrectRecord`). They are the operational users of the trail.
+The exact roles, permissions and tags depend on the use case, but Record Writer is a common class of roles that can be customized to fit various scenarios using record tags.
+
+**Key Responsibilities:**
+- Add new records to the trail with data, optional metadata, and optional tags
+- Correct existing records (Not MVP) by creating new records that reference the originals
+- Delete records when permitted by the locking configuration
+
+### Auditor and Verifier Roles
+
+**Auditors** verify the integrity and completeness of the trail. Reading an Audit Trail's on-chain state requires no special permissions — the trail is a shared object whose data is publicly accessible on the ledger.
+
+**Key Responsibilities:**
+- Read and verify the complete record history, including sequence numbers, timestamps, and correction chains
+- Confirm that records have not been tampered with by comparing on-chain data against off-chain source documents
+- Validate that the trail's access control configuration meets compliance requirements
+
+## Role-Based Access Control in Audit Trails (RBAC)
+
+Access to every write operation on an Audit Trail is governed by Role-Based Access Control (RBAC). The RBAC system is highly configurable and combines four primitives:
+
+- **Roles**: Named permission sets stored on the trail (e.g., `"Admin"`, `"RecordAdmin"`, `"LockingAdmin"`). Each role defines which operations its holders can perform.
+- **Capabilities**: On-chain objects held by users, each linked to one role. A Capability must be presented with every write operation — the trail validates it before allowing the action.
+- **Permission Sets**: Each role specifies a set of permissions (e.g., `AddRecord`, `DeleteRecord`, `AddRoles`, `UpdateMetadata`). Permissions can be combined to create custom roles that fit specific organizational needs.
+- **Record Tags**: User-defined labels that can be attached to records (e.g., `"finance"`, `"legal"`, `"maintenance"`). Roles can specify which tags they have permission to operate on, enabling fine-grained access control over different categories of records.
+
+This system enables multi-party collaboration on a single trail while maintaining strict access boundaries. For a detailed explanation of how roles, capabilities, and record tags work together, see [Role-Based Access Control for Audit Trails](./explanations/role-based-access-control.mdx).
+
