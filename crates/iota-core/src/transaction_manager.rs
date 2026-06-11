@@ -99,12 +99,10 @@ impl VerifiedExecutableAttestedTransaction {
         self.attestation.as_ref()
     }
 
-    /// Returns the attestor's estimated computation cost, or `None` if the
+    /// Returns the attestor's estimated computation units, or `None` if the
     /// transaction was not attested.
-    pub fn attested_computation_cost(&self) -> Option<u64> {
-        self.attestation
-            .as_ref()
-            .map(|a| a.estimated_computation_cost())
+    pub fn attested_computation_units(&self) -> Option<u64> {
+        self.attestation.as_ref().map(|a| a.computation_units())
     }
 
     /// Consume the wrapper and return its parts.

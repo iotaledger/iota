@@ -540,18 +540,18 @@ pub enum IotaError {
     },
 
     #[error(
-        "Attestation reports estimated_computation_cost = {actual} gas units, \
+        "Attestation reports computation_units = {actual} gas units, \
          below the protocol minimum of {minimum} (`base_tx_cost_fixed`); \
-         an honest dry-run cannot bucketize below this floor"
+         an honest dry-run meters at least this base cost"
     )]
-    AttestationCostBelowMinimum { actual: u64, minimum: u64 },
+    AttestationUnitsBelowMinimum { actual: u64, minimum: u64 },
 
     #[error(
-        "Attestation reports estimated_computation_cost = {actual} gas units, \
+        "Attestation reports computation_units = {actual} gas units, \
          above the user's budget ceiling of {ceiling} (`gas_budget / gas_price`); \
          an honest dry-run cannot exceed what the tx can pay for"
     )]
-    AttestationCostAboveBudget { actual: u64, ceiling: u64 },
+    AttestationUnitsAboveBudget { actual: u64, ceiling: u64 },
 
     #[error(
         "Attestor {attestor:?} stamped a `UserTransactionV2` whose user \

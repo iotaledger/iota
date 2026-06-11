@@ -300,7 +300,7 @@ pub mod suggested_gas_price_calculator_test_utils {
             match congestion_control_parameters.per_object_congestion_control_mode_for_test() {
                 PerObjectCongestionControlMode::None => {}
                 PerObjectCongestionControlMode::TotalGasBudget
-                | PerObjectCongestionControlMode::TotalComputationCost => {
+                | PerObjectCongestionControlMode::TotalComputationUnits => {
                     let certificate =
                         build_transaction(&[(*object_id, true)], *duration, *gas_price);
 
@@ -2269,7 +2269,7 @@ mod tests {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalTxCount => 0,
             PerObjectCongestionControlMode::TotalGasBudget
-            | PerObjectCongestionControlMode::TotalComputationCost => 2_999_999,
+            | PerObjectCongestionControlMode::TotalComputationUnits => 2_999_999,
         };
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             per_object_congestion_control_mode,
@@ -2353,7 +2353,7 @@ mod tests {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => (1, 2),
                 PerObjectCongestionControlMode::TotalGasBudget
-                | PerObjectCongestionControlMode::TotalComputationCost => (1_000_000, 2_000_000),
+                | PerObjectCongestionControlMode::TotalComputationUnits => (1_000_000, 2_000_000),
             };
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             per_object_congestion_control_mode,

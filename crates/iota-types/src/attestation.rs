@@ -50,9 +50,10 @@ pub enum Attestation {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttestationData {
     V1 {
-        /// Expected computation cost, in gas units, used by the sequencer to
-        /// improve shared-object scheduling before execution.
-        estimated_computation_cost: u64,
+        /// Expected computation units billed by the attestor's dry-run
+        /// (`computation_cost / gas_price`). Used by the sequencer to improve
+        /// shared-object scheduling before execution.
+        computation_units: u64,
         /// Shared-object versions observed by the attestor during the dry-run.
         /// Used to determine whether a discrepancy between the attested
         /// estimate and the actual execution outcome is misbehavior or is
@@ -71,17 +72,16 @@ pub struct AttestedTransaction {
 }
 
 impl Attestation {
-    pub fn estimated_computation_cost(&self) -> u64 {
+    pub fn computation_units(&self) -> u64 {
         let payload = match self {
             Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
                 payload
             }
         };
         let AttestationData::V1 {
-            estimated_computation_cost,
-            ..
+            computation_units, ..
         } = payload;
-        *estimated_computation_cost
+        *computation_units
     }
 }
 
@@ -109,7 +109,7 @@ mod tests {
 
     fn make_attestation_data() -> AttestationData {
         AttestationData::V1 {
-            estimated_computation_cost: 1_000_000,
+            computation_units: 1_000_000,
             object_versions: vec![random_object_ref()],
         }
     }

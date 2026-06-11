@@ -49,15 +49,15 @@ fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsens
 }
 
 /// Wraps a `Transaction` in a `UserTransactionV2` consensus transaction with
-/// the given `attestor_index` and `estimated_computation_cost`.
+/// the given `attestor_index` and `computation_units`.
 fn make_user_tx_v2(
     tx: iota_types::transaction::Transaction,
     attestor_index: starfish_config::AuthorityIndex,
-    estimated_computation_cost: u64,
+    computation_units: u64,
 ) -> VerifiedSequencedConsensusTransaction {
     let attestation = Attestation::Validator {
         payload: AttestationData::V1 {
-            estimated_computation_cost,
+            computation_units,
             object_versions: vec![],
         },
         attestor_index,
@@ -1248,10 +1248,10 @@ async fn test_v2_attestor_mismatch() {
     );
 }
 
-/// A `UserTransactionV2` whose attestation reports
-/// `estimated_computation_cost` below the protocol's `base_tx_cost_fixed`
-/// floor is malformed: no honest dry-run can bucketize below that cost. Such
-/// transactions are dropped via Check #3 with `AttestationCostBelowMinimum`,
+/// A `UserTransactionV2` whose attestation reports `computation_units` below
+/// the protocol's `base_tx_cost_fixed` floor is malformed: no honest dry-run
+/// can bucketize below that floor. Such
+/// transactions are dropped via Check #3 with `AttestationUnitsBelowMinimum`,
 /// and — like the attestor-mismatch case — the digest must still surface in
 /// `all_user_tx_digests` for soft-lock release.
 #[sim_test]
@@ -1318,11 +1318,11 @@ async fn test_v2_cost_below_minimum() {
         "malformed cost should produce one dropped entry"
     );
     match &dropped[0].1 {
-        IotaError::AttestationCostBelowMinimum { actual, minimum } => {
+        IotaError::AttestationUnitsBelowMinimum { actual, minimum } => {
             assert_eq!(*actual, min_cost - 1);
             assert_eq!(*minimum, min_cost);
         }
-        other => panic!("expected AttestationCostBelowMinimum, got {:?}", other),
+        other => panic!("expected AttestationUnitsBelowMinimum, got {:?}", other),
     }
     assert!(
         locks.is_empty(),

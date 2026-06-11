@@ -535,7 +535,7 @@ mod tests {
                     signed_tx.clone(),
                     Attestation::Validator {
                         payload: AttestationData::V1 {
-                            estimated_computation_cost: 0,
+                            computation_units: 0,
                             object_versions: vec![],
                         },
                         attestor_index: AuthorityIndex::new_for_test(0),

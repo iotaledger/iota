@@ -524,9 +524,9 @@ impl ConsensusTransactionOrdering {
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
-    TotalGasBudget,       // Use txn gas budget as execution cost.
-    TotalTxCount,         // Use total txn count as execution cost.
-    TotalComputationCost, // Use attested computation cost as execution cost.
+    TotalGasBudget,        // Use txn gas budget as execution cost.
+    TotalTxCount,          // Use total txn count as execution cost.
+    TotalComputationUnits, // Use attested computation units as execution cost.
 }
 
 impl PerObjectCongestionControlMode {

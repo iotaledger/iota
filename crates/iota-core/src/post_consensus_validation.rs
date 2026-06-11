@@ -169,10 +169,10 @@ pub async fn validate_and_resolve_conflicts(
         if let Some(attestation) = attestation {
             let block_author =
                 starfish_config::AuthorityIndex::from(tx.0.certificate_author_index as u8);
-            let min_attested_cost = epoch_store.protocol_config().base_tx_cost_fixed();
-            let attested_cost = attestation.estimated_computation_cost();
+            let min_attested_units = epoch_store.protocol_config().base_tx_cost_fixed();
+            let attested_units = attestation.computation_units();
             let tx_data = transaction.data().transaction_data();
-            let max_attested_cost = tx_data
+            let max_attested_units = tx_data
                 .gas_budget()
                 .checked_div(tx_data.gas_price())
                 .unwrap_or(u64::MAX);
@@ -183,15 +183,15 @@ pub async fn validate_and_resolve_conflicts(
                             expected: *attestor_index,
                             actual: block_author,
                         })
-                    } else if attested_cost < min_attested_cost {
-                        Some(IotaError::AttestationCostBelowMinimum {
-                            actual: attested_cost,
-                            minimum: min_attested_cost,
+                    } else if attested_units < min_attested_units {
+                        Some(IotaError::AttestationUnitsBelowMinimum {
+                            actual: attested_units,
+                            minimum: min_attested_units,
                         })
-                    } else if attested_cost > max_attested_cost {
-                        Some(IotaError::AttestationCostAboveBudget {
-                            actual: attested_cost,
-                            ceiling: max_attested_cost,
+                    } else if attested_units > max_attested_units {
+                        Some(IotaError::AttestationUnitsAboveBudget {
+                            actual: attested_units,
+                            ceiling: max_attested_units,
                         })
                     } else {
                         None

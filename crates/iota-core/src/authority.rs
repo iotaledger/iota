@@ -1119,7 +1119,7 @@ impl AuthorityState {
         // `gas_cost_summary().computation_cost` is in NANO; convert to gas
         // units (`computation_units = computation_cost / gas_price`) so the
         // attestation is independent of the gas price the user chose.
-        let estimated_computation_cost = effects
+        let computation_units = effects
             .gas_cost_summary()
             .computation_cost
             .checked_div(tx_data.gas_price())
@@ -1151,7 +1151,7 @@ impl AuthorityState {
 
         Ok((
             AttestationData::V1 {
-                estimated_computation_cost,
+                computation_units,
                 object_versions,
             },
             owned_objects,

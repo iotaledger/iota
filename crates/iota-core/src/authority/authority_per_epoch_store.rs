@@ -278,8 +278,8 @@ impl CongestionControlParameters {
             PerObjectCongestionControlMode::None => 0,
             PerObjectCongestionControlMode::TotalGasBudget => cert.gas_budget(),
             PerObjectCongestionControlMode::TotalTxCount => 1,
-            PerObjectCongestionControlMode::TotalComputationCost => {
-                cert.attested_computation_cost().unwrap_or_else(|| {
+            PerObjectCongestionControlMode::TotalComputationUnits => {
+                cert.attested_computation_units().unwrap_or_else(|| {
                     cert.gas_budget()
                         .checked_div(cert.transaction_data().gas_price())
                         .unwrap_or(0)
