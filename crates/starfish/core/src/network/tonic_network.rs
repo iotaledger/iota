@@ -270,21 +270,21 @@ impl NetworkClient for TonicClient {
                 }
             })?
             .into_inner();
-        let mut blocks = vec![];
+        let mut headers = vec![];
         let mut total_fetched_bytes = 0;
         let max_headers = authorities.len();
         loop {
             match stream.message().await {
                 Ok(Some(response)) => {
                     let vec_serialized_block_headers = response.vec_serialized_block_header;
-                    let received_headers = blocks
+                    let received_headers = headers
                         .len()
                         .saturating_add(vec_serialized_block_headers.len());
                     validate_header_response_count(peer, max_headers, received_headers)?;
                     for b in &vec_serialized_block_headers {
                         total_fetched_bytes += b.len();
                     }
-                    blocks.extend(vec_serialized_block_headers);
+                    headers.extend(vec_serialized_block_headers);
                     if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
                         info!(
                             "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
@@ -297,7 +297,7 @@ impl NetworkClient for TonicClient {
                     break;
                 }
                 Err(e) => {
-                    if blocks.is_empty() {
+                    if headers.is_empty() {
                         if e.code() == tonic::Code::DeadlineExceeded {
                             return Err(ConsensusError::NetworkRequestTimeout(format!(
                                 "fetch_blocks failed mid-stream: {e:?}"
@@ -313,7 +313,7 @@ impl NetworkClient for TonicClient {
                 }
             }
         }
-        Ok(blocks)
+        Ok(headers)
     }
 
     async fn fetch_transactions(
