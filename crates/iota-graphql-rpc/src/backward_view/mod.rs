@@ -64,15 +64,9 @@ pub(super) const HISTORY_ACTIVE: i16 = BackwardHistoryObjectStatus::Active as i1
 /// `iota-indexer`.
 pub(crate) const BACKWARD_HISTORY_WATERMARK_ENTITY: &str = "objects_backward_history";
 
-/// Column list selected from `checkpointed_objects` for backward-view queries.
-pub(super) const CHECKPOINTED_COLUMNS: &str = "\
-    object_id, object_version, object_status, \
-    object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, \
-    object_type_name, serialized_object, coin_type, coin_balance, df_kind";
-
-/// Column list selected from `objects_backward_history` for backward-view
-/// queries.
-pub(super) const HISTORY_COLUMNS: &str = "\
+/// Column list selected from `checkpointed_objects` and
+/// `objects_backwards_history` for backward-view queries.
+pub(super) const OBJECT_COLUMNS: &str = "\
     object_id, object_version, object_status, \
     object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, \
     object_type_name, serialized_object, coin_type, coin_balance, df_kind";

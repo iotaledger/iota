@@ -8,8 +8,8 @@
 
 use crate::{
     backward_view::{
-        CHECKPOINTED_ACTIVE, CHECKPOINTED_COLUMNS, HISTORY_ACTIVE, HISTORY_COLUMNS,
-        HistoricalFilter, merge_and_deduplicate,
+        CHECKPOINTED_ACTIVE, HISTORY_ACTIVE, HistoricalFilter, OBJECT_COLUMNS,
+        merge_and_deduplicate,
     },
     filter, query,
     raw_query::RawQuery,
@@ -39,7 +39,7 @@ fn checkpointed_objects(
 ) -> RawQuery {
     let checkpointed_filtered = filter!(
         filter_fn(query!(format!(
-            "SELECT {CHECKPOINTED_COLUMNS} FROM checkpointed_objects"
+            "SELECT {OBJECT_COLUMNS} FROM checkpointed_objects"
         ))),
         format!("object_status = {CHECKPOINTED_ACTIVE}")
     );
@@ -54,9 +54,12 @@ fn checkpointed_objects(
 /// provided filter.
 fn historical_objects(page: &Page<Cursor>, filter_fn: &impl Fn(RawQuery) -> RawQuery) -> RawQuery {
     let history_filtered = filter_fn(query!(format!(
-        "SELECT {HISTORY_COLUMNS} FROM objects_backward_history"
+        "SELECT {OBJECT_COLUMNS} FROM objects_backward_history"
     )));
-    let history_window = filter!(history_filtered, format!("object_status = {HISTORY_ACTIVE}"));
+    let history_window = filter!(
+        history_filtered,
+        format!("object_status = {HISTORY_ACTIVE}")
+    );
     let source = query!("SELECT candidates.* FROM ({}) candidates", history_window);
     page.apply::<StoredBackwardObject>(source)
 }
