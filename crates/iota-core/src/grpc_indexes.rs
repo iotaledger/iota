@@ -900,6 +900,73 @@ impl IndexStoreTables {
             .map(|seq| seq + 1))
     }
 
+    /// See [`GrpcIndexesStore::index_missing_epochs_locally`].
+    fn index_missing_epochs_locally(
+        &self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(), StorageError> {
+        let Some(last_executed) =
+            first_open_epoch(checkpoint_store)?.and_then(|open| open.checked_sub(1))
+        else {
+            return Ok(()); // no closed epoch yet
+        };
+        let Some(highest_indexed) = self.highest_indexed_epoch()? else {
+            // Without a seeded prefix the replay would have to start at the
+            // genesis checkpoint, which the nodes relying on the backfill
+            // don't have; `init` covers the unpruned case.
+            return Ok(());
+        };
+        if highest_indexed >= last_executed {
+            return Ok(());
+        }
+
+        // Replay the closing checkpoints of epochs `[highest_indexed,
+        // last_executed]` in order: the first one re-finalizes the already
+        // complete prefix end and creates the next epoch's row (an epoch's
+        // start state only exists in the previous epoch's closing
+        // checkpoint), each subsequent one finalizes a missing row and
+        // creates the next.
+        for epoch in highest_indexed..=last_executed {
+            // The map is never pruned, but the checkpoint data it points to
+            // may be: missing data ends what we can rebuild locally.
+            let checkpoint_data = (|| -> Result<Option<CheckpointData>, StorageError> {
+                let Some(seq) = checkpoint_store.get_epoch_last_checkpoint_seq_number(epoch)?
+                else {
+                    return Ok(None);
+                };
+                let Some(summary) = checkpoint_store.get_checkpoint_by_sequence_number(seq)? else {
+                    return Ok(None);
+                };
+                let Some(contents) =
+                    checkpoint_store.get_checkpoint_contents(&summary.content_digest)?
+                else {
+                    return Ok(None);
+                };
+                // Errors are "transaction/effects/objects already pruned" on
+                // a healthy store.
+                Ok(assemble_sparse_checkpoint_data(authority_store, summary, contents).ok())
+            })()?;
+            let Some(checkpoint_data) = checkpoint_data else {
+                warn!(
+                    epoch,
+                    "cannot index epoch locally (its closing checkpoint's data is pruned); \
+                     leaving the remaining epochs to a newer snapshot"
+                );
+                return Ok(());
+            };
+
+            let mut batch = self.transaction_checkpoints.batch();
+            self.index_epoch(&checkpoint_data, &mut batch)?;
+            batch.write()?;
+        }
+        info!(
+            "locally indexed epochs ({highest_indexed}, {last_executed}] not covered by the \
+             snapshot backfill"
+        );
+        Ok(())
+    }
+
     fn index_transactions(
         &self,
         checkpoint_seq_number: CheckpointSequenceNumber,
@@ -1331,6 +1398,25 @@ impl GrpcIndexesStore {
         restore_checkpoint: CheckpointSequenceNumber,
     ) -> Result<(), TypedStoreError> {
         self.tables.finalize(restore_checkpoint)
+    }
+
+    /// Index locally any closed epochs still missing above the `EpochIndexed`
+    /// watermark, by replaying their closing checkpoints from local data.
+    ///
+    /// Only needed when the latest published formal snapshot lags this node's
+    /// executed history by more than one epoch (a delayed snapshot pipeline):
+    /// the backfill then seeds a prefix that ends below the locally executed
+    /// epochs, and the rows in between can only come from their own closing
+    /// checkpoints. Best-effort: stops at the first epoch whose checkpoint
+    /// data is already pruned, leaving the rest to a newer snapshot. Must not
+    /// run concurrently with live indexing, like `insert_epoch_info`.
+    pub fn index_missing_epochs_locally(
+        &self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(), StorageError> {
+        self.tables
+            .index_missing_epochs_locally(authority_store, checkpoint_store)
     }
 
     /// Seed the current (open) epoch's `epochs_v2` row if still missing. No-op

@@ -10,8 +10,9 @@ use iota_types::{
 };
 use test_cluster::TestClusterBuilder;
 
-/// A formal-snapshot restore with `--build-grpc-indexes` writes the store's
-/// contents and then `finalize_restore`s it (`Watermark::Indexed` + `meta`).
+/// A formal-snapshot restore (unless `--skip-grpc-indexes` is passed) writes
+/// the store's contents and then `finalize_restore`s it (`Watermark::Indexed`
+/// + `meta`).
 /// `GrpcIndexesStore::new` must open such a store in place rather than wipe
 /// and re-index, while an *unfinalized* store (e.g. a restore that crashed
 /// mid-way) must still be wiped.
@@ -204,6 +205,71 @@ async fn epochs_v2_gap_detects_incomplete_index() {
         empty.epochs_v2_gap(&checkpoint_store).unwrap().is_some(),
         "an empty index past genesis must report a gap"
     );
+}
+
+/// When the snapshot backfill seeds a prefix that ends below the locally
+/// executed epochs (the published snapshot lags by more than one epoch),
+/// `index_missing_epochs_locally` closes the residual gap from the missing
+/// epochs' own closing checkpoints — and creates the open epoch's row along
+/// the way.
+#[sim_test]
+async fn missing_epochs_above_snapshot_prefix_are_indexed_locally() {
+    // Pruning disabled so the closing checkpoints' data is still available
+    // locally — the precondition for the local replay.
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(600_000)
+        .disable_fullnode_pruning()
+        .build()
+        .await;
+    test_cluster.force_new_epoch().await;
+    test_cluster.force_new_epoch().await;
+
+    let state = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state());
+    let authority_store = state.database_for_testing();
+    let checkpoint_store = state.get_checkpoint_store().clone();
+    let current_epoch = state.current_epoch_for_testing();
+    assert!(current_epoch >= 2, "need at least two closed epochs");
+
+    let expected_chain_id = state.get_chain_identifier();
+    let system_state_bytes = bcs::to_bytes(
+        &state
+            .get_iota_system_state_object_for_testing()
+            .expect("current system state"),
+    )
+    .expect("system state must BCS-encode");
+
+    // Mimic a backfill from a lagging snapshot: seed only epoch 0, leaving
+    // the later closed epochs missing.
+    let tmp = tempfile::tempdir().unwrap();
+    let grpc = GrpcIndexesStore::new_without_init(tmp.path().to_path_buf());
+    iota_snapshot::verify_and_restore_epoch_info(
+        &grpc,
+        real_epoch_info(&checkpoint_store, &system_state_bytes, 1),
+        expected_chain_id,
+        expected_chain_id,
+    )
+    .await
+    .expect("seeding the lagging snapshot's prefix must succeed");
+    assert_eq!(grpc.highest_indexed_epoch().unwrap(), Some(0));
+    assert!(
+        grpc.epochs_v2_gap(&checkpoint_store).unwrap().is_some(),
+        "the lagging prefix must leave a gap"
+    );
+
+    grpc.index_missing_epochs_locally(&authority_store, &checkpoint_store)
+        .unwrap();
+
+    assert_eq!(
+        grpc.epochs_v2_gap(&checkpoint_store).unwrap(),
+        None,
+        "the local replay must close the residual gap"
+    );
+    // The last replayed closing checkpoint also creates the open epoch's row.
+    let open_epoch = grpc.highest_indexed_epoch().unwrap().unwrap() + 1;
+    assert!(grpc.get_epoch_info(open_epoch).unwrap().is_some());
 }
 
 /// Build a real `EpochInfo` for closed epochs `[0, current_epoch)` from the

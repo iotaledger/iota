@@ -548,11 +548,13 @@ impl IotaNode {
                 let Some(remote_store_config) = &config.state_snapshot_read_config else {
                     panic!(
                         "gRPC is enabled but the epochs_v2 index is incomplete (indexed through \
-                         {highest_indexed:?}, executed through epoch {last_executed}); the \
-                         missing epochs cannot be rebuilt from local data because this node is \
-                         pruned or enabled gRPC after them. Set `state-snapshot-read-config` to \
-                         a formal-snapshot bucket so the node backfills them from the snapshot's \
-                         EPOCH_INFO, or re-restore from a V2 snapshot."
+                         {highest_indexed:?}, executed through epoch {last_executed}). Without \
+                         a configured snapshot source, a local rebuild only happens when the \
+                         index store is (re)initialized on a node with unpruned history back \
+                         to genesis. Set `state-snapshot-read-config` to a formal-snapshot \
+                         bucket so the node backfills the missing epochs from the snapshot's \
+                         EPOCH_INFO, re-restore from a V2 formal snapshot, or disable the gRPC \
+                         API (`enable-grpc-api: false`) to run without it."
                     );
                 };
                 Self::backfill_epochs_v2_from_snapshot(
@@ -898,22 +900,31 @@ impl IotaNode {
             expected_chain_id,
         )
         .await?;
+        // The published snapshot can lag local execution (a delayed snapshot
+        // pipeline); close as much of the residual gap as pruning still
+        // allows by replaying the missing epochs' closing checkpoints.
+        grpc_indexes_store
+            .index_missing_epochs_locally(authority_store, checkpoint_store)
+            .map_err(|e| anyhow::anyhow!("indexing missing epochs locally: {e}"))?;
+
         // With the closed-epoch rows seeded, seed the current (open) epoch row
         // that `init` had to skip on a pruned node.
         grpc_indexes_store
             .ensure_current_epoch_info(authority_store, checkpoint_store)
             .map_err(|e| anyhow::anyhow!("seeding current epoch after backfill: {e}"))?;
-        // The published snapshot can lag local execution; a residual gap would
-        // mean serving incomplete epoch data, so refuse to start until a newer
-        // snapshot is available.
+
+        // If a residual gap remains even so, refuse to start rather than
+        // serve incomplete epoch data; a newer snapshot is the only fix left.
         if let Some((highest_indexed, last_executed)) =
             grpc_indexes_store.epochs_v2_gap(checkpoint_store)?
         {
             anyhow::bail!(
                 "epochs_v2 is still incomplete after the backfill (indexed through \
                  {highest_indexed:?}, executed through epoch {last_executed}): the latest \
-                 published snapshot (epoch {epoch}) is older than this node's history; retry \
-                 once a newer snapshot is published"
+                 published snapshot (epoch {epoch}) is older than this node's history and the \
+                 missing epochs' checkpoint data is already pruned locally; retry once a newer \
+                 snapshot is published, or disable the gRPC API (`enable-grpc-api: false`) to \
+                 run without it until then"
             );
         }
         info!("gRPC epochs_v2 backfill complete up to epoch {epoch}");
