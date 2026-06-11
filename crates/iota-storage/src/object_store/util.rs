@@ -26,18 +26,28 @@ pub const MANIFEST_FILENAME: &str = "MANIFEST";
 pub const EPOCH_METADATA_FILENAME: &str = "_epoch_metadata.json";
 
 #[derive(Serialize, Deserialize)]
-pub struct Manifest {
+pub struct RootManifest {
     /// Epoch number paired with its start timestamp in ms (when known).
     pub available_epochs: Vec<(u64, Option<u64>)>,
 }
 
-impl Manifest {
+impl RootManifest {
     pub fn new(available_epochs: Vec<(u64, Option<u64>)>) -> Self {
-        Manifest { available_epochs }
+        RootManifest { available_epochs }
     }
 
     pub fn epoch_exists(&self, epoch: u64) -> bool {
         self.available_epochs.iter().any(|(e, _)| *e == epoch)
+    }
+
+    /// Parse a root MANIFEST from its JSON bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
+    }
+
+    /// Serialize this root MANIFEST into its JSON bytes.
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        Ok(serde_json::to_vec(self)?)
     }
 }
 
@@ -321,9 +331,8 @@ pub async fn run_manifest_update_loop(
             _now = update_interval.tick() => {
                 if let Ok(available_epochs) = list_all_epochs(store.clone()).await {
                     let manifest_path = Path::from(MANIFEST_FILENAME);
-                    let manifest = Manifest { available_epochs };
-                    let bytes = serde_json::to_string(&manifest)?;
-                    put(&store, &manifest_path, Bytes::from(bytes)).await?;
+                    let manifest = RootManifest { available_epochs };
+                    put(&store, &manifest_path, Bytes::from(manifest.to_bytes()?)).await?;
                 }
             },
              _ = recv.recv() => break,

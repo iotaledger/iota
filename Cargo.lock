@@ -5932,6 +5932,7 @@ dependencies = [
  "iota-sdk-grpc-types",
  "iota-sdk-types",
  "iota-simulator",
+ "iota-snapshot",
  "iota-storage",
  "iota-swarm",
  "iota-swarm-config",

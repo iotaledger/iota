@@ -18,10 +18,12 @@ use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     global_state_hasher::GlobalStateHasher,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
 use iota_node_storage::GrpcIndexes;
 use iota_sdk_types::{GasCostSummary, ObjectId};
 use iota_types::{
+    base_types::IotaAddress,
     committee::EpochId,
     crypto::AuthorityStrongQuorumSignInfo,
     digests::{ChainIdentifier, TransactionDigest},
@@ -41,7 +43,7 @@ use iota_types::{
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
     FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
-    reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1,
+    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes, writer::StateSnapshotWriterV1,
 };
 
 /// In-memory `GrpcIndexes` stub for snapshot tests.
@@ -59,16 +61,11 @@ struct TestGrpcIndexes {
 }
 
 impl TestGrpcIndexes {
-    /// Synthetic state for exercising the writer's `Some(..)` path: every
-    /// epoch in `[0..=highest]` is fully populated and the watermark is
-    /// advanced to `highest`. In production, epoch `N`'s row is only
-    /// finalized when epoch `N+1` is seeded (see the close-of-epoch logic
-    /// in `grpc_indexes::index_epoch`), so a true production state with
-    /// `EpochIndexed = highest` would additionally carry a start-of-epoch-
-    /// only row for `highest + 1`. The writer only reads
-    /// `[0, snapshot_epoch]`, so that extra row is irrelevant to the
-    /// tests here — but the asymmetry is worth flagging so future
-    /// readers don't mistake this fixture for a production snapshot.
+    /// Synthetic state for the writer's `Some(..)` path: every epoch in
+    /// `[0..=highest]` is fully populated and the watermark is set to
+    /// `highest`. The writer only reads `[0, snapshot_epoch]`, so this
+    /// omits the start-of-epoch-only `highest + 1` row a real index would
+    /// carry.
     fn with_epochs_through(highest: EpochId) -> Arc<dyn GrpcIndexes> {
         let mut entries = HashMap::new();
         for epoch in 0..=highest {
@@ -110,7 +107,15 @@ impl TestGrpcIndexes {
 fn test_system_state() -> IotaSystemState {
     // Distinctive `epoch` + `protocol_version` so a bug that swaps fields
     // or zeroes them surfaces as a specific mismatch.
-    IotaSystemState::for_testing(0x1234_5678, 0x9ABC_DEF0)
+    let mut state = IotaSystemState::for_testing(0x1234_5678, 0x9ABC_DEF0);
+    // Set distinctive non-zero values `for_testing` zeroes, so `TryFrom`-derived
+    // fields fail loudly if dropped instead of read from `start_system_state`.
+    let IotaSystemState::V1(inner) = &mut state else {
+        unreachable!("for_testing builds a V1 system state");
+    };
+    inner.reference_gas_price = 0x0BAD_F00D;
+    inner.epoch_start_timestamp_ms = 0x00C0_FFEE;
+    state
 }
 
 fn fully_populated_checkpoint_summary(
@@ -151,7 +156,7 @@ fn fully_populated_epoch_info(epoch: EpochId) -> EpochInfoV2 {
     }
 }
 
-/// On-disk equivalent of [`fully_populated_entry`]: used by tests that
+/// On-disk equivalent of [`fully_populated_epoch_info`]: used by tests that
 /// exercise the on-disk `EpochInfoV1Entry` directly (BCS round-trip of
 /// the `EPOCH_INFO` file body) rather than going through the writer's
 /// `EpochInfoV2 → EpochInfoV1Entry` translation.
@@ -307,12 +312,10 @@ async fn snapshot_round_trip(
     }
 
     // Lock the EPOCH_INFO file's on-disk shape: 4-byte big-endian magic
-    // followed by `bcs(EpochInfo)`. The reader does not consume this file
-    // during restore (the indexer reads it out-of-band from the bucket), so
-    // without this assertion a writer bug - typo'd magic, wrong filename,
-    // wrong BCS encoding - would pass every test and only surface
-    // post-deploy when the indexer fails to decode. Gated on `None`
-    // compression so the raw on-disk bytes are readable directly.
+    // followed by `bcs(EpochInfo)`. The restore tool consumes this via
+    // `read_epoch_info`, so a writer bug (bad magic/filename/encoding) would
+    // otherwise only surface post-deploy. Gated on `None` compression so the
+    // raw on-disk bytes are readable directly.
     if file_compression == FileCompression::None {
         let epoch_info_file = tmp_dir
             .join("remote_dir")
@@ -379,6 +382,142 @@ async fn snapshot_round_trip(
         .read(&restored_perpetual_db, abort_registration, None)
         .await?;
     compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
+
+    // Snapshot is at epoch 0, so EPOCH_INFO has exactly one entry, which must
+    // round-trip into an `EpochInfoV2`.
+    let epoch_info = snapshot_reader
+        .read_epoch_info()
+        .await
+        .expect("read_epoch_info");
+    assert_eq!(
+        epoch_info.entries().len(),
+        1,
+        "expected one entry per epoch"
+    );
+    for (i, entry) in epoch_info.entries().iter().enumerate() {
+        assert_eq!(entry.epoch, i as u64);
+        assert_eq!(entry.last_checkpoint_summary.epoch(), i as u64);
+        let v2 = EpochInfoV2::try_from(entry.clone()).expect("entry round-trips into EpochInfoV2");
+        assert_eq!(v2.epoch, i as u64);
+    }
+    Ok(())
+}
+
+/// Writes the EPOCH_INFO file for `[0, snapshot_epoch]`, reads it back, seeds a
+/// real `GrpcIndexesStore`, and asserts every row is fully populated with the
+/// watermark reconciled to `snapshot_epoch` — the restore tool's seed path.
+async fn epoch_info_backfill_round_trip(
+    tmp_dir: &std::path::Path,
+    snapshot_epoch: EpochId,
+) -> Result<(), anyhow::Error> {
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("remote_dir")),
+        ..Default::default()
+    };
+
+    // 1. CREATE: write the EPOCH_INFO file for epochs `[0, snapshot_epoch]`. The
+    //    path is object-independent, so an empty perpetual DB suffices.
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        TestGrpcIndexes::with_epochs_through(snapshot_epoch),
+        ChainIdentifier::default(),
+        FileCompression::Zstd,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await?;
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    insert_keys(&perpetual_db, 0)?;
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
+    snapshot_writer
+        .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
+        .await?;
+
+    // 2. LOAD via `read_epoch_info_only` (the running-node background backfill
+    //    path): downloads only MANIFEST + EPOCH_INFO, verifies sha3 + magic.
+    let (chain_id, epoch_info) =
+        StateSnapshotReaderV1::read_epoch_info_only(snapshot_epoch, &remote_store_config).await?;
+    assert_eq!(
+        chain_id,
+        ChainIdentifier::default(),
+        "manifest chain_id must round-trip through the snapshot"
+    );
+    let expected_len = (snapshot_epoch + 1) as usize;
+    assert_eq!(
+        epoch_info.entries().len(),
+        expected_len,
+        "EPOCH_INFO must carry one entry per epoch in [0, {snapshot_epoch}]"
+    );
+
+    // 3. BACKFILL: seed the index store via `into_epoch_info_v2_rows`, the same
+    //    conversion the restore tool and background backfill use.
+    let grpc = GrpcIndexesStore::new_without_init(tmp_dir.join(GRPC_INDEXES_DIR));
+    let rows = epoch_info.into_epoch_info_v2_rows()?;
+    grpc.insert_epoch_info(rows)?;
+
+    // 4. ASSERT the derived values (not just `is_some()`) so the conversion is
+    //    exercised.
+    use iota_types::iota_system_state::IotaSystemStateTrait;
+    let system_state = test_system_state();
+    for epoch in 0..=snapshot_epoch {
+        let row = grpc
+            .get_epoch_info(epoch)?
+            .unwrap_or_else(|| panic!("backfilled row for epoch {epoch} is missing"));
+        assert_eq!(row.epoch, epoch);
+        assert_eq!(row.start_checkpoint, 0, "epoch {epoch}: start_checkpoint");
+        let summary = row
+            .last_checkpoint_summary
+            .as_ref()
+            .unwrap_or_else(|| panic!("epoch {epoch}: last_checkpoint_summary is None"));
+        assert_eq!(
+            summary.epoch(),
+            epoch,
+            "epoch {epoch}: round-tripped summary carries the wrong epoch"
+        );
+        assert_eq!(
+            row.end_checkpoint,
+            Some(*summary.data().sequence_number()),
+            "epoch {epoch}: end_checkpoint not derived from the summary"
+        );
+        assert_eq!(
+            row.end_timestamp_ms,
+            Some(summary.data().timestamp_ms),
+            "epoch {epoch}: end_timestamp_ms not derived from the summary"
+        );
+        assert!(
+            row.end_of_epoch_tx_events.is_some(),
+            "epoch {epoch}: end_of_epoch_tx_events is None"
+        );
+        assert_eq!(
+            row.protocol_version,
+            system_state.protocol_version(),
+            "epoch {epoch}: protocol_version not derived from start_system_state"
+        );
+        assert_eq!(
+            row.reference_gas_price,
+            system_state.reference_gas_price(),
+            "epoch {epoch}: reference_gas_price not derived from start_system_state"
+        );
+        assert_eq!(
+            row.start_timestamp_ms,
+            system_state.epoch_start_timestamp_ms(),
+            "epoch {epoch}: start_timestamp_ms not derived from start_system_state"
+        );
+    }
+    // Contiguous, fully-populated `[0, snapshot_epoch]` ⇒ watermark ==
+    // snapshot_epoch.
+    assert_eq!(
+        grpc.highest_indexed_epoch()?,
+        Some(snapshot_epoch),
+        "EpochIndexed watermark did not reconcile to the snapshot epoch"
+    );
     Ok(())
 }
 
@@ -426,6 +565,117 @@ async fn writer_with_stub_returns_err(
 async fn snapshot_round_trip_populated_zstd() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
     snapshot_round_trip(dir.path(), 1000, FileCompression::Zstd).await
+}
+
+/// EPOCH_INFO write → read → seed `epochs_v2` round-trip across two epochs.
+#[tokio::test]
+async fn snapshot_epoch_info_backfill_round_trip() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    epoch_info_backfill_round_trip(dir.path(), 2).await
+}
+
+/// Restoring through [`RestoreWithGrpcIndexes`] must build the gRPC
+/// live-state indexes from the same object stream that fills the perpetual
+/// tables: the restored live object set matches the source, address-owned
+/// objects come back owner-indexed, and `finalize_restore` leaves the store
+/// initialized (the `EpochIndexed` watermark from the seeded epoch rows
+/// included).
+#[tokio::test]
+async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let tmp_dir = dir.path();
+
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir")),
+        ..Default::default()
+    };
+    let remote_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("remote_dir")),
+        ..Default::default()
+    };
+    let snapshot_writer = StateSnapshotWriterV1::new(
+        &local_store_config,
+        &remote_store_config,
+        TestGrpcIndexes::with_epochs_through(0),
+        ChainIdentifier::default(),
+        FileCompression::Zstd,
+        NonZeroUsize::new(1).unwrap(),
+    )
+    .await?;
+
+    // A handful of address-owned objects, so the owner index has something
+    // to prove (the immutable objects of the other round-trip tests are
+    // intentionally not owner-indexed).
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&tmp_dir.join("db"), None));
+    let owner = IotaAddress::from_u16(7);
+    let mut owned_ids = HashSet::new();
+    let mut id = ObjectId::ZERO;
+    for _ in 0..4 {
+        perpetual_db.insert_store_object_v2_test_only(
+            Object::with_id_owner_for_testing(id, owner),
+            Some(0),
+        )?;
+        owned_ids.insert(id);
+        id = id.next_lexicographical();
+    }
+    let root_accumulator =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
+    snapshot_writer
+        .write_internal(0, perpetual_db.clone(), root_accumulator)
+        .await?;
+
+    let local_store_restore_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir_restore")),
+        ..Default::default()
+    };
+    let mut snapshot_reader = StateSnapshotReaderV1::new(
+        0,
+        &remote_store_config,
+        &local_store_restore_config,
+        NonZeroUsize::new(1).unwrap(),
+        MultiProgress::new(),
+        false, // skip_reset_local_store
+    )
+    .await?;
+
+    let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
+    let restored_grpc = GrpcIndexesStore::new_without_init(tmp_dir.join(GRPC_INDEXES_DIR));
+    let grpc_restorer = restored_grpc.live_object_restorer();
+    let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+    snapshot_reader
+        .read_to_db(
+            &RestoreWithGrpcIndexes::new(&restored_perpetual_db, &grpc_restorer),
+            abort_registration,
+            None,
+        )
+        .await?;
+    grpc_restorer.finish()?;
+
+    // The tee must not disturb the perpetual-tables restore.
+    compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
+
+    // Every address-owned object is owner-indexed in the restored gRPC store.
+    let restored_ids: HashSet<ObjectId> = restored_grpc
+        .owner_iter(owner, None, OwnerTypeFilter::None)?
+        .map(|entry| entry.map(|(key, _)| key.object_id))
+        .collect::<Result<_, _>>()?;
+    assert_eq!(restored_ids, owned_ids);
+
+    // The remaining restore-tool steps: seed the epoch rows and finalize.
+    let epoch_info = snapshot_reader.read_epoch_info().await?;
+    crate::verify_and_restore_epoch_info(
+        &restored_grpc,
+        epoch_info,
+        snapshot_reader.chain_id(),
+        ChainIdentifier::default(),
+    )
+    .await?;
+    assert_eq!(restored_grpc.highest_indexed_epoch()?, Some(0));
+    restored_grpc.finalize_restore(0)?;
+    Ok(())
 }
 
 /// Empty-DB case.
@@ -830,6 +1080,38 @@ fn epoch_info_v1_bcs_round_trip() {
     for (i, entry) in decoded_v1.entries.iter().enumerate() {
         assert_eq!(entry.last_checkpoint_summary.epoch(), i as EpochId);
     }
+}
+
+/// `TryFrom<EpochInfoV1Entry>` fills every `EpochInfoV2` field, deriving
+/// `end_timestamp_ms` (not stored on disk) from the last checkpoint's
+/// timestamp and the system-state fields from `start_system_state`.
+#[test]
+fn epoch_info_v1_entry_converts_to_v2_uniform_end_timestamp() {
+    use iota_types::iota_system_state::IotaSystemStateTrait;
+
+    let entry = fully_populated_snapshot_epoch_entry(3);
+    let summary = entry.last_checkpoint_summary.clone();
+    let v2 = EpochInfoV2::try_from(entry.clone()).expect("conversion succeeds");
+    assert_eq!(v2.epoch, 3);
+    assert_eq!(v2.start_checkpoint, entry.start_checkpoint);
+    assert_eq!(v2.end_checkpoint, Some(*summary.data().sequence_number()));
+    // Uniform reconstruction: end_timestamp_ms == last checkpoint timestamp.
+    assert_eq!(v2.end_timestamp_ms, Some(summary.data().timestamp_ms));
+    assert!(v2.last_checkpoint_summary.is_some());
+    assert!(v2.end_of_epoch_tx_events.is_some());
+    let ss: IotaSystemState = bcs::from_bytes(&entry.start_system_state).unwrap();
+    assert_eq!(v2.protocol_version, ss.protocol_version());
+    assert_eq!(v2.reference_gas_price, ss.reference_gas_price());
+    assert_eq!(v2.start_timestamp_ms, ss.epoch_start_timestamp_ms());
+}
+
+/// An entry whose `epoch` disagrees with its `last_checkpoint_summary.epoch()`
+/// is corrupted and must be rejected.
+#[test]
+fn try_from_rejects_epoch_summary_mismatch() {
+    let mut entry = fully_populated_snapshot_epoch_entry(3);
+    entry.epoch = 4; // summary still carries epoch 3
+    assert!(EpochInfoV2::try_from(entry).is_err());
 }
 
 /// Locks the BCS field order of `EpochInfoV1Entry` against silent

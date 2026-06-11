@@ -803,12 +803,22 @@ impl CheckpointStore {
         &self,
         epoch_id: EpochId,
     ) -> IotaResult<Option<VerifiedCheckpoint>> {
-        let seq = self.tables.epoch_last_checkpoint_map.get(&epoch_id)?;
+        let seq = self.get_epoch_last_checkpoint_seq_number(epoch_id)?;
         let checkpoint = match seq {
             Some(seq) => self.get_checkpoint_by_sequence_number(seq)?,
             None => None,
         };
         Ok(checkpoint)
+    }
+
+    /// Sequence number of `epoch_id`'s last checkpoint. Unlike
+    /// [`Self::get_epoch_last_checkpoint`], this does not require the summary
+    /// itself to still be present: the underlying map is never pruned.
+    pub fn get_epoch_last_checkpoint_seq_number(
+        &self,
+        epoch_id: EpochId,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.tables.epoch_last_checkpoint_map.get(&epoch_id)
     }
 
     pub fn insert_epoch_last_checkpoint(

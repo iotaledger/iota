@@ -31,6 +31,10 @@ use tracing::{debug, error, info};
 
 use crate::writer::StateSnapshotWriterV1;
 
+/// Default parallelism for uploading a snapshot's files to the remote store,
+/// used when `state_snapshot_write_config.concurrency` is unset (`0`).
+const DEFAULT_UPLOAD_CONCURRENCY: usize = 20;
+
 pub struct StateSnapshotUploaderMetrics {
     pub first_missing_state_snapshot_epoch: IntGauge,
     pub state_snapshot_upload_err: IntCounter,
@@ -77,6 +81,8 @@ pub struct StateSnapshotUploader {
     /// Time interval to check for presence of new db checkpoint (default: 60
     /// secs)
     interval: Duration,
+    /// Parallelism for uploading a snapshot's files to the remote store.
+    concurrency: NonZeroUsize,
     metrics: Arc<StateSnapshotUploaderMetrics>,
 }
 
@@ -85,6 +91,7 @@ impl StateSnapshotUploader {
         db_checkpoint_path: &std::path::Path,
         staging_path: &std::path::Path,
         snapshot_store_config: ObjectStoreConfig,
+        concurrency: usize,
         interval_s: u64,
         registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
@@ -109,6 +116,8 @@ impl StateSnapshotUploader {
             staging_store: staging_store_config.make()?,
             snapshot_store: snapshot_store_config.make()?,
             interval: Duration::from_secs(interval_s),
+            concurrency: NonZeroUsize::new(concurrency)
+                .unwrap_or(NonZeroUsize::new(DEFAULT_UPLOAD_CONCURRENCY).unwrap()),
             metrics: StateSnapshotUploaderMetrics::new(registry),
         }))
     }
@@ -152,7 +161,7 @@ impl StateSnapshotUploader {
                     self.grpc_indexes.clone(),
                     chain_id,
                     FileCompression::Zstd,
-                    NonZeroUsize::new(20).unwrap(),
+                    self.concurrency,
                 )
                 .await?;
                 let db = Arc::new(AuthorityPerpetualTables::open(
