@@ -36,9 +36,7 @@ use crate::{
     errors::IndexerError,
     ingestion::{
         common::prepare::{CheckpointObjectChanges, extract_df_kind},
-        primary::persist::{
-            CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
-        },
+        primary::persist::{CheckpointDataToCommit, EpochToCommit},
     },
     metrics::IndexerMetrics,
     models::{
@@ -49,9 +47,9 @@ use crate::{
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
-        EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedDeletedObject,
-        IndexedEpochInfoEvent, IndexedEvent, IndexedObject, IndexedObjectChange, IndexedPackage,
-        IndexedTransaction, IndexerResult, TxIndex,
+        EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedEpochInfoEvent, IndexedEvent,
+        IndexedObject, IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult,
+        TxIndex,
     },
 };
 
@@ -209,17 +207,29 @@ impl PrimaryWorker {
         }))
     }
 
-    fn derive_object_versions(
-        object_history_changes: &TransactionObjectChangesToCommit,
-    ) -> IndexerResult<Vec<StoredObjectVersion>> {
-        let mut object_versions = vec![];
-        for changed_obj in object_history_changes.changed_objects.iter() {
-            object_versions.push(changed_obj.try_into()?);
-        }
-        for deleted_obj in object_history_changes.deleted_objects.iter() {
-            object_versions.push(deleted_obj.into());
-        }
-        Ok(object_versions)
+    /// Builds one `objects_version` row per object touched (modified / deleted
+    /// / wrapped / unwrapped-then-deleted) in this checkpoint
+    fn index_object_versions(data: &CheckpointData) -> Vec<StoredObjectVersion> {
+        let cp_sequence_number = data.checkpoint_summary.sequence_number as i64;
+        let removed = data
+            .transactions
+            .iter()
+            .flat_map(|tx| tx.removed_object_refs_post_version())
+            .map(|obj_ref| StoredObjectVersion {
+                object_id: obj_ref.object_id.as_bytes().to_vec(),
+                object_version: obj_ref.version.as_u64() as i64,
+                cp_sequence_number,
+            });
+        let output = data
+            .transactions
+            .iter()
+            .flat_map(|tx| &tx.output_objects)
+            .map(|o| StoredObjectVersion {
+                object_id: o.id().as_bytes().to_vec(),
+                object_version: o.version().as_u64() as i64,
+                cp_sequence_number,
+            });
+        removed.chain(output).collect()
     }
 
     async fn index_checkpoint(
@@ -235,9 +245,7 @@ impl PrimaryWorker {
 
         // Index Objects
         let object_changes = Self::index_checkpoint_objects(data, &metrics).await?;
-        let object_history_changes: TransactionObjectChangesToCommit =
-            Self::index_objects_history(data).await?;
-        let object_versions = Self::derive_object_versions(&object_history_changes)?;
+        let object_versions = Self::index_object_versions(data);
         let backward_history_changes = Self::index_objects_backward_history(data)?;
 
         let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
@@ -293,7 +301,6 @@ impl PrimaryWorker {
             event_indices: db_event_indices,
             display_updates: db_displays,
             object_changes,
-            object_history_changes,
             backward_history_changes,
             object_versions,
             packages,
@@ -547,45 +554,6 @@ impl PrimaryWorker {
     ) -> Result<CheckpointObjectChanges, IndexerError> {
         let _timer = metrics.indexing_objects_latency.start_timer();
         data.try_into()
-    }
-
-    async fn index_objects_history(
-        data: &CheckpointData,
-    ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
-        let checkpoint_seq = data.checkpoint_summary.sequence_number;
-        let deleted_objects = data
-            .transactions
-            .iter()
-            .flat_map(|tx| tx.removed_object_refs_post_version())
-            .collect::<Vec<_>>();
-        let indexed_deleted_objects: Vec<IndexedDeletedObject> = deleted_objects
-            .into_iter()
-            .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.object_id,
-                object_version: obj_ref.version.as_u64(),
-                checkpoint_sequence_number: checkpoint_seq,
-            })
-            .collect();
-
-        let output_objects: Vec<_> = data
-            .transactions
-            .iter()
-            .flat_map(|tx| &tx.output_objects)
-            .collect();
-        // TODO(gegaowp): the current df_info implementation is not correct,
-        // but we have decided remove all df_* except df_kind.
-        let changed_objects = output_objects
-            .into_iter()
-            .map(|o| {
-                let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(Some(checkpoint_seq), o.clone(), df_kind)
-            })
-            .collect::<Vec<_>>();
-
-        Ok(TransactionObjectChangesToCommit {
-            changed_objects,
-            deleted_objects: indexed_deleted_objects,
-        })
     }
 
     /// Builds backward history entries for a checkpoint.

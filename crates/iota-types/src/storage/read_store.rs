@@ -4,13 +4,13 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{MoveObjectType, ObjectId};
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectType, SequenceNumber},
+    base_types::{EpochId, IotaAddress, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},

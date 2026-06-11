@@ -12,6 +12,7 @@ use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
+    RandomnessRound,
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
 };
@@ -34,7 +35,7 @@ use crate::{
     committee::{Committee, EpochId, ProtocolVersion, StakeUnit},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
-        AuthorityStrongQuorumSignInfo, RandomnessRound, default_hash, get_key_pair,
+        AuthorityStrongQuorumSignInfo, default_hash, get_key_pair,
     },
     digests::Digest,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},

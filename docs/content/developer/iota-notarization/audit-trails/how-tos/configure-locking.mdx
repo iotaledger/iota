@@ -1,0 +1,183 @@
+---
+title: Configure Locking
+sidebar_label: Configure Locking
+description: How to configure write locks, deletion windows, and trail deletion locks on an Audit Trail.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Configure Locking
+
+This guide demonstrates how to use the three independent locking dimensions to control write access, record deletion, and trail deletion. For a conceptual overview, see [Locking Configuration](../explanations/locking-configuration.mdx).
+
+## Prerequisites
+
+- An existing `AuditTrail` object on the IOTA network
+- Familiarity with [creating an `AuditTrail` object](./create-audit-trails.mdx)
+- An admin address owning an admin role capability as been shown in [Create an Audit Trail](./create-audit-trails)
+
+## Steps
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet, a locking-admin wallet, and a record-admin wallet to separate locking administration from record writing.
+The capabilities granting the needed permissions will be issued to the wallet addresses later on.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/04_configure_locking.rs#L26-L28
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/04_configure_locking.ts#L35-L37
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create LockingAdmin and RecordAdmin Roles
+
+Delegate locking configuration to a `LockingAdmin` role and record operations to a `RecordAdmin` role.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Create Trail With Seed Record](./utility-functions.mdx#create-trail-with-seed-record)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/04_configure_locking.rs#L30-L83
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/04_configure_locking.ts#L39-L60
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Freeze Writes with a Write Lock
+
+Set the write lock to `Infinite` to prevent any new records from being added to the trail.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/04_configure_locking.rs#L85-L90
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/04_configure_locking.ts#L63-L68
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Lift the Write Lock
+
+Remove the write lock by setting it to `None`, re-enabling record additions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/04_configure_locking.rs#L107-L120
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/04_configure_locking.ts#L85-L98
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Configure the Delete-Record Window and Delete-Trail Lock
+
+Set a **count-based deletion window** to protect the newest N records from deletion. Set the **delete-trail lock** to prevent the entire trail from being removed.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/04_configure_locking.rs#L127-L138
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/04_configure_locking.ts#L101-L112
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Locking Options Reference
+
+| Lock Type | Options | Description |
+|-----------|---------|-------------|
+| **Write lock** | `None`, `Infinite`, `UnlockAtMs(timestamp)` | Controls whether new records can be added |
+| **Delete-record window** | `None`, `CountBased(n)`, `TimeBased(ms)` | Protects recent records from deletion; `n` must be > 0 (use `None` for no lock) |
+| **Delete-trail lock** | `None`, `Infinite`, `UnlockAtMs(timestamp)` | Controls whether the trail can be deleted |
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/04_configure_locking.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/04_configure_locking.ts
+```
+
+</TabItem>
+</Tabs>

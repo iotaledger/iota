@@ -15,6 +15,7 @@ pub mod move_package_service;
 pub mod response;
 pub mod server;
 pub mod state_service;
+pub mod traffic_control;
 pub mod transaction_execution_service;
 pub mod transaction_filter;
 pub mod types;
@@ -29,6 +30,7 @@ pub use move_package_service::MovePackageGrpcService;
 pub use response::append_info_headers;
 pub use server::{GrpcServerHandle, start_grpc_server};
 pub use state_service::StateGrpcService;
+pub use traffic_control::TrafficControlLayer;
 pub use transaction_execution_service::TransactionExecutionGrpcService;
 pub use types::{
     DynamicFieldIterItem, GrpcCheckpointDataBroadcaster, GrpcReader, OwnedObjectCursor,

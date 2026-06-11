@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
-use iota_types::{base_types::IotaAddress, event::Event};
+use iota_sdk_types::{Event, Identifier, ObjectId, StructTag};
+use iota_types::base_types::IotaAddress;
 use serde::{Deserialize, Serialize};
 
 const MAX_FILTER_DEPTH: usize = 10;

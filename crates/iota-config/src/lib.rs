@@ -26,6 +26,7 @@ mod persisted_config;
 // the execution path needs at sign-time. Everything else pulls in network /
 // filesystem / config-file machinery and is gated.
 pub mod transaction_deny_config;
+pub mod validator_client_monitor_config;
 pub mod verifier_signing_config;
 
 #[cfg(not(target_arch = "wasm32"))]

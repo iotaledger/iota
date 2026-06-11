@@ -31,6 +31,7 @@ use crate::{
         authority_tests::{call_move_, create_gas_objects, publish_object_basics},
         test_authority_builder::TestAuthorityBuilder,
     },
+    authority_client::validator::ValidatorAPI,
     consensus_adapter::consensus_tests::make_consensus_adapter_for_test,
     mock_consensus::with_block_status,
 };
@@ -57,7 +58,7 @@ use iota_types::{
 use super::*;
 pub use crate::authority::authority_test_utils::init_state_with_ids;
 use crate::{
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    authority_client::NetworkAuthorityClient,
     authority_server::AuthorityServer,
     stake_aggregator::{InsertResult, StakeAggregator},
 };

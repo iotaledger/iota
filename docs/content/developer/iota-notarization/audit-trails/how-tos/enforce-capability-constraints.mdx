@@ -1,0 +1,180 @@
+---
+title: Enforce Capability Constraints
+sidebar_label: Enforce Capability Constraints
+description: How to bind capabilities to specific wallet addresses and verify that revocation takes effect immediately.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Enforce Capability Constraints
+
+This guide demonstrates how to issue address-bound capabilities and verify that unauthorized wallets cannot use them. It also shows that capability revocation takes effect immediately.
+
+## Prerequisites
+
+- An existing Audit Trail on the IOTA network
+- An admin address owning an admin role capability as been shown in [Create an Audit Trail](./create-audit-trails)
+- Familiarity with [Role-Based Access Control](../explanations/role-based-access-control.mdx)
+
+## Steps
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet, an intended writer, and a wrong writer to demonstrate address binding.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/10_capability_constraints.rs#L26-L28
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/10_capability_constraints.ts#L27-L29
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Issue an Address-Bound Capability
+
+Create a role and issue a capability bound to the intended writer's address using the `issued_to` parameter.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Create Trail With Seed Record](./utility-functions.mdx#create-trail-with-seed-record)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/10_capability_constraints.rs#L30-L61
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/10_capability_constraints.ts#L31-L49
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Verify Unauthorized Access Is Denied
+
+A different wallet attempts to add a record — this fails because the capability is bound to a different address.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/10_capability_constraints.rs#L69-L79
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/10_capability_constraints.ts#L60-L72
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Verify Authorized Access Succeeds
+
+The intended wallet uses the capability successfully.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/10_capability_constraints.rs#L81-L87
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/10_capability_constraints.ts#L75-L80
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Revoke the Capability and Verify Immediate Effect
+
+After revocation, even the previously authorized wallet can no longer use the capability.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/10_capability_constraints.rs#L94-L114
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/10_capability_constraints.ts#L85-L105
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- Address-bound capabilities can only be used by the specified wallet address.
+- Any other wallet attempting to use the trail is rejected, even if they hold a different capability.
+- Revocation is instant — the revoked capability is immediately unusable.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/advanced/10_capability_constraints.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/advanced/10_capability_constraints.ts
+```
+
+</TabItem>
+</Tabs>

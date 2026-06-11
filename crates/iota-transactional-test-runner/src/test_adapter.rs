@@ -33,8 +33,8 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Argument, Command, ExecutionStatus, Identifier, ObjectId, TransactionKind, TypeTag,
-    gas::GasCostSummary, move_package::MovePackage,
+    Argument, Command, Event, ExecutionStatus, Identifier, ObjectId, RandomnessRound,
+    TransactionKind, TypeTag, gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -43,10 +43,9 @@ use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
-    crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
+    crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    event::Event,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,

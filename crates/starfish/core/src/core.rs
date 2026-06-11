@@ -2914,12 +2914,15 @@ mod test {
     }
 
     #[rstest]
+    #[case(true, true)]
+    #[case(true, false)]
+    #[case(false, false)]
     #[tokio::test]
     #[serial]
     async fn test_sequenced_transactions_no_headers(
-        #[values((true, true), (true, false), (false, false))] params: (bool, bool),
+        #[case] commit_only_for_traversed_headers: bool,
+        #[case] consensus_fast_commit_sync: bool,
     ) {
-        let (commit_only_for_traversed_headers, consensus_fast_commit_sync) = params;
         test_sequenced_transactions_no_headers_impl(
             commit_only_for_traversed_headers,
             consensus_fast_commit_sync,

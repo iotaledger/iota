@@ -50,7 +50,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::{
             StoredBackwardHistoryObject, StoredCheckpointedObject, StoredDeletedObject,
-            StoredHistoryObject, StoredObject, StoredObjects,
+            StoredObject, StoredObjects,
         },
         packages::StoredPackage,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
@@ -65,8 +65,8 @@ use crate::{
         chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
         event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
         event_struct_name, event_struct_package, events, feature_flags, objects,
-        objects_backward_history, objects_history, objects_version, optimistic_transactions,
-        packages, protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
+        objects_backward_history, objects_version, optimistic_transactions, packages,
+        protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
         tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds,
         tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
@@ -548,43 +548,6 @@ impl PgIndexerStore {
             .map_err(IndexerError::from)
             .context("Failed to write object deletion to PostgresDB")?;
         Ok::<(), IndexerError>(())
-    }
-
-    fn persist_objects_history_chunk(
-        &self,
-        stored_objects_history: Vec<StoredHistoryObject>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_objects_history_chunks
-            .start_timer();
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                for stored_objects_history_chunk in
-                    stored_objects_history.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
-                {
-                    insert_or_ignore_into!(
-                        objects_history::table,
-                        stored_objects_history_chunk,
-                        conn
-                    );
-                }
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(
-                elapsed,
-                "Persisted {} chunked objects history",
-                stored_objects_history.len(),
-            );
-        })
-        .tap_err(|e| {
-            tracing::error!("failed to persist object history with error: {e}");
-        })
     }
 
     fn persist_objects_backward_history_chunk(
@@ -1858,51 +1821,6 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_object_history(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
-    ) -> Result<(), IndexerError> {
-        let skip_history = std::env::var("SKIP_OBJECT_HISTORY")
-            .map(|val| val.eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
-        if skip_history {
-            info!("skipping object history");
-            return Ok(());
-        }
-
-        if object_changes.is_empty() {
-            return Ok(());
-        }
-        let objects = make_objects_history_to_commit(object_changes)?;
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_objects_history
-            .start_timer();
-
-        let len = objects.len();
-        let chunks = chunk!(objects, self.config.parallel_objects_chunk_size);
-        let futures = chunks
-            .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_objects_history_chunk(c)));
-
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!("failed to join persist_objects_history_chunk futures: {e}");
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all objects history chunks: {e:?}"
-                ))
-            })?;
-        let elapsed = guard.stop_and_record();
-        info!(elapsed, "Persisted {} objects history", len);
-        Ok(())
-    }
-
     async fn persist_object_versions(
         &self,
         object_versions: Vec<StoredObjectVersion>,
@@ -2516,23 +2434,6 @@ impl IndexerStore for PgIndexerStore {
         self.execute_in_blocking_worker(move |this| this.get_watermark_by_entity(&entity))
             .await
     }
-}
-
-fn make_objects_history_to_commit(
-    tx_object_changes: Vec<TransactionObjectChangesToCommit>,
-) -> Result<Vec<StoredHistoryObject>, IndexerError> {
-    let deleted_objects: Vec<StoredHistoryObject> = tx_object_changes
-        .clone()
-        .into_iter()
-        .flat_map(|changes| changes.deleted_objects)
-        .map(|o| o.into())
-        .collect();
-    let mutated_objects: Vec<StoredHistoryObject> = tx_object_changes
-        .into_iter()
-        .flat_map(|changes| changes.changed_objects)
-        .map(StoredHistoryObject::try_from)
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(deleted_objects.into_iter().chain(mutated_objects).collect())
 }
 
 /// Partitions object changes into deletions and mutations.

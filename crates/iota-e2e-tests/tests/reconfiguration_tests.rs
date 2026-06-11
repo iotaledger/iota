@@ -1052,8 +1052,7 @@ async fn test_epoch_flag_upgrade() {
     assert_eq!(
         all_flags.len(),
         2,
-        "expected 2 different sets of flags: {:?}",
-        all_flags
+        "expected 2 different sets of flags: {all_flags:?}"
     );
 
     // When the epoch changes, flags on some nodes should be re-initialized to be

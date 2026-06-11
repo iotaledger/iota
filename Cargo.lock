@@ -152,7 +152,7 @@ dependencies = [
 [[package]]
 name = "anemo"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=f8b708601d002a75955dafebae4f75628c6f42b4#f8b708601d002a75955dafebae4f75628c6f42b4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -187,7 +187,7 @@ dependencies = [
 [[package]]
 name = "anemo-build"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=f8b708601d002a75955dafebae4f75628c6f42b4#f8b708601d002a75955dafebae4f75628c6f42b4"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -198,7 +198,7 @@ dependencies = [
 [[package]]
 name = "anemo-cli"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=f8b708601d002a75955dafebae4f75628c6f42b4#f8b708601d002a75955dafebae4f75628c6f42b4"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -214,7 +214,7 @@ dependencies = [
 [[package]]
 name = "anemo-tower"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=f8b708601d002a75955dafebae4f75628c6f42b4#f8b708601d002a75955dafebae4f75628c6f42b4"
 dependencies = [
  "anemo",
  "bytes",
@@ -5658,6 +5658,7 @@ dependencies = [
  "fastcrypto-tbls",
  "fs_extra",
  "futures",
+ "http 1.4.0",
  "iota-archival",
  "iota-authority-aggregation",
  "iota-common",
@@ -5727,6 +5728,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tonic 0.14.2",
  "tower 0.4.13",
  "tracing",
  "twox-hash 1.6.3",
@@ -6246,6 +6248,7 @@ dependencies = [
  "futures",
  "http 1.4.0",
  "iota-config",
+ "iota-core",
  "iota-metrics",
  "iota-node-storage",
  "iota-protocol-config",
@@ -6394,6 +6397,7 @@ dependencies = [
  "diesel",
  "futures",
  "iota-indexer",
+ "iota-sdk-types",
  "iota-types",
  "prometheus",
  "serde",
@@ -6940,6 +6944,7 @@ dependencies = [
  "iota-swarm-config",
  "iota-types",
  "prometheus",
+ "prost 0.14.3",
  "rand 0.8.6",
  "serde",
  "tap",
@@ -6948,6 +6953,8 @@ dependencies = [
  "tokio",
  "tonic 0.14.2",
  "tonic-build",
+ "tonic-prost",
+ "tonic-prost-build",
  "tower 0.4.13",
  "tracing",
 ]
@@ -9851,7 +9858,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -11394,7 +11401,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.5.7",
+ "socket2 0.6.3",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -13138,8 +13145,8 @@ dependencies = [
 name = "starfish-simtests"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "arc-swap",
+ "eyre",
  "iota-config",
  "iota-macros",
  "iota-metrics",

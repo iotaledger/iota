@@ -331,10 +331,19 @@ impl ConsensusAdapter {
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
+        let is_pending_consensus_certificates_empty =
+            if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In the certificate-less mode, the list of pending consensus
+                // certificates is always empty.
+                true
+            } else {
+                epoch_store.pending_consensus_certificates_empty()
+            };
+
         if epoch_store
             .get_reconfig_state_read_lock_guard()
             .is_reject_user_certs()
-            && epoch_store.pending_consensus_certificates_empty()
+            && is_pending_consensus_certificates_empty
         {
             // If `recovered` does not contain `EndOfPublish` yet, we need to insert it.
             if !recovered
@@ -375,6 +384,11 @@ impl ConsensusAdapter {
             .filter_map(|tx| match &tx.kind {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     Some(certificate.digest())
+                }
+                ConsensusTransactionKind::UserTransactionV1(_) => {
+                    // White flag: no submit delay needed (number of submitting validators
+                    // controlled through another mechanism)
+                    None
                 }
                 _ => None,
             })
@@ -563,14 +577,16 @@ impl ConsensusAdapter {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
-            // In soft bundle, we need to check if all transactions are of UserTransaction
-            // kind. The check is required because we assume this in
-            // submit_and_wait_inner.
+            // Soft-bundle batches must be homogeneous: either all
+            // CertifiedTransaction (certificate flow) or all
+            // UserTransactionV1 (white-flag flow). submit_and_wait_inner
+            // assumes a single transaction kind across the batch.
             for transaction in transactions {
                 fp_ensure!(
                     matches!(
                         transaction.kind,
                         ConsensusTransactionKind::CertifiedTransaction(_)
+                            | ConsensusTransactionKind::UserTransactionV1(_)
                     ),
                     IotaError::InvalidTxKindInSoftBundle
                 );
@@ -578,7 +594,13 @@ impl ConsensusAdapter {
         }
 
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
+
         Ok(self.submit_unchecked(transactions, epoch_store))
+    }
+
+    /// Returns the number of transactions currently in-flight in consensus.
+    pub fn num_inflight_transactions(&self) -> u64 {
+        self.num_inflight_transactions.load(Ordering::Relaxed)
     }
 
     /// Performs weakly consistent checks on internal buffers to quickly
@@ -652,12 +674,9 @@ impl ConsensusAdapter {
             return;
         }
 
-        // Current code path ensures:
-        // - If transactions.len() > 1, it is a soft bundle. Otherwise transactions
-        //   should have been submitted individually.
-        // - If is_soft_bundle, then all transactions are of UserTransaction kind.
-        // - If not is_soft_bundle, then transactions must contain exactly 1 tx, and
-        //   transactions[0] can be of any kind.
+        // submit_batch enforces that multi-tx batches (soft bundles) are
+        // homogeneous: either all CertifiedTransaction or all UserTransactionV1.
+        // Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
 
         let mut transaction_keys = Vec::new();
@@ -700,7 +719,13 @@ impl ConsensusAdapter {
             }
 
             // If transaction is received by consensus or checkpoint while we wait, we are done.
-            _ = &mut processed_via_consensus_or_checkpoint => {
+            // Capture the resolved `ProcessedMethod` so the latency metric and
+            // `latency_observer` accurately reflect whether the early-fire was a
+            // consensus processing, a checkpoint sync, or a `dropped_tx_status_cache`
+            // hit. Without this, the guard would stay at its default `Consensus`,
+            // mislabeling cache-hit retries.
+            method = &mut processed_via_consensus_or_checkpoint => {
+                guard.processed_method = method;
                 None
             }
         };
@@ -828,43 +853,80 @@ impl ConsensusAdapter {
             .expect("Storage error when removing consensus transaction");
 
         let is_user_tx = is_soft_bundle
-            || matches!(
-                transactions[0].kind,
-                ConsensusTransactionKind::CertifiedTransaction(_)
-            );
-        let send_end_of_publish = if is_user_tx {
-            // If we are in RejectUserCerts state and we just drained the list we need to
-            // send EndOfPublish to signal other validators that we are not submitting more
-            // certificates to the epoch. Note that there could be a race
-            // condition here where we enter this check in RejectAllCerts state.
-            // In that case we don't need to send EndOfPublish because condition to enter
-            // RejectAllCerts is when 2f+1 other validators already sequenced their
-            // EndOfPublish message. Also note that we could sent multiple
-            // EndOfPublish due to that multiple tasks can enter here with
-            // pending_count == 0. This doesn't affect correctness.
-            if epoch_store
-                .get_reconfig_state_read_lock_guard()
-                .is_reject_user_certs()
-            {
-                let pending_count = epoch_store.pending_consensus_certificates_count();
-                debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
-                pending_count == 0 // send end of epoch if empty
+            || if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In the certificate-less mode, `UserTransactionV1` kind corresponds
+                // to user transactions.
+                matches!(
+                    transactions[0].kind,
+                    ConsensusTransactionKind::UserTransactionV1(_)
+                )
             } else {
+                // In the certificate mode, `CertifiedTransaction` kind corresponds
+                // to user transactions.
+                matches!(
+                    transactions[0].kind,
+                    ConsensusTransactionKind::CertifiedTransaction(_)
+                )
+            };
+        let send_end_of_publish = if is_user_tx {
+            if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In certificate-less mode, `EndOfPublish` is sent solely from
+                // `close_epoch`. There is no pending certificate drain to
+                // monitor here, and sending from this per-transaction callback
+                // would produce N duplicate EndOfPublish messages (one per
+                // in-flight user transaction completing after `RejectUserCerts`
+                // is set).
                 false
+            } else {
+                // In certificate mode, `EndOfPublish` is sent once the list of
+                // pending consensus certificates is drained. Multiple tasks can
+                // enter here concurrently with `pending_count == 0`, producing
+                // duplicate messages — this is rare and does not affect
+                // correctness.
+                //
+                // Note: there could be a race condition here where we enter
+                // this check in `RejectAllCerts` state. In that case we don't
+                // need to send `EndOfPublish` because the condition to enter
+                // `RejectAllCerts` is when 2f+1 other validators already
+                // sequenced their `EndOfPublish` message.
+                //
+                // TODO: This entire certificate-mode drain logic can be removed
+                // once the certificate flow is fully cleaned up.
+                if epoch_store
+                    .get_reconfig_state_read_lock_guard()
+                    .is_reject_user_certs()
+                {
+                    let pending_count = epoch_store.pending_consensus_certificates_count();
+                    debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
+
+                    pending_count == 0 // send end of epoch if no pending certificates
+                } else {
+                    false
+                }
             }
         } else {
             false
         };
         if send_end_of_publish {
-            // sending message outside of any locks scope
-            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
-            if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish(self.authority),
-                None,
-                epoch_store,
-            ) {
-                warn!("Error when sending end of publish message: {:?}", err);
-            }
+            // Spawn a separate task for EndOfPublish so that
+            // submit_and_wait_inner returns promptly after the original
+            // transaction is processed. Awaiting the retry loop inline
+            // would hold the InflightDropGuard and inflate in-flight
+            // metrics for the duration of retries.
+            let adapter = self.clone();
+            let epoch_store = epoch_store.clone();
+            spawn_monitored_task!(async move {
+                if epoch_store
+                    .within_alive_epoch(adapter.submit_end_of_publish_with_retry(&epoch_store))
+                    .await
+                    .is_err()
+                {
+                    warn!(
+                        epoch = ?epoch_store.epoch(),
+                        "EndOfPublish submission cancelled: epoch has ended",
+                    );
+                }
+            });
         }
         self.metrics
             .sequencing_certificate_success
@@ -949,13 +1011,14 @@ impl ConsensusAdapter {
     ) -> ProcessedMethod {
         let notifications = FuturesUnordered::new();
         for transaction_key in transaction_keys {
-            let transaction_digests = if let SequencedConsensusTransactionKey::External(
-                ConsensusTransactionKey::Certificate(digest),
-            ) = transaction_key
-            {
-                vec![digest]
-            } else {
-                vec![]
+            let transaction_digests = match transaction_key {
+                SequencedConsensusTransactionKey::External(
+                    ConsensusTransactionKey::Certificate(digest),
+                )
+                | SequencedConsensusTransactionKey::External(
+                    ConsensusTransactionKey::UserTransaction(digest),
+                ) => vec![digest],
+                _ => vec![],
             };
 
             let checkpoint_synced_future = if let SequencedConsensusTransactionKey::External(
@@ -974,12 +1037,13 @@ impl ConsensusAdapter {
                 Either::Right(future::pending())
             };
 
-            // We wait for each transaction individually to be processed by consensus or
-            // executed in a checkpoint. We could equally just get notified in
-            // aggregate when all transactions are processed, but with this approach can get
-            // notified in a more fine-grained way as transactions can be marked
-            // as processed in different ways. This is mostly a concern for the soft-bundle
-            // transactions.
+            // We wait for each transaction individually to be processed by consensus,
+            // executed in a checkpoint or dropped. We could equally just get
+            // notified in aggregate when all transactions are processed, but
+            // with this approach can get notified in a more fine-grained way as
+            // transactions can be marked as processed in different ways. This
+            // is mostly a concern for the soft-bundle transactions.
+            let dropped_digest = transaction_digests.first().copied();
             notifications.push(async move {
                 tokio::select! {
                     processed = epoch_store.consensus_messages_processed_notify(vec![transaction_key]) => {
@@ -994,18 +1058,85 @@ impl ConsensusAdapter {
                     _ = checkpoint_synced_future => {
                         self.metrics.sequencing_certificate_processed.with_label_values(&["synced_checkpoint"]).inc();
                     }
+                    _ = async move {
+                        if let Some(d) = dropped_digest {
+                            let _err = epoch_store.notify_read_dropped_digests(d).await;
+                        } else {
+                            future::pending::<()>().await;
+                        }
+                    } => {
+                        self.metrics.sequencing_certificate_processed.with_label_values(&["dropped"]).inc();
+                        return ProcessedMethod::Dropped;
+                    }
                 }
                 ProcessedMethod::Checkpoint
             });
         }
 
         let processed_methods = notifications.collect::<Vec<ProcessedMethod>>().await;
-        for method in processed_methods {
-            if method == ProcessedMethod::Checkpoint {
-                return ProcessedMethod::Checkpoint;
+        if processed_methods.contains(&ProcessedMethod::Dropped) {
+            ProcessedMethod::Dropped
+        } else if processed_methods.contains(&ProcessedMethod::Checkpoint) {
+            ProcessedMethod::Checkpoint
+        } else {
+            ProcessedMethod::Consensus
+        }
+    }
+
+    /// Submits an `EndOfPublish` message to consensus with exponential
+    /// backoff (capped at `MAX_BACKOFF`). Retries indefinitely on any
+    /// error — both transient failures (e.g. DB write errors in
+    /// `insert_pending_consensus_transactions`) and permanent ones (e.g.
+    /// `EpochEnded` from `tables()`). A missing `EndOfPublish` would
+    /// stall the epoch, so the loop never gives up on its own.
+    ///
+    /// Callers **must** wrap this with `epoch_store.within_alive_epoch()`
+    /// to cancel retries when the epoch terminates — this is the
+    /// mechanism that stops the loop on permanent `EpochEnded` errors.
+    async fn submit_end_of_publish_with_retry(
+        self: &Arc<Self>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        const INITIAL_BACKOFF: Duration = Duration::from_millis(100);
+        const MAX_BACKOFF: Duration = Duration::from_secs(10);
+
+        info!(
+            epoch = ?epoch_store.epoch(),
+            authority = ?self.authority,
+            "Sending EndOfPublish message to consensus",
+        );
+
+        let mut attempt: u32 = 0;
+        loop {
+            match self.submit(
+                ConsensusTransaction::new_end_of_publish(self.authority),
+                None,
+                epoch_store,
+            ) {
+                Ok(_) => return,
+                Err(IotaError::EpochEnded(_)) => {
+                    warn!(
+                        epoch = ?epoch_store.epoch(),
+                        authority = ?self.authority,
+                        "EndOfPublish submission stopped: epoch has ended",
+                    );
+                    return;
+                }
+                Err(err) => {
+                    let backoff = (INITIAL_BACKOFF * 2u32.pow(attempt.min(10))).min(MAX_BACKOFF);
+                    warn!(
+                        epoch = ?epoch_store.epoch(),
+                        authority = ?self.authority,
+                        attempt,
+                        "Failed to submit EndOfPublish, retrying in {:?}: {:?}",
+                        backoff,
+                        err,
+                    );
+                    tokio::time::sleep(backoff).await;
+                    attempt = attempt.saturating_add(1);
+                }
             }
         }
-        ProcessedMethod::Consensus
     }
 }
 
@@ -1077,10 +1208,12 @@ pub fn get_position_in_list(
 }
 
 impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
-    /// This method is called externally to begin reconfiguration
-    /// It transition reconfig state to reject new certificates from user
-    /// ConsensusAdapter will send EndOfPublish message once pending certificate
-    /// queue is drained.
+    /// This method is called externally to begin reconfiguration.
+    /// It transitions the reconfig state to reject new user transactions.
+    /// `ConsensusAdapter` will send `EndOfPublish` once all pending
+    /// transactions are drained (in the certificate mode) or right away
+    /// (in the certificate-less mode). Submission is asynchronous —
+    /// a background task handles retries so this method returns promptly.
     fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) {
         let send_end_of_publish = {
             let reconfig_guard = epoch_store.get_reconfig_state_write_lock_guard();
@@ -1088,22 +1221,49 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
                 // Allow caller to call this method multiple times
                 return;
             }
-            let pending_count = epoch_store.pending_consensus_certificates_count();
-            debug!(epoch=?epoch_store.epoch(), ?pending_count, "Trying to close epoch");
-            let send_end_of_publish = pending_count == 0;
+
+            let send_end_of_publish = if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In certificate-less mode, there are no pending consensus
+                // certificates, so `EndOfPublish` is always sent immediately.
+                debug!(epoch=?epoch_store.epoch(), "Closing epoch in certificate-less mode");
+
+                true
+            } else {
+                // In certificate mode, `EndOfPublish` is sent only once the list
+                // of pending consensus certificates is drained.
+                let pending_count = epoch_store.pending_consensus_certificates_count();
+                debug!(epoch=?epoch_store.epoch(), ?pending_count, "Trying to close epoch");
+
+                pending_count == 0 // send end of epoch if no pending certificates
+            };
+
             epoch_store.close_user_certs(reconfig_guard);
+
             send_end_of_publish
             // reconfig_guard lock is dropped here.
         };
+
         if send_end_of_publish {
-            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
-            if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish(self.authority),
-                None,
-                epoch_store,
-            ) {
-                warn!("Error when sending end of publish message: {:?}", err);
-            }
+            // Spawned because ReconfigurationInitiator::close_epoch is
+            // sync — it cannot await. This is safe: by this point
+            // close_user_certs() has already set the reconfig state to
+            // reject new transactions, so no further user work depends
+            // on this method returning. The background task retries
+            // until the message is delivered or the epoch terminates.
+            let adapter = self.clone();
+            let epoch_store = epoch_store.clone();
+            spawn_monitored_task!(async move {
+                if epoch_store
+                    .within_alive_epoch(adapter.submit_end_of_publish_with_retry(&epoch_store))
+                    .await
+                    .is_err()
+                {
+                    warn!(
+                        epoch = ?epoch_store.epoch(),
+                        "EndOfPublish submission cancelled: epoch has ended",
+                    );
+                }
+            });
         }
     }
 }
@@ -1135,10 +1295,11 @@ struct InflightDropGuard<'a> {
     processed_method: ProcessedMethod,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 enum ProcessedMethod {
     Consensus,
     Checkpoint,
+    Dropped,
 }
 
 impl<'a> InflightDropGuard<'a> {
@@ -1207,6 +1368,7 @@ impl Drop for InflightDropGuard<'_> {
         let processed_method = match self.processed_method {
             ProcessedMethod::Consensus => "processed_via_consensus",
             ProcessedMethod::Checkpoint => "processed_via_checkpoint",
+            ProcessedMethod::Dropped => "dropped",
         };
         self.adapter
             .metrics
@@ -1226,8 +1388,9 @@ impl Drop for InflightDropGuard<'_> {
                 self.tx_type,
                 "shared_certificate" | "owned_certificate" | "checkpoint_signature" | "soft_bundle"
             );
-            // if tx has been processed by checkpoint state sync, then exclude from the
-            // latency calculations as this can introduce to misleading results.
+            // Exclude checkpoint-synced and dropped txs from the latency observer:
+            // their latency reflects state-sync timing or rejection, not consensus
+            // throughput, and would skew the observed consensus latency.
             if sampled && self.processed_method == ProcessedMethod::Consensus {
                 self.adapter.latency_observer.report(latency);
             }

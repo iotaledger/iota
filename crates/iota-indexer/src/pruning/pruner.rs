@@ -74,7 +74,6 @@ pub struct Pruner {
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PrunableTable {
-    ObjectsHistory,
     Transactions,
     Events,
 
@@ -155,10 +154,9 @@ impl PrunableTable {
     pub fn pruning_strategy(&self) -> PruningStrategy {
         match self {
             // Epoch-partitioned tables - pruned by dropping partitions
-            // objects_history: partitioned by CheckpointSequenceNumber
             // transactions: partitioned by TxSequenceNumber
             // events: partitioned by TxSequenceNumber
-            PrunableTable::ObjectsHistory | PrunableTable::Transactions | PrunableTable::Events => {
+            PrunableTable::Transactions | PrunableTable::Events => {
                 PruningStrategy::ByEpochPartition
             }
 

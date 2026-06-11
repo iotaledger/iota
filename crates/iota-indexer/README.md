@@ -108,7 +108,6 @@ epochs_to_keep = 10
 
 # Per-table overrides (snake_case, must match prunable table names)
 [overrides]
-objects_history = 2
 transactions = 5
 events = 5
 tx_senders = 3
@@ -122,8 +121,7 @@ The legacy `--epochs-to-keep` CLI argument is still supported but deprecated, an
 #### Default behavior
 
 - If no pruning configuration is provided, pruning is disabled.
-- `objects_history` defaults to 2 epochs retention even if not explicitly overridden, as it is primarily used for consistency queries and does not need long retention.
-- All other tables default to the `epochs_to_keep` value from the config.
+- All prunable tables default to the `epochs_to_keep` value from the config; per-table overrides replace the default.
 
 #### How pruning works
 
@@ -135,7 +133,7 @@ When pruning is enabled, the following tables are subject to pruning:
 
 | Strategy                                          | Tables                                                                           |
 | ------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **Epoch partition** (drop partition)              | `objects_history`, `transactions`, `events`                                      |
+| **Epoch partition** (drop partition)              | `transactions`, `events`                                                         |
 | **By checkpoint** (DELETE)                        | `checkpoints`, `pruner_cp_watermark`                                             |
 | **By transaction** (DELETE)                       | `event_*` (7 index tables), `tx_*` (10 index tables including `tx_global_order`) |
 | **By global sequence number** (DELETE with LIMIT) | `optimistic_transactions`                                                        |

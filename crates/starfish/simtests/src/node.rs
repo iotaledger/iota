@@ -12,8 +12,8 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Result;
 use arc_swap::ArcSwapOption;
+use eyre::Result;
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use parking_lot::Mutex;
@@ -218,8 +218,9 @@ impl AuthorityNode {
 
             if let Some(handle) = inner.handle.take() {
                 tracing::info!("shutting down {}", handle.node_id);
-                iota_simulator::runtime::Handle::try_current()
-                    .map(|h| h.delete_node(handle.node_id));
+                if let Some(h) = iota_simulator::runtime::Handle::try_current() {
+                    h.delete_node(handle.node_id);
+                }
             }
         }
         info!(index =% self.config.authority_index, "node stopped");
@@ -240,8 +241,9 @@ impl AuthorityNode {
 
             if let Some(handle) = inner.handle.take() {
                 tracing::info!("shutting down {}", handle.node_id);
-                iota_simulator::runtime::Handle::try_current()
-                    .map(|h| h.delete_node(handle.node_id));
+                if let Some(h) = iota_simulator::runtime::Handle::try_current() {
+                    h.delete_node(handle.node_id);
+                }
             }
         }
         info!(index =% self.config.authority_index, "node stopped");
@@ -249,7 +251,7 @@ impl AuthorityNode {
 
     /// If this Node is currently running
     pub fn is_running(&self) -> bool {
-        self.inner.lock().as_ref().map_or(false, |c| c.is_alive())
+        self.inner.lock().as_ref().is_some_and(|c| c.is_alive())
     }
 
     /// Get the commit digest for a specific commit index
@@ -282,7 +284,9 @@ impl Drop for AuthorityNodeInner {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
             tracing::info!("shutting down {}", handle.node_id);
-            iota_simulator::runtime::Handle::try_current().map(|h| h.delete_node(handle.node_id));
+            if let Some(h) = iota_simulator::runtime::Handle::try_current() {
+                h.delete_node(handle.node_id);
+            }
         }
     }
 }
