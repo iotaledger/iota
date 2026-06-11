@@ -513,13 +513,10 @@ impl AuthorityStore {
         object_id: &ObjectId,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
-        let min_key = (epoch_id, ObjectKey::min_for_id(object_id));
-        let max_key = (epoch_id, ObjectKey::max_for_id(object_id));
-
         let marker_entry = self
             .perpetual_tables
             .object_per_epoch_marker_table
-            .reversed_safe_iter_with_bounds(Some(min_key), Some(max_key))?
+            .safe_iter_with_prefix_reversed(&(epoch_id, *object_id))
             .next();
         match marker_entry {
             Some(Ok(((epoch, key), marker))) => {

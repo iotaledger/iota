@@ -604,6 +604,147 @@ async fn test_safe_range_iter_exclusive_lower_bound_at_max_with_inclusive_upper(
 }
 
 #[tokio::test]
+async fn test_safe_range_iter_reversed_matches_forward() {
+    use std::ops::Bound::{self, Excluded, Included, Unbounded};
+
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
+    // [1, 100) so that bounds like 20 / 50 land on existing keys, exercising the
+    // exclusive-upper "skip the boundary key" path of the reverse seek.
+    for i in 1..100u32 {
+        db.insert(&i, &i.to_string()).unwrap();
+    }
+
+    let check = |range: (Bound<u32>, Bound<u32>)| {
+        let forward: Vec<_> = db.safe_range_iter(range).map(|r| r.unwrap()).collect();
+        let mut reversed: Vec<_> = db
+            .safe_range_iter_reversed(range)
+            .map(|r| r.unwrap())
+            .collect();
+        reversed.reverse();
+        assert_eq!(
+            forward, reversed,
+            "reversed(range) must equal forward(range) reversed; range = {range:?}",
+        );
+    };
+
+    check((Included(10), Excluded(20))); // 10..20, boundary key 20 exists
+    check((Included(10), Included(20))); // 10..=20
+    check((Excluded(10), Excluded(20))); // (10, 20)
+    check((Unbounded, Excluded(20))); // ..20
+    check((Unbounded, Included(20))); // ..=20
+    check((Included(50), Unbounded)); // 50..
+    check((Excluded(50), Unbounded)); // (50, ..)
+    check((Unbounded, Unbounded)); // full table
+    check((Included(40), Excluded(40))); // empty
+    check((Included(50), Included(50))); // single element
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 1u64), (1, 2), (1, 3), (2, 1), (2, 2)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    let forward: Vec<_> = db
+        .safe_iter_with_prefix(&1u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![
+            ((1, 1), "1-1".to_string()),
+            ((1, 2), "1-2".to_string()),
+            ((1, 3), "1-3".to_string()),
+        ],
+        forward,
+        "prefix scan must yield exactly the entries under the prefix",
+    );
+
+    let reversed: Vec<_> = db
+        .safe_iter_with_prefix_reversed(&1u64)
+        .map(|r| r.unwrap())
+        .collect();
+    let mut expected = forward;
+    expected.reverse();
+    assert_eq!(
+        expected, reversed,
+        "reversed prefix scan must be forward reversed"
+    );
+
+    // The neighbouring prefix must not leak in.
+    let other: Vec<_> = db
+        .safe_iter_with_prefix(&2u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![((2, 1), "2-1".to_string()), ((2, 2), "2-2".to_string())],
+        other,
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_at_max() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u8, u8), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(254u8, 9u8), (255, 1), (255, 2)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Prefix 0xFF has no representable upper bound; the scan runs to the end of
+    // the column family and must still exclude the lower neighbour.
+    let got: Vec<_> = db
+        .safe_iter_with_prefix(&u8::MAX)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![
+            ((255, 1), "255-1".to_string()),
+            ((255, 2), "255-2".to_string()),
+        ],
+        got,
+    );
+}
+
+#[tokio::test]
+async fn test_reversed_safe_iter_with_bounds_is_inclusive() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
+    for i in 1..100u32 {
+        db.insert(&i, &i.to_string()).unwrap();
+    }
+
+    // Both bounds inclusive: [10, 20] in descending order (unchanged contract).
+    let got: Vec<_> = db
+        .reversed_safe_iter_with_bounds(Some(10), Some(20))
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        (10..=20)
+            .rev()
+            .map(|i| (i, i.to_string()))
+            .collect::<Vec<_>>(),
+        got,
+    );
+
+    // Upper-only stays inclusive: [.., 20] in descending order.
+    let got: Vec<_> = db
+        .reversed_safe_iter_with_bounds(None, Some(20))
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        (1..=20)
+            .rev()
+            .map(|i| (i, i.to_string()))
+            .collect::<Vec<_>>(),
+        got,
+    );
+}
+
+#[tokio::test]
 async fn test_is_empty() {
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<i32, String> = open_map(tmp_dir.path(), Some("table"));
