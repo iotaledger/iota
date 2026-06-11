@@ -169,7 +169,10 @@ pub async fn validate_and_resolve_conflicts(
         if let Some(attestation) = attestation {
             let block_author =
                 starfish_config::AuthorityIndex::from(tx.0.certificate_author_index as u8);
-            let min_attested_units = epoch_store.protocol_config().base_tx_cost_fixed();
+            let protocol_config = epoch_store.protocol_config();
+            let min_attested_units = protocol_config
+                .base_tx_cost_fixed()
+                .min(protocol_config.gas_rounding_step());
             let attested_units = attestation.computation_units();
             let tx_data = transaction.data().transaction_data();
             let max_attested_units = tx_data

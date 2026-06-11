@@ -541,8 +541,9 @@ pub enum IotaError {
 
     #[error(
         "Attestation reports computation_units = {actual} gas units, \
-         below the protocol minimum of {minimum} (`base_tx_cost_fixed`); \
-         an honest dry-run meters at least this base cost"
+         below the protocol minimum of {minimum} \
+         (`min(base_tx_cost_fixed, gas_rounding_step)`); \
+         no honest dry-run can meter below this floor"
     )]
     AttestationUnitsBelowMinimum { actual: u64, minimum: u64 },
 
