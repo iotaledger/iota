@@ -17,6 +17,25 @@ The IOTA Indexer is a node data service that serves data from the IOTA protocol,
 The IOTA Indexer provides three main functionalities:
 
 - Ingest data from a full node to a relational database. Data on full nodes is stored as BCS bytes in an embedded RocksDB database, thus the query capabilities are very limited. The indexer pulls checkpoint blob data, schematizing them into various tables like objects, transactions, and so on, with proper indices.
+
+:::info Hybrid Historical Checkpoint Store
+
+If the full node does not retain its historical data, the indexer can be configured to ingest from a **hybrid historical checkpoint store** instead. This combines two sources:
+
+- A **historical checkpoint store** with the full archive from genesis to the network tip.
+- An optional **live checkpoint store** storing only current-epoch checkpoints, used for real-time ingestion.
+
+```shell
+iota-indexer \
+  --db-url <DATABASE_URL> \
+  indexer \
+  --remote-store-url https://checkpoints.<NETWORK>.iota.cafe/ingestion/historical \
+  --live-checkpoints-store-url https://checkpoints.<NETWORK>.iota.cafe/ingestion/live
+```
+
+For more info see the [reference table](/developer/advanced/custom-indexer#historical-checkpoint-data).
+:::
+
 - Serve online transaction processing (OLTP) RPC requests. With data in relational databases, IOTA indexer spins a stateless reader binary as JSON RPC server with the associated [interface](/iota-api-ref).
 - Other than OLTP data ingestion and requests, the Indexer also supports some analytical data ingestion like transactions per second (TPS) and daily active user (DAU) metrics.
 
@@ -34,7 +53,8 @@ Some RPC calls mentioned in [interface](/iota-api-ref) will only work with an in
 
 ## Run an Indexer
 
-Refer to the [IOTA Indexer README](https://github.com/iotaledger/iota/tree/develop/crates/iota-indexer) to run an indexer with a local or managed Postgres-compatible database.
+- [**IOTA Indexer**](./iota-indexer) — ingest checkpoint data into a local or managed Postgres-compatible database, with pruning enabled.
+- [**IOTA Indexer JSON-RPC**](./json-rpc) — serve online transaction processing (OLTP) RPC requests against the indexed data.
 
 ## Run GraphQL Interface
 
@@ -62,4 +82,4 @@ Options:
   -h, --help                         Print help
 ```
 
-For more information see [IOTA GraphQL-RPC README](https://github.com/iotaledger/iota/blob/develop/crates/iota-graphql-rpc/README.md#launching-the-graphql-rpc-server).
+For more information, see [GraphQL](./graphql).
