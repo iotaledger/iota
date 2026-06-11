@@ -69,6 +69,12 @@ module P0::m {
 
 //# run-graphql
 {
+  real_tombstone_v3: objects(filter: {objectKeys: [{objectId: "@{obj_2_0}", version: 3}]}) {
+    nodes { status version }
+  }
+  lamport_v6: objects(filter: {objectKeys: [{objectId: "@{obj_2_0}", version: 6}]}) {
+    nodes { status version }
+  }
   previous_active_v7: objects(filter: {objectKeys: [{objectId: "@{obj_2_0}", version: 7}]}) {
     nodes { status version }
   }

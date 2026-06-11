@@ -123,6 +123,18 @@ module Test::M1 {
       }
     }
   }
+  previous_version: object(
+    address: "@{obj_2_0}"
+    version: 4
+  ) {
+    status
+    version
+    asMoveObject {
+      contents {
+        json
+      }
+    }
+  }
 }
 
 //# run Test::M1::unwrap --sender A --args object(8,0)
