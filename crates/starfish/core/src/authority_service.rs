@@ -4,7 +4,7 @@
 
 use std::{
     cmp::max,
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     pin::Pin,
     sync::Arc,
     time::Duration,
@@ -16,7 +16,7 @@ use dashmap::DashSet;
 use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Stake};
 use tokio::sync::{Mutex, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, error, info, warn};
@@ -55,6 +55,18 @@ use crate::{
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
 const MAX_FILTER_SIZE: u32 = 100000;
+// BCS encodes sequence lengths as ULEB128 values. Ten bytes covers any usize
+// length on supported 64-bit targets.
+const MAX_BCS_LENGTH_PREFIX_BYTES: usize = 10;
+
+fn serialized_transactions_size_limit(context: &Context) -> usize {
+    (context.protocol_config.max_transactions_in_block_bytes() as usize)
+        .saturating_add(
+            (context.protocol_config.max_num_transactions_in_block() as usize)
+                .saturating_mul(MAX_BCS_LENGTH_PREFIX_BYTES),
+        )
+        .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
+}
 
 struct FilterForHeaders {
     header_digests: DashSet<BlockHeaderDigest>,
@@ -214,6 +226,26 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             return Err(e);
         }
 
+        let max_serialized_transactions_size = serialized_transactions_size_limit(&self.context);
+        if serialized_transactions.len() > max_serialized_transactions_size {
+            let e = ConsensusError::SerializedTransactionsTooLarge {
+                size: serialized_transactions.len(),
+                limit: max_serialized_transactions_size,
+            };
+            self.record_invalid_transactions(peer, peer_hostname, signed_block_header.author(), &e);
+            return Err(e);
+        }
+
+        let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
+            .map_err(ConsensusError::MalformedTransactions)
+            .inspect_err(|e| {
+                self.record_invalid_transactions(
+                    peer,
+                    peer_hostname,
+                    signed_block_header.author(),
+                    e,
+                );
+            })?;
         let (transaction_commitment, our_shard, proof_for_shard) =
             TransactionsCommitment::compute_merkle_root_shard_and_proof(
                 &serialized_transactions,
@@ -221,20 +253,28 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 encoder,
             )?;
         if signed_block_header.transactions_commitment() != transaction_commitment {
-            return Err(ConsensusError::TransactionCommitmentFailure {
+            let e = ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
                 author: signed_block_header.author(),
                 peer,
-            });
+            };
+            self.record_invalid_transactions(peer, peer_hostname, signed_block_header.author(), &e);
+            return Err(e);
         }
 
         let verified_block_header =
             VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
-        let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)?;
 
         self.block_verifier
-            .check_and_verify_transactions(&transactions)?;
+            .check_and_verify_transactions(&transactions)
+            .inspect_err(|e| {
+                self.record_invalid_transactions(
+                    peer,
+                    peer_hostname,
+                    verified_block_header.author(),
+                    e,
+                );
+            })?;
 
         let verified_transactions = VerifiedTransactions::new(
             transactions,
@@ -258,6 +298,23 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             None
         };
         Ok((verified_block, shard_for_core))
+    }
+
+    fn record_invalid_transactions(
+        &self,
+        peer: AuthorityIndex,
+        peer_hostname: &str,
+        author: AuthorityIndex,
+        error: &ConsensusError,
+    ) {
+        self.context
+            .metrics
+            .node_metrics
+            .bundles_with_invalid_parts
+            .with_label_values(&[peer_hostname, "transactions", error.name()])
+            .inc();
+        self.misbehavior_store
+            .record_faulty_block_header(peer, author, error);
     }
 
     fn extract_additional_block_headers_from_bundle(
@@ -515,6 +572,27 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         }
     }
 
+    fn select_quorum_certifier_refs(&self, votes: Vec<BlockRef>) -> (Vec<BlockRef>, Stake, Stake) {
+        let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
+        let mut seen_authors = BTreeSet::new();
+        let mut certifier_refs = Vec::new();
+        for vote in votes {
+            if !seen_authors.insert(vote.author) {
+                continue;
+            }
+            let reached_quorum = stake_aggregator.add(vote.author, &self.context.committee);
+            certifier_refs.push(vote);
+            if reached_quorum {
+                break;
+            }
+        }
+        (
+            certifier_refs,
+            stake_aggregator.stake(),
+            stake_aggregator.threshold(&self.context.committee),
+        )
+    }
+
     /// Finds the highest commit index in the commit range up to search_up_to
     /// that can be certified with available votes. Returns the highest
     /// certifiable commit index and the block refs (votes) that certify it,
@@ -542,24 +620,20 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             }
 
             let votes = self.store.read_commit_votes(index_with_votes)?;
-            let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-            for v in &votes {
-                stake_aggregator.add(v.author, &self.context.committee);
-            }
-            if stake_aggregator.reached_threshold(&self.context.committee) {
+            let (certifier_refs, certifier_stake, certifier_threshold) =
+                self.select_quorum_certifier_refs(votes);
+            if self.context.committee.reached_quorum(certifier_stake) {
                 self.context
                     .metrics
                     .node_metrics
                     .commit_sync_fetch_commits_handler_uncertified_skipped
                     .with_label_values(&[commit_sync_type.as_str()])
                     .inc_by((search_up_to - index_with_votes) as u64);
-                return Ok(Some((index_with_votes, votes)));
+                return Ok(Some((index_with_votes, certifier_refs)));
             } else {
                 debug!(
                     "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
-                    index_with_votes,
-                    stake_aggregator.stake(),
-                    stake_aggregator.threshold(&self.context.committee)
+                    index_with_votes, certifier_stake, certifier_threshold
                 );
                 self.context
                     .metrics
@@ -600,24 +674,20 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             }
 
             let votes = self.store.read_commit_votes(index_with_votes)?;
-            let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-            for v in &votes {
-                stake_aggregator.add(v.author, &self.context.committee);
-            }
-            if stake_aggregator.reached_threshold(&self.context.committee) {
+            let (certifier_refs, certifier_stake, certifier_threshold) =
+                self.select_quorum_certifier_refs(votes);
+            if self.context.committee.reached_quorum(certifier_stake) {
                 self.context
                     .metrics
                     .node_metrics
                     .commit_sync_fetch_commits_handler_uncertified_skipped
                     .with_label_values(&[commit_sync_type.as_str()])
                     .inc_by((index_with_votes - current_search_from) as u64);
-                return Ok(Some((index_with_votes, votes)));
+                return Ok(Some((index_with_votes, certifier_refs)));
             } else {
                 debug!(
                     "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
-                    index_with_votes,
-                    stake_aggregator.stake(),
-                    stake_aggregator.threshold(&self.context.committee)
+                    index_with_votes, certifier_stake, certifier_threshold
                 );
                 self.context
                     .metrics
@@ -973,13 +1043,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
-        // Some quick validation of the requested block refs
-        ConsensusError::quick_validation_requested_block_refs(
-            &block_refs,
-            peer,
-            &self.context.committee,
-        )?;
-
         if !highest_accepted_rounds.is_empty()
             && highest_accepted_rounds.len() != self.context.committee.size()
         {
@@ -1012,6 +1075,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             );
             block_refs.truncate(max_fetch_size);
         }
+
+        ConsensusError::quick_validation_requested_block_refs(
+            &block_refs,
+            peer,
+            &self.context.committee,
+        )?;
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
@@ -1698,11 +1767,12 @@ mod tests {
         CommitConsumer, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
+            serialized_transactions_size_limit,
         },
         block_header::{
-            BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, TestBlockHeader,
-            TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
-            VerifiedTransactions,
+            BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
+            TestBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+            VerifiedOwnShard, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1719,7 +1789,7 @@ mod tests {
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
         leader_schedule::LeaderSchedule,
-        misbehavior_store::MisbehaviorStore,
+        misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
@@ -1933,6 +2003,7 @@ mod tests {
             Arc::new(MisbehaviorStore::new(&context)),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
@@ -1943,7 +2014,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
-            Arc::new(MisbehaviorStore::new(&context)),
+            misbehavior_store.clone(),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -1978,6 +2049,42 @@ mod tests {
         } else {
             panic!("Expected TransactionCommitmentFailure error, got {result:?}",);
         }
+
+        let counts = misbehavior_store.snapshot_totals();
+        let MisbehaviorCounts::V1(counts) = &counts[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
+
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
+        let mut bundle_parts = SerializedBlockBundleParts::try_from(input_block).unwrap();
+        let mut block_parts = SerializedHeaderAndTransactions::try_from(SerializedBlock {
+            serialized_block: bundle_parts.serialized_block,
+        })
+        .unwrap();
+        let serialized_limit = serialized_transactions_size_limit(&context);
+        block_parts.serialized_transactions = Bytes::from(vec![0; serialized_limit + 1]);
+        bundle_parts.serialized_block = SerializedBlock::try_from(block_parts)
+            .unwrap()
+            .serialized_block;
+        let oversized_bundle = SerializedBlockBundle::try_from(bundle_parts).unwrap();
+
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                oversized_bundle,
+                &mut encoder,
+            )
+            .await;
+        assert!(matches!(
+            result,
+            Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
+                if size == limit + 1
+        ));
+
+        let counts = misbehavior_store.snapshot_totals();
+        let MisbehaviorCounts::V1(counts) = &counts[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 2);
     }
 
     #[rstest]
@@ -3207,8 +3314,14 @@ mod tests {
             .collect();
 
         let peer = context.committee.to_authority_index(1).unwrap();
+        let mut oversized_request = block_refs_to_request.clone();
+        oversized_request.push(BlockRef::new(
+            rounds + 1,
+            AuthorityIndex::new_for_test(validators as u8),
+            BlockHeaderDigest::MIN,
+        ));
         let truncated_headers = authority_service
-            .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![])
+            .handle_fetch_headers(peer, oversized_request, vec![])
             .await
             .expect("Should return a valid vector of serialized block headers");
 
@@ -3543,7 +3656,13 @@ mod tests {
             let verified_block_header = VerifiedBlockHeader::new_for_test(test_block_header);
             new_block_headers.push(verified_block_header);
         }
-        all_block_headers.push(new_block_headers.clone());
+        let equivocation = TestBlockHeader::new(rounds + 1, 1)
+            .set_commit_votes(commit_refs.clone())
+            .set_ancestors(refs_to_headers_from_prev_round.clone())
+            .set_timestamp_ms((rounds as u64 + 2) * 1000)
+            .build();
+        new_block_headers.push(VerifiedBlockHeader::new_for_test(equivocation));
+        all_block_headers.push(new_block_headers[..validators].to_vec());
         core_dispatcher
             .add_block_headers(new_block_headers.clone(), DataSource::Test)
             .await
@@ -3579,6 +3698,13 @@ mod tests {
             .await
             .unwrap();
 
+        let certifier_authors = result
+            .1
+            .iter()
+            .map(|header| header.author())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(result.1.len(), certifier_authors.len());
+        assert!(result.1.len() <= context.committee.size());
         assert_eq!(
             result.0.len() as u32,
             rounds - 2,
