@@ -263,33 +263,31 @@ async fn test_passkey_fails_invalid_json() {
     assert!(err.to_string().contains("missing field"));
 }
 
-/// The passkey authenticator parses the challenge leniently: any valid
-/// base64url string is accepted at construction regardless of its decoded
-/// length. Whether the challenge actually matches the transaction's signing
-/// digest is enforced at verification, not construction.
+/// The challenge must decode to exactly 32 bytes (the signing digest length),
+/// which is enforced at construction. Whether a well-formed challenge actually
+/// matches the transaction's signing digest is enforced at verification.
 #[tokio::test]
-async fn test_passkey_challenge_checked_at_verification_not_construction() {
+async fn test_passkey_challenge_length_checked_at_construction() {
     let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
-    // Challenges shorter than, equal to, and longer than the signing digest all
-    // construct successfully.
+    // Challenges shorter or longer than the signing digest are rejected at
+    // construction.
     const LEN: usize = DefaultHash::OUTPUT_SIZE;
-    for challenge_len in [LEN - 1, LEN, LEN + 1] {
+    for challenge_len in [LEN - 1, LEN + 1] {
         let challenge_bytes = vec![0u8; challenge_len];
         let client_data_json = format!(
             r#"{{"type":"webauthn.get","challenge":"{}","origin":"http://localhost:5173","crossOrigin":false}}"#,
             Base64UrlUnpadded::encode_string(&challenge_bytes)
         );
-        assert!(
-            PasskeyAuthenticator::new(
-                response.authenticator_data.clone(),
-                client_data_json,
-                SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
-            )
-            .is_ok()
-        );
+        let err = PasskeyAuthenticator::new(
+            response.authenticator_data.clone(),
+            client_data_json,
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("invalid challenge length"));
     }
 
     // A well-formed but wrong challenge constructs fine, then fails verification
