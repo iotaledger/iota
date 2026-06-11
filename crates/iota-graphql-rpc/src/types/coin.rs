@@ -31,7 +31,7 @@ use crate::{
         move_object::{MoveObject, MoveObjectImpl},
         move_value::MoveValue,
         object::{
-            self, Object, ObjectFilter, ObjectImpl, ObjectKind, ObjectOwner, ObjectStatus,
+            self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus, ResolvedObject,
             StoredBackwardObject,
         },
         owner::OwnerImpl,
@@ -381,7 +381,7 @@ impl Coin {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            let kind = ObjectKind::try_from(stored_history)?;
+            let kind = ResolvedObject::try_from(stored_history)?;
             let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
