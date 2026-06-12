@@ -443,16 +443,18 @@ impl RetentionConfig {
     }
 }
 
-/// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline has
-/// been removed; these flags are now no-ops.
 #[derive(Args, Default, Debug, Clone)]
 pub struct SnapshotLagConfig {
+    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
+    /// has been removed. This flag is a no-op.
     #[arg(
         long = "objects-snapshot-min-checkpoint-lag",
         env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG"
     )]
     pub snapshot_min_lag: Option<usize>,
 
+    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
+    /// has been removed. This flag is a no-op.
     #[arg(long = "objects-snapshot-sleep-duration")]
     pub sleep_duration: Option<u64>,
 }
