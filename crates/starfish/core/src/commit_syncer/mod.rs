@@ -529,7 +529,7 @@ where
     const TIMEOUT: Duration = Duration::from_millis(500);
     // Max per-request timeout will be base timeout times a multiplier.
     // At the extreme, this means there will be 120s timeout to fetch
-    // max_blocks_per_fetch blocks.
+    // max_headers_per_commit_sync_fetch headers.
     const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
     // timeout * max number of targets should be reasonably small, so the
     // system can adjust to slow network or large data sizes quickly.

@@ -1000,12 +1000,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     }
 
     /// Handles two types of fetch headers requests:
-    /// 1. Missing block headers for regular sync:
+    /// 1. Missing block headers for header sync (periodic or live):
     ///    - uses highest_accepted_rounds.
-    ///    - at most max_blocks_per_regular_sync blocks should be returned.
+    ///    - at most max_headers_per_header_sync_fetch headers are returned.
     /// 2. Committed block headers for commit sync:
     ///    - does not use highest_accepted_rounds.
-    ///    - at most max_blocks_per_commit_sync blocks should be returned.
+    ///    - at most max_headers_per_commit_sync_fetch headers are returned.
     async fn handle_fetch_headers(
         &self,
         peer: AuthorityIndex,
@@ -3322,7 +3322,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_fetch_headers_regular_sync() {
+    async fn test_handle_fetch_headers_header_sync() {
         // GIVEN
         let rounds = 10;
         let validators = 4;
