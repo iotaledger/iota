@@ -612,12 +612,11 @@ impl From<&PublicKey> for IotaAddress {
 }
 
 impl From<&MultiSigPublicKey> for IotaAddress {
-    /// Derive a IotaAddress from [struct MultiSigPublicKey].
-    /// `Blake2b256(flag_MultiSig || threshold_le16 || member_1 || ... ||
-    /// member_n)` where each Ed25519 member is `pk || weight` and each
-    /// other member is `scheme_flag || pk || weight` (Ed25519 has no flag
-    /// prefix — IOTA legacy rule,
-    /// see `SignatureScheme::update_hasher_with_flag`).
+    /// Derive a IotaAddress from [struct MultiSigPublicKey]. A MultiSig address
+    /// is defined as the 32-byte Blake2b hash of serializing the flag, the
+    /// threshold, concatenation of all n flag, public keys and
+    /// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
+    /// || ... || flag_n || pk_n || weight_n`.
     fn from(multisig_pk: &MultiSigPublicKey) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([SignatureScheme::MultiSig.flag()]);
