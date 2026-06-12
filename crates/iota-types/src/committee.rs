@@ -529,7 +529,12 @@ impl CommitteeChainVerifier {
             .expect("checked before verification");
 
         self.committee = Committee::new(
-            self.committee.epoch + 1,
+            self.committee
+                .epoch
+                .checked_add(1)
+                .ok_or(IotaError::AdvanceEpoch {
+                    error: "epoch number overflow".to_string(),
+                })?,
             end_of_epoch_data
                 .next_epoch_committee
                 .iter()
