@@ -134,7 +134,9 @@ public fun raw_bytes(self: &PublicKey): &vector<u8> {
 ///   Ed25519:   Blake2b256(pubkey)
 ///   Secp256k1: Blake2b256([0x01] || pubkey)
 ///   Secp256r1: Blake2b256([0x02] || pubkey)
-///   MultiSig:  Blake2b256([0x03] || threshold_le16 || (scheme_flag || pk || weight_u8)*)
+///   MultiSig:  Blake2b256([0x03] || threshold_le16 || member*) where each Ed25519 member
+///              contributes `pk || weight` and each other member contributes
+///              `scheme_flag || pk || weight` (Ed25519 has no flag prefix — IOTA legacy rule)
 ///   Passkey:   Blake2b256([0x06] || pubkey)
 public fun to_iota_address(self: &PublicKey): address {
     let scheme = self.scheme;
@@ -157,35 +159,33 @@ public fun to_iota_address(self: &PublicKey): address {
 
 // === Private Functions ===
 
-/// Creates the bytes used to derive an address from a multisig PublicKey. A MultiSig address
-/// is defined as the 32-byte Blake2b hash of serializing the flag, the
-/// threshold, concatenation of all n flag, public keys and
-/// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
-/// || ... || flag_n || pk_n || weight_n`.
+/// Creates the bytes used to derive an address from a multisig PublicKey.
+/// Result: `flag_MultiSig || threshold_le16 || member_1 || ... || member_n`
+/// where each Ed25519 member is `pk || weight` and each other member is
+/// `scheme_flag || pk || weight`. Ed25519 omits the flag prefix, mirroring
+/// `SignatureScheme::update_hasher_with_flag` in the Rust node.
 fun multisig_to_hash_input(mut raw_bytes: vector<u8>): vector<u8> {
     let threshold_high = raw_bytes.pop_back();
     let threshold_low = raw_bytes.pop_back();
     let mut bcs = bcs::new(raw_bytes);
     let num_signers = bcs.peel_vec_length();
-    // multisig_flag_u8 || threshold_le16 || (pk_flag_u8 || pk_bytes || weight_u8)*
+    // flag_MultiSig || threshold_le16 || member*
     let mut data = vector[signature_scheme::multisig().flag(), threshold_low, threshold_high];
     num_signers.do!(|_| {
         let tag = bcs.peel_enum_tag();
-        let (key_len, scheme_flag) = if (tag == MULTISIG_KEY_TAG_ED25519) (
-            ED25519_PUBLIC_KEY_LENGTH,
-            signature_scheme::ed25519().flag(),
-        ) else if (tag == MULTISIG_KEY_TAG_SECP256K1) (
-            SECP256_PUBLIC_KEY_LENGTH,
-            signature_scheme::secp256k1().flag(),
-        ) else if (tag == MULTISIG_KEY_TAG_SECP256R1) (
-            SECP256_PUBLIC_KEY_LENGTH,
-            signature_scheme::secp256r1().flag(),
-        ) else if (tag == MULTISIG_KEY_TAG_PASSKEY) (
-            SECP256_PUBLIC_KEY_LENGTH,
-            signature_scheme::passkey().flag(),
-        ) else abort EUnknownPublicKeyScheme;
-        // pk_flag_u8 || pk_bytes || weight_u8
-        data.push_back(scheme_flag);
+        // Ed25519 follows the IOTA legacy address rule: no scheme flag in hash input.
+        let key_len = if (tag == MULTISIG_KEY_TAG_ED25519) {
+            ED25519_PUBLIC_KEY_LENGTH
+        } else if (tag == MULTISIG_KEY_TAG_SECP256K1) {
+            data.push_back(signature_scheme::secp256k1().flag());
+            SECP256_PUBLIC_KEY_LENGTH
+        } else if (tag == MULTISIG_KEY_TAG_SECP256R1) {
+            data.push_back(signature_scheme::secp256r1().flag());
+            SECP256_PUBLIC_KEY_LENGTH
+        } else if (tag == MULTISIG_KEY_TAG_PASSKEY) {
+            data.push_back(signature_scheme::passkey().flag());
+            SECP256_PUBLIC_KEY_LENGTH
+        } else abort EUnknownPublicKeyScheme;
         key_len.do!(|_| {
             data.push_back(bcs.peel_u8());
         });
