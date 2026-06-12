@@ -37,12 +37,6 @@ use crate::{
 /// as the lookback window.
 const MAX_PENDING_COMMITS: usize = 3;
 
-/// Per-commit record retained in the running window, used so eviction can
-/// subtract its score contributions from the aggregate.
-struct ScoresEntry {
-    score_contributions: Vec<u64>,
-}
-
 /// Schedule snapshot consumed by the commit rule.
 ///
 /// `next_commit_index` and `min_next_leader_round` move on every commit;
@@ -66,8 +60,9 @@ pub(crate) struct SlidingWindowSchedule {
     /// Last [`MAX_PENDING_COMMITS`] committed subdags, retained for scoring
     /// lookback.
     pending_commits: VecDeque<SubDagBase>,
-    /// One entry per scored commit currently in the running window.
-    scores_entries: VecDeque<ScoresEntry>,
+    /// Per-commit score contributions currently in the running window,
+    /// retained so eviction can subtract them from the aggregate.
+    scores_entries: VecDeque<Vec<u64>>,
     /// Current schedule. Cached so commit-rule callers see a stable answer
     /// between rotation boundaries without repeatedly recomputing the
     /// allowed-leaders selection.
@@ -159,7 +154,7 @@ impl SlidingWindowSchedule {
                 .scores_entries
                 .pop_front()
                 .expect("scores_entries is non-empty when len >= window_size >= 1");
-            for (i, &delta) in evicted.score_contributions.iter().enumerate() {
+            for (i, &delta) in evicted.iter().enumerate() {
                 self.total_scores_per_authority[i] =
                     self.total_scores_per_authority[i].saturating_sub(delta);
             }
@@ -170,9 +165,7 @@ impl SlidingWindowSchedule {
             self.total_scores_per_authority[i] =
                 self.total_scores_per_authority[i].saturating_add(delta);
         }
-        self.scores_entries.push_back(ScoresEntry {
-            score_contributions: contribution,
-        });
+        self.scores_entries.push_back(contribution);
 
         // Rotate pending commits: drop the now-scored c_minus_3, keep
         // c_minus_2 and c_minus_1, append c as the new newest pending.
