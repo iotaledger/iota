@@ -114,7 +114,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             committee_size: None,
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]
-            indexer_feature_args: IndexerFeatureArgs::for_testing(),
+            indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
             local_migration_snapshots: vec![],
             remote_migration_snapshots: vec![],
             delegator: None,

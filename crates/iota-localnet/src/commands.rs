@@ -214,7 +214,7 @@ pub enum LocalnetCommand {
         with_grpc: Option<String>,
         #[cfg(feature = "indexer")]
         #[command(flatten)]
-        indexer_feature_args: IndexerFeatureArgs,
+        indexer_feature_args: Box<IndexerFeatureArgs>,
         /// Port to start the Fullnode RPC server on. Default port is 9000.
         #[arg(long, default_value = "9000")]
         fullnode_rpc_port: u16,
@@ -340,7 +340,7 @@ impl LocalnetCommand {
                     faucet_coin_count,
                     with_grpc,
                     #[cfg(feature = "indexer")]
-                    indexer_feature_args,
+                    *indexer_feature_args,
                     force_regenesis,
                     epoch_duration_ms,
                     fullnode_rpc_port,
