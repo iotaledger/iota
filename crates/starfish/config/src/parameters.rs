@@ -183,6 +183,17 @@ impl Parameters {
         (self.block_rate_window.as_millis() as u64 / interval_ms).max(1)
     }
 
+    /// Maximum number of block headers served per fetch request, depending on
+    /// whether the request comes from commit sync or the periodic/live
+    /// synchronizer.
+    pub fn max_headers_per_fetch(&self, commit_sync: bool) -> usize {
+        if commit_sync {
+            self.max_headers_per_commit_sync_fetch
+        } else {
+            self.max_headers_per_regular_sync_fetch
+        }
+    }
+
     // Maximum number of block headers to fetch per commit sync request.
     pub(crate) fn default_max_headers_per_commit_sync_fetch() -> usize {
         if cfg!(msim) {

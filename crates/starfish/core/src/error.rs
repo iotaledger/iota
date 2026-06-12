@@ -249,6 +249,13 @@ pub(crate) enum ConsensusError {
         limit: usize,
     },
 
+    #[error("Invalid commit range from peer {peer}: start {start} > end {end}")]
+    InvalidCommitRange {
+        peer: AuthorityIndex,
+        start: CommitIndex,
+        end: CommitIndex,
+    },
+
     #[error("Received unexpected block header from peer {peer}: {requested:?} vs {received:?}")]
     UnexpectedBlockHeaderForCommit {
         peer: AuthorityIndex,

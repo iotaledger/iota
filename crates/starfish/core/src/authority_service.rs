@@ -16,7 +16,7 @@ use dashmap::DashSet;
 use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
-use starfish_config::{AuthorityIndex, Stake};
+use starfish_config::AuthorityIndex;
 use tokio::sync::{Mutex, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, error, info, warn};
@@ -60,11 +60,15 @@ const MAX_FILTER_SIZE: u32 = 100000;
 const MAX_BCS_LENGTH_PREFIX_BYTES: usize = 10;
 
 fn serialized_transactions_size_limit(context: &Context) -> usize {
-    (context.protocol_config.max_transactions_in_block_bytes() as usize)
-        .saturating_add(
-            (context.protocol_config.max_num_transactions_in_block() as usize)
-                .saturating_mul(MAX_BCS_LENGTH_PREFIX_BYTES),
-        )
+    let max_bytes = context.protocol_config.max_transactions_in_block_bytes() as usize;
+    let max_count = context.protocol_config.max_num_transactions_in_block() as usize;
+    // A zero protocol limit disables the corresponding check in the block
+    // verifier; without both bounds no finite serialized size is implied.
+    if max_bytes == 0 || max_count == 0 {
+        return usize::MAX;
+    }
+    max_bytes
+        .saturating_add(max_count.saturating_mul(MAX_BCS_LENGTH_PREFIX_BYTES))
         .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
 }
 
@@ -232,20 +236,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 size: serialized_transactions.len(),
                 limit: max_serialized_transactions_size,
             };
-            self.record_invalid_transactions(peer, peer_hostname, signed_block_header.author(), &e);
+            self.record_invalid_transactions(peer, peer_hostname, &e);
             return Err(e);
         }
 
         let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
             .map_err(ConsensusError::MalformedTransactions)
-            .inspect_err(|e| {
-                self.record_invalid_transactions(
-                    peer,
-                    peer_hostname,
-                    signed_block_header.author(),
-                    e,
-                );
-            })?;
+            .inspect_err(|e| self.record_invalid_transactions(peer, peer_hostname, e))?;
         let (transaction_commitment, our_shard, proof_for_shard) =
             TransactionsCommitment::compute_merkle_root_shard_and_proof(
                 &serialized_transactions,
@@ -258,7 +255,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 author: signed_block_header.author(),
                 peer,
             };
-            self.record_invalid_transactions(peer, peer_hostname, signed_block_header.author(), &e);
+            self.record_invalid_transactions(peer, peer_hostname, &e);
             return Err(e);
         }
 
@@ -267,14 +264,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
         self.block_verifier
             .check_and_verify_transactions(&transactions)
-            .inspect_err(|e| {
-                self.record_invalid_transactions(
-                    peer,
-                    peer_hostname,
-                    verified_block_header.author(),
-                    e,
-                );
-            })?;
+            .inspect_err(|e| self.record_invalid_transactions(peer, peer_hostname, e))?;
 
         let verified_transactions = VerifiedTransactions::new(
             transactions,
@@ -300,11 +290,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         Ok((verified_block, shard_for_core))
     }
 
+    /// Only called after the `UnexpectedAuthority` check, so the peer is also
+    /// the block author.
     fn record_invalid_transactions(
         &self,
         peer: AuthorityIndex,
         peer_hostname: &str,
-        author: AuthorityIndex,
         error: &ConsensusError,
     ) {
         self.context
@@ -314,7 +305,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .with_label_values(&[peer_hostname, "transactions", error.name()])
             .inc();
         self.misbehavior_store
-            .record_faulty_block_header(peer, author, error);
+            .record_faulty_block_header(peer, peer, error);
     }
 
     fn extract_additional_block_headers_from_bundle(
@@ -572,7 +563,24 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         }
     }
 
-    fn select_quorum_certifier_refs(&self, votes: Vec<BlockRef>) -> (Vec<BlockRef>, Stake, Stake) {
+    /// Selects a minimal set of vote refs — one per author, only votes for
+    /// the digest of the locally stored commit at `index` — whose stake
+    /// reaches quorum. Returns None if the commit is not stored locally or
+    /// the matching votes do not reach quorum.
+    fn read_quorum_certifier_refs(
+        &self,
+        index: CommitIndex,
+    ) -> ConsensusResult<Option<Vec<BlockRef>>> {
+        let Some(commit) = self
+            .store
+            .scan_commits((index..=index).into())?
+            .into_iter()
+            .next()
+        else {
+            debug!("Commit {index} with votes is not in the local store, skipping");
+            return Ok(None);
+        };
+        let votes = self.store.read_commit_votes(index, commit.digest())?;
         let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         let mut seen_authors = BTreeSet::new();
         let mut certifier_refs = Vec::new();
@@ -583,14 +591,16 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             let reached_quorum = stake_aggregator.add(vote.author, &self.context.committee);
             certifier_refs.push(vote);
             if reached_quorum {
-                break;
+                return Ok(Some(certifier_refs));
             }
         }
-        (
-            certifier_refs,
+        debug!(
+            "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
+            index,
             stake_aggregator.stake(),
-            stake_aggregator.threshold(&self.context.committee),
-        )
+            stake_aggregator.threshold(&self.context.committee)
+        );
+        Ok(None)
     }
 
     /// Finds the highest commit index in the commit range up to search_up_to
@@ -619,10 +629,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 return Ok(None);
             }
 
-            let votes = self.store.read_commit_votes(index_with_votes)?;
-            let (certifier_refs, certifier_stake, certifier_threshold) =
-                self.select_quorum_certifier_refs(votes);
-            if self.context.committee.reached_quorum(certifier_stake) {
+            if let Some(certifier_refs) = self.read_quorum_certifier_refs(index_with_votes)? {
                 self.context
                     .metrics
                     .node_metrics
@@ -631,10 +638,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .inc_by((search_up_to - index_with_votes) as u64);
                 return Ok(Some((index_with_votes, certifier_refs)));
             } else {
-                debug!(
-                    "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
-                    index_with_votes, certifier_stake, certifier_threshold
-                );
                 self.context
                     .metrics
                     .node_metrics
@@ -673,10 +676,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 return Ok(None);
             }
 
-            let votes = self.store.read_commit_votes(index_with_votes)?;
-            let (certifier_refs, certifier_stake, certifier_threshold) =
-                self.select_quorum_certifier_refs(votes);
-            if self.context.committee.reached_quorum(certifier_stake) {
+            if let Some(certifier_refs) = self.read_quorum_certifier_refs(index_with_votes)? {
                 self.context
                     .metrics
                     .node_metrics
@@ -685,10 +685,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .inc_by((index_with_votes - current_search_from) as u64);
                 return Ok(Some((index_with_votes, certifier_refs)));
             } else {
-                debug!(
-                    "Commit {} votes did not reach quorum to certify, {} < {}, skipping",
-                    index_with_votes, certifier_stake, certifier_threshold
-                );
                 self.context
                     .metrics
                     .node_metrics
@@ -1060,11 +1056,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // For commit sync, the fetch size is larger. For periodic/live synchronizer,
         // the fetch size is smaller. Instead of rejecting the request, we truncate
         // the size to allow an easy update of this parameter in the future.
-        let max_fetch_size = if commit_sync_handle {
-            self.context.parameters.max_headers_per_commit_sync_fetch
-        } else {
-            self.context.parameters.max_headers_per_regular_sync_fetch
-        };
+        let max_fetch_size = self
+            .context
+            .parameters
+            .max_headers_per_fetch(commit_sync_handle);
 
         if block_refs.len() > max_fetch_size {
             warn!(
@@ -1194,11 +1189,21 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     // can be different, bigger for fast sync and smaller for regular.
     async fn handle_fetch_commits(
         &self,
-        _peer: AuthorityIndex,
+        peer: AuthorityIndex,
         commit_range: CommitRange,
         commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         fail_point_async!("consensus-rpc-response");
+
+        // The range is peer-controlled; an inverted range would underflow the
+        // arithmetic below.
+        if commit_range.start() > commit_range.end() {
+            return Err(ConsensusError::InvalidCommitRange {
+                peer,
+                start: commit_range.start(),
+                end: commit_range.end(),
+            });
+        }
 
         // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
         // all networks. Fast commit sync type is controlled by the client, so
@@ -1776,7 +1781,7 @@ mod tests {
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
-        commit::{CertifiedCommits, CommitRange},
+        commit::{CertifiedCommits, CommitDigest, CommitRange, CommitRef},
         commit_observer::CommitObserver,
         commit_syncer::CommitSyncType,
         commit_vote_monitor::CommitVoteMonitor,
@@ -3662,6 +3667,18 @@ mod tests {
             .set_timestamp_ms((rounds as u64 + 2) * 1000)
             .build();
         new_block_headers.push(VerifiedBlockHeader::new_for_test(equivocation));
+        // Votes for a fabricated digest sort before votes for any real digest
+        // and must not crowd real votes out of the served certifier set.
+        let poisoned_votes = commit_refs
+            .iter()
+            .map(|commit_ref| CommitRef::new(commit_ref.index, CommitDigest::MIN))
+            .collect::<Vec<_>>();
+        let poisoned_equivocation = TestBlockHeader::new(rounds + 1, 2)
+            .set_commit_votes(poisoned_votes)
+            .set_ancestors(refs_to_headers_from_prev_round.clone())
+            .set_timestamp_ms((rounds as u64 + 2) * 1000 + 1)
+            .build();
+        new_block_headers.push(VerifiedBlockHeader::new_for_test(poisoned_equivocation));
         all_block_headers.push(new_block_headers[..validators].to_vec());
         core_dispatcher
             .add_block_headers(new_block_headers.clone(), DataSource::Test)
@@ -3705,6 +3722,14 @@ mod tests {
             .collect::<BTreeSet<_>>();
         assert_eq!(result.1.len(), certifier_authors.len());
         assert!(result.1.len() <= context.committee.size());
+        let end_commit_ref = result.0.last().unwrap().reference();
+        assert!(
+            result
+                .1
+                .iter()
+                .all(|header| header.commit_votes().contains(&end_commit_ref)),
+            "Served certifiers must vote for the digest of the served end commit"
+        );
         assert_eq!(
             result.0.len() as u32,
             rounds - 2,

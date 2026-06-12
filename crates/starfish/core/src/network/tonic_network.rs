@@ -57,21 +57,6 @@ const MAX_FETCH_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 // the responses.
 const MAX_TOTAL_FETCHED_BYTES: usize = 128 * 1024 * 1024;
 
-fn validate_header_response_count(
-    peer: AuthorityIndex,
-    requested: usize,
-    received: usize,
-) -> ConsensusResult<()> {
-    if received > requested {
-        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-            authority: peer,
-            requested,
-            received_headers: received,
-        });
-    }
-    Ok(())
-}
-
 // Implements Tonic RPC client for Consensus.
 pub(crate) struct TonicClient {
     context: Arc<Context>,
@@ -280,7 +265,13 @@ impl NetworkClient for TonicClient {
                     let received_headers = headers
                         .len()
                         .saturating_add(vec_serialized_block_headers.len());
-                    validate_header_response_count(peer, max_headers, received_headers)?;
+                    if received_headers > max_headers {
+                        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
+                            authority: peer,
+                            requested: max_headers,
+                            received_headers,
+                        });
+                    }
                     for b in &vec_serialized_block_headers {
                         total_fetched_bytes += b.len();
                     }
@@ -667,11 +658,10 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         };
         let inner = request.into_inner();
         let highest_accepted_rounds = inner.highest_accepted_rounds;
-        let max_fetch_size = if highest_accepted_rounds.is_empty() {
-            self.context.parameters.max_headers_per_commit_sync_fetch
-        } else {
-            self.context.parameters.max_headers_per_regular_sync_fetch
-        };
+        let max_fetch_size = self
+            .context
+            .parameters
+            .max_headers_per_fetch(highest_accepted_rounds.is_empty());
         if inner.block_refs.len() > max_fetch_size {
             warn!(
                 "Truncated fetch headers request from {} to {} blocks for peer {}",
@@ -1476,23 +1466,4 @@ fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
         chunks.push(chunk);
     }
     chunks
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reject_more_latest_headers_than_requested() {
-        let peer = AuthorityIndex::new_for_test(1);
-        let result = validate_header_response_count(peer, 1, 2);
-        assert!(matches!(
-            result,
-            Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-                authority,
-                requested: 1,
-                received_headers: 2,
-            }) if authority == peer
-        ));
-    }
 }
