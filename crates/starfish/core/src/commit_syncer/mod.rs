@@ -914,8 +914,8 @@ mod tests {
         assert_eq!(starfish_speed, starfish_speed_on);
     }
 
-    #[test]
-    fn verify_transactions_rejects_oversized_payload_before_encoding() {
+    #[tokio::test]
+    async fn verify_transactions_rejects_oversized_payload_before_encoding() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
@@ -939,8 +939,8 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn verify_commits_rejects_excessive_vote_headers_before_parsing() {
+    #[tokio::test]
+    async fn verify_commits_rejects_excessive_vote_headers_before_parsing() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
