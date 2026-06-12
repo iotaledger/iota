@@ -20,19 +20,19 @@
         "refresh": 2,
         "includeAll": true,
         "multi": true,
-        "allValue": ".*",
+        "allValue": "validator-.*",
         "current": { "text": "All", "value": "$__all" },
         "sort": 1
       }
     ]
   },
   "panels": [
-    { "type": "row", "title": "Throughput", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "id": 1, "collapsed": false },
+    { "type": "row", "title": "throughput", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "id": 1, "collapsed": false },
     {
-      "type": "timeseries", "title": "Finalized TPS (included in checkpoint)",
+      "type": "timeseries", "title": "finalized TPS (included in checkpoint)",
       "description": "Per-host rate(transactions_included_in_checkpoint) = finalized TPS, one curve per validator. Rate window: $__rate_interval (Grafana auto, ~4x the 15s scrape = ~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 }, "id": 2,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 }, "id": 2,
       "fieldConfig": { "defaults": { "unit": "tps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -42,10 +42,10 @@
       ]
     },
     {
-      "type": "timeseries", "title": "Execution rate (executed transactions)",
+      "type": "timeseries", "title": "execution rate (executed transactions)",
       "description": "Per-host rate(execution_driver_executed_transactions) = executed TPS, one curve per validator. Rate window: $__rate_interval (Grafana auto, ~4x the 15s scrape = ~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 }, "id": 3,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 }, "id": 3,
       "fieldConfig": { "defaults": { "unit": "tps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -55,213 +55,402 @@
       ]
     },
 
-    { "type": "row", "title": "Attestation — accuracy", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }, "id": 10, "collapsed": false },
+    { "type": "row", "title": "attestation — accuracy", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 }, "id": 10, "collapsed": false },
     {
-      "type": "timeseries", "title": "actual / attested computation cost (1.0 = perfect)",
+      "type": "timeseries", "title": "actual / attested cost — p50 (1.0 = perfect)",
+      "description": "Per-host p50 of actual_to_attested_computation_cost_ratio. 1.0 = attested cost matched execution; >1 the attestor under-reported, <1 over-reported. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 }, "id": 11,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 44 }, "id": 11,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 0 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(actual_to_attested_computation_cost_ratio_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p50" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(actual_to_attested_computation_cost_ratio_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p95" }
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(actual_to_attested_computation_cost_ratio_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "timeseries", "title": "Attested vs actual computation cost (NANOS, p50)",
+      "type": "timeseries", "title": "actual / attested cost — p95 (1.0 = perfect)",
+      "description": "Per-host p95 of actual_to_attested_computation_cost_ratio. 1.0 = attested cost matched execution; >1 the attestor under-reported, <1 over-reported. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 }, "id": 12,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 44 }, "id": 13,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 0 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(actual_to_attested_computation_cost_ratio_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "attested vs actual computation cost (NANOS, p50)",
+      "description": "Per-host p50 of attested_computation_cost (attestor's pre-consensus estimate) vs actual_computation_cost (from execution effects), both in NANOS. Gap between a validator's two lines = its estimate error. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 44 }, "id": 12,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(attested_computation_cost_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "attested p50" },
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(attested_computation_cost_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "attested {{host}}" },
         { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(actual_computation_cost_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "actual p50" }
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(actual_computation_cost_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "actual {{host}}" }
       ]
     },
 
-    { "type": "row", "title": "Attestation — overhead", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }, "id": 20, "collapsed": false },
+    { "type": "row", "title": "attestation — overhead", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 }, "id": 20, "collapsed": false },
     {
-      "type": "timeseries", "title": "Attestation latency (pre-consensus dry-run)",
+      "type": "timeseries", "title": "attestation latency p50 (pre-consensus dry-run)",
+      "description": "Per-host p50 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 19 }, "id": 21,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 53 }, "id": 21,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(validator_attestation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p50" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(validator_attestation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p95" },
-        { "refId": "C", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(validator_attestation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p99" }
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(validator_attestation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "timeseries", "title": "Attestations / sec",
+      "type": "timeseries", "title": "attestation latency p95 (pre-consensus dry-run)",
+      "description": "Per-host p95 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 19 }, "id": 22,
-      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 53 }, "id": 24,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(validator_attestations_total{host=~\"$host\"}[$__rate_interval]))",
-          "legendFormat": "attestations/s" }
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(validator_attestation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "stat", "title": "Attestation task panics (total)",
+      "type": "timeseries", "title": "attestation latency p99 (pre-consensus dry-run)",
+      "description": "Per-host p99 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 19 }, "id": 23,
-      "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 53 }, "id": 25,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(validator_attestation_task_panics{host=~\"$host\"})",
-          "legendFormat": "panics" }
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(validator_attestation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "attestations / sec",
+      "description": "Per-host rate(validator_attestations_total) = attestations completed per second on each validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 }, "id": 22,
+      "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (rate(validator_attestations_total{host=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "stat", "title": "attestation task panics (per validator)",
+      "description": "validator_attestation_task_panics per validator (one stat tile per host). Any non-zero value (red) means an attestation dry-run task panicked on that validator - a robustness regression.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 }, "id": 23,
+      "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (validator_attestation_task_panics{host=~\"$host\"})",
+          "legendFormat": "{{host}}" }
       ]
     },
 
-    { "type": "row", "title": "Sequencing & congestion", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 }, "id": 30, "collapsed": false },
+    { "type": "row", "title": "sequencing & congestion", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 69 }, "id": 30, "collapsed": false },
     {
-      "type": "timeseries", "title": "Scheduled transactions per object per commit",
+      "type": "timeseries", "title": "scheduled transactions per object per commit — p50",
+      "description": "Per-host p50 of consensus_handler_scheduled_transactions_per_object_per_commit: transactions admitted (scheduled) to a shared object in one consensus commit, one curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 28 }, "id": 31,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 70 }, "id": 31,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(consensus_handler_scheduled_transactions_per_object_per_commit_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p50" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(consensus_handler_scheduled_transactions_per_object_per_commit_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p95" }
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(consensus_handler_scheduled_transactions_per_object_per_commit_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "timeseries", "title": "Transaction deferral rounds",
+      "type": "timeseries", "title": "scheduled transactions per object per commit — p95",
+      "description": "Per-host p95 of consensus_handler_scheduled_transactions_per_object_per_commit: transactions admitted (scheduled) to a shared object in one consensus commit, one curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 28 }, "id": 32,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 70 }, "id": 35,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(consensus_handler_transaction_deferral_rounds_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p50" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(consensus_handler_transaction_deferral_rounds_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p95" },
-        { "refId": "C", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(consensus_handler_transaction_deferral_rounds_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "p99" }
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(consensus_handler_scheduled_transactions_per_object_per_commit_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "timeseries", "title": "Deferred / congested / cancelled (per sec)",
+      "type": "timeseries", "title": "transaction deferral rounds — p50",
+      "description": "Per-host p50 of consensus_handler_transaction_deferral_rounds: consensus rounds a transaction spent deferred before being scheduled or cancelled, one curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 28 }, "id": 33,
-      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 78 }, "id": 32,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(consensus_handler_transaction_deferral_rounds_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "transaction deferral rounds — p95",
+      "description": "Per-host p95 of consensus_handler_transaction_deferral_rounds: consensus rounds a transaction spent deferred before being scheduled or cancelled, one curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 78 }, "id": 36,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(consensus_handler_transaction_deferral_rounds_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "transaction deferral rounds — p99",
+      "description": "Per-host p99 of consensus_handler_transaction_deferral_rounds: consensus rounds a transaction spent deferred before being scheduled or cancelled, one curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 78 }, "id": 37,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(consensus_handler_transaction_deferral_rounds_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "deferred txs / sec",
+      "description": "Per-host rate(consensus_handler_deferred_transactions): transactions the consensus handler deferred to a later commit per second, one curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 86 }, "id": 33,
+      "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by (host) (rate(consensus_handler_deferred_transactions{host=~\"$host\"}[$__rate_interval]))",
-          "legendFormat": "deferred {{host}}" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (host) (rate(consensus_handler_congested_transactions{host=~\"$host\"}[$__rate_interval]))",
-          "legendFormat": "congested {{host}}" },
-        { "refId": "C", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (host) (rate(consensus_handler_cancelled_transactions{host=~\"$host\"}[$__rate_interval]))",
-          "legendFormat": "cancelled {{host}}" }
+          "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "timeseries", "title": "Max scheduled object cost per commit (by commit_type)",
+      "type": "timeseries", "title": "congested txs / sec",
+      "description": "Per-host rate(consensus_handler_congested_transactions): transactions deferred specifically due to shared-object congestion per second, one curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 }, "id": 34,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 86 }, "id": 38,
+      "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (rate(consensus_handler_congested_transactions{host=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "cancelled txs / sec",
+      "description": "Per-host rate(consensus_handler_cancelled_transactions): transactions cancelled by the consensus handler (e.g. deferred past the limit) per second, one curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 86 }, "id": 39,
+      "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (rate(consensus_handler_cancelled_transactions{host=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "max scheduled object cost per commit — regular",
+      "description": "Per-host max accumulated scheduled (estimated) per-object execution cost in a regular consensus commit (consensus_handler_max_congestion_control_object_costs, commit_type=regular_commit), one curve per validator. Compare against the per-commit limit to see scheduled-vs-limit overshoot.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 94 }, "id": 34,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "max by (commit_type) (consensus_handler_max_congestion_control_object_costs{host=~\"$host\"})",
-          "legendFormat": "{{commit_type}}" }
+          "expr": "max by (host) (consensus_handler_max_congestion_control_object_costs{host=~\"$host\", commit_type=\"regular_commit\"})",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "max scheduled object cost per commit — randomness",
+      "description": "Per-host max accumulated scheduled (estimated) per-object execution cost in a randomness consensus commit (consensus_handler_max_congestion_control_object_costs, commit_type=randomness_commit), one curve per validator. Compare against the per-commit limit to see scheduled-vs-limit overshoot.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 94 }, "id": 43,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (host) (consensus_handler_max_congestion_control_object_costs{host=~\"$host\", commit_type=\"randomness_commit\"})",
+          "legendFormat": "{{host}}" }
       ]
     },
 
-    { "type": "row", "title": "Pipeline latency (validator-internal)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 }, "id": 40, "collapsed": false },
+    { "type": "row", "title": "latency", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }, "id": 40, "collapsed": false },
     {
-      "type": "timeseries", "title": "Receipt → executed (validator_transaction_execution_latency)",
+      "type": "timeseries", "title": "receipt → executed — p50",
+      "description": "Per-host p50 of validator_transaction_execution_latency: validator-internal latency from receiving a transaction (submit_tx) until it finished executing - spans pre-consensus check, consensus, post-consensus validation, sequencing (incl. deferral), and execution. One curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 45 }, "id": 41,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 10 }, "id": 41,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(validator_transaction_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(validator_transaction_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "receipt → executed — p95",
+      "description": "Per-host p95 of validator_transaction_execution_latency: validator-internal latency from receiving a transaction (submit_tx) until it finished executing - spans pre-consensus check, consensus, post-consensus validation, sequencing (incl. deferral), and execution. One curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 }, "id": 46,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(validator_transaction_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "receipt → executed — p99",
+      "description": "Per-host p99 of validator_transaction_execution_latency: validator-internal latency from receiving a transaction (submit_tx) until it finished executing - spans pre-consensus check, consensus, post-consensus validation, sequencing (incl. deferral), and execution. One curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 }, "id": 47,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le, host) (rate(validator_transaction_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "post-consensus validation latency — p50",
+      "description": "Per-host p50 of post_consensus_validation_latency: time for validate_and_resolve_conflicts over one commit's user transactions (Checks #0-#3 plus owned-object conflict resolution). One curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 }, "id": 42,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(post_consensus_validation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "post-consensus validation latency — p95",
+      "description": "Per-host p95 of post_consensus_validation_latency: time for validate_and_resolve_conflicts over one commit's user transactions (Checks #0-#3 plus owned-object conflict resolution). One curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 }, "id": 48,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(post_consensus_validation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "validation dropped txs / sec",
+      "description": "Per-host rate(consensus_handler_validation_dropped_transactions): UserTransactionV1/V2 dropped by post-consensus validation (Checks #0-#3, e.g. attestation verification, dedup, conflicts) per second, one curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 }, "id": 54,
+      "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (rate(consensus_handler_validation_dropped_transactions{host=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "settlement finality latency (client, via fullnode)",
+      "description": "Client-side end-to-end: submit -> certified finalized effects (NOT checkpoint inclusion), measured by the TransactionDriver on the fullnode; includes network + fullnode time. Fullnodes only, real transactions (ping=false). Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 }, "id": 44,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
           "legendFormat": "p50" },
         { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(validator_transaction_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
           "legendFormat": "p95" },
         { "refId": "C", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(validator_transaction_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
           "legendFormat": "p99" }
       ]
     },
     {
-      "type": "timeseries", "title": "Post-consensus validation latency",
+      "type": "timeseries", "title": "submit transaction latency (client, via fullnode)",
+      "description": "Client-side: time from start of submission until a validator accepts the transaction (includes retries), measured by the TransactionDriver on the fullnode. Not finality. Fullnodes only, real transactions (ping=false). Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 45 }, "id": 42,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 }, "id": 45,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(post_consensus_validation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(transaction_driver_submit_transaction_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
           "legendFormat": "p50" },
         { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(post_consensus_validation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(transaction_driver_submit_transaction_latency_bucket{host=~\"fullnode-.*\", ping=\"false\"}[$__rate_interval])))",
           "legendFormat": "p95" }
       ]
     },
 
-    { "type": "row", "title": "Queues & health", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 53 }, "id": 50, "collapsed": false },
+    { "type": "row", "title": "queues", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 }, "id": 50, "collapsed": false },
     {
-      "type": "timeseries", "title": "Execution queue depth",
+      "type": "timeseries", "title": "execution dispatch queue",
+      "description": "Per-host execution_driver_dispatch_queue: transactions that are ready to execute and queued at the execution driver, waiting for a worker to pick them up. Grows when execution can't keep up with admitted work (backpressure). One curve per validator.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 }, "id": 51,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 35 }, "id": 51,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by (host) (execution_driver_dispatch_queue{host=~\"$host\"})",
-          "legendFormat": "dispatch {{host}}" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (host) (transaction_manager_num_pending_certificates{host=~\"$host\"})",
-          "legendFormat": "pending {{host}}" }
+          "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "timeseries", "title": "Execution queueing delay p95 / validation dropped per sec",
+      "type": "timeseries", "title": "pending transactions (waiting for inputs)",
+      "description": "Per-host transaction_manager_num_pending_certificates: transactions in the transaction manager waiting for their input objects to become available (not yet ready to execute). Not draining is a stall/overload signal. One curve per validator.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 }, "id": 52,
-      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [
-        { "matcher": { "id": "byRegexp", "options": "dropped.*" }, "properties": [ { "id": "unit", "value": "ops" }, { "id": "custom.axisPlacement", "value": "right" } ] }
-      ] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 35 }, "id": 53,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(execution_queueing_delay_s_bucket{host=~\"$host\"}[$__rate_interval])))",
-          "legendFormat": "queueing delay p95" },
-        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (host) (rate(consensus_handler_validation_dropped_transactions{host=~\"$host\"}[$__rate_interval]))",
-          "legendFormat": "dropped {{host}}" }
+          "expr": "sum by (host) (transaction_manager_num_pending_certificates{host=~\"$host\"})",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "execution queueing delay p95",
+      "description": "Per-host p95 of execution_queueing_delay_s: delay between a transaction becoming ready and actually starting execution (sampled). Grows when execution workers are saturated. One curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 35 }, "id": 52,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(execution_queueing_delay_s_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
       ]
     }
   ]
