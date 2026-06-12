@@ -18,7 +18,8 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusDeterminedVersionAssignments, ExecutionError,
-    ExecutionStatus, Identifier, ObjectData, Owner, StructTag, TypeTag, VersionAssignment,
+    ExecutionStatus, Identifier, ObjectData, Owner, ProgrammableTransaction, StructTag, TypeTag,
+    VersionAssignment,
 };
 use iota_types::{
     base_types::{

@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_core::test_utils::send_and_confirm_transaction;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{
+    Identifier, ObjectId, ProgrammableTransaction, StructTag, TransactionKind, TypeTag,
+};
 use iota_types::{
     base_types::IotaAddress,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ProgrammableTransaction, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, prelude::*};

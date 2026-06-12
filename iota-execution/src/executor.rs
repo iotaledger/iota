@@ -5,7 +5,7 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::TransactionKind;
+use iota_sdk_types::{ProgrammableTransaction, TransactionKind};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
@@ -23,7 +23,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction},
+    transaction::{CheckedInputObjects, GasData},
 };
 use move_trace_format::format::MoveTraceBuilder;
 

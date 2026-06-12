@@ -18,7 +18,7 @@ use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Command, Identifier, ObjectId,
+    Command, Identifier, ObjectId, ProgrammableTransaction,
     move_package::{MovePackage, TypeOrigin},
 };
 use iota_stardust_types::block::output::{
@@ -41,10 +41,7 @@ use iota_types::{
         coin_type::CoinType,
         output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
     },
-    transaction::{
-        CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
-        ProgrammableTransaction,
-    },
+    transaction::{CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult},
 };
 use move_vm_runtime_latest::move_vm::MoveVM;
 
