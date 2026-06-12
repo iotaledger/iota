@@ -463,6 +463,38 @@ mod checked {
             Ok(arg)
         }
 
+        /// Registers `bytes` as an additional pure input value and returns the
+        /// [`Argument`] referring to it. This lets the adapter feed
+        /// synthesized arguments (values not present in the original
+        /// transaction inputs) into [`Self::splat_args`] and, in turn, into a
+        /// Move call. Pair a run of these calls with [`Self::num_inputs`] /
+        /// [`Self::truncate_inputs`] to drop the synthesized inputs afterwards.
+        pub(crate) fn add_pure_input(
+            &mut self,
+            bytes: Vec<u8>,
+        ) -> Result<Argument, ExecutionError> {
+            let Ok(index) = u16::try_from(self.inputs.len()) else {
+                invariant_violation!("too many inputs to register an additional pure input");
+            };
+            self.inputs
+                .push(InputValue::new_raw(RawValueType::Any, bytes));
+            Ok(Argument::Input(index))
+        }
+
+        /// The current number of registered inputs. Capture this before a run
+        /// of [`Self::add_pure_input`] calls and pass it to
+        /// [`Self::truncate_inputs`] afterwards to drop the synthesized inputs.
+        pub(crate) fn num_inputs(&self) -> usize {
+            self.inputs.len()
+        }
+
+        /// Drops every input registered at or past `len`, removing the pure
+        /// inputs added via [`Self::add_pure_input`] once they are no longer
+        /// needed. `len` must come from an earlier [`Self::num_inputs`] call.
+        pub(crate) fn truncate_inputs(&mut self, len: usize) {
+            self.inputs.truncate(len);
+        }
+
         /// Get the argument value. Cloning the value if it is copyable, and
         /// setting its value to None if it is not (making it
         /// unavailable). Errors if out of bounds, if the argument is

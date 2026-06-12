@@ -1480,28 +1480,13 @@ ModuleMetadatakey
 ViewFunctionMetadataV1FieldName
 	public struct
 	0x2::module_metadata
-new
-	public(package) fun
-	0x2::module_metadata
-add_view_function_metadata_v1
-	public fun
-	0x2::module_metadata
 borrow_view_functions_metadata_v1
 	public fun
 	0x2::module_metadata
-borrow_view_function_metadata_v1
-	public fun
-	0x2::module_metadata
-add
+is_view_function_v1
 	public fun
 	0x2::module_metadata
 borrow
-	public fun
-	0x2::module_metadata
-borrow_mut
-	public fun
-	0x2::module_metadata
-remove
 	public fun
 	0x2::module_metadata
 contains
@@ -1516,8 +1501,20 @@ length
 is_empty
 	public fun
 	0x2::module_metadata
-destroy_empty
-	public fun
+new
+	public(package) fun
+	0x2::module_metadata
+add_view_function_metadata_v1
+	public(package) fun
+	0x2::module_metadata
+add
+	public(package) fun
+	0x2::module_metadata
+borrow_mut
+	public(package) fun
+	0x2::module_metadata
+remove
+	public(package) fun
 	0x2::module_metadata
 PackageMetadataKey
 	public struct
@@ -1528,7 +1525,7 @@ PackageMetadataVersionFieldName
 ModuleMetadataV1FieldName
 	public struct
 	0x2::package_metadata
-ModuleMetadataFieldName
+ModulesMetadataFieldName
 	public struct
 	0x2::package_metadata
 ModuleName
@@ -1543,21 +1540,6 @@ ModuleMetadataV1
 AuthenticatorMetadataV1
 	public struct
 	0x2::package_metadata
-create_package_metadata_v1_with_dynamic_metadata
-	public(package) fun
-	0x2::package_metadata
-create_modules_metadata_v1
-	public(package) fun
-	0x2::package_metadata
-create_modules_metadata
-	public(package) fun
-	0x2::package_metadata
-create_module_metadata_v1
-	public(package) fun
-	0x2::package_metadata
-create_authenticator_metadata_v1
-	public(package) fun
-	0x2::package_metadata
 storage_id
 	public fun
 	0x2::package_metadata
@@ -1567,31 +1549,40 @@ runtime_id
 package_version
 	public fun
 	0x2::package_metadata
-try_get_modules_metadata_v1
+module_metadata
 	public fun
 	0x2::package_metadata
-modules_metadata_v1
-	public fun
-	0x2::package_metadata
-modules_metadata
-	public fun
-	0x2::package_metadata
-view_function_metadata_v1
+module_authenticator_function_metadata_v1
 	public fun
 	0x2::package_metadata
 authenticator_function_metadata_v1
 	public fun
 	0x2::package_metadata
-try_get_authenticator_metadata_v1
-	public fun
-	0x2::package_metadata
-authenticator_metadata_v1
+try_get_authenticator_function_metadata_v1
 	public fun
 	0x2::package_metadata
 account_type
 	public fun
 	0x2::package_metadata
 function_name
+	public fun
+	0x2::package_metadata
+create_package_metadata_v1_with_dynamic_metadata
+	fun
+	0x2::package_metadata
+create_modules_metadata
+	fun
+	0x2::package_metadata
+try_get_modules_metadata_v1
+	public fun
+	0x2::package_metadata
+modules_metadata_v1
+	public fun
+	0x2::package_metadata
+try_get_authenticator_metadata_v1
+	public fun
+	0x2::package_metadata
+authenticator_metadata_v1
 	public fun
 	0x2::package_metadata
 AuthenticatorFunctionRefV1

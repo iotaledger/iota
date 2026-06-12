@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -12,7 +12,7 @@ use iota::test_utils::{Self, assert_eq, assert_ref_eq};
 use std::ascii;
 use std::type_name;
 
-#[test]
+#[test, allow(deprecated_usage)]
 fun package_metadata_v1_happy_path() {
     let id = object::id_from_address(@0xA);
     let module_name = ascii::string(b"module");
@@ -50,12 +50,12 @@ fun package_metadata_dynamic_view_functions_happy_path() {
         vector[vector[view_function_name]],
     );
 
-    let module_metadata = package_metadata.modules_metadata(&module_name);
+    let module_metadata = package_metadata.module_metadata(&module_name);
     assert_eq(module_metadata.borrow_view_functions_metadata_v1().length(), 1);
-    let view_function_metadata = module_metadata.borrow_view_function_metadata_v1(
+    let is_view_function_metadata = module_metadata.is_view_function_v1(
         &view_function_name,
     );
-    assert_ref_eq(view_function_metadata, &view_function_name);
+    assert_eq(is_view_function_metadata, true);
 
     test_utils::destroy(package_metadata);
 }
@@ -81,10 +81,10 @@ fun package_metadata_dynamic_multi_module() {
         vector[vector[view_a], vector[view_b]],
     );
 
-    let md_a = package_metadata.modules_metadata(&module_a);
-    assert_ref_eq(md_a.borrow_view_function_metadata_v1(&view_a), &view_a);
-    let md_b = package_metadata.modules_metadata(&module_b);
-    assert_ref_eq(md_b.borrow_view_function_metadata_v1(&view_b), &view_b);
+    let md_a = package_metadata.module_metadata(&module_a);
+    assert_eq(md_a.is_view_function_v1(&view_a), true);
+    let md_b = package_metadata.module_metadata(&module_b);
+    assert_eq(md_b.is_view_function_v1(&view_b), true);
 
     test_utils::destroy(package_metadata);
 }

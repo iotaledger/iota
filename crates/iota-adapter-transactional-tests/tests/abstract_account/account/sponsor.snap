@@ -17,11 +17,11 @@ task 2, lines 10-16:
 //# publish --sender A --dependencies simple_abstract_account
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4), object(3,5)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 19030400, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 19038000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 18:
 //# init-abstract-account --sender A --package-metadata object(3,5) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
-events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [101, 249, 121, 171, 53, 204, 8, 182, 9, 106, 178, 74, 253, 225, 192, 107, 249, 144, 200, 96, 187, 77, 111, 217, 162, 21, 122, 194, 94, 254, 115, 235, 84, 68, 14, 208, 67, 101, 113, 89, 203, 61, 49, 48, 19, 65, 107, 184, 162, 72, 58, 252, 136, 15, 27, 175, 192, 187, 125, 19, 252, 32, 102, 92, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
+events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [184, 86, 31, 6, 137, 148, 219, 193, 87, 231, 75, 195, 202, 80, 66, 249, 111, 53, 95, 82, 192, 154, 62, 13, 187, 223, 46, 72, 32, 65, 86, 194, 84, 68, 14, 208, 67, 101, 113, 89, 203, 61, 49, 48, 19, 65, 107, 184, 162, 72, 58, 252, 136, 15, 27, 175, 192, 187, 125, 19, 252, 32, 102, 92, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6847600, storage_rebate: 980400, non_refundable_storage_fee: 0

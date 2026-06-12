@@ -36,10 +36,12 @@ mod checked {
     };
     use move_core_types::{ident_str, identifier::IdentStr, language_storage::ModuleId};
     use move_trace_format::format::MoveTraceBuilder;
-    use move_vm_runtime::session::SerializedReturnValues;
     use serde::Serialize;
 
-    use crate::programmable_transactions::context::*;
+    use crate::{
+        execution_mode::System,
+        programmable_transactions::{context::*, execution::execute_move_call},
+    };
 
     const CREATE_PACKAGE_METADATA_V1_WITH_DYNAMIC_METADATA_FN_NAME: &IdentStr =
         ident_str!("create_package_metadata_v1_with_dynamic_metadata");
@@ -155,10 +157,8 @@ mod checked {
             let (modules, auth_functions, type_names, view_function_names) =
                 package_metadata_constructor_args(modules_metadata);
             // The Move constructor derives both the package metadata object address
-            // and the per-module metadata object addresses from the package storage
-            // ID, so we pass the storage ID as the package ID.
+            // and the per-module metadata object addresses from the storage ID.
             let args = vec![
-                to_bcs_argument(&ID::new(storage_id), "package metadata package ID")?,
                 to_bcs_argument(&ID::new(storage_id), "package metadata storage ID")?,
                 to_bcs_argument(&ID::new(runtime_id), "package metadata runtime ID")?,
                 to_bcs_argument(&package_version, "package metadata version")?,
@@ -319,38 +319,45 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let saved_linkage = context.linkage_view.steal_linkage();
+        let restore_inputs_len = context.num_inputs();
         let result = (|| {
             let original_address = context.set_link_context(IOTA_FRAMEWORK_PACKAGE_ID)?;
             let runtime_id =
                 ModuleId::new(original_address, PACKAGE_METADATA_MODULE_NAME.to_owned());
-            context
-                .execute_function_bypass_visibility(
-                    &runtime_id,
-                    function,
-                    vec![],
-                    args,
-                    trace_builder_opt,
-                )
-                .map_err(|e| context.convert_vm_error(e))
-        })();
-        context.linkage_view.reset_linkage();
-        let res = result.and_then(|result| {
-            let SerializedReturnValues {
-                mutable_reference_outputs,
-                return_values,
-            } = result;
+            // Register the serialized arguments as pure inputs so they can be
+            // passed to `execute_move_call`. `System` mode bypasses the
+            // constructor's visibility and permits these raw, non-primitive BCS
+            // values to be used as call arguments.
+            let mut arguments = Vec::with_capacity(args.len());
+            for bytes in args {
+                arguments.push(context.add_pure_input(bytes)?);
+            }
+            let arguments = context.splat_args(0, arguments)?;
+            let return_values = execute_move_call::<System>(
+                context,
+                &mut (),
+                // The package metadata module is a system package, so its storage
+                // and runtime IDs match.
+                &runtime_id,
+                &runtime_id,
+                function,
+                vec![],
+                arguments,
+                // is_init
+                false,
+                trace_builder_opt,
+            )?;
             assert_invariant!(
                 return_values.is_empty(),
                 "package metadata constructor should not have return values"
             );
-            assert_invariant!(
-                mutable_reference_outputs.is_empty(),
-                "package metadata constructor should not have mutable reference outputs"
-            );
             Ok(())
-        });
+        })();
+        // Drop the pure inputs synthesized for the call above.
+        context.truncate_inputs(restore_inputs_len);
+        context.linkage_view.reset_linkage();
         context.linkage_view.restore_linkage(saved_linkage)?;
-        res
+        result
     }
 
     fn to_bcs_argument<T: Serialize>(

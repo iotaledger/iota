@@ -1,9 +1,9 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module iota::authenticator_function;
 
-use iota::package_metadata::PackageMetadataV1;
+use iota::package_metadata::{authenticator_function_metadata_v1, PackageMetadataV1};
 use std::ascii;
 use std::type_name;
 
@@ -37,11 +37,13 @@ public fun create_auth_function_ref_v1<Account: key>(
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorFunctionRefV1<Account> {
-    let authenticator_metadata = package_metadata
-        .modules_metadata_v1(
-            &module_name,
-        )
-        .authenticator_metadata_v1(&function_name);
+    let module_metadata = package_metadata.module_metadata(
+        &module_name,
+    );
+    let authenticator_metadata = authenticator_function_metadata_v1(
+        module_metadata,
+        &function_name,
+    );
 
     assert!(
         type_name::get<Account>() == authenticator_metadata.account_type(),

@@ -10,7 +10,7 @@ task 1, lines 8-31:
 //# publish --sender A
 created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 20482000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 20489600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 33:
 //# init-abstract-account --sender A --package-metadata object(1,5) --inputs "authenticate" "authenticate" --create-function test::authenticate::create --account-type test::authenticate::AbstractAccount
@@ -32,4 +32,4 @@ Contents: test::authenticate::AbstractAccount {
 
 task 4, lines 37-39:
 //# abstract --account immshared(2,1) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: AuthenticatorFunctionRef 0xeea2c914e97df2bfe93e1aa3785ee0df138cec2fe51a9c197737e955678adeaf not found for account object(2,1) with version 3
+Error: Error checking transaction input objects: AuthenticatorFunctionRef 0x2275f8211c8162da8ff013c2053d619728f44ffc16d87016904f5dbbce0a818b not found for account object(2,1) with version 3

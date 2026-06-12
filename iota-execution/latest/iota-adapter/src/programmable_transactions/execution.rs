@@ -393,7 +393,7 @@ mod checked {
     }
 
     /// Execute a single Move call
-    fn execute_move_call<Mode: ExecutionMode>(
+    pub(crate) fn execute_move_call<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
         storage_id: &ModuleId,
