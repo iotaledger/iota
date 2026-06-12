@@ -25,6 +25,7 @@ diesel_migrations = "2.2.0"
 downcast.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
+indicatif.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 moka.workspace = true
@@ -32,6 +33,7 @@ object_store.workspace = true
 rand = { workspace = true, optional = true }
 reqwest.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 serde_with.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
@@ -49,6 +51,7 @@ url.workspace = true
 # internal dependencies
 bin-version.workspace = true
 iota-config.workspace = true
+iota-core.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-grpc-client.workspace = true
 iota-grpc-server.workspace = true
@@ -64,6 +67,7 @@ iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
+iota-snapshot.workspace = true
 iota-storage.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
@@ -80,7 +84,6 @@ shared_test_runtime = ["dep:rand"]
 # external dependencies
 hex.workspace = true
 rand.workspace = true
-serde_json.workspace = true
 
 # internal dependencies
 iota-common.workspace = true

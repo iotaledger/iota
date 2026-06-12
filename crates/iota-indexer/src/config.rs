@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
+use std::{collections::HashMap, net::SocketAddr, num::NonZeroUsize, path::PathBuf};
 
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
+use iota_protocol_config::Chain;
 use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -296,6 +297,24 @@ pub enum Command {
         runner_kind: BackfillKind,
         #[command(flatten)]
         backfill_config: BackfillConfig,
+    },
+    /// Bootstrap the Indexer database from a formal snapshot.
+    Restore {
+        /// Network to download the snapshot for.
+        #[arg(long)]
+        network: Chain,
+        /// Local directory used to stage the downloaded MANIFEST and `.ref`
+        /// files.
+        #[arg(long)]
+        staging_path: PathBuf,
+        /// Epoch to download. Defaults to the latest available epoch.
+        #[arg(long)]
+        epoch: Option<u64>,
+        /// Number of parallel downloads. Defaults to the available parallelism.
+        ///
+        /// Must be strictly positive.
+        #[arg(long)]
+        num_parallel_downloads: Option<NonZeroUsize>,
     },
 }
 

@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::NonZeroUsize;
+
 use clap::{CommandFactory, FromArgMatches};
 use iota_indexer::{
     backfill::runner::BackfillRunner,
@@ -13,10 +15,11 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
+    restore::start,
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
+use tracing::{info, warn};
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
@@ -134,6 +137,27 @@ async fn main() -> Result<(), IndexerError> {
         } => {
             let total_range = start..=end;
             BackfillRunner::run(runner_kind, connection_pool, backfill_config, total_range).await?;
+        }
+        Command::Restore {
+            network,
+            epoch,
+            staging_path,
+            num_parallel_downloads,
+        } => {
+            let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
+                std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN)
+            });
+            // Restore bootstraps from a clean slate; an interrupted run is
+            // self-healing because the next run resets the database first.
+            {
+                let mut pool_conn = get_pool_connection(&connection_pool)?;
+                reset_database(&mut pool_conn)?;
+            }
+            let restore = start(network, epoch, &staging_path, num_parallel_downloads);
+            match cancel.run_until_cancelled(restore).await {
+                Some(result) => result?,
+                None => info!("shutdown signal received, aborting formal snapshot restore"),
+            }
         }
     }
 

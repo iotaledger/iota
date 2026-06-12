@@ -40,6 +40,7 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
+use iota_sdk_types::Address;
 use iota_types::{
     base_types::{ObjectRef, SequenceNumber},
     crypto::{IotaKeyPair, Signature},
