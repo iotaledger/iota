@@ -62,7 +62,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(crate) struct Object {
     pub address: IotaAddress,
-    pub kind: ActiveObject,
+    pub inner: ActiveObject,
     /// The checkpoint sequence number at which this was viewed at.
     pub checkpoint_viewed_at: u64,
     /// Root parent object version for dynamic fields.
@@ -614,7 +614,7 @@ impl ObjectImpl<'_> {
     }
 
     pub(crate) async fn status(&self) -> ObjectStatus {
-        ObjectStatus::from(&self.0.kind)
+        ObjectStatus::from(&self.0.inner)
     }
 
     pub(crate) async fn digest(&self) -> Option<String> {
@@ -700,12 +700,12 @@ impl ObjectImpl<'_> {
     }
 
     pub(crate) async fn bcs(&self) -> Result<Option<Base64>> {
-        let kind = &self.0.kind;
-        Ok(match &kind.bcs {
+        let inner = &self.0.inner;
+        Ok(match &inner.bcs {
             Some(serialized) => Some(Base64::from(serialized)),
 
             None => {
-                let bytes = bcs::to_bytes(&kind.native)
+                let bytes = bcs::to_bytes(&inner.native)
                     .map_err(|e| {
                         Error::Internal(format!(
                             "Failed to serialize object at {}: {e}",
@@ -768,7 +768,7 @@ impl Object {
         let root_version = root_version.unwrap_or_else(|| version_for_dynamic_fields(&native));
         Object {
             address,
-            kind: ActiveObject {
+            inner: ActiveObject {
                 native,
                 status: ObjectStatus::NotIndexed,
                 bcs: None,
@@ -779,7 +779,7 @@ impl Object {
     }
 
     pub(crate) fn native_impl(&self) -> &NativeObject {
-        &self.kind.native
+        &self.inner.native
     }
 
     pub(crate) fn version_impl(&self) -> u64 {
@@ -872,8 +872,8 @@ impl Object {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            let kind = ActiveObject::try_from(stored_history)?;
-            let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
+            let active_object = ActiveObject::try_from(stored_history)?;
+            let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
             conn.edges.push(Edge::new(cursor, downcast(object)?));
         }
 
@@ -978,7 +978,8 @@ impl Object {
         Ok(connection.edges.into_iter().next().map(|edge| edge.node))
     }
 
-    /// Builds an `Object` from its `kind`, viewed at `checkpoint_viewed_at`.
+    /// Builds an `Object` from an active object, viewed at
+    /// `checkpoint_viewed_at`.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
     /// which this `Object` was constructed in. This is stored on `Object`
@@ -991,16 +992,17 @@ impl Object {
     /// `root_version` has been explicitly set for this object. If None, then
     /// we use [`version_for_dynamic_fields`] to infer a root version to then
     /// propagate from this object down to its dynamic fields.
-    pub(crate) fn from_object_kind(
-        kind: ActiveObject,
+    pub(crate) fn from_active_object(
+        active_object: ActiveObject,
         checkpoint_viewed_at: u64,
         root_version: Option<u64>,
     ) -> Self {
-        let address = IotaAddress::from(kind.native.id());
-        let root_version = root_version.unwrap_or_else(|| version_for_dynamic_fields(&kind.native));
+        let address = IotaAddress::from(active_object.native.id());
+        let root_version =
+            root_version.unwrap_or_else(|| version_for_dynamic_fields(&active_object.native));
         Self {
             address,
-            kind,
+            inner: active_object,
             checkpoint_viewed_at,
             root_version,
         }
@@ -1010,19 +1012,23 @@ impl Object {
         stored_object: StoredObject,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
-        let kind = ActiveObject {
+        let active_object = ActiveObject {
             native: NativeObject::try_from(&stored_object)?,
             status: ObjectStatus::Indexed,
             bcs: Some(stored_object.serialized_object),
         };
-        Ok(Self::from_object_kind(kind, checkpoint_viewed_at, None))
+        Ok(Self::from_active_object(
+            active_object,
+            checkpoint_viewed_at,
+            None,
+        ))
     }
 }
 
 impl TryFrom<StoredHistoryObject> for ActiveObject {
     type Error = Error;
 
-    /// Builds an `ObjectKind` from an active stored history row by
+    /// Builds a value from an active stored history row by
     /// deserializing its native object.
     ///
     /// # Errors
@@ -1474,10 +1480,10 @@ impl Loader<HistoricalKey> for Db {
                 continue;
             }
 
-            let kind = ActiveObject::try_from(stored.clone())?;
+            let active_object = ActiveObject::try_from(stored.clone())?;
             // This conversion will use the object's own version as the
             // `Object::root_version`.
-            let object = Object::from_object_kind(kind, key.checkpoint_viewed_at, None);
+            let object = Object::from_active_object(active_object, key.checkpoint_viewed_at, None);
             result.insert(*key, object);
         }
 
@@ -1676,11 +1682,11 @@ impl Loader<ParentVersionKey> for Db {
                     continue;
                 }
 
-                let kind = ActiveObject::try_from(stored)?;
+                let active_object = ActiveObject::try_from(stored)?;
                 // If `LatestAtKey::parent_version` is set, it must have been correctly
                 // propagated from the `Object::root_version` of some object.
-                let object = Object::from_object_kind(
-                    kind,
+                let object = Object::from_active_object(
+                    active_object,
                     group_key.checkpoint_viewed_at,
                     Some(group_key.parent_version),
                 );
@@ -1767,8 +1773,8 @@ impl Loader<LatestAtKey> for Db {
             for (checkpoint_viewed_at, stored) in
                 group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
             {
-                let kind = ActiveObject::try_from(stored)?;
-                let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
+                let active_object = ActiveObject::try_from(stored)?;
+                let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
 
                 let key = LatestAtKey {
                     id: object.address,
@@ -1784,8 +1790,8 @@ impl Loader<LatestAtKey> for Db {
 }
 
 impl From<&ActiveObject> for ObjectStatus {
-    fn from(kind: &ActiveObject) -> Self {
-        kind.status
+    fn from(active_object: &ActiveObject) -> Self {
+        active_object.status
     }
 }
 

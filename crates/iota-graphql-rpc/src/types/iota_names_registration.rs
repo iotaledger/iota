@@ -560,8 +560,8 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            let kind = ActiveObject::try_from(result)?;
-            let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
+            let active_object = ActiveObject::try_from(result)?;
+            let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
                     "Expected {0} to be a NameRecord, but it's not a Move Object.",

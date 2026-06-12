@@ -825,8 +825,8 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let kind = ActiveObject::try_from(stored.object)?;
-            let package = MovePackage::from_object_kind(kind, checkpoint_viewed_at)?;
+            let active_object = ActiveObject::try_from(stored.object)?;
+            let package = MovePackage::from_active_object(active_object, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
 
@@ -879,8 +879,8 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let kind = ActiveObject::try_from(stored.object)?;
-            let package = MovePackage::from_object_kind(kind, checkpoint_viewed_at)?;
+            let active_object = ActiveObject::try_from(stored.object)?;
+            let package = MovePackage::from_active_object(active_object, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
 
@@ -891,12 +891,12 @@ impl MovePackage {
     /// `MovePackage` came from. This is stored in the `MovePackage` so that
     /// related fields from the package are read from the same checkpoint
     /// (consistently).
-    pub(crate) fn from_object_kind(
-        kind: ActiveObject,
+    pub(crate) fn from_active_object(
+        active_object: ActiveObject,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
         // root_version
-        let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
+        let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
         Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))
     }
 }
