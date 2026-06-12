@@ -15,6 +15,11 @@
 //! `allowed_leaders[round % allowed_leaders.len()]`. Multi-leader rounds are
 //! explicitly out of scope.
 
+#![cfg_attr(
+    not(test),
+    expect(dead_code, reason = "not yet wired into the leader schedule")
+)]
+
 use std::{collections::VecDeque, sync::Arc};
 
 use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
