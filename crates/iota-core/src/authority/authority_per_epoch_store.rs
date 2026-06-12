@@ -2869,7 +2869,7 @@ impl AuthorityPerEpochStore {
             .expect("push_consensus_output should not fail");
     }
 
-    fn finish_consensus_transaction_process<'a>(
+    fn process_user_signatures<'a>(
         &self,
         transactions: impl Iterator<Item = &'a VerifiedExecutableTransaction>,
     ) {
@@ -3447,7 +3447,7 @@ impl AuthorityPerEpochStore {
         {
             self.scoreboard.update_scores(&self.report_aggregator);
         }
-        self.finish_consensus_transaction_process(
+        self.process_user_signatures(
             verified_non_randomness_transactions
                 .iter()
                 .chain(verified_randomness_transactions.iter()),
