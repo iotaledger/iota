@@ -22,7 +22,7 @@ use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    CommitIndex, Round, Transaction, VerifiedBlockHeader,
+    CommitIndex, Round, VerifiedBlockHeader,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
         ShardWithProofAPI, ShardWithProofV1, SignedBlockHeader, TransactionsCommitment,
@@ -55,22 +55,6 @@ use crate::{
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
 const MAX_FILTER_SIZE: u32 = 100000;
-// BCS encodes sequence lengths as ULEB128 values. Ten bytes covers any usize
-// length on supported 64-bit targets.
-const MAX_BCS_LENGTH_PREFIX_BYTES: usize = 10;
-
-fn serialized_transactions_size_limit(context: &Context) -> usize {
-    let max_bytes = context.protocol_config.max_transactions_in_block_bytes() as usize;
-    let max_count = context.protocol_config.max_num_transactions_in_block() as usize;
-    // A zero protocol limit disables the corresponding check in the block
-    // verifier; without both bounds no finite serialized size is implied.
-    if max_bytes == 0 || max_count == 0 {
-        return usize::MAX;
-    }
-    max_bytes
-        .saturating_add(max_count.saturating_mul(MAX_BCS_LENGTH_PREFIX_BYTES))
-        .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
-}
 
 struct FilterForHeaders {
     header_digests: DashSet<BlockHeaderDigest>,
@@ -230,18 +214,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             return Err(e);
         }
 
-        let max_serialized_transactions_size = serialized_transactions_size_limit(&self.context);
-        if serialized_transactions.len() > max_serialized_transactions_size {
-            let e = ConsensusError::SerializedTransactionsTooLarge {
-                size: serialized_transactions.len(),
-                limit: max_serialized_transactions_size,
-            };
-            self.record_invalid_transactions(peer, peer_hostname, &e);
-            return Err(e);
-        }
-
-        let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)
+        let transactions = self
+            .block_verifier
+            .check_and_parse_transactions(&serialized_transactions)
             .inspect_err(|e| self.record_invalid_transactions(peer, peer_hostname, e))?;
         let (transaction_commitment, our_shard, proof_for_shard) =
             TransactionsCommitment::compute_merkle_root_shard_and_proof(
@@ -1772,7 +1747,6 @@ mod tests {
         CommitConsumer, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
-            serialized_transactions_size_limit,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
@@ -2067,24 +2041,22 @@ mod tests {
             serialized_block: bundle_parts.serialized_block,
         })
         .unwrap();
-        let serialized_limit = serialized_transactions_size_limit(&context);
-        block_parts.serialized_transactions = Bytes::from(vec![0; serialized_limit + 1]);
+        block_parts.serialized_transactions = Bytes::from(vec![0xFF; 8]);
         bundle_parts.serialized_block = SerializedBlock::try_from(block_parts)
             .unwrap()
             .serialized_block;
-        let oversized_bundle = SerializedBlockBundle::try_from(bundle_parts).unwrap();
+        let malformed_bundle = SerializedBlockBundle::try_from(bundle_parts).unwrap();
 
         let result = authority_service
             .handle_subscribed_block_bundle(
                 context.committee.to_authority_index(0).unwrap(),
-                oversized_bundle,
+                malformed_bundle,
                 &mut encoder,
             )
             .await;
         assert!(matches!(
             result,
-            Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
-                if size == limit + 1
+            Err(ConsensusError::MalformedTransactions(_))
         ));
 
         let counts = misbehavior_store.snapshot_totals();
