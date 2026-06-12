@@ -1474,7 +1474,7 @@ derive_address
 ModuleMetadata
 	public struct
 	0x2::module_metadata
-ModuleMetadatakey
+ModuleMetadataKey
 	public struct
 	0x2::module_metadata
 ViewFunctionMetadataV1FieldName
@@ -1551,6 +1551,9 @@ package_version
 	0x2::package_metadata
 module_metadata
 	public fun
+	0x2::package_metadata
+modules_metadata_field
+	fun
 	0x2::package_metadata
 module_authenticator_function_metadata_v1
 	public fun

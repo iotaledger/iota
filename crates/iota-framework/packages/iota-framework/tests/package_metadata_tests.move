@@ -60,6 +60,38 @@ fun package_metadata_dynamic_view_functions_happy_path() {
     test_utils::destroy(package_metadata);
 }
 
+#[test, allow(deprecated_usage)]
+// Regression test: `try_get_modules_metadata_v1` must return `none` (not
+// abort) for a module without metadata, in both the inline and the
+// dynamic-field layouts.
+fun try_get_modules_metadata_v1_missing_module_returns_none() {
+    let module_name = ascii::string(b"module");
+    let missing_module_name = ascii::string(b"missing_module");
+    let auth_function_name = ascii::string(b"auth_function");
+    let account_type = type_name::get<u64>();
+
+    let inline_metadata = create_package_metadata_v1_for_testing(
+        object::id_from_address(@0xA),
+        vector[module_name],
+        vector[vector[auth_function_name]],
+        vector[vector[account_type]],
+    );
+    assert!(inline_metadata.try_get_modules_metadata_v1(&missing_module_name).is_none());
+    assert!(inline_metadata.try_get_modules_metadata_v1(&module_name).is_some());
+    test_utils::destroy(inline_metadata);
+
+    let dynamic_metadata = create_package_metadata_v1_with_dynamic_metadata_for_testing(
+        object::id_from_address(@0xB),
+        vector[module_name],
+        vector[vector[auth_function_name]],
+        vector[vector[account_type]],
+        vector[vector<ascii::String>[]],
+    );
+    assert!(dynamic_metadata.try_get_modules_metadata_v1(&missing_module_name).is_none());
+    assert!(dynamic_metadata.try_get_modules_metadata_v1(&module_name).is_some());
+    test_utils::destroy(dynamic_metadata);
+}
+
 #[test]
 // Regression test: a package with more than one metadata-bearing module must
 // produce a distinct `ModuleMetadata` per module (no derived-address collision).

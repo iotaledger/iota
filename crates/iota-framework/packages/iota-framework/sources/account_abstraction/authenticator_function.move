@@ -3,7 +3,7 @@
 
 module iota::authenticator_function;
 
-use iota::package_metadata::{authenticator_function_metadata_v1, PackageMetadataV1};
+use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
 use std::type_name;
 
@@ -37,11 +37,10 @@ public fun create_auth_function_ref_v1<Account: key>(
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorFunctionRefV1<Account> {
-    let module_metadata = package_metadata.module_metadata(
+    // Resolve through the version-aware accessor so refs can be created from
+    // both the legacy inline metadata layout and the dynamic-field layout.
+    let authenticator_metadata = package_metadata.module_authenticator_function_metadata_v1(
         &module_name,
-    );
-    let authenticator_metadata = authenticator_function_metadata_v1(
-        module_metadata,
         &function_name,
     );
 

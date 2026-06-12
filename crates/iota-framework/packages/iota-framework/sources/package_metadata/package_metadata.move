@@ -36,9 +36,10 @@ public struct ModulesMetadataFieldName has copy, drop, store {}
 
 public struct ModuleName(ascii::String) has copy, drop, store;
 
-/// This is now deprecated in favor of iota::module_metadata::ModuleMetadata.
-/// It represented the first version of the metadata associated with a module in the
-/// package and included only the authenticator functions information.
+/// Represents the metadata of a Move package. This includes information
+/// such as the storage ID, runtime ID, version. The modules_metadata field
+/// is deprecated in favor of a dynamic field attached to this object that
+/// maps module names to iota::module_metadata::ModuleMetadata instances.
 public struct PackageMetadataV1 has key {
     id: UID,
     /// Storage ID of the package represented by this metadata
@@ -54,10 +55,9 @@ public struct PackageMetadataV1 has key {
     modules_metadata: VecMap<ascii::String, ModuleMetadataV1>,
 }
 
-/// Represents the metadata of a Move package. This includes information
-/// such as the storage ID, runtime ID, version. The modules_metadata field
-/// is deprecated in favor of a dynamic field attached to this object that
-/// stores a iota::module_metadata::ModuleMetadata instance.
+/// This is now deprecated in favor of iota::module_metadata::ModuleMetadata.
+/// It represented the first version of the metadata associated with a module in the
+/// package and included only the authenticator functions information.
 public struct ModuleMetadataV1 has copy, drop, store {
     authenticator_metadata: vector<AuthenticatorMetadataV1>,
 }
@@ -88,15 +88,19 @@ public fun package_version(metadata: &PackageMetadataV1): u64 {
 }
 
 public fun module_metadata(self: &PackageMetadataV1, module_name: &ascii::String): &ModuleMetadata {
-    let modules_metadata = dynamic_field::borrow<ModulesMetadataFieldName, VecMap<_, _>>(
-        &self.id,
-        ModulesMetadataFieldName {},
-    );
+    let modules_metadata = self.modules_metadata_field();
     let name = ModuleName(*module_name);
     assert!(modules_metadata.contains(&name), EModuleMetadataNotFound);
     let idx = modules_metadata.get_idx(&name);
     let (_, metadata) = modules_metadata.get_entry_by_idx(idx);
     metadata
+}
+
+/// Borrow the map of per-module metadata stored as a dynamic field.
+/// Aborts if the metadata object uses the legacy inline layout (no such
+/// dynamic field).
+fun modules_metadata_field(self: &PackageMetadataV1): &VecMap<ModuleName, ModuleMetadata> {
+    dynamic_field::borrow(&self.id, ModulesMetadataFieldName {})
 }
 
 #[allow(deprecated_usage)]
@@ -243,7 +247,13 @@ public fun try_get_modules_metadata_v1(
             PackageMetadataVersionFieldName {},
         );
         assert!(package_metadata_version == 2, EWrongPackageVersion);
-        let module_metadata = self.module_metadata(module_name);
+        let modules_metadata = self.modules_metadata_field();
+        let name = ModuleName(*module_name);
+        if (!modules_metadata.contains(&name)) {
+            return option::none()
+        };
+        let idx = modules_metadata.get_idx(&name);
+        let (_, module_metadata) = modules_metadata.get_entry_by_idx(idx);
         if (module_metadata.contains(ModuleMetadataV1FieldName {})) {
             option::some(*module_metadata.borrow(ModuleMetadataV1FieldName {}))
         } else {

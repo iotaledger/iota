@@ -14,7 +14,7 @@ public struct ModuleMetadata has key, store {
     size: u64,
 }
 
-public struct ModuleMetadatakey(ascii::String) has copy, drop, store;
+public struct ModuleMetadataKey(ascii::String) has copy, drop, store;
 
 public struct ViewFunctionMetadataV1FieldName has copy, drop, store {}
 
@@ -80,7 +80,7 @@ public fun is_empty(module_metadata: &ModuleMetadata): bool {
 public(package) fun new(package_storage_id: ID, module_name: ascii::String): ModuleMetadata {
     let id_address = derived_object::derive_address(
         package_storage_id,
-        ModuleMetadatakey(module_name),
+        ModuleMetadataKey(module_name),
     );
     let id = object::new_uid_from_hash(id_address);
     ModuleMetadata {
