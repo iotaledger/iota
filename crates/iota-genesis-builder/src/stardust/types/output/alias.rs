@@ -5,14 +5,14 @@
 //! during migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ObjectData, ObjectId, Owner};
 use iota_stardust_types::block::output::AliasOutput as StardustAlias;
 use iota_types::{
     balance::Balance,
     base_types::{SequenceNumber, TxContext},
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, Object},
+    object::{MoveObject, MoveObjectExt, Object},
     stardust::{
         coin_type::CoinType,
         output::alias::{Alias, AliasOutput},
@@ -100,7 +100,7 @@ impl AliasExt for Alias {
         };
 
         let move_alias_object = Object::new_from_genesis(
-            Data::Struct(move_alias_object),
+            ObjectData::Struct(move_alias_object),
             // We will later overwrite the owner we set here since this object will be added
             // as a dynamic field on the alias output object.
             owner,
@@ -164,7 +164,7 @@ impl AliasOutputExt for AliasOutput {
         };
 
         let move_alias_output_object = Object::new_from_genesis(
-            Data::Struct(move_alias_output_object),
+            ObjectData::Struct(move_alias_output_object),
             owner,
             tx_context.digest(),
         );

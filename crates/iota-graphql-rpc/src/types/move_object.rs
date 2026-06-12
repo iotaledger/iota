@@ -4,7 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_types::object::{Data, MoveObject as NativeMoveObject};
+use iota_sdk_types::ObjectData;
+use iota_types::object::MoveObject as NativeMoveObject;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -503,7 +504,7 @@ impl TryFrom<&Object> for MoveObject {
             return Err(MoveObjectDowncastError::WrappedOrDeleted);
         };
 
-        if let Data::Struct(move_object) = &native.data {
+        if let ObjectData::Struct(move_object) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_object.clone(),

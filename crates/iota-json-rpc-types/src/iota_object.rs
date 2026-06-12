@@ -14,7 +14,7 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, Owner, StructTag,
+    Identifier, ObjectData, ObjectId, Owner, StructTag,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
@@ -25,7 +25,7 @@ use iota_types::{
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
-    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead},
+    object::{MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead},
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
@@ -288,13 +288,13 @@ impl IotaObjectData {
 
         let bcs: Option<IotaRawData> = if *show_bcs {
             let data = match obj.data.clone() {
-                Data::Struct(m) => {
+                ObjectData::Struct(m) => {
                     let layout = layout.clone().ok_or_else(|| {
                         anyhow!("Layout is required to convert Move object to json")
                     })?;
                     IotaRawData::try_from_object(m, layout)?
                 }
-                Data::Package(p) => IotaRawData::try_from_package(p)
+                ObjectData::Package(p) => IotaRawData::try_from_package(p)
                     .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
             };
             Some(data)
@@ -306,13 +306,13 @@ impl IotaObjectData {
 
         let content: Option<IotaParsedData> = if *show_content {
             let data = match obj.data {
-                Data::Struct(m) => {
+                ObjectData::Struct(m) => {
                     let layout = layout.ok_or_else(|| {
                         anyhow!("Layout is required to convert Move object to json")
                     })?;
                     IotaParsedData::try_from_object(m, layout)?
                 }
-                Data::Package(p) => IotaParsedData::try_from_package(p)?,
+                ObjectData::Package(p) => IotaParsedData::try_from_package(p)?,
             };
             Some(data)
         } else {
@@ -605,7 +605,7 @@ impl TryInto<Object> for IotaObjectData {
     fn try_into(self) -> Result<Object, Self::Error> {
         let protocol_config = ProtocolConfig::get_for_min_version();
         let data = match self.bcs {
-            Some(IotaRawData::MoveObject(o)) => Data::Struct({
+            Some(IotaRawData::MoveObject(o)) => ObjectData::Struct({
                 MoveObject::new_from_execution(
                     o.type_().clone(),
                     o.version,
@@ -613,7 +613,7 @@ impl TryInto<Object> for IotaObjectData {
                     &protocol_config,
                 )?
             }),
-            Some(IotaRawData::Package(p)) => Data::Package(MovePackage::new(
+            Some(IotaRawData::Package(p)) => ObjectData::Package(MovePackage::new(
                 p.id,
                 self.version,
                 p.module_map
@@ -866,13 +866,13 @@ impl IotaParsedData {
             ObjectRead::NotExists(id) => Err(anyhow::anyhow!("Object {id} does not exist")),
             ObjectRead::Exists(_object_ref, o, layout) => {
                 let data = match o.into_inner().data {
-                    Data::Struct(m) => {
+                    ObjectData::Struct(m) => {
                         let layout = layout.ok_or_else(|| {
                             anyhow!("Layout is required to convert Move object to json")
                         })?;
                         IotaParsedData::try_from_object(m, layout)?
                     }
-                    Data::Package(p) => IotaParsedData::try_from_package(p)?,
+                    ObjectData::Package(p) => IotaParsedData::try_from_package(p)?,
                 };
                 Ok(data)
             }

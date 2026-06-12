@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_genesis_common::prepare_and_execute_genesis_transaction;
+use iota_sdk_types::ObjectData;
 use iota_types::{
     balance::Balance,
     digests::TransactionDigest,
@@ -17,7 +18,7 @@ use iota_types::{
     gas_coin::GasCoin,
     message_envelope::Message,
     messages_checkpoint::{CheckpointContents, CheckpointSummary},
-    object::{Data, Object},
+    object::Object,
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::{TimeLock, is_timelocked_gas_balance},
     transaction::Transaction,
@@ -165,7 +166,7 @@ impl MigrationTxData {
         let total_supply: u64 = self
             .get_objects()
             .map(|object| match &object.data {
-                Data::Struct(_) => GasCoin::try_from(&object)
+                ObjectData::Struct(_) => GasCoin::try_from(&object)
                     .map(|gas| gas.value())
                     .or_else(|_| {
                         TimeLock::<Balance>::try_from(&object).map(|t| {
@@ -179,7 +180,7 @@ impl MigrationTxData {
                     .or_else(|_| BasicOutput::try_from(&object).map(|b| b.balance.value()))
                     .or_else(|_| NftOutput::try_from(&object).map(|n| n.balance.value()))
                     .unwrap_or(0),
-                Data::Package(_) => 0,
+                ObjectData::Package(_) => 0,
             })
             .sum();
 
