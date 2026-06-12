@@ -28,7 +28,7 @@ use crate::{
         iota_address::IotaAddress,
         move_object::MoveObject,
         move_value::MoveValue,
-        object::{self, Object, ObjectKind, StoredBackwardObject},
+        object::{self, ActiveObject, Object, StoredBackwardObject},
         type_filter::ExactTypeFilter,
     },
 };
@@ -240,12 +240,9 @@ impl DynamicField {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-
-            let object = Object::try_from_stored_history_object(
-                stored_history,
-                checkpoint_viewed_at,
-                parent_version,
-            )?;
+            let active_object = ActiveObject::try_from(stored_history)?;
+            let object =
+                Object::from_active_object(active_object, checkpoint_viewed_at, parent_version);
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
@@ -272,15 +269,7 @@ impl TryFrom<MoveObject> for DynamicField {
     fn try_from(stored: MoveObject) -> Result<Self, Error> {
         let super_ = &stored.super_;
 
-        let native = match &super_.kind {
-            ObjectKind::NotIndexed(native) | ObjectKind::Indexed(native, _) => native,
-
-            ObjectKind::WrappedOrDeleted(_) => {
-                return Err(Error::Internal(
-                    "DynamicField is wrapped or deleted.".to_string(),
-                ));
-            }
-        };
+        let native = super_.native_impl();
 
         let Some(object) = native.data.as_struct_opt() else {
             return Err(Error::Internal("DynamicField is not an object".to_string()));

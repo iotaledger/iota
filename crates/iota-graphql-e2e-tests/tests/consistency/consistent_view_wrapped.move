@@ -1,12 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Test consistent view returns WRAPPED_OR_DELETED for objects that were wrapped
+// Test consistent view returns null for objects that were wrapped
 // at the viewed checkpoint but later unwrapped.
 // cp 1: Foo created
 // cp 2: Foo wrapped into Wrapper
 // cp 3: Wrapper destroyed (Foo unwrapped back to active)
-// Query Foo at cp 2 via objectIds + cursor: should be WRAPPED_OR_DELETED
+// Query Foo at cp 2 via objectIds + cursor: should be null
 
 //# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator
 

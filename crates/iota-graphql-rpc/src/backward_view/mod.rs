@@ -45,40 +45,31 @@ impl TryFrom<ObjectFilter> for HistoricalFilter {
 }
 
 impl HistoricalFilter {
-    /// Whether the filter additionally constrains `type_` or `owner`.
-    pub(crate) fn has_type_or_owner(&self) -> bool {
-        self.0.type_.is_some() || self.0.owner.is_some()
-    }
-
     pub(crate) fn apply(&self, query: RawQuery) -> RawQuery {
         self.0.apply(query)
     }
 }
 
-/// Status value for objects that did not exist yet. These entries are excluded
-/// from backward diff results.
-pub(super) const NOT_YET_CREATED: i16 = BackwardHistoryObjectStatus::NotYetCreated as i16;
+/// Active status in `checkpointed_objects` (`ObjectStatus`). Backward-view
+/// sources keep only these rows; wrapped or deleted tombstones and
+/// `NotYetCreated` markers are excluded.
+pub(super) const CHECKPOINTED_ACTIVE: i16 = NativeObjectStatus::Active as i16;
+
+/// Active status in `objects_backward_history` (`BackwardHistoryObjectStatus`).
+/// Counterpart of [`CHECKPOINTED_ACTIVE`] for the backward-history table.
+pub(super) const HISTORY_ACTIVE: i16 = BackwardHistoryObjectStatus::Active as i16;
 
 /// Watermark entity name for `objects_backward_history`. Must match the
 /// `CommitterTables::ObjectsBackwardHistory` strum serialization in
 /// `iota-indexer`.
 pub(crate) const BACKWARD_HISTORY_WATERMARK_ENTITY: &str = "objects_backward_history";
 
-/// Column list for `checkpointed_objects` rows, tagged with
-/// `from_backward_history = FALSE`.
-pub(super) const CHECKPOINTED_COLUMNS: &str = "\
+/// Column list selected from `checkpointed_objects` and
+/// `objects_backwards_history` for backward-view queries.
+pub(super) const OBJECT_COLUMNS: &str = "\
     object_id, object_version, object_status, \
     object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, \
-    object_type_name, serialized_object, coin_type, coin_balance, df_kind, \
-    FALSE AS from_backward_history";
-
-/// Column list for `objects_backward_history` rows, tagged with
-/// `from_backward_history = TRUE`.
-pub(super) const HISTORY_COLUMNS: &str = "\
-    object_id, object_version, object_status, \
-    object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, \
-    object_type_name, serialized_object, coin_type, coin_balance, df_kind, \
-    TRUE AS from_backward_history";
+    object_type_name, serialized_object, coin_type, coin_balance, df_kind";
 
 /// Merges any non-empty set of sources with `UNION ALL` and picks the most
 /// recent version per `object_id` using `DISTINCT ON`.
