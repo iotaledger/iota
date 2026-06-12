@@ -1164,7 +1164,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     lowest_missing_round,
                     self.context
                         .parameters
-                        .max_headers_per_regular_sync_fetch
+                        .max_headers_per_header_sync_fetch
                         .saturating_sub(headers.len()),
                 );
                 let serialized_missing_headers: Vec<_> = missing_headers
@@ -1172,8 +1172,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .map(|header| header.serialized().clone())
                     .collect();
                 headers.extend(serialized_missing_headers);
-                if headers.len() >= self.context.parameters.max_headers_per_regular_sync_fetch {
-                    headers.truncate(self.context.parameters.max_headers_per_regular_sync_fetch);
+                if headers.len() >= self.context.parameters.max_headers_per_header_sync_fetch {
+                    headers.truncate(self.context.parameters.max_headers_per_header_sync_fetch);
                     break;
                 }
             }
@@ -1440,7 +1440,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         .max_transactions_per_commit_sync_fetch,
                     self.context
                         .parameters
-                        .max_transactions_per_regular_sync_fetch,
+                        .max_transactions_per_transaction_sync_fetch,
                 );
 
                 if committed_transactions_refs.len() > max_transactions {
@@ -3357,7 +3357,7 @@ mod tests {
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Context {
             parameters: Parameters {
-                max_headers_per_regular_sync_fetch: 20,
+                max_headers_per_header_sync_fetch: 20,
                 ..context.parameters
             },
             ..context
@@ -3486,9 +3486,9 @@ mod tests {
         // Verify that we received requested block headers
         assert_eq!(
             truncated_headers.len(),
-            context.parameters.max_headers_per_regular_sync_fetch,
+            context.parameters.max_headers_per_header_sync_fetch,
             "Should receive {} block headers",
-            context.parameters.max_headers_per_regular_sync_fetch
+            context.parameters.max_headers_per_header_sync_fetch
         );
 
         // Check the correctness of the received blocks
@@ -3502,7 +3502,7 @@ mod tests {
         }
 
         // check that missing headers from previous rounds would be added
-        block_refs_to_request.truncate(context.parameters.max_headers_per_regular_sync_fetch / 2);
+        block_refs_to_request.truncate(context.parameters.max_headers_per_header_sync_fetch / 2);
 
         let serialized_block_headers = authority_service
             .handle_fetch_headers(peer, block_refs_to_request.clone(), vec![1; validators])
@@ -3753,7 +3753,7 @@ mod tests {
             .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Context {
             parameters: Parameters {
-                max_transactions_per_regular_sync_fetch: 20,
+                max_transactions_per_transaction_sync_fetch: 20,
                 max_transactions_per_commit_sync_fetch: 10,
                 enable_fast_commit_syncer: consensus_fast_commit_sync,
                 ..context.parameters
@@ -3894,8 +3894,11 @@ mod tests {
             .await
             .expect("We should expect a correct return of serialized transactions");
 
-        block_refs_to_request_first_batch
-            .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
+        block_refs_to_request_first_batch.truncate(
+            context
+                .parameters
+                .max_transactions_per_transaction_sync_fetch,
+        );
         // Verify that we received the correct number of requested transactions
         assert_eq!(
             serialized_transactions.len(),
@@ -3957,8 +3960,11 @@ mod tests {
             }
         }
 
-        block_refs_to_request_second_batch
-            .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
+        block_refs_to_request_second_batch.truncate(
+            context
+                .parameters
+                .max_transactions_per_transaction_sync_fetch,
+        );
 
         let serialized_transactions = authority_service
             .handle_fetch_transactions(
