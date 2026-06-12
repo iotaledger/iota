@@ -26,7 +26,8 @@ use iota_types::{
     storage::{
         AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, EpochInfoV2, OwnedObjectCursor,
         OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey,
-        TransactionInfo, error::Error as StorageError,
+        TransactionInfo,
+        error::{Error as StorageError, Kind as StorageErrorKind},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -955,9 +956,14 @@ impl IndexStoreTables {
                 else {
                     return Ok(None);
                 };
-                // Errors are "transaction/effects/objects already pruned" on
-                // a healthy store.
-                Ok(assemble_sparse_checkpoint_data(authority_store, summary, contents).ok())
+                match assemble_sparse_checkpoint_data(authority_store, summary, contents) {
+                    Ok(data) => Ok(Some(data)),
+                    // Pruned-away transactions/effects/objects are the
+                    // expected end of what can be rebuilt locally; anything
+                    // else is a real storage failure and must propagate.
+                    Err(e) if e.kind() == StorageErrorKind::Missing => Ok(None),
+                    Err(e) => Err(e),
+                }
             })()?;
             let Some(checkpoint_data) = checkpoint_data else {
                 warn!(
@@ -1809,14 +1815,14 @@ fn assemble_sparse_checkpoint_data(
         .multi_get_transaction_blocks(&transaction_digests)?
         .into_iter()
         .map(|maybe_transaction| {
-            maybe_transaction.ok_or_else(|| StorageError::custom("missing transaction"))
+            maybe_transaction.ok_or_else(|| StorageError::missing("missing transaction"))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     let effects = authority_store
         .multi_get_executed_effects(&transaction_digests)?
         .into_iter()
-        .map(|maybe_effects| maybe_effects.ok_or_else(|| StorageError::custom("missing effects")))
+        .map(|maybe_effects| maybe_effects.ok_or_else(|| StorageError::missing("missing effects")))
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut full_transactions = Vec::with_capacity(transactions.len());
