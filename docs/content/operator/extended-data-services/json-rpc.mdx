@@ -28,7 +28,8 @@ Paginated reads are not consistent across pages: the underlying tables can be up
 
 - An indexer Postgres database. The database must already be migrated to at least the schema version compiled into the `iota-indexer` binary; otherwise the service refuses to start. A database with additional applied migrations beyond what the binary knows is tolerated, so a newer writer can be paired with an older JSON-RPC reader during rolling deployments as long as migrations are run first. For the `iota_executeTransactionBlock` method to work properly the indexer writer should be running and synced with the tip of the network. See [IOTA Indexer](./iota-indexer) for details on running the indexer writer.
 - A fullnode gRPC endpoint. Required at start-up — the server fails to start if `--rpc-client-url` is not set, even when no client issues an execute or dry-run request.
-- An optional REST KV store for historic fallback. When configured, it lets the JSON-RPC reader serve point lookups for data already pruned by the indexer writer. Currently experimental. See [Historic fallback](#historic-fallback) below and [Pruning](./iota-indexer#pruning) for the indexer-side retention model.
+- An optional REST KV store for historic fallback. When configured, it lets the JSON-RPC reader serve point lookups for data already pruned by the indexer writer. Currently experimental. See [Pruned data](#pruned-data) below and [Pruning](./iota-indexer#pruning) for the indexer-side retention model.
+- An optional analytical worker. A subset of `iotax_*` methods is served from tables populated by a separate `analytical-worker` process. When it isn't running, those methods return empty or zeroed results. See [Analytics](#analytics) below.
 
 ## Hardware requirements
 
@@ -70,15 +71,17 @@ The Prometheus endpoint exposes histograms and counters covering request rate, l
 
 `--metrics-address` sets the address the Prometheus metrics endpoint binds to (default `0.0.0.0:9184`).
 
-### Historic fallback
+### Pruned data
 
 :::warning Experimental
 
-The historic fallback depends on the `iota-rest-kv` API which is still being finalised. Treat the flags below as experimental — they may change or be replaced.
+The historic fallback depends on the API from the `iota-rest-kv` crate which is still being finalised. Treat the flags below as experimental — they may change or be replaced.
 
 :::
 
-The historic fallback lets the JSON-RPC reader answer requests for data that the indexer writer has already pruned, by querying a separate REST KV store. When `--fallback-kv-url` is unset (the default), no fallback is performed and pruned data is unreachable via JSON-RPC.
+Data already [pruned](./iota-indexer#pruning) by the indexer writer can be served by the JSON-RPC reader using a historic fallback feature.
+To use it, the operator runs a separate self-hosted REST KV store and points the JSON-RPC service at it via `--fallback-kv-url`.
+When `--fallback-kv-url` is unset (the default), no fallback is performed and pruned data is unreachable via JSON-RPC.
 
 The following methods consult the fallback when the indexer database has no matching data:
 
@@ -90,6 +93,26 @@ The following methods consult the fallback when the indexer database has no matc
 - `iotax_queryEvents` with filter `Transaction`
 
 The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache.
+
+### Analytics
+
+A subset of `iotax_*` methods reads analytical metrics that the indexer writer does not populate.
+They are populated by a separate analytical worker process, started from the `iota-indexer` binary:
+
+```sh
+iota-indexer \
+  --db-url postgres://<user>:<password>@<host>:5432/<db> \
+  analytical-worker
+```
+
+The analytical worker runs on the same Postgres database as the indexer writer, so it increases load on the database.
+Operators should run it only when the methods below are needed.
+
+When the analytical worker is not running, these methods return empty or zeroed results:
+
+- `iotax_getMoveCallMetrics`
+- `iotax_getLatestAddressMetrics`, `iotax_getCheckpointAddressMetrics`, `iotax_getAllEpochAddressMetrics`
+- `current_tps` and `tps_30_days` in `iotax_getNetworkMetrics`
 
 ### IOTA Names resolution
 
