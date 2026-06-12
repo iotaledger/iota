@@ -1,8 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_crypto::{ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey};
-use iota_sdk_types::Address;
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    simple::SimpleKeypair,
+};
+use iota_sdk_types::{
+    Address, Ed25519PublicKey, Secp256k1PublicKey, Secp256r1PublicKey, SignatureScheme,
+    crypto::{MultisigCommittee, MultisigMember},
+};
 use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{account_abstraction::public_key::MovePublicKey, crypto::PublicKey};
@@ -224,6 +230,72 @@ fn address_error_on_wrong_length_bytes() {
         err.contains("Invalid public key bytes"),
         "unexpected error: {err}"
     );
+}
+
+// === Cross-language pin tests (Move ↔ Rust address parity) ===
+
+// Key material shared with the Move test vectors in public_key_tests.move.
+const ED25519_PK_HEX: &str = "cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+const SECP256K1_PK_HEX: &str = "02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+const SECP256R1_PK_HEX: &str = "0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+
+#[test]
+fn address_multisig_ed25519_only_matches_move_vector() {
+    // 1-of-1 Ed25519 MultiSig. Ed25519 members have no scheme-flag prefix in
+    // the hash input — the IOTA legacy rule mirrored by update_hasher_with_flag.
+    let ed25519_pk =
+        Ed25519PublicKey::new(hex::decode(ED25519_PK_HEX).unwrap().try_into().unwrap());
+    let multisig_pk = MultisigCommittee::new(vec![MultisigMember::new(ed25519_pk, 1)], 1).unwrap();
+
+    let addr = Address::from(&multisig_pk);
+    let expected = Address::new(
+        hex::decode("1cc23b51b2e3c8641eea35b29114a53ad7a76643dcb2763d12290a7b83cac525")
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    );
+    assert_eq!(addr, expected);
+
+    let move_pk = MovePublicKey::new(
+        SignatureScheme::Multisig,
+        bcs::to_bytes(&multisig_pk).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(move_pk.address().unwrap(), expected);
+}
+
+#[test]
+fn address_multisig_secp256k1_secp256r1_matches_move_vector() {
+    // 1-of-2 Secp256k1 + Secp256r1 MultiSig: pins the scheme-flag prefix of both
+    // flagged member types (Secp256k1 = 0x01, Secp256r1 = 0x02).
+    let secp256k1_pk =
+        Secp256k1PublicKey::new(hex::decode(SECP256K1_PK_HEX).unwrap().try_into().unwrap());
+    let secp256r1_pk =
+        Secp256r1PublicKey::new(hex::decode(SECP256R1_PK_HEX).unwrap().try_into().unwrap());
+    let multisig_pk = MultisigCommittee::new(
+        vec![
+            MultisigMember::new(secp256k1_pk, 1),
+            MultisigMember::new(secp256r1_pk, 1),
+        ],
+        1,
+    )
+    .unwrap();
+
+    let addr = Address::from(&multisig_pk);
+    let expected = Address::new(
+        hex::decode("16cc5f64810dd2ca27d4bf4a884ffd3570800349238b403c072fd6ca6a9a4c97")
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    );
+    assert_eq!(addr, expected);
+
+    let move_pk = MovePublicKey::new(
+        SignatureScheme::Multisig,
+        bcs::to_bytes(&multisig_pk).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(move_pk.address().unwrap(), expected);
 }
 
 // === Helpers ===
