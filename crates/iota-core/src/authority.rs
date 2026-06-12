@@ -2818,9 +2818,16 @@ impl AuthorityState {
             return Ok(None);
         }
 
-        let layout = resolver
-            .get_annotated_layout(move_object.struct_tag())?
-            .into_layout();
+        let layout = match resolver.get_annotated_layout(move_object.struct_tag()) {
+            Ok(annotated_layout) => annotated_layout.into_layout(),
+            Err(e) => {
+                error!(
+                    "unable to load layout for type `{:?}`: {e}",
+                    move_object.struct_tag()
+                );
+                return Ok(None);
+            }
+        };
 
         let field =
             DFV::FieldVisitor::deserialize(move_object.contents(), &layout).map_err(|e| {
