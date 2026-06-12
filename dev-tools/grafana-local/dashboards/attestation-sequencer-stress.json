@@ -143,7 +143,7 @@
       "type": "timeseries", "title": "attestations / sec",
       "description": "Per-host rate(validator_attestations_total) = attestations completed per second on each validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 61 }, "id": 22,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 }, "id": 22,
       "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -156,7 +156,7 @@
       "type": "stat", "title": "attestation task panics (per validator)",
       "description": "validator_attestation_task_panics per validator (one stat tile per host). Any non-zero value (red) means an attestation dry-run task panicked on that validator - a robustness regression.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 61 }, "id": 23,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 }, "id": 23,
       "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
       "targets": [
@@ -169,7 +169,7 @@
       "type": "timeseries", "title": "host CPU (busy cores, whole machine)",
       "description": "Host-level CPU from node-exporter: sum(rate(node_cpu_seconds_total{mode!=idle})) = busy CPU-seconds per second (= busy cores). Whole machine, NOT per-validator (all validators share the host; per-validator needs cadvisor). Use to correlate attestation/execution load with machine CPU. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 61 }, "id": 56,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 119 }, "id": 56,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -570,6 +570,32 @@
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by (host) (rate(validator_service_num_rejected_tx_soft_lock_conflict{host=~\"$host\"}[$__rate_interval]))",
           "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "per-validator CPU (busy cores, cadvisor)",
+      "description": "Per-validator CPU from cadvisor: sum by (name) (rate(container_cpu_usage_seconds_total[interval])) = busy CPU-seconds per second (= busy cores) for each validator container. Container name equals the host label, so this follows the validator dropdown. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 119 }, "id": 65,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{name}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "per-validator memory RSS (cadvisor)",
+      "description": "Per-validator resident memory from cadvisor: container_memory_rss for each validator container. Container name equals the host label, so this follows the validator dropdown.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 119 }, "id": 66,
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (name) (container_memory_rss{name=~\"$host\"})",
+          "legendFormat": "{{name}}" }
       ]
     }
   ]

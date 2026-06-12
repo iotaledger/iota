@@ -219,3 +219,8 @@ scrape_configs:
         labels:
           host: node
           network: local
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          network: local
