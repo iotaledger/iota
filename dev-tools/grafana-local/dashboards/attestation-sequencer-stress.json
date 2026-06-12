@@ -143,7 +143,7 @@
       "type": "timeseries", "title": "attestations / sec",
       "description": "Per-host rate(validator_attestations_total) = attestations completed per second on each validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 }, "id": 22,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 61 }, "id": 22,
       "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -156,13 +156,26 @@
       "type": "stat", "title": "attestation task panics (per validator)",
       "description": "validator_attestation_task_panics per validator (one stat tile per host). Any non-zero value (red) means an attestation dry-run task panicked on that validator - a robustness regression.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 }, "id": 23,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 61 }, "id": 23,
       "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by (host) (validator_attestation_task_panics{host=~\"$host\"})",
           "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "host CPU (busy cores, whole machine)",
+      "description": "Host-level CPU from node-exporter: sum(rate(node_cpu_seconds_total{mode!=idle})) = busy CPU-seconds per second (= busy cores). Whole machine, NOT per-validator (all validators share the host; per-validator needs cadvisor). Use to correlate attestation/execution load with machine CPU. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 61 }, "id": 56,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(node_cpu_seconds_total{host=\"node\", mode!=\"idle\"}[$__rate_interval]))",
+          "legendFormat": "busy cores" }
       ]
     },
 
@@ -342,7 +355,7 @@
       "type": "timeseries", "title": "post-consensus validation latency — p50",
       "description": "Per-host p50 of post_consensus_validation_latency: time for validate_and_resolve_conflicts over one commit's user transactions (Checks #0-#3 plus owned-object conflict resolution). One curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 }, "id": 42,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 18 }, "id": 42,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -355,12 +368,25 @@
       "type": "timeseries", "title": "post-consensus validation latency — p95",
       "description": "Per-host p95 of post_consensus_validation_latency: time for validate_and_resolve_conflicts over one commit's user transactions (Checks #0-#3 plus owned-object conflict resolution). One curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 }, "id": 48,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 18 }, "id": 48,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "histogram_quantile(0.95, sum by (le, host) (rate(post_consensus_validation_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "internal execution latency p95",
+      "description": "Per-host p95 of authority_state_internal_execution_latency: the pure VM execution time of a certificate (the execution step alone, not the whole receipt->executed pipeline). One curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 18 }, "id": 55,
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(authority_state_internal_execution_latency_bucket{host=~\"$host\"}[$__rate_interval])))",
           "legendFormat": "{{host}}" }
       ]
     },
@@ -450,6 +476,99 @@
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "histogram_quantile(0.95, sum by (le, host) (rate(execution_queueing_delay_s_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+
+    { "type": "row", "title": "health", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 102 }, "id": 60, "collapsed": false },
+    {
+      "type": "stat", "title": "split-brain checkpoint forks",
+      "description": "split_brain_checkpoint_forks per validator: this validator built a checkpoint that forked from the committee (split-brain). MUST stay 0 - any red is a critical safety failure.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 103 }, "id": 57,
+      "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (split_brain_checkpoint_forks{host=~\"$host\"})",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "stat", "title": "remote checkpoint forks",
+      "description": "remote_checkpoint_forks per validator: a checkpoint received from the network forked from this validator's local one. MUST stay 0 - any red is a critical safety failure.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 103 }, "id": 58,
+      "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (remote_checkpoint_forks{host=~\"$host\"})",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "stat", "title": "inconsistent state hash",
+      "description": "global_state_hash_inconsistent_state per validator: the live state hash disagreed with the expected/checkpointed hash. MUST stay 0 - any red is state divergence / a fork.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 103 }, "id": 59,
+      "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (global_state_hash_inconsistent_state{host=~\"$host\"})",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "stat", "title": "double-spend attempts detected",
+      "description": "total_client_double_spend_attempts_detected per validator: equivocating (double-spend) client transactions detected. Nonzero is expected on adversarial workloads - the system must reject them (detection is correct behavior), not execute both.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 103 }, "id": 61,
+      "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (total_client_double_spend_attempts_detected{host=~\"$host\"})",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "execution backpressure active (0/1)",
+      "description": "Per-host execution_cache_backpressure_status: 1 = the node is applying execution backpressure (execution lagging behind committed work). Sustained 1 (especially under W6) means execution cannot keep up with admitted load. One curve per validator.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 111 }, "id": 62,
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (host) (execution_cache_backpressure_status{host=~\"$host\"})",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "backpressure toggles / sec",
+      "description": "Per-host rate(execution_cache_backpressure_toggles): how often execution backpressure engages/disengages per second. Frequent toggling means the node is repeatedly hitting the backpressure threshold. One curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 111 }, "id": 63,
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (rate(execution_cache_backpressure_toggles{host=~\"$host\"}[$__rate_interval]))",
+          "legendFormat": "{{host}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "soft-lock rejections / sec",
+      "description": "Per-host rate(validator_service_num_rejected_tx_soft_lock_conflict): transactions rejected pre-consensus because of an owned-object soft-lock conflict (a competing transaction already holds the lock). Expected under owned-object contention; a sustained climb signals heavy conflict. One curve per validator. Rate window: $__rate_interval (~1m).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 111 }, "id": 64,
+      "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (host) (rate(validator_service_num_rejected_tx_soft_lock_conflict{host=~\"$host\"}[$__rate_interval]))",
           "legendFormat": "{{host}}" }
       ]
     }
