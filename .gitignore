@@ -117,3 +117,6 @@ authenticator_gas_profile.speedscope.json
 
 # stress-test attestation and total execution cost mode
 dev-tools/iota-private-network/configs/genesis/benchmark.keystore
+
+# stress-test run artifacts (h1-attestation-overhead.sh etc.)
+stress-attestation-sequencer/results/
