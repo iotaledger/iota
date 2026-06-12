@@ -73,13 +73,6 @@ const operator = [
             'operator/extended-data-services/graphql',
         ],
     },
-    {
-        type: 'category',
-        label: 'Extensions',
-        items: [
-            'operator/extensions/indexer-functions',
-        ],
-    },
     'operator/data-management',
     // 'operator/security-releases',
     {
