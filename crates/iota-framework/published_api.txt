@@ -2305,6 +2305,15 @@ validate_multisig_public_key
 is_feature_enabled
 	public(package) fun
 	0x2::protocol_config
+PublicKeyAttached
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyDetached
+	public struct
+	0x2::builtin_authenticator_functions
+PublicKeyRotated
+	public struct
+	0x2::builtin_authenticator_functions
 PublicKeyFieldName
 	public struct
 	0x2::builtin_authenticator_functions
@@ -2329,10 +2338,10 @@ from_signature_scheme
 attach_public_key
 	public fun
 	0x2::builtin_authenticator_functions
-rotate_public_key
+detach_public_key
 	public fun
 	0x2::builtin_authenticator_functions
-detach_public_key
+rotate_public_key
 	public fun
 	0x2::builtin_authenticator_functions
 has_public_key
