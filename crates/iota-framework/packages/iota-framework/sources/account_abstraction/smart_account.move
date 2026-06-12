@@ -93,6 +93,8 @@ public fun builder_v1(
 /// The public key is stored as a dynamic field on the account so the authenticator
 /// can validate future transactions.
 ///
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+///
 /// Aborts if `public_key`'s signature scheme is not supported.
 public fun builtin_auth_builder_v1(
     public_key: PublicKey,
@@ -103,9 +105,7 @@ public fun builtin_auth_builder_v1(
 
     SmartAccountBuilder {
         account,
-        authenticator: builtin_authenticator_functions::from_signature_scheme<
-            SmartAccount,
-        >(public_key.scheme()),
+        authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
     }
 }
 
@@ -114,6 +114,8 @@ public fun builtin_auth_builder_v1(
 ///
 /// `registry` records the sender's address to prevent double-claiming and
 /// ensures the new account object's ID matches the sender's address.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
 ///
 /// Aborts if `public_key` does not correspond to the sender's address.
 /// Aborts if the address has already been claimed.
@@ -128,9 +130,7 @@ public fun claim_builder_v1(
 
     SmartAccountBuilder {
         account,
-        authenticator: builtin_authenticator_functions::from_signature_scheme<
-            SmartAccount,
-        >(public_key.scheme()),
+        authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
     }
 }
 
@@ -148,7 +148,7 @@ public fun with_field<Name: copy + drop + store, Value: store>(
 
 /// Finish building the account as a mutable shared object.
 ///
-/// Emits a `MutableAccountCreated` event on success.
+/// Emits an `account::MutableAccountCreated` event on success.
 public fun build_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
     let account_address = account.account_address();
@@ -162,7 +162,7 @@ public fun build_v1(self: SmartAccountBuilder): address {
 ///
 /// The authenticator and dynamic fields are frozen at this point and can never be changed.
 ///
-/// Emits an `ImmutableAccountCreated` event on success.
+/// Emits an `account::ImmutableAccountCreated` event on success.
 public fun build_immutable_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
     let account_address = account.account_address();
@@ -236,6 +236,8 @@ public fun add_field<Name: copy + drop + store, Value: store>(
 ///
 /// Use this when migrating away from a custom authenticator to a built-in one.
 ///
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if a public key is already attached.
 public fun attach_builtin_auth_public_key(
@@ -265,6 +267,8 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
 /// Detaches and returns the built-in authenticator public key attached to the account.
 ///
 /// Use this when migrating away from a built-in authenticator to a custom one.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyDetached` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if no public key is currently attached.
@@ -309,6 +313,8 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Replaces the existing built-in authenticator public key with `public_key`
 /// and returns the previous key.
 ///
+/// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
+///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if no public key is currently attached.
 public fun rotate_builtin_auth_public_key(
@@ -322,6 +328,8 @@ public fun rotate_builtin_auth_public_key(
 }
 
 /// Rotates the attached authenticator.
+///
+/// Emits an `account::AuthenticatorFunctionRefV1Rotated` event upon success.
 ///
 /// Aborts if the transaction sender is not the account.
 public fun rotate_auth_function_ref_v1(
