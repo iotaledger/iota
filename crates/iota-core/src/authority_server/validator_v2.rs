@@ -235,7 +235,7 @@ impl ValidatorService {
                     (result, verified_tx)
                 })
                 .await
-                .expect("attest_transaction blocking task panicked");
+                .expect("attest_transaction should return Err for invalid transactions instead of panicking");
                 match result {
                     Ok((data, objs)) => (Some(data), objs, verified_tx),
                     Err(e) => {
