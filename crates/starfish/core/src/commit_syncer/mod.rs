@@ -52,7 +52,7 @@ use crate::{
     block_header::{
         BlockHeaderAPI, SignedBlockHeader, TransactionsCommitment, VerifiedTransactions,
     },
-    block_verifier::BlockVerifier,
+    block_verifier::{BlockVerifier, serialized_transactions_size_limit},
     commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -380,6 +380,7 @@ pub(crate) fn verify_transactions_with_headers(
 ) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
     let mut verified_transactions_map = BTreeMap::new();
     let mut encoder = create_encoder(&context);
+    let size_limit = serialized_transactions_size_limit(&context);
     for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
         let block_ref = match committed_transactions_ref {
             GenericTransactionRef::BlockRef(br) => br,
@@ -391,6 +392,13 @@ pub(crate) fn verify_transactions_with_headers(
                 });
             }
         };
+        // Bound the peer-supplied payload before erasure-encoding it.
+        if inner_serialized_transactions.len() > size_limit {
+            return Err(ConsensusError::SerializedTransactionsTooLarge {
+                size: inner_serialized_transactions.len(),
+                limit: size_limit,
+            });
+        }
         // Step 1: Get the block header and verify that the transactions commitment
         // matches. This ensures the transactions we received are exactly
         // the ones that were included in the block when it was created.
@@ -442,6 +450,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
 ) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
     let mut verified_transactions_map = BTreeMap::new();
     let mut encoder = create_encoder(context);
+    let size_limit = serialized_transactions_size_limit(context);
     for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
         let transaction_ref = match committed_transactions_ref {
             GenericTransactionRef::TransactionRef(tx_ref) => tx_ref,
@@ -453,6 +462,13 @@ pub(crate) fn verify_transactions_with_transactions_refs(
                 });
             }
         };
+        // Bound the peer-supplied payload before erasure-encoding it.
+        if inner_serialized_transactions.len() > size_limit {
+            return Err(ConsensusError::SerializedTransactionsTooLarge {
+                size: inner_serialized_transactions.len(),
+                limit: size_limit,
+            });
+        }
         // Step 1: Verify that the transaction commitment matches.
         if transaction_ref.transactions_commitment
             != TransactionsCommitment::compute_transactions_commitment(
@@ -896,6 +912,31 @@ mod tests {
         assert_eq!(actual, expected_variant);
         assert_eq!(fast_commit_sync, fast_commit_sync_on);
         assert_eq!(starfish_speed, starfish_speed_on);
+    }
+
+    #[test]
+    fn verify_transactions_rejects_oversized_payload_before_encoding() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let size_limit = serialized_transactions_size_limit(&context);
+        let transaction_ref = TransactionRef {
+            round: 1,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::MIN,
+        };
+        let serialized_transactions = BTreeMap::from([(
+            GenericTransactionRef::TransactionRef(transaction_ref),
+            Bytes::from(vec![0u8; size_limit + 1]),
+        )]);
+
+        let result =
+            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
+                if size == size_limit + 1 && limit == size_limit
+        ));
     }
 
     #[test]
