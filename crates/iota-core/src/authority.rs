@@ -840,7 +840,6 @@ pub struct AuthorityState {
 /// Outputs of the shared transaction validation pipeline used by both
 /// `handle_transaction_validation_checks` and `attest_transaction`.
 struct ValidationOutputs<'a> {
-    tx_input_objects: InputObjects,
     per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
     move_authenticators: Vec<&'a MoveAuthenticator>,
     gas_status: IotaGasStatus,
@@ -905,9 +904,8 @@ impl AuthorityState {
             gas_status,
             tx_checked_input_objects,
             per_authenticator_checked_inputs,
-            tx_input_objects: _,
             per_authenticator_inputs: _,
-        } = self.run_validation_checks(transaction, epoch_store)?;
+        } = self.run_validation_checks(transaction, epoch_store, false)?;
 
         let per_authenticator_checked_input_objects: Vec<&_> = per_authenticator_checked_inputs
             .iter()
@@ -1006,17 +1004,15 @@ impl AuthorityState {
         use iota_types::attestation::AttestationData;
 
         let protocol_config = epoch_store.protocol_config();
-        let reference_gas_price = epoch_store.reference_gas_price();
         let tx_data = transaction.data().transaction_data();
 
         let ValidationOutputs {
-            tx_input_objects,
             per_authenticator_inputs,
             move_authenticators,
             gas_status,
             tx_checked_input_objects,
-            per_authenticator_checked_inputs: _,
-        } = self.run_validation_checks(transaction, epoch_store)?;
+            per_authenticator_checked_inputs,
+        } = self.run_validation_checks(transaction, epoch_store, true)?;
 
         let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
 
@@ -1049,44 +1045,36 @@ impl AuthorityState {
             );
             effects
         } else {
-            // get AuthenticatorFunctionRefForExecution for each authenticator, then run
-            // auth + execution in one pass with an execution-mode gas status.
+            // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
+            // run auth + execution in one pass.
             let tx_data_bytes =
                 bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
 
-            let per_authenticator_inputs_for_exec = move_authenticators
+            let funcs_for_exec = move_authenticators
                 .iter()
                 .zip(per_authenticator_inputs)
-                .map(|(ma, (auth_input_objects, account_object))| {
+                .map(|(ma, (_, account_object))| {
                     let (id, seq, digest) = ma.object_to_authenticate_components()?;
                     let signer_addr = ma.address()?;
-                    let func_ref_for_exec =
-                        self.check_move_account(id, seq, digest, account_object, &signer_addr)?;
-                    Ok((auth_input_objects, func_ref_for_exec))
+                    self.check_move_account(id, seq, digest, account_object, &signer_addr)
                 })
                 .collect::<IotaResult<Vec<_>>>()?;
 
-            let per_authenticator_input_objects_for_exec = per_authenticator_inputs_for_exec
-                .iter()
-                .map(|(objs, _)| objs.clone())
-                .collect();
-
-            let authenticator_gas_budget = protocol_config.max_auth_gas();
-            let (exec_gas_status, per_auth_checked, auth_and_tx_checked) =
-                iota_transaction_checks::check_transaction_and_move_authenticator_input(
-                    tx_data,
-                    tx_input_objects,
-                    per_authenticator_input_objects_for_exec,
-                    authenticator_gas_budget,
-                    protocol_config,
-                    reference_gas_price,
-                )?;
+            // Union the checked transaction + authenticator input objects for
+            // execution. Borrow the checked inputs here before they are consumed
+            // by `authenticators_for_exec` below.
+            let checked_for_union: Vec<&CheckedInputObjects> =
+                std::iter::once(&tx_checked_input_objects)
+                    .chain(per_authenticator_checked_inputs.iter().map(|(c, _)| c))
+                    .collect();
+            let auth_and_tx_checked =
+                iota_transaction_checks::aggregate_authenticator_input_objects(&checked_for_union)?;
 
             let authenticators_for_exec = move_authenticators
                 .into_iter()
-                .zip(per_authenticator_inputs_for_exec)
-                .zip(per_auth_checked)
-                .map(|((ma, (_, func_ref)), checked_inputs)| {
+                .zip(funcs_for_exec)
+                .zip(per_authenticator_checked_inputs)
+                .map(|((ma, func_ref), (checked_inputs, _))| {
                     (ma.to_owned(), func_ref, checked_inputs)
                 })
                 .collect::<Vec<_>>();
@@ -1102,7 +1090,7 @@ impl AuthorityState {
                     &epoch_id,
                     epoch_start_timestamp,
                     gas_data,
-                    exec_gas_status,
+                    gas_status,
                     authenticators_for_exec,
                     auth_and_tx_checked,
                     kind,
@@ -2116,6 +2104,7 @@ impl AuthorityState {
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
                     authenticator_gas_budget,
+                    false,
                 )?,
                 None,
             )
@@ -2311,6 +2300,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
                 authenticator_gas_budget,
+                false,
             )?
         } else {
             let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
@@ -2526,6 +2516,7 @@ impl AuthorityState {
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
                     authenticator_gas_budget,
+                    false,
                 )?
             }
         };
@@ -5659,6 +5650,7 @@ impl AuthorityState {
         &self,
         transaction: &'a VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<ValidationOutputs<'a>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
@@ -5685,18 +5677,22 @@ impl AuthorityState {
         // Step 3: get Move authenticators.
         let move_authenticators = transaction.move_authenticators();
 
-        // Step 4: check inputs for signing (validates gas budget covers auth + tx).
-        // Clone raw inputs so attest_transaction's MoveAuthenticator path can
-        // reuse them in execution-mode.
+        // Step 4: check inputs (validates gas budget covers auth + tx). When
+        // `is_execute_transaction_to_effects` is true (attest_transaction), the
+        // gas budget is metered for full execution; otherwise (signing) it only
+        // covers authentication. Clone the raw per-authenticator inputs so
+        // attest_transaction can recover the `AuthenticatorFunctionRefForExecution`
+        // for each authenticator.
         let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
             .check_transaction_inputs_for_validation(
                 protocol_config,
                 reference_gas_price,
                 tx_data,
-                tx_input_objects.clone(),
+                tx_input_objects,
                 &tx_receiving_objects,
                 &move_authenticators,
                 per_authenticator_inputs.clone(),
+                is_execute_transaction_to_effects,
             )?;
 
         // Step 5: coin deny list.
@@ -5713,7 +5709,6 @@ impl AuthorityState {
         )?;
 
         Ok(ValidationOutputs {
-            tx_input_objects,
             per_authenticator_inputs,
             move_authenticators,
             gas_status,
@@ -5760,6 +5755,7 @@ impl AuthorityState {
         tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &Vec<&MoveAuthenticator>,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<(
         IotaGasStatus,
         CheckedInputObjects,
@@ -5830,6 +5826,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
                 authenticator_gas_budget,
+                is_execute_transaction_to_effects,
             )?;
 
         Ok((

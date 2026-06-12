@@ -81,6 +81,7 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
         authentication_gas_budget: u64,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
@@ -89,7 +90,7 @@ mod checked {
             &input_objects,
             &[],
             authentication_gas_budget,
-            false,
+            is_execute_transaction_to_effects,
         )?;
         check_receiving_objects(&input_objects, receiving_objects)?;
         // Runs verifier, which could be expensive.
