@@ -558,7 +558,8 @@ fn ed25519_data(rng: &mut StdRng) -> PreloadedBuiltinAuthenticatorData {
 
 /// Constructs a minimal dummy `TransactionData` for `sender`.
 fn dummy_tx_data(sender: Address) -> TransactionData {
-    let gas_ref = ObjectReference::new(ObjectId::ZERO, SequenceNumber::default(), ObjectDigest::MIN);
+    let gas_ref =
+        ObjectReference::new(ObjectId::ZERO, SequenceNumber::default(), ObjectDigest::MIN);
     TransactionData::new_transfer_iota(
         Address::ZERO,
         sender,

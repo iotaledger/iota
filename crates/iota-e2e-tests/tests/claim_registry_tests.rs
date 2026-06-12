@@ -8,73 +8,90 @@ use iota_macros::sim_test;
 #[cfg(msim)]
 use iota_sdk_types::{ObjectId, Owner};
 #[cfg(msim)]
-use iota_types::iota_system_state::IotaSystemStateTrait;
-#[cfg(msim)]
 use test_cluster::TestClusterBuilder;
 
 // ---------------------------------------------------------------------------
-// Protocol-upgrade test (msim only)
+// Feature-flag test (msim only)
 // ---------------------------------------------------------------------------
 
-/// Verify that `ClaimRegistry` is created via `EndOfEpochTransaction` during
-/// the first epoch that runs protocol v26 (where `enable_claim_registry` first
-/// activates). The object is created at the end of that epoch, so it becomes
-/// visible at the start of the following epoch.
+/// Verify that `ClaimRegistry` creation is gated by the `enable_claim_registry`
+/// feature flag, driving the flag at runtime rather than through a protocol
+/// version upgrade.
 ///
-/// Timeline:
-///   epoch 0 (v25) → epoch 1 (v26, no registry yet) → epoch 2 (registry exists)
+/// While the flag is disabled the registry must not exist. Once enabled, the
+/// `ClaimRegistry` is created by the `EndOfEpochTransaction` of the first epoch
+/// that runs with the flag on, becoming visible at the start of the following
+/// epoch.
 #[cfg(msim)]
 #[sim_test]
-async fn test_claim_registry_created_on_protocol_upgrade() {
-    use iota_protocol_config::ProtocolVersion;
-    use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+async fn test_claim_registry_created_when_flag_enabled() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    use iota_protocol_config::ProtocolConfig;
 
     telemetry_subscribers::init_for_testing();
 
-    const PRE: u64 = 28;
-    const POST: u64 = 29;
+    // The override is re-applied whenever an epoch store is (re)created, so
+    // flipping this flag at runtime takes effect from the next epoch onwards.
+    let enable_claim_registry = Arc::new(AtomicBool::new(false));
+    let _guard = {
+        let enable_claim_registry = enable_claim_registry.clone();
+        ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_enable_claim_registry_for_testing(
+                enable_claim_registry.load(Ordering::SeqCst),
+            );
+            config
+        })
+    };
 
     let test_cluster = TestClusterBuilder::new()
-        .with_protocol_version(ProtocolVersion::new(PRE))
         .with_epoch_duration_ms(20000)
-        .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(PRE, POST))
         .build()
         .await;
 
+    // Disabled: the registry must not exist at genesis...
     assert!(
         test_cluster
             .get_object_from_fullnode_store(&ObjectId::CLAIM_REGISTRY)
             .await
             .is_none(),
-        "ClaimRegistry must NOT exist at genesis (protocol v{PRE})"
+        "ClaimRegistry must NOT exist at genesis while the flag is disabled"
     );
 
-    // Epoch 1: protocol upgrade to v26 has happened, but ClaimRegistry is
-    // created at the *end* of this epoch (first epoch running v26).
-    let system_state = test_cluster.wait_for_epoch(Some(1)).await;
-    assert_eq!(
-        system_state.protocol_version(),
-        POST,
-        "Expected protocol version {POST} after epoch 1"
-    );
+    // ...nor after a full epoch has run with the flag still disabled.
+    test_cluster.wait_for_epoch(Some(1)).await;
     assert!(
         test_cluster
             .get_object_from_fullnode_store(&ObjectId::CLAIM_REGISTRY)
             .await
             .is_none(),
-        "ClaimRegistry must NOT exist yet at the start of epoch 1"
+        "ClaimRegistry must NOT exist while the flag is disabled"
     );
 
-    // Epoch 2: ClaimRegistry was created at the end of epoch 1.
-    test_cluster.wait_for_epoch(Some(2)).await;
+    // Enable the flag. The next epoch store picks up the new config, and the
+    // registry is created by that epoch's end-of-epoch transaction, becoming
+    // visible at the start of the following epoch.
+    enable_claim_registry.store(true, Ordering::SeqCst);
 
-    let reg = test_cluster
-        .get_object_from_fullnode_store(&ObjectId::CLAIM_REGISTRY)
-        .await
-        .expect("ClaimRegistry must exist at the start of epoch 2");
+    let mut registry = None;
+    for target_epoch in 2..=5 {
+        test_cluster.wait_for_epoch(Some(target_epoch)).await;
+        if let Some(object) = test_cluster
+            .get_object_from_fullnode_store(&ObjectId::CLAIM_REGISTRY)
+            .await
+        {
+            registry = Some(object);
+            break;
+        }
+    }
+
+    let registry = registry.expect("ClaimRegistry must be created once the flag is enabled");
     assert!(
-        matches!(reg.owner(), Owner::Shared { .. }),
+        matches!(registry.owner(), Owner::Shared { .. }),
         "ClaimRegistry must be a shared object; got {:?}",
-        reg.owner()
+        registry.owner()
     );
 }

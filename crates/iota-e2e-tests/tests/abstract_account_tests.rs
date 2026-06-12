@@ -1761,7 +1761,11 @@ async fn test_builtin_multisig_authenticator() -> Result<(), anyhow::Error> {
     let multisig = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk)?;
     let wire_bytes = GenericSignature::MultiSig(multisig).to_bytes();
 
-    let object_arg = CallArg::Shared(SharedObjectRef::new(aa_ref.object_id, aa_ref.version, false));
+    let object_arg = CallArg::Shared(SharedObjectRef::new(
+        aa_ref.object_id,
+        aa_ref.version,
+        false,
+    ));
     let auth_sig = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
         vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
         vec![],
@@ -1887,7 +1891,11 @@ async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
     )?;
     let wire_bytes = GenericSignature::PasskeyAuthenticator(passkey_auth).to_bytes();
 
-    let object_arg = CallArg::Shared(SharedObjectRef::new(aa_ref.object_id, aa_ref.version, false));
+    let object_arg = CallArg::Shared(SharedObjectRef::new(
+        aa_ref.object_id,
+        aa_ref.version,
+        false,
+    ));
     let auth_sig = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
         vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
         vec![],
@@ -2124,7 +2132,11 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
     let multisig = MultiSig::new(vec![sig1.into()], multisig_pk)?;
     let wire_bytes = GenericSignature::MultiSig(multisig).to_bytes();
 
-    let object_arg = CallArg::Shared(SharedObjectRef::new(aa_ref.object_id, aa_ref.version, false));
+    let object_arg = CallArg::Shared(SharedObjectRef::new(
+        aa_ref.object_id,
+        aa_ref.version,
+        false,
+    ));
     let auth_sig = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
         vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
         vec![],
@@ -2289,7 +2301,11 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     )?;
     let wire_bytes = GenericSignature::PasskeyAuthenticator(passkey_auth).to_bytes();
 
-    let object_arg = CallArg::Shared(SharedObjectRef::new(aa_ref.object_id, aa_ref.version, false));
+    let object_arg = CallArg::Shared(SharedObjectRef::new(
+        aa_ref.object_id,
+        aa_ref.version,
+        false,
+    ));
     let auth_sig = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
         vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],
         vec![],
@@ -3526,7 +3542,11 @@ fn builtin_sig_for_keypair(
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let generic_sig = GenericSignature::Signature(IotaSignature::new_secure(&intent_msg, kp));
     let wire_bytes = generic_sig.to_bytes();
-    let object_arg = CallArg::Shared(SharedObjectRef::new(aa_ref.object_id, aa_ref.version, false));
+    let object_arg = CallArg::Shared(SharedObjectRef::new(
+        aa_ref.object_id,
+        aa_ref.version,
+        false,
+    ));
     Ok(GenericSignature::MoveAuthenticator(
         MoveAuthenticator::new_v1(
             vec![CallArg::Pure(bcs::to_bytes(&wire_bytes)?)],

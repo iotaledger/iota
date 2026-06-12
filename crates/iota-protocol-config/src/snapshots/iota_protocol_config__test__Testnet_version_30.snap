@@ -2,18 +2,14 @@
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
-version: 29
+version: 30
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
-  enable_poseidon: true
-  enable_group_ops_native_function_msm: true
   per_object_congestion_control_mode: TotalTxCount
   consensus_choice: Starfish
-  enable_vdf: true
   passkey_auth: true
   relocate_event_module: true
   protocol_defined_base_fee: true
-  uncompressed_g1_group_elements: true
   disallow_new_modules_in_deps_only_packages: true
   native_charging_v2: true
   convert_type_argument_error: true
@@ -24,7 +20,6 @@ feature_flags:
   consensus_round_prober_probe_accepted_rounds: true
   consensus_zstd_compression: true
   congestion_control_min_free_execution_slot: true
-  accept_passkey_in_multisig: true
   consensus_batched_block_sync: true
   congestion_control_gas_price_feedback_mechanism: true
   validate_identifier_inputs: true
@@ -45,8 +40,6 @@ feature_flags:
   enable_move_authentication_for_sponsor: true
   pass_validator_scores_to_advance_epoch: true
   calculate_validator_scores: true
-  adjust_rewards_by_score: true
-  pass_calculated_validator_scores_to_advance_epoch: true
   consensus_fast_commit_sync: true
   consensus_block_restrictions: true
   move_native_tx_context: true
@@ -87,7 +80,7 @@ max_move_object_size: 256000
 max_move_package_size: 102400
 max_publish_or_upgrade_per_ptb: 5
 max_tx_gas: 50000000000
-max_auth_gas: 250000
+max_auth_gas: 20000
 max_gas_price: 100000
 max_gas_computation_bucket: 5000000
 gas_rounding_step: 1000
@@ -246,7 +239,6 @@ hash_blake2b256_data_cost_per_block: 2
 hash_keccak256_cost_base: 10
 hash_keccak256_data_cost_per_byte: 2
 hash_keccak256_data_cost_per_block: 2
-poseidon_bn254_cost_base: 260
 poseidon_bn254_cost_per_block: 388
 group_ops_bls12381_decode_scalar_cost: 7
 group_ops_bls12381_decode_g1_cost: 2848
@@ -286,8 +278,6 @@ group_ops_bls12381_uncompressed_g1_sum_max_terms: 1200
 hmac_hmac_sha3_256_cost_base: 52
 hmac_hmac_sha3_256_input_cost_per_byte: 2
 hmac_hmac_sha3_256_input_cost_per_block: 2
-vdf_verify_vdf_cost: 1500
-vdf_hash_to_input_cost: 100
 bcs_per_byte_serialized_cost: 2
 bcs_legacy_min_output_size_cost: 1
 bcs_failure_cost: 52

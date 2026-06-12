@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 29;
+pub const MAX_PROTOCOL_VERSION: u64 = 30;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -166,9 +166,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable consensus block restrictions on all networks:
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
-//             Enable built-in Move authenticators in devnet.
+// Version 30: Enable built-in Move authenticators in devnet.
 //             Add ClaimRegistry singleton for claiming addresses from public
-// keys.
+//             keys.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -476,10 +476,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication_for_sponsor: bool,
 
-    // If true, enables the authentication with built-in Move authenticators.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_builtin_move_authenticators: bool,
-
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
     pass_validator_scores_to_advance_epoch: bool,
@@ -540,6 +536,10 @@ struct FeatureFlags {
     // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
+
+    // If true, enables the authentication with built-in Move authenticators.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_builtin_move_authenticators: bool,
 
     // If true, the ClaimRegistry singleton is created (or already exists).
     // Used to gate genesis creation and epoch-change creation for existing networks.
@@ -1444,10 +1444,6 @@ impl ProtocolConfig {
         self.feature_flags.consensus_transaction_ordering
     }
 
-    pub fn enable_claim_registry(&self) -> bool {
-        self.feature_flags.enable_claim_registry
-    }
-
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)
@@ -1725,22 +1721,6 @@ impl ProtocolConfig {
         enable_move_authentication_for_sponsor
     }
 
-    pub fn enable_builtin_move_authenticators(&self) -> bool {
-        let enable_builtin_move_authenticators =
-            self.feature_flags.enable_builtin_move_authenticators;
-        if enable_builtin_move_authenticators {
-            assert!(
-                self.enable_move_authentication(),
-                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
-            );
-            assert!(
-                self.builtin_move_authenticator_cost_base.is_some(),
-                "enable_builtin_move_authenticators requires builtin_move_authenticator_cost_base to be set"
-            );
-        }
-        enable_builtin_move_authenticators
-    }
-
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
         self.feature_flags.pass_validator_scores_to_advance_epoch
     }
@@ -1824,6 +1804,26 @@ impl ProtocolConfig {
 
     pub fn enable_pcool_flow(&self) -> bool {
         self.feature_flags.enable_pcool_flow
+    }
+
+    pub fn enable_builtin_move_authenticators(&self) -> bool {
+        let enable_builtin_move_authenticators =
+            self.feature_flags.enable_builtin_move_authenticators;
+        if enable_builtin_move_authenticators {
+            assert!(
+                self.enable_move_authentication(),
+                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.builtin_move_authenticator_cost_base.is_some(),
+                "enable_builtin_move_authenticators requires builtin_move_authenticator_cost_base to be set"
+            );
+        }
+        enable_builtin_move_authenticators
+    }
+
+    pub fn enable_claim_registry(&self) -> bool {
+        self.feature_flags.enable_claim_registry
     }
 }
 
@@ -2979,14 +2979,15 @@ impl ProtocolConfig {
                     // header size by committee size and garbage-collect the block
                     // manager.
                     cfg.feature_flags.consensus_block_restrictions = true;
-
+                }
+                30 => {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        // Enable claim registry in devnet only.
-                        cfg.feature_flags.enable_claim_registry = true;
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
                         // Set the cost for built-in Move authenticators to 0 for now.
                         cfg.builtin_move_authenticator_cost_base = Some(0);
+                        // Enable claim registry in devnet only.
+                        cfg.feature_flags.enable_claim_registry = true;
                     }
                 }
                 // Use this template when making changes:
@@ -3105,6 +3106,10 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth = val
     }
 
+    pub fn set_enable_claim_registry_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_claim_registry = val;
+    }
+
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
         self.feature_flags
             .disallow_new_modules_in_deps_only_packages = val;
@@ -3215,10 +3220,6 @@ impl ProtocolConfig {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
     }
 
-    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_builtin_move_authenticators = val;
-    }
-
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
     }
@@ -3242,6 +3243,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authenticators = val;
     }
 }
 

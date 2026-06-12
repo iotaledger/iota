@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     account_abstraction::builtin_authenticator_functions::PreloadedBuiltinAuthenticatorData,
-    error::IotaError,
-    execution::DynamicallyLoadedObjectMetadata,
-    object::Object,
+    error::IotaError, execution::DynamicallyLoadedObjectMetadata, object::Object,
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
