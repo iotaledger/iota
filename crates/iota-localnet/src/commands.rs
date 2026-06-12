@@ -108,9 +108,9 @@ pub struct IndexerFeatureArgs {
     #[arg(long, default_value = "postgrespw")]
     pg_password: String,
     /// Retention options for the indexer writer. By default the indexer keeps
-    /// all data, so its database grows without bound. Pass
-    /// `--pruning-config-path <PATH>` to point at a TOML retention config (same
-    /// format as the `iota-indexer indexer` command) to enable pruning.
+    /// all data, so its database grows without bound.
+    /// Pass `--pruning-config-path <PATH>` to point at a TOML retention config
+    /// (same format as the `iota-indexer indexer` command) to enable pruning.
     #[command(flatten)]
     pruning_options: PruningOptions,
 }
