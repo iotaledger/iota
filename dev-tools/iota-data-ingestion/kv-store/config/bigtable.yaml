@@ -29,6 +29,17 @@ remote-store-url: "http://localhost:50051"
 #
 progress-store-path: "/iota/output/kv_ingestion_progress.json"
 
+# The starting checkpoint for the ingestion pipeline (inclusive).
+# If omitted, the pipeline resumes from the latest watermark stored in 'progress-store-path'.
+# If provided, the pipeline starts from the specified checkpoint (e.g., 0 for genesis).
+#
+# start-checkpoint: 0
+
+# The ending checkpoint for the ingestion pipeline (inclusive).
+# If omitted, the pipeline continues indefinitely until the end of the data stream.
+#
+# end-checkpoint: 1000000
+
 metrics-port: 8084
 
 # Workers Configs
@@ -55,3 +66,19 @@ tasks:
       column-family: "iota"
       timeout-secs: 60
       # emulator-host: "localhost:8086"
+
+      # Subset of BigTable tables this worker writes to.
+      #
+      # Default (field omitted or empty list): writes every supported
+      # table. Production deployments should leave this unset.
+      #
+      # Set to a list of tables when running a backfill that should
+      # populate only those tables, without re-writing data the main
+      # ingestion pipeline already owns.
+      #
+      # tables:
+      #   - objects
+      #   - transactions
+      #   - transactions-by-address
+      #   - checkpoints
+      #   - checkpoints-by-digest

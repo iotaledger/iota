@@ -3,7 +3,7 @@
 
 //! Module containing the client for interacting with the REST API KV server.
 
-use std::time::Duration;
+use std::{fmt::Display, num::NonZeroUsize, time::Duration};
 
 use bytes::Bytes;
 use futures::{
@@ -13,7 +13,7 @@ use futures::{
 use iota_sdk_types::ObjectId;
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
-    base_types::SequenceNumber,
+    base_types::{IotaAddress, SequenceNumber},
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     messages_checkpoint::{
@@ -37,7 +37,11 @@ use crate::{
     historical_fallback::metrics::HistoricalFallbackClientMetrics,
 };
 
-const CACHE_TIME_TO_IDLE: Duration = Duration::from_secs(600);
+pub(crate) const CACHE_TIME_TO_IDLE: Duration = Duration::from_secs(600);
+
+/// Represents the sequence number of a transaction.
+pub type TransactionSequenceNumber = u64;
+
 /// Request payload for multi_get containing list of keys.
 #[derive(Serialize, Debug)]
 struct MultiGetRequest {
@@ -127,6 +131,41 @@ pub(crate) trait KeyValueStoreClient {
         object_refs: &[(ObjectId, SequenceNumber)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<Object>>>;
+}
+
+/// Paginated reads against the historical KV store.
+///
+/// Provides an interface for retrieving ordered subsets of values associated
+/// with a single primary key. Distinct from [`KeyValueStoreClient`], which
+/// is designed for point lookups.
+#[async_trait::async_trait]
+pub(crate) trait PaginatedKeyValueStoreClient {
+    /// Fetches a paginated list of transaction digests that affect a given
+    /// address.
+    ///
+    /// An address is considered "affected" by a transaction if it appears
+    /// as the sender, a recipient, or the gas payer.
+    ///
+    /// # Pagination
+    ///
+    /// * **Cursor:** The `cursor` is an *exclusive* boundary. Pass `None` to
+    ///   fetch the first page. For subsequent pages, provide the
+    ///   [`TransactionSequenceNumber`] from the last item of the previous
+    ///   result.
+    /// * **Limit:** The `limit` is the maximum number of items per page. The
+    ///   actual result may contain fewer items than requested.
+    /// * **Ordering:**
+    ///   - `oldest_first = false` (default): newest to oldest.
+    ///   - `oldest_first = true`: oldest to newest.
+    ///
+    /// The `cursor` semantics remain exclusive regardless of scan direction.
+    async fn transaction_digests_by_address(
+        &self,
+        address: IotaAddress,
+        cursor: Option<TransactionSequenceNumber>,
+        limit: usize,
+        oldest_first: bool,
+    ) -> IndexerResult<Vec<(TransactionSequenceNumber, TransactionDigest)>>;
 }
 
 #[derive(Clone)]
@@ -277,6 +316,75 @@ impl HttpRestKVClient {
         let bytes = resp.bytes().await?;
         bcs::from_bytes::<Vec<Option<Bytes>>>(&bytes).map_err(|e| {
             IndexerError::Serde(format!("failed to deserialize multi_get response: {e:?}"))
+        })
+    }
+
+    /// Fetches a paginated list of items from a range-query endpoint.
+    ///
+    /// This method performs a one-to-many lookup, retrieving a paginated list
+    /// of records associated with the given `key`.
+    ///
+    /// # Pagination Logic
+    ///
+    /// * **Cursor-based:** The `cursor` is an *exclusive* boundary. When
+    ///   requesting the first page, pass `None`. For subsequent pages, use the
+    ///   cursor identifier from the last item of the previous result set.
+    /// * **Limits:** The `limit` enforces an upper bound on items returned.
+    /// * **Reversed:** The `reversed` flag determines the scan direction.
+    ///   - `false` (default): Follows the natural storage order of the `Key`.
+    ///   - `true`: Attempts to reverse the scan direction.
+    async fn paginate<C, T>(
+        &self,
+        key: Key,
+        cursor: Option<C>,
+        limit: impl TryInto<NonZeroUsize>,
+        reversed: bool,
+    ) -> IndexerResult<Vec<T>>
+    where
+        C: Display,
+        T: for<'de> Deserialize<'de>,
+    {
+        let limit = limit.try_into().map_err(|_| {
+            IndexerError::HistoricalFallbackInput("limit must be greater than 0".into())
+        })?;
+
+        let (item_type, encoded_key) = key.to_path_elements();
+        let mut url = self.base_url.join(&format!("{item_type}/{encoded_key}"))?;
+
+        url.query_pairs_mut()
+            .append_pair("limit", &limit.get().to_string());
+
+        if let Some(cursor) = cursor {
+            url.query_pairs_mut()
+                .append_pair("cursor", &cursor.to_string());
+        }
+
+        if reversed {
+            url.query_pairs_mut().append_pair("oldest_first", "true");
+        }
+
+        trace!("fetching from url: {url}");
+
+        let resp = self.client.get(url.clone()).send().await?;
+
+        trace!(
+            "got response {} for url: {url}, len: {:?}",
+            resp.status(),
+            resp.headers()
+                .get(CONTENT_LENGTH)
+                .unwrap_or(&HeaderValue::from_static("0"))
+        );
+
+        if !resp.status().is_success() {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "multi_fetch request failed with status: {}",
+                resp.status()
+            )));
+        }
+
+        let bytes = resp.bytes().await?;
+        bcs::from_bytes::<Vec<T>>(&bytes).map_err(|e| {
+            IndexerError::Serde(format!("failed to deserialize paginated response: {e:?}"))
         })
     }
 
@@ -615,5 +723,25 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .collect();
 
         Ok(objects)
+    }
+}
+
+#[async_trait::async_trait]
+impl PaginatedKeyValueStoreClient for HttpRestKVClient {
+    #[instrument(level = "trace", skip_all)]
+    async fn transaction_digests_by_address(
+        &self,
+        address: IotaAddress,
+        cursor: Option<TransactionSequenceNumber>,
+        limit: usize,
+        oldest_first: bool,
+    ) -> IndexerResult<Vec<(TransactionSequenceNumber, TransactionDigest)>> {
+        self.paginate(
+            Key::TransactionDigestsByAddress(address),
+            cursor,
+            limit,
+            oldest_first,
+        )
+        .await
     }
 }

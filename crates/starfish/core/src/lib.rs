@@ -8,6 +8,7 @@ mod authority_set;
 mod base_committer;
 mod block_header;
 mod block_manager;
+mod block_rate_limiter;
 mod block_verifier;
 mod commit;
 mod commit_consumer;

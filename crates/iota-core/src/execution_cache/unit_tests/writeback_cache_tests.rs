@@ -783,7 +783,7 @@ async fn test_lt_or_eq_caching() {
         };
 
         // latest object not yet cached
-        assert!(!s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
+        assert!(!s.cache.object_by_id_cache.contains_key(&s.obj_id(1)));
 
         // version <= 0 does not exist
         assert!(
@@ -795,7 +795,6 @@ async fn test_lt_or_eq_caching() {
         // query above populates cache
         assert_eq!(
             s.cache
-                .cached
                 .object_by_id_cache
                 .get(&s.obj_id(1))
                 .unwrap()
@@ -842,13 +841,13 @@ async fn test_lt_or_eq_with_cached_tombstone() {
         };
 
         // latest object not yet cached
-        assert!(!s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
+        assert!(!s.cache.object_by_id_cache.contains_key(&s.obj_id(1)));
 
         // version 2 is deleted
         check_version(2, None);
 
         // checking the version pulled the tombstone into the cache
-        assert!(s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
+        assert!(s.cache.object_by_id_cache.contains_key(&s.obj_id(1)));
 
         // version 1 is still found, tombstone in cache is ignored
         check_version(1, Some(1));
@@ -1242,10 +1241,7 @@ async fn latest_object_cache_race_test() {
             while start.elapsed() < Duration::from_secs(2) {
                 // If you move the get_ticket_for_read to after we get the latest version,
                 // the test will fail! (this is good, it means the test is doing something)
-                let ticket = cache
-                    .cached
-                    .object_by_id_cache
-                    .get_ticket_for_read(&object_id);
+                let ticket = cache.object_by_id_cache.get_ticket_for_read(&object_id);
 
                 // get the latest version, but then let it become stale
                 let Some(latest_version) = cache
@@ -1285,7 +1281,7 @@ async fn latest_object_cache_race_test() {
         let start = Instant::now();
         std::thread::spawn(move || {
             while start.elapsed() < Duration::from_secs(2) {
-                cache.cached.object_by_id_cache.invalidate(&object_id);
+                cache.object_by_id_cache.invalidate(&object_id);
                 // sleep for 1 to 10µs
                 std::thread::sleep(Duration::from_micros(rand::thread_rng().gen_range(1..10)));
             }
@@ -1301,7 +1297,6 @@ async fn latest_object_cache_race_test() {
 
             while start.elapsed() < Duration::from_secs(2) {
                 let Some(cur) = cache
-                    .cached
                     .object_by_id_cache
                     .get(&object_id)
                     .and_then(|e| e.lock().version())
@@ -1416,14 +1411,13 @@ async fn concurrent_latest_object_cache_race_test() {
 
     // invalidate the cache on request
     let invalidator = || {
-        cache.cached.object_by_id_cache.invalidate(&object_id);
+        cache.object_by_id_cache.invalidate(&object_id);
     };
 
     // check cache consistency, ie. it can't contain an older version
     let mut checked_latest = OBJECT_START_VERSION;
     let mut checker = || {
         if let Some(cur) = cache
-            .cached
             .object_by_id_cache
             .get(&object_id)
             .and_then(|e| e.lock().version())
@@ -1439,10 +1433,7 @@ async fn concurrent_latest_object_cache_race_test() {
     // a reader that pretends it saw some previous version on the db
     {
         // acquire the ticket before getting the latest version
-        let ticket = cache
-            .cached
-            .object_by_id_cache
-            .get_ticket_for_read(&object_id);
+        let ticket = cache.object_by_id_cache.get_ticket_for_read(&object_id);
 
         // get the latest cached version
         let latest_version = cache
@@ -1538,7 +1529,7 @@ async fn concurrent_latest_object_cache_collision_test() {
 
     // invalidate the cache on request
     let invalidator = |object_id: ObjectId| {
-        cache.cached.object_by_id_cache.invalidate(&object_id);
+        cache.object_by_id_cache.invalidate(&object_id);
     };
 
     // populate the cache
@@ -1548,10 +1539,7 @@ async fn concurrent_latest_object_cache_collision_test() {
     // a reader that pretends it saw some previous version on the db
     {
         // acquire the ticket before getting the latest version
-        let ticket2 = cache
-            .cached
-            .object_by_id_cache
-            .get_ticket_for_read(&object2_id);
+        let ticket2 = cache.object_by_id_cache.get_ticket_for_read(&object2_id);
 
         // get the latest version
         let latest2_version = cache
@@ -1587,7 +1575,6 @@ async fn concurrent_latest_object_cache_collision_test() {
     // object1 is up to date in the cache
     assert_eq!(
         cache
-            .cached
             .object_by_id_cache
             .get(&object1_id)
             .unwrap()
@@ -1597,5 +1584,5 @@ async fn concurrent_latest_object_cache_collision_test() {
         OBJECT_START_VERSION.next().unwrap()
     );
     // but now we get a cache miss on object2 instead of getting the latest version
-    assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());
+    assert!(cache.object_by_id_cache.get(&object2_id).is_none());
 }

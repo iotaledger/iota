@@ -40,6 +40,7 @@ use crate::{
         VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
+    block_rate_limiter::BlockRateLimiter,
     commit::{CertifiedCommits, CommitAPI, PendingSubDag},
     commit_observer::{CommitObserver, CommittedSubDagSource},
     commit_syncer::fast::FastSyncOutput,
@@ -119,6 +120,11 @@ pub(crate) struct Core {
     /// Starfish) propose condition was satisfied. Used to measure the extra
     /// wait imposed by StarfishSpeed's strong-vote condition.
     ordinary_propose_ready_at: Option<(Round, Instant)>,
+    /// Rate limiter for own proposals: sustained rate of one block per
+    /// `min_block_delay`, with burst budget accrued while waiting on the
+    /// network, so a validator that fell behind catches up on rounds instead
+    /// of skipping them.
+    proposal_rate_limiter: BlockRateLimiter,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -167,10 +173,11 @@ impl ReasonToCreateBlock {
     }
 }
 
-/// Reason a `Core::should_propose` call returned `false`. Used as the `reason`
-/// label on the `core_skipped_proposals` metric. Keeping the variants in one
-/// enum makes the label space disjoint and centrally visible. Variant data is
-/// the per-reason context interpolated into the corresponding `debug!` line.
+/// Reason a proposal attempt was skipped, either in `Core::should_propose` or
+/// by the rate limiter in `Core::try_new_block`. Used as the `reason` label on
+/// the `core_skipped_proposals` metric. Keeping the variants in one enum makes
+/// the label space disjoint and centrally visible. Variant data is the
+/// per-reason context interpolated into the corresponding `debug!` line.
 ///
 /// The "already proposed at this round" branch is intentionally not modeled
 /// here: it fires on every block accepted in a round we have already proposed
@@ -182,6 +189,7 @@ pub(crate) enum SkipProposalReason {
     NoLastKnownProposedRound,
     HigherLastKnownProposedRound { last_known: Round },
     BehindQuorumCommitRound { approx_quorum: Round },
+    BlockRateLimited,
 }
 
 impl SkipProposalReason {
@@ -191,6 +199,7 @@ impl SkipProposalReason {
             Self::NoLastKnownProposedRound => "no_last_known_proposed_round",
             Self::HigherLastKnownProposedRound { .. } => "higher_last_known_proposed_round",
             Self::BehindQuorumCommitRound { .. } => "behind_quorum_commit_round",
+            Self::BlockRateLimited => "block_rate_limited",
         }
     }
 }
@@ -247,6 +256,21 @@ impl Core {
 
         let encoder = create_encoder(&context);
 
+        // Seed the rate limiter from own recent blocks so a quick restart does
+        // not grant a fresh burst budget. Looking back `burst` rounds captures
+        // the recent own blocks that still affect the state; replaying blocks
+        // older than the window is harmless (the limiter absorbs them).
+        let burst = context.parameters.block_rate_burst();
+        let mut proposal_rate_limiter =
+            BlockRateLimiter::new(context.parameters.min_block_delay, burst);
+        let lookback_start = last_signaled_round.saturating_sub(burst as Round);
+        for header in dag_state
+            .read()
+            .get_cached_block_headers_since_round(context.own_index, lookback_start)
+        {
+            proposal_rate_limiter.record(header.timestamp_ms());
+        }
+
         Self {
             context,
             last_signaled_round,
@@ -266,6 +290,7 @@ impl Core {
             commit_vote_monitor,
             strong_vote_timed_out_round: None,
             ordinary_propose_ready_at: None,
+            proposal_rate_limiter,
         }
         .recover()
     }
@@ -852,12 +877,9 @@ impl Core {
         if self.context.protocol_config.consensus_starfish_speed()
             && !reason.is_forced()
             && leader_header.is_some()
-            && Duration::from_millis(
-                self.context
-                    .clock
-                    .timestamp_utc_ms()
-                    .saturating_sub(self.last_proposed_timestamp_ms()),
-            ) >= self.context.parameters.min_block_delay
+            && self
+                .proposal_rate_limiter
+                .is_conforming(self.context.clock.timestamp_utc_ms())
             && self
                 .ordinary_propose_ready_at
                 .is_none_or(|(r, _)| r != clock_round)
@@ -867,7 +889,7 @@ impl Core {
 
         // Create a new block either because we want to "forcefully" propose a block due
         // to a leader timeout, or because we are actually ready to produce the
-        // block (leader exists and min delay has passed).
+        // block (leader exists and the block rate budget allows it).
         if !reason.is_forced() {
             leader_header.as_ref()?;
 
@@ -885,13 +907,11 @@ impl Core {
                 }
             }
 
-            if Duration::from_millis(
-                self.context
-                    .clock
-                    .timestamp_utc_ms()
-                    .saturating_sub(self.last_proposed_timestamp_ms()),
-            ) < self.context.parameters.min_block_delay
+            if !self
+                .proposal_rate_limiter
+                .is_conforming(self.context.clock.timestamp_utc_ms())
             {
+                self.skip_proposal(clock_round, SkipProposalReason::BlockRateLimited);
                 return None;
             }
         }
@@ -1198,6 +1218,9 @@ impl Core {
             .with_label_values(&[&reason.label()])
             .inc();
 
+        // Every proposal spends rate budget, including forced ones.
+        self.proposal_rate_limiter.record(now);
+
         Some(verified_block)
     }
 
@@ -1485,6 +1508,9 @@ impl Core {
                     "Skip proposing for round {clock_round}, behind approximate quorum commit round {approx_quorum}"
                 );
             }
+            SkipProposalReason::BlockRateLimited => {
+                debug!("Skip proposing for round {clock_round}, block rate budget exhausted");
+            }
         }
         self.context
             .metrics
@@ -1706,12 +1732,15 @@ pub(crate) struct CoreSignals {
 
 impl CoreSignals {
     pub fn new(context: Arc<Context>) -> (Self, CoreSignalsReceivers) {
-        // Blocks buffered in broadcast channel should be roughly equal to thosed cached
+        // Blocks buffered in broadcast channel should be roughly equal to those cached
         // in dag state, since the underlying blocks are ref counted so a lower
-        // buffer here will not reduce memory usage significantly.
-        let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel::<VerifiedBlock>(
-            context.parameters.dag_state_cached_rounds as usize,
-        );
+        // buffer here will not reduce memory usage significantly. The floor holds
+        // one full burst of `burst` back-to-back blocks so a freshly drained burst
+        // is not dropped before subscribers consume it.
+        let capacity = (context.parameters.dag_state_cached_rounds as usize)
+            .max(context.parameters.block_rate_burst() as usize);
+        let (tx_block_broadcast, rx_block_broadcast) =
+            broadcast::channel::<VerifiedBlock>(capacity);
         let (new_round_sender, new_round_receiver) = watch::channel(0);
 
         let me = Self {

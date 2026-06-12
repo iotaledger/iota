@@ -136,6 +136,17 @@ pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePac
 
 // Impl for common initialization and utilities
 impl IndexerReader {
+    /// Tables consulted by the `FromOrToAddress` query path.
+    ///
+    /// The reader raises [`IndexerError::DataPruned`] when a requested
+    /// `tx_sequence_number` is below the `min_available_tx` across these
+    /// tables.
+    const TRANSACTIONS_BY_ADDRESS_TABLES: &[CommitterTables] = &[
+        CommitterTables::TxSenders,
+        CommitterTables::TxRecipients,
+        CommitterTables::Transactions,
+    ];
+
     pub fn new(pool: ConnectionPool, watermark_cache: WatermarkCache) -> Self {
         let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
         let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
@@ -242,6 +253,17 @@ impl IndexerReader {
             }
         }
         Ok(())
+    }
+
+    /// Returns the lowest transaction sequence number that is available across
+    /// the tables consulted by the affected-addresses query path.
+    ///
+    /// Returns `0` when no watermarks have been populated yet (treat as "no
+    /// pruning observed").
+    pub(crate) fn affected_addresses_tx_watermark(&self) -> i64 {
+        self.watermark_cache()
+            .get_lowest_available_tx_for_tables(Self::TRANSACTIONS_BY_ADDRESS_TABLES)
+            .unwrap_or(0)
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
@@ -904,27 +926,6 @@ impl IndexerReader {
         Ok(tx_blocks)
     }
 
-    fn multi_get_transactions_with_sequence_numbers(
-        &self,
-        tx_sequence_numbers: &[i64],
-        // Some(true) for desc, Some(false) for asc, None for undefined order
-        is_descending: Option<bool>,
-    ) -> Result<Vec<StoredTransaction>, IndexerError> {
-        let mut query = transactions::table
-            .filter(transactions::tx_sequence_number.eq_any(tx_sequence_numbers))
-            .into_boxed();
-        match is_descending {
-            Some(true) => {
-                query = query.order(transactions::dsl::tx_sequence_number.desc());
-            }
-            Some(false) => {
-                query = query.order(transactions::dsl::tx_sequence_number.asc());
-            }
-            None => (),
-        }
-        run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
-    }
-
     pub fn multi_get_transactions_by_sequence_numbers_range(
         &self,
         min_seq: i64,
@@ -1203,6 +1204,89 @@ impl IndexerReader {
             .await
     }
 
+    /// Fetches a paginated list of transactions that affect a given address,
+    /// using the fallback storage if the database is pruned.
+    async fn query_transactions_by_affected_addresses_with_fallback(
+        &self,
+        address: IotaAddress,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        let watermark = self.affected_addresses_tx_watermark();
+
+        // fast path: cursor is known to KV (cached) and in pruned territory
+        // (below watermark). Serve directly from KV until pagination crosses
+        // into the unpruned DB range.
+        if let Some((cursor, kv_reader)) = cursor.zip(self.fallback_reader()).filter(|(c, kv)| {
+            kv.cursor_cache
+                .get(c)
+                .is_some_and(|s| (s as i64) < watermark)
+        }) {
+            let stored_txs = kv_reader
+                .transactions_by_address(address, Some(cursor), limit, !is_descending)
+                .await?
+                .into_iter()
+                .flatten()
+                .collect();
+
+            return self
+                .stored_transaction_to_transaction_block(stored_txs, options)
+                .await;
+        };
+
+        let db_res = self
+            .db()
+            .query_transactions_by_affected_addresses(address, cursor, limit, is_descending)
+            .await;
+
+        let Some(kv_reader) = self.fallback_reader() else {
+            return self
+                .stored_transaction_to_transaction_block(db_res?, options)
+                .await;
+        };
+
+        let (mut rows, id_db_pruned) = match db_res {
+            Err(IndexerError::DataPruned(_)) => (vec![], true),
+            res => (res?, false),
+        };
+
+        // Fill from KV: either the whole page (`id_db_pruned`) or a top-up when
+        // a short DESC page during active pruning indicates we've crossed the
+        // watermark.
+        if id_db_pruned || (is_descending && rows.len() < limit && watermark > 0) {
+            // Continue pagination from the last DB row, or from the original
+            // cursor if the DB returned nothing. Avoids restarting KV from the
+            // top of history and re-fetching rows the user already saw.
+            let kv_cursor = if let Some(tx) = rows.last() {
+                let digest =
+                    TransactionDigest::from_bytes(&tx.transaction_digest).map_err(|e| {
+                        IndexerError::PersistentStorageDataCorruption(format!(
+                            "failed to decode transaction digest: {:?} with err: {e:?}",
+                            tx.transaction_digest
+                        ))
+                    })?;
+                kv_reader
+                    .cursor_cache
+                    .insert(digest, tx.tx_sequence_number as u64);
+                Some(digest)
+            } else {
+                cursor
+            };
+
+            let kv_rows = kv_reader
+                .transactions_by_address(address, kv_cursor, limit - rows.len(), !is_descending)
+                .await?
+                .into_iter()
+                .flatten();
+            rows.extend(kv_rows);
+        }
+
+        self.stored_transaction_to_transaction_block(rows, options)
+            .await
+    }
+
     async fn query_transaction_blocks_impl_with_checkpointed_data_only(
         &self,
         filter: Option<TransactionFilterKind>,
@@ -1217,6 +1301,20 @@ impl IndexerReader {
             return self
                 .query_transactions_by_checkpoint_seq_with_fallback(
                     seq,
+                    cursor,
+                    limit,
+                    is_descending,
+                    options,
+                )
+                .await;
+        };
+
+        if let Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
+        | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) = filter
+        {
+            return self
+                .query_transactions_by_affected_addresses_with_fallback(
+                    addr,
                     cursor,
                     limit,
                     is_descending,
@@ -1267,7 +1365,9 @@ impl IndexerReader {
         let (table_name, main_where_clause) = match filter {
             // Processed above
             Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(_)))
-            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_))) => {
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_)))
+            | Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { .. }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. })) => {
                 unreachable!("handled in earlier match statement")
             }
             // FIXME: sanitize module & function
@@ -1371,28 +1471,6 @@ impl IndexerReader {
                     ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
                     LIMIT {limit}) AS inner_query
                     ",
-                );
-                (inner_query, "1 = 1".into())
-            }
-            Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
-            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) => {
-                let address = Hex::encode(addr.as_bytes());
-                let inner_query = format!(
-                    "( \
-                        ( \
-                            SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_senders \
-                            WHERE sender = '\\x{address}'::BYTEA {cursor_clause} \
-                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
-                            LIMIT {limit} \
-                        ) \
-                        UNION \
-                        ( \
-                            SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_recipients \
-                            WHERE recipient = '\\x{address}'::BYTEA {cursor_clause} \
-                            ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} \
-                            LIMIT {limit} \
-                        ) \
-                    ) AS combined",
                 );
                 (inner_query, "1 = 1".into())
             }
@@ -1546,15 +1624,8 @@ impl IndexerReader {
         is_descending: Option<bool>,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         let stored_txes: Vec<StoredTransaction> = self
-            .spawn_blocking({
-                let tx_sequence_numbers = tx_sequence_numbers.clone();
-                move |this| {
-                    this.multi_get_transactions_with_sequence_numbers(
-                        &tx_sequence_numbers,
-                        is_descending,
-                    )
-                }
-            })
+            .db()
+            .get_transactions_by_sequence_numbers(tx_sequence_numbers.clone(), is_descending)
             .await?;
 
         let fetched_transactions = match self
@@ -3163,6 +3234,152 @@ impl<'a> DBReader<'a> {
                 })
             })
             .collect()
+    }
+
+    /// Returns a list of [`StoredTransaction`]s by their corresponding sequence
+    /// numbers.
+    ///
+    /// `is_descending` controls the result order by `tx_sequence_number`:
+    /// - `true` or `Some(true)` for DESC.
+    /// - `false` or `Some(false)` for ASC.
+    /// - `None` for unspecified order (rows returned in whatever order the DB
+    ///   yields).
+    async fn get_transactions_by_sequence_numbers<I>(
+        &self,
+        tx_sequence_numbers: I,
+        is_descending: impl Into<Option<bool>>,
+    ) -> IndexerResult<Vec<StoredTransaction>>
+    where
+        I: IntoIterator<Item = i64> + Send,
+        I::IntoIter: Send,
+    {
+        let mut query = transactions::table
+            .filter(transactions::tx_sequence_number.eq_any(tx_sequence_numbers.into_iter()))
+            .into_boxed();
+        match is_descending.into() {
+            Some(true) => {
+                query = query.order(transactions::dsl::tx_sequence_number.desc());
+            }
+            Some(false) => {
+                query = query.order(transactions::dsl::tx_sequence_number.asc());
+            }
+            None => (),
+        }
+        let pool = self.main_reader.get_pool();
+        run_query_async!(&pool, |conn| query.load::<StoredTransaction>(conn))
+    }
+
+    /// Returns a list of [`StoredTransaction`]s that have a given address as
+    /// sender or recipient.
+    ///
+    /// Enforces data retention policies by consulting the pruning watermark for
+    /// the underlying index tables
+    /// [`TRANSACTIONS_BY_ADDRESS_TABLES`](IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES)
+    ///
+    /// # Errors
+    ///
+    /// * [`IndexerError::DataPruned`] — signals the caller to fall back to the
+    ///   historical store. Two triggers:
+    ///   * `cursor` resolves to a sequence number below the pruning
+    ///     min_available_tx.
+    ///   * `cursor = None && is_descending = false && min_available_tx > 0`:
+    ///     the DB cannot tell whether the address has pre-watermark history.
+    /// * [`IndexerError::InvalidArgument`]: the cursor is invalid (digest
+    ///   absent from `tx_digests` AND the database is not pruned).
+    async fn query_transactions_by_affected_addresses(
+        &self,
+        addr: IotaAddress,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredTransaction>> {
+        let min_available_tx = self.main_reader.affected_addresses_tx_watermark();
+
+        let cursor_tx_seq = if let Some(cursor) = cursor {
+            match self
+                .resolve_cursor_tx_digest_to_seq_num_maybe(cursor)
+                .await?
+            {
+                Some(tx_seq) => {
+                    self.main_reader.ensure_data_not_pruned_for_tx(
+                        tx_seq,
+                        IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES,
+                    )?;
+                    Some(tx_seq)
+                }
+                None if min_available_tx > 0 => {
+                    return Err(IndexerError::DataPruned(format!(
+                        "unable to resolve cursor digest: {cursor} potentially pruned"
+                    )));
+                }
+                None => {
+                    return Err(IndexerError::InvalidArgument(format!(
+                        "cursor with digest {cursor} not found"
+                    )));
+                }
+            }
+        } else {
+            None
+        };
+
+        if !is_descending && cursor.is_none() && min_available_tx > 0 {
+            return Err(IndexerError::DataPruned(format!(
+                "DB may be missing earliest history for address {addr} due to pruning"
+            )));
+        }
+
+        let address_hex = Hex::encode(addr.as_bytes());
+        let order = if is_descending { "DESC" } else { "ASC" };
+        let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
+            if is_descending {
+                format!("AND {TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
+            } else {
+                format!("AND {TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
+            }
+        } else {
+            "".into()
+        };
+
+        let query = format!(
+            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM ( \
+                   ( \
+                       SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_senders \
+                       WHERE sender = '\\x{address_hex}'::BYTEA
+                       AND {TX_SEQUENCE_NUMBER_STR} >= {min_available_tx} {cursor_clause} \
+                       ORDER BY {TX_SEQUENCE_NUMBER_STR} {order} \
+                       LIMIT {limit} \
+                   ) \
+                   UNION \
+                   ( \
+                       SELECT {TX_SEQUENCE_NUMBER_STR} FROM tx_recipients \
+                       WHERE recipient = '\\x{address_hex}'::BYTEA \
+                       AND {TX_SEQUENCE_NUMBER_STR} >= {min_available_tx} {cursor_clause} \
+                       ORDER BY {TX_SEQUENCE_NUMBER_STR} {order} \
+                       LIMIT {limit} \
+                   ) \
+                ) AS combined \
+                ORDER BY {TX_SEQUENCE_NUMBER_STR} {order} \
+                LIMIT {limit}"
+        );
+
+        // using two-step query to allow partition pruning during execution for
+        // transactions table.
+        let pool = self.main_reader.get_pool();
+        let tx_sequence_numbers = run_query_async!(&pool, move |conn| {
+            diesel::sql_query(query).load::<TxSequenceNumber>(conn)
+        })?;
+
+        if tx_sequence_numbers.is_empty() {
+            return Ok(vec![]);
+        }
+
+        self.get_transactions_by_sequence_numbers(
+            tx_sequence_numbers
+                .into_iter()
+                .map(|tsn| tsn.tx_sequence_number),
+            is_descending,
+        )
+        .await
     }
 }
 

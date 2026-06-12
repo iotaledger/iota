@@ -9,10 +9,9 @@ use iota_macros::fail_point;
 use starfish_config::AuthorityIndex;
 use tracing::debug;
 use typed_store::{
-    Map as _,
+    DBMapUtils, Map as _,
     metrics::SamplingInterval,
-    reopen,
-    rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
+    rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
 };
 
 use super::{CommitInfo, Store, WriteBatch};
@@ -30,6 +29,7 @@ use crate::{
 };
 
 /// Persistent storage with RocksDB.
+#[derive(DBMapUtils)]
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlockHeader by refs.
     block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
@@ -38,6 +38,7 @@ pub(crate) struct RocksDBStore {
     /// Stores Transactions by transaction refs
     transactions_by_tx_refs: DBMap<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
     /// A secondary index that orders refs first by authors.
+    #[rename = "digests"]
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
     /// A secondary index that orders transaction commitments first by authors.
     transaction_commitments_by_authorities:
@@ -81,93 +82,58 @@ impl RocksDBStore {
         let db_options = default_db_options().optimize_db_for_write_throughput(2);
         let mut metrics_conf = MetricConf::new("consensus");
         metrics_conf.read_sample_interval = SamplingInterval::new(Duration::from_secs(60), 0);
-        let cf_options = default_db_options().optimize_for_write_throughput().options;
-        let column_family_options = vec![
+        let cf_options = default_db_options().optimize_for_write_throughput();
+        let column_family_options = DBMapTableConfigMap::new(BTreeMap::from([
             (
-                Self::TRANSACTIONS_CF,
+                Self::TRANSACTIONS_CF.to_string(),
                 default_db_options()
                     .optimize_for_write_throughput_no_deletion()
                     // Using larger block is ok since there is not much point reads on the cf.
-                    .set_block_options(512, 128 << 10)
-                    .options,
+                    .set_block_options(512, 128 << 10),
             ),
             (
-                Self::TRANSACTIONS_BY_TX_REF_CF,
+                Self::TRANSACTIONS_BY_TX_REF_CF.to_string(),
                 default_db_options()
                     .optimize_for_write_throughput_no_deletion()
                     // Using larger block is ok since there is not much point reads on the cf.
-                    .set_block_options(512, 128 << 10)
-                    .options,
+                    .set_block_options(512, 128 << 10),
             ),
             (
-                Self::BLOCK_HEADERS_CF,
+                Self::BLOCK_HEADERS_CF.to_string(),
                 default_db_options()
                     .optimize_for_write_throughput_no_deletion()
                     // TODO:think about these constants, for now it is a copy from blocks
-                    .set_block_options(512, 128 << 10)
-                    .options,
+                    .set_block_options(512, 128 << 10),
             ),
-            (Self::DIGESTS_BY_AUTHORITIES_CF, cf_options.clone()),
             (
-                Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF,
+                Self::DIGESTS_BY_AUTHORITIES_CF.to_string(),
                 cf_options.clone(),
             ),
-            (Self::COMMITS_CF, cf_options.clone()),
-            (Self::COMMIT_VOTES_CF, cf_options.clone()),
-            (Self::COMMIT_INFO_CF, cf_options.clone()),
+            (
+                Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF.to_string(),
+                cf_options.clone(),
+            ),
+            (Self::COMMITS_CF.to_string(), cf_options.clone()),
+            (Self::COMMIT_VOTES_CF.to_string(), cf_options.clone()),
+            (Self::COMMIT_INFO_CF.to_string(), cf_options.clone()),
             // Voting block headers are much fewer than regular block headers,
             // so using standard options is sufficient.
-            (Self::VOTING_BLOCK_HEADERS_CF, cf_options.clone()),
-            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options.clone()),
-            (Self::MISBEHAVIOR_COUNTS_CF, cf_options),
-        ];
-        let rocksdb = open_cf_opts(
-            path,
-            Some(db_options.options),
+            (
+                Self::VOTING_BLOCK_HEADERS_CF.to_string(),
+                cf_options.clone(),
+            ),
+            (
+                Self::FAST_COMMIT_SYNC_FLAG_CF.to_string(),
+                cf_options.clone(),
+            ),
+            (Self::MISBEHAVIOR_COUNTS_CF.to_string(), cf_options),
+        ]));
+        Self::open_tables_read_write(
+            path.into(),
             metrics_conf,
-            &column_family_options,
+            Some(db_options.options),
+            Some(column_family_options),
         )
-        .expect("Cannot open database");
-
-        let (
-            block_headers,
-            transactions,
-            transactions_by_tx_refs,
-            digests_by_authorities,
-            transaction_commitments_by_authorities,
-            commits,
-            commit_votes,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-            misbehavior_counts,
-        ) = reopen!(&rocksdb,
-            Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::TRANSACTIONS_BY_TX_REF_CF;<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
-            Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
-            Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, TransactionsCommitment), ()>,
-            Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
-            Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
-            Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
-            Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>,
-            Self::MISBEHAVIOR_COUNTS_CF;<AuthorityIndex, MisbehaviorCounts>
-        );
-
-        Self {
-            block_headers,
-            transactions,
-            transactions_by_tx_refs,
-            digests_by_authorities,
-            transaction_commitments_by_authorities,
-            commits,
-            commit_votes,
-            commit_info,
-            voting_block_headers,
-            fast_commit_sync_flag,
-            misbehavior_counts,
-        }
     }
 }
 
