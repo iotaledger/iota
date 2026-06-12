@@ -17,8 +17,8 @@ use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
-    committee::Committee,
-    messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData, VerifiedCheckpoint},
+    committee::{Committee, CommitteeChainVerifier},
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::{ObjectStore, ReadStore, WriteStore},
 };
 use prometheus::Registry;
@@ -305,8 +305,9 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
 
     info!("Verifying summaries.");
 
-    // Check the signatures of all checkpoints
-    let mut prev_committee = genesis_committee;
+    // Walk the committee chain over the end-of-epoch checkpoints, anchored at
+    // the genesis committee.
+    let mut chain_verifier = CommitteeChainVerifier::new(genesis_committee);
     for seq in checkpoints_list.checkpoints {
         // Check if there is a corresponding checkpoint summary file in the checkpoints
         // directory
@@ -319,27 +320,15 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
             panic!("corrupted checkpoint directory");
         };
 
-        // Verify the checkpoint
-        summary.clone().try_into_verified(&prev_committee)?;
+        let verified = chain_verifier
+            .verify_epoch_close(summary)
+            .with_context(|| format!("Failed to verify checkpoint {seq}"))?;
 
         info!(
             "Verified epoch: {}, checkpoint: {seq}, checkpoint digest: {}",
-            summary.epoch(),
-            summary.digest()
+            verified.epoch(),
+            verified.digest()
         );
-
-        // Extract the next committee information
-        if let Some(EndOfEpochData {
-            next_epoch_committee,
-            ..
-        }) = &summary.end_of_epoch_data
-        {
-            let next_committee = next_epoch_committee.iter().cloned().collect();
-            prev_committee =
-                Committee::new(summary.epoch().checked_add(1).unwrap(), next_committee);
-        } else {
-            bail!("Expected all checkpoints to be end-of-epoch checkpoints");
-        }
     }
 
     Ok(())

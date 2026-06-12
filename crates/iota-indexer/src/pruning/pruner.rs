@@ -14,29 +14,13 @@ use crate::{
     errors::IndexerError,
     ingestion::primary::prepare::PrimaryWorker,
     metrics::IndexerMetrics,
+    models::watermarks::StoredWatermark,
     spawn_monitored_task,
     store::{IndexerStore, PgIndexerStore, pg_partition_manager::PgPartitionManager},
     types::IndexerResult,
 };
 
 const UPDATE_WATERMARKS_LOWER_BOUNDS_TASK_INTERVAL: Duration = Duration::from_secs(5);
-/// Delay in milliseconds before pruning data after watermark timestamp.
-/// This delay allows in-flight reads that may be accessing data scheduled for
-/// pruning to complete or timeout, ensuring safe pruning without affecting
-/// active queries.
-#[cfg(any(test, feature = "pg_integration", feature = "shared_test_runtime"))]
-const PRUNING_DELAY_MS: u64 = 1000; // 1 second for tests
-
-#[cfg(not(any(test, feature = "pg_integration", feature = "shared_test_runtime")))]
-const PRUNING_DELAY_MS: u64 = 2 * 60 * 60 * 1000; // 2 hours for production
-
-/// Maximum number of transactions to prune in a single batch for ByTransaction
-/// strategy
-const MAX_TRANSACTIONS_PER_PRUNE_BATCH: u64 = 1000;
-
-/// Maximum number of checkpoints to prune in a single batch for ByCheckpoint
-/// strategy
-const MAX_CHECKPOINTS_PER_PRUNE_BATCH: u64 = 1000;
 
 /// Interval for running the pruning task
 const PRUNING_TASK_INTERVAL: Duration = Duration::from_secs(5);
@@ -48,6 +32,8 @@ pub struct Pruner {
     pub store: PgIndexerStore,
     pub partition_manager: PgPartitionManager,
     pub retention_policies: HashMap<PrunableTable, u64>,
+    pub pruning_delay_ms: u64,
+    pub pruning_batch_size: u64,
     pub metrics: IndexerMetrics,
 }
 
@@ -120,31 +106,27 @@ pub enum PruningStrategy {
     ByCheckpointWithLimit,
 }
 
-/// Represents a specific chunk of data to be pruned
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PruningChunk {
-    /// Prune an entire epoch partition
-    Epoch(u64),
-    /// Prune a range of checkpoints [start..=end] inclusive
-    CheckpointRange(u64, u64),
-    /// Prune a range of transactions [start..=end] inclusive
-    TransactionRange(u64, u64),
-    /// Prune by global_sequence_number range [start..=end] inclusive
-    GlobalSeqRange(u64, u64),
-    /// Prune by checkpoint range [start..=end] with row-limited deletes
-    CheckpointRangeWithLimit(u64, u64),
-}
-
-impl PruningChunk {
-    /// Returns the start of the next chunk to prune (used for updating
-    /// pruner_hi watermark)
-    fn next_chunk_start(&self) -> u64 {
+impl PruningStrategy {
+    /// Whether chunk sizing for this strategy uses the configurable pruning
+    /// batch size. `ByEpochPartition` is not batched — partitions are dropped
+    /// one at a time.
+    fn is_batched(&self) -> bool {
         match self {
-            PruningChunk::Epoch(epoch) => epoch + 1,
-            PruningChunk::CheckpointRange(_, end) => end + 1,
-            PruningChunk::TransactionRange(_, end) => end + 1,
-            PruningChunk::GlobalSeqRange(_, end) => end + 1,
-            PruningChunk::CheckpointRangeWithLimit(_, end) => end + 1,
+            Self::ByEpochPartition => false,
+            Self::ByCheckpoint
+            | Self::ByCheckpointWithLimit
+            | Self::ByTransaction
+            | Self::ByGlobalSeq => true,
+        }
+    }
+
+    /// Exclusive upper bound of the pruning range for this strategy, taken
+    /// from the watermark's `min_available_*` columns.
+    fn range_end(&self, watermark: &StoredWatermark) -> u64 {
+        match self {
+            Self::ByEpochPartition => watermark.min_available_epoch as u64,
+            Self::ByCheckpoint | Self::ByCheckpointWithLimit => watermark.min_available_cp as u64,
+            Self::ByTransaction | Self::ByGlobalSeq => watermark.min_available_tx as u64,
         }
     }
 }
@@ -199,6 +181,8 @@ pub struct TablePruner<'a> {
     table: PrunableTable,
     store: &'a PgIndexerStore,
     partition_manager: &'a PgPartitionManager,
+    pruning_delay_ms: u64,
+    pruning_batch_size: u64,
     #[allow(dead_code)]
     metrics: &'a IndexerMetrics,
     cancel: CancellationToken,
@@ -209,6 +193,8 @@ impl<'a> TablePruner<'a> {
         table: PrunableTable,
         store: &'a PgIndexerStore,
         partition_manager: &'a PgPartitionManager,
+        pruning_delay_ms: u64,
+        pruning_batch_size: u64,
         metrics: &'a IndexerMetrics,
         cancel: CancellationToken,
     ) -> Self {
@@ -216,6 +202,8 @@ impl<'a> TablePruner<'a> {
             table,
             store,
             partition_manager,
+            pruning_delay_ms,
+            pruning_batch_size,
             metrics,
             cancel,
         }
@@ -274,23 +262,21 @@ impl<'a> TablePruner<'a> {
 
         let pruning_chunks = self.create_pruning_chunks(&watermark);
 
-        for pruning_chunk in pruning_chunks {
+        for (start, end) in pruning_chunks {
             info!(
-                "Pruning table {} for {:?}",
+                "Pruning table {} in range [{start}..={end}]",
                 self.table.as_ref(),
-                pruning_chunk
             );
-            if let Err(err) = self.prune_by_chunk(pruning_chunk).await {
+            if let Err(err) = self.prune_by_chunk(start, end).await {
                 error!(
-                    "failed to prune table {} for {:?}: {err}",
+                    "failed to prune table {} in range [{start}..={end}]: {err}",
                     self.table.as_ref(),
-                    pruning_chunk
                 );
                 break;
             }
 
             // Update lowest_unpruned_key to the next chunk to prune
-            let next_chunk_start = pruning_chunk.next_chunk_start();
+            let next_chunk_start = end + 1;
             if let Err(err) = self
                 .store
                 .update_watermark_lowest_unpruned_key(&self.table, next_chunk_start)
@@ -314,87 +300,30 @@ impl<'a> TablePruner<'a> {
         Ok(())
     }
 
-    /// Creates an iterator of pruning chunks based on the watermark and pruning
-    /// strategy
+    /// Creates an iterator of `(start, end)` inclusive ranges to prune,
+    /// derived from the watermark and the table's pruning strategy.
     fn create_pruning_chunks(
         &self,
-        watermark: &crate::models::watermarks::StoredWatermark,
-    ) -> Box<dyn Iterator<Item = PruningChunk> + Send> {
-        let min_available_epoch = watermark.min_available_epoch as u64;
+        watermark: &StoredWatermark,
+    ) -> impl Iterator<Item = (u64, u64)> + Send {
+        let strategy = self.table.pruning_strategy();
         let lowest_unpruned_key = watermark.lowest_unpruned_key as u64;
-        let min_available_cp = watermark.min_available_cp as u64;
-        let min_available_tx = watermark.min_available_tx as u64;
-
-        match self.table.pruning_strategy() {
-            PruningStrategy::ByEpochPartition => {
-                let range_end = min_available_epoch;
-                info!(
-                    "pruning table {} in epoch range: [{lowest_unpruned_key}..{range_end})",
-                    self.table.as_ref()
-                );
-                Box::new((lowest_unpruned_key..range_end).map(PruningChunk::Epoch))
-            }
-            PruningStrategy::ByCheckpoint => {
-                let range_end = min_available_cp;
-                info!(
-                    "pruning table {} in checkpoint range: [{lowest_unpruned_key}..{range_end})",
-                    self.table.as_ref()
-                );
-                Box::new(
-                    (lowest_unpruned_key..range_end)
-                        .step_by(MAX_CHECKPOINTS_PER_PRUNE_BATCH as usize)
-                        .map(move |start| {
-                            let end = (start + MAX_CHECKPOINTS_PER_PRUNE_BATCH).min(range_end);
-                            PruningChunk::CheckpointRange(start, end - 1)
-                        }),
-                )
-            }
-            PruningStrategy::ByTransaction => {
-                let range_end = min_available_tx;
-                info!(
-                    "pruning table {} in transaction range: [{lowest_unpruned_key}..{range_end})",
-                    self.table.as_ref()
-                );
-                Box::new(
-                    (lowest_unpruned_key..range_end)
-                        .step_by(MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize)
-                        .map(move |start| {
-                            let end = (start + MAX_TRANSACTIONS_PER_PRUNE_BATCH).min(range_end);
-                            PruningChunk::TransactionRange(start, end - 1)
-                        }),
-                )
-            }
-            PruningStrategy::ByGlobalSeq => {
-                let range_end = min_available_tx;
-                info!(
-                    "pruning table {} by global_sequence_number in range: [{lowest_unpruned_key}..{range_end})",
-                    self.table.as_ref()
-                );
-                Box::new(
-                    (lowest_unpruned_key..range_end)
-                        .step_by(MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize)
-                        .map(move |start| {
-                            let end = (start + MAX_TRANSACTIONS_PER_PRUNE_BATCH).min(range_end);
-                            PruningChunk::GlobalSeqRange(start, end - 1)
-                        }),
-                )
-            }
-            PruningStrategy::ByCheckpointWithLimit => {
-                let range_end = min_available_cp;
-                info!(
-                    "pruning table {} in checkpoint range (with limit): [{lowest_unpruned_key}..{range_end})",
-                    self.table.as_ref()
-                );
-                Box::new(
-                    (lowest_unpruned_key..range_end)
-                        .step_by(MAX_CHECKPOINTS_PER_PRUNE_BATCH as usize)
-                        .map(move |start| {
-                            let end = (start + MAX_CHECKPOINTS_PER_PRUNE_BATCH).min(range_end);
-                            PruningChunk::CheckpointRangeWithLimit(start, end - 1)
-                        }),
-                )
-            }
-        }
+        let range_end = strategy.range_end(watermark);
+        let batch_size = if strategy.is_batched() {
+            self.pruning_batch_size
+        } else {
+            1
+        };
+        info!(
+            "pruning table {} ({strategy:?}) in range: [{lowest_unpruned_key}..{range_end})",
+            self.table.as_ref(),
+        );
+        (lowest_unpruned_key..range_end)
+            .step_by(batch_size as usize)
+            .map(move |start| {
+                let end = (start + batch_size).min(range_end).saturating_sub(1);
+                (start, end)
+            })
     }
 
     /// Waits for the pruning delay to ensure in-flight reads complete or
@@ -403,7 +332,7 @@ impl<'a> TablePruner<'a> {
         // The watermark timestamp indicates when data was marked for pruning.
         // We delay pruning to allow any reads accessing this data to complete or
         // timeout.
-        let pruning_allowed_timestamp_ms = watermark_timestamp_ms as u64 + PRUNING_DELAY_MS;
+        let pruning_allowed_timestamp_ms = watermark_timestamp_ms as u64 + self.pruning_delay_ms;
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -416,7 +345,7 @@ impl<'a> TablePruner<'a> {
                 wait_duration.as_millis(),
                 self.table.as_ref(),
                 watermark_timestamp_ms,
-                PRUNING_DELAY_MS
+                self.pruning_delay_ms,
             );
 
             self.cancel
@@ -434,60 +363,46 @@ impl<'a> TablePruner<'a> {
         Ok(())
     }
 
-    /// Prune data based on the specified chunk
-    async fn prune_by_chunk(&self, chunk: PruningChunk) -> Result<(), IndexerError> {
-        match chunk {
-            PruningChunk::Epoch(epoch) => {
-                // Drop the partition for this epoch
-                self.partition_manager
-                    .drop_table_partition(self.table.as_ref().to_string(), epoch)?;
-                info!(
-                    "dropped epoch {epoch} partition for table {}",
-                    self.table.as_ref()
-                );
-            }
-
-            PruningChunk::CheckpointRange(start, end) => {
-                // Prune by checkpoint range
-                if let Err(e) = self
-                    .store
-                    .prune_table_by_checkpoint_range(&self.table, start, end)
-                    .await
-                {
-                    error!(
-                        "failed to prune table {} for checkpoint range [{start}..={end}]: {e}",
-                        self.table.as_ref(),
+    /// Prune the inclusive range `[start..=end]` using the table's pruning
+    /// strategy.
+    async fn prune_by_chunk(&self, start: u64, end: u64) -> Result<(), IndexerError> {
+        match self.table.pruning_strategy() {
+            PruningStrategy::ByEpochPartition => {
+                for epoch in start..=end {
+                    self.partition_manager
+                        .drop_table_partition(self.table.as_ref().to_string(), epoch)?;
+                    info!(
+                        "dropped epoch {epoch} partition for table {}",
+                        self.table.as_ref()
                     );
                 }
+            }
+
+            PruningStrategy::ByCheckpoint => {
+                self.store
+                    .prune_table_by_checkpoint_range(&self.table, start, end)
+                    .await?;
                 info!(
                     "pruned table {} for checkpoint range [{start}..={end}]",
                     self.table.as_ref(),
                 );
             }
 
-            PruningChunk::TransactionRange(start, end) => {
-                // Prune by transaction range
-                if let Err(e) = self
-                    .store
+            PruningStrategy::ByTransaction => {
+                self.store
                     .prune_table_by_tx_range(&self.table, start, end)
-                    .await
-                {
-                    error!(
-                        "failed to prune table {} for transaction range [{start}..={end}]: {e}",
-                        self.table.as_ref(),
-                    );
-                }
+                    .await?;
                 info!(
                     "pruned table {} for transaction range [{start}..={end}]",
                     self.table.as_ref(),
                 );
             }
 
-            PruningChunk::GlobalSeqRange(start, end) => {
+            PruningStrategy::ByGlobalSeq => {
                 self.prune_by_global_seq_with_limit(start, end).await?;
             }
 
-            PruningChunk::CheckpointRangeWithLimit(start, end) => {
+            PruningStrategy::ByCheckpointWithLimit => {
                 self.prune_by_checkpoint_with_limit(start, end).await?;
             }
         }
@@ -501,18 +416,14 @@ impl<'a> TablePruner<'a> {
         start: u64,
         end: u64,
     ) -> Result<(), IndexerError> {
+        let row_limit = self.pruning_batch_size;
         loop {
             let deleted = self
                 .store
-                .prune_table_by_global_seq_with_limit(
-                    &self.table,
-                    start,
-                    end,
-                    MAX_TRANSACTIONS_PER_PRUNE_BATCH as i64,
-                )
+                .prune_table_by_global_seq_with_limit(&self.table, start, end, row_limit as i64)
                 .await?;
 
-            if deleted < MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize {
+            if deleted < row_limit as usize {
                 info!(
                     "finished pruning table {} for global_seq range [{start}..={end}]",
                     self.table.as_ref(),
@@ -538,18 +449,14 @@ impl<'a> TablePruner<'a> {
         start: u64,
         end: u64,
     ) -> Result<(), IndexerError> {
+        let row_limit = self.pruning_batch_size;
         loop {
             let deleted = self
                 .store
-                .prune_table_by_checkpoint_with_limit(
-                    &self.table,
-                    start,
-                    end,
-                    MAX_CHECKPOINTS_PER_PRUNE_BATCH as i64,
-                )
+                .prune_table_by_checkpoint_with_limit(&self.table, start, end, row_limit as i64)
                 .await?;
 
-            if deleted < MAX_CHECKPOINTS_PER_PRUNE_BATCH as usize {
+            if deleted < row_limit as usize {
                 info!(
                     "finished pruning table {} for checkpoint range [{start}..={end}]",
                     self.table.as_ref(),
@@ -575,6 +482,8 @@ impl Pruner {
     pub fn new(
         store: PgIndexerStore,
         retention_config: RetentionConfig,
+        pruning_delay_ms: u64,
+        pruning_batch_size: u64,
         metrics: IndexerMetrics,
     ) -> Result<Self, IndexerError> {
         let blocking_cp = PrimaryWorker::pg_blocking_cp(store.clone()).unwrap();
@@ -585,6 +494,8 @@ impl Pruner {
             store,
             partition_manager,
             retention_policies,
+            pruning_delay_ms,
+            pruning_batch_size,
             metrics,
         })
     }
@@ -603,6 +514,8 @@ impl Pruner {
         for table in PrunableTable::iter() {
             let store_clone = self.store.clone();
             let partition_manager_clone = self.partition_manager.clone();
+            let pruning_delay_ms = self.pruning_delay_ms;
+            let pruning_batch_size = self.pruning_batch_size;
             let metrics_clone = self.metrics.clone();
             let cancel_clone = cancel.clone();
 
@@ -611,6 +524,8 @@ impl Pruner {
                     table,
                     &store_clone,
                     &partition_manager_clone,
+                    pruning_delay_ms,
+                    pruning_batch_size,
                     &metrics_clone,
                     cancel_clone,
                 );
