@@ -184,6 +184,7 @@ CheckpointTransaction:
     - output_objects:
         SEQ:
           TYPENAME: Object
+ClaimRegistryCreate: UNITSTRUCT
 Command:
   ENUM:
     0:
@@ -316,7 +317,9 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
     4:
-      ClaimRegistryCreate: UNIT
+      ClaimRegistryCreate:
+        NEWTYPE:
+          TYPENAME: ClaimRegistryCreate
 Event:
   STRUCT:
     - package_id:
