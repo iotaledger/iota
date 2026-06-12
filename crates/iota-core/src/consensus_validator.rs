@@ -124,7 +124,7 @@ impl IotaTxValidator {
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
 
-                ConsensusTransactionKind::OverloadNotificationV1(authority_name, percentage, _) => {
+                ConsensusTransactionKind::OverloadNotificationV1(authority_name, _, percentage) => {
                     if !self.epoch_store.protocol_config().enable_white_flag_flow() {
                         return Err(IotaError::UnsupportedFeature {
                             error:
