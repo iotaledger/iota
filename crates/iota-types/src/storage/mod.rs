@@ -593,7 +593,7 @@ pub fn get_transaction_input_objects(
         .enumerate()
         .map(|(idx, maybe_object)| {
             maybe_object.ok_or_else(|| {
-                StorageError::custom(format!(
+                StorageError::missing(format!(
                     "missing input object key {:?} from tx {}",
                     input_object_keys[idx],
                     effects.transaction_digest()
@@ -620,7 +620,7 @@ pub fn get_transaction_output_objects(
         .enumerate()
         .map(|(idx, maybe_object)| {
             maybe_object.ok_or_else(|| {
-                StorageError::custom(format!(
+                StorageError::missing(format!(
                     "missing output object key {:?} from tx {}",
                     output_object_keys[idx],
                     effects.transaction_digest()
