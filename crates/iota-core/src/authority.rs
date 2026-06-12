@@ -1025,25 +1025,28 @@ impl AuthorityState {
         let (kind, signer, gas_data) = tx_data.execution_parts();
         let tx_digest = *transaction.digest();
 
-        let effects = if move_authenticators.is_empty() {
+        // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
+        // source of truth for the input versions the attestor observed.
+        let (inner_temp_store, effects) = if move_authenticators.is_empty() {
             // No Move authentication, execute directly.
-            let (_, _, effects, _) = epoch_store.executor().execute_transaction_to_effects(
-                backing_store.as_ref(),
-                protocol_config,
-                self.metrics.limits_metrics.clone(),
-                false, // expensive_checks
-                self.config.certificate_deny_config.certificate_deny_set(),
-                &epoch_id,
-                epoch_start_timestamp,
-                tx_checked_input_objects,
-                gas_data,
-                gas_status,
-                kind,
-                signer,
-                tx_digest,
-                &mut None,
-            );
-            effects
+            let (inner_temp_store, _, effects, _) =
+                epoch_store.executor().execute_transaction_to_effects(
+                    backing_store.as_ref(),
+                    protocol_config,
+                    self.metrics.limits_metrics.clone(),
+                    false, // expensive_checks
+                    self.config.certificate_deny_config.certificate_deny_set(),
+                    &epoch_id,
+                    epoch_start_timestamp,
+                    tx_checked_input_objects,
+                    gas_data,
+                    gas_status,
+                    kind,
+                    signer,
+                    tx_digest,
+                    &mut None,
+                );
+            (inner_temp_store, effects)
         } else {
             // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
             // run auth + execution in one pass.
@@ -1079,7 +1082,7 @@ impl AuthorityState {
                 })
                 .collect::<Vec<_>>();
 
-            let (_, _, effects, _) = epoch_store
+            let (inner_temp_store, _, effects, _) = epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
                     backing_store.as_ref(),
@@ -1099,35 +1102,50 @@ impl AuthorityState {
                     tx_data_bytes,
                     &mut None,
                 );
-            effects
+            (inner_temp_store, effects)
         };
 
         // Build AttestationData.
         let estimated_computation_cost = effects.gas_cost_summary().computation_cost;
 
-        // Collect all input object refs seen during execution. Start from the
-        // owned objects, then add shared objects as recorded in effects (includes
-        // authenticator + deny-list objects), receiving objects, and gas payment
-        // objects.
-        let mut seen_ids = std::collections::HashSet::new();
-        let mut object_versions: Vec<ObjectRef> = Vec::new();
-        let mut push = |oref: ObjectRef| {
-            if seen_ids.insert(oref.object_id) {
-                object_versions.push(oref);
-            }
-        };
-        for &oref in &owned_objects {
-            push(oref);
-        }
-        for shared in effects.input_shared_objects() {
-            push(shared.object_ref());
-        }
-        for oref in tx_data.receiving_objects() {
-            push(oref);
-        }
-        for &oref in tx_data.gas() {
-            push(oref);
-        }
+        // `object_versions` is the evidence base for malicious-attestor detection. We
+        // pull `input_objects` (resolved tx + authenticator inputs) and
+        // `loaded_runtime_objects` (dynamic fields / children) from the
+        // execution's temporary store. Both record the pre-execution read version, and
+        // the two maps are disjoint by `ObjectID`.
+
+        // We then drop owned, gas, and receiving objects (pinned by
+        // `TransactionData`) and immutable objects / packages (frozen).
+        let tx_pinned_ids: HashSet<ObjectID> = tx_data
+            .input_objects()?
+            .into_iter()
+            .filter_map(|kind| match kind {
+                InputObjectKind::ImmOrOwnedMoveObject(oref) => Some(oref.object_id),
+                InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
+            })
+            .chain(tx_data.gas().iter().map(|oref| oref.object_id))
+            .chain(
+                tx_data
+                    .receiving_objects()
+                    .into_iter()
+                    .map(|oref| oref.object_id),
+            )
+            .collect();
+
+        let object_versions: Vec<ObjectRef> = inner_temp_store
+            .input_objects
+            .values()
+            .filter(|obj| !obj.is_immutable())
+            .map(|obj| obj.compute_object_reference())
+            .chain(
+                inner_temp_store
+                    .loaded_runtime_objects
+                    .iter()
+                    .filter(|(_, meta)| !matches!(meta.owner, Owner::Immutable))
+                    .map(|(id, meta)| ObjectRef::new(*id, meta.version, meta.digest)),
+            )
+            .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
+            .collect();
 
         Ok((
             AttestationData::V1 {
