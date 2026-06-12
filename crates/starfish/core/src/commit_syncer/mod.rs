@@ -64,7 +64,7 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI, TransactionRef},
 };
 
 /// Allowed multiplicity of commit vote headers per authority in a
@@ -250,6 +250,39 @@ pub(crate) fn check_commit_version_matches_flags(
     Ok(())
 }
 
+/// Validates every `AuthorityIndex` carried by a fetched commit against the
+/// committee, so malformed indices are rejected at ingress with peer
+/// attribution instead of panicking later when commit content is indexed
+/// into per-authority state.
+fn verify_commit_authority_indices(
+    context: &Context,
+    peer: AuthorityIndex,
+    commit: &Commit,
+) -> ConsensusResult<()> {
+    let committee = &context.committee;
+    let check = |index: AuthorityIndex| -> ConsensusResult<()> {
+        if !committee.is_valid_index(index) {
+            return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max: committee.size(),
+                peer,
+            });
+        }
+        Ok(())
+    };
+    check(commit.leader().author)?;
+    for block_ref in commit.block_headers() {
+        check(block_ref.author)?;
+    }
+    for transaction_ref in commit.committed_transactions() {
+        check(transaction_ref.author())?;
+    }
+    for (index, _) in commit.reputation_scores() {
+        check(*index)?;
+    }
+    Ok(())
+}
+
 /// Free-function form of `Inner::verify_commits`, taking only the inputs the
 /// verification actually uses (`Context` and `BlockVerifier`). Lets tests
 /// exercise the full deserialize-and-verify path without constructing a full
@@ -295,6 +328,7 @@ pub(crate) fn verify_commits(
         let commit: Commit =
             bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
         check_commit_version_matches_flags(&commit, &context.protocol_config)?;
+        verify_commit_authority_indices(context, peer, &commit)?;
         let digest = TrustedCommit::compute_digest(serialized);
         if commits.is_empty() {
             // start is inclusive, so first commit must be at the start index.
@@ -850,6 +884,7 @@ pub(crate) fn requeue_partial_range(
 mod tests {
     use super::*;
     use crate::{
+        block_header::BlockHeaderDigest,
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
     };
@@ -912,6 +947,53 @@ mod tests {
         assert_eq!(actual, expected_variant);
         assert_eq!(fast_commit_sync, fast_commit_sync_on);
         assert_eq!(starfish_speed, starfish_speed_on);
+    }
+
+    #[tokio::test]
+    async fn verify_commits_rejects_out_of_range_authority_index() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(false);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
+        let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let invalid_author = AuthorityIndex::new_for_test(4);
+        let leader = BlockRef::new(1, invalid_author, BlockHeaderDigest::MIN);
+        let commit = Commit::new(
+            &context,
+            1,
+            CommitDigest::MIN,
+            0,
+            leader,
+            vec![leader],
+            vec![],
+            vec![],
+            false,
+        );
+        let serialized = commit.serialize().unwrap();
+
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=1),
+            vec![serialized],
+            vec![],
+            10,
+        );
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max,
+                peer: error_peer,
+            }) if index == invalid_author && max == 4 && error_peer == peer
+        ));
     }
 
     #[tokio::test]
