@@ -38,6 +38,7 @@ module iota::builtin_authenticator_functions;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::dynamic_field as df;
+use iota::event;
 use iota::protocol_config;
 use iota::public_key::PublicKey;
 use iota::signature_scheme::{Self, SignatureScheme};
@@ -64,6 +65,27 @@ const SECP256K1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256k1_authenticato
 const SECP256R1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256r1_authenticator_function_ref_v1";
 const MULTISIG_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"multisig_authenticator_function_ref_v1";
 const PASSKEY_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"passkey_authenticator_function_ref_v1";
+
+// === Events ===
+
+/// Event: emitted when a public key is attached to an account.
+public struct PublicKeyAttached has copy, drop {
+    account_id: ID,
+    public_key: PublicKey,
+}
+
+/// Event: emitted when a public key is detached from an account.
+public struct PublicKeyDetached has copy, drop {
+    account_id: ID,
+    public_key: PublicKey,
+}
+
+/// Event: emitted when a public key is rotated on an account.
+public struct PublicKeyRotated has copy, drop {
+    account_id: ID,
+    from: PublicKey,
+    to: PublicKey,
+}
 
 // === Structs ===
 
@@ -238,9 +260,38 @@ public fun from_signature_scheme<Account: key>(
 ///
 /// Call this before obtaining an authenticator function ref and passing it to
 /// `account::create_account_v1`.
+///
+/// Emits a `PublicKeyAttached` event on success.
 public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
     assert!(!has_public_key(account_id), EPublicKeyAlreadyAttached);
-    df::add(account_id, public_key_field_name(), public_key)
+
+    df::add(account_id, public_key_field_name(), public_key);
+
+    let event = PublicKeyAttached {
+        account_id: account_id.to_inner(),
+        public_key,
+    };
+    event::emit(event);
+}
+
+/// Detaches and returns the public key attached to the account. Aborts if no public key is
+/// currently attached.
+///
+/// Use this when migrating away from a built-in authenticator to a custom one.
+///
+/// Emits a `PublicKeyDetached` event on success.
+public fun detach_public_key(account_id: &mut UID): PublicKey {
+    assert!(has_public_key(account_id), EPublicKeyMissing);
+
+    let public_key = df::remove(account_id, public_key_field_name());
+
+    let event = PublicKeyDetached {
+        account_id: account_id.to_inner(),
+        public_key,
+    };
+    event::emit(event);
+
+    public_key
 }
 
 /// Replaces the existing public key with `public_key` and returns the previous key.
@@ -248,6 +299,8 @@ public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
 ///
 /// Call this before obtaining a new authenticator function ref and passing it to
 /// `account::rotate_auth_function_ref_v1`.
+///
+/// Emits a `PublicKeyRotated` event on success.
 public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
@@ -255,17 +308,15 @@ public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): Publi
 
     let prev_public_key = df::remove(account_id, df_name);
     df::add(account_id, df_name, public_key);
+
+    let event = PublicKeyRotated {
+        account_id: account_id.to_inner(),
+        from: prev_public_key,
+        to: public_key,
+    };
+    event::emit(event);
+
     prev_public_key
-}
-
-/// Detaches and returns the public key attached to the account. Aborts if no public key is
-/// currently attached.
-///
-/// Use this when migrating away from a built-in authenticator to a custom one.
-public fun detach_public_key(account_id: &mut UID): PublicKey {
-    assert!(has_public_key(account_id), EPublicKeyMissing);
-
-    df::remove(account_id, public_key_field_name())
 }
 
 // === View Functions ===
