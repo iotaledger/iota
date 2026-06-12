@@ -34,29 +34,25 @@ pub struct NetworkAuthorityClient {
 impl NetworkAuthorityClient {
     pub async fn connect(
         address: &Multiaddr,
-        tls_target: Option<NetworkPublicKey>,
+        tls_target: NetworkPublicKey,
     ) -> anyhow::Result<Self> {
-        let tls_config = tls_target.map(|tls_target| {
-            iota_tls::create_rustls_client_config(
-                tls_target,
-                iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
-                None,
-            )
-        });
+        let tls_config = iota_tls::create_rustls_client_config(
+            tls_target,
+            iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+            None,
+        );
         let channel = iota_network_stack::client::connect(address, tls_config)
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
         Ok(Self::new(channel))
     }
 
-    pub fn connect_lazy(address: &Multiaddr, tls_target: Option<NetworkPublicKey>) -> Self {
-        let tls_config = tls_target.map(|tls_target| {
-            iota_tls::create_rustls_client_config(
-                tls_target,
-                iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
-                None,
-            )
-        });
+    pub fn connect_lazy(address: &Multiaddr, tls_target: NetworkPublicKey) -> Self {
+        let tls_config = iota_tls::create_rustls_client_config(
+            tls_target,
+            iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+            None,
+        );
         let channel: IotaResult<tonic::transport::Channel> =
             iota_network_stack::client::connect_lazy(address, tls_config)
                 .map_err(|err| err.to_string().into());
@@ -128,7 +124,7 @@ pub fn make_network_authority_clients_with_network_config(
         let maybe_channel = tls_config
             .and_then(|tls_config| {
                 network_config
-                    .connect_lazy(&address, Some(tls_config))
+                    .connect_lazy(&address, tls_config)
                     .map_err(|e| e.to_string().into())
             })
             .tap_err(|e| {

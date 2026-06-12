@@ -13,6 +13,7 @@ anemo.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 eyre.workspace = true
+fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
 http-body.workspace = true
@@ -22,6 +23,8 @@ idna = "1.1.0"
 multiaddr.workspace = true
 once_cell.workspace = true
 pin-project-lite.workspace = true
+rand.workspace = true
+rustls.workspace = true
 serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
@@ -34,6 +37,9 @@ tracing.workspace = true
 
 # internal dependencies
 iota-http.workspace = true
+
+[dev-dependencies]
+iota-tls.workspace = true
 
 [lints]
 workspace = true
