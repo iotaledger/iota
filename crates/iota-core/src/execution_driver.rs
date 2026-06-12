@@ -141,21 +141,22 @@ pub async fn execution_process(
             };
 
             // Emit attestation accuracy metrics for transactions that arrived
-            // as `UserTransactionV2`. Record both costs in NANOS so the ratio is
-            // meaningful: the attestation stores the estimate in gas units
-            // (computation_cost / gas_price), so multiply by the tx gas price to
-            // recover NANOS; `actual` is the NANOS cost from the effects.
+            // as `UserTransactionV2`, in gas units (CU). The attestation stores
+            // the estimate in units; the actual is the effects' NANOS cost
+            // divided by the tx gas price, so the two are comparable.
             if let Some(attested_units) = transaction.attested_computation_units() {
-                let gas_price = transaction.transaction().gas_price();
-                let attested = attested_units.saturating_mul(gas_price);
-                let actual = effects.gas_cost_summary().computation_cost;
+                let actual_units = effects
+                    .gas_cost_summary()
+                    .computation_cost
+                    .checked_div(transaction.transaction().gas_price())
+                    .unwrap_or(0);
 
-                authority.metrics.attested_computation_cost.observe(attested as f64);
-                authority.metrics.actual_computation_cost.observe(actual as f64);
-                if attested > 0 {
+                authority.metrics.attested_computation_units.observe(attested_units as f64);
+                authority.metrics.actual_computation_units.observe(actual_units as f64);
+                if attested_units > 0 {
                     authority.metrics
-                        .actual_to_attested_computation_cost_ratio
-                        .observe(actual as f64 / attested as f64);
+                        .actual_to_attested_computation_units_ratio
+                        .observe(actual_units as f64 / attested_units as f64);
                 }
             }
 
