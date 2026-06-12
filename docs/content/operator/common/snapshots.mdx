@@ -249,7 +249,7 @@ state-snapshot-read-config:
 
 </Tabs>
 
-With this set, the node downloads the per-epoch metadata from the latest formal snapshot at startup (a few seconds; the large object files are not downloaded) and then starts normally.
+With this set, the node downloads the per-epoch metadata from the latest formal snapshot at startup (a few seconds; the large object files are not downloaded) and then starts normally. If even the latest snapshot is older than the node's executed history and the missing epochs' data is already pruned locally, the node still refuses to start: wait for a newer snapshot, restore from a formal snapshot, or disable the gRPC API.
 
 ## IOTA Foundation managed snapshots
 
