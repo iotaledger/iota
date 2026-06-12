@@ -68,7 +68,7 @@ typed-store-error.workspace = true
 # external dependencies
 anemo.workspace = true
 fastcrypto-tbls.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 tonic.workspace = true
 
 # internal dependencies

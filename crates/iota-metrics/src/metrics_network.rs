@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use anemo_tower::callback::{MakeCallbackHandler, ResponseHandler};
-use prometheus::{
+use prometheus_filtered::{
     HistogramTimer, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,

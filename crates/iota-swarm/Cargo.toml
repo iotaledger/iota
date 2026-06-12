@@ -16,7 +16,7 @@ dag-visualizer = ["iota-node/dag-visualizer"]
 # external dependencies
 anyhow.workspace = true
 futures.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 rand.workspace = true
 tap.workspace = true
 tempfile.workspace = true

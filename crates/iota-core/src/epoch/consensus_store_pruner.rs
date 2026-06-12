@@ -5,7 +5,7 @@
 use std::{fs, path::PathBuf, time::Duration};
 
 use iota_metrics::spawn_logged_monitored_task;
-use prometheus::{
+use prometheus_filtered::{
     IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
@@ -220,7 +220,7 @@ impl ConsensusStorePruner {
 mod tests {
     use std::fs;
 
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use tokio::time::sleep;
 
     use crate::epoch::consensus_store_pruner::{ConsensusStorePruner, Metrics};

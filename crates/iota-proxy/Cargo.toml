@@ -23,7 +23,7 @@ hyper.workspace = true
 itertools.workspace = true
 multiaddr.workspace = true
 once_cell.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 prost.workspace = true
 protobuf = { version = "3.7.2", features = ["with-bytes"] }
 rand.workspace = true

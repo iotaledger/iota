@@ -15,7 +15,7 @@ use iota_config::{ConsensusConfig, NodeConfig};
 use iota_metrics::{RegistryID, RegistryService};
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
 use starfish_core::ConsensusAuthority;
 use tokio::{
     sync::{Mutex, MutexGuard},

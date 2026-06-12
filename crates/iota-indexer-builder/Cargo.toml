@@ -10,7 +10,7 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 tokio-util.workspace = true
 tracing.workspace = true

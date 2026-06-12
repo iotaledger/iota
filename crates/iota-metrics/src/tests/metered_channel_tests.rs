@@ -7,7 +7,7 @@ use futures::{
     FutureExt,
     task::{Context, Poll, noop_waker},
 };
-use prometheus::IntGauge;
+use prometheus_filtered::IntGauge;
 use tokio::sync::mpsc::error::TrySendError;
 
 use super::channel;

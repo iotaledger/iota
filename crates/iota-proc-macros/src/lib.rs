@@ -94,7 +94,7 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                     use ::iota_simulator::anemo::{Network, Request};
 
                     let make_network = |port: u16| {
-                        let registry = prometheus::Registry::new();
+                        let registry = prometheus_filtered::Registry::new();
                         let inbound_network_metrics =
                             NetworkMetrics::new("iota", "inbound", &registry);
                         let outbound_network_metrics =

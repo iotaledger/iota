@@ -27,7 +27,7 @@ use iota_types::{
 };
 use itertools::{Either, Itertools, izip};
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 use crate::{
     errors::{IndexerError, IndexerResult},

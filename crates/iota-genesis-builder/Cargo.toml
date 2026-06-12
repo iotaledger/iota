@@ -25,7 +25,7 @@ num-rational = "0.4"
 packable.workspace = true
 prefix-hex.workspace = true
 primitive-types.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
 rand_pcg = "0.3"
 rand_seeder = "0.3"

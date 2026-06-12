@@ -29,7 +29,7 @@ itertools.workspace = true
 jsonrpsee.workspace = true
 moka.workspace = true
 object_store.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 rand = { workspace = true, optional = true }
 reqwest.workspace = true
 serde.workspace = true

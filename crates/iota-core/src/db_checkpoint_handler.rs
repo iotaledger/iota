@@ -16,7 +16,7 @@ use iota_storage::object_store::util::{
     path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
 };
 use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::{debug, error, info};
 
 use crate::{

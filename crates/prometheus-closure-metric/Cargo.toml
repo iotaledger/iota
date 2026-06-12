@@ -9,7 +9,7 @@ description = "Library for a Prometheus metric that computes its value by given 
 
 [dependencies]
 anyhow.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 
 [lints]
 workspace = true

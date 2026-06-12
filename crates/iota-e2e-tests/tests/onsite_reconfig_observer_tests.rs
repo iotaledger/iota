@@ -8,7 +8,7 @@ use iota_core::{
     safe_client::SafeClientMetricsBase,
 };
 use iota_macros::sim_test;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use test_cluster::TestClusterBuilder;
 use tracing::info;
 

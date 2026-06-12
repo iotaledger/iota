@@ -35,7 +35,7 @@ use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
-use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot::Sender;
 use tower::ServiceBuilder;

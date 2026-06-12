@@ -40,7 +40,7 @@ move-binary-format.workspace = true
 [target.'cfg(msim)'.dependencies]
 # external dependencies
 fastcrypto-zkp.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 
 # internal dependencies
 iota-simulator.workspace = true

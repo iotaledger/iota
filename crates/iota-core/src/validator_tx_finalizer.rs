@@ -12,7 +12,7 @@ use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
     transaction::VerifiedSignedTransaction,
 };
-use prometheus::{
+use prometheus_filtered::{
     Histogram, IntCounter, Registry, register_histogram_with_registry,
     register_int_counter_with_registry,
 };

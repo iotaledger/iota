@@ -17,7 +17,7 @@ harness = false
 [dev-dependencies]
 # external dependencies
 datatest-stable.workspace = true
-prometheus.workspace = true
+prometheus-filtered.workspace = true
 
 # internal dependencies
 iota-adapter = { path = "../../iota-execution/latest/iota-adapter", package = "iota-adapter-latest" }
