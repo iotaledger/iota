@@ -66,6 +66,13 @@ use crate::{
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
+
+/// Allowed multiplicity of commit vote headers per authority in a
+/// fetch-commits response.
+// TODO: Reduce to 1 once all networks serve certifier votes deduplicated by
+// author, so a response never needs more than one header per authority.
+const MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY: usize = 2;
+
 pub(crate) enum CommitSyncType {
     Fast,
     Regular,
@@ -266,7 +273,14 @@ pub(crate) fn verify_commits(
         });
     }
 
-    let max_vote_headers = context.committee.size();
+    // One vote header per authority certifies a commit, but servers that do
+    // not dedup votes by author may legitimately serve a few more (e.g. an
+    // author re-including its vote in a block after crash recovery), so allow
+    // some multiplicity while still bounding signature verification work.
+    let max_vote_headers = context
+        .committee
+        .size()
+        .saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     if serialized_vote_blocks_headers.len() > max_vote_headers {
         return Err(ConsensusError::TooManyCommitVoteHeaders {
             peer,
@@ -890,6 +904,7 @@ mod tests {
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
         let misbehavior_store = MisbehaviorStore::new(&context);
+        let limit = context.committee.size() * MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY;
         let result = verify_commits(
             &context,
             &NoopBlockVerifier,
@@ -897,7 +912,7 @@ mod tests {
             peer,
             CommitRange::new(1..=1),
             vec![],
-            vec![Bytes::new(); context.committee.size() + 1],
+            vec![Bytes::new(); limit + 1],
             10,
         );
 
@@ -905,9 +920,9 @@ mod tests {
             result,
             Err(ConsensusError::TooManyCommitVoteHeaders {
                 peer: error_peer,
-                count: 5,
-                limit: 4,
-            }) if error_peer == peer
+                count,
+                limit: error_limit,
+            }) if error_peer == peer && count == limit + 1 && error_limit == limit
         ));
     }
 }
