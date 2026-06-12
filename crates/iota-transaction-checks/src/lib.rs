@@ -239,8 +239,9 @@ mod checked {
         Ok(aggregated_authenticator_input_objects)
     }
 
-    /// Thin wrapper over [`check_transaction_and_move_authenticator_input`] for
-    /// callers that hold a [`VerifiedExecutableTransaction`].
+    /// Checks certificate and Move-authenticator inputs, returning an
+    /// execution-mode gas status plus the checked input objects.
+    #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_and_move_authenticator_input(
         cert: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
@@ -249,27 +250,8 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
-        check_transaction_and_move_authenticator_input(
-            cert.data().transaction_data(),
-            tx_input_objects,
-            per_authenticator_input_objects,
-            authenticator_gas_budget,
-            protocol_config,
-            reference_gas_price,
-        )
-    }
+        let transaction = cert.data().transaction_data();
 
-    /// Checks transaction and Move-authenticator inputs, returning an
-    /// execution-mode gas status plus the checked input objects.
-    #[instrument(level = "trace", skip_all)]
-    pub fn check_transaction_and_move_authenticator_input(
-        transaction: &TransactionData,
-        tx_input_objects: InputObjects,
-        per_authenticator_input_objects: Vec<InputObjects>,
-        authenticator_gas_budget: u64,
-        protocol_config: &ProtocolConfig,
-        reference_gas_price: u64,
-    ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
         // Check Move authenticator inputs first.
         per_authenticator_input_objects
             .iter()
