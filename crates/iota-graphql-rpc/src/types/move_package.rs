@@ -37,9 +37,7 @@ use crate::{
         iota_names_registration::{NameFormat, NameRegistration},
         move_module::MoveModule,
         move_object::MoveObject,
-        object::{
-            self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus, ResolvedObject,
-        },
+        object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
@@ -827,7 +825,7 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let kind = ResolvedObject::try_from(stored.object)?;
+            let kind = ActiveObject::try_from(stored.object)?;
             let package = MovePackage::from_object_kind(kind, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
@@ -881,7 +879,7 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let kind = ResolvedObject::try_from(stored.object)?;
+            let kind = ActiveObject::try_from(stored.object)?;
             let package = MovePackage::from_object_kind(kind, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
@@ -894,7 +892,7 @@ impl MovePackage {
     /// related fields from the package are read from the same checkpoint
     /// (consistently).
     pub(crate) fn from_object_kind(
-        kind: ResolvedObject,
+        kind: ActiveObject,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
         // root_version

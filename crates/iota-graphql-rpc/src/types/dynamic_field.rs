@@ -28,7 +28,7 @@ use crate::{
         iota_address::IotaAddress,
         move_object::MoveObject,
         move_value::MoveValue,
-        object::{self, Object, ResolvedObject, StoredBackwardObject},
+        object::{self, ActiveObject, Object, StoredBackwardObject},
         type_filter::ExactTypeFilter,
     },
 };
@@ -240,7 +240,7 @@ impl DynamicField {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            let kind = ResolvedObject::try_from(stored_history)?;
+            let kind = ActiveObject::try_from(stored_history)?;
             let object = Object::from_object_kind(kind, checkpoint_viewed_at, parent_version);
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {

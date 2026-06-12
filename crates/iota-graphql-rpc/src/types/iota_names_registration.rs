@@ -27,7 +27,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus, ResolvedObject},
+    object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -560,7 +560,7 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            let kind = ResolvedObject::try_from(result)?;
+            let kind = ActiveObject::try_from(result)?;
             let object = Object::from_object_kind(kind, checkpoint_viewed_at, None);
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
