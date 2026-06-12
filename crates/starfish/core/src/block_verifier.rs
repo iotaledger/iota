@@ -387,8 +387,8 @@ pub(crate) mod test {
     /// to exactly one ULEB128 length prefix per sequence plus the raw bytes,
     /// and fit within the limit. Fails if the BCS framing or the
     /// `Transaction` layout changes.
-    #[test]
-    fn serialized_transactions_size_limit_bounds_maximal_valid_batch() {
+    #[tokio::test]
+    async fn serialized_transactions_size_limit_bounds_maximal_valid_batch() {
         fn uleb128_len(mut value: usize) -> usize {
             let mut len = 1;
             while value >= 0x80 {
@@ -417,8 +417,8 @@ pub(crate) mod test {
         assert!(serialized.len() <= serialized_transactions_size_limit(&context));
     }
 
-    #[test]
-    fn check_and_parse_transactions_rejects_oversized_payload() {
+    #[tokio::test]
+    async fn check_and_parse_transactions_rejects_oversized_payload() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let size_limit = serialized_transactions_size_limit(&context);
