@@ -321,7 +321,7 @@ impl<'a> TablePruner<'a> {
         (lowest_unpruned_key..range_end)
             .step_by(batch_size as usize)
             .map(move |start| {
-                let end = (start + batch_size).min(range_end) - 1;
+                let end = (start + batch_size).min(range_end).saturating_sub(1);
                 (start, end)
             })
     }
@@ -379,16 +379,9 @@ impl<'a> TablePruner<'a> {
             }
 
             PruningStrategy::ByCheckpoint => {
-                if let Err(e) = self
-                    .store
+                self.store
                     .prune_table_by_checkpoint_range(&self.table, start, end)
-                    .await
-                {
-                    error!(
-                        "failed to prune table {} for checkpoint range [{start}..={end}]: {e}",
-                        self.table.as_ref(),
-                    );
-                }
+                    .await?;
                 info!(
                     "pruned table {} for checkpoint range [{start}..={end}]",
                     self.table.as_ref(),
@@ -396,16 +389,9 @@ impl<'a> TablePruner<'a> {
             }
 
             PruningStrategy::ByTransaction => {
-                if let Err(e) = self
-                    .store
+                self.store
                     .prune_table_by_tx_range(&self.table, start, end)
-                    .await
-                {
-                    error!(
-                        "failed to prune table {} for transaction range [{start}..={end}]: {e}",
-                        self.table.as_ref(),
-                    );
-                }
+                    .await?;
                 info!(
                     "pruned table {} for transaction range [{start}..={end}]",
                     self.table.as_ref(),

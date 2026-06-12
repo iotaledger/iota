@@ -319,8 +319,13 @@ pub struct PruningOptions {
     pub pruning_delay_ms: u64,
     /// Upper bound on units (checkpoints, transactions, or global sequence
     /// numbers) pruned per chunk, and on rows deleted per statement for the
-    /// `WithLimit` strategies.
-    #[arg(long, env = "PRUNING_BATCH_SIZE", default_value_t = DEFAULT_PRUNING_BATCH_SIZE)]
+    /// `WithLimit` strategies. Must be > 0.
+    #[arg(
+        long,
+        env = "PRUNING_BATCH_SIZE",
+        default_value_t = DEFAULT_PRUNING_BATCH_SIZE,
+        value_parser = clap::value_parser!(u64).range(1..),
+    )]
     pub pruning_batch_size: u64,
     /// DEPRECATED: will be removed in v1.29.0. This parameter is no longer
     /// used. Optimistic transactions are now pruned by the unified pruner.
