@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
 # start.sh — bring up the local iota-private-network configured for the
-# validator-attestation / sequencer (TotalComputationCost) stress test.
+# validator-attestation / sequencer (TotalComputationUnits) stress test.
 #
 # It sets the protocol-config overrides this test needs, then calls the
 # network's own run.sh (forwarding any args). Every knob is an env var, so you
 # can change the congestion mode / limits between runs WITHOUT rebuilding the
 # Rust code or docker images:
 #
-#   ./start.sh                                   # 4 validators + faucet, attested, TotalComputationCost
+#   ./start.sh                                   # 4 validators + faucet, attested, TotalComputationUnits
 #   ./start.sh -n 10 faucet                      # args forwarded straight to run.sh
 #   MODE=TotalGasBudget ./start.sh               # baseline congestion mode
 #   ATTEST=false ./start.sh                      # disable validator attestation
@@ -31,11 +31,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PRIVNET_DIR="${PRIVNET_DIR:-$REPO_ROOT/dev-tools/iota-private-network}"
 
 # --- Protocol-config overrides (docker-compose forwards these to every node) --
-# Attestation + white-flag-flow ON; congestion mode = TotalComputationCost.
+# Attestation + white-flag-flow ON; congestion mode = TotalComputationUnits.
 export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW="${PCOOL:-true}"
 export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION="${ATTEST:-true}"
-export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_PER_OBJECT_CONGESTION_CONTROL_MODE="${MODE:-TotalComputationCost}"
+export IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_PER_OBJECT_CONGESTION_CONTROL_MODE="${MODE:-TotalComputationUnits}"
 
 # Optional numeric limits: only exported when provided, so the protocol
 # version's own value stands otherwise (avoids pinning a baseline by accident).

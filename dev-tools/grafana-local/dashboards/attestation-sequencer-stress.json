@@ -5,7 +5,7 @@
   "refresh": "auto",
   "schemaVersion": 39,
   "version": 1,
-  "title": "Attestation / Sequencer Stress (TotalComputeUnits)",
+  "title": "Attestation / Sequencer Stress (TotalComputationUnits)",
   "uid": "attestation-sequencer-stress",
   "tags": ["attestation", "sequencer", "stress", "congestion"],
   "time": { "from": "now-5m", "to": "now" },
@@ -57,44 +57,44 @@
 
     { "type": "row", "title": "attestation — accuracy", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 }, "id": 10, "collapsed": false },
     {
-      "type": "timeseries", "title": "actual / attested cost — p50 (1.0 = perfect)",
-      "description": "Per-host p50 of actual_to_attested_computation_cost_ratio. 1.0 = attested cost matched execution; >1 the attestor under-reported, <1 over-reported. Rate window: $__rate_interval (~1m).",
+      "type": "timeseries", "title": "actual / attested CUs — p50 (1.0 = perfect)",
+      "description": "Per-host p50 of actual_to_attested_computation_units_ratio. 1.0 = the attestor's estimate matched actual execution; >1 the attestor under-reported, <1 over-reported. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 44 }, "id": 11,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 0 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(actual_to_attested_computation_cost_ratio_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(actual_to_attested_computation_units_ratio_bucket{host=~\"$host\"}[$__rate_interval])))",
           "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "timeseries", "title": "actual / attested cost — p95 (1.0 = perfect)",
-      "description": "Per-host p95 of actual_to_attested_computation_cost_ratio. 1.0 = attested cost matched execution; >1 the attestor under-reported, <1 over-reported. Rate window: $__rate_interval (~1m).",
+      "type": "timeseries", "title": "actual / attested CUs — p95 (1.0 = perfect)",
+      "description": "Per-host p95 of actual_to_attested_computation_units_ratio. 1.0 = the attestor's estimate matched actual execution; >1 the attestor under-reported, <1 over-reported. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 44 }, "id": 13,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 0 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(actual_to_attested_computation_cost_ratio_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, host) (rate(actual_to_attested_computation_units_ratio_bucket{host=~\"$host\"}[$__rate_interval])))",
           "legendFormat": "{{host}}" }
       ]
     },
     {
-      "type": "timeseries", "title": "attested vs actual computation cost (NANOS, p50)",
-      "description": "Per-host p50 of attested_computation_cost (attestor's pre-consensus estimate) vs actual_computation_cost (from execution effects), both in NANOS. Gap between a validator's two lines = its estimate error. Rate window: $__rate_interval (~1m).",
+      "type": "timeseries", "title": "attested vs actual computation units (CUs, p50)",
+      "description": "Per-host p50 of attested_computation_units (attestor's pre-consensus estimate) vs actual_computation_units (effects' computation_cost / gas_price), both in gas units (CUs). Gap between a validator's two lines = its estimate error. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 44 }, "id": 12,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(attested_computation_cost_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(attested_computation_units_bucket{host=~\"$host\"}[$__rate_interval])))",
           "legendFormat": "attested {{host}}" },
         { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(actual_computation_cost_bucket{host=~\"$host\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, host) (rate(actual_computation_units_bucket{host=~\"$host\"}[$__rate_interval])))",
           "legendFormat": "actual {{host}}" }
       ]
     },
