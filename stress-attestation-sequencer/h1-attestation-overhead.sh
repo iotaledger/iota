@@ -98,6 +98,7 @@ scrape_metrics() {
     v[set_$pct]=$(prom_scalar "histogram_quantile($pct, sum by (le) (rate(transaction_driver_settlement_finality_latency_bucket{${fn}}[${win}s])))" "$end")
     v[sub_$pct]=$(prom_scalar "histogram_quantile($pct, sum by (le) (rate(transaction_driver_submit_transaction_latency_bucket{${fn}}[${win}s])))" "$end")
     v[exe_$pct]=$(prom_scalar "histogram_quantile($pct, sum by (le) (rate(validator_transaction_execution_latency_bucket[${win}s])))" "$end")
+    v[int_$pct]=$(prom_scalar "histogram_quantile($pct, sum by (le) (rate(authority_state_internal_execution_latency_bucket[${win}s])))" "$end")
   done
   local tps cpu
   tps=$(prom_scalar "max(rate(transactions_included_in_checkpoint[${win}s]))" "$end")
@@ -113,6 +114,7 @@ scrape_metrics() {
   "settlement_finality_latency_s": { "p50": ${v[set_0.5]}, "p95": ${v[set_0.95]}, "p99": ${v[set_0.99]} },
   "submit_transaction_latency_s": { "p50": ${v[sub_0.5]}, "p95": ${v[sub_0.95]}, "p99": ${v[sub_0.99]} },
   "validator_transaction_execution_latency_s": { "p50": ${v[exe_0.5]}, "p95": ${v[exe_0.95]}, "p99": ${v[exe_0.99]} },
+  "internal_execution_latency_s": { "p50": ${v[int_0.5]}, "p95": ${v[int_0.95]}, "p99": ${v[int_0.99]} },
   "finalized_tps": $tps,
   "per_validator_cpu_busy_cores": $cpu
 }
@@ -133,7 +135,8 @@ L = ["# H1 — attestation overhead: results\n",
 lat = [("validator_attestation_latency (s)", "validator_attestation_latency_s"),
        ("settlement_finality_latency (s)", "settlement_finality_latency_s"),
        ("submit_transaction_latency (s)", "submit_transaction_latency_s"),
-       ("validator_transaction_execution_latency (s)", "validator_transaction_execution_latency_s")]
+       ("validator_transaction_execution_latency (s)", "validator_transaction_execution_latency_s"),
+       ("internal_execution_latency — real VM (s)", "internal_execution_latency_s")]
 for pct in ("p50", "p95", "p99"):
     L += [f"## {pct}\n", "| metric | V1 | V2 | V2−V1 |", "| --- | --- | --- | --- |"]
     for name, key in lat:
