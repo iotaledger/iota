@@ -239,7 +239,6 @@ mod test {
             };
             let node = AuthorityNode::new(config);
             node.start().await.unwrap();
-            node.spawn_committed_subdag_consumer().unwrap();
 
             transaction_clients.push(node.transaction_client());
             authorities.push(node);
@@ -338,9 +337,6 @@ mod test {
 
                 // Restart the authority with the specified mode
                 authorities[authority_idx].restart(mode).await.unwrap();
-                authorities[authority_idx]
-                    .spawn_committed_subdag_consumer()
-                    .unwrap();
 
                 // Wait for catch-up
                 sleep(restart_config.post_restart_wait).await;
