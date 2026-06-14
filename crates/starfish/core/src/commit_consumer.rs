@@ -9,6 +9,12 @@ use tokio::sync::watch;
 
 use crate::{CommitIndex, CommittedSubDag};
 
+/// Receiving end of the consensus output: consensus sends committed sub-dags
+/// through the channel and the consumer reports its progress via the monitor.
+///
+/// The consumer must already be draining the channel and reporting progress
+/// when consensus starts, since commit observer recovery paces the resend of
+/// the unprocessed backlog on consumer progress.
 pub struct CommitConsumer {
     // A channel to send the committed sub dags through
     pub(crate) sender: UnboundedSender<CommittedSubDag>,
@@ -85,6 +91,26 @@ impl CommitConsumerMonitor {
             "highest_known_commit_at_startup can only be set once"
         );
         *commit = highest_observed_commit_at_startup;
+    }
+
+    /// Waits until the consumer's highest handled commit is within
+    /// `threshold` commits behind `sent_index`, i.e. until
+    /// `sent_index - highest_handled_commit() < threshold`.
+    pub(crate) async fn wait_until_handled_within(
+        &self,
+        sent_index: CommitIndex,
+        threshold: CommitIndex,
+    ) {
+        let mut rx = self.highest_handled_commit.subscribe();
+        loop {
+            let highest_handled = *rx.borrow_and_update();
+            if sent_index.saturating_sub(highest_handled) < threshold {
+                return;
+            }
+            rx.changed()
+                .await
+                .expect("the watch sender lives in this monitor, so it outlives this wait");
+        }
     }
 
     pub(crate) async fn replay_complete(&self) {

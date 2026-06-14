@@ -192,8 +192,7 @@ impl<C: NetworkClient> Inner<C> {
     /// threshold, scheduling new fetches should pause to let the handler
     /// catch up.
     pub(crate) fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.context.parameters.commit_sync_batch_size
-            * (self.context.parameters.commit_sync_batches_ahead as u32)
+        self.context.parameters.unhandled_commits_threshold()
     }
 
     /// Verifies the commits and also certifies them using the provided vote
