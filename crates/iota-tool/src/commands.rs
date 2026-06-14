@@ -889,7 +889,9 @@ impl ToolCommand {
                     epoch_to_download,
                     &genesis,
                     snapshot_store_config,
-                    archive_store_config,
+                    // The archive is only read in `--all-checkpoints` mode;
+                    // the default mode is archive-free.
+                    all_checkpoints.then_some(archive_store_config),
                     num_parallel_downloads,
                     network,
                     verify,
