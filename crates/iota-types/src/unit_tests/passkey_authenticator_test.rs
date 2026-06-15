@@ -338,7 +338,7 @@ async fn test_passkey_fails_wrong_client_data_type() {
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
     let err = passkey.unwrap_err();
-    assert!(err.to_string().contains("unknown variant"),);
+    assert!(err.to_string().contains("unknown variant"));
 }
 
 #[tokio::test]
