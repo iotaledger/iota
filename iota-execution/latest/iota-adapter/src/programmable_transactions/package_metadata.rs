@@ -155,18 +155,23 @@ mod checked {
             package_version: u64,
             trace_builder_opt: &mut Option<MoveTraceBuilder>,
         ) -> Result<(), ExecutionError> {
-            let (modules, auth_functions, type_names, view_function_names) =
-                package_metadata_constructor_args(modules_metadata);
+            let constructor_args = package_metadata_constructor_args(modules_metadata);
             // The Move constructor derives both the package metadata object address
             // and the per-module metadata object addresses from the storage ID.
             let args = vec![
                 to_bcs_argument(&ID::new(storage_id), "package metadata storage ID")?,
                 to_bcs_argument(&ID::new(runtime_id), "package metadata runtime ID")?,
                 to_bcs_argument(&package_version, "package metadata version")?,
-                to_bcs_argument(&modules, "package metadata modules")?,
-                to_bcs_argument(&auth_functions, "package metadata authenticator functions")?,
-                to_bcs_argument(&type_names, "package metadata type names")?,
-                to_bcs_argument(&view_function_names, "package metadata view functions")?,
+                to_bcs_argument(&constructor_args.modules, "package metadata modules")?,
+                to_bcs_argument(
+                    &constructor_args.auth_functions,
+                    "package metadata authenticator functions",
+                )?,
+                to_bcs_argument(&constructor_args.type_names, "package metadata type names")?,
+                to_bcs_argument(
+                    &constructor_args.view_function_names,
+                    "package metadata view functions",
+                )?,
             ];
             execute_package_metadata_constructor(
                 context,
@@ -187,6 +192,18 @@ mod checked {
         fn is_empty(&self) -> bool {
             self.authenticator_metadata.is_empty() && self.view_function_metadata.is_empty()
         }
+    }
+
+    /// Module metadata flattened into the parallel vectors expected by the
+    /// framework `create_package_metadata_v1_with_dynamic_metadata`
+    /// constructor. All vectors share the same length and ordering as
+    /// `modules`; the inner vectors of `auth_functions`/`type_names` are
+    /// likewise aligned per module.
+    struct PackageMetadataConstructorArgs {
+        modules: Vec<String>,
+        auth_functions: Vec<Vec<String>>,
+        type_names: Vec<Vec<String>>,
+        view_function_names: Vec<Vec<String>>,
     }
 
     /// Creates package metadata for a Move package by extracting module
@@ -284,12 +301,7 @@ mod checked {
 
     fn package_metadata_constructor_args(
         modules_metadata: &BTreeMap<String, PendingModuleMetadata>,
-    ) -> (
-        Vec<String>,
-        Vec<Vec<String>>,
-        Vec<Vec<String>>,
-        Vec<Vec<String>>,
-    ) {
+    ) -> PackageMetadataConstructorArgs {
         let mut modules = Vec::with_capacity(modules_metadata.len());
         let mut auth_functions = Vec::with_capacity(modules_metadata.len());
         let mut type_names = Vec::with_capacity(modules_metadata.len());
@@ -310,7 +322,12 @@ mod checked {
             view_function_names.push(metadata.view_function_metadata.clone());
         }
 
-        (modules, auth_functions, type_names, view_function_names)
+        PackageMetadataConstructorArgs {
+            modules,
+            auth_functions,
+            type_names,
+            view_function_names,
+        }
     }
 
     fn execute_package_metadata_constructor(
