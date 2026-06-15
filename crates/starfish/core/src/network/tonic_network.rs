@@ -37,8 +37,9 @@ use super::{
 };
 use crate::{
     CommitIndex, Round,
-    block_header::BlockRef,
-    commit::CommitRange,
+    block_header::{BlockRef, max_signed_block_header_bytes},
+    block_verifier::serialized_transactions_size_limit,
+    commit::{CommitRange, max_commit_bytes},
     commit_syncer::CommitSyncType,
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -53,9 +54,56 @@ use crate::{
 // TODO: put max RPC response size in protocol config.
 const MAX_FETCH_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
-// Maximum total bytes fetched in a single fetch_blocks() call, after combining
-// the responses.
-const MAX_TOTAL_FETCHED_BYTES: usize = 128 * 1024 * 1024;
+// Upper bound on the total bytes a peer may stream in response to a fetch,
+// terminating the stream once exceeded. Each bound mirrors the matching
+// server-side per-fetch cap, so an honest peer's response always fits while a
+// flooding peer is cut off. Sizing tracks the cap, not the requested count.
+
+/// Header-fetch budget: the per-fetch header count cap times the maximum
+/// serialized header size for this committee. `commit_sync` selects the same
+/// cap the server applies in `ConsensusService::fetch_block_headers`.
+fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) -> usize {
+    context
+        .parameters
+        .max_headers_per_fetch(commit_sync)
+        .saturating_mul(max_signed_block_header_bytes(context.committee.size()))
+}
+
+/// Transaction-fetch budget: the per-fetch transaction count cap times the
+/// maximum serialized per-block transaction payload. The larger of the two
+/// sync caps is used, matching `TransactionFetchMode::TransactionSync`.
+fn max_fetch_transactions_response_bytes(context: &Context) -> usize {
+    let max_transactions = context
+        .parameters
+        .max_transactions_per_commit_sync_fetch
+        .max(
+            context
+                .parameters
+                .max_transactions_per_transaction_sync_fetch,
+        );
+    max_transactions.saturating_mul(serialized_transactions_size_limit(context))
+}
+
+/// Combined fetch-commits-and-transactions budget: serialized commits, the
+/// certifier headers served alongside them, and the transactions referenced by
+/// those commits.
+fn max_fetch_commits_and_transactions_response_bytes(context: &Context) -> usize {
+    let committee_size = context.committee.size();
+    let gc_depth = context.protocol_config.gc_depth() as usize;
+    let commits = (context.parameters.fast_commit_sync_batch_size as usize)
+        .saturating_mul(max_commit_bytes(committee_size, gc_depth));
+    let certifier_headers = context
+        .parameters
+        .max_headers_per_header_sync_fetch
+        .saturating_mul(max_signed_block_header_bytes(committee_size));
+    let transactions = context
+        .parameters
+        .max_transactions_per_commit_sync_fetch
+        .saturating_mul(serialized_transactions_size_limit(context));
+    commits
+        .saturating_add(certifier_headers)
+        .saturating_add(transactions)
+}
 
 // Implements Tonic RPC client for Consensus.
 pub(crate) struct TonicClient {
@@ -141,6 +189,10 @@ impl NetworkClient for TonicClient {
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
+        let max_allowed_bytes = max_fetch_block_headers_response_bytes(
+            &self.context,
+            highest_accepted_rounds.is_empty(),
+        );
         let mut request = Request::new(FetchBlockHeadersRequest {
             block_refs: block_refs
                 .iter()
@@ -175,10 +227,10 @@ impl NetworkClient for TonicClient {
                         total_fetched_bytes += b.len();
                     }
                     vec_serialized_block_header.extend(response.vec_serialized_block_header);
-                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
+                    if total_fetched_bytes > max_allowed_bytes {
                         info!(
-                            "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
+                            "fetch_block_headers() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                            total_fetched_bytes, max_allowed_bytes,
                         );
                         break;
                     }
@@ -258,6 +310,8 @@ impl NetworkClient for TonicClient {
         let mut headers = vec![];
         let mut total_fetched_bytes = 0;
         let max_headers = authorities.len();
+        let max_allowed_bytes = max_headers
+            .saturating_mul(max_signed_block_header_bytes(self.context.committee.size()));
         loop {
             match stream.message().await {
                 Ok(Some(response)) => {
@@ -276,10 +330,10 @@ impl NetworkClient for TonicClient {
                         total_fetched_bytes += b.len();
                     }
                     headers.extend(vec_serialized_block_headers);
-                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
+                    if total_fetched_bytes > max_allowed_bytes {
                         info!(
-                            "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
+                            "fetch_latest_block_headers() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                            total_fetched_bytes, max_allowed_bytes,
                         );
                         break;
                     }
@@ -351,6 +405,7 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
+        let max_allowed_bytes = max_fetch_transactions_response_bytes(&self.context);
         let mut total_fetched_bytes = 0;
         let mut vec_serialized_transactions = vec![];
         loop {
@@ -359,10 +414,10 @@ impl NetworkClient for TonicClient {
                     for b in &response.vec_serialized_transactions {
                         total_fetched_bytes += b.len();
                     }
-                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
+                    if total_fetched_bytes > max_allowed_bytes {
                         info!(
                             "fetch_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
+                            total_fetched_bytes, max_allowed_bytes,
                         );
                         break;
                     }
@@ -423,6 +478,7 @@ impl NetworkClient for TonicClient {
         let mut commits = Vec::new();
         let mut certifier_block_headers = Vec::new();
         let mut transactions = Vec::new();
+        let max_allowed_bytes = max_fetch_commits_and_transactions_response_bytes(&self.context);
         let mut total_fetched_bytes = 0;
 
         loop {
@@ -445,10 +501,10 @@ impl NetworkClient for TonicClient {
                     }
                     transactions.extend(response.transactions);
 
-                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
+                    if total_fetched_bytes > max_allowed_bytes {
                         info!(
                             "fetch_commits_and_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
+                            total_fetched_bytes, max_allowed_bytes,
                         );
                         break;
                     }
@@ -1466,4 +1522,48 @@ fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
         chunks.push(chunk);
     }
     chunks
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::{max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes};
+    use crate::{
+        block_header::max_signed_block_header_bytes,
+        block_verifier::serialized_transactions_size_limit, context::Context,
+    };
+
+    /// The per-fetch response budgets track the matching server-side count cap:
+    /// the value is the cap times the maximum per-item size, depends only on the
+    /// cap and committee, and never on how many items the caller requested.
+    #[tokio::test]
+    async fn fetch_response_budgets_track_server_caps() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 7;
+        context.parameters.max_headers_per_header_sync_fetch = 11;
+        context.parameters.max_transactions_per_commit_sync_fetch = 5;
+        context
+            .parameters
+            .max_transactions_per_transaction_sync_fetch = 9;
+        let committee_size = context.committee.size();
+        let context = Arc::new(context);
+
+        let header_bytes = max_signed_block_header_bytes(committee_size);
+        // Commit sync selects the commit-sync header cap.
+        assert_eq!(
+            max_fetch_block_headers_response_bytes(&context, true),
+            7 * header_bytes
+        );
+        // Header sync selects the header-sync cap.
+        assert_eq!(
+            max_fetch_block_headers_response_bytes(&context, false),
+            11 * header_bytes
+        );
+        // Transaction budget uses the larger of the two transaction caps.
+        assert_eq!(
+            max_fetch_transactions_response_bytes(&context),
+            9 * serialized_transactions_size_limit(&context)
+        );
+    }
 }
