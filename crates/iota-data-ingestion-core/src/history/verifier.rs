@@ -24,7 +24,7 @@
 use futures::{Stream, stream::TryStreamExt};
 use iota_config::genesis::Genesis;
 use iota_types::{
-    committee::{Committee, EpochId},
+    committee::{Committee, CommitteeChainVerifier, EpochId},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
@@ -59,8 +59,9 @@ use crate::{
 /// ```
 pub struct EpochBoundaryVerifier {
     reader: HistoricalReader,
-    /// Committee expected to have signed the next checkpoint to verify
-    committee: Committee,
+    /// The committee-chain walk; its committee is the one expected to have
+    /// signed the next checkpoint to verify.
+    chain_verifier: CommitteeChainVerifier,
     /// The epoch boundaries stored in the remote store.
     epoch_boundaries: EpochBoundaries,
     /// The final epoch to verify.
@@ -88,7 +89,7 @@ impl EpochBoundaryVerifier {
         let epoch_boundaries = reader.epoch_boundaries().await?;
         Ok(Self {
             reader,
-            committee: starting_committee,
+            chain_verifier: CommitteeChainVerifier::new(starting_committee),
             epoch_boundaries,
             target_epoch,
         })
@@ -130,8 +131,8 @@ impl EpochBoundaryVerifier {
         Ok(last)
     }
 
-    /// Streams the verified last checkpoints from Genesis up to the target
-    /// epoch of the verifier.
+    /// Streams the verified last checkpoints from the starting committee's
+    /// epoch up to the target epoch of the verifier.
     ///
     /// This consumes the verifier. Each checkpoint is fetched into memory and
     /// verified only when the stream is polled. Upon successful verification
@@ -160,10 +161,9 @@ impl EpochBoundaryVerifier {
         Ok(futures::stream::try_unfold(
             self,
             |mut verifier| async move {
-                let Some((verified, next_epoch_committee)) = verifier.verify_next().await? else {
+                let Some(verified) = verifier.verify_next().await? else {
                     return Ok(None);
                 };
-                verifier.committee = next_epoch_committee;
                 Ok(Some((verified, verifier)))
             },
         ))
@@ -178,8 +178,8 @@ impl EpochBoundaryVerifier {
     /// The method returns [`None`] if the target epoch has been already
     /// verified.
     ///
-    /// Otherwise it returns the verified checkpoint along with the
-    /// [`Committee`] of the next epoch.
+    /// Otherwise it returns the verified checkpoint, advancing the committee
+    /// chain to the next epoch.
     ///
     /// # Errors
     ///
@@ -190,8 +190,8 @@ impl EpochBoundaryVerifier {
     /// * If the summary cannot be fetched from the remote store
     /// * If signature verification fails
     /// * If the checkpoint is not the last checkpoint of the epoch
-    async fn verify_next(&self) -> Result<Option<(VerifiedCheckpoint, Committee)>> {
-        let epoch_to_verify = self.committee.epoch;
+    async fn verify_next(&mut self) -> Result<Option<VerifiedCheckpoint>> {
+        let epoch_to_verify = self.chain_verifier.epoch();
         if epoch_to_verify > self.target_epoch {
             return Ok(None);
         }
@@ -203,33 +203,17 @@ impl EpochBoundaryVerifier {
 
         let summary = self.fetch_summary(sequence_number).await?;
 
-        let verified = summary.try_into_verified(&self.committee).map_err(|e| {
-            IngestionError::Verification(format!(
-                "failed to verify checkpoint {sequence_number} against the committee for epoch \
+        let verified = self
+            .chain_verifier
+            .verify_epoch_close(summary)
+            .map_err(|e| {
+                IngestionError::Verification(format!(
+                    "failed to verify checkpoint {sequence_number} as the close of epoch \
                  {epoch_to_verify}: {e}"
-            ))
-        })?;
+                ))
+            })?;
 
-        let end_of_epoch_data = verified.end_of_epoch_data.as_ref().ok_or_else(|| {
-            IngestionError::Verification(format!(
-                "checkpoint {sequence_number} is not the last checkpoint of an epoch (no end-of-epoch data)"
-            ))
-        })?;
-
-        let next_epoch = verified
-            .epoch()
-            .checked_add(1)
-            .expect("epoch number overflow");
-        let next_epoch_committee = Committee::new(
-            next_epoch,
-            end_of_epoch_data
-                .next_epoch_committee
-                .iter()
-                .cloned()
-                .collect(),
-        );
-
-        Ok(Some((verified, next_epoch_committee)))
+        Ok(Some(verified))
     }
 
     /// Fetches a single checkpoint summary into memory.

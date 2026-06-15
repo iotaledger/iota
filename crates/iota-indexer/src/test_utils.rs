@@ -20,6 +20,9 @@ use crate::{
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 
+/// Shorter pruning delay used by the test indexer.
+const TEST_PRUNING_DELAY_MS: u64 = 1000; // 1 second
+
 /// Type to create hooks to alter initial indexer DB state in tests.
 /// Those hooks are meant to be called after DB reset (if it occurs) and before
 /// indexer is started.
@@ -64,6 +67,8 @@ pub enum IndexerTypeConfig {
     },
     Writer {
         retention_config: Option<RetentionConfig>,
+        pruning_delay_ms: u64,
+        pruning_batch_size: u64,
     },
     AnalyticalWorker,
 }
@@ -76,12 +81,13 @@ impl IndexerTypeConfig {
     }
 
     pub fn writer_mode(pruning_options: Option<PruningOptions>) -> Self {
+        let opts = pruning_options.unwrap_or_default();
         Self::Writer {
-            retention_config: pruning_options.as_ref().and_then(|pruning_options| {
-                pruning_options
-                    .epochs_to_keep
-                    .map(RetentionConfig::new_with_default_retention_only_for_testing)
-            }),
+            retention_config: opts
+                .epochs_to_keep
+                .map(RetentionConfig::new_with_default_retention_only_for_testing),
+            pruning_delay_ms: TEST_PRUNING_DELAY_MS,
+            pruning_batch_size: opts.pruning_batch_size,
         }
     }
 }
@@ -166,7 +172,11 @@ pub async fn start_test_indexer_impl(
                 .await
             })
         }
-        IndexerTypeConfig::Writer { retention_config } => {
+        IndexerTypeConfig::Writer {
+            retention_config,
+            pruning_delay_ms,
+            pruning_batch_size,
+        } => {
             let fullnode_rpc_url = rpc_url.parse::<Url>().unwrap();
             let store_clone = store.clone();
             let mut ingestion_config = IngestionConfig::default();
@@ -180,6 +190,8 @@ pub async fn start_test_indexer_impl(
                     store_clone,
                     indexer_metrics,
                     retention_config,
+                    pruning_delay_ms,
+                    pruning_batch_size,
                     cancel,
                 )
                 .await
