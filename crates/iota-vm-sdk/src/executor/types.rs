@@ -7,9 +7,7 @@
 //! [`SignatureStatus`] outputs.
 
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{
-    Address as IotaAddress, Identifier, ObjectId, StructTag, gas::GasCostSummary,
-};
+use iota_sdk_types::{Event, ObjectId, gas::GasCostSummary};
 use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     object::Object,
@@ -126,6 +124,7 @@ impl ExecuteOptions {
 /// The full result of a run: effects, events, per-command results, the input
 /// and output object sets, gas accounting, signature status, whether the run
 /// was committed to the store, and any captured debug artifacts.
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct ExecutionResult {
     pub effects: TransactionEffects,
@@ -183,20 +182,12 @@ impl GasEstimate {
     }
 }
 
-/// One decoded Move event with every field named and typed.
+/// A Move event paired with its decoded payload.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct DecodedEvent {
-    /// Package that emitted the event.
-    pub package_id: ObjectId,
-    /// Module inside that package that emitted the event.
-    pub module: Identifier,
-    /// The event struct's name.
-    pub name: Identifier,
-    /// Address of the transaction sender.
-    pub sender: IotaAddress,
-    /// The event struct's type, e.g. `0x2::coin::CoinEvent`.
-    pub type_tag: StructTag,
-    /// Decoded event payload.
+    /// The event as emitted: package, module, sender, type, and raw contents.
+    pub event: Event,
+    /// The event contents decoded against their Move type.
     pub value: MoveValue,
 }

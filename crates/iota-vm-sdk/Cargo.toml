@@ -5,7 +5,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-description = "Local IOTA Move VM SDK: decode, store, execute and introspect transactions without a node. Networked stores are off-by-default features."
+description = "Local IOTA Move VM SDK: decode, store, execute and introspect transactions locally."
 
 [features]
 default = []

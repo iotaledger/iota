@@ -12,11 +12,11 @@ use iota_graphql_rpc_client::simple_client::SimpleClient;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
     object::Object,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
 };
 
 use crate::{
-    error::{ValidationError, VmSdkError},
+    error::{StoreError, VmSdkError},
     executor::ChainContext,
     store::{InMemoryStore, Store},
 };
@@ -52,26 +52,26 @@ impl GraphqlStore {
             .client
             .execute(query.to_string(), vec![])
             .await
-            .map_err(|e| ValidationError::new("fetch epoch via GraphQL", e))?;
+            .map_err(|e| StoreError::new("fetch epoch via GraphQL", e))?;
         let epoch = json
             .pointer("/data/epoch")
-            .ok_or_else(|| ValidationError::new("GraphQL epoch", "missing epoch data"))?;
+            .ok_or_else(|| StoreError::new("GraphQL epoch", "missing epoch data"))?;
         let epoch_id = epoch
             .get("epochId")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| ValidationError::new("GraphQL epoch", "missing epochId"))?;
+            .ok_or_else(|| StoreError::new("GraphQL epoch", "missing epochId"))?;
         let reference_gas_price = epoch
             .get("referenceGasPrice")
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<u64>().ok())
-            .ok_or_else(|| ValidationError::new("GraphQL epoch", "missing referenceGasPrice"))?;
+            .ok_or_else(|| StoreError::new("GraphQL epoch", "missing referenceGasPrice"))?;
         let start_timestamp = epoch
             .get("startTimestamp")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ValidationError::new("GraphQL epoch", "missing startTimestamp"))?;
+            .ok_or_else(|| StoreError::new("GraphQL epoch", "missing startTimestamp"))?;
         let epoch_timestamp_ms =
             parse_start_timestamp_millis(start_timestamp).ok_or_else(|| {
-                ValidationError::new(
+                StoreError::new(
                     "GraphQL epoch",
                     format!("invalid startTimestamp {start_timestamp:?}"),
                 )
@@ -79,7 +79,7 @@ impl GraphqlStore {
         let protocol_version = epoch
             .pointer("/protocolConfigs/protocolVersion")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| ValidationError::new("GraphQL epoch", "missing protocolVersion"))?;
+            .ok_or_else(|| StoreError::new("GraphQL epoch", "missing protocolVersion"))?;
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),
             reference_gas_price,
@@ -93,10 +93,9 @@ impl GraphqlStore {
     /// store. Owned/immutable objects are fetched at their transaction
     /// versions; shared objects and packages at the latest version.
     pub async fn prefetch(&mut self, transaction: &TransactionData) -> Result<(), VmSdkError> {
-        use iota_types::transaction::InputObjectKind;
         let input_object_kinds = transaction
             .input_objects()
-            .map_err(|e| ValidationError::new("collect input objects", e))?;
+            .map_err(|e| StoreError::new("collect input objects", e))?;
 
         let mut aliases: Vec<String> = Vec::new();
         let push_versioned = |id: &ObjectId, version: Version, aliases: &mut Vec<String>| {
@@ -144,18 +143,18 @@ impl GraphqlStore {
             .client
             .execute(query.to_string(), vec![])
             .await
-            .map_err(|e| ValidationError::new("GraphQL query", e))?;
+            .map_err(|e| StoreError::new("GraphQL query", e))?;
         let data = json
             .get("data")
-            .ok_or_else(|| ValidationError::new("GraphQL response", "missing data"))?;
+            .ok_or_else(|| StoreError::new("GraphQL response", "missing data"))?;
         if let Some(obj_map) = data.as_object() {
             for (alias, value) in obj_map {
                 if let Some(bcs_b64) = value.pointer("/bcs").and_then(|v| v.as_str()) {
                     let bytes = BASE64
                         .decode(bcs_b64)
-                        .map_err(|e| ValidationError::new(format!("decode {alias}"), e))?;
+                        .map_err(|e| StoreError::new(format!("decode {alias}"), e))?;
                     let obj: Object = bcs::from_bytes(&bytes)
-                        .map_err(|e| ValidationError::new(format!("bcs {alias}"), e))?;
+                        .map_err(|e| StoreError::new(format!("bcs {alias}"), e))?;
                     self.inner.insert(obj);
                 }
             }

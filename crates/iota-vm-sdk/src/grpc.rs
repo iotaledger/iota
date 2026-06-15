@@ -14,11 +14,11 @@ use iota_grpc_client::Client;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
     object::Object,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
 };
 
 use crate::{
-    error::{ValidationError, VmSdkError},
+    error::{StoreError, VmSdkError},
     executor::ChainContext,
     store::{InMemoryStore, Store},
 };
@@ -43,7 +43,7 @@ impl GrpcStore {
     /// Connect to a gRPC endpoint (by URL) and create an empty,
     /// framework-seeded store.
     pub fn connect(url: &str) -> Result<Self, VmSdkError> {
-        let client = Client::new(url).map_err(|e| ValidationError::new("connect gRPC", e))?;
+        let client = Client::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
         Ok(Self::new(client))
     }
 
@@ -59,21 +59,21 @@ impl GrpcStore {
             .client
             .get_epoch(None, None)
             .await
-            .map_err(|e| ValidationError::new("fetch epoch", e))?
+            .map_err(|e| StoreError::new("fetch epoch", e))?
             .into_inner();
         let epoch_id = epoch
             .epoch_id()
-            .map_err(|e| ValidationError::new("epoch id", e))?;
+            .map_err(|e| StoreError::new("epoch id", e))?;
         let reference_gas_price = epoch
             .gas_price()
-            .map_err(|e| ValidationError::new("gas price", e))?;
+            .map_err(|e| StoreError::new("gas price", e))?;
         let epoch_timestamp_ms = epoch
             .start_ms()
-            .map_err(|e| ValidationError::new("epoch start", e))?;
+            .map_err(|e| StoreError::new("epoch start", e))?;
         let protocol_version = epoch
             .protocol_config()
             .and_then(|pc| pc.version())
-            .map_err(|e| ValidationError::new("protocol version", e))?;
+            .map_err(|e| StoreError::new("protocol version", e))?;
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),
             reference_gas_price,
@@ -90,8 +90,7 @@ impl GrpcStore {
         let mut refs: Vec<(ObjectId, Option<Version>)> = Vec::new();
         let input_object_kinds = transaction
             .input_objects()
-            .map_err(|e| ValidationError::new("collect input objects", e))?;
-        use iota_types::transaction::InputObjectKind;
+            .map_err(|e| StoreError::new("collect input objects", e))?;
         for kind in &input_object_kinds {
             match kind {
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
@@ -133,7 +132,7 @@ impl GrpcStore {
                 .list_dynamic_fields(parent, None, None, None)
                 .collect(None)
                 .await
-                .map_err(|e| ValidationError::new("list dynamic fields", e))?
+                .map_err(|e| StoreError::new("list dynamic fields", e))?
                 .into_inner();
             let mut refs: Vec<(ObjectId, Option<Version>)> = Vec::new();
             for field in fields {
@@ -142,13 +141,13 @@ impl GrpcStore {
                 if let Some(id) = field.field_id {
                     let id = id
                         .object_id()
-                        .map_err(|e| ValidationError::new("decode dynamic field id", e))?;
+                        .map_err(|e| StoreError::new("decode dynamic field id", e))?;
                     refs.push((id, None));
                 }
                 if let Some(id) = field.child_id {
                     let id = id
                         .object_id()
-                        .map_err(|e| ValidationError::new("decode dynamic child id", e))?;
+                        .map_err(|e| StoreError::new("decode dynamic child id", e))?;
                     refs.push((id, None));
                 }
             }
@@ -170,18 +169,18 @@ impl GrpcStore {
             .client
             .get_objects(refs, None)
             .await
-            .map_err(|e| ValidationError::new("fetch objects via gRPC", e))?
+            .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
             .into_inner();
         for proto_obj in proto_objects {
             // The proto helper yields the SDK `Object`; round-trip through BCS
             // into the node's `iota_types::object::Object` (identical layout).
             let sdk_obj = proto_obj
                 .object()
-                .map_err(|e| ValidationError::new("decode gRPC object", e))?;
+                .map_err(|e| StoreError::new("decode gRPC object", e))?;
             let bytes =
-                bcs::to_bytes(&sdk_obj).map_err(|e| ValidationError::new("re-encode object", e))?;
+                bcs::to_bytes(&sdk_obj).map_err(|e| StoreError::new("re-encode object", e))?;
             let obj: Object =
-                bcs::from_bytes(&bytes).map_err(|e| ValidationError::new("decode object", e))?;
+                bcs::from_bytes(&bytes).map_err(|e| StoreError::new("decode object", e))?;
             self.inner.insert(obj);
         }
         Ok(())

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! [`LocalVm`] — the public decode -> store -> execute -> introspect executor.
+//! [`LocalVm`] — the public store -> execute -> introspect executor.
 //!
 //! `LocalVm` owns a [`Store`] and a Move execution engine configured for the
 //! chain described by a [`ChainContext`]. Each [`LocalVm::execute`] /
@@ -138,7 +138,7 @@ impl LocalVm {
 
         let verify_params = VerifyParams::default();
         verify_sender_signed_data_message_signatures(&signed, &verify_params)
-            .map_err(crate::error::SignatureError::new)?;
+            .map_err(VmSdkError::SignatureVerification)?;
 
         let move_authenticator = signed.sender_move_authenticator().cloned();
         // The auth digests must be computed from the signed data before it is
@@ -146,7 +146,7 @@ impl LocalVm {
         // `AuthContextData`.
         let auth_digests = signed
             .compute_auth_digests()
-            .map_err(crate::error::SignatureError::new)?;
+            .map_err(VmSdkError::SignatureVerification)?;
         let transaction = signed.into_inner().intent_message.value;
 
         let authenticator_gas_budget = match &move_authenticator {

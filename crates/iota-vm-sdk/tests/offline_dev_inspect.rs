@@ -6,16 +6,13 @@
 //! Mirrors the `offline_dev_inspect` example, but asserts the contract: a
 //! `DevInspect` run succeeds against a framework-only store
 //! with zero network access, returns per-command results, and leaves the store
-//! untouched (`committed == false`). Also exercises the static
-//! [`decode_transaction`] free function and confirms it agrees with the parsed
-//! [`TransactionData`].
+//! untouched (`committed == false`).
 
 use base64::Engine;
-use iota_sdk_types::ObjectId;
-use iota_types::transaction::{TransactionData, TransactionDataAPI};
+use iota_types::transaction::TransactionData;
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionMode, InMemoryStore, LocalVm, ProtocolVersion,
-    SignatureStatus, decode_transaction,
+    SignatureStatus,
 };
 
 /// Base64-encoded BCS for `0x2::hash::blake2b256([0, 1, 2])` — a pure function
@@ -77,35 +74,6 @@ fn dev_inspect_runs_offline_and_leaves_store_unchanged() {
     assert!(
         store_after.is_empty(),
         "mock gas coin must not be persisted into the store"
-    );
-}
-
-#[test]
-fn decode_transaction_matches_parsed_transaction_data() {
-    let tx_bytes = blake2b_tx_bytes();
-    let parsed: TransactionData = bcs::from_bytes(&tx_bytes).expect("decode tx");
-
-    let decoded = decode_transaction(&tx_bytes).expect("decode_transaction");
-
-    assert_eq!(decoded.sender, parsed.sender());
-    assert_eq!(decoded.gas_budget, parsed.gas_budget());
-    assert_eq!(decoded.gas_price, parsed.gas_price());
-
-    // `required_objects` must agree with the input objects the typed parse
-    // reports (sorted + de-duplicated). For this pure call that is just the
-    // framework package hosting the `hash` module.
-    let mut expected: Vec<ObjectId> = parsed
-        .input_objects()
-        .expect("input objects")
-        .iter()
-        .map(|kind| kind.object_id())
-        .collect();
-    expected.sort();
-    expected.dedup();
-    assert_eq!(decoded.required_objects, expected);
-    assert!(
-        !decoded.required_objects.is_empty(),
-        "the framework package the call targets must be listed"
     );
 }
 
