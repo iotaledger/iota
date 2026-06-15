@@ -11,7 +11,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use iota_metrics::{add_server_timing, get_server_timing, with_new_server_timing};
+use iota_metrics::{finish_and_set_server_timing_header, with_new_server_timing};
 use tower::{Layer, Service};
 
 /// Tower [`Layer`] that creates a server-timing context per request.
@@ -57,15 +57,7 @@ where
 
         Box::pin(with_new_server_timing(async move {
             let mut response = inner.call(req).await?;
-            add_server_timing("finish_request");
-
-            if let Some(timer) = get_server_timing() {
-                if let Ok(header_value) = http::HeaderValue::try_from(timer.lock().header_value()) {
-                    response
-                        .headers_mut()
-                        .insert(http::HeaderName::from_static("server-timing"), header_value);
-                }
-            }
+            finish_and_set_server_timing_header(response.headers_mut());
             Ok(response)
         }))
     }
@@ -76,6 +68,7 @@ mod tests {
     use std::convert::Infallible;
 
     use http::{Request, Response};
+    use iota_metrics::{add_server_timing, get_server_timing, server_timing_header_key};
     use tower::{ServiceExt, service_fn};
 
     use super::*;
@@ -95,7 +88,7 @@ mod tests {
 
         let header = response
             .headers()
-            .get("server-timing")
+            .get(server_timing_header_key())
             .expect("server-timing header must be set")
             .to_str()
             .unwrap();

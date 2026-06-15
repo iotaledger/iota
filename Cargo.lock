@@ -6817,6 +6817,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "futures",
+ "http 1.4.0",
  "once_cell",
  "parking_lot 0.12.3",
  "prometheus",
