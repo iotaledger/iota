@@ -393,7 +393,7 @@ where
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.transaction.digest()))]
     pub async fn execute_transaction_impl(
         &self,
-        epoch_store: &AuthorityPerEpochStore,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<(VerifiedTransaction, QuorumDriverResponse), QuorumDriverError> {
@@ -434,7 +434,12 @@ where
         });
 
         let ticket = self
-            .submit(transaction.clone(), request, client_addr)
+            .submit(
+                epoch_store.clone(),
+                transaction.clone(),
+                request,
+                client_addr,
+            )
             .await
             .map_err(|e| {
                 warn!(?tx_digest, "QuorumDriverInternalError: {e:?}");
@@ -470,6 +475,7 @@ where
     #[instrument(name = "tx_orchestrator_submit", level = "trace", skip_all)]
     async fn submit(
         &self,
+        epoch_store: Arc<AuthorityPerEpochStore>,
         transaction: VerifiedTransaction,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
@@ -497,7 +503,8 @@ where
         let qd = self.clone_quorum_driver();
         Ok(async move {
             let digests = [tx_digest];
-            let effects_await = cache_reader.try_notify_read_executed_effects(&digests);
+            let effects_await = epoch_store
+                .within_alive_epoch(cache_reader.try_notify_read_executed_effects(&digests));
             // let-and-return necessary to satisfy borrow checker.
             let res = match select(ticket, effects_await.boxed()).await {
                 Either::Left((quorum_driver_response, _)) => Ok(quorum_driver_response),
