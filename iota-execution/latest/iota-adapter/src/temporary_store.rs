@@ -210,7 +210,8 @@ impl<'backing> TemporaryStore<'backing> {
             .collect()
     }
 
-    /// Computes the [`EffectsObjectChange`] for `id` from the execution results.
+    /// Computes the [`EffectsObjectChange`] for `id` from the execution
+    /// results.
     fn compute_object_change(&self, id: &ObjectId) -> EffectsObjectChange {
         let modified_at = self
             .get_object_modified_at(id)
