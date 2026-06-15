@@ -9,10 +9,12 @@ use tokio::sync::watch;
 
 use crate::{CommitIndex, CommittedSubDag};
 
-/// Receiving end of the consensus output: consensus sends committed sub-dags
-/// through the channel and the consumer reports its progress via the monitor.
+/// The consumer's side of the consensus output channel, passed into consensus
+/// at startup. Holds the sender that consensus emits committed sub-dags
+/// through, plus the monitor the consumer uses to report how far it has
+/// processed; the matching receiver stays with the consumer.
 ///
-/// The consumer must already be draining the channel and reporting progress
+/// The consumer must already be draining that receiver and reporting progress
 /// when consensus starts, since commit observer recovery paces the resend of
 /// the unprocessed backlog on consumer progress.
 pub struct CommitConsumer {
