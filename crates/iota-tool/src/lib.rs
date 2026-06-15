@@ -50,7 +50,8 @@ use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{ObjectId, Owner};
 use iota_snapshot::{
-    EpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes, setup_db_state,
+    VerifiedEpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
+    setup_db_state,
 };
 use iota_storage::{
     object_store::{
@@ -66,7 +67,7 @@ use iota_types::{
     crypto::AuthorityPublicKeyBytes,
     digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
+    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest, VerifiedCheckpoint},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
         TransactionInfoRequest, TransactionStatus,
@@ -586,7 +587,43 @@ pub async fn restore_from_db_checkpoint(
     Ok(())
 }
 
-fn start_summary_sync(
+/// Insert the genesis checkpoint if the store doesn't hold it yet.
+fn insert_genesis_checkpoint(
+    checkpoint_store: &CheckpointStore,
+    genesis: &Genesis,
+) -> Result<(), anyhow::Error> {
+    if checkpoint_store
+        .get_checkpoint_by_digest(genesis.checkpoint().digest())?
+        .is_none()
+    {
+        checkpoint_store.insert_checkpoint_contents(genesis.checkpoint_contents().clone())?;
+        checkpoint_store.insert_verified_checkpoint(&genesis.checkpoint())?;
+        checkpoint_store.update_highest_synced_checkpoint(&genesis.checkpoint())?;
+    }
+    Ok(())
+}
+
+/// Set all four checkpoint watermarks to the restore checkpoint.
+///
+/// SAFETY: they must be set together so the executor starts from
+/// `highest_executed + 1` and never tries to access checkpoint contents in
+/// the restored (summary-only) range.
+fn set_restore_watermarks(
+    checkpoint_store: &CheckpointStore,
+    checkpoint: &VerifiedCheckpoint,
+) -> Result<(), anyhow::Error> {
+    checkpoint_store.update_highest_verified_checkpoint(checkpoint)?;
+    checkpoint_store.update_highest_synced_checkpoint(checkpoint)?;
+    checkpoint_store.update_highest_executed_checkpoint(checkpoint)?;
+    checkpoint_store.update_highest_pruned_checkpoint(checkpoint)?;
+    Ok(())
+}
+
+/// Sync **every** checkpoint summary in `[genesis, end of `epoch`]` from the
+/// checkpoint archive — the `--all-checkpoints` restore mode. The default
+/// mode needs no archive: it seeds only the end-of-epoch summaries, from the
+/// snapshot's chain-verified EPOCH_INFO (`sync_summaries_from_epoch_info`).
+fn start_summary_sync_from_archive(
     perpetual_db: Arc<AuthorityPerpetualTables>,
     committee_store: Arc<CommitteeStore>,
     checkpoint_store: Arc<CheckpointStore>,
@@ -596,7 +633,6 @@ fn start_summary_sync(
     epoch: u64,
     num_parallel_downloads: usize,
     verify: bool,
-    all_checkpoints: bool,
 ) -> JoinHandle<Result<(), anyhow::Error>> {
     tokio::spawn(async move {
         info!("Starting summary sync");
@@ -604,17 +640,7 @@ fn start_summary_sync(
         let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
         let state_sync_store =
             RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
-        // Only insert the genesis checkpoint if the DB is empty and doesn't have it
-        // already
-        if checkpoint_store
-            .get_checkpoint_by_digest(genesis.checkpoint().digest())
-            .unwrap()
-            .is_none()
-        {
-            checkpoint_store.insert_checkpoint_contents(genesis.checkpoint_contents().clone())?;
-            checkpoint_store.insert_verified_checkpoint(&genesis.checkpoint())?;
-            checkpoint_store.update_highest_synced_checkpoint(&genesis.checkpoint())?;
-        }
+        insert_genesis_checkpoint(&checkpoint_store, &genesis)?;
         // set up download of checkpoint summaries
         let config = ArchiveReaderConfig {
             remote_store_config: archive_store_config,
@@ -626,18 +652,9 @@ fn start_summary_sync(
         archive_reader.sync_manifest_once().await?;
         let manifest = archive_reader.get_manifest().await?;
 
-        let end_of_epoch_checkpoint_seq_nums = (0..=epoch)
-            .map(|e| manifest.next_checkpoint_after_epoch(e) - 1)
-            .collect::<Vec<_>>();
-        let last_checkpoint = end_of_epoch_checkpoint_seq_nums
-            .last()
-            .expect("Expected at least one checkpoint");
+        let last_checkpoint = manifest.next_checkpoint_after_epoch(epoch) - 1;
 
-        let num_to_sync = if all_checkpoints {
-            *last_checkpoint
-        } else {
-            end_of_epoch_checkpoint_seq_nums.len() as u64
-        };
+        let num_to_sync = last_checkpoint;
         let sync_progress_bar = m.add(
             ProgressBar::new(num_to_sync).with_style(
                 ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})")
@@ -674,27 +691,17 @@ fn start_summary_sync(
             }
         });
 
-        if all_checkpoints {
-            archive_reader
-                .read_summaries_for_range_no_verify(
-                    state_sync_store.clone(),
-                    s_start..last_checkpoint + 1,
-                    sync_checkpoint_counter,
-                )
-                .await?;
-        } else {
-            archive_reader
-                .read_summaries_for_list_no_verify(
-                    state_sync_store.clone(),
-                    end_of_epoch_checkpoint_seq_nums.clone(),
-                    sync_checkpoint_counter,
-                )
-                .await?;
-        }
+        archive_reader
+            .read_summaries_for_range_no_verify(
+                state_sync_store.clone(),
+                s_start..last_checkpoint + 1,
+                sync_checkpoint_counter,
+            )
+            .await?;
         sync_progress_bar.finish_with_message("Checkpoint summary sync is complete");
 
         let checkpoint = checkpoint_store
-            .get_checkpoint_by_sequence_number(*last_checkpoint)?
+            .get_checkpoint_by_sequence_number(last_checkpoint)?
             .ok_or(anyhow!("Failed to read last checkpoint"))?;
         if verify {
             let verify_progress_bar = m.add(
@@ -711,7 +718,6 @@ fn start_summary_sync(
             let v_instant = Instant::now();
 
             tokio::spawn(async move {
-                let v_start = if all_checkpoints { s_start } else { 0 };
                 loop {
                     if cloned_verify_progress_bar.is_finished() {
                         break;
@@ -719,7 +725,7 @@ fn start_summary_sync(
                     let num_summaries = cloned_verify_counter.load(Ordering::Relaxed);
                     let total_checkpoints_per_sec =
                         num_summaries as f64 / v_instant.elapsed().as_secs_f64();
-                    cloned_verify_progress_bar.set_position(v_start + num_summaries);
+                    cloned_verify_progress_bar.set_position(s_start + num_summaries);
                     cloned_verify_progress_bar.set_message(format!(
                         "checkpoints verified per sec: {total_checkpoints_per_sec}"
                     ));
@@ -727,58 +733,72 @@ fn start_summary_sync(
                 }
             });
 
-            if all_checkpoints {
-                // in this case we need to verify all the checkpoints in the range pairwise
-                let v_start = s_start;
-                // update highest verified to be highest synced. We will move back
-                // iff parallel verification succeeds
-                let latest_verified = checkpoint_store
-                    .get_checkpoint_by_sequence_number(latest_synced)
-                    .expect("Failed to get checkpoint")
-                    .expect("Expected checkpoint to exist after summary sync");
-                checkpoint_store
-                    .update_highest_verified_checkpoint(&latest_verified)
-                    .expect("Failed to update highest verified checkpoint");
+            // Verify all the checkpoints in the range pairwise.
+            // Update highest verified to be highest synced. We will move back
+            // iff parallel verification succeeds.
+            let latest_verified = checkpoint_store
+                .get_checkpoint_by_sequence_number(latest_synced)
+                .expect("Failed to get checkpoint")
+                .expect("Expected checkpoint to exist after summary sync");
+            checkpoint_store
+                .update_highest_verified_checkpoint(&latest_verified)
+                .expect("Failed to update highest verified checkpoint");
 
-                let verify_range = v_start..last_checkpoint + 1;
-                verify_checkpoint_range(
-                    verify_range,
-                    state_sync_store,
-                    verify_checkpoint_counter,
-                    num_parallel_downloads,
-                )
-                .await;
-            } else {
-                // in this case we only need to verify the end of epoch checkpoints by checking
-                // signatures against the corresponding epoch committee.
-                for (cp_epoch, epoch_last_cp_seq_num) in
-                    end_of_epoch_checkpoint_seq_nums.iter().enumerate()
-                {
-                    let epoch_last_checkpoint = checkpoint_store
-                        .get_checkpoint_by_sequence_number(*epoch_last_cp_seq_num)?
-                        .ok_or(anyhow!("Failed to read checkpoint"))?;
-                    let committee = state_sync_store.get_committee(cp_epoch as u64).expect(
-                        "Expected committee to exist after syncing all end of epoch checkpoints",
-                    );
-                    epoch_last_checkpoint
-                        .verify_authority_signatures(&committee)
-                        .expect("Failed to verify checkpoint");
-                    verify_checkpoint_counter.fetch_add(1, Ordering::Relaxed);
-                }
-            }
+            let verify_range = s_start..last_checkpoint + 1;
+            verify_checkpoint_range(
+                verify_range,
+                state_sync_store,
+                verify_checkpoint_counter,
+                num_parallel_downloads,
+            )
+            .await;
 
             verify_progress_bar.finish_with_message("Checkpoint summary verification is complete");
         }
 
-        // SAFETY: All four watermarks must be set together so the executor
-        // starts from `highest_executed + 1` and never tries to access
-        // checkpoint contents in the restored (summary-only) range.
-        checkpoint_store.update_highest_verified_checkpoint(&checkpoint)?;
-        checkpoint_store.update_highest_synced_checkpoint(&checkpoint)?;
-        checkpoint_store.update_highest_executed_checkpoint(&checkpoint)?;
-        checkpoint_store.update_highest_pruned_checkpoint(&checkpoint)?;
+        set_restore_watermarks(&checkpoint_store, &checkpoint)?;
         Ok::<(), anyhow::Error>(())
     })
+}
+
+/// Seed the checkpoint store from the snapshot's chain-verified EPOCH_INFO —
+/// the archive-free default of the formal restore: the genesis checkpoint
+/// plus every epoch's certified closing summary, with the committees handed
+/// to the committee store.
+fn sync_summaries_from_epoch_info(
+    checkpoint_store: &CheckpointStore,
+    committee_store: &CommitteeStore,
+    genesis: &Genesis,
+    verified: &VerifiedEpochInfo,
+    epoch: EpochId,
+) -> Result<(), anyhow::Error> {
+    anyhow::ensure!(
+        verified.entries().len() as u64 == epoch + 1,
+        "EPOCH_INFO covers {} epochs but the restore targets the end of epoch {epoch}",
+        verified.entries().len(),
+    );
+
+    insert_genesis_checkpoint(checkpoint_store, genesis)?;
+
+    // `committees()[i + 1]` is the committee that entry `i`'s
+    // `end_of_epoch_data` handed forward.
+    for (entry, next_committee) in verified.entries().iter().zip(&verified.committees()[1..]) {
+        committee_store.insert_new_committee(next_committee)?;
+        checkpoint_store.insert_verified_checkpoint(&VerifiedCheckpoint::new_unchecked(
+            entry.last_checkpoint_summary.clone(),
+        ))?;
+    }
+
+    let last_checkpoint = VerifiedCheckpoint::new_unchecked(
+        verified
+            .entries()
+            .last()
+            .expect("length checked above")
+            .last_checkpoint_summary
+            .clone(),
+    );
+    set_restore_watermarks(checkpoint_store, &last_checkpoint)?;
+    Ok(())
 }
 
 pub async fn get_latest_available_epoch(
@@ -819,7 +839,7 @@ pub async fn download_formal_snapshot(
     epoch: EpochId,
     genesis: &Path,
     snapshot_store_config: ObjectStoreConfig,
-    archive_store_config: ObjectStoreConfig,
+    archive_store_config: Option<ObjectStoreConfig>,
     num_parallel_downloads: usize,
     network: Chain,
     verify: SnapshotVerifyMode,
@@ -837,6 +857,23 @@ pub async fn download_formal_snapshot(
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&path.join("store"), None));
     let genesis = Genesis::load(genesis).unwrap();
     let genesis_committee = genesis.committee()?;
+    let expected_chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
+
+    // Download and chain-verify the snapshot's EPOCH_INFO up front (one small
+    // file): every entry's certified closing summary is checked against the
+    // committee chain walked from the operator's genesis. It drives the
+    // default (archive-free) summary sync and the gRPC epoch seeding, and
+    // rejects a wrong-network or tampered snapshot before anything large is
+    // downloaded.
+    let (snapshot_chain_id, epoch_info) =
+        StateSnapshotReaderV1::read_epoch_info_only(epoch, &snapshot_store_config).await?;
+    let verified_epoch_info = iota_snapshot::verify_epoch_info_chain(
+        epoch_info,
+        genesis_committee.clone(),
+        snapshot_chain_id,
+        expected_chain_id,
+    )?;
+
     let committee_store = Arc::new(CommitteeStore::new(
         path.join("epochs"),
         &genesis_committee,
@@ -844,18 +881,33 @@ pub async fn download_formal_snapshot(
     ));
     let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
 
-    let summaries_handle = start_summary_sync(
-        perpetual_db.clone(),
-        committee_store.clone(),
-        checkpoint_store.clone(),
-        m.clone(),
-        genesis.clone(),
-        archive_store_config.clone(),
-        epoch,
-        num_parallel_downloads,
-        verify != SnapshotVerifyMode::None,
-        all_checkpoints,
-    );
+    // Default mode seeds only the end-of-epoch summaries, straight from the
+    // verified EPOCH_INFO; `--all-checkpoints` syncs the full summary history,
+    // which only the checkpoint archive can provide.
+    let summaries_handle = if all_checkpoints {
+        let archive_store_config = archive_store_config
+            .ok_or_else(|| anyhow!("--all-checkpoints requires an archive bucket to read from"))?;
+        Some(start_summary_sync_from_archive(
+            perpetual_db.clone(),
+            committee_store.clone(),
+            checkpoint_store.clone(),
+            m.clone(),
+            genesis.clone(),
+            archive_store_config,
+            epoch,
+            num_parallel_downloads,
+            verify != SnapshotVerifyMode::None,
+        ))
+    } else {
+        sync_summaries_from_epoch_info(
+            &checkpoint_store,
+            &committee_store,
+            &genesis,
+            &verified_epoch_info,
+            epoch,
+        )?;
+        None
+    };
     // Unless `--skip-grpc-indexes` is passed, the gRPC index store is built
     // from the same object stream that restores the perpetual tables, so a
     // fullnode started with gRPC enabled opens it in place instead of
@@ -918,13 +970,7 @@ pub async fn download_formal_snapshot(
                 .unwrap_or_else(|err| panic!("Failed during read: {err}"));
         }
 
-        let snapshot_chain_id = reader.chain_id();
-        let epoch_info = reader
-            .read_epoch_info()
-            .await
-            .unwrap_or_else(|err| panic!("Failed to read EPOCH_INFO: {err}"));
-
-        Ok::<(ChainIdentifier, EpochInfo), anyhow::Error>((snapshot_chain_id, epoch_info))
+        Ok::<(), anyhow::Error>(())
     });
     let mut root_global_state_hash = GlobalStateHash::default();
     let mut num_live_objects = 0;
@@ -932,10 +978,12 @@ pub async fn download_formal_snapshot(
         num_live_objects += num_objects;
         root_global_state_hash.union(&partial_hash);
     }
-    summaries_handle
-        .await
-        .expect("Task join failed")
-        .expect("Summaries task failed");
+    if let Some(summaries_handle) = summaries_handle {
+        summaries_handle
+            .await
+            .expect("Task join failed")
+            .expect("Summaries task failed");
+    }
 
     let last_checkpoint = checkpoint_store
         .get_highest_verified_checkpoint()?
@@ -991,16 +1039,10 @@ pub async fn download_formal_snapshot(
         )?;
     }
 
-    let (snapshot_chain_id, epoch_info) = snapshot_handle
+    snapshot_handle
         .await
         .expect("Task join failed")
         .expect("Snapshot restore task failed");
-
-    // TODO we should ensure this map is being updated for all end of epoch
-    // checkpoints during summary sync. This happens in
-    // `insert_{verified|certified}_checkpoint` in checkpoint store, but not in
-    // the corresponding functions in ObjectStore trait
-    checkpoint_store.insert_epoch_last_checkpoint(epoch, &last_checkpoint)?;
 
     setup_db_state(
         epoch,
@@ -1020,14 +1062,9 @@ pub async fn download_formal_snapshot(
     // the node open the store in place instead of re-indexing. All RocksDB
     // handles are dropped before the rename below.
     if let Some(grpc_indexes) = grpc_indexes {
-        let expected_chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
-        iota_snapshot::verify_and_restore_epoch_info(
-            &*grpc_indexes,
-            epoch_info,
-            snapshot_chain_id,
-            expected_chain_id,
-        )
-        .await?;
+        verified_epoch_info
+            .restore_epoch_info(&*grpc_indexes)
+            .await?;
         let authority_store =
             AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
         grpc_indexes.ensure_current_epoch_info(&authority_store, &checkpoint_store)?;

@@ -10,6 +10,30 @@ use iota_types::{
 };
 use test_cluster::TestClusterBuilder;
 
+/// Wait until the fullnode has executed every closed epoch's closing
+/// checkpoint (its executed open epoch reached `open_epoch`). The tests below
+/// read closed-epoch data from the live stores; without this, a closing
+/// checkpoint executed mid-test shifts the gap computation under the
+/// assertions (the cluster keeps running while the test works).
+async fn wait_until_executed_open_epoch(checkpoint_store: &CheckpointStore, open_epoch: u64) {
+    loop {
+        let executed_open_epoch = checkpoint_store
+            .get_highest_executed_checkpoint()
+            .unwrap()
+            .map(|checkpoint| {
+                if checkpoint.is_last_checkpoint_of_epoch() {
+                    checkpoint.epoch + 1
+                } else {
+                    checkpoint.epoch
+                }
+            });
+        if executed_open_epoch >= Some(open_epoch) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+}
+
 /// A formal-snapshot restore (unless `--skip-grpc-indexes` is passed) writes
 /// the store's contents and then `finalize_restore`s it (`Watermark::Indexed`
 /// + `meta`).
@@ -67,8 +91,10 @@ async fn finalized_restore_survives_grpc_indexes_store_init() {
     );
 }
 
-/// A matching manifest `chain_id` seeds every closed epoch; a mismatching one
-/// is rejected before any write, leaving `epochs_v2` untouched.
+/// EPOCH_INFO that matches the manifest `chain_id` and chain-verifies against
+/// the genesis committee seeds every closed epoch; a chain-id mismatch or a
+/// non-genesis trust root never yields the verified witness required to
+/// write anything.
 #[sim_test]
 async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // Long epoch duration so the epoch only advances when forced, keeping the
@@ -88,6 +114,7 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // Closed epochs are `[0, current)`; EPOCH_INFO covers exactly those.
     let current_epoch = state.current_epoch_for_testing();
     assert!(current_epoch >= 2, "need at least two closed epochs");
+    wait_until_executed_open_epoch(&checkpoint_store, current_epoch).await;
 
     // This node's chain id — what a same-chain snapshot's manifest carries.
     let expected_chain_id = state.get_chain_identifier();
@@ -98,17 +125,28 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     )
     .expect("system state must BCS-encode");
 
-    // SUCCESS: a matching chain_id seeds every closed epoch into a fresh store.
+    // The trust root for the committee-chain walk over the real summaries.
+    let genesis_committee = test_cluster
+        .swarm
+        .config()
+        .genesis
+        .committee()
+        .expect("genesis committee");
+
+    // SUCCESS: a matching chain_id + committee chain seeds every closed epoch
+    // into a fresh store.
     let ok_tmp = tempfile::tempdir().unwrap();
     let ok_grpc = GrpcIndexesStore::new_without_init(ok_tmp.path().to_path_buf());
-    iota_snapshot::verify_and_restore_epoch_info(
-        &ok_grpc,
+    iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(&checkpoint_store, &system_state_bytes, current_epoch),
+        genesis_committee.clone(),
         expected_chain_id,
         expected_chain_id,
     )
+    .expect("a same-chain snapshot must verify")
+    .restore_epoch_info(&ok_grpc)
     .await
-    .expect("a same-chain snapshot must seed");
+    .expect("a verified snapshot must seed");
     for epoch in 0..current_epoch {
         assert!(
             ok_grpc.get_epoch_info(epoch).unwrap().is_some(),
@@ -120,12 +158,14 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
     // epoch, so the write skips the whole prefix.
     let watermark = ok_grpc.highest_indexed_epoch().unwrap();
     assert_eq!(watermark, Some(current_epoch - 1));
-    iota_snapshot::verify_and_restore_epoch_info(
-        &ok_grpc,
+    iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(&checkpoint_store, &system_state_bytes, current_epoch),
+        genesis_committee.clone(),
         expected_chain_id,
         expected_chain_id,
     )
+    .expect("re-verification must succeed")
+    .restore_epoch_info(&ok_grpc)
     .await
     .expect("re-seeding a covered store must succeed as a no-op");
     assert_eq!(
@@ -134,31 +174,33 @@ async fn epoch_info_backfill_verifies_chain_before_seeding() {
         "re-seeding must leave the watermark unchanged"
     );
 
-    // FAILURE: a different chain_id is rejected and NOTHING is written.
-    let bad_tmp = tempfile::tempdir().unwrap();
-    let bad_grpc = GrpcIndexesStore::new_without_init(bad_tmp.path().to_path_buf());
-    let err = iota_snapshot::verify_and_restore_epoch_info(
-        &bad_grpc,
+    // FAILURE: a different chain_id never yields a verified witness, so
+    // NOTHING can be written.
+    let err = iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(&checkpoint_store, &system_state_bytes, current_epoch),
+        genesis_committee.clone(),
         ChainIdentifier::default(),
         expected_chain_id,
     )
-    .await
     .expect_err("a wrong-network snapshot must be rejected");
     assert!(
         err.to_string().contains("chain_id"),
         "expected a chain_id mismatch error, got: {err}"
     );
+
+    // FAILURE: a wrong trust root (the current committee instead of the
+    // genesis one, after two reconfigurations) fails the chain walk.
+    let err = iota_snapshot::verify_epoch_info_chain(
+        real_epoch_info(&checkpoint_store, &system_state_bytes, current_epoch),
+        state.clone_committee_for_testing(),
+        expected_chain_id,
+        expected_chain_id,
+    )
+    .expect_err("a non-genesis trust root must be rejected");
     assert!(
-        bad_grpc.highest_indexed_epoch().unwrap().is_none(),
-        "verification failure must leave the epochs_v2 watermark unset"
+        err.to_string().contains("genesis committee"),
+        "expected a trust-root error, got: {err}"
     );
-    for epoch in 0..current_epoch {
-        assert!(
-            bad_grpc.get_epoch_info(epoch).unwrap().is_none(),
-            "no epoch row may be written when verification fails"
-        );
-    }
 }
 
 /// `epochs_v2_gap` (the startup guard's check) reports no gap for a
@@ -181,7 +223,9 @@ async fn epochs_v2_gap_detects_incomplete_index() {
         .with(|node| node.state());
     let authority_store = state.database_for_testing();
     let checkpoint_store = state.get_checkpoint_store().clone();
-    assert!(state.current_epoch_for_testing() >= 2);
+    let current_epoch = state.current_epoch_for_testing();
+    assert!(current_epoch >= 2);
+    wait_until_executed_open_epoch(&checkpoint_store, current_epoch).await;
 
     // Full-history `new()` indexes `[0, current)` from local data → no gap, so a
     // gRPC node here would NOT panic.
@@ -232,6 +276,7 @@ async fn missing_epochs_above_snapshot_prefix_are_indexed_locally() {
     let checkpoint_store = state.get_checkpoint_store().clone();
     let current_epoch = state.current_epoch_for_testing();
     assert!(current_epoch >= 2, "need at least two closed epochs");
+    wait_until_executed_open_epoch(&checkpoint_store, current_epoch).await;
 
     let expected_chain_id = state.get_chain_identifier();
     let system_state_bytes = bcs::to_bytes(
@@ -245,12 +290,19 @@ async fn missing_epochs_above_snapshot_prefix_are_indexed_locally() {
     // the later closed epochs missing.
     let tmp = tempfile::tempdir().unwrap();
     let grpc = GrpcIndexesStore::new_without_init(tmp.path().to_path_buf());
-    iota_snapshot::verify_and_restore_epoch_info(
-        &grpc,
+    iota_snapshot::verify_epoch_info_chain(
         real_epoch_info(&checkpoint_store, &system_state_bytes, 1),
+        test_cluster
+            .swarm
+            .config()
+            .genesis
+            .committee()
+            .expect("genesis committee"),
         expected_chain_id,
         expected_chain_id,
     )
+    .expect("the lagging snapshot's prefix must verify")
+    .restore_epoch_info(&grpc)
     .await
     .expect("seeding the lagging snapshot's prefix must succeed");
     assert_eq!(grpc.highest_indexed_epoch().unwrap(), Some(0));
