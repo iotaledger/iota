@@ -10,8 +10,9 @@
 //! - `V1`: the legacy inline layout, where the module metadata is embedded in
 //!   the `PackageMetadataV1` object itself. Built natively here for backwards
 //!   compatibility with the existing ledger.
-//! - `V1WithDynamicModuleMetadata`: the module metadata is stored in dynamic fields, built by the
-//!   framework `create_package_metadata_v1_with_dynamic_metadata` constructor.
+//! - `V1WithDynamicModuleMetadata`: the module metadata is stored in dynamic
+//!   fields, built by the framework
+//!   `create_package_metadata_v1_with_dynamic_metadata` constructor.
 
 pub(crate) use checked::*;
 
