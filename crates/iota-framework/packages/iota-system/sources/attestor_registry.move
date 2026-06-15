@@ -34,8 +34,7 @@ const MAX_ATTESTOR_COUNT: u64 = 1_000;
 const EFeatureNotEnabled: u64 = 0;
 const EBondTooLow: u64 = 1;
 const ETooManyAttestors: u64 = 2;
-// Returned by the `validate_attestor_pubkey` native (in Rust), not asserted
-// in Move directly, so it is unused from the module's perspective.
+// Returned by the validate_attestor_pubkey native, not asserted in Move.
 #[allow(unused_const)]
 const EInvalidPubkey: u64 = 3;
 const EAlreadyRegistered: u64 = 4;
@@ -156,12 +155,8 @@ public(package) fun new(): AttestorRegistryV1 {
 
 // === Pubkey validation ===
 
-/// Validate a dedicated attestor signing key, encoded as `flag || raw_key`
-/// for one of the plain signature schemes (ed25519 / secp256k1 / secp256r1).
-/// Aborts with `EInvalidPubkey` for any other flag or wrong length.
-///
-/// Validation runs in a native (`iota-move-natives`) using the iota-rust-sdk
-/// public-key types, mirroring `validator::validate_metadata_bcs`.
+/// Validate a `flag || raw_key` attestor signing key (plain schemes only).
+/// Aborts with `EInvalidPubkey` otherwise. Implemented as a native.
 native fun validate_attestor_pubkey(pubkey: vector<u8>);
 
 // === Lookup helpers ===
@@ -190,7 +185,6 @@ public(package) fun register(
         self.active_attestors.length() + self.pending_active.length() < MAX_ATTESTOR_COUNT,
         ETooManyAttestors,
     );
-    // Aborts with EInvalidPubkey if the key is malformed (native check).
     validate_attestor_pubkey(attestor_pubkey);
     // An entry scheduled for removal is still in `active_attestors` until
     // the boundary, so this also blocks re-registering while exiting.
@@ -310,7 +304,6 @@ public(package) fun rotate_key(
     assert!(active_idx.is_some(), ENotActiveAttestor);
     let idx = active_idx.destroy_some();
     assert!(!self.pending_removals.contains(&idx), EAlreadyDeregistering);
-    // Aborts with EInvalidPubkey if the key is malformed (native check).
     validate_attestor_pubkey(new_pubkey);
     let new_pubkey_for_event = new_pubkey;
     let entry = &mut self.active_attestors[idx];

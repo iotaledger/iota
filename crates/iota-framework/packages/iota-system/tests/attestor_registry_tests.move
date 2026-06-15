@@ -20,9 +20,23 @@ fun make_pubkey(flag: u8, len: u64): vector<u8> {
     pk
 }
 
-fun ed25519_pubkey(): vector<u8> { make_pubkey(0x00, 32) }
-fun pubkey_a(): vector<u8> { make_pubkey(0x00, 32) }
-fun pubkey_b(): vector<u8> { make_pubkey(0x01, 33) }
+fun ed25519_pubkey(): vector<u8> { ed25519_key() }
+// Real `flag || raw_key` public keys (the native does on-curve validation,
+// so arbitrary bytes are rejected). Generated from seeded keypairs.
+fun ed25519_key(): vector<u8> {
+    x"00d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f"
+}
+
+fun secp256k1_key(): vector<u8> {
+    x"0102770632ba449f7f0f6d7e8173ee8cdeee0c1676a4f02a9c10b877b2c022126a1d"
+}
+
+fun secp256r1_key(): vector<u8> {
+    x"0202187de95d431e456a4a1a6837f732d94c21ceec701ae551025042d2f2e96ae05c"
+}
+
+fun pubkey_a(): vector<u8> { ed25519_key() }
+fun pubkey_b(): vector<u8> { secp256k1_key() }
 
 // === Pubkey validation ===
 //
@@ -34,9 +48,9 @@ fun pubkey_b(): vector<u8> { make_pubkey(0x01, 33) }
 #[test]
 fun test_register_accepts_all_plain_schemes() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), make_pubkey(0x00, 32), @0xA1, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), make_pubkey(0x01, 33), @0xA2, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), make_pubkey(0x02, 33), @0xA3, 5);
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_key(), @0xA1, 5);
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), secp256k1_key(), @0xA2, 5);
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), secp256r1_key(), @0xA3, 5);
     assert!(registry.pending_count() == 3);
     registry.destroy_for_testing();
 }
