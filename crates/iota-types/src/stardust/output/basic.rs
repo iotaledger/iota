@@ -5,7 +5,7 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -14,7 +14,6 @@ use super::unlock_conditions::{
 };
 use crate::{
     balance::Balance,
-    base_types::IotaAddress,
     collection_types::Bag,
     error::IotaError,
     id::UID,
@@ -53,14 +52,14 @@ pub struct BasicOutput {
     /// The tag feature.
     pub tag: Option<Vec<u8>>,
     /// The sender feature.
-    pub sender: Option<IotaAddress>,
+    pub sender: Option<Address>,
 }
 
 impl BasicOutput {
     /// Returns the struct tag of the BasicOutput struct
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag::new(
-            IotaAddress::STARDUST,
+            Address::STARDUST,
             BASIC_OUTPUT_MODULE_NAME,
             BASIC_OUTPUT_STRUCT_NAME,
             vec![type_param],
@@ -76,7 +75,7 @@ impl BasicOutput {
 
     /// Whether the given `StructTag` represents a `BasicOutput`.
     pub fn is_basic_output(s: &StructTag) -> bool {
-        s.address() == IotaAddress::STARDUST
+        s.address() == Address::STARDUST
             && s.module() == &BASIC_OUTPUT_MODULE_NAME
             && s.name() == &BASIC_OUTPUT_STRUCT_NAME
     }

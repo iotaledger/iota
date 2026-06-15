@@ -4,11 +4,11 @@
 //! Vested reward detection and conversion logic for Stardust migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
 use iota_stardust_types::block::output::{BasicOutput, OutputId};
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, SequenceNumber, TxContext},
+    base_types::{SequenceNumber, TxContext},
     error::ExecutionError,
     id::UID,
     object::{Data, MoveObject, MoveObjectExt, Object},
@@ -27,7 +27,7 @@ pub const VESTED_REWARD_ID_PREFIX: &str =
 pub enum VestedRewardError {
     #[error("failed to create genesis move object, owner: {owner}, timelock: {timelock:#?}")]
     ObjectCreation {
-        owner: IotaAddress,
+        owner: Address,
         timelock: TimeLock<Balance>,
         source: ExecutionError,
     },
@@ -112,7 +112,7 @@ pub fn try_from_stardust(
 /// Creates a genesis object from a time-locked balance.
 pub fn to_genesis_object(
     timelock: TimeLock<Balance>,
-    owner: IotaAddress,
+    owner: Address,
     protocol_config: &ProtocolConfig,
     tx_context: &TxContext,
     version: SequenceNumber,

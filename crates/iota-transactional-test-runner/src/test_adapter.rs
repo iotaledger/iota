@@ -33,7 +33,7 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Argument, Command, Event, ExecutionStatus, Identifier, ObjectId, RandomnessRound,
+    Address, Argument, Command, Event, ExecutionStatus, Identifier, ObjectId, RandomnessRound,
     TransactionKind, TypeTag, gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
@@ -41,7 +41,7 @@ use iota_storage::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{IOTA_ADDRESS_LENGTH, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -269,7 +269,7 @@ impl AdapterInitConfig {
 
 #[derive(Debug)]
 struct TestAccount {
-    address: IotaAddress,
+    address: Address,
     key_pair: Option<AccountKeyPair>,
     gas: ObjectId,
 }
@@ -1660,7 +1660,7 @@ impl IotaTestAdapter {
         sender: Option<String>,
         txn_data: impl FnOnce(
             // sender
-            IotaAddress,
+            Address,
             // gas
             Vec<ObjectRef>,
         ) -> TransactionData,
@@ -1698,9 +1698,9 @@ impl IotaTestAdapter {
         aa_sig: Option<GenericSignature>,
         txn_data: impl FnOnce(
             // sender
-            IotaAddress,
+            Address,
             // sponsor
-            IotaAddress,
+            Address,
             // gas
             Vec<ObjectRef>,
         ) -> TransactionData,
@@ -1907,7 +1907,7 @@ impl IotaTestAdapter {
 
     async fn dev_inspect(
         &mut self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> anyhow::Result<TxnSummary> {
@@ -2265,7 +2265,7 @@ impl IotaTestAdapter {
                 object
                     .struct_tag()
                     .filter(|tag| {
-                        tag.address() == IotaAddress::from(*package_addr)
+                        tag.address() == Address::from(*package_addr)
                             && tag.module().as_str() == module_name
                             && tag.name().as_str() == account_type
                     })
@@ -2283,7 +2283,7 @@ impl IotaTestAdapter {
             .expect("Abstract account creation must have a gas coin");
 
         let abstract_account = TestAccount {
-            address: IotaAddress::from(created_abstract_account_id),
+            address: Address::from(created_abstract_account_id),
             key_pair: None,
             gas: created_abstract_account_coin.object_id,
         };
@@ -2441,26 +2441,26 @@ impl Default for AdapterInitConfig {
 
 static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| {
     let mut map = move_stdlib::move_stdlib_named_addresses();
-    assert!(map.get("std").unwrap().as_ref() == IotaAddress::STD.as_bytes());
+    assert!(map.get("std").unwrap().as_ref() == Address::STD.as_bytes());
     // TODO fix IOTA framework constants
     map.insert(
         "iota".to_string(),
         NumericalAddress::new(
-            IotaAddress::FRAMEWORK.into_bytes(),
+            Address::FRAMEWORK.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
         "iota_system".to_string(),
         NumericalAddress::new(
-            IotaAddress::SYSTEM.into_bytes(),
+            Address::SYSTEM.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
         "stardust".to_string(),
         NumericalAddress::new(
-            IotaAddress::STARDUST.into_bytes(),
+            Address::STARDUST.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
@@ -2654,7 +2654,7 @@ async fn init_sim_executor(
     let (mut validator_addr, mut validator_key, mut key_copy) = (None, None, None);
     if custom_validator_account {
         // Make a validator account with a gas object
-        let (a, b): (IotaAddress, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
+        let (a, b): (Address, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
 
         key_copy = Some(
             Ed25519KeyPair::from_bytes(b.as_bytes())

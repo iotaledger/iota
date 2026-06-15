@@ -21,11 +21,11 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    ObjectId,
+    Address, ObjectId,
     crypto::{Intent, IntentMessage},
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -55,7 +55,7 @@ pub struct RpcCommandProcessor {
     // for equivocation prevention in `WaitForEffectsCert` mode
     object_ref_cache: Arc<DashMap<ObjectId, ObjectRef>>,
     transaction_digests: Arc<DashSet<TransactionDigest>>,
-    addresses: Arc<DashSet<IotaAddress>>,
+    addresses: Arc<DashSet<Address>>,
     data_dir: String,
 }
 
@@ -201,12 +201,12 @@ impl RpcCommandProcessor {
             .unwrap();
         }
 
-        let addresses: Vec<IotaAddress> = self.addresses.iter().map(|x| *x).collect();
+        let addresses: Vec<Address> = self.addresses.iter().map(|x| *x).collect();
         if !addresses.is_empty() {
             debug!("dumping addresses to file {:?}", addresses.len());
             write_data_to_file(
                 &addresses,
-                &format!("{}/{}", &self.data_dir, CacheType::IotaAddress),
+                &format!("{}/{}", &self.data_dir, CacheType::Address),
             )
             .unwrap();
         }
@@ -379,7 +379,7 @@ fn write_data_to_file<T: Serialize>(data: &T, file_path: &str) -> Result<(), any
 }
 
 pub enum CacheType {
-    IotaAddress,
+    Address,
     TransactionDigest,
     ObjectId,
 }
@@ -387,7 +387,7 @@ pub enum CacheType {
 impl fmt::Display for CacheType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CacheType::IotaAddress => write!(f, "IotaAddress"),
+            CacheType::Address => write!(f, "Address"),
             CacheType::TransactionDigest => write!(f, "TransactionDigest"),
             // This is kept `ObjectID` (as opposed to `ObjectId`) to not invalidate existing caches
             CacheType::ObjectId => write!(f, "ObjectID"),
@@ -397,9 +397,9 @@ impl fmt::Display for CacheType {
 
 // TODO(Will): Consider using enums for input and output? Would mean we need to
 // do checks any time we use generic load_cache_from_file
-pub fn load_addresses_from_file(filepath: String) -> Vec<IotaAddress> {
-    let path = format!("{}/{}", filepath, CacheType::IotaAddress);
-    let addresses: Vec<IotaAddress> = read_data_from_file(&path).expect("failed to read addresses");
+pub fn load_addresses_from_file(filepath: String) -> Vec<Address> {
+    let path = format!("{}/{}", filepath, CacheType::Address);
+    let addresses: Vec<Address> = read_data_from_file(&path).expect("failed to read addresses");
     addresses
 }
 
@@ -569,7 +569,7 @@ async fn prepare_new_signer_and_coins(
 
     let primary_keypair = IotaKeyPair::decode_base64(&signer_info.encoded_keypair)
         .expect("decoding keypair should not fail");
-    let sender = IotaAddress::from(&primary_keypair.public());
+    let sender = Address::from(&primary_keypair.public());
     let (coin, balance) = get_coin_with_max_balance(client, sender).await;
     // The balance needs to cover `pay_amount` plus
     // 1. gas fee for pay_iota from the primary address to the burner address
@@ -695,7 +695,7 @@ fn calculate_split_amounts(
     split_amounts
 }
 
-async fn get_coin_with_max_balance(client: &IotaClient, address: IotaAddress) -> (ObjectId, u64) {
+async fn get_coin_with_max_balance(client: &IotaClient, address: Address) -> (ObjectId, u64) {
     let coins = get_iota_coin_ids(client, address).await;
     assert!(!coins.is_empty());
     coins.into_iter().max_by(|a, b| a.1.cmp(&b.1)).unwrap()
@@ -706,7 +706,7 @@ fn get_coin_with_balance(coins: &[(ObjectId, u64)], target: u64) -> ObjectId {
 }
 
 // TODO: move this to the Rust SDK
-async fn get_iota_coin_ids(client: &IotaClient, address: IotaAddress) -> Vec<(ObjectId, u64)> {
+async fn get_iota_coin_ids(client: &IotaClient, address: Address) -> Vec<(ObjectId, u64)> {
     match client
         .coin_read_api()
         .get_coins(address, None, None, None)
@@ -729,10 +729,10 @@ async fn pay_iota(
     keypair: &IotaKeyPair,
     input_coins: Vec<ObjectId>,
     gas_budget: u64,
-    recipients: Vec<IotaAddress>,
+    recipients: Vec<Address>,
     amounts: Vec<u64>,
 ) -> IotaTransactionBlockResponse {
-    let sender = IotaAddress::from(&keypair.public());
+    let sender = Address::from(&keypair.public());
     let tx = client
         .transaction_builder()
         .pay(sender, input_coins, recipients, amounts, None, gas_budget)
@@ -754,7 +754,7 @@ async fn split_coins(
     gas_payment: ObjectId,
     num_coins: u64,
 ) -> Vec<ObjectId> {
-    let sender = IotaAddress::from(&keypair.public());
+    let sender = Address::from(&keypair.public());
     let split_coin_tx = client
         .transaction_builder()
         .split_coin_equal(

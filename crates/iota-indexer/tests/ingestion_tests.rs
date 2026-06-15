@@ -32,10 +32,10 @@ mod ingestion_tests {
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
-    use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag};
+    use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag};
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{IotaAddress, ObjectRef, SequenceNumber},
+        base_types::{ObjectRef, SequenceNumber},
         crypto::KeypairTraits,
         effects::{TransactionEffects, TransactionEffectsAPI},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -93,7 +93,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -145,7 +145,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -183,7 +183,7 @@ mod ingestion_tests {
         );
         assert_eq!(
             db_object.object_type_package,
-            Some(IotaAddress::FRAMEWORK.as_bytes().to_vec())
+            Some(Address::FRAMEWORK.as_bytes().to_vec())
         );
         assert_eq!(db_object.object_type_module, Some("coin".to_string()));
         assert_eq!(db_object.object_type_name, Some("Coin".to_string()));
@@ -198,7 +198,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -255,7 +255,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -395,7 +395,7 @@ mod ingestion_tests {
         let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -442,7 +442,7 @@ mod ingestion_tests {
         let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -485,8 +485,8 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute several transfers to create mutations.
-        let recipient1 = IotaAddress::random();
-        let recipient2 = IotaAddress::random();
+        let recipient1 = Address::random();
+        let recipient2 = Address::random();
 
         let (tx1, _) = sim.transfer_txn(recipient1);
         let (_, err) = sim.execute_transaction(tx1).unwrap();
@@ -638,7 +638,7 @@ mod ingestion_tests {
         // This exercises the case where multiple transactions produce backward
         // history entries for the same checkpoint, and where the same object
         // (the gas coin) is mutated by both transactions within one checkpoint.
-        let recipient1 = IotaAddress::random();
+        let recipient1 = Address::random();
         let (tx1, _) = sim.transfer_txn(recipient1);
         let gas_ref_tx1 = tx1.gas()[0];
         let gas_object_id = gas_ref_tx1.object_id;
@@ -659,7 +659,7 @@ mod ingestion_tests {
 
         // Second transfer in the same checkpoint — uses the same gas object
         // (now at an updated version).
-        let recipient2 = IotaAddress::random();
+        let recipient2 = Address::random();
         let (tx2, _) = sim.transfer_txn(recipient2);
         let gas_version_before_tx2 = tx2.gas()[0].version;
         assert!(
@@ -680,7 +680,7 @@ mod ingestion_tests {
         sim.create_checkpoint();
 
         // --- checkpoint 2: one more transfer ---
-        let recipient3 = IotaAddress::random();
+        let recipient3 = Address::random();
         let (tx3, _) = sim.transfer_txn(recipient3);
         let gas_version_before_tx3 = tx3.gas()[0].version;
         let (effects3, err) = sim.execute_transaction(tx3).unwrap();
@@ -799,7 +799,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // two transfers using the same gas object
-        let (tx1, _) = sim.transfer_txn(IotaAddress::random());
+        let (tx1, _) = sim.transfer_txn(Address::random());
         let gas_object_id = tx1.gas()[0].object_id;
         let (effects1, err) = sim.execute_transaction(tx1).unwrap();
         assert!(err.is_none());
@@ -812,7 +812,7 @@ mod ingestion_tests {
             .version;
         let created_coin_1 = effects1.created()[0].0;
 
-        let (tx2, _) = sim.transfer_txn(IotaAddress::random());
+        let (tx2, _) = sim.transfer_txn(Address::random());
         let (effects2, err) = sim.execute_transaction(tx2).unwrap();
         assert!(err.is_none());
         let gas_after_tx2 = effects2
@@ -827,7 +827,7 @@ mod ingestion_tests {
         sim.create_checkpoint();
 
         // one more transfer, separate checkpoint
-        let (tx3, _) = sim.transfer_txn(IotaAddress::random());
+        let (tx3, _) = sim.transfer_txn(Address::random());
         let (effects3, err) = sim.execute_transaction(tx3).unwrap();
         assert!(err.is_none());
         let gas_after_tx3 = effects3
@@ -898,7 +898,7 @@ mod ingestion_tests {
         effects
     }
 
-    fn pick_gas(sim: &Simulacrum, sender: IotaAddress) -> ObjectRef {
+    fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectRef {
         sim.with_store(|s| {
             s.owned_objects(sender)
                 .find(|o| o.is_gas_coin())

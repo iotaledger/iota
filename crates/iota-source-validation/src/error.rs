@@ -7,8 +7,7 @@ use std::fmt;
 use iota_json_rpc_types::{IotaObjectResponseError, IotaRawMoveObject};
 use iota_package_management::PublishedAtError;
 use iota_sdk::error::Error as SdkError;
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::{Address, ObjectId};
 use move_symbol_pool::Symbol;
 
 #[derive(Debug, thiserror::Error)]
@@ -23,28 +22,25 @@ pub enum Error {
     DependencyObjectReadFailure(SdkError),
 
     #[error("On-chain package {0} is empty")]
-    EmptyOnChainPackage(IotaAddress),
+    EmptyOnChainPackage(Address),
 
     #[error("Invalid module {name} with error: {message}")]
     InvalidModuleFailure { name: String, message: String },
 
     #[error("Local version of dependency {address}::{module} was not found.")]
-    LocalDependencyNotFound {
-        address: IotaAddress,
-        module: Symbol,
-    },
+    LocalDependencyNotFound { address: Address, module: Symbol },
 
     #[error("Source package depends on {0} which is not in the linkage table.")]
-    MissingDependencyInLinkageTable(IotaAddress),
+    MissingDependencyInLinkageTable(Address),
 
     #[error("On-chain package depends on {0} which is not a source dependency.")]
-    MissingDependencyInSourcePackage(IotaAddress),
+    MissingDependencyInSourcePackage(Address),
 
     #[error(
         "Local dependency did not match its on-chain version at {address}::{package}::{module}"
     )]
     ModuleBytecodeMismatch {
-        address: IotaAddress,
+        address: Address,
         package: Symbol,
         module: Symbol,
     },
@@ -53,10 +49,7 @@ pub enum Error {
     ObjectFoundWhenPackageExpected(Box<(ObjectId, IotaRawMoveObject)>),
 
     #[error("Could not deserialize on-chain dependency {address}::{module}.")]
-    OnChainDependencyDeserializationError {
-        address: IotaAddress,
-        module: Symbol,
-    },
+    OnChainDependencyDeserializationError { address: Address, module: Symbol },
 
     #[error("On-chain version of dependency {package}::{module} was not found.")]
     OnChainDependencyNotFound { package: Symbol, module: Symbol },

@@ -9,7 +9,7 @@ use std::str::FromStr;
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
-    SimpleSignature,
+    Address, SimpleSignature,
     crypto::{
         Ed25519Signature, Intent, IntentMessage, MULTISIG_COMMITTEE_SIZE_MAX, PersonalMessage,
         Secp256k1Signature, Secp256r1Signature, UserSignature,
@@ -18,7 +18,6 @@ use iota_sdk_types::{
 
 use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
 use crate::{
-    base_types::IotaAddress,
     crypto::{Ed25519IotaSignature, IotaSignatureInner},
     error::IotaError,
     multisig::{MultiSig, MultisigMember, MultisigMemberSignature},
@@ -198,9 +197,9 @@ fn test_multisig_address() {
         threshold,
     )
     .unwrap();
-    let address: IotaAddress = (&multisig_pk).into();
+    let address: Address = (&multisig_pk).into();
     assert_eq!(
-        IotaAddress::from_str("0x25c72ac38e59084e0c8263489f810f50b2d1a38bbb8128a5d1474317af7c8eb3")
+        Address::from_str("0x25c72ac38e59084e0c8263489f810f50b2d1a38bbb8128a5d1474317af7c8eb3")
             .unwrap(),
         address
     );
@@ -366,7 +365,7 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
 
     let multisig_pk =
         MultiSigPublicKey::new(vec![MultisigMember::new(kp1.public_key(), 1)], 1).unwrap();
-    let multisig_address: IotaAddress = (&multisig_pk).into();
+    let multisig_address: Address = (&multisig_pk).into();
 
     let intent_msg = IntentMessage::new(
         Intent::iota_transaction(),

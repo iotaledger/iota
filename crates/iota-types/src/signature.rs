@@ -12,12 +12,11 @@ use fastcrypto::{
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-use iota_sdk_types::crypto::IntentMessage;
+use iota_sdk_types::{Address, crypto::IntentMessage};
 use serde::Serialize;
 use tracing::instrument;
 
 use crate::{
-    base_types::IotaAddress,
     crypto::{
         CompressedSignature, IotaSignature, PasskeyAuthenticatorAsBytes, PublicKey, Signature,
         SignatureScheme,
@@ -48,7 +47,7 @@ pub trait AuthenticatorTrait {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
@@ -68,7 +67,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticatorDeprecated {
     fn verify_claims<T>(
         &self,
         _value: &IntentMessage<T>,
-        _author: IotaAddress,
+        _author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
@@ -121,7 +120,7 @@ impl GenericSignature {
     pub fn verify_authenticator<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         verify_params: &VerifyParams,
     ) -> IotaResult
     where
@@ -327,7 +326,7 @@ impl AuthenticatorTrait for Signature {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where

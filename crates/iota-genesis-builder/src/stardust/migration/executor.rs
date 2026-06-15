@@ -18,7 +18,7 @@ use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Command, Identifier, ObjectId,
+    Address, Command, Identifier, ObjectId,
     move_package::{MovePackage, TypeOrigin},
 };
 use iota_stardust_types::block::output::{
@@ -27,7 +27,7 @@ use iota_stardust_types::block::output::{
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, TxContext},
+    base_types::{ObjectRef, SequenceNumber, TxContext},
     coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
@@ -254,7 +254,7 @@ impl Executor {
                 // not have the drop ability.
                 //
                 // We ignore it in the genesis, to render the package immutable.
-                builder.transfer_arg(IotaAddress::ZERO, upgrade_cap);
+                builder.transfer_arg(Address::ZERO, upgrade_cap);
                 builder.finish()
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
@@ -458,7 +458,7 @@ impl Executor {
             // Nevertheless, we only store the contents of the object, and thus the
             // ownership metadata are irrelevant to us. This is a dummy transfer
             // then to satisfy the VM.
-            builder.transfer_arg(IotaAddress::ZERO, bag);
+            builder.transfer_arg(Address::ZERO, bag);
             builder.finish()
         };
         let checked_input_objects = CheckedInputObjects::new_for_genesis(
@@ -505,7 +505,7 @@ impl Executor {
     fn create_native_token_coins(
         &mut self,
         native_tokens: &NativeTokens,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Result<Vec<ObjectId>> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());

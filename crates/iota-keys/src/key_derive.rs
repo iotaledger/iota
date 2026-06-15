@@ -11,8 +11,9 @@ use fastcrypto::{
     secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey},
     traits::{KeyPair, ToFromBytes},
 };
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::{IotaAddress, address_from_iota_pub_key},
+    base_types::address_from_iota_pub_key,
     crypto::{IotaKeyPair, SignatureScheme},
     error::IotaError,
 };
@@ -32,7 +33,7 @@ pub fn derive_key_pair_from_path(
     seed: &[u8],
     derivation_path: Option<DerivationPath>,
     key_scheme: &SignatureScheme,
-) -> Result<(IotaAddress, IotaKeyPair), IotaError> {
+) -> Result<(Address, IotaKeyPair), IotaError> {
     let path = validate_path(key_scheme, derivation_path)?;
     match key_scheme {
         SignatureScheme::ED25519 => {
@@ -188,7 +189,7 @@ pub fn generate_new_key(
     key_scheme: SignatureScheme,
     derivation_path: Option<DerivationPath>,
     word_length: Option<String>,
-) -> Result<(IotaAddress, IotaKeyPair, SignatureScheme, String), anyhow::Error> {
+) -> Result<(Address, IotaKeyPair, SignatureScheme, String), anyhow::Error> {
     let mnemonic = Mnemonic::new(parse_word_length(word_length)?, Language::English);
     let seed = Seed::new(&mnemonic, "");
     match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {

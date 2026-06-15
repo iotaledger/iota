@@ -10,8 +10,8 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_sdk_types::StructTag;
-use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
+use iota_sdk_types::{Address, StructTag};
+use iota_types::{dynamic_field::Field, id::UID};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -450,7 +450,7 @@ impl IotaNames {
         checkpoint_viewed_at: u64,
     ) -> Result<Option<NativeName>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
-        let native_address = NativeIotaAddress::from(address);
+        let native_address = Address::from(address);
         let reverse_record_id = config.reverse_record_field_id(&native_address);
 
         let Some(object) = MoveObject::query(
@@ -463,7 +463,7 @@ impl IotaNames {
             return Ok(None);
         };
 
-        let field: Field<NativeIotaAddress, NativeName> = object
+        let field: Field<Address, NativeName> = object
             .native
             .to_rust()
             .map_err(|e| Error::Internal(format!("Malformed IOTA-Names Name: {e}")))?;

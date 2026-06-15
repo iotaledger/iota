@@ -10,13 +10,13 @@ use iota_network::api::{
 use iota_protocol_config::{Chain, ProtocolConfig};
 // Additional imports for white flag tests
 use iota_sdk_types::{
-    Argument, Command, Identifier, ObjectId, SplitCoins,
+    Address, Argument, Command, Identifier, ObjectId, SplitCoins,
     crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities},
 };
 use iota_types::digests::TransactionDigest;
 // Additional imports for white flag tests
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, dbg_addr, dbg_object_id, random_object_ref},
+    base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         get_authority_key_pair, get_key_pair,
@@ -321,7 +321,7 @@ async fn test_get_checkpoint_happy_path() {
 
 async fn build_shared_object_transaction(
     state: &AuthorityState,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: &AccountKeyPair,
     gas_object_id: ObjectId,
     pkg_ref: iota_types::base_types::ObjectRef,

@@ -583,9 +583,8 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, Owner, StructTag, TypeTag};
+    use iota_sdk_types::{Address, Identifier, Owner, StructTag, TypeTag};
     use iota_types::{
-        base_types::IotaAddress,
         digests::TransactionDigest,
         gas_coin::GasCoin,
         object::{Data, MoveObject, MoveObjectExt, ObjectInner},
@@ -644,7 +643,7 @@ mod tests {
         // 0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>
         let vec_coins_type = TypeTag::Vector(Box::new(StructTag::new_gas_coin().into()));
         let object_type = StructTag::new(
-            IotaAddress::from_short_hex("0xe7").unwrap(),
+            Address::from_short_hex("0xe7").unwrap(),
             Identifier::from_static("vec_coin"),
             Identifier::from_static("VecCoin"),
             vec![vec_coins_type],
@@ -659,7 +658,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let owner = IotaAddress::STD;
+        let owner = Address::STD;
 
         let object = ObjectInner {
             owner: Owner::Address(owner),

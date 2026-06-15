@@ -13,11 +13,10 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Command, Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, Command, Identifier, ObjectId, Owner, StructTag, TypeTag};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
@@ -40,14 +39,12 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
 
     let nft = Nft {
         id: UID::new(ObjectId::random()),
-        legacy_sender: Some(IotaAddress::ZERO),
+        legacy_sender: Some(Address::ZERO),
         metadata: Some(String::from("metadata value").into_bytes()),
         tag: Some(String::from("tag value").into_bytes()),
         immutable_issuer: Some(
-            IotaAddress::from_str(
-                "0x1000000000000000002000000000000003000000000000040000000000000005",
-            )
-            .unwrap(),
+            Address::from_str("0x1000000000000000002000000000000003000000000000040000000000000005")
+                .unwrap(),
         ),
         immutable_metadata: Irc27Metadata {
             version: String::from("version value"),
@@ -150,7 +147,7 @@ async fn query_events_no_events_descending() {
 
     let indexer_events = client
         .query_events(
-            EventFilter::Sender(IotaAddress::random()),
+            EventFilter::Sender(Address::random()),
             None,
             None,
             Some(true),
@@ -168,7 +165,7 @@ async fn query_events_no_events_ascending() {
     let client = cluster.rpc_client();
 
     let indexer_events = client
-        .query_events(EventFilter::Sender(IotaAddress::random()), None, None, None)
+        .query_events(EventFilter::Sender(Address::random()), None, None, None)
         .await
         .unwrap();
 
@@ -182,13 +179,13 @@ async fn query_events() {
     let client = cluster.rpc_client();
 
     let result = client
-        .query_events(EventFilter::Sender(IotaAddress::ZERO), None, None, None)
+        .query_events(EventFilter::Sender(Address::ZERO), None, None, None)
         .await;
 
     let event_page = result.unwrap();
 
     for event in event_page.data {
-        assert_eq!(event.sender, IotaAddress::ZERO);
+        assert_eq!(event.sender, Address::ZERO);
     }
 }
 

@@ -11,7 +11,7 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
+    Address, Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
     ObjectId, Owner, PackageUpgradeError, RandomnessStateUpdate, SimpleSignature, StructTag,
@@ -20,9 +20,7 @@ use iota_sdk_types::{
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    base_types::{
-        self, ExecutionData, IotaAddress, ObjectDigest, TransactionDigest, TransactionEffectsDigest,
-    },
+    base_types::{ExecutionData, ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo,
@@ -115,7 +113,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(
             &mut samples,
             &MoveObjectType::from(StructTag::new(
-                IotaAddress::ZERO,
+                Address::ZERO,
                 Identifier::from_static("m"),
                 Identifier::from_static("T"),
                 Vec::new(),
@@ -224,7 +222,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig1).unwrap();
     tracer.trace_value(&mut samples, &sig2).unwrap();
     tracer.trace_value(&mut samples, &sig3).unwrap();
-    // ObjectID and IotaAddress are the same length
+    // ObjectID and Address are the same length
     let oid: ObjectId = addr.into();
     tracer.trace_value(&mut samples, &oid).unwrap();
 
@@ -256,7 +254,7 @@ fn get_registry() -> Result<Registry> {
     let event = Event {
         package_id: ObjectId::random(),
         module: Identifier::from_static("foo"),
-        sender: IotaAddress::ZERO,
+        sender: Address::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
     };
@@ -375,7 +373,7 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
     let sample_genesis_obj = GenesisObject::new(
         Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
-        Owner::Address(IotaAddress::ZERO),
+        Owner::Address(Address::ZERO),
     );
     tracer
         .trace_value(
@@ -426,7 +424,7 @@ fn get_registry() -> Result<Registry> {
     // (Struct vs NewTypeStruct both named "Object").
     let sample_obj_inner = ObjectInner {
         data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
-        owner: Owner::Address(IotaAddress::ZERO),
+        owner: Owner::Address(Address::ZERO),
         previous_transaction: TransactionDigest::default(),
         storage_rebate: 0,
     };
@@ -436,15 +434,13 @@ fn get_registry() -> Result<Registry> {
     let sample_events = TransactionEvents(vec![Event {
         package_id: ObjectId::ZERO,
         module: Identifier::from_static("foo"),
-        sender: IotaAddress::ZERO,
+        sender: Address::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
     }]);
     tracer.trace_value(&mut samples, &sample_events).unwrap();
 
-    tracer
-        .trace_type::<base_types::IotaAddress>(&samples)
-        .unwrap();
+    tracer.trace_type::<Address>(&samples).unwrap();
     tracer.trace_type::<DeleteKind>(&samples).unwrap();
     tracer.trace_type::<Argument>(&samples).unwrap();
     // Trace all Command variants explicitly — MoveCall contains Identifier and
@@ -545,7 +541,7 @@ fn get_registry() -> Result<Registry> {
                     system_packages: vec![],
                 },
             )]),
-            IotaAddress::ZERO,
+            Address::ZERO,
             vec![iota_types::base_types::ObjectRef::new(
                 ObjectId::ZERO,
                 1u64.into(),

@@ -7,8 +7,8 @@
 //! - The first field is named "id"
 //! - The first field has type `iota::object::UID`
 
-use iota_sdk_types::{Identifier, StructTag};
-use iota_types::{base_types::IotaAddress, error::ExecutionError, fp_ensure};
+use iota_sdk_types::{Address, Identifier, StructTag};
+use iota_types::{error::ExecutionError, fp_ensure};
 use move_binary_format::file_format::{CompiledModule, SignatureToken};
 
 use crate::verification_failure;
@@ -55,7 +55,7 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
             }
         };
         // check that the struct type for "id" field must be
-        // IotaAddress::FRAMEWORK::object::UID.
+        // Address::FRAMEWORK::object::UID.
         let uid_type_struct = module.datatype_handle_at(*uid_field_type);
         let uid_type_struct_name = module.identifier_at(uid_type_struct.name);
         let uid_type_module = module.module_handle_at(uid_type_struct.module);
@@ -63,7 +63,7 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
         let uid_type_module_name = module.identifier_at(uid_type_module.name);
         fp_ensure!(
             uid_type_struct_name.as_str() == Identifier::UID.as_str()
-                && uid_type_module_address.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+                && uid_type_module_address.as_ref() == Address::FRAMEWORK.as_bytes()
                 && uid_type_module_name.as_str() == Identifier::OBJECT_MODULE.as_str(),
             verification_failure(format!(
                 "First field of struct {name} must be of type {}, \

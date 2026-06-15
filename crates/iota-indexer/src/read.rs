@@ -31,11 +31,11 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,
@@ -942,7 +942,7 @@ impl IndexerReader {
 
     pub async fn get_owned_objects_in_blocking_task(
         &self,
-        address: IotaAddress,
+        address: Address,
         filter: Option<IotaObjectDataFilter>,
         cursor: Option<ObjectId>,
         limit: usize,
@@ -953,7 +953,7 @@ impl IndexerReader {
 
     fn get_owned_objects_impl(
         &self,
-        address: IotaAddress,
+        address: Address,
         filter: Option<IotaObjectDataFilter>,
         cursor: Option<ObjectId>,
         limit: usize,
@@ -1208,7 +1208,7 @@ impl IndexerReader {
     /// using the fallback storage if the database is pruned.
     async fn query_transactions_by_affected_addresses_with_fallback(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
@@ -2214,7 +2214,7 @@ impl IndexerReader {
 
     pub async fn get_owned_coins_in_blocking_task(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: Option<String>,
         cursor: ObjectId,
         limit: usize,
@@ -2225,7 +2225,7 @@ impl IndexerReader {
 
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
         cursor: ObjectId,
@@ -2255,7 +2255,7 @@ impl IndexerReader {
 
     pub async fn get_coin_balances_in_blocking_task(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -2265,7 +2265,7 @@ impl IndexerReader {
 
     fn get_coin_balances(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -2620,7 +2620,7 @@ impl iota_types::storage::ObjectStore for IndexerReader {
 impl DataReader for IndexerReader {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         object_type: StructTag,
         cursor: Option<ObjectId>,
         limit: Option<usize>,
@@ -3288,7 +3288,7 @@ impl<'a> DBReader<'a> {
     ///   absent from `tx_digests` AND the database is not pruned).
     async fn query_transactions_by_affected_addresses(
         &self,
-        addr: IotaAddress,
+        addr: Address,
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,

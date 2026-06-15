@@ -12,13 +12,12 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
-use iota_sdk_types::crypto::IntentMessage;
+use iota_sdk_types::{Address, crypto::IntentMessage};
 use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    base_types::IotaAddress,
     crypto::{
         DefaultHash, IotaSignature, IotaSignatureInner, PublicKey, Secp256r1IotaSignature,
         Signature, SignatureScheme,
@@ -227,7 +226,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where

@@ -7,10 +7,12 @@ use std::net::SocketAddr;
 use fastcrypto::traits::ToFromBytes;
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    Address,
+    crypto::{Intent, IntentMessage},
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
     crypto::{PublicKey, Signature, SignatureScheme},
     error::{IotaError, IotaResult, UserInputError},
     passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
@@ -87,7 +89,7 @@ async fn execute_tx(tx: Transaction, test_cluster: &TestCluster) -> IotaResult {
 /// test transaction, then get a response from the passkey from signing.
 async fn create_credential_and_sign_test_tx(
     test_cluster: &TestCluster,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     change_intent: bool,
     change_tx: bool,
 ) -> PasskeyResponse<TransactionData> {
@@ -149,14 +151,14 @@ async fn create_credential_and_sign_test_tx(
     // Compute iota address as sender, fund gas and make a test transaction.
     let sender = match sender {
         Some(s) => s,
-        None => IotaAddress::from(&pk),
+        None => Address::from(&pk),
     };
     let rgp = test_cluster.get_reference_gas_price().await;
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), sender)
         .await;
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
@@ -360,8 +362,7 @@ async fn test_passkey_fails_wrong_author() {
     let test_cluster = TestClusterBuilder::new().build().await;
     // Modify sender that receives gas and construct test txn.
     let response =
-        create_credential_and_sign_test_tx(&test_cluster, Some(IotaAddress::ZERO), false, false)
-            .await;
+        create_credential_and_sign_test_tx(&test_cluster, Some(Address::ZERO), false, false).await;
     let sig = GenericSignature::PasskeyAuthenticator(
         PasskeyAuthenticator::new_for_testing(
             response.authenticator_data,

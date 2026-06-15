@@ -11,10 +11,9 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     TransactionBlockBytes,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    base_types::IotaAddress, gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType,
-    storage::ReadStore,
+    gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType, storage::ReadStore,
 };
 use simulacrum::Simulacrum;
 use test_cluster::TestCluster;
@@ -471,7 +470,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
 }
 
 fn execute_simulacrum_transaction(sim: &mut Simulacrum) {
-    let transfer_recipient = IotaAddress::random();
+    let transfer_recipient = Address::random();
     let (transaction, _) = sim.transfer_txn(transfer_recipient);
     sim.execute_transaction(transaction).unwrap();
 }

@@ -1,11 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::Identifier;
+use iota_sdk_types::{Address, Identifier};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IotaAddress, StructTag,
+    StructTag,
     coin::{CoinMetadata, TreasuryCap},
     error::IotaError,
     id::UID,
@@ -77,7 +77,7 @@ pub struct CoinManagerTreasuryCap {
 
 impl CoinManagerTreasuryCap {
     pub fn is_coin_manager_treasury_cap(object_type: &StructTag) -> bool {
-        object_type.address() == IotaAddress::FRAMEWORK
+        object_type.address() == Address::FRAMEWORK
             && object_type.module() == &Identifier::COIN_MANAGER_MODULE
             && object_type.name() == &COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
     }

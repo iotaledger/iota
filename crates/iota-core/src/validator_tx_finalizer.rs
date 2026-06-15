@@ -293,11 +293,11 @@ mod tests {
     use arc_swap::ArcSwap;
     use async_trait::async_trait;
     use iota_macros::sim_test;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{Address, ObjectId};
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, TransactionDigest},
+        base_types::{AuthorityName, TransactionDigest},
         committee::{CommitteeTrait, StakeUnit},
         crypto::{AccountKeyPair, get_account_key_pair},
         effects::{TransactionEffectsAPI, TransactionEvents},
@@ -716,7 +716,7 @@ mod tests {
     async fn create_tx(
         clients: &BTreeMap<AuthorityName, MockAuthorityClient>,
         state: &Arc<AuthorityState>,
-        sender: IotaAddress,
+        sender: Address,
         keypair: &AccountKeyPair,
         gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {

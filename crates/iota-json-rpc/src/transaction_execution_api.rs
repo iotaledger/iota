@@ -26,12 +26,11 @@ use iota_package_resolver::{
 };
 use iota_protocol_config::Chain;
 use iota_sdk_types::{
-    ObjectId, TransactionKind,
+    Address, ObjectId, TransactionKind,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
     digests::TransactionDigest,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_serde::BigInt,
@@ -95,7 +94,7 @@ impl TransactionExecutionApi {
         (
             ExecuteTransactionRequestV1,
             IotaTransactionBlockResponseOptions,
-            IotaAddress,
+            Address,
             Vec<InputObjectKind>,
             Transaction,
             Option<IotaTransactionBlock>,
@@ -203,7 +202,7 @@ impl TransactionExecutionApi {
         input_objs: Vec<InputObjectKind>,
         transaction: Option<IotaTransactionBlock>,
         raw_transaction: Vec<u8>,
-        sender: IotaAddress,
+        sender: Address,
     ) -> Result<IotaTransactionBlockResponse, Error> {
         let _post_orch_timer = self.metrics.post_orchestrator_latency_ms.start_timer();
 
@@ -427,7 +426,7 @@ impl WriteApiServer for TransactionExecutionApi {
             module,
             function,
         } = function_name.as_str().parse().map_err(Error::from)?;
-        let sender = IotaAddress::ZERO;
+        let sender = Address::ZERO;
         let tx_kind = self
             .transaction_builder
             .move_view_call_tx_kind(
@@ -453,7 +452,7 @@ impl WriteApiServer for TransactionExecutionApi {
     #[instrument(skip(self, sender_address), fields(sender_address = %sender_address))]
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         _epoch: Option<BigInt<u64>>,
@@ -507,7 +506,7 @@ impl IotaRpcModule for TransactionExecutionApi {
 
 #[async_trait]
 impl PackageStore for TransactionExecutionApi {
-    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
         match backing_store.get_package_object(&ObjectId::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),

@@ -19,12 +19,12 @@ use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
 };
-use iota_sdk_types::{ObjectId, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TransactionKind, TypeTag};
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectInfo, ObjectRef, SequenceNumber},
+    base_types::{ObjectInfo, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -90,7 +90,7 @@ pub trait StateRead: Send + Sync {
 
     fn get_owner_objects(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>>;
@@ -120,11 +120,11 @@ pub trait StateRead: Send + Sync {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
-        gas_sponsor: Option<IotaAddress>,
+        gas_sponsor: Option<Address>,
         gas_objects: Option<Vec<ObjectRef>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
@@ -135,7 +135,7 @@ pub trait StateRead: Send + Sync {
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
@@ -158,10 +158,10 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Option<ObjectId>>;
 
     // governance_api
-    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>>;
+    async fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>>;
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Vec<TimelockedStakedIota>>;
 
     fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
@@ -171,7 +171,7 @@ pub trait StateRead: Send + Sync {
     fn find_publish_txn_digest(&self, package_id: ObjectId) -> StateReadResult<TransactionDigest>;
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
@@ -183,12 +183,12 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<(Transaction, TransactionEffects)>;
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance>;
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>>;
 
     // read_api
@@ -294,7 +294,7 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
@@ -332,11 +332,11 @@ impl StateRead for AuthorityState {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
-        gas_sponsor: Option<IotaAddress>,
+        gas_sponsor: Option<Address>,
         gas_objects: Option<Vec<ObjectRef>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
@@ -361,7 +361,7 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
@@ -392,7 +392,7 @@ impl StateRead for AuthorityState {
         Ok(self.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)?)
     }
 
-    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>> {
+    async fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>> {
         Ok(self
             .get_move_objects(owner, StructTag::new_staked_iota())
             .await?)
@@ -400,7 +400,7 @@ impl StateRead for AuthorityState {
 
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Vec<TimelockedStakedIota>> {
         Ok(self
             .get_move_objects(owner, StructTag::new_timelocked_staked_iota())
@@ -424,7 +424,7 @@ impl StateRead for AuthorityState {
     }
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
@@ -454,7 +454,7 @@ impl StateRead for AuthorityState {
 
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
         let indexes = self.indexes.clone();
@@ -470,7 +470,7 @@ impl StateRead for AuthorityState {
 
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         let indexes = self.indexes.clone();
         Ok(tokio::task::spawn_blocking(move || {

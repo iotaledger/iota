@@ -4,9 +4,9 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner};
+use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -62,7 +62,7 @@ macro_rules! transfer_test_runner {
 }
 
 struct TestRunner {
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub sender_key: AccountKeyPair,
     pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
@@ -321,7 +321,7 @@ async fn test_tto_transfer() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.object_id == child.0 .object_id {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::Address(IotaAddress::ZERO));
+                assert_eq!(owner, &Owner::Address(Address::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.version > child.0.version);
             }
@@ -768,7 +768,7 @@ async fn test_tto_unwrap_transfer() {
         // The now-unwrapped object should be sent to 0x0
         assert_eq!(
             effects.unwrapped()[0].1,
-            Owner::Address(IotaAddress::ZERO)
+            Owner::Address(Address::ZERO)
         );
 
         // Receiving object ID is deleted
@@ -1089,7 +1089,7 @@ async fn test_tto_valid_dependencies() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), child.0)
+                        .transfer_object(Address::from(parent.0.object_id), child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1132,7 +1132,7 @@ async fn test_tto_valid_dependencies() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.object_id == child.0 .object_id {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::Address(IotaAddress::ZERO));
+                assert_eq!(owner, &Owner::Address(Address::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.version > child.0.version);
                 // The child should be the max version
@@ -1188,7 +1188,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), child.0)
+                        .transfer_object(Address::from(parent.0.object_id), child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1283,7 +1283,7 @@ async fn test_tto_dependencies_dont_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1380,7 +1380,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1475,7 +1475,7 @@ async fn test_tto_dependencies_receive_and_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1569,7 +1569,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },

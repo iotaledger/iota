@@ -19,14 +19,14 @@ use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    TransactionExpiration,
+    Address, TransactionExpiration,
     crypto::{Intent, IntentMessage, IntentScope},
     gas::GasCostSummary,
 };
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
-    base_types::{AuthorityName, EpochId, IotaAddress},
+    base_types::{AuthorityName, EpochId},
     crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
     effects::TransactionEffectsAPI,
     error::IotaError,
@@ -535,7 +535,7 @@ async fn test_validator_resign_effects() {
 #[sim_test]
 async fn test_validator_candidate_pool_read() {
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address: IotaAddress = (&new_validator.account_key_pair.public()).into();
+    let address: Address = (&new_validator.account_key_pair.public()).into();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -912,7 +912,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
     let addresses = candidates
         .iter()
         .map(|c| (&c.account_key_pair.public()).into())
-        .collect::<Vec<IotaAddress>>();
+        .collect::<Vec<Address>>();
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(7)
         .with_validator_candidates(addresses)

@@ -4,8 +4,8 @@
 //! Extension traits for creating unlock conditions from Stardust types during
 //! migration.
 
-use iota_stardust_types::block::address::Address;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::Address;
+use iota_stardust_types::block::address::Address as StardustAddress;
 // Re-export the canonical types from iota-types
 pub use iota_types::stardust::output::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
@@ -17,14 +17,14 @@ use super::super::address::stardust_to_iota_address;
 /// types.
 pub trait ExpirationUnlockConditionExt {
     fn new_from_stardust(
-        owner_address: &Address,
+        owner_address: &StardustAddress,
         expiration_unlock_condition: &iota_stardust_types::block::output::unlock_condition::ExpirationUnlockCondition,
     ) -> anyhow::Result<ExpirationUnlockCondition>;
 }
 
 impl ExpirationUnlockConditionExt for ExpirationUnlockCondition {
     fn new_from_stardust(
-        owner_address: &Address,
+        owner_address: &StardustAddress,
         expiration_unlock_condition: &iota_stardust_types::block::output::unlock_condition::ExpirationUnlockCondition,
     ) -> anyhow::Result<ExpirationUnlockCondition> {
         let owner = stardust_to_iota_address(owner_address)?;
@@ -52,7 +52,7 @@ impl StorageDepositReturnUnlockConditionExt for StorageDepositReturnUnlockCondit
     fn try_from_stardust(
         unlock: &iota_stardust_types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
     ) -> anyhow::Result<StorageDepositReturnUnlockCondition> {
-        let return_address: IotaAddress = unlock.return_address().to_string().parse()?;
+        let return_address: Address = unlock.return_address().to_string().parse()?;
         let return_amount = unlock.amount();
         Ok(StorageDepositReturnUnlockCondition {
             return_address,

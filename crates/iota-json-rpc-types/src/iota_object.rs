@@ -14,13 +14,12 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, Owner, StructTag,
+    Address, Identifier, ObjectId, Owner, StructTag,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
-        TransactionDigest,
+        ObjectDigest, ObjectInfo, ObjectRef, ObjectType, SequenceNumber, TransactionDigest,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
@@ -38,8 +37,8 @@ use crate::{
     IotaMoveStruct, IotaMoveValue, IotaObjectResponseError, Page,
     iota_owner::OwnerSchema,
     iota_primitives::{
-        Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
-        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
+        Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
+        Identifier as IdentifierSchema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema,
         SequenceNumberU64 as SequenceNumberU64Schema, StructTag as StructTagSchema,
     },
@@ -1337,9 +1336,9 @@ pub enum IotaObjectDataFilter {
         StructTag,
     ),
     AddressOwner(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     ObjectOwner(
         #[serde_as(as = "ObjectIdSchema")]

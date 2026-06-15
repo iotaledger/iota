@@ -5,7 +5,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Argument, Identifier, ObjectId, StructTag, TypeTag};
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
@@ -16,7 +16,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    base_types::{IotaAddress, TxContext},
+    base_types::TxContext,
     digests::TransactionDigest,
     epoch_data::EpochData,
     in_memory_storage::InMemoryStorage,
@@ -179,7 +179,7 @@ fn object_migration_with_object_owner(
         );
 
         // Transfer the coin to the zero address since we have to move it somewhere.
-        builder.transfer_arg(IotaAddress::ZERO, coin_arg);
+        builder.transfer_arg(Address::ZERO, coin_arg);
 
         // We have to use extracted object as we cannot transfer it (since it lacks the
         // `store` ability), so we extract its assets.
@@ -203,7 +203,7 @@ fn object_migration_with_object_owner(
             Identifier::from_static("from_balance"),
             vec![TypeTag::from_str(&format!(
                 "{}::iota::IOTA",
-                IotaAddress::FRAMEWORK
+                Address::FRAMEWORK
             ))?],
             vec![balance_arg],
         );
@@ -219,12 +219,12 @@ fn object_migration_with_object_owner(
         );
 
         // Transfer the coin to the zero address since we have to move it somewhere.
-        builder.transfer_arg(IotaAddress::ZERO, coin_arg);
+        builder.transfer_arg(Address::ZERO, coin_arg);
 
         // We have successfully extracted the owned objects which is what we want to
         // test. Transfer to the zero address so the PTB doesn't fail.
-        builder.transfer_arg(IotaAddress::ZERO, owned_arg);
-        builder.transfer_arg(IotaAddress::ZERO, inner_owned_arg);
+        builder.transfer_arg(Address::ZERO, owned_arg);
+        builder.transfer_arg(Address::ZERO, inner_owned_arg);
 
         builder.finish()
     };
@@ -302,7 +302,7 @@ fn extract_native_tokens_from_bag(
             // This is the inner object, i.e. the Alias extracted from an Alias Output
             // or NFT extracted from an NFT Output.
             let object_arg = Argument::NestedResult(result_idx, 2);
-            builder.transfer_arg(IotaAddress::ZERO, object_arg);
+            builder.transfer_arg(Address::ZERO, object_arg);
         }
 
         let gas_coin_arg = builder.programmable_move_call(
@@ -313,7 +313,7 @@ fn extract_native_tokens_from_bag(
             vec![balance_arg],
         );
 
-        builder.transfer_arg(IotaAddress::ZERO, gas_coin_arg);
+        builder.transfer_arg(Address::ZERO, gas_coin_arg);
 
         for (_, bag_key, token_type_tag) in &native_tokens {
             let bag_key_arg = builder.pure(bag_key.clone())?;
@@ -338,7 +338,7 @@ fn extract_native_tokens_from_bag(
                 vec![token_balance_arg],
             );
 
-            builder.transfer_arg(IotaAddress::ZERO, minted_coin_arg);
+            builder.transfer_arg(Address::ZERO, minted_coin_arg);
         }
 
         // Destroying the bag only works if it's empty, hence asserting that it is in
@@ -411,7 +411,7 @@ fn unlock_object(
     output_id: OutputId,
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-    sender: &IotaAddress,
+    sender: &Address,
     module_name: &Identifier,
     epoch_start_timestamp_ms: u64,
     expected_test_result: UnlockObjectTestResult,
@@ -489,12 +489,12 @@ fn unlock_object(
 
         // Transfer the assets to the zero address since we have to move them somewhere
         // in the test.
-        builder.transfer_arg(IotaAddress::ZERO, coin_arg);
-        builder.transfer_arg(IotaAddress::ZERO, bag_arg);
+        builder.transfer_arg(Address::ZERO, coin_arg);
+        builder.transfer_arg(Address::ZERO, bag_arg);
 
         if matches!(expected_assets, ExpectedAssets::BalanceBagObject) {
             let object_arg = Argument::NestedResult(result_idx, 2);
-            builder.transfer_arg(IotaAddress::ZERO, object_arg);
+            builder.transfer_arg(Address::ZERO, object_arg);
         }
 
         builder.finish()

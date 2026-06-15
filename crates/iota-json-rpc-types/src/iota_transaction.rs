@@ -11,14 +11,14 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
-    Command, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
+    Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+    ChangeEpochV4, Command, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     ExecutionError as ExecutionFailureStatus, ExecutionStatus, GenesisObject, Identifier, MoveCall,
     ObjectId, Owner, TransactionKind, TransferObjects, TypeTag, VersionAssignment,
     gas::GasCostSummary,
 };
 use iota_types::{
-    base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{EpochId, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -58,8 +58,8 @@ use crate::{
     iota_gas_cost_summary::IotaGasCostSummary,
     iota_owner::OwnerSchema,
     iota_primitives::{
-        Base58 as Base58Schema, Base64 as Base64Schema, GenericSignature as GenericSignatureSchema,
-        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
+        Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
+        GenericSignature as GenericSignatureSchema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema,
         SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
     },
@@ -980,7 +980,7 @@ impl IotaTransactionBlockEffects {
             transaction_digest,
             status,
             gas_object: OwnedObjectRef {
-                owner: Owner::Address(IotaAddress::random()),
+                owner: Owner::Address(Address::random()),
                 reference: iota_types::base_types::random_object_ref(),
             },
             executed_epoch: 0,
@@ -1270,9 +1270,9 @@ impl Display for IotaTransactionBlockEvents {
 pub struct DevInspectArgs {
     /// The sponsor of the gas for the transaction, might be different from the
     /// sender.
-    #[serde_as(as = "Option<IotaAddressSchema>")]
-    #[schemars(with = "Option<IotaAddressSchema>")]
-    pub gas_sponsor: Option<IotaAddress>,
+    #[serde_as(as = "Option<AddressSchema>")]
+    #[schemars(with = "Option<AddressSchema>")]
+    pub gas_sponsor: Option<Address>,
     /// The gas budget for the transaction.
     #[schemars(with = "Option<String>")]
     #[serde_as(as = "Option<DisplayFromStr>")]
@@ -1620,9 +1620,9 @@ pub struct IotaGasData {
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
     pub payment: Vec<ObjectRef>,
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub owner: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub owner: Address,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub price: u64,
@@ -1658,7 +1658,7 @@ pub enum IotaTransactionBlockData {
 #[enum_dispatch]
 pub trait IotaTransactionBlockDataAPI {
     fn transaction(&self) -> &IotaTransactionBlockKind;
-    fn sender(&self) -> &IotaAddress;
+    fn sender(&self) -> &Address;
     fn gas_data(&self) -> &IotaGasData;
 }
 
@@ -1667,9 +1667,9 @@ pub trait IotaTransactionBlockDataAPI {
 #[serde(rename = "TransactionBlockDataV1", rename_all = "camelCase")]
 pub struct IotaTransactionBlockDataV1 {
     pub transaction: IotaTransactionBlockKind,
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub sender: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub sender: Address,
     pub gas_data: IotaGasData,
 }
 
@@ -1677,7 +1677,7 @@ impl IotaTransactionBlockDataAPI for IotaTransactionBlockDataV1 {
     fn transaction(&self) -> &IotaTransactionBlockKind {
         &self.transaction
     }
-    fn sender(&self) -> &IotaAddress {
+    fn sender(&self) -> &Address {
         &self.sender
     }
     fn gas_data(&self) -> &IotaGasData {
@@ -2448,9 +2448,9 @@ pub enum RPCTransactionRequestParams {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferObjectParams {
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub recipient: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub recipient: Address,
     #[serde_as(as = "ObjectIdSchema")]
     #[schemars(with = "ObjectIdSchema")]
     pub object_id: ObjectId,
@@ -2697,30 +2697,30 @@ pub enum TransactionFilter {
     ),
     /// Query by sender address.
     FromAddress(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Query by recipient address.
     ToAddress(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Query by sender and recipient address.
     FromAndToAddress {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        from: IotaAddress,
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        to: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        from: Address,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        to: Address,
     },
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        addr: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        addr: Address,
     },
     /// Query by transaction kind
     TransactionKind(IotaTransactionKind),
@@ -2854,30 +2854,30 @@ pub enum TransactionFilterV2 {
     ),
     /// Query by sender address.
     FromAddress(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Query by recipient address.
     ToAddress(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Query by sender and recipient address.
     FromAndToAddress {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        from: IotaAddress,
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        to: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        from: Address,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        to: Address,
     },
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        addr: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        addr: Address,
     },
     /// Query by transaction kind
     TransactionKind(IotaTransactionKind),

@@ -19,12 +19,11 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
-use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
-        IotaAddress, ObjectDigest, ObjectInfo, ObjectRef, SequenceNumber, TransactionDigest,
-        TxSequenceNumber,
+        ObjectDigest, ObjectInfo, ObjectRef, SequenceNumber, TransactionDigest, TxSequenceNumber,
     },
     digests::TransactionEventsDigest,
     dynamic_field::{self, DynamicFieldInfo},
@@ -57,8 +56,8 @@ use typed_store::{
 
 type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
 
-type OwnerIndexKey = (IotaAddress, ObjectId);
-type CoinIndexKey = (IotaAddress, String, ObjectId);
+type OwnerIndexKey = (Address, ObjectId);
+type CoinIndexKey = (Address, String, ObjectId);
 type DynamicFieldKey = (ObjectId, ObjectId);
 type EventId = (TxSequenceNumber, usize);
 type EventIndex = (TransactionEventsDigest, TransactionDigest, u64);
@@ -145,29 +144,29 @@ impl IndexStoreMetrics {
 /// The `IndexStoreCaches` struct manages `ShardedLruCache` instances to
 /// facilitate balance lookups and ownership queries.
 pub struct IndexStoreCaches {
-    per_coin_type_balance: ShardedLruCache<(IotaAddress, TypeTag), IotaResult<TotalBalance>>,
-    all_balances: ShardedLruCache<IotaAddress, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>>,
-    locks: MutexTable<IotaAddress>,
+    per_coin_type_balance: ShardedLruCache<(Address, TypeTag), IotaResult<TotalBalance>>,
+    all_balances: ShardedLruCache<Address, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>>,
+    locks: MutexTable<Address>,
 }
 
 #[derive(Default)]
 pub struct IndexStoreCacheUpdates {
     _locks: Vec<OwnedMutexGuard<()>>,
-    per_coin_type_balance_changes: Vec<((IotaAddress, TypeTag), IotaResult<TotalBalance>)>,
-    all_balance_changes: Vec<(IotaAddress, IotaResult<Arc<AllBalance>>)>,
+    per_coin_type_balance_changes: Vec<((Address, TypeTag), IotaResult<TotalBalance>)>,
+    all_balance_changes: Vec<(Address, IotaResult<Arc<AllBalance>>)>,
 }
 
 /// The `IndexStoreTables` struct defines a set of `DBMaps` used to index
 /// various aspects of transaction and object data. Each field corresponds to a
-/// specific index, with keys such as `IotaAddress`, `TransactionDigest`, etc.
+/// specific index, with keys such as `Address`, `TransactionDigest`, etc.
 /// Each mapping is configured with custom database options.
 #[derive(DBMapUtils)]
 pub struct IndexStoreTables {
     /// Index from iota address to transactions initiated by that address.
-    transactions_from_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
+    transactions_from_addr: DBMap<(Address, TxSequenceNumber), TransactionDigest>,
 
     /// Index from iota address to transactions that were sent to that address.
-    transactions_to_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
+    transactions_to_addr: DBMap<(Address, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that used that object id as input.
     transactions_by_input_object_id: DBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
@@ -188,7 +187,7 @@ pub struct IndexStoreTables {
     transactions_seq: DBMap<TransactionDigest, TxSequenceNumber>,
 
     /// This is an index of object references to currently existing objects,
-    /// indexed by the composite key of the IotaAddress of their owner and
+    /// indexed by the composite key of the Address of their owner and
     /// the object ID of the object. This composite index allows an
     /// efficient iterator to list all objected currently owned
     /// by a specific user, and their object reference.
@@ -211,7 +210,7 @@ pub struct IndexStoreTables {
 
     event_by_event_module: DBMap<(ModuleId, EventId), EventIndex>,
 
-    event_by_sender: DBMap<(IotaAddress, EventId), EventIndex>,
+    event_by_sender: DBMap<(Address, EventId), EventIndex>,
 
     event_by_time: DBMap<(u64, EventId), EventIndex>,
 
@@ -342,7 +341,7 @@ impl IndexStore {
                     compaction_metrics.clone(),
                     db_options.clone(),
                     pruner_watermark.clone(),
-                    |(_, id): (IotaAddress, TxSequenceNumber)| id,
+                    |(_, id): (Address, TxSequenceNumber)| id,
                 ),
             ),
             (
@@ -352,7 +351,7 @@ impl IndexStore {
                     compaction_metrics.clone(),
                     db_options.clone(),
                     pruner_watermark.clone(),
-                    |(_, sequence_number): (IotaAddress, TxSequenceNumber)| sequence_number,
+                    |(_, sequence_number): (Address, TxSequenceNumber)| sequence_number,
                 ),
             ),
             (
@@ -424,7 +423,7 @@ impl IndexStore {
                     compaction_metrics.clone(),
                     db_options.clone(),
                     pruner_watermark.clone(),
-                    |(_, event_id): (IotaAddress, EventId)| event_id.0,
+                    |(_, event_id): (Address, EventId)| event_id.0,
                 ),
             ),
             (
@@ -496,7 +495,7 @@ impl IndexStore {
             return Ok(IndexStoreCacheUpdates::default());
         }
         // Acquire locks on changed coin owners
-        let mut addresses: HashSet<IotaAddress> = HashSet::new();
+        let mut addresses: HashSet<Address> = HashSet::new();
         addresses.extend(
             object_index_changes
                 .deleted_owners
@@ -510,8 +509,7 @@ impl IndexStore {
                 .map(|((owner, _), _)| *owner),
         );
         let _locks = self.caches.locks.acquire_locks(addresses.into_iter());
-        let mut balance_changes: HashMap<IotaAddress, HashMap<TypeTag, TotalBalance>> =
-            HashMap::new();
+        let mut balance_changes: HashMap<Address, HashMap<TypeTag, TotalBalance>> = HashMap::new();
         // Index coin info
         let (input_coins, written_coins) = tx_coins.unwrap();
         // 1. Delete old owner if the object is deleted or transferred to a new owner,
@@ -625,7 +623,7 @@ impl IndexStore {
     /// with the provided transaction details.
     pub fn index_tx(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         active_inputs: impl Iterator<Item = ObjectId>,
         mutated_objects: impl Iterator<Item = (ObjectRef, Owner)> + Clone,
         move_functions: impl Iterator<Item = (ObjectId, String, String)> + Clone,
@@ -936,7 +934,7 @@ impl IndexStore {
 
     pub fn get_transactions_from_addr(
         &self,
-        addr: IotaAddress,
+        addr: Address,
         cursor: Option<TxSequenceNumber>,
         limit: Option<usize>,
         reverse: bool,
@@ -1026,7 +1024,7 @@ impl IndexStore {
 
     pub fn get_transactions_to_addr(
         &self,
-        addr: IotaAddress,
+        addr: Address,
         cursor: Option<TxSequenceNumber>,
         limit: Option<usize>,
         reverse: bool,
@@ -1194,7 +1192,7 @@ impl IndexStore {
 
     pub fn events_by_sender(
         &self,
-        sender: &IotaAddress,
+        sender: &Address,
         tx_seq: TxSequenceNumber,
         event_seq: usize,
         limit: usize,
@@ -1346,7 +1344,7 @@ impl IndexStore {
 
     pub fn get_owner_objects(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
@@ -1363,7 +1361,7 @@ impl IndexStore {
 
     pub fn get_owned_coins_iterator(
         coin_index: &DBMap<CoinIndexKey, CoinInfo>,
-        owner: IotaAddress,
+        owner: Address,
         coin_type_tag: Option<String>,
     ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
         let all_coins = coin_type_tag.is_none();
@@ -1389,7 +1387,7 @@ impl IndexStore {
 
     pub fn get_owned_coins_iterator_with_cursor(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
@@ -1425,7 +1423,7 @@ impl IndexStore {
     /// next page.
     pub fn get_owner_objects_iterator(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         starting_object_id: ObjectId,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
@@ -1475,7 +1473,7 @@ impl IndexStore {
     /// the `all_balance` cache. Only on the second cache miss, we go to the
     /// database (expensive) and update the cache. Notice that db read is
     /// done with `spawn_blocking` as that is expected to block
-    pub fn get_balance(&self, owner: IotaAddress, coin_type: TypeTag) -> IotaResult<TotalBalance> {
+    pub fn get_balance(&self, owner: Address, coin_type: TypeTag) -> IotaResult<TotalBalance> {
         self.metrics.balance_lookup_from_total.inc();
         let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
         let cloned_coin_type = coin_type.clone();
@@ -1529,7 +1527,7 @@ impl IndexStore {
     /// `spawn_blocking` as that is expected to block
     pub fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         self.metrics.all_balance_lookup_from_total.inc();
         let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
@@ -1550,12 +1548,12 @@ impl IndexStore {
         })
     }
 
-    /// Read balance for a `IotaAddress` and `CoinType` from the backend
+    /// Read balance for a `Address` and `CoinType` from the backend
     /// database
     pub fn get_balance_from_db(
         metrics: Arc<IndexStoreMetrics>,
         coin_index: DBMap<CoinIndexKey, CoinInfo>,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> IotaResult<TotalBalance> {
         metrics.balance_lookup_from_db.inc();
@@ -1573,11 +1571,11 @@ impl IndexStore {
         Ok(TotalBalance { balance, num_coins })
     }
 
-    /// Read all balances for a `IotaAddress` from the backend database
+    /// Read all balances for a `Address` from the backend database
     pub fn get_all_balances_from_db(
         metrics: Arc<IndexStoreMetrics>,
         coin_index: DBMap<CoinIndexKey, CoinInfo>,
-        owner: IotaAddress,
+        owner: Address,
     ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         metrics.all_balance_lookup_from_db.inc();
         let mut balances: HashMap<TypeTag, TotalBalance> = HashMap::new();
@@ -1613,7 +1611,7 @@ impl IndexStore {
 
     fn invalidate_per_coin_type_cache(
         &self,
-        keys: impl IntoIterator<Item = (IotaAddress, TypeTag)>,
+        keys: impl IntoIterator<Item = (Address, TypeTag)>,
     ) -> IotaResult {
         self.caches.per_coin_type_balance.batch_invalidate(keys);
         Ok(())
@@ -1621,7 +1619,7 @@ impl IndexStore {
 
     fn invalidate_all_balance_cache(
         &self,
-        addresses: impl IntoIterator<Item = IotaAddress>,
+        addresses: impl IntoIterator<Item = Address>,
     ) -> IotaResult {
         self.caches.all_balances.batch_invalidate(addresses);
         Ok(())
@@ -1629,7 +1627,7 @@ impl IndexStore {
 
     fn update_per_coin_type_cache(
         &self,
-        keys: impl IntoIterator<Item = ((IotaAddress, TypeTag), IotaResult<TotalBalance>)>,
+        keys: impl IntoIterator<Item = ((Address, TypeTag), IotaResult<TotalBalance>)>,
     ) -> IotaResult {
         self.caches
             .per_coin_type_balance
@@ -1657,7 +1655,7 @@ impl IndexStore {
 
     fn update_all_balance_cache(
         &self,
-        keys: impl IntoIterator<Item = (IotaAddress, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>)>,
+        keys: impl IntoIterator<Item = (Address, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>)>,
     ) -> IotaResult {
         self.caches
             .all_balances
@@ -1704,9 +1702,9 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
-    use iota_sdk_types::{ObjectId, Owner};
+    use iota_sdk_types::{Address, ObjectId, Owner};
     use iota_types::{
-        base_types::{IotaAddress, ObjectInfo, ObjectType},
+        base_types::{ObjectInfo, ObjectType},
         digests::TransactionDigest,
         effects::TransactionEvents,
         gas_coin::GAS,
@@ -1731,7 +1729,7 @@ mod tests {
             &Registry::default(),
             Some(128),
         );
-        let address = IotaAddress::random();
+        let address = Address::random();
         let mut written_objects = BTreeMap::new();
         let mut object_map = BTreeMap::new();
 

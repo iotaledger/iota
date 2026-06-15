@@ -23,10 +23,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
     TransactionFilterV2,
 };
-use iota_sdk_types::{Command, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Command, Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -65,7 +64,7 @@ fn query_events_no_events_descending() {
         let indexer_events = client
             .query_events(
                 EventFilter::Sender(
-                    IotaAddress::from_str(
+                    Address::from_str(
                         "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
                     )
                     .unwrap(),
@@ -96,7 +95,7 @@ fn query_events_no_events_ascending() {
         let indexer_events = client
             .query_events(
                 EventFilter::Sender(
-                    IotaAddress::from_str(
+                    Address::from_str(
                         "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99",
                     )
                     .unwrap(),
@@ -423,7 +422,7 @@ fn query_events_supported_events() {
             .digest;
 
         let supported_filters = vec![
-            EventFilter::Sender(IotaAddress::ZERO),
+            EventFilter::Sender(Address::ZERO),
             EventFilter::Transaction(real_tx_digest),
             EventFilter::Package(ObjectId::ZERO),
             EventFilter::MoveEventModule {
@@ -904,8 +903,8 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random();
-        let recipient_2 = IotaAddress::random();
+        let recipient_1 = Address::random();
+        let recipient_2 = Address::random();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -967,7 +966,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient = IotaAddress::random();
+        let recipient = Address::random();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1046,8 +1045,8 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random();
-        let recipient_2 = IotaAddress::random();
+        let recipient_1 = Address::random();
+        let recipient_2 = Address::random();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -1596,7 +1595,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
             .as_ref()
             .unwrap()
             .data;
-        assert_eq!(tx_data_v1.sender, IotaAddress::ZERO);
+        assert_eq!(tx_data_v1.sender, Address::ZERO);
 
         // Test `ConsensusCommitPrologueV1` transaction kind filter
         let filter =

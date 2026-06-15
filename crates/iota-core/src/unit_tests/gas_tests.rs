@@ -2,16 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Command, ExecutionError, ExecutionStatus, Identifier, TransactionKind};
+use iota_sdk_types::{
+    Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
+    ObjectReference, Owner, TransactionEffects, TransactionKind,
+};
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::TransactionEvents,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents},
+    error::{IotaResult, UserInputError},
     gas_coin::GasCoin,
-    object::GAS_VALUE_FOR_TESTING,
+    messages_grpc::TransactionStatus,
+    object::{GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI,
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
@@ -20,10 +27,9 @@ use once_cell::sync::Lazy;
 use super::{
     authority_tests::{init_state_with_ids, send_and_confirm_transaction},
     move_integration_tests::build_and_try_publish_test_package,
-    *,
 };
 use crate::authority::{
-    authority_tests::init_state_with_ids_and_object_basics,
+    AuthorityState, authority_tests::init_state_with_ids_and_object_basics,
     test_authority_builder::TestAuthorityBuilder,
 };
 
@@ -102,7 +108,7 @@ async fn test_tx_more_than_maximum_gas_budget() {
 
 async fn publish_move_random_package(
     authority_state: &Arc<AuthorityState>,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
 ) -> ObjectId {
@@ -133,7 +139,7 @@ async fn publish_move_random_package(
 }
 
 async fn check_oog_transaction<F>(
-    sender: IotaAddress,
+    sender: Address,
     sender_key: AccountKeyPair,
     function: &'static str,
     args: Vec<CallArg>,
@@ -240,7 +246,7 @@ where
 }
 
 // make a `coin_num` coins distributing `gas_amount` across them
-fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Object> {
+fn make_gas_coins(owner: Address, gas_amount: u64, coin_num: u64) -> Vec<Object> {
     let mut objects = vec![];
     let coin_balance = gas_amount / coin_num;
     for _ in 1..coin_num {
@@ -265,9 +271,9 @@ fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Obj
 // Touch gas coins so that `storage_rebate` is set
 async fn touch_gas_coins(
     authority_state: &AuthorityState,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: &AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     coin_ids: &[ObjectId],
     gas_object_id: ObjectId,
 ) {
@@ -615,13 +621,12 @@ async fn test_invalid_gas_owners() {
         gas_object3.object_id,
     ))
     .await;
-    let non_sender_owned_object =
-        init_object(Object::with_owner_for_testing(IotaAddress::ZERO)).await;
+    let non_sender_owned_object = init_object(Object::with_owner_for_testing(Address::ZERO)).await;
 
     async fn test(
-        good_gas_object: ObjectRef,
-        bad_gas_object: ObjectRef,
-        sender: IotaAddress,
+        good_gas_object: ObjectReference,
+        bad_gas_object: ObjectReference,
+        sender: Address,
         sender_key: &AccountKeyPair,
         authority_state: &AuthorityState,
     ) -> UserInputError {
@@ -948,11 +953,11 @@ async fn test_tx_gas_coins_input_coins() {
 
     async fn run_merge(
         authority_state: &AuthorityState,
-        sender: IotaAddress,
+        sender: Address,
         sender_key: &AccountKeyPair,
-        gas_coin_refs: Vec<ObjectRef>,
-        coin_ref: ObjectRef,
-        coin_refs: Vec<ObjectRef>,
+        gas_coin_refs: Vec<ObjectReference>,
+        coin_ref: ObjectReference,
+        coin_refs: Vec<ObjectReference>,
         rgp: u64,
     ) -> TransactionEffects {
         // build the programmale transaction

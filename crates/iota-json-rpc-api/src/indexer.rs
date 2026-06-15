@@ -9,15 +9,12 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
     TransactionBlocksPage, TransactionFilter,
     iota_primitives::{
-        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
+        Address as AddressSchema, Base58 as Base58Schema, ObjectId as ObjectIdSchema,
     },
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    base_types::IotaAddress, digests::TransactionDigest, dynamic_field::DynamicFieldName,
-    event::EventID,
-};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::{digests::TransactionDigest, dynamic_field::DynamicFieldName, event::EventID};
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
     proc_macros::rpc,
@@ -39,8 +36,8 @@ pub trait IndexerApi {
     async fn get_owned_objects(
         &self,
         /// the owner's IOTA address
-        #[schemars(with = "IotaAddressSchema")] 
-        address: IotaAddress,
+        #[schemars(with = "AddressSchema")] 
+        address: Address,
         /// the objects query criteria.
         query: Option<IotaObjectResponseQuery>,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
@@ -171,8 +168,8 @@ pub trait IndexerApi {
     async fn iota_names_reverse_lookup(
         &self,
         /// The address to resolve.
-        #[schemars(with = "IotaAddressSchema")]
-        address: IotaAddress,
+        #[schemars(with = "AddressSchema")]
+        address: Address,
     ) -> RpcResult<Option<String>>;
 
     /// Find all registration NFTs for the given address.
@@ -180,7 +177,7 @@ pub trait IndexerApi {
     #[schemars(with = "Page<IotaObjectResponse, ObjectIdSchema>")]
     async fn iota_names_find_all_registration_nfts(
         &self,
-        #[schemars(with = "IotaAddressSchema")] address: IotaAddress,
+        #[schemars(with = "AddressSchema")] address: Address,
         #[schemars(with = "Option<ObjectIdSchema>")] cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,

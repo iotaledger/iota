@@ -14,7 +14,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Identifier, ObjectId, Owner, TransactionKind};
+use iota_sdk_types::{Address, Identifier, ObjectId, Owner, TransactionKind};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -25,7 +25,7 @@ use iota_test_transaction_builder::{
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
@@ -1272,16 +1272,7 @@ async fn test_access_old_object_pruned() {
 
 async fn transfer_coin(
     context: &WalletContext,
-) -> Result<
-    (
-        ObjectId,
-        IotaAddress,
-        IotaAddress,
-        TransactionDigest,
-        ObjectRef,
-    ),
-    anyhow::Error,
-> {
+) -> Result<(ObjectId, Address, Address, TransactionDigest, ObjectRef), anyhow::Error> {
     let gas_price = context.get_reference_gas_price().await?;
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;

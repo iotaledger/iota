@@ -15,9 +15,8 @@ use iota_indexer::{
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
 use iota_json_rpc_api::ReadApiServer;
-use iota_sdk_types::{Event as NativeEvent, TransactionExpiration};
+use iota_sdk_types::{Address as NativeAddress, Event as NativeEvent, TransactionExpiration};
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
     message_envelope::Message,
     transaction::{
@@ -206,7 +205,7 @@ impl TransactionBlock {
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
-        (sender != NativeIotaAddress::ZERO).then(|| Address {
+        (sender != NativeAddress::ZERO).then(|| Address {
             address: IotaAddress::from(sender),
             checkpoint_viewed_at: self.checkpoint_viewed_at,
         })
