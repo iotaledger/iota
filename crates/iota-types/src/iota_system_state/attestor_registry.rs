@@ -6,6 +6,8 @@
 //! field on the `IotaSystemState` wrapper object under
 //! `AttestorRegistryKey`, so its object ID is deterministic.
 
+use std::collections::HashMap;
+
 use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 
@@ -54,6 +56,68 @@ pub struct AttestorRegistryV1 {
     pub active_attestors: Vec<AttestorV1>,
     pub pending_active: Vec<AttestorV1>,
     pub pending_removals: Vec<u64>,
+}
+
+/// Per-epoch snapshot entry for an active attestor, carried by
+/// `EpochStartSystemStateV3`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct EpochStartAttestorInfoV1 {
+    pub attestor_address: IotaAddress,
+    pub attestor_pubkey: Vec<u8>,
+}
+
+/// The active attestor set of one epoch, with committee-style lookups.
+/// An attestor's index is its position in the underlying ordered set
+/// (mirroring the Move `active_attestors` vector at epoch start).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AttestorSet {
+    epoch: u64,
+    entries: Vec<EpochStartAttestorInfoV1>,
+    index_by_address: HashMap<IotaAddress, u32>,
+}
+
+impl AttestorSet {
+    pub fn new(epoch: u64, entries: Vec<EpochStartAttestorInfoV1>) -> Self {
+        let index_by_address = entries
+            .iter()
+            .enumerate()
+            .map(|(i, e)| (e.attestor_address, i as u32))
+            .collect();
+        Self {
+            epoch,
+            entries,
+            index_by_address,
+        }
+    }
+
+    pub fn empty(epoch: u64) -> Self {
+        Self::new(epoch, vec![])
+    }
+
+    pub fn epoch(&self) -> u64 {
+        self.epoch
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn by_index(&self, index: u32) -> Option<&EpochStartAttestorInfoV1> {
+        self.entries.get(index as usize)
+    }
+
+    pub fn by_address(&self, address: &IotaAddress) -> Option<(u32, &EpochStartAttestorInfoV1)> {
+        let idx = *self.index_by_address.get(address)?;
+        Some((idx, &self.entries[idx as usize]))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &EpochStartAttestorInfoV1> {
+        self.entries.iter()
+    }
 }
 
 /// Deterministic object ID of the registry dynamic field on the system
@@ -117,5 +181,33 @@ mod tests {
         let a = derive_attestor_registry_object_id().unwrap();
         let b = derive_attestor_registry_object_id().unwrap();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn attestor_set_lookups_agree() {
+        let entries = vec![
+            EpochStartAttestorInfoV1 {
+                attestor_address: IotaAddress::from_bytes([1u8; 32]).unwrap(),
+                attestor_pubkey: vec![0u8; 33],
+            },
+            EpochStartAttestorInfoV1 {
+                attestor_address: IotaAddress::from_bytes([2u8; 32]).unwrap(),
+                attestor_pubkey: vec![1u8; 34],
+            },
+        ];
+        let set = AttestorSet::new(9, entries.clone());
+        assert_eq!(set.epoch(), 9);
+        assert_eq!(set.len(), 2);
+        let (idx, entry) = set.by_address(&entries[1].attestor_address).unwrap();
+        assert_eq!(idx, 1);
+        assert_eq!(entry.attestor_pubkey, entries[1].attestor_pubkey);
+        assert_eq!(
+            set.by_index(0).unwrap().attestor_address,
+            entries[0].attestor_address
+        );
+        assert!(set.by_index(2).is_none());
+        let empty = AttestorSet::empty(3);
+        assert!(empty.is_empty());
+        assert_eq!(empty.epoch(), 3);
     }
 }

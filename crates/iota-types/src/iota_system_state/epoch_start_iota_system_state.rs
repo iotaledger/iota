@@ -19,7 +19,10 @@ use crate::{
     base_types::{AuthorityName, EpochId},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit},
     crypto::{AuthorityPublicKey, NetworkPublicKey},
-    iota_system_state::iota_system_state_inner_v1::ValidatorV1,
+    iota_system_state::{
+        attestor_registry::{AttestorSet, EpochStartAttestorInfoV1},
+        iota_system_state_inner_v1::ValidatorV1,
+    },
     multiaddr::Multiaddr,
 };
 
@@ -39,6 +42,10 @@ pub trait EpochStartSystemStateTrait {
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
     fn get_active_validators(&self) -> Vec<AuthorityPublicKey>;
+    /// The active attestor set for this epoch, used to verify explicit
+    /// attestation signatures. Empty for versions that predate the
+    /// attestor registry.
+    fn get_attestor_set(&self) -> AttestorSet;
 }
 
 /// This type captures the minimum amount of information from IotaSystemState
@@ -55,6 +62,7 @@ pub trait EpochStartSystemStateTrait {
 pub enum EpochStartSystemState {
     V1(EpochStartSystemStateV1),
     V2(EpochStartSystemStateV2),
+    V3(EpochStartSystemStateV3),
 }
 
 impl EpochStartSystemState {
@@ -106,6 +114,23 @@ impl EpochStartSystemState {
         Self::V1(EpochStartSystemStateV1::new_for_testing_with_epoch(epoch))
     }
 
+    /// Attach the epoch's active attestor snapshot, upgrading V2 to V3.
+    /// V1 passes through unchanged: it predates the attestor registry and
+    /// wrapping it would alter its `get_active_validators` semantics.
+    pub fn with_attestors(self, active_attestors: Vec<EpochStartAttestorInfoV1>) -> Self {
+        match self {
+            Self::V1(v1) => Self::V1(v1),
+            Self::V2(v2) => Self::V3(EpochStartSystemStateV3 {
+                v2,
+                active_attestors,
+            }),
+            Self::V3(mut v3) => {
+                v3.active_attestors = active_attestors;
+                Self::V3(v3)
+            }
+        }
+    }
+
     pub fn new_at_next_epoch_for_testing(&self) -> Self {
         // Only need to support the latest version for testing.
         match self {
@@ -129,6 +154,21 @@ impl EpochStartSystemState {
                     committee_validators: state.v1.committee_validators.clone(),
                 },
                 active_validators: state.active_validators.clone(),
+            }),
+            Self::V3(state) => Self::V3(EpochStartSystemStateV3 {
+                v2: EpochStartSystemStateV2 {
+                    v1: EpochStartSystemStateV1 {
+                        epoch: state.v2.v1.epoch + 1,
+                        protocol_version: state.v2.v1.protocol_version,
+                        reference_gas_price: state.v2.v1.reference_gas_price,
+                        safe_mode: state.v2.v1.safe_mode,
+                        epoch_start_timestamp_ms: state.v2.v1.epoch_start_timestamp_ms,
+                        epoch_duration_ms: state.v2.v1.epoch_duration_ms,
+                        committee_validators: state.v2.v1.committee_validators.clone(),
+                    },
+                    active_validators: state.v2.active_validators.clone(),
+                },
+                active_attestors: state.active_attestors.clone(),
             }),
         }
     }
@@ -323,6 +363,11 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .map(|validator| validator.authority_pubkey.clone())
             .collect()
     }
+
+    fn get_attestor_set(&self) -> AttestorSet {
+        // V1 predates the attestor registry.
+        AttestorSet::empty(self.epoch)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -403,6 +448,92 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
             .map(|validator| validator.authority_pubkey.clone())
             .collect()
     }
+
+    fn get_attestor_set(&self) -> AttestorSet {
+        // V2 predates the attestor registry.
+        AttestorSet::empty(self.epoch())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub struct EpochStartSystemStateV3 {
+    v2: EpochStartSystemStateV2,
+    active_attestors: Vec<EpochStartAttestorInfoV1>,
+}
+
+impl EpochStartSystemStateV3 {
+    pub fn new_for_testing() -> Self {
+        Self::new_for_testing_with_epoch(0)
+    }
+
+    pub fn new_for_testing_with_epoch(epoch: EpochId) -> Self {
+        Self {
+            v2: EpochStartSystemStateV2::new_for_testing_with_epoch(epoch),
+            active_attestors: vec![],
+        }
+    }
+}
+
+impl EpochStartSystemStateTrait for EpochStartSystemStateV3 {
+    fn epoch(&self) -> EpochId {
+        self.v2.epoch()
+    }
+
+    fn protocol_version(&self) -> ProtocolVersion {
+        self.v2.protocol_version()
+    }
+
+    fn reference_gas_price(&self) -> u64 {
+        self.v2.reference_gas_price()
+    }
+
+    fn safe_mode(&self) -> bool {
+        self.v2.safe_mode()
+    }
+
+    fn epoch_start_timestamp_ms(&self) -> u64 {
+        self.v2.epoch_start_timestamp_ms()
+    }
+
+    fn epoch_duration_ms(&self) -> u64 {
+        self.v2.epoch_duration_ms()
+    }
+
+    fn get_validator_addresses(&self) -> Vec<IotaAddress> {
+        self.v2.get_validator_addresses()
+    }
+
+    fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata {
+        self.v2.get_iota_committee_with_network_metadata()
+    }
+
+    fn get_iota_committee(&self) -> Committee {
+        self.v2.get_iota_committee()
+    }
+
+    fn get_consensus_committee(&self) -> ConsensusCommittee {
+        self.v2.get_consensus_committee()
+    }
+
+    fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
+        self.v2.get_validator_as_p2p_peers(excluding_self)
+    }
+
+    fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId> {
+        self.v2.get_authority_names_to_peer_ids()
+    }
+
+    fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String> {
+        self.v2.get_authority_names_to_hostnames()
+    }
+
+    fn get_active_validators(&self) -> Vec<AuthorityPublicKey> {
+        self.v2.get_active_validators()
+    }
+
+    fn get_attestor_set(&self) -> AttestorSet {
+        AttestorSet::new(self.v2.epoch(), self.active_attestors.clone())
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -452,9 +583,12 @@ mod test {
     use crate::{
         committee::CommitteeTrait,
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
-        iota_system_state::epoch_start_iota_system_state::{
-            EpochStartSystemState, EpochStartSystemStateTrait, EpochStartSystemStateV1,
-            EpochStartValidatorInfoV1,
+        iota_system_state::{
+            attestor_registry::EpochStartAttestorInfoV1,
+            epoch_start_iota_system_state::{
+                EpochStartSystemState, EpochStartSystemStateTrait, EpochStartSystemStateV1,
+                EpochStartValidatorInfoV1,
+            },
         },
     };
 
@@ -652,6 +786,35 @@ mod test {
                 .unwrap();
             assert_eq!(found.as_bytes(), validator.authority_pubkey.as_bytes());
         }
+    }
+
+    #[test]
+    fn test_v3_wraps_v2_and_carries_attestors() {
+        let attestors = vec![EpochStartAttestorInfoV1 {
+            attestor_address: IotaAddress::ZERO,
+            attestor_pubkey: vec![0u8; 33],
+        }];
+
+        // V1 passes through unchanged (predates the registry).
+        let v1 = EpochStartSystemState::new_for_testing_with_epoch(7);
+        let v1_with = v1.with_attestors(attestors.clone());
+        assert!(v1_with.get_attestor_set().is_empty());
+
+        // V2 -> V3 upgrade carries the attestor snapshot.
+        let v2 = EpochStartSystemState::new_v2(7, ProtocolVersion::MAX.as_u64(), 100, false, 0, 1000, vec![], vec![]);
+        let v3 = v2.with_attestors(attestors.clone());
+        let set = v3.get_attestor_set();
+        assert_eq!(set.len(), 1);
+        assert_eq!(set.epoch(), 7);
+        assert_eq!(
+            set.by_index(0).unwrap().attestor_address,
+            attestors[0].attestor_address
+        );
+
+        // V3 round-trips through BCS.
+        let bytes = bcs::to_bytes(&v3).unwrap();
+        let decoded: EpochStartSystemState = bcs::from_bytes(&bytes).unwrap();
+        assert_eq!(decoded.get_attestor_set().len(), 1);
     }
 
     #[test]
