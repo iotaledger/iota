@@ -95,6 +95,26 @@ pub(crate) enum DataSource {
 }
 
 impl DataSource {
+    /// Whether the data was pushed or served by a peer, as opposed to
+    /// certified/local sources (commit sync, recovery, own block) whose rounds
+    /// are already bounded. Only peer-disseminated blocks are subject to the
+    /// future-round acceptance bound.
+    pub(crate) fn is_peer_disseminated(&self) -> bool {
+        match self {
+            DataSource::BlockStreaming
+            | DataSource::BlockBundleStream
+            | DataSource::HeaderSynchronizer => true,
+            DataSource::TransactionSynchronizer
+            | DataSource::ShardReconstructor
+            | DataSource::Recover
+            | DataSource::OwnBlock
+            | DataSource::CommitSyncer
+            | DataSource::FastCommitSyncer => false,
+            #[cfg(test)]
+            DataSource::Test => false,
+        }
+    }
+
     /// Returns the string label used for metrics reporting.
     /// This ensures consistency with existing metrics that may be monitored.
     pub(crate) fn as_str(&self) -> &'static str {

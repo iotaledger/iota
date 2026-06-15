@@ -778,21 +778,46 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_ref,
         )?;
 
-        // 4. Collect shards from a bundle and check their proofs.
+        // 4. Observe headers and the block for the commit votes. When local commit is
+        // lagging too much, commit sync loop will trigger fetching. Done before the
+        // far-future check below so quorum-commit tracking keeps progressing even
+        // for bundles we drop.
+        for block_header in additional_block_headers.iter() {
+            self.commit_vote_monitor.observe_block(block_header);
+        }
+        self.commit_vote_monitor.observe_block(&verified_block);
+
+        // 5. Drop a far-future primary block here — after signature/header
+        // verification and vote observation, but before shard extraction,
+        // transaction messages, digest filtering, and add_shards — so it cannot
+        // grow the shard reconstructor or DagState shard state. BlockManager
+        // applies the same bound again as defense in depth.
+        let far_future_ceiling = self
+            .context
+            .parameters
+            .peer_disseminated_round_ceiling(self.dag_state.read().highest_accepted_round());
+        if block_ref.round > far_future_ceiling {
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_far_future_blocks_total
+                .with_label_values(&["block_bundle"])
+                .inc();
+            debug!(
+                "Dropping far-future streamed block {block_ref} from peer {peer}; round {} exceeds ceiling {far_future_ceiling}",
+                block_ref.round
+            );
+            return Ok(());
+        }
+
+        // 6. Collect shards from a bundle and check their proofs.
 
         let serialized_shards =
             std::mem::take(&mut serialized_block_bundle_parts.serialized_shards);
         let verified_shards =
             self.extract_shards_from_bundle(peer, peer_hostname, serialized_shards, block_ref)?;
 
-        // 5. Observe headers and the block for the commit votes. When local commit is
-        // lagging too much, commit sync loop will trigger fetching.
-        for block_header in additional_block_headers.iter() {
-            self.commit_vote_monitor.observe_block(block_header);
-        }
-        self.commit_vote_monitor.observe_block(&verified_block);
-
-        // 6. Reject blocks when local commit index is lagging too far from quorum
+        // 7. Reject blocks when local commit index is lagging too far from quorum
         //    commit index.
         //
         // IMPORTANT: this must be done after observing votes from the block, otherwise
@@ -806,12 +831,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // 7. Add digests to filter. Exclude from the vector those that are already
+        // 8. Add digests to filter. Exclude from the vector those that are already
         //    inserted
         self.add_digests_to_filter(peer_hostname, &mut additional_block_headers, block_ref)
             .await;
 
-        // 8. Prepare transaction messages for shard reconstructor and send them
+        // 9. Prepare transaction messages for shard reconstructor and send them
         let transaction_messages = TransactionMessage::create_transaction_messages(
             &verified_block,
             &verified_shards,
@@ -825,7 +850,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             warn!("Failed to send transaction messages to shard reconstructor: {e}");
         }
 
-        // 9. Add additional headers from bundle to dag, receive missing ancestors for
+        // 10. Add additional headers from bundle to dag, receive missing ancestors for
         // them. Normally, there should be no missing ancestors, as the headers are
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
@@ -843,7 +868,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&["headers"])
             .observe(missing_ancestors.len() as f64);
 
-        // 10. Add the block to dag, add its missing ancestors to the set
+        // 11. Add the block to dag, add its missing ancestors to the set
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block], DataSource::BlockStreaming)
@@ -867,7 +892,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .observe(block_ref.round as f64 - missing_block_ref.round as f64);
         }
 
-        // 11. Add our shard from the received block and its proof to the dag_state
+        // 12. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
         if let Some(shard_for_core) = shard_for_core {
             let serialized_shard_for_core: Bytes = match shard_for_core {
@@ -898,7 +923,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
 
-        // 12. Report useful info for cordial and connection knowledge
+        // 13. Report useful info for cordial and connection knowledge
         let block_round = block_ref.round;
         self.cordial_knowledge.report_useful_authors(
             peer,
@@ -908,7 +933,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_round,
         )?;
 
-        // 13. schedule the fetching of missing ancestors (if any) from this peer
+        // 14. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
             if let Err(err) = self
                 .synchronizer
@@ -919,7 +944,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // 14. schedule the fetching of missing committed transactions (if any)
+        // 15. schedule the fetching of missing committed transactions (if any)
         if !missing_committed_txns.is_empty() {
             if let Err(err) = self
                 .transactions_synchronizer
@@ -1938,6 +1963,95 @@ mod tests {
         let blocks = core_dispatcher.get_blocks();
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0], input_block);
+    }
+
+    /// A signed far-future bundle is dropped after verification and commit-vote
+    /// observation but before shard/transaction processing: nothing is sent to
+    /// the shard reconstructor and nothing reaches core, so it cannot grow
+    /// shard/transaction state.
+    #[rstest]
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_drops_far_future(
+        #[values(false, true)] consensus_fast_commit_sync: bool,
+    ) {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, mut tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state,
+            store,
+            Arc::new(MisbehaviorStore::new(&context)),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        // One round past the acceptance ceiling (frontier is genesis round 0).
+        let far_round = context.parameters.peer_disseminated_round_ceiling(0) + 1;
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(far_round, 0, &context, &mut encoder).build(),
+        );
+        let bundle = SerializedBlockBundle::try_from(input_block).unwrap();
+
+        authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                bundle,
+                &mut encoder,
+            )
+            .await
+            .unwrap();
+
+        // Dropped: counted, not forwarded to core, and nothing sent to the
+        // shard reconstructor.
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_blocks_total
+                .with_label_values(&["block_bundle"])
+                .get(),
+            1
+        );
+        assert!(core_dispatcher.get_blocks().is_empty());
+        assert!(tx_message_receiver.try_recv().is_err());
     }
 
     #[rstest]

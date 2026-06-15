@@ -168,6 +168,42 @@ impl BlockManager {
         unsuspended_headers
     }
 
+    /// Drops peer-disseminated blocks/headers whose round is too far above the
+    /// accepted frontier to connect, bounding the round horizon retained in the
+    /// suspender. Certified/local sources (commit sync, recovery, own block)
+    /// are exempt: a node that legitimately trails further catches up through
+    /// commit sync, which bypasses this path.
+    fn drop_far_future<T>(
+        &self,
+        items: Vec<T>,
+        source: DataSource,
+        round_of: impl Fn(&T) -> Round,
+    ) -> Vec<T> {
+        if !source.is_peer_disseminated() {
+            return items;
+        }
+        let frontier = self.dag_state.read().highest_accepted_round();
+        let ceiling = self
+            .context
+            .parameters
+            .peer_disseminated_round_ceiling(frontier);
+        let total = items.len();
+        let kept: Vec<T> = items
+            .into_iter()
+            .filter(|item| round_of(item) <= ceiling)
+            .collect();
+        let dropped = (total - kept.len()) as u64;
+        if dropped > 0 {
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_far_future_blocks_total
+                .with_label_values(&["block_manager"])
+                .inc_by(dropped);
+        }
+        kept
+    }
+
     /// Does all the same things as try_accept_block_headers and additionally
     /// saves blocks with transaction data into recent_blocks in DagState
     #[tracing::instrument(skip_all)]
@@ -178,6 +214,7 @@ impl BlockManager {
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks");
         let gc_unsuspended = self.maybe_evict_below_gc_floor();
+        let blocks = self.drop_far_future(blocks, source, |b| b.round());
 
         let block_headers: Vec<_> = blocks
             .iter()
@@ -222,6 +259,7 @@ impl BlockManager {
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
         let gc_unsuspended = self.maybe_evict_below_gc_floor();
+        let block_headers = self.drop_far_future(block_headers, source, |h| h.round());
 
         // Headers are added through synchronizer, commit syncer and cordial
         // dissemination.
@@ -1260,6 +1298,135 @@ mod tests {
             block_manager.blocks_to_fetch().is_empty(),
             "old ancestor below gc_floor should not be queued for fetching"
         );
+    }
+
+    /// A peer-disseminated header whose round is far above the accepted
+    /// frontier is dropped before entering the suspender, so a Byzantine peer
+    /// streaming far-future rounds cannot grow the suspender without bound.
+    #[tokio::test]
+    async fn drops_far_future_peer_disseminated_headers() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        // Frontier starts at genesis round 0, so the acceptance ceiling is
+        // `dag_state_cached_rounds + peer_round_ahead_margin`; one round past it
+        // is dropped.
+        let far_round = context.parameters.peer_disseminated_round_ceiling(0) + 1;
+        let far_header = header(far_round, 1, vec![block_ref(far_round - 1, 0)]);
+
+        let (accepted, missing) =
+            block_manager.try_accept_block_headers(vec![far_header], DataSource::BlockBundleStream);
+
+        assert!(
+            accepted.is_empty(),
+            "far-future header must not be accepted"
+        );
+        assert!(
+            missing.is_empty(),
+            "far-future ancestors must not be queued to fetch"
+        );
+        assert!(block_manager.suspended_blocks_refs().is_empty());
+        assert!(block_manager.blocks_to_fetch_refs().is_empty());
+        assert_eq!(
+            dag_state.read().highest_accepted_round(),
+            0,
+            "dropped header must not advance the frontier"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_blocks_total
+                .with_label_values(&["block_manager"])
+                .get(),
+            1
+        );
+    }
+
+    /// The future-round bound exempts certified/local sources: a far-ahead
+    /// header from the commit syncer (which catches a node up past the bound)
+    /// is still suspended as before, not dropped.
+    #[tokio::test]
+    async fn far_future_bound_exempts_commit_sync() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
+
+        let far_round = context.parameters.peer_disseminated_round_ceiling(0) + 1;
+        let far_header = header(far_round, 1, vec![block_ref(far_round - 1, 0)]);
+        let far_ref = far_header.reference();
+
+        let (accepted, _missing) =
+            block_manager.try_accept_block_headers(vec![far_header], DataSource::CommitSyncer);
+
+        assert!(accepted.is_empty());
+        assert!(
+            block_manager.suspended_blocks_refs().contains(&far_ref),
+            "commit-sync headers must not be subject to the future-round bound"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_blocks_total
+                .with_label_values(&["block_manager"])
+                .get(),
+            0
+        );
+    }
+
+    /// A header exactly at the ceiling is retained, one round past it is
+    /// dropped, and the bound applies to every peer-disseminated header source.
+    #[tokio::test]
+    async fn far_future_bound_ceiling_and_sources() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let ceiling = context.parameters.peer_disseminated_round_ceiling(0);
+
+        // Exactly at the ceiling: within bounds, so suspended rather than dropped.
+        {
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let mut block_manager = BlockManager::new(context.clone(), dag_state);
+            let at_ceiling = header(ceiling, 1, vec![block_ref(ceiling - 1, 0)]);
+            let at_ceiling_ref = at_ceiling.reference();
+            block_manager.try_accept_block_headers(vec![at_ceiling], DataSource::BlockBundleStream);
+            assert!(
+                block_manager
+                    .suspended_blocks_refs()
+                    .contains(&at_ceiling_ref),
+                "a header exactly at the ceiling must be retained, not dropped"
+            );
+        }
+
+        // One round past the ceiling: dropped for every peer-disseminated source.
+        for source in [
+            DataSource::BlockBundleStream,
+            DataSource::HeaderSynchronizer,
+        ] {
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let mut block_manager = BlockManager::new(context.clone(), dag_state);
+            let far = header(ceiling + 1, 1, vec![block_ref(ceiling, 0)]);
+            let (accepted, missing) = block_manager.try_accept_block_headers(vec![far], source);
+            assert!(accepted.is_empty() && missing.is_empty());
+            assert!(
+                block_manager.suspended_blocks_refs().is_empty(),
+                "{} far-future header must be dropped",
+                source.as_str()
+            );
+        }
     }
 
     /// A full block whose own round is at or below the GC floor must not be
