@@ -229,12 +229,12 @@ mod tests {
         let variables = vec![
             GraphqlQueryVariable {
                 name: "framework_addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x2"),
             },
             GraphqlQueryVariable {
                 name: "stardust_addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x107a"),
             },
         ];
@@ -269,17 +269,17 @@ mod tests {
         let bad_variables = vec![
             GraphqlQueryVariable {
                 name: "framework_addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x2"),
             },
             GraphqlQueryVariable {
                 name: "stardust_addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x107a"),
             },
             GraphqlQueryVariable {
                 name: "stardust_addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x0x107aaaaaaaa"),
             },
         ];
@@ -293,17 +293,17 @@ mod tests {
         let bad_variables = vec![
             GraphqlQueryVariable {
                 name: "framework_addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x2"),
             },
             GraphqlQueryVariable {
                 name: "stardust_addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x107a"),
             },
             GraphqlQueryVariable {
                 name: "stardust_addr".to_string(),
-                ty: "AddressP!".to_string(),
+                ty: "IotaAddressP!".to_string(),
                 value: json!("0x107a"),
             },
         ];
@@ -317,27 +317,27 @@ mod tests {
         let bad_variables = vec![
             GraphqlQueryVariable {
                 name: "framework addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x2"),
             },
             GraphqlQueryVariable {
                 name: " stardust_addr".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x107a"),
             },
             GraphqlQueryVariable {
                 name: "4stardust_addr".to_string(),
-                ty: "AddressP!".to_string(),
+                ty: "IotaAddressP!".to_string(),
                 value: json!("0x107a"),
             },
             GraphqlQueryVariable {
                 name: "".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x107a"),
             },
             GraphqlQueryVariable {
                 name: " ".to_string(),
-                ty: "Address!".to_string(),
+                ty: "IotaAddress!".to_string(),
                 value: json!("0x107a"),
             },
         ];
