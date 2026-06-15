@@ -706,6 +706,95 @@ async fn test_safe_iter_with_prefix_at_max() {
 }
 
 #[tokio::test]
+async fn test_safe_iter_with_prefix_multi_field() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b, c) in [
+        (1u64, 1u64, 9u64), // different second field
+        (1, 2, 0),
+        (1, 2, 7),
+        (1, 2, u64::MAX), // boundary at the third field's max
+        (1, 3, 0),        // next second field
+        (2, 2, 0),        // different first field
+    ] {
+        db.insert(&(a, b, c), &format!("{a}-{b}-{c}")).unwrap();
+    }
+
+    // A two-field prefix must select exactly the keys whose first two fields
+    // match, equivalent to the closed range over the whole third-field space.
+    let by_prefix: Vec<_> = db
+        .safe_iter_with_prefix(&(1u64, 2u64))
+        .map(|r| r.unwrap())
+        .collect();
+    let by_range: Vec<_> = db
+        .safe_range_iter((1u64, 2u64, u64::MIN)..=(1u64, 2u64, u64::MAX))
+        .map(|r| r.unwrap())
+        .collect();
+
+    assert_eq!(by_prefix, by_range);
+    assert_eq!(
+        vec![(1, 2, 0), (1, 2, 7), (1, 2, u64::MAX)],
+        by_prefix.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+    );
+}
+
+#[tokio::test]
+async fn test_prefix_from_matches_old_bounded_scan() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 10u64), (1, 20), (1, 30), (2, 5)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Old approach: explicit bounds [(1, cursor), (1, u64::MAX)) -- upper
+    // EXCLUSIVE.
+    let old = |cursor: Option<u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_bounds(Some((1u64, cursor.unwrap_or(0))), Some((1u64, u64::MAX)))
+            .skip(usize::from(cursor.is_some()))
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+    // New approach: prefix-from with the same cursor as the key remainder.
+    let new = |cursor: Option<u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_prefix_from(&1u64, &cursor.unwrap_or(0))
+            .skip(usize::from(cursor.is_some()))
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+
+    // For all realistic data the prefix scan is equivalent to the old bounds.
+    for cursor in [None, Some(10u64), Some(20), Some(30)] {
+        assert_eq!(old(cursor), new(cursor), "cursor {cursor:?}");
+    }
+
+    // The only divergence: the old exclusive `(1, u64::MAX)` upper bound dropped
+    // an entry sitting exactly at that tail; the prefix scan correctly keeps it.
+    db.insert(&(1u64, u64::MAX), &"max".to_string()).unwrap();
+    assert!(!old(None).contains(&(1, u64::MAX)));
+    assert!(new(None).contains(&(1, u64::MAX)));
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_from() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u64, 1u64), (1, 2), (1, 3), (2, 1)] {
+        db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
+    }
+
+    // Resume the prefix-1 scan from cursor 2 (inclusive); the upper bound is still
+    // the end of prefix 1, so (1, 1) and the whole prefix 2 are excluded.
+    let got: Vec<_> = db
+        .safe_iter_with_prefix_from(&1u64, &2u64)
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        vec![((1, 2), "1-2".to_string()), ((1, 3), "1-3".to_string())],
+        got,
+    );
+}
+
+#[tokio::test]
 async fn test_safe_range_iter_reversed_inclusive_ranges() {
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);

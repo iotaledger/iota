@@ -1265,16 +1265,12 @@ impl IndexStore {
     ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
     {
         debug!(?object, "get_dynamic_fields");
-        // The object id 0 is the smallest possible
-        let iter_lower_bound = (object, cursor.unwrap_or(ObjectId::ZERO));
-        let iter_upper_bound = (object, ObjectId::MAX);
         Ok(self
             .tables
             .dynamic_field_index
-            .safe_iter_with_bounds(Some(iter_lower_bound), Some(iter_upper_bound))
+            .safe_iter_with_prefix_from(&object, &cursor.unwrap_or(ObjectId::ZERO))
             // skip an extra b/c the cursor is exclusive
             .skip(usize::from(cursor.is_some()))
-            .take_while(move |result| result.is_err() || (result.as_ref().unwrap().0.0 == object))
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 

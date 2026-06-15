@@ -772,6 +772,31 @@ impl<K, V> DBMap<K, V> {
         self.iter_forward_raw(lower_bound, upper_bound)
     }
 
+    /// Forward iterator over entries whose key begins with `prefix`, starting
+    /// at `prefix ++ cursor` rather than at the first key under the prefix.
+    ///
+    /// `cursor` is **not** a full key — it is the remainder of the key that
+    /// follows `prefix` (typically the trailing field(s) of a tuple key). Both
+    /// `prefix` and `cursor` are serialized with `be_fix_int_ser` and
+    /// concatenated, mirroring how a composite key is encoded; the scan then
+    /// covers `[prefix ++ cursor, end-of-prefix)`. This lets a paginated scan
+    /// resume from a cursor without an artificial maximum key for the upper
+    /// bound.
+    pub fn safe_iter_with_prefix_from<P, C>(&self, prefix: &P, cursor: &C) -> DbIterator<'_, (K, V)>
+    where
+        P: ?Sized + Serialize,
+        C: ?Sized + Serialize,
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds(prefix);
+        let lower_bound = lower_bound.map(|mut lower| {
+            lower.extend_from_slice(&be_fix_int_ser(cursor));
+            lower
+        });
+        self.iter_forward_raw(lower_bound, upper_bound)
+    }
+
     /// Reverse counterpart of [`Self::safe_iter_with_prefix`]: the matching
     /// entries in descending key order (e.g. for "latest entry under a
     /// prefix").
