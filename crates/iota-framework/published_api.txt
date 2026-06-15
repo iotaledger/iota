@@ -1,9 +1,96 @@
-is_feature_enabled
+AttestorRegistryKey
+	public struct
+	0x3::attestor_registry
+AttestorRegistryV1
+	public struct
+	0x3::attestor_registry
+AttestorV1
+	public struct
+	0x3::attestor_registry
+AttestorRegisteredEvent
+	public struct
+	0x3::attestor_registry
+AttestorActivatedEvent
+	public struct
+	0x3::attestor_registry
+AttestorDeregisterRequestedEvent
+	public struct
+	0x3::attestor_registry
+AttestorRemovedEvent
+	public struct
+	0x3::attestor_registry
+AttestorEvictedEvent
+	public struct
+	0x3::attestor_registry
+AttestorBondDepositedEvent
+	public struct
+	0x3::attestor_registry
+AttestorKeyRotationStagedEvent
+	public struct
+	0x3::attestor_registry
+AttestorKeyRotatedEvent
+	public struct
+	0x3::attestor_registry
+is_validator_attestation_enabled
+	fun
+	0x3::attestor_registry
+assert_feature_enabled
 	public(package) fun
-	0x3::protocol_config
-get_attr
+	0x3::attestor_registry
+registry_key
 	public(package) fun
-	0x3::protocol_config
+	0x3::attestor_registry
+new
+	public(package) fun
+	0x3::attestor_registry
+is_valid_attestor_pubkey
+	public(package) fun
+	0x3::attestor_registry
+find_active
+	fun
+	0x3::attestor_registry
+find_pending
+	fun
+	0x3::attestor_registry
+register
+	public(package) fun
+	0x3::attestor_registry
+deregister
+	public(package) fun
+	0x3::attestor_registry
+deposit
+	public(package) fun
+	0x3::attestor_registry
+rotate_key
+	public(package) fun
+	0x3::attestor_registry
+advance_epoch
+	public(package) fun
+	0x3::attestor_registry
+slash
+	public(package) fun
+	0x3::attestor_registry
+active_count
+	public(package) fun
+	0x3::attestor_registry
+pending_count
+	public(package) fun
+	0x3::attestor_registry
+attestor_address
+	public(package) fun
+	0x3::attestor_registry
+attestor_pubkey
+	public(package) fun
+	0x3::attestor_registry
+bond_value
+	public(package) fun
+	0x3::attestor_registry
+activation_epoch
+	public(package) fun
+	0x3::attestor_registry
+active_attestors
+	public(package) fun
+	0x3::attestor_registry
 UnverifiedValidatorOperationCap
 	public struct
 	0x3::validator_cap
@@ -895,6 +982,21 @@ request_set_commission_rate
 set_candidate_validator_commission_rate
 	public entry fun
 	0x3::iota_system
+load_attestor_registry_mut
+	fun
+	0x3::iota_system
+register_attestor
+	public entry fun
+	0x3::iota_system
+deregister_attestor
+	public entry fun
+	0x3::iota_system
+deposit_attestor_bond
+	public entry fun
+	0x3::iota_system
+rotate_attestor_key
+	public entry fun
+	0x3::iota_system
 request_add_stake
 	public entry fun
 	0x3::iota_system
@@ -1120,12 +1222,6 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
-get_attr
-	public(package) fun
-	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
@@ -1804,22 +1900,7 @@ keccak256
 AuthContext
 	public struct
 	0x2::auth_context
-AuthenticatorFunctionInfoV1
-	public struct
-	0x2::auth_context
 digest
-	public fun
-	0x2::auth_context
-sender_auth_digest
-	public fun
-	0x2::auth_context
-sponsor_auth_digest
-	public fun
-	0x2::auth_context
-sender_authenticator_function_info_v1
-	public fun
-	0x2::auth_context
-sponsor_authenticator_function_info_v1
 	public fun
 	0x2::auth_context
 tx_inputs
@@ -1837,28 +1918,7 @@ intent_tx_data_bytes
 signing_digest
 	public fun
 	0x2::auth_context
-package
-	public fun
-	0x2::auth_context
-module_name
-	public fun
-	0x2::auth_context
-function_name
-	public fun
-	0x2::auth_context
 native_digest
-	fun
-	0x2::auth_context
-native_sender_auth_digest
-	fun
-	0x2::auth_context
-native_sponsor_auth_digest
-	fun
-	0x2::auth_context
-native_sender_authenticator_function_info_v1
-	fun
-	0x2::auth_context
-native_sponsor_authenticator_function_info_v1
 	fun
 	0x2::auth_context
 native_tx_data_bytes
