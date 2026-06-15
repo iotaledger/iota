@@ -17,8 +17,8 @@
 # only for cleanup/bootstrap.
 #
 # Tunables (env): N, RUN_DURATION, TARGET_QPS, NUM_WORKERS, NUM_CLIENT_THREADS,
-#                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, SLEEP_BETWEEN_RUNS_S,
-#                 PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM.
+#                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, DIRECT,
+#                 SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM.
 set -euo pipefail
 
 if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
@@ -38,6 +38,7 @@ NUM_WORKERS="${NUM_WORKERS:-24}"
 NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"   # tokio threads driving the client (raise for higher qps)
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}" # pure multiplier on setup-phase gas-coin count
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"         # max in-flight = IN_FLIGHT_RATIO * TARGET_QPS
+DIRECT="${DIRECT:-false}"                        # true => submit direct-to-validator (in-docker); false => via fullnode
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
 # (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
 # NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
@@ -192,35 +193,54 @@ print("wrote", out)
 PY
 }
 
-# Identical owned-object (transfer) load for both runs, through the fullnode so
-# it takes the attesting submit_tx path. TotalTxCount + owned objects => no
-# shared-object sequencing, so the V1<->V2 delta is pure attestation overhead.
+# Identical owned-object (transfer) load for both runs. TotalTxCount + owned
+# objects => no shared-object sequencing, so the V1<->V2 delta is pure
+# attestation overhead.
+#
+# Submission path (DIRECT env):
+#   DIRECT=false (default) — host binary submits via the fullnode (:9000); the
+#     fullnode's TD/QD drives. Client-side TD metrics are emitted by the
+#     fullnode (a Prometheus target), so settlement/submit latency is scraped.
+#   DIRECT=true — the in-docker runner submits DIRECTLY to validators (the TD
+#     runs inside the stress container, which is NOT a Prometheus target). So
+#     validator-side metrics (attestation, execution, CPU) still scrape, but the
+#     client-side settlement/submit latency will be null for these runs.
 # $1 label  $2 out.json
 run_stress() {
   local label="$1" json_out="$2" start end
-  banner ">>> stress: $label"
+  banner ">>> stress: $label (path: $([[ "$DIRECT" == true ]] && echo direct-to-validator || echo via-fullnode))"
   wait_for_fullnode
   # Let the network settle before measuring, so the window has a clean idle
   # baseline and the validators are stable after (re)start.
   echo "Letting the network settle ${PRE_SPAM_WAIT_S}s before the spam..."
   sleep "$PRE_SPAM_WAIT_S"
   start=$(date +%s)
-  (cd "$REPO_ROOT" && "$STRESS_BIN" \
-    --local false \
-    --fullnode-rpc-addresses http://127.0.0.1:9000 \
-    --use-fullnode-for-execution true \
-    --use-fullnode-for-reconfig true \
-    --genesis-blob-path "$GENESIS_DIR/genesis.blob" \
-    --keystore-path "$GENESIS_DIR/benchmark.keystore" \
-    --primary-gas-owner-id "$PRIMARY_GAS_OWNER" \
-    --num-client-threads "$NUM_CLIENT_THREADS" \
-    --num-transfer-accounts "$NUM_TRANSFER_ACCOUNTS" \
-    --run-duration "$RUN_DURATION" \
-    bench --target-qps "$TARGET_QPS" \
-    --in-flight-ratio "$IN_FLIGHT_RATIO" \
-    --num-workers "$NUM_WORKERS" \
-    --transfer-object 100 \
-    --shared-counter 0)
+  if [[ "$DIRECT" == true ]]; then
+    # Direct-to-validator, in-docker (validators only reachable on the docker
+    # network). Same workload knobs, passed through to the runner.
+    RUN_DURATION="$RUN_DURATION" TARGET_QPS="$TARGET_QPS" NUM_WORKERS="$NUM_WORKERS" \
+      NUM_CLIENT_THREADS="$NUM_CLIENT_THREADS" NUM_TRANSFER_ACCOUNTS="$NUM_TRANSFER_ACCOUNTS" \
+      IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" PRIMARY_GAS_OWNER="$PRIMARY_GAS_OWNER" \
+      USE_FULLNODE_FOR_EXECUTION=false \
+      "$SCRIPT_DIR/run-stress-docker.sh"
+  else
+    (cd "$REPO_ROOT" && "$STRESS_BIN" \
+      --local false \
+      --fullnode-rpc-addresses http://127.0.0.1:9000 \
+      --use-fullnode-for-execution true \
+      --use-fullnode-for-reconfig true \
+      --genesis-blob-path "$GENESIS_DIR/genesis.blob" \
+      --keystore-path "$GENESIS_DIR/benchmark.keystore" \
+      --primary-gas-owner-id "$PRIMARY_GAS_OWNER" \
+      --num-client-threads "$NUM_CLIENT_THREADS" \
+      --num-transfer-accounts "$NUM_TRANSFER_ACCOUNTS" \
+      --run-duration "$RUN_DURATION" \
+      bench --target-qps "$TARGET_QPS" \
+      --in-flight-ratio "$IN_FLIGHT_RATIO" \
+      --num-workers "$NUM_WORKERS" \
+      --transfer-object 100 \
+      --shared-counter 0)
+  fi
   end=$(date +%s)
   scrape_metrics "$label" "$start" "$end" "$json_out"
 }
