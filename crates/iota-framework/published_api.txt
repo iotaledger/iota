@@ -1,3 +1,96 @@
+AttestorRegistryKey
+	public struct
+	0x3::attestor_registry
+AttestorRegistryV1
+	public struct
+	0x3::attestor_registry
+AttestorV1
+	public struct
+	0x3::attestor_registry
+AttestorRegisteredEvent
+	public struct
+	0x3::attestor_registry
+AttestorActivatedEvent
+	public struct
+	0x3::attestor_registry
+AttestorDeregisterRequestedEvent
+	public struct
+	0x3::attestor_registry
+AttestorRemovedEvent
+	public struct
+	0x3::attestor_registry
+AttestorEvictedEvent
+	public struct
+	0x3::attestor_registry
+AttestorBondDepositedEvent
+	public struct
+	0x3::attestor_registry
+AttestorKeyRotationStagedEvent
+	public struct
+	0x3::attestor_registry
+AttestorKeyRotatedEvent
+	public struct
+	0x3::attestor_registry
+is_validator_attestation_enabled
+	fun
+	0x3::attestor_registry
+assert_feature_enabled
+	public(package) fun
+	0x3::attestor_registry
+registry_key
+	public(package) fun
+	0x3::attestor_registry
+new
+	public(package) fun
+	0x3::attestor_registry
+is_valid_attestor_pubkey
+	public(package) fun
+	0x3::attestor_registry
+find_active
+	fun
+	0x3::attestor_registry
+find_pending
+	fun
+	0x3::attestor_registry
+register
+	public(package) fun
+	0x3::attestor_registry
+deregister
+	public(package) fun
+	0x3::attestor_registry
+deposit
+	public(package) fun
+	0x3::attestor_registry
+rotate_key
+	public(package) fun
+	0x3::attestor_registry
+advance_epoch
+	public(package) fun
+	0x3::attestor_registry
+slash
+	public(package) fun
+	0x3::attestor_registry
+active_count
+	public(package) fun
+	0x3::attestor_registry
+pending_count
+	public(package) fun
+	0x3::attestor_registry
+attestor_address
+	public(package) fun
+	0x3::attestor_registry
+attestor_pubkey
+	public(package) fun
+	0x3::attestor_registry
+bond_value
+	public(package) fun
+	0x3::attestor_registry
+activation_epoch
+	public(package) fun
+	0x3::attestor_registry
+active_attestors
+	public(package) fun
+	0x3::attestor_registry
 UnverifiedValidatorOperationCap
 	public struct
 	0x3::validator_cap
@@ -454,6 +547,9 @@ request_add_stake
 request_withdraw_stake
 	public(package) fun
 	0x3::validator_set
+request_set_commission_rate
+	public(package) fun
+	0x3::validator_set
 advance_epoch
 	public(package) fun
 	0x3::validator_set
@@ -544,31 +640,19 @@ find_validator_from_table_vec
 get_validator_indices_set
 	fun
 	0x3::validator_set
-any_validator
+get_validator_mut
 	public(package) fun
 	0x3::validator_set
-any_validator_mut
+get_active_or_pending_or_candidate_validator_mut
+	fun
+	0x3::validator_set
+get_validator_mut_with_verified_cap
 	public(package) fun
 	0x3::validator_set
-active_validator
+get_validator_mut_with_ctx
 	public(package) fun
 	0x3::validator_set
-active_validator_mut
-	public(package) fun
-	0x3::validator_set
-pending_validator
-	public(package) fun
-	0x3::validator_set
-pending_validator_mut
-	public(package) fun
-	0x3::validator_set
-candidate_validator
-	public(package) fun
-	0x3::validator_set
-candidate_validator_mut
-	public(package) fun
-	0x3::validator_set
-committee_validator
+get_validator_mut_with_ctx_including_candidates
 	public(package) fun
 	0x3::validator_set
 get_validator_ref
@@ -583,6 +667,15 @@ get_active_validator_ref
 get_pending_validator_ref
 	public fun
 	0x3::validator_set
+get_active_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
+get_committee_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
+get_pending_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
 verify_cap
 	public(package) fun
 	0x3::validator_set
@@ -590,9 +683,6 @@ process_pending_removals
 	fun
 	0x3::validator_set
 process_validator_departure
-	fun
-	0x3::validator_set
-clean_report_records_non_committee_validators
 	fun
 	0x3::validator_set
 clean_report_records_leaving_validator
@@ -611,9 +701,6 @@ calculate_total_active_stakes
 	fun
 	0x3::validator_set
 calculate_total_committee_stakes
-	fun
-	0x3::validator_set
-all_validator_indices
 	fun
 	0x3::validator_set
 validate_eligible_validators_voting_power
@@ -688,12 +775,6 @@ total_object_storage_rebates
 total_balance
 	public fun
 	0x3::storage_fund
-is_feature_enabled
-	public(package) fun
-	0x3::protocol_config
-get_attr
-	public(package) fun
-	0x3::protocol_config
 SystemParametersV1
 	public struct
 	0x3::iota_system_state_inner
@@ -901,6 +982,21 @@ request_set_commission_rate
 set_candidate_validator_commission_rate
 	public entry fun
 	0x3::iota_system
+load_attestor_registry_mut
+	fun
+	0x3::iota_system
+register_attestor
+	public entry fun
+	0x3::iota_system
+deregister_attestor
+	public entry fun
+	0x3::iota_system
+deposit_attestor_bond
+	public entry fun
+	0x3::iota_system
+rotate_attestor_key
+	public entry fun
+	0x3::iota_system
 request_add_stake
 	public entry fun
 	0x3::iota_system
@@ -1006,27 +1102,6 @@ validator_voting_powers
 get_total_iota_supply
 	public fun
 	0x3::iota_system
-GenesisValidatorMetadata
-	public struct
-	0x3::genesis
-GenesisChainParameters
-	public struct
-	0x3::genesis
-TokenDistributionSchedule
-	public struct
-	0x3::genesis
-TokenAllocation
-	public struct
-	0x3::genesis
-create
-	fun
-	0x3::genesis
-allocate_tokens
-	fun
-	0x3::genesis
-activate_validators
-	fun
-	0x3::genesis
 TimelockedStakedIota
 	public struct
 	0x3::timelocked_staking
@@ -1099,6 +1174,33 @@ transfer
 transfer_multiple
 	fun
 	0x3::timelocked_staking
+request_add_stake_at_genesis
+	public(package) fun
+	0x3::timelocked_staking
+GenesisValidatorMetadata
+	public struct
+	0x3::genesis
+GenesisChainParameters
+	public struct
+	0x3::genesis
+TokenDistributionSchedule
+	public struct
+	0x3::genesis
+TokenAllocation
+	public struct
+	0x3::genesis
+create
+	fun
+	0x3::genesis
+allocate_tokens
+	fun
+	0x3::genesis
+activate_validators
+	fun
+	0x3::genesis
+DerivedObjectKey
+	public struct
+	0x2::derived_object
 secp256k1_ecrecover
 	public fun
 	0x2::ecdsa_k1
@@ -1120,12 +1222,6 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
-get_attr
-	public(package) fun
-	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
@@ -1274,9 +1370,6 @@ randomness_state
 	public(package) fun
 	0x2::object
 iota_deny_list_object_id
-	public(package) fun
-	0x2::object
-transaction_deny_rules
 	public(package) fun
 	0x2::object
 uid_as_inner
@@ -1438,115 +1531,7 @@ get_entry_by_idx_mut
 remove_entry_by_idx
 	public fun
 	0x2::vec_map
-Receiving
-	public struct
-	0x2::transfer
-transfer
-	public fun
-	0x2::transfer
-public_transfer
-	public fun
-	0x2::transfer
-freeze_object
-	public fun
-	0x2::transfer
-public_freeze_object
-	public fun
-	0x2::transfer
-share_object
-	public fun
-	0x2::transfer
-public_share_object
-	public fun
-	0x2::transfer
-receive
-	public fun
-	0x2::transfer
-public_receive
-	public fun
-	0x2::transfer
-receiving_object_id
-	public fun
-	0x2::transfer
-freeze_object_impl
-	public(package) fun
-	0x2::transfer
-share_object_impl
-	public(package) fun
-	0x2::transfer
-transfer_impl
-	public(package) fun
-	0x2::transfer
-receive_impl
-	fun
-	0x2::transfer
-DerivedObjectKey
-	public struct
-	0x2::derived_object
-derive_address
-	public fun
-	0x2::derived_object
-ModuleMetadata
-	public struct
-	0x2::module_metadata
-ModuleMetadataKey
-	public struct
-	0x2::module_metadata
-ViewFunctionMetadataV1FieldName
-	public struct
-	0x2::module_metadata
-borrow_view_functions_metadata_v1
-	public fun
-	0x2::module_metadata
-contains_view_functions_metadata_v1
-	public fun
-	0x2::module_metadata
-is_view_function_v1
-	public fun
-	0x2::module_metadata
-length
-	public fun
-	0x2::module_metadata
-is_empty
-	public fun
-	0x2::module_metadata
-new
-	public(package) fun
-	0x2::module_metadata
-add_view_function_metadata_v1
-	public(package) fun
-	0x2::module_metadata
-add
-	public(package) fun
-	0x2::module_metadata
-borrow_mut
-	public(package) fun
-	0x2::module_metadata
-remove
-	public(package) fun
-	0x2::module_metadata
-borrow
-	public(package) fun
-	0x2::module_metadata
-contains
-	public(package) fun
-	0x2::module_metadata
-contains_with_type
-	public(package) fun
-	0x2::module_metadata
 PackageMetadataKey
-	public struct
-	0x2::package_metadata
-PackageMetadataVersionFieldName
-	public struct
-	0x2::package_metadata
-ModuleMetadataV1FieldName
-	public struct
-	0x2::package_metadata
-ModulesMetadataFieldName
-	public struct
-	0x2::package_metadata
-ModuleName
 	public struct
 	0x2::package_metadata
 PackageMetadataV1
@@ -1567,45 +1552,6 @@ runtime_id
 package_version
 	public fun
 	0x2::package_metadata
-module_metadata
-	public fun
-	0x2::package_metadata
-module_authenticator_function_metadata_v1
-	public fun
-	0x2::package_metadata
-authenticator_function_metadata_v1
-	public fun
-	0x2::package_metadata
-try_get_authenticator_function_metadata_v1
-	public fun
-	0x2::package_metadata
-account_type
-	public fun
-	0x2::package_metadata
-function_name
-	public fun
-	0x2::package_metadata
-module_name
-	public fun
-	0x2::package_metadata
-has_package_metadata_version_field
-	public fun
-	0x2::package_metadata
-borrow_package_metadata_version_field
-	public fun
-	0x2::package_metadata
-borrow_modules_metadata
-	public fun
-	0x2::package_metadata
-create_package_metadata_v1_with_dynamic_metadata
-	fun
-	0x2::package_metadata
-build_package_metadata_v1_with_dynamic_metadata
-	fun
-	0x2::package_metadata
-create_modules_metadata
-	fun
-	0x2::package_metadata
 try_get_modules_metadata_v1
 	public fun
 	0x2::package_metadata
@@ -1616,6 +1562,9 @@ try_get_authenticator_metadata_v1
 	public fun
 	0x2::package_metadata
 authenticator_metadata_v1
+	public fun
+	0x2::package_metadata
+account_type
 	public fun
 	0x2::package_metadata
 AuthenticatorFunctionRefV1
@@ -1951,22 +1900,7 @@ keccak256
 AuthContext
 	public struct
 	0x2::auth_context
-AuthenticatorFunctionInfoV1
-	public struct
-	0x2::auth_context
 digest
-	public fun
-	0x2::auth_context
-sender_auth_digest
-	public fun
-	0x2::auth_context
-sponsor_auth_digest
-	public fun
-	0x2::auth_context
-sender_authenticator_function_info_v1
-	public fun
-	0x2::auth_context
-sponsor_authenticator_function_info_v1
 	public fun
 	0x2::auth_context
 tx_inputs
@@ -1984,28 +1918,7 @@ intent_tx_data_bytes
 signing_digest
 	public fun
 	0x2::auth_context
-package
-	public fun
-	0x2::auth_context
-module_name
-	public fun
-	0x2::auth_context
-function_name
-	public fun
-	0x2::auth_context
 native_digest
-	fun
-	0x2::auth_context
-native_sender_auth_digest
-	fun
-	0x2::auth_context
-native_sponsor_auth_digest
-	fun
-	0x2::auth_context
-native_sender_authenticator_function_info_v1
-	fun
-	0x2::auth_context
-native_sponsor_authenticator_function_info_v1
 	fun
 	0x2::auth_context
 native_tx_data_bytes
@@ -2440,6 +2353,48 @@ put_back
 destroy
 	public fun
 	0x2::borrow
+Receiving
+	public struct
+	0x2::transfer
+transfer
+	public fun
+	0x2::transfer
+public_transfer
+	public fun
+	0x2::transfer
+freeze_object
+	public fun
+	0x2::transfer
+public_freeze_object
+	public fun
+	0x2::transfer
+share_object
+	public fun
+	0x2::transfer
+public_share_object
+	public fun
+	0x2::transfer
+receive
+	public fun
+	0x2::transfer
+public_receive
+	public fun
+	0x2::transfer
+receiving_object_id
+	public fun
+	0x2::transfer
+freeze_object_impl
+	public(package) fun
+	0x2::transfer
+share_object_impl
+	public(package) fun
+	0x2::transfer
+transfer_impl
+	public(package) fun
+	0x2::transfer
+receive_impl
+	fun
+	0x2::transfer
 Clock
 	public struct
 	0x2::clock
@@ -3979,27 +3934,6 @@ spent
 key
 	fun
 	0x2::token
-TransactionDenyRules
-	public struct
-	0x2::transaction_deny_rules
-TransactionDenyRulesInnerV1
-	public struct
-	0x2::transaction_deny_rules
-TransactionDenyRulesUpdated
-	public struct
-	0x2::transaction_deny_rules
-create
-	fun
-	0x2::transaction_deny_rules
-load_inner_mut
-	fun
-	0x2::transaction_deny_rules
-update
-	fun
-	0x2::transaction_deny_rules
-apply_delta
-	fun
-	0x2::transaction_deny_rules
 VerifiedID
 	public struct
 	0x2::zklogin_verified_id
