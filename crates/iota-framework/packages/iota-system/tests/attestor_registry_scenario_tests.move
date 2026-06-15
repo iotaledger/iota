@@ -14,11 +14,9 @@ use iota_system::iota_system::{Self, IotaSystemState};
 const ATTESTOR: address = @0x42;
 const MIN_JOINING_BOND: u64 = 2_000_000_000_000;
 
+// Real `flag || raw_key` ed25519 key; the native rejects arbitrary bytes.
 fun ed25519_pubkey(): vector<u8> {
-    let mut pk = vector[0u8];
-    let mut i = 0;
-    while (i < 32) { pk.push_back(0xCD); i = i + 1; };
-    pk
+    x"00d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f"
 }
 
 #[test]

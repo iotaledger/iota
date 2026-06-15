@@ -8,16 +8,14 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::{
-    Address, Ed25519PublicKey, Identifier, PublicKeyExt, Secp256k1PublicKey, Secp256r1PublicKey,
-    StructTag,
-};
+use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
+    crypto::{PublicKey, SignatureScheme},
     dynamic_field::{derive_dynamic_field_id, get_dynamic_field_from_store},
     error::IotaError,
     storage::ObjectStore,
@@ -61,36 +59,25 @@ pub struct AttestorRegistryV1 {
     pub pending_removals: Vec<u64>,
 }
 
-/// Abort code returned to Move for an invalid attestor public key. Must
-/// match `EInvalidPubkey` in `iota_system::attestor_registry`.
+/// Abort code for an invalid attestor public key; matches `EInvalidPubkey`
+/// in `iota_system::attestor_registry`.
 pub const E_INVALID_ATTESTOR_PUBKEY: u64 = 3;
 
-// Signature scheme flag bytes for `flag || raw_key` encoding. Plain schemes
-// only; multisig / zklogin / passkey are rejected.
-const ED25519_FLAG: u8 = 0;
-const SECP256K1_FLAG: u8 = 1;
-const SECP256R1_FLAG: u8 = 2;
-
-/// Validate a dedicated attestor signing key, encoded as `flag || raw_key`
-/// for one of the plain signature schemes (ed25519 / secp256k1 / secp256r1).
-/// Length and scheme are validated via the iota-rust-sdk public-key types.
-/// Returns the Move abort code on failure (mirrors
-/// `ValidatorMetadataV1::verify`). Backs the
-/// `attestor_registry::validate_attestor_pubkey` Move native.
+/// Validate a `flag || raw_key` attestor signing key, accepting only the
+/// plain schemes (ed25519 / secp256k1 / secp256r1). Backs the
+/// `attestor_registry::validate_attestor_pubkey` native.
 pub fn verify_attestor_pubkey(pubkey: &[u8]) -> Result<(), u64> {
-    let Some((&flag, raw)) = pubkey.split_first() else {
+    let Some((&flag, key_bytes)) = pubkey.split_first() else {
         return Err(E_INVALID_ATTESTOR_PUBKEY);
     };
-    let valid = match flag {
-        ED25519_FLAG => Ed25519PublicKey::from_bytes(raw).is_ok(),
-        SECP256K1_FLAG => Secp256k1PublicKey::from_bytes(raw).is_ok(),
-        SECP256R1_FLAG => Secp256r1PublicKey::from_bytes(raw).is_ok(),
-        _ => false,
-    };
-    if valid {
-        Ok(())
-    } else {
-        Err(E_INVALID_ATTESTOR_PUBKEY)
+    let scheme = SignatureScheme::from_flag_byte(&flag).map_err(|_| E_INVALID_ATTESTOR_PUBKEY)?;
+    match scheme {
+        SignatureScheme::ED25519 | SignatureScheme::Secp256k1 | SignatureScheme::Secp256r1 => {
+            PublicKey::try_from_bytes(scheme, key_bytes)
+                .map(|_| ())
+                .map_err(|_| E_INVALID_ATTESTOR_PUBKEY)
+        }
+        _ => Err(E_INVALID_ATTESTOR_PUBKEY),
     }
 }
 
@@ -233,29 +220,58 @@ mod tests {
         assert_eq!(a, b);
     }
 
-    fn key(flag: u8, len: usize) -> Vec<u8> {
-        let mut k = vec![flag];
-        k.extend(std::iter::repeat(0xAB).take(len));
-        k
+    use fastcrypto::{
+        ed25519::Ed25519KeyPair, secp256k1::Secp256k1KeyPair, secp256r1::Secp256r1KeyPair,
+    };
+    use rand::{SeedableRng, rngs::StdRng};
+
+    use crate::crypto::{IotaKeyPair, KeypairTraits};
+
+    /// `flag || raw_key` encoding for a public key.
+    fn flagged(pk: &PublicKey) -> Vec<u8> {
+        let mut bytes = vec![pk.flag()];
+        bytes.extend_from_slice(pk.as_ref());
+        bytes
+    }
+
+    fn seeded_rng() -> StdRng {
+        StdRng::from_seed([7u8; 32])
     }
 
     #[test]
     fn verify_attestor_pubkey_accepts_plain_schemes() {
-        assert!(verify_attestor_pubkey(&key(0, 32)).is_ok());
-        assert!(verify_attestor_pubkey(&key(1, 33)).is_ok());
-        assert!(verify_attestor_pubkey(&key(2, 33)).is_ok());
+        let mut rng = seeded_rng();
+        let ed = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rng)).public();
+        let k1 = IotaKeyPair::Secp256k1(Secp256k1KeyPair::generate(&mut rng)).public();
+        let r1 = IotaKeyPair::Secp256r1(Secp256r1KeyPair::generate(&mut rng)).public();
+        assert!(verify_attestor_pubkey(&flagged(&ed)).is_ok());
+        assert!(verify_attestor_pubkey(&flagged(&k1)).is_ok());
+        assert!(verify_attestor_pubkey(&flagged(&r1)).is_ok());
     }
 
     #[test]
     fn verify_attestor_pubkey_rejects_bad_keys() {
+        let mut rng = seeded_rng();
+        let ed = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rng)).public();
+        let valid = flagged(&ed);
+
         // empty
         assert_eq!(verify_attestor_pubkey(&[]), Err(E_INVALID_ATTESTOR_PUBKEY));
-        // wrong length for scheme
-        assert_eq!(verify_attestor_pubkey(&key(0, 33)), Err(E_INVALID_ATTESTOR_PUBKEY));
-        assert_eq!(verify_attestor_pubkey(&key(1, 32)), Err(E_INVALID_ATTESTOR_PUBKEY));
-        // multisig (3) and zklogin (5) flags
-        assert_eq!(verify_attestor_pubkey(&key(3, 32)), Err(E_INVALID_ATTESTOR_PUBKEY));
-        assert_eq!(verify_attestor_pubkey(&key(5, 32)), Err(E_INVALID_ATTESTOR_PUBKEY));
+        // valid key bytes but wrong/truncated length
+        assert_eq!(
+            verify_attestor_pubkey(&valid[..valid.len() - 1]),
+            Err(E_INVALID_ATTESTOR_PUBKEY)
+        );
+        // not a valid curve point (right length, garbage bytes)
+        let mut garbage = vec![0u8];
+        garbage.extend(std::iter::repeat(0xAB).take(32));
+        assert_eq!(verify_attestor_pubkey(&garbage), Err(E_INVALID_ATTESTOR_PUBKEY));
+        // non-plain scheme flags: multisig (3), bls (4), zklogin (5), passkey (6)
+        for flag in [3u8, 4, 5, 6] {
+            let mut k = vec![flag];
+            k.extend_from_slice(ed.as_ref());
+            assert_eq!(verify_attestor_pubkey(&k), Err(E_INVALID_ATTESTOR_PUBKEY));
+        }
     }
 
     #[test]
