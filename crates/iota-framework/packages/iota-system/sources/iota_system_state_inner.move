@@ -737,6 +737,7 @@ public(package) fun advance_epoch(
     eligible_active_validators: vector<u64>,
     scores: vector<u64>,
     adjust_rewards_by_score: bool,
+    attestor_evicted_bonds: Balance<IOTA>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
@@ -814,6 +815,11 @@ public(package) fun advance_epoch(
     // Burn any remaining leftover rewards.
     burnt_tokens_amount = burnt_tokens_amount + leftover_staking_rewards.value();
     self.iota_treasury_cap.burn_balance(leftover_staking_rewards, ctx);
+
+    // Burn bonds of attestors evicted below the low-bond threshold during
+    // the attestor registry's epoch processing.
+    burnt_tokens_amount = burnt_tokens_amount + attestor_evicted_bonds.value();
+    self.iota_treasury_cap.burn_balance(attestor_evicted_bonds, ctx);
 
     let refunded_storage_rebate = self
         .storage_fund

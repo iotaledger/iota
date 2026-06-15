@@ -41,13 +41,14 @@
 
 module iota_system::iota_system;
 
-use iota::balance::Balance;
+use iota::balance::{Self, Balance};
 use iota::coin::Coin;
 use iota::dynamic_field;
 use iota::iota::{IOTA, IotaTreasuryCap};
 use iota::system_admin_cap::IotaSystemAdminCap;
 use iota::table::Table;
 use iota::vec_map::VecMap;
+use iota_system::attestor_registry::{Self, AttestorRegistryV1};
 use iota_system::iota_system_state_inner::{
     Self,
     SystemParametersV1,
@@ -58,8 +59,6 @@ use iota_system::staking_pool::{StakedIota, PoolTokenExchangeRate};
 use iota_system::validator::ValidatorV1;
 use iota_system::validator_cap::UnverifiedValidatorOperationCap;
 
-#[test_only]
-use iota::balance;
 #[test_only]
 use iota_system::validator_set::ValidatorSetV2;
 #[test_only]
@@ -213,6 +212,88 @@ public entry fun set_candidate_validator_commission_rate(
 ) {
     let self = load_system_state_mut(wrapper);
     self.set_candidate_validator_commission_rate(new_commission_rate, ctx)
+}
+
+// === Attestor registry ===
+
+/// Borrow the attestor registry dynamic field, creating it empty on first
+/// use. The registry is plain data, so creation needs no ctx.
+fun load_attestor_registry_mut(self: &mut IotaSystemState): &mut AttestorRegistryV1 {
+    if (!dynamic_field::exists_(&self.id, attestor_registry::registry_key())) {
+        dynamic_field::add(
+            &mut self.id,
+            attestor_registry::registry_key(),
+            attestor_registry::new(),
+        );
+    };
+    dynamic_field::borrow_mut(&mut self.id, attestor_registry::registry_key())
+}
+
+/// Register the sender as an attestor with a dedicated signing key
+/// (`flag || raw pubkey`, plain schemes only), locking `bond`
+/// (>= MIN_ATTESTOR_JOINING_BOND). Takes effect at the next epoch boundary.
+public entry fun register_attestor(
+    wrapper: &mut IotaSystemState,
+    bond: Coin<IOTA>,
+    attestor_pubkey: vector<u8>,
+    ctx: &mut TxContext,
+) {
+    attestor_registry::assert_feature_enabled();
+    let sender = ctx.sender();
+    let epoch = ctx.epoch();
+    load_attestor_registry_mut(wrapper).register(bond.into_balance(), attestor_pubkey, sender, epoch);
+}
+
+/// Deregister the sender. A pending registration is refunded immediately;
+/// an active attestor is removed and refunded at the next epoch boundary.
+public entry fun deregister_attestor(wrapper: &mut IotaSystemState, ctx: &mut TxContext) {
+    attestor_registry::assert_feature_enabled();
+    let sender = ctx.sender();
+    let epoch = ctx.epoch();
+    let mut refund = load_attestor_registry_mut(wrapper).deregister(sender, epoch);
+    if (refund.is_some()) {
+        transfer::public_transfer(refund.extract().into_coin(ctx), sender);
+    };
+    refund.destroy_none();
+}
+
+/// Add to the sender's bond (active or pending entry).
+public entry fun deposit_attestor_bond(
+    wrapper: &mut IotaSystemState,
+    additional: Coin<IOTA>,
+    ctx: &mut TxContext,
+) {
+    attestor_registry::assert_feature_enabled();
+    let sender = ctx.sender();
+    let epoch = ctx.epoch();
+    load_attestor_registry_mut(wrapper).deposit(sender, additional.into_balance(), epoch);
+}
+
+/// Stage a replacement signing key for the sender's active entry; applied
+/// in place at the next epoch boundary.
+public entry fun rotate_attestor_key(
+    wrapper: &mut IotaSystemState,
+    new_pubkey: vector<u8>,
+    ctx: &mut TxContext,
+) {
+    attestor_registry::assert_feature_enabled();
+    let sender = ctx.sender();
+    let epoch = ctx.epoch();
+    load_attestor_registry_mut(wrapper).rotate_key(sender, new_pubkey, epoch);
+}
+
+#[test_only]
+public fun active_attestor_count_for_testing(wrapper: &mut IotaSystemState): u64 {
+    load_attestor_registry_mut(wrapper).active_count()
+}
+
+#[test_only]
+public fun slash_attestor_for_testing(
+    wrapper: &mut IotaSystemState,
+    attestor_address: address,
+    amount: u64,
+): Balance<IOTA> {
+    load_attestor_registry_mut(wrapper).slash(attestor_address, amount)
 }
 
 /// Add stake to a validator's staking pool.
@@ -536,9 +617,27 @@ fun advance_epoch(
     adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
-    let self = load_system_state_mut(wrapper);
     // ValidatorV1 will make a special system call with sender set as 0x0.
     assert!(ctx.sender() == @0x0, ENotSystemAddress);
+
+    // Process the attestor registry boundary first. The registry lives on
+    // the wrapper UID, so its mutable borrow must complete before we borrow
+    // the inner system state. Evicted bonds are returned here and burned
+    // inside the inner advance_epoch (keeping `burnt_tokens_amount`
+    // accounting accurate).
+    let attestor_evicted_bonds = if (
+        dynamic_field::exists_(&wrapper.id, attestor_registry::registry_key())
+    ) {
+        let registry: &mut AttestorRegistryV1 = dynamic_field::borrow_mut(
+            &mut wrapper.id,
+            attestor_registry::registry_key(),
+        );
+        registry.advance_epoch(new_epoch, ctx)
+    } else {
+        balance::zero()
+    };
+
+    let self = load_system_state_mut(wrapper);
     let storage_rebate = self.advance_epoch(
         new_epoch,
         next_protocol_version,
@@ -554,6 +653,7 @@ fun advance_epoch(
         eligible_active_validators,
         scores,
         adjust_rewards_by_score,
+        attestor_evicted_bonds,
         ctx,
     );
 
