@@ -5,7 +5,6 @@
 module iota_system::attestor_registry_tests;
 
 use iota::balance;
-use iota::tx_context;
 use iota_system::attestor_registry;
 
 const MIN_JOINING_BOND: u64 = 2_000_000_000_000;
