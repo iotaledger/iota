@@ -492,7 +492,8 @@ impl IotaClientBuilder {
 /// ```rust,no_run
 /// use std::str::FromStr;
 ///
-/// use iota_sdk::{IotaClientBuilder, types::base_types::Address};
+/// use iota_sdk::IotaClientBuilder;
+/// use iota_sdk_types::Address;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {

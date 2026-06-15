@@ -411,7 +411,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
-    /// use iota_types::{base_types::Address, gas_coin::NANOS_PER_IOTA};
+    /// use iota_sdk_types::Address;
+    /// use iota_types::gas_coin::NANOS_PER_IOTA;
     /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {

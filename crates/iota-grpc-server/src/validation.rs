@@ -86,7 +86,7 @@ pub(crate) fn encode_page_token<T: serde::Serialize>(token: &T) -> Vec<u8> {
 }
 
 /// Validate and extract a required `Address` proto field as an internal
-/// `IotaAddress`.
+/// [`Address`].
 pub(crate) fn require_address(
     field: &Option<GrpcAddress>,
     field_name: &str,

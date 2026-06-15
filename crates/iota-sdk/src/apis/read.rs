@@ -60,7 +60,8 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::Address};
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -101,8 +102,8 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::Address};
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::{Address, ObjectId};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -183,10 +184,8 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{
-    ///     IotaClientBuilder, rpc_types::IotaObjectDataOptions, types::base_types::Address,
-    /// };
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk::{IotaClientBuilder, rpc_types::IotaObjectDataOptions};
+    /// use iota_sdk_types::{Address, ObjectId};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -252,9 +251,8 @@ impl ReadApi {
     /// use iota_sdk::{
     ///     IotaClientBuilder,
     ///     rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions},
-    ///     types::base_types::Address,
     /// };
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk_types::{Address, ObjectId};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -333,9 +331,8 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{
-    ///     IotaClientBuilder, rpc_types::IotaObjectDataOptions, types::base_types::Address,
-    /// };
+    /// use iota_sdk::{IotaClientBuilder, rpc_types::IotaObjectDataOptions};
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -389,9 +386,8 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{
-    ///     IotaClientBuilder, rpc_types::IotaObjectDataOptions, types::base_types::Address,
-    /// };
+    /// use iota_sdk::{IotaClientBuilder, rpc_types::IotaObjectDataOptions};
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {

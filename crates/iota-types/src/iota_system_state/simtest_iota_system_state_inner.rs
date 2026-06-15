@@ -4,12 +4,12 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_network_stack::Multiaddr;
+use iota_sdk_types::Address;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Balance,
-    base_types::Address,
     collection_types::{Bag, Table},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
