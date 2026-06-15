@@ -51,13 +51,10 @@ use iota_snapshot::{
     VerifiedEpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
     setup_db_state,
 };
-use iota_storage::{
-    object_store::{
-        ObjectStoreGetExt,
-        http::HttpDownloaderBuilder,
-        util::{MANIFEST_FILENAME, PerEpochManifest, RootManifest, copy_file, exists, get_path},
-    },
-    verify_checkpoint_range,
+use iota_storage::object_store::{
+    ObjectStoreGetExt,
+    http::HttpDownloaderBuilder,
+    util::{MANIFEST_FILENAME, PerEpochManifest, RootManifest, copy_file, exists, get_path},
 };
 use iota_types::{
     base_types::*,
@@ -655,13 +652,24 @@ pub async fn backfill_checkpoint_summaries(
     let state_sync_store =
         RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
 
-    insert_genesis_checkpoint(&checkpoint_store, &genesis)?;
+    // The node must already hold its own genesis (it is restored or synced).
+    // Refuse a mismatched (wrong-network or stale) genesis before touching
+    // anything: `read_summaries_for_range` chains from genesis, and a foreign
+    // genesis would otherwise corrupt the store.
     let highest_synced = checkpoint_store
         .get_highest_synced_checkpoint()?
         .map(|c| c.sequence_number)
         .ok_or_else(|| {
             anyhow!("checkpoint store at {node_db_path:?} is empty; restore the node first")
         })?;
+    let stored_genesis = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)?
+        .ok_or_else(|| anyhow!("node has no genesis checkpoint; restore the node first"))?;
+    anyhow::ensure!(
+        stored_genesis.digest() == genesis.checkpoint().digest(),
+        "the provided genesis does not match the node's genesis checkpoint \
+         (wrong network or stale genesis?)"
+    );
 
     let config = ArchiveReaderConfig {
         remote_store_config: archive_store_config,
@@ -673,9 +681,9 @@ pub async fn backfill_checkpoint_summaries(
     archive_reader.sync_manifest_once().await?;
 
     // Fill the contiguous range `[1, target]`; genesis (0) is the chain root
-    // and must already be present. Cap `target` at the archive's latest:
-    // summaries above the restore point the node already holds in full from
-    // p2p, and the archive may not reach as far as the node has synced.
+    // and is already present. Cap `target` at the archive's latest: summaries
+    // above the restore point the node already holds in full from p2p, and the
+    // archive may not reach as far as the node has synced.
     let archive_latest = archive_reader
         .get_manifest()
         .await?
@@ -686,54 +694,29 @@ pub async fn backfill_checkpoint_summaries(
         m.println("Nothing to backfill: no archived summaries below the node's state.")?;
         return Ok(());
     }
+    if archive_latest < highest_synced {
+        m.println(format!(
+            "Note: the archive only reaches checkpoint {archive_latest}, below this node's \
+             highest synced checkpoint {highest_synced}. Summaries in \
+             ({archive_latest}, {highest_synced}] are left as the node already has them; re-run \
+             once the archive catches up to fill any remaining gaps."
+        ))?;
+    }
 
-    // Download summaries for `[1, target]`. Inserts are idempotent, so the
-    // end-of-epoch summaries already present are harmlessly overwritten.
-    let download_bar = m.add(ProgressBar::new(target).with_style(
+    // Download and (when `verify`) chain-verify summaries for `[1, target]` in
+    // one ordered pass. `read_summaries_for_range` leaves already-present
+    // summaries untouched and never persists an unverified one, so it adds
+    // only the missing historical summaries below the node's watermarks
+    // without moving any of them.
+    let bar = m.add(ProgressBar::new(target).with_style(
         ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
     ));
-    let download_counter = Arc::new(AtomicU64::new(0));
-    spawn_rate_ticker(
-        download_bar.clone(),
-        download_counter.clone(),
-        "checkpoints synced per sec",
-    );
+    let counter = Arc::new(AtomicU64::new(0));
+    spawn_rate_ticker(bar.clone(), counter.clone(), "checkpoints per sec");
     archive_reader
-        .read_summaries_for_range_no_verify(
-            state_sync_store.clone(),
-            1..target + 1,
-            download_counter,
-        )
+        .read_summaries_for_range(state_sync_store, 1..target + 1, counter, verify)
         .await?;
-    download_bar.finish_with_message("Checkpoint summary download is complete");
-
-    if verify {
-        // Verify the chain pairwise from genesis: every summary's
-        // `previous_digest` linkage and committee signature, rooted at the
-        // genesis checkpoint already in the store. Its terminal
-        // `try_update_highest_verified_checkpoint` targets `target`, at or
-        // below where the node already is, so no watermark moves.
-        let verify_bar = m.add(
-            ProgressBar::new(target).with_style(
-                ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})")
-                    .unwrap(),
-            ),
-        );
-        let verify_counter = Arc::new(AtomicU64::new(0));
-        spawn_rate_ticker(
-            verify_bar.clone(),
-            verify_counter.clone(),
-            "checkpoints verified per sec",
-        );
-        verify_checkpoint_range(
-            0..target + 1,
-            state_sync_store,
-            verify_counter,
-            num_parallel_downloads,
-        )
-        .await;
-        verify_bar.finish_with_message("Checkpoint summary verification is complete");
-    }
+    bar.finish_with_message("Checkpoint summary backfill is complete");
 
     println!("Backfilled checkpoint summaries up to checkpoint {target}");
     Ok(())
