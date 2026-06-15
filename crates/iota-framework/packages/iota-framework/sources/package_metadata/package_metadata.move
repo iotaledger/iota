@@ -88,19 +88,18 @@ public fun package_version(metadata: &PackageMetadataV1): u64 {
 }
 
 public fun module_metadata(self: &PackageMetadataV1, module_name: &ascii::String): &ModuleMetadata {
-    let modules_metadata = self.modules_metadata_field();
+    let modules_metadata = dynamic_field::borrow<
+        ModulesMetadataFieldName,
+        VecMap<ModuleName, ModuleMetadata>,
+    >(
+        &self.id,
+        ModulesMetadataFieldName {},
+    );
     let name = ModuleName(*module_name);
     assert!(modules_metadata.contains(&name), EModuleMetadataNotFound);
     let idx = modules_metadata.get_idx(&name);
     let (_, metadata) = modules_metadata.get_entry_by_idx(idx);
     metadata
-}
-
-/// Borrow the map of per-module metadata stored as a dynamic field.
-/// Aborts if the metadata object uses the legacy inline layout (no such
-/// dynamic field).
-fun modules_metadata_field(self: &PackageMetadataV1): &VecMap<ModuleName, ModuleMetadata> {
-    dynamic_field::borrow(&self.id, ModulesMetadataFieldName {})
 }
 
 #[allow(deprecated_usage)]
@@ -157,6 +156,31 @@ fun create_package_metadata_v1_with_dynamic_metadata(
     type_names: vector<vector<TypeName>>,
     view_function_names: vector<vector<ascii::String>>,
 ) {
+    let package_metadata = build_package_metadata_v1_with_dynamic_metadata(
+        storage_id,
+        runtime_id,
+        package_version,
+        modules,
+        auth_functions,
+        type_names,
+        view_function_names,
+    );
+    transfer::freeze_object(package_metadata);
+}
+
+/// Builds a `PackageMetadataV1` with the dynamic-field layout and returns it
+/// without freezing. The on-chain constructor freezes the result; tests keep
+/// the owned value. Both paths share this builder so the recorded layout
+/// cannot diverge.
+fun build_package_metadata_v1_with_dynamic_metadata(
+    storage_id: ID,
+    runtime_id: ID,
+    package_version: u64,
+    modules: vector<ascii::String>,
+    auth_functions: vector<vector<ascii::String>>,
+    type_names: vector<vector<TypeName>>,
+    view_function_names: vector<vector<ascii::String>>,
+): PackageMetadataV1 {
     let modules_metadata = create_modules_metadata(
         storage_id,
         modules,
@@ -187,7 +211,7 @@ fun create_package_metadata_v1_with_dynamic_metadata(
         ModulesMetadataFieldName {},
         modules_metadata,
     );
-    transfer::freeze_object(package_metadata);
+    package_metadata
 }
 
 fun create_modules_metadata(
@@ -247,7 +271,10 @@ public fun try_get_modules_metadata_v1(
             PackageMetadataVersionFieldName {},
         );
         assert!(package_metadata_version == 2, EWrongPackageVersion);
-        let modules_metadata = self.modules_metadata_field();
+        let modules_metadata = dynamic_field::borrow<
+            ModulesMetadataFieldName,
+            VecMap<ModuleName, ModuleMetadata>,
+        >(&self.id, ModulesMetadataFieldName {});
         let name = ModuleName(*module_name);
         if (!modules_metadata.contains(&name)) {
             return option::none()
@@ -354,38 +381,16 @@ public fun create_package_metadata_v1_with_dynamic_metadata_for_testing(
     type_names: vector<vector<TypeName>>,
     view_functions: vector<vector<ascii::String>>,
 ): PackageMetadataV1 {
-    let modules_metadata = create_modules_metadata(
+    build_package_metadata_v1_with_dynamic_metadata(
         storage_id,
+        // runtime_id and package_version default to a single-version package.
+        storage_id,
+        1,
         modules,
         auth_functions,
         type_names,
         view_functions,
-    );
-
-    let addr = iota::derived_object::derive_address_for_testing(
-        storage_id,
-        PackageMetadataKey {},
-    );
-    let id = object::new_uid_from_hash(addr);
-
-    let mut package_metadata = PackageMetadataV1 {
-        id,
-        storage_id,
-        runtime_id: storage_id,
-        package_version: 1,
-        modules_metadata: vec_map::empty<ascii::String, ModuleMetadataV1>(),
-    };
-    dynamic_field::add(
-        &mut package_metadata.id,
-        PackageMetadataVersionFieldName {},
-        2,
-    );
-    dynamic_field::add(
-        &mut package_metadata.id,
-        ModulesMetadataFieldName {},
-        modules_metadata,
-    );
-    package_metadata
+    )
 }
 
 #[test_only]

@@ -1552,9 +1552,6 @@ package_version
 module_metadata
 	public fun
 	0x2::package_metadata
-modules_metadata_field
-	fun
-	0x2::package_metadata
 module_authenticator_function_metadata_v1
 	public fun
 	0x2::package_metadata
@@ -1571,6 +1568,9 @@ function_name
 	public fun
 	0x2::package_metadata
 create_package_metadata_v1_with_dynamic_metadata
+	fun
+	0x2::package_metadata
+build_package_metadata_v1_with_dynamic_metadata
 	fun
 	0x2::package_metadata
 create_modules_metadata
