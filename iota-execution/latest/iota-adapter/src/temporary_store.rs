@@ -206,11 +206,12 @@ impl<'backing> TemporaryStore<'backing> {
             .collect::<BTreeSet<_>>();
         all_ids
             .into_iter()
-            .map(|id| (*id, self.new_effects_object_change(id)))
+            .map(|id| (*id, self.compute_object_change(id)))
             .collect()
     }
 
-    fn new_effects_object_change(&self, id: &ObjectId) -> EffectsObjectChange {
+    /// Computes the [`EffectsObjectChange`] for `id` from the execution results.
+    fn compute_object_change(&self, id: &ObjectId) -> EffectsObjectChange {
         let modified_at = self
             .get_object_modified_at(id)
             .map(|metadata| ((metadata.version, metadata.digest), metadata.owner));
