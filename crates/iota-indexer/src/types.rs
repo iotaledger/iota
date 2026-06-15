@@ -268,6 +268,10 @@ pub enum OwnerType {
 pub enum ObjectStatus {
     Active = 0,
     WrappedOrDeleted = 1,
+    /// Only `objects_backward_history` stores this status, to mark that the
+    /// object did not yet exist at the recorded version. Encountering it when
+    /// reading any other table is data corruption.
+    NotYetCreated = 2,
 }
 
 impl TryFrom<i16> for ObjectStatus {
@@ -277,6 +281,7 @@ impl TryFrom<i16> for ObjectStatus {
         Ok(match value {
             0 => ObjectStatus::Active,
             1 => ObjectStatus::WrappedOrDeleted,
+            2 => ObjectStatus::NotYetCreated,
             value => {
                 return Err(IndexerError::PersistentStorageDataCorruption(format!(
                     "{value} as ObjectStatus"

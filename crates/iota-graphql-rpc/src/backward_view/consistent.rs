@@ -6,7 +6,7 @@
 //! versions from `objects_backward_history`.
 
 use crate::{
-    backward_view::{CHECKPOINTED_ACTIVE, HISTORY_ACTIVE, OBJECT_COLUMNS, merge_and_deduplicate},
+    backward_view::{ACTIVE, OBJECT_COLUMNS, merge_and_deduplicate},
     filter, query,
     raw_query::RawQuery,
     types::{
@@ -44,7 +44,7 @@ fn consistent_checkpointed_objects(
         filter_fn(query!(format!(
             "SELECT {OBJECT_COLUMNS} FROM checkpointed_objects"
         ))),
-        format!("object_status = {CHECKPOINTED_ACTIVE}")
+        format!("object_status = {ACTIVE}")
     );
 
     let changed_subquery = query!(format!(
@@ -81,7 +81,7 @@ fn consistent_historical_objects(
     let history_window = filter!(
         history_filtered,
         format!(
-            "superseded_at_checkpoint > {} AND object_status = {HISTORY_ACTIVE}",
+            "superseded_at_checkpoint > {} AND object_status = {ACTIVE}",
             checkpoint_viewed_at
         )
     );
