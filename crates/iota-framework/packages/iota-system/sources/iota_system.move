@@ -241,7 +241,12 @@ public entry fun register_attestor(
     attestor_registry::assert_feature_enabled();
     let sender = ctx.sender();
     let epoch = ctx.epoch();
-    load_attestor_registry_mut(wrapper).register(bond.into_balance(), attestor_pubkey, sender, epoch);
+    load_attestor_registry_mut(wrapper).register(
+        bond.into_balance(),
+        attestor_pubkey,
+        sender,
+        epoch,
+    );
 }
 
 /// Deregister the sender. A pending registration is refunded immediately;
@@ -613,7 +618,7 @@ fun advance_epoch(
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
-    scores : vector<u64>,
+    scores: vector<u64>,
     adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
@@ -869,7 +874,7 @@ public(package) fun advance_epoch_for_testing(
     epoch_start_timestamp_ms: u64,
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
-    scores : vector<u64>,
+    scores: vector<u64>,
     adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
