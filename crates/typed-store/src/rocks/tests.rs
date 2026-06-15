@@ -739,6 +739,57 @@ async fn test_safe_iter_with_prefix_multi_field() {
 }
 
 #[tokio::test]
+async fn test_safe_iter_surfaces_deserialization_error() {
+    // A bad VALUE: store <u32, u8>, reopen with a wider value type. The stored
+    // 1-byte values cannot deserialize into (u64, u64). Forward and reverse
+    // iteration share `SafeIter::next`, so both must surface the error rather
+    // than silently ending the scan.
+    {
+        let tmp_dir = iota_common::tempdir();
+        let arc = {
+            let db = open_map::<_, u32, u8>(tmp_dir.path(), None);
+            db.insert(&1, &7).unwrap();
+            db.insert(&2, &8).unwrap();
+            db
+        };
+        let db =
+            DBMap::<u32, (u64, u64)>::reopen(&arc.db, None, &ReadWriteOptions::default(), false)
+                .expect("failed to reopen");
+
+        let forward = db.safe_iter().next();
+        assert!(
+            matches!(forward, Some(Err(TypedStoreError::Serialization(_)))),
+            "forward iteration must yield Some(Err(..)) on a bad value; got {forward:?}",
+        );
+        let reverse = db.safe_range_iter_reversed(..).next();
+        assert!(
+            matches!(reverse, Some(Err(TypedStoreError::Serialization(_)))),
+            "reverse iteration must yield Some(Err(..)) on a bad value; got {reverse:?}",
+        );
+    }
+
+    // A bad KEY: store <u8, u32>, reopen with a wider key type so the key itself
+    // fails to deserialize (exercises the other error arm of `SafeIter::next`).
+    {
+        let tmp_dir = iota_common::tempdir();
+        let arc = {
+            let db = open_map::<_, u8, u32>(tmp_dir.path(), None);
+            db.insert(&1, &7).unwrap();
+            db
+        };
+        let db =
+            DBMap::<(u64, u64), u32>::reopen(&arc.db, None, &ReadWriteOptions::default(), false)
+                .expect("failed to reopen");
+
+        let first = db.safe_iter().next();
+        assert!(
+            matches!(first, Some(Err(TypedStoreError::Serialization(_)))),
+            "a key that fails to deserialize must yield Some(Err(..)); got {first:?}",
+        );
+    }
+}
+
+#[tokio::test]
 async fn test_prefix_from_matches_old_bounded_scan() {
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
