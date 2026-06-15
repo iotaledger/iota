@@ -25,21 +25,35 @@ fun pubkey_a(): vector<u8> { make_pubkey(0x00, 32) }
 fun pubkey_b(): vector<u8> { make_pubkey(0x01, 33) }
 
 // === Pubkey validation ===
+//
+// Validation lives in the `validate_attestor_pubkey` native (a private fn),
+// so it is exercised indirectly through `register` / `rotate_key`. Valid
+// keys for all three plain schemes are accepted here; rejection cases live
+// in the register/rotate failure tests below.
 
 #[test]
-fun test_pubkey_validation_accepts_plain_schemes() {
-    assert!(attestor_registry::is_valid_attestor_pubkey(&make_pubkey(0x00, 32)));
-    assert!(attestor_registry::is_valid_attestor_pubkey(&make_pubkey(0x01, 33)));
-    assert!(attestor_registry::is_valid_attestor_pubkey(&make_pubkey(0x02, 33)));
+fun test_register_accepts_all_plain_schemes() {
+    let mut registry = attestor_registry::new();
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), make_pubkey(0x00, 32), @0xA1, 5);
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), make_pubkey(0x01, 33), @0xA2, 5);
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), make_pubkey(0x02, 33), @0xA3, 5);
+    assert!(registry.pending_count() == 3);
+    registry.destroy_for_testing();
 }
 
-#[test]
-fun test_pubkey_validation_rejects_bad_keys() {
-    assert!(!attestor_registry::is_valid_attestor_pubkey(&vector[]));
-    assert!(!attestor_registry::is_valid_attestor_pubkey(&make_pubkey(0x00, 33)));
-    assert!(!attestor_registry::is_valid_attestor_pubkey(&make_pubkey(0x01, 32)));
-    assert!(!attestor_registry::is_valid_attestor_pubkey(&make_pubkey(0x03, 32)));
-    assert!(!attestor_registry::is_valid_attestor_pubkey(&make_pubkey(0x05, 32)));
+#[test, expected_failure(abort_code = attestor_registry::EInvalidPubkey)]
+fun test_register_rejects_wrong_length() {
+    let mut registry = attestor_registry::new();
+    // ed25519 flag with a 33-byte key (must be 32)
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), make_pubkey(0x00, 33), @0xA1, 5);
+    abort 0
+}
+
+#[test, expected_failure(abort_code = attestor_registry::EInvalidPubkey)]
+fun test_register_rejects_empty_pubkey() {
+    let mut registry = attestor_registry::new();
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), vector[], @0xA1, 5);
+    abort 0
 }
 
 // === Registration ===

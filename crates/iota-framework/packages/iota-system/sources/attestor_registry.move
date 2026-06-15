@@ -31,17 +31,12 @@ const ATTESTOR_LOW_BOND_THRESHOLD: u64 = 1_000_000_000_000; // 1,000 IOTA
 /// in a single object, so growth must be bounded.
 const MAX_ATTESTOR_COUNT: u64 = 1_000;
 
-// Signature scheme flags and raw key lengths (see iota-types crypto).
-const ED25519_FLAG: u8 = 0;
-const SECP256K1_FLAG: u8 = 1;
-const SECP256R1_FLAG: u8 = 2;
-const ED25519_PUBKEY_LEN: u64 = 32;
-const SECP256K1_PUBKEY_LEN: u64 = 33;
-const SECP256R1_PUBKEY_LEN: u64 = 33;
-
 const EFeatureNotEnabled: u64 = 0;
 const EBondTooLow: u64 = 1;
 const ETooManyAttestors: u64 = 2;
+// Returned by the `validate_attestor_pubkey` native (in Rust), not asserted
+// in Move directly, so it is unused from the module's perspective.
+#[allow(unused_const)]
 const EInvalidPubkey: u64 = 3;
 const EAlreadyRegistered: u64 = 4;
 const ENotAnAttestor: u64 = 5;
@@ -161,17 +156,13 @@ public(package) fun new(): AttestorRegistryV1 {
 
 // === Pubkey validation ===
 
-/// A valid attestor pubkey is `flag || raw_key` for one of the plain
-/// signature schemes. Multisig / passkey / AA flags are rejected.
-public(package) fun is_valid_attestor_pubkey(pubkey: &vector<u8>): bool {
-    if (pubkey.is_empty()) return false;
-    let flag = pubkey[0];
-    let raw_len = pubkey.length() - 1;
-    if (flag == ED25519_FLAG) return raw_len == ED25519_PUBKEY_LEN;
-    if (flag == SECP256K1_FLAG) return raw_len == SECP256K1_PUBKEY_LEN;
-    if (flag == SECP256R1_FLAG) return raw_len == SECP256R1_PUBKEY_LEN;
-    false
-}
+/// Validate a dedicated attestor signing key, encoded as `flag || raw_key`
+/// for one of the plain signature schemes (ed25519 / secp256k1 / secp256r1).
+/// Aborts with `EInvalidPubkey` for any other flag or wrong length.
+///
+/// Validation runs in a native (`iota-move-natives`) using the iota-rust-sdk
+/// public-key types, mirroring `validator::validate_metadata_bcs`.
+native fun validate_attestor_pubkey(pubkey: vector<u8>);
 
 // === Lookup helpers ===
 
@@ -199,7 +190,8 @@ public(package) fun register(
         self.active_attestors.length() + self.pending_active.length() < MAX_ATTESTOR_COUNT,
         ETooManyAttestors,
     );
-    assert!(is_valid_attestor_pubkey(&attestor_pubkey), EInvalidPubkey);
+    // Aborts with EInvalidPubkey if the key is malformed (native check).
+    validate_attestor_pubkey(attestor_pubkey);
     // An entry scheduled for removal is still in `active_attestors` until
     // the boundary, so this also blocks re-registering while exiting.
     assert!(find_active(self, sender).is_none(), EAlreadyRegistered);
@@ -318,7 +310,8 @@ public(package) fun rotate_key(
     assert!(active_idx.is_some(), ENotActiveAttestor);
     let idx = active_idx.destroy_some();
     assert!(!self.pending_removals.contains(&idx), EAlreadyDeregistering);
-    assert!(is_valid_attestor_pubkey(&new_pubkey), EInvalidPubkey);
+    // Aborts with EInvalidPubkey if the key is malformed (native check).
+    validate_attestor_pubkey(new_pubkey);
     let new_pubkey_for_event = new_pubkey;
     let entry = &mut self.active_attestors[idx];
     entry.next_epoch_attestor_pubkey = option::some(new_pubkey_for_event);

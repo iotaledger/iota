@@ -43,8 +43,8 @@ registry_key
 new
 	public(package) fun
 	0x3::attestor_registry
-is_valid_attestor_pubkey
-	public(package) fun
+validate_attestor_pubkey
+	fun
 	0x3::attestor_registry
 find_active
 	fun

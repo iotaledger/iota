@@ -90,6 +90,7 @@ use crate::{
 };
 
 mod address;
+mod attestor_registry;
 mod auth_context;
 pub mod authentication_context;
 mod config;
@@ -1395,6 +1396,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "protocol_config",
             "set_attr_for_testing",
             make_native!(protocol_config::set_attr_for_testing),
+        ),
+        (
+            "attestor_registry",
+            "validate_attestor_pubkey",
+            make_native!(attestor_registry::validate_attestor_pubkey),
         ),
     ];
     iota_system_natives
