@@ -1490,7 +1490,7 @@ fn try_get_past_object_object_not_exists() {
         let version = SequenceNumber::default();
 
         let result = client
-            .try_get_past_object(object_id, version, None)
+            .try_get_past_object(object_id, version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1527,7 +1527,7 @@ fn try_get_past_object_version_found() {
         wait_for_objects_history(tx_digest, store, client).await;
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, gas_ref.version, None)
+            .try_get_past_object(gas_ref.object_id, gas_ref.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1571,13 +1571,13 @@ fn try_get_past_object_version_not_found() {
         let missing_version = gas_ref.version.previous().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, missing_version, None)
+            .try_get_past_object(gas_ref.object_id, missing_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::VersionNotFound(gas_ref.object_id, missing_version),
+            IotaPastObjectResponse::VersionNotFound(gas_ref.object_id, missing_version.into()),
             "mismatch in VersionNotFound response"
         );
     });
@@ -1611,7 +1611,7 @@ fn try_get_past_object_version_too_high() {
         let asked_version = latest_version.next().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, asked_version, None)
+            .try_get_past_object(gas_ref.object_id, asked_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1619,8 +1619,8 @@ fn try_get_past_object_version_too_high() {
             result,
             IotaPastObjectResponse::VersionTooHigh {
                 object_id: gas_ref.object_id,
-                asked_version,
-                latest_version,
+                asked_version: asked_version.into(),
+                latest_version: latest_version.into(),
             },
             "mismatch in VersionTooHigh response"
         );
@@ -1671,7 +1671,7 @@ fn try_get_past_object_object_deleted() {
 
         // Retrieve the deleted object at that version
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version, None)
+            .try_get_past_object(nft_object_id, deleted_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1687,7 +1687,11 @@ fn try_get_past_object_object_deleted() {
 
         // Try fetching the object before the deleted version.
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version.previous().unwrap(), None)
+            .try_get_past_object(
+                nft_object_id,
+                deleted_version.previous().unwrap().into(),
+                None,
+            )
             .await
             .expect("rpc call should succeed");
 
@@ -1798,12 +1802,12 @@ fn try_multi_get_past_objects() {
             .expect("rpc call should succeed");
 
         let past_object_response_1 = client
-            .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version, None)
+            .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
         let past_object_response_2 = client
-            .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version, None)
+            .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
