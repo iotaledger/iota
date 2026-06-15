@@ -28,6 +28,7 @@ use crate::{
     versioned::Versioned,
 };
 
+pub mod attestor_registry;
 // `EpochStartSystemState` pulls in anemo / starfish-config (consensus + p2p),
 // which don't compile to wasm32. It's only consumed by the node, so the whole
 // module and the `into_epoch_start_state` accessor are gated out of wasm.
