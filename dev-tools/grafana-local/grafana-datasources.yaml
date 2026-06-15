@@ -13,6 +13,10 @@ datasources:
     editable: false
     jsonData:
       httpMethod: GET
+      # Matches prometheus.yaml scrape_interval. Drives Grafana's
+      # $__rate_interval (~4x this), so rate() panels use a ~4s window instead
+      # of the 15s-default ~1m — essential for short (e.g. 30s) stress runs.
+      timeInterval: "1s"
   - name: Tempo
     type: tempo
     access: proxy
