@@ -133,13 +133,15 @@ pub fn verify_authenticate_func_v1(
         )));
     }
 
-    // TxContext can only be an immutable reference. Passing it as mutable would
-    // allow authenticator functions to create objects, which would be
-    // problematic.
-    if !matches!(
-        TxContext::kind(module, tx_context),
-        TxContextKind::Immutable
-    ) {
+    // TxContext must be an immutable reference, unless `enable_mutable_shared` is
+    // set. A `&mut TxContext` lets the authenticator create fresh objects via
+    // `object::new`; this is safe because the authenticator shares the
+    // transaction's `TxContext`, so created object ids stay unique and
+    // deterministic across the authentication and transaction phases.
+    let tx_context_kind = TxContext::kind(module, tx_context);
+    let tx_context_allowed = matches!(tx_context_kind, TxContextKind::Immutable)
+        || (enable_mutable_shared && matches!(tx_context_kind, TxContextKind::Mutable));
+    if !tx_context_allowed {
         return Err(verification_failure(format!(
             "Authenticator function '{function_identifier}' can only receive 'TxContext' as immutable reference"
         )));

@@ -797,20 +797,12 @@ impl TemporaryStore<'_> {
         &self,
         protocol_config: &ProtocolConfig,
     ) -> Result<(), ExecutionError> {
-        // Object deletion during authenticator execution is never allowed: the
-        // authenticator must not delete its mutable shared inputs nor remove their
-        // dynamic fields.
-        assert_invariant!(
-            self.execution_results.deleted_object_ids.is_empty(),
-            "Objects cannot be deleted during authenticator execution"
-        );
-
         // When mutable shared objects are allowed in Move authenticators, the
-        // authenticator may otherwise mutate them — including adding and modifying
-        // their dynamic fields, which create and write child objects. The set of
-        // writable objects is still constrained upstream to the mutable shared
-        // authenticator inputs: the authenticator's `&TxContext` is immutable, so it
-        // cannot create fresh top-level objects.
+        // authenticator may freely mutate its mutable shared inputs — creating,
+        // writing, modifying and deleting objects, including their dynamic fields
+        // and dynamic object fields. The set of writable objects is constrained
+        // upstream to the mutable shared authenticator inputs (and objects the
+        // authenticator itself creates).
         if protocol_config.enable_mutable_shared_in_move_authenticator() {
             return Ok(());
         }
@@ -827,6 +819,10 @@ impl TemporaryStore<'_> {
         assert_invariant!(
             self.execution_results.modified_objects.is_empty(),
             "Objects cannot be modified during authenticator execution"
+        );
+        assert_invariant!(
+            self.execution_results.deleted_object_ids.is_empty(),
+            "Objects cannot be deleted during authenticator execution"
         );
         Ok(())
     }

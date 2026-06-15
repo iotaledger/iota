@@ -6,6 +6,7 @@ module abstract_account::abstract_account_keyed;
 use abstract_account::abstract_account::{Self, AbstractAccount};
 use abstract_account::basic_keyed_aa;
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
+use iota::dynamic_object_field;
 use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
 
@@ -25,6 +26,16 @@ public struct Counter has key {
 /// Dynamic-field key for a per-account authentication counter, mutated by
 /// `authenticate_ed25519_and_mutate_account`.
 public struct AuthCount has copy, drop, store {}
+
+/// A fresh top-level object minted by `authenticate_ed25519_and_create_object`,
+/// and also stored as a dynamic object field on a `Counter` for the extraction
+/// test (`authenticate_ed25519_and_extract_from_counter`).
+public struct Marker has key, store {
+    id: UID,
+}
+
+/// Dynamic-object-field key under which a `Marker` is stored on a `Counter`.
+public struct MarkerKey has copy, drop, store {}
 
 // === Events ===
 
@@ -161,6 +172,14 @@ public fun create_counter(ctx: &mut TxContext) {
     transfer::share_object(Counter { id: object::new(ctx), value: 0 });
 }
 
+/// Create and share a `Counter` that holds a `Marker` as a dynamic object
+/// field, used by the `authenticate_ed25519_and_extract_from_counter` test.
+public fun create_counter_with_marker(ctx: &mut TxContext) {
+    let mut counter = Counter { id: object::new(ctx), value: 0 };
+    dynamic_object_field::add(&mut counter.id, MarkerKey {}, Marker { id: object::new(ctx) });
+    transfer::share_object(counter);
+}
+
 /// Ed25519 authenticator that *mutates* a shared `Counter` while authenticating.
 ///
 /// This requires the `enable_mutable_shared_in_move_authenticator` protocol
@@ -252,6 +271,75 @@ public fun authenticate_ed25519_and_rotate_to_free_access(
         new_ref,
         ctx,
     );
+}
+
+/// Ed25519 authenticator that attempts to *delete an object* by removing a
+/// dynamic field from the account. Object deletion during authenticator
+/// execution is forbidden, so any transaction using this authenticator must be
+/// rejected.
+#[authenticator]
+public fun authenticate_ed25519_and_delete_field(
+    account: &mut AbstractAccount,
+    signature: vector<u8>,
+    actx: &AuthContext,
+    ctx: &TxContext,
+) {
+    basic_keyed_aa::authenticate_ed25519(
+        &signature,
+        borrow_public_key(account),
+        actx,
+        ctx,
+    );
+
+    // Removing a dynamic field deletes its child object.
+    let _: vector<u8> = account.remove_field(basic_keyed_aa::owner_public_key(), ctx);
+}
+
+/// Ed25519 authenticator that *creates a fresh top-level object* (a new UID via
+/// `object::new`) and transfers it to the account. This requires a
+/// `&mut TxContext`, which is only accepted when
+/// `enable_mutable_shared_in_move_authenticator` is enabled.
+#[authenticator]
+public fun authenticate_ed25519_and_create_object(
+    account: &AbstractAccount,
+    signature: vector<u8>,
+    actx: &AuthContext,
+    ctx: &mut TxContext,
+) {
+    basic_keyed_aa::authenticate_ed25519(
+        &signature,
+        borrow_public_key(account),
+        actx,
+        ctx,
+    );
+
+    // Mint a brand-new object and transfer it to the account.
+    transfer::transfer(Marker { id: object::new(ctx) }, account.account_address());
+}
+
+/// Ed25519 authenticator that *removes an object* — it extracts the `Marker`
+/// stored as a dynamic object field on a mutable shared `Counter` and transfers
+/// it to the account. Removing the dynamic object field deletes the internal
+/// wrapper object, so this requires
+/// `enable_mutable_shared_in_move_authenticator` (which permits deletion).
+#[authenticator]
+public fun authenticate_ed25519_and_extract_from_counter(
+    account: &AbstractAccount,
+    counter: &mut Counter,
+    signature: vector<u8>,
+    actx: &AuthContext,
+    ctx: &TxContext,
+) {
+    basic_keyed_aa::authenticate_ed25519(
+        &signature,
+        borrow_public_key(account),
+        actx,
+        ctx,
+    );
+
+    // Extract the stored object and transfer it to the account.
+    let marker: Marker = dynamic_object_field::remove(&mut counter.id, MarkerKey {});
+    transfer::public_transfer(marker, account.account_address());
 }
 
 // === View Functions ===

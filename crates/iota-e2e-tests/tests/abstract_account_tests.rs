@@ -72,6 +72,12 @@ const AA_AUTHENTICATE_FN_NAME_ED25519_AND_MUTATE_ACCOUNT: &str =
     "authenticate_ed25519_and_mutate_account";
 const AA_AUTHENTICATE_FN_NAME_ED25519_AND_ROTATE: &str =
     "authenticate_ed25519_and_rotate_to_free_access";
+const AA_AUTHENTICATE_FN_NAME_ED25519_AND_CREATE_OBJECT: &str =
+    "authenticate_ed25519_and_create_object";
+const AA_AUTHENTICATE_FN_NAME_ED25519_AND_DELETE_FIELD: &str =
+    "authenticate_ed25519_and_delete_field";
+const AA_AUTHENTICATE_FN_NAME_ED25519_AND_EXTRACT_FROM_COUNTER: &str =
+    "authenticate_ed25519_and_extract_from_counter";
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
@@ -167,8 +173,10 @@ async fn test_authenticator_with_mutable_shared_object() -> Result<(), anyhow::E
         "counter should start at zero"
     );
 
-    // Build a simple AA transaction.
-    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    // Build a transaction whose body does not touch the input counter (it creates
+    // an unrelated shared object), so the counter's change is attributable to the
+    // authenticator.
+    let pt = test_env.craft_create_counter_ptb()?;
     let tx_data = test_env
         .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
         .await?;
@@ -179,7 +187,29 @@ async fn test_authenticator_with_mutable_shared_object() -> Result<(), anyhow::E
     let signature =
         test_env.create_move_authenticator_ed25519_and_increment(counter_ref, &tx_digest)?;
     let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
-    test_env.execute_and_check_tx_correctness(tx).await?;
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(tx)
+        .await?;
+    assert!(
+        effects.status().is_success(),
+        "tx should succeed, got: {:?}",
+        effects.status()
+    );
+
+    // The increment is a pure mutation:
+    // - created: 0 — no new objects.
+    // - mutated: 1 — the shared `Counter` (its `value` field is bumped).
+    // - deleted: 0 — nothing removed.
+    assert_eq!(
+        authenticator_object_changes(&effects),
+        ObjectChanges {
+            created: 0,
+            mutated: 1,
+            deleted: 0
+        },
+        "incrementing the counter should mutate only the counter"
+    );
 
     // The authenticator must have incremented (i.e. mutated) the shared counter,
     // proving the mutation was committed to effects.
@@ -225,10 +255,6 @@ async fn test_authenticator_mutates_account_object() -> Result<(), anyhow::Error
     let aa_sender: IotaAddress = aa_ref.object_id.into();
 
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
-    let aa_gas = test_env
-        .test_cluster
-        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
-        .await;
 
     // The auth counter does not exist on the account yet.
     assert_eq!(
@@ -237,28 +263,63 @@ async fn test_authenticator_mutates_account_object() -> Result<(), anyhow::Error
         "the account should not have an AuthCount field before authentication"
     );
 
-    // Transaction body that does not reference the account, so any change to the
-    // account is attributable solely to the authenticator.
-    let pt = test_env.craft_create_counter_ptb()?;
-    let tx_data = test_env
-        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
-        .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    // Run the authenticator several times. The first call initialises the counter
+    // and each subsequent call *mutates* (increments) the existing field, so the
+    // accumulated value proves the account's state is mutated and persisted across
+    // transactions.
+    for expected in 1..=3u64 {
+        let aa_gas = test_env
+            .test_cluster
+            .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+            .await;
+        // Transaction body that does not reference the account, so the change to
+        // the account is attributable solely to the authenticator.
+        let pt = test_env.craft_create_counter_ptb()?;
+        let tx_data = test_env
+            .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+            .await?;
+        let tx_digest = tx_data.digest().into_inner();
 
-    // Authenticate with the MoveAuthenticator that passes the account as a
-    // *mutable* shared object and mutates it.
-    let signature = test_env.create_move_authenticator_ed25519_mutate_account(&tx_digest)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
-    test_env.execute_and_check_tx_correctness(tx).await?;
+        // Authenticate with the MoveAuthenticator that passes the account as a
+        // *mutable* shared object and mutates it.
+        let signature = test_env.create_move_authenticator_ed25519_mutate_account(&tx_digest)?;
+        let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+        let (effects, _) = test_env
+            .test_cluster
+            .execute_transaction_return_raw_effects(tx)
+            .await?;
+        assert!(
+            effects.status().is_success(),
+            "tx should succeed, got: {:?}",
+            effects.status()
+        );
 
-    // The authenticator initialised the account's auth counter to 1, proving the
-    // mutation of the account itself was committed to effects.
-    assert_eq!(
-        test_env.read_account_auth_count(aa_ref.object_id).await?,
-        Some(1),
-        "the authenticator should have set the account's AuthCount to 1"
-    );
-    // ... and bumped the account object version.
+        // First call vs. later calls:
+        // - created: 1 then 0 — the first call `add_field`s the `AuthCount` field (a
+        //   new child object); later calls reuse it.
+        // - mutated: 1 then 2 — the first call only mutates the account (the parent);
+        //   later calls mutate both the account and the existing `AuthCount` field
+        //   (whose `u64` value is incremented).
+        // - deleted: 0 — nothing removed.
+        let expected_changes = ObjectChanges {
+            created: if expected == 1 { 1 } else { 0 },
+            mutated: if expected == 1 { 1 } else { 2 },
+            deleted: 0,
+        };
+        assert_eq!(
+            authenticator_object_changes(&effects),
+            expected_changes,
+            "unexpected authenticator object changes on call {expected}"
+        );
+
+        assert_eq!(
+            test_env.read_account_auth_count(aa_ref.object_id).await?,
+            Some(expected),
+            "the authenticator should have incremented the account's AuthCount to {expected}"
+        );
+    }
+
+    // The repeated mutations also bumped the account object version.
     assert!(
         test_env
             .test_cluster
@@ -311,7 +372,31 @@ async fn test_authenticator_rotates_account_auth_function_ref() -> Result<(), an
     let tx_digest = tx_data.digest().into_inner();
     let signature = test_env.create_move_authenticator_ed25519_rotate(&tx_digest)?;
     let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
-    test_env.execute_and_check_tx_correctness(tx).await?;
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(tx)
+        .await?;
+    assert!(
+        effects.status().is_success(),
+        "tx should succeed, got: {:?}",
+        effects.status()
+    );
+
+    // Rotating replaces the value under the *same* dynamic-field key, so the
+    // field's child object is reused (not re-created), making it a pure mutation:
+    // - created: 0 — the key is unchanged, so no new field object.
+    // - mutated: 2 — the auth-ref field (its stored ref is replaced) and the
+    //   account (the parent).
+    // - deleted: 0 — the old field object is overwritten in place, not deleted.
+    assert_eq!(
+        authenticator_object_changes(&effects),
+        ObjectChanges {
+            created: 0,
+            mutated: 2,
+            deleted: 0
+        },
+        "rotating the auth ref should neither create nor delete objects"
+    );
 
     // The authenticator mutated the account (rotated its auth ref): version bumped.
     assert!(
@@ -339,6 +424,241 @@ async fn test_authenticator_rotates_account_auth_function_ref() -> Result<(), an
         test_env.create_move_authenticator_for_free_access_for_ref(aa_ref)?;
     let tx = Transaction::from_generic_sig_data(tx_data, vec![free_access_signature]);
     test_env.execute_and_check_tx_correctness(tx).await?;
+
+    Ok(())
+}
+
+/// Test that a Move authenticator can *create a fresh top-level object* via
+/// `object::new`, which requires a `&mut TxContext`. This is gated by the
+/// `enable_mutable_shared_in_move_authenticator` protocol feature flag (the
+/// verifier otherwise forces `&TxContext`). Object ids stay unique and
+/// deterministic because the authenticator shares the transaction's TxContext.
+#[sim_test]
+async fn test_authenticator_creates_fresh_top_level_object() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_mutable_shared_in_move_authenticator_for_testing(true);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_AND_CREATE_OBJECT)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+
+    // The transaction body creates only an (unrelated) shared object; the fresh
+    // address-owned object below can therefore only come from the authenticator.
+    let pt = test_env.craft_create_counter_ptb()?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    // Same call-arg shape as the plain ed25519 authenticator (account immutable +
+    // signature); this authenticator additionally mints a fresh object.
+    let signature = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(tx)
+        .await?;
+    assert!(
+        effects.status().is_success(),
+        "tx should succeed, got: {:?}",
+        effects.status()
+    );
+
+    // The authenticator mints a fresh object and transfers it away:
+    // - created: 1 — the new `Marker` (`object::new`).
+    // - mutated: 0 — the account is the authenticated object but is passed
+    //   immutably, so it is not mutated.
+    // - deleted: 0 — nothing removed.
+    assert_eq!(
+        authenticator_object_changes(&effects),
+        ObjectChanges {
+            created: 1,
+            mutated: 0,
+            deleted: 0
+        },
+        "the authenticator should have created exactly one fresh object"
+    );
+    // ...and that fresh object is address-owned (transferred to the account).
+    assert!(
+        effects
+            .created()
+            .iter()
+            .any(|(_, owner)| matches!(owner, Owner::Address(_))),
+        "the created object should be address-owned"
+    );
+
+    Ok(())
+}
+
+/// Test that a Move authenticator can *delete an object* — removing a dynamic
+/// field from the account deletes that field's child object — gated by the
+/// `enable_mutable_shared_in_move_authenticator` protocol feature flag.
+#[sim_test]
+async fn test_authenticator_deletes_object() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_mutable_shared_in_move_authenticator_for_testing(true);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_AND_DELETE_FIELD)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+
+    // The account starts with exactly two dynamic fields: its owner public key
+    // and its authenticator reference.
+    assert_eq!(test_env.count_dynamic_fields(aa_ref.object_id).await?, 2);
+
+    let pt = test_env.craft_create_counter_ptb()?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    // Account passed as a mutable shared object; the authenticator removes one of
+    // its dynamic fields (deleting that field's child object).
+    let signature = test_env.create_move_authenticator_ed25519_mutate_account(&tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(tx)
+        .await?;
+    assert!(effects.status().is_success());
+
+    // Removing a dynamic field deletes its child object:
+    // - created: 0 — no new objects.
+    // - mutated: 1 — the account (the parent the field was removed from).
+    // - deleted: 1 — the removed field's child object.
+    assert_eq!(
+        authenticator_object_changes(&effects),
+        ObjectChanges {
+            created: 0,
+            mutated: 1,
+            deleted: 1
+        },
+        "the authenticator should have deleted exactly one object and created none"
+    );
+    // The account now has exactly one dynamic field (the public key was removed,
+    // the authenticator reference remains).
+    assert_eq!(
+        test_env.count_dynamic_fields(aa_ref.object_id).await?,
+        1,
+        "the authenticator should have removed exactly one dynamic field from the account"
+    );
+
+    Ok(())
+}
+
+/// Test that a Move authenticator can *remove (extract) an object* stored as a
+/// dynamic object field on a mutable shared object and transfer it out. The
+/// extraction deletes the internal wrapper object, so this relies on deletion
+/// being permitted under `enable_mutable_shared_in_move_authenticator`.
+#[sim_test]
+async fn test_authenticator_extracts_object_via_dof() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_mutable_shared_in_move_authenticator_for_testing(true);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_AND_EXTRACT_FROM_COUNTER)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+
+    // Create a shared counter that holds a `Marker` as a dynamic object field.
+    let counter_ref = test_env.create_shared_counter_with_marker().await?;
+    let counter_id = counter_ref.object_id;
+    assert_eq!(
+        test_env.count_dynamic_fields(counter_id).await?,
+        1,
+        "the counter should start with one dynamic object field"
+    );
+
+    let pt = test_env.craft_create_counter_ptb()?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    // Same call-arg shape as the increment authenticator (counter passed as a
+    // mutable shared object); this authenticator extracts the stored Marker.
+    let signature =
+        test_env.create_move_authenticator_ed25519_and_increment(counter_ref, &tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+
+    let (effects, _) = test_env
+        .test_cluster
+        .execute_transaction_return_raw_effects(tx)
+        .await?;
+    assert!(
+        effects.status().is_success(),
+        "tx should succeed, got: {:?}",
+        effects.status()
+    );
+
+    // Extracting a dynamic object field unwraps the stored object and discards the
+    // field's internal wrapper:
+    // - created: 0 — the `Marker` already existed (created during setup), it is
+    //   only moved out.
+    // - mutated: 2 — the counter (the parent the field was removed from) and the
+    //   `Marker` (re-parented from the field to the account address).
+    // - deleted: 1 — the field's internal wrapper object.
+    assert_eq!(
+        authenticator_object_changes(&effects),
+        ObjectChanges {
+            created: 0,
+            mutated: 2,
+            deleted: 1
+        },
+        "the extraction should have deleted exactly one object (the wrapper) and created none"
+    );
+    // The dynamic object field was removed from the counter.
+    assert_eq!(
+        test_env.count_dynamic_fields(counter_id).await?,
+        0,
+        "the authenticator should have removed the counter's dynamic object field"
+    );
+    // The extracted Marker is now an address-owned object (transferred to the
+    // account).
+    let extracted_marker_owned = effects
+        .all_changed_objects()
+        .iter()
+        .any(|(_, owner, _)| matches!(owner, Owner::Address(_)));
+    assert!(
+        extracted_marker_owned,
+        "the extracted Marker should now be address-owned by the account"
+    );
 
     Ok(())
 }
@@ -2577,6 +2897,19 @@ impl TestEnvironment {
     /// Create and share a `Counter` (initialised to zero) and return its object
     /// reference.
     async fn create_shared_counter(&self) -> anyhow::Result<ObjectRef> {
+        self.create_shared_counter_via("create_counter").await
+    }
+
+    /// Create a shared `Counter` that holds a `Marker` as a dynamic object
+    /// field.
+    async fn create_shared_counter_with_marker(&self) -> anyhow::Result<ObjectRef> {
+        self.create_shared_counter_via("create_counter_with_marker")
+            .await
+    }
+
+    /// Create and share a `Counter` by calling `function_name`, returning the
+    /// created shared object reference. Sent by the default (non-AA) wallet.
+    async fn create_shared_counter_via(&self, function_name: &str) -> anyhow::Result<ObjectRef> {
         let Some(aa_package_id) = self.aa_package_id else {
             anyhow::bail!("Account abstraction package not published yet");
         };
@@ -2586,7 +2919,7 @@ impl TestEnvironment {
             builder.programmable_move_call(
                 aa_package_id,
                 Identifier::from_static(AA_CREATE_MODULE_NAME),
-                Identifier::from_static("create_counter"),
+                Identifier::new(function_name)?,
                 vec![],
                 vec![],
             );
@@ -2666,6 +2999,18 @@ impl TestEnvironment {
         Ok(Some(u64::from_le_bytes(<[u8; 8]>::try_from(
             &contents[contents.len() - 8..],
         )?)))
+    }
+
+    /// Number of dynamic fields attached to an object.
+    async fn count_dynamic_fields(&self, object_id: ObjectId) -> anyhow::Result<usize> {
+        Ok(self
+            .test_cluster
+            .iota_client()
+            .read_api()
+            .get_dynamic_fields(object_id, None, None)
+            .await?
+            .data
+            .len())
     }
 
     /// Build a `MoveAuthenticator` for `authenticate_ed25519_and_increment`,
@@ -2821,6 +3166,40 @@ impl TestEnvironment {
 fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
         .unwrap()
+}
+
+/// Object-change counts attributable to the authenticator.
+///
+/// The mutable-shared authenticator tests use a `create_counter` transaction
+/// body, which creates exactly one *shared* object, mutates nothing and deletes
+/// nothing. After excluding the body's shared created object and the gas coin,
+/// these counts reflect only the authenticator's own object changes.
+#[derive(Debug, PartialEq, Eq)]
+struct ObjectChanges {
+    /// Created objects, excluding the shared object produced by the transaction
+    /// body.
+    created: usize,
+    /// Mutated objects, excluding the gas coin.
+    mutated: usize,
+    /// Deleted objects.
+    deleted: usize,
+}
+
+fn authenticator_object_changes(effects: &TransactionEffects) -> ObjectChanges {
+    let gas_id = effects.gas_object().0.object_id;
+    ObjectChanges {
+        created: effects
+            .created()
+            .iter()
+            .filter(|(_, owner)| !matches!(owner, Owner::Shared(_)))
+            .count(),
+        mutated: effects
+            .mutated()
+            .iter()
+            .filter(|(obj_ref, _)| obj_ref.object_id != gas_id)
+            .count(),
+        deleted: effects.deleted().len(),
+    }
 }
 
 fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
