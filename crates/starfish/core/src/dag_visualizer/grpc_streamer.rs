@@ -12,11 +12,9 @@ use std::{
     },
 };
 
-// Re-export so callers don't need to depend on the proto crate directly.
-pub(crate) use dag_visualizer_proto::dag_visualizer::LeaderStatus;
 use dag_visualizer_proto::dag_visualizer::{
     BlockAcceptedEvent, BlockRefProto, CommitteeResponse, DagEvent, GetCommitteeRequest,
-    GetStatusRequest, LeaderDecidedEvent, RoundAdvancedEvent, StatusResponse,
+    GetStatusRequest, LeaderDecidedEvent, LeaderStatus, RoundAdvancedEvent, StatusResponse,
     StreamDagEventsRequest, ValidatorInfo,
     dag_event::Event,
     dag_visualizer_service_server::{DagVisualizerService, DagVisualizerServiceServer},
@@ -27,7 +25,12 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use tracing::{info, warn};
 
-use crate::{commit::WAVE_LENGTH, context::Context, dag_state::DagState};
+use crate::{
+    block_header::{BlockRef, Slot},
+    commit::WAVE_LENGTH,
+    context::Context,
+    dag_state::DagState,
+};
 
 /// Default capacity for the DAG visualizer broadcast channel.
 /// Shared between the validator (authority_node.rs) and gRPC server.
@@ -39,7 +42,7 @@ const MAX_CONCURRENT_STREAMS: usize = 1;
 /// Compute the wave number for a given round.
 /// Centralised here to avoid duplicating the `(round - 1) / WAVE_LENGTH`
 /// formula across `dag_state.rs` and `grpc_streamer.rs`.
-pub(crate) fn wave_for_round(round: u32) -> u32 {
+fn wave_for_round(round: u32) -> u32 {
     if round > 0 {
         (round - 1) / WAVE_LENGTH
     } else {
@@ -48,28 +51,21 @@ pub(crate) fn wave_for_round(round: u32) -> u32 {
 }
 
 /// Events broadcast on the internal channel.
-/// These are the validator's internal representation — converted to proto for
-/// the wire.
+/// These wrap internal types directly — conversion to proto happens on the
+/// receiver side in [`convert_event_to_proto`].
 ///
 /// `ancestors` and `acknowledgments` are wrapped in `Arc` so that broadcast
 /// clones are cheap (reference-counted pointer copy instead of deep Vec clone).
 #[derive(Clone, Debug)]
 pub(crate) enum DagVisualizerEvent {
     BlockAccepted {
-        round: u32,
-        author: u8,
-        digest: [u8; 32],
+        block_ref: BlockRef,
         timestamp_ms: u64,
-        ancestors: Arc<[(u32, u8, [u8; 32])]>,
-        acknowledgments: Arc<[(u32, u8, [u8; 32])]>,
+        ancestors: Arc<[BlockRef]>,
+        acknowledgments: Arc<[BlockRef]>,
     },
-    LeaderDecided {
-        wave: u32,
-        leader_round: u32,
-        leader_authority: u8,
-        status: LeaderStatus,
-        block_digest: [u8; 32],
-    },
+    LeaderCommitted(BlockRef),
+    LeaderSkipped(Slot),
     RoundAdvanced {
         round: u32,
     },
@@ -170,53 +166,49 @@ impl DagVisualizerService for DagVisualizerServiceImpl {
     }
 }
 
+/// Convert a [`BlockRef`] to its proto representation.
+fn block_ref_to_proto(r: &BlockRef) -> BlockRefProto {
+    BlockRefProto {
+        round: r.round,
+        author: r.author.value() as u32,
+        digest: r.digest.as_ref().to_vec(),
+    }
+}
+
 /// Convert an internal event to its proto representation.
 fn convert_event_to_proto(event: DagVisualizerEvent) -> DagEvent {
     match event {
         DagVisualizerEvent::BlockAccepted {
-            round,
-            author,
-            digest,
+            block_ref,
             timestamp_ms,
             ancestors,
             acknowledgments,
         } => DagEvent {
             event: Some(Event::BlockAccepted(BlockAcceptedEvent {
-                round,
-                author: author as u32,
-                digest: digest.to_vec(),
+                round: block_ref.round,
+                author: block_ref.author.value() as u32,
+                digest: block_ref.digest.as_ref().to_vec(),
                 timestamp_ms,
-                ancestors: ancestors
-                    .iter()
-                    .map(|(r, a, d)| BlockRefProto {
-                        round: *r,
-                        author: *a as u32,
-                        digest: d.to_vec(),
-                    })
-                    .collect(),
-                acknowledgments: acknowledgments
-                    .iter()
-                    .map(|(r, a, d)| BlockRefProto {
-                        round: *r,
-                        author: *a as u32,
-                        digest: d.to_vec(),
-                    })
-                    .collect(),
+                ancestors: ancestors.iter().map(block_ref_to_proto).collect(),
+                acknowledgments: acknowledgments.iter().map(block_ref_to_proto).collect(),
             })),
         },
-        DagVisualizerEvent::LeaderDecided {
-            wave,
-            leader_round,
-            leader_authority,
-            status,
-            block_digest,
-        } => DagEvent {
+        DagVisualizerEvent::LeaderCommitted(leader) => DagEvent {
             event: Some(Event::LeaderDecided(LeaderDecidedEvent {
-                wave,
-                leader_round,
-                leader_authority: leader_authority as u32,
-                status: status.into(),
-                block_digest: block_digest.to_vec(),
+                wave: wave_for_round(leader.round),
+                leader_round: leader.round,
+                leader_authority: leader.author.value() as u32,
+                status: LeaderStatus::Committed.into(),
+                block_digest: leader.digest.as_ref().to_vec(),
+            })),
+        },
+        DagVisualizerEvent::LeaderSkipped(slot) => DagEvent {
+            event: Some(Event::LeaderDecided(LeaderDecidedEvent {
+                wave: wave_for_round(slot.round),
+                leader_round: slot.round,
+                leader_authority: slot.authority.value() as u32,
+                status: LeaderStatus::Skipped.into(),
+                block_digest: vec![],
             })),
         },
         DagVisualizerEvent::RoundAdvanced { round } => DagEvent {
@@ -293,18 +285,26 @@ pub(crate) fn start_grpc_server(
 #[cfg(test)]
 mod tests {
     use dag_visualizer_proto::dag_visualizer::dag_event::Event;
+    use starfish_config::AuthorityIndex;
 
     use super::*;
+    use crate::block_header::BlockHeaderDigest;
+
+    fn test_block_ref(round: u32, author: u8) -> BlockRef {
+        BlockRef::new(
+            round,
+            AuthorityIndex::new_for_test(author),
+            BlockHeaderDigest::MIN,
+        )
+    }
 
     #[test]
     fn convert_block_accepted_to_proto() {
         let event = DagVisualizerEvent::BlockAccepted {
-            round: 10,
-            author: 2,
-            digest: [0xAB; 32],
+            block_ref: test_block_ref(10, 2),
             timestamp_ms: 5000,
-            ancestors: Arc::from([(9, 1, [0xCD; 32])]),
-            acknowledgments: Arc::from([(8, 1, [0xEE; 32])]),
+            ancestors: Arc::from([test_block_ref(9, 1)]),
+            acknowledgments: Arc::from([test_block_ref(8, 1)]),
         };
 
         let proto = convert_event_to_proto(event);
@@ -312,7 +312,6 @@ mod tests {
             Event::BlockAccepted(b) => {
                 assert_eq!(b.round, 10);
                 assert_eq!(b.author, 2);
-                assert_eq!(b.digest, vec![0xAB; 32]);
                 assert_eq!(b.timestamp_ms, 5000);
                 assert_eq!(b.ancestors.len(), 1);
                 assert_eq!(b.ancestors[0].round, 9);
@@ -320,29 +319,43 @@ mod tests {
                 assert_eq!(b.acknowledgments.len(), 1);
                 assert_eq!(b.acknowledgments[0].round, 8);
                 assert_eq!(b.acknowledgments[0].author, 1);
-                assert_eq!(b.acknowledgments[0].digest, vec![0xEE; 32]);
             }
             _ => panic!("Expected BlockAccepted"),
         }
     }
 
     #[test]
-    fn convert_leader_decided_to_proto() {
-        let event = DagVisualizerEvent::LeaderDecided {
-            wave: 3,
-            leader_round: 7,
-            leader_authority: 1,
-            status: LeaderStatus::Committed,
-            block_digest: [0xFF; 32],
-        };
+    fn convert_leader_committed_to_proto() {
+        let event = DagVisualizerEvent::LeaderCommitted(test_block_ref(7, 1));
 
         let proto = convert_event_to_proto(event);
         match proto.event.unwrap() {
             Event::LeaderDecided(l) => {
-                assert_eq!(l.wave, 3);
+                assert_eq!(l.wave, wave_for_round(7));
                 assert_eq!(l.leader_round, 7);
                 assert_eq!(l.leader_authority, 1);
                 assert_eq!(l.status, LeaderStatus::Committed as i32);
+            }
+            _ => panic!("Expected LeaderDecided"),
+        }
+    }
+
+    #[test]
+    fn convert_leader_skipped_to_proto() {
+        let slot = Slot {
+            round: 7,
+            authority: AuthorityIndex::new_for_test(2),
+        };
+        let event = DagVisualizerEvent::LeaderSkipped(slot);
+
+        let proto = convert_event_to_proto(event);
+        match proto.event.unwrap() {
+            Event::LeaderDecided(l) => {
+                assert_eq!(l.wave, wave_for_round(7));
+                assert_eq!(l.leader_round, 7);
+                assert_eq!(l.leader_authority, 2);
+                assert_eq!(l.status, LeaderStatus::Skipped as i32);
+                assert!(l.block_digest.is_empty());
             }
             _ => panic!("Expected LeaderDecided"),
         }

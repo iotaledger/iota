@@ -1,6 +1,8 @@
 #!/bin/bash
+
 # Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
+
 
 # Default validator count
 NUM_VALIDATORS=4

@@ -2998,7 +2998,7 @@ dependencies = [
 
 [[package]]
 name = "dag-visualizer-proto"
-version = "1.24.0-alpha"
+version = "1.26.0-alpha"
 dependencies = [
  "prost 0.14.3",
  "prost-build",
