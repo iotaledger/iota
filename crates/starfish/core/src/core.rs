@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::storage::Store;
@@ -1190,12 +1190,23 @@ impl Core {
             verified_block_header,
             verified_transactions,
         };
-        // Accept the block into BlockManager and DagState.
-        let (accepted_blocks, missing) = self
+        // Accept the block into BlockManager and DagState. The accepted set may also
+        // include blocks unsuspended by the GC sweep, so its size is not necessarily
+        // one; for an own block only the absence of missing ancestors is guaranteed.
+        let (_, missing) = self
             .block_manager
             .try_accept_blocks(vec![verified_block.clone()], DataSource::OwnBlock);
-        assert_eq!(accepted_blocks.len(), 1);
-        assert!(missing.is_empty());
+        if !missing.is_empty() {
+            error!(
+                ?missing,
+                block_ref = ?verified_block.reference(),
+                "own block proposal returned unexpected missing ancestors"
+            );
+        }
+        debug_assert!(
+            missing.is_empty(),
+            "own block must have no missing ancestors"
+        );
         // Ensure the new block and its ancestors are persisted, before broadcasting it.
         let mut dag_state_guard = self.dag_state.write();
         dag_state_guard.flush();

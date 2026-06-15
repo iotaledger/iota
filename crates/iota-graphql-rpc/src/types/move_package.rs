@@ -36,7 +36,7 @@ use crate::{
         iota_names_registration::{NameFormat, NameRegistration},
         move_module::MoveModule,
         move_object::MoveObject,
-        object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+        object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
@@ -318,8 +318,6 @@ impl MovePackage {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -826,8 +824,8 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let package =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?;
+            let active_object = ActiveObject::try_from(stored.object)?;
+            let package = MovePackage::from_active_object(active_object, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
 
@@ -880,8 +878,8 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let package =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?;
+            let active_object = ActiveObject::try_from(stored.object)?;
+            let package = MovePackage::from_active_object(active_object, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
 
@@ -892,16 +890,12 @@ impl MovePackage {
     /// `MovePackage` came from. This is stored in the `MovePackage` so that
     /// related fields from the package are read from the same checkpoint
     /// (consistently).
-    pub(crate) fn try_from_stored_history_object(
-        history_object: StoredHistoryObject,
+    pub(crate) fn from_active_object(
+        active_object: ActiveObject,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
-        let object = Object::try_from_stored_history_object(
-            history_object,
-            checkpoint_viewed_at,
-            // root_version
-            None,
-        )?;
+        // root_version
+        let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
         Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))
     }
 }
@@ -1104,9 +1098,7 @@ impl TryFrom<&Object> for MovePackage {
     type Error = MovePackageDowncastError;
 
     fn try_from(object: &Object) -> Result<Self, MovePackageDowncastError> {
-        let Some(native) = object.native_impl() else {
-            return Err(MovePackageDowncastError);
-        };
+        let native = object.native_impl();
 
         if let ObjectData::Package(move_package) = &native.data {
             Ok(Self {

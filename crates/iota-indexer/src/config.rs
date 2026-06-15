@@ -420,10 +420,6 @@ impl RetentionConfig {
         }
     }
 
-    pub fn new_with_default_retention_only_for_testing(epochs_to_keep: u64) -> Self {
-        Self::new(epochs_to_keep, HashMap::new())
-    }
-
     /// Consumes the struct and produces a mapping of every prunable table
     /// and its retention policy.
     ///

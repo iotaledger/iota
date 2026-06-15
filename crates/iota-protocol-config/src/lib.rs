@@ -162,6 +162,10 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             block epoch close.
 //             Enable median-based commit timestamp calculation in consensus,
 //             and enforce checkpoint timestamp monotonicity for mainnet.
+//             Enable fast commit syncer for faster recovery on all networks.
+//             Enable consensus block restrictions on all networks:
+//             bound block-header size to O(committee_size) and enable
+//             garbage collection in the block manager.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2929,6 +2933,13 @@ impl ProtocolConfig {
                     // enforce checkpoint timestamp monotonicity for mainnet.
                     cfg.feature_flags
                         .consensus_median_timestamp_with_checkpoint_enforcement = true;
+
+                    // Enable fast commit syncer for faster recovery on all networks.
+                    cfg.feature_flags.consensus_fast_commit_sync = true;
+                    // Enable consensus block restrictions on all networks to bound
+                    // header size by committee size and garbage-collect the block
+                    // manager.
+                    cfg.feature_flags.consensus_block_restrictions = true;
                 }
                 // Use this template when making changes:
                 //
