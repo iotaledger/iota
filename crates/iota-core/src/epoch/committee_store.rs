@@ -37,17 +37,23 @@ fn committee_table_default_config() -> DBOptions {
 }
 
 impl CommitteeStore {
-    pub fn new(path: PathBuf, genesis_committee: &Committee, db_options: Option<Options>) -> Self {
+    /// Open the on-disk tables at `path` into an empty-cache store, without
+    /// touching the genesis committee.
+    fn open_tables(path: PathBuf, db_options: Option<Options>) -> Self {
         let tables = CommitteeStoreTables::open_tables_read_write(
             path,
             MetricConf::new("committee"),
             db_options,
             None,
         );
-        let store = Self {
+        Self {
             tables,
             cache: RwLock::new(HashMap::new()),
-        };
+        }
+    }
+
+    pub fn new(path: PathBuf, genesis_committee: &Committee, db_options: Option<Options>) -> Self {
+        let store = Self::open_tables(path, db_options);
         if store
             .database_is_empty()
             .expect("CommitteeStore initialization failed")
@@ -62,6 +68,20 @@ impl CommitteeStore {
     pub fn new_for_testing(genesis_committee: &Committee) -> Self {
         let path = iota_common::tempdir().keep();
         Self::new(path, genesis_committee, None)
+    }
+
+    /// Open an existing committee store whose genesis committee is already
+    /// persisted (e.g. a restored or synced node's store). Unlike [`Self::new`]
+    /// it takes no genesis committee — it errors if the store has none, rather
+    /// than initializing one.
+    pub fn open(path: PathBuf, db_options: Option<Options>) -> IotaResult<Self> {
+        let store = Self::open_tables(path, db_options);
+        if store.database_is_empty()? {
+            return Err(IotaError::Storage(
+                "committee store has no genesis committee".to_string(),
+            ));
+        }
+        Ok(store)
     }
 
     pub fn init_genesis_committee(&self, genesis_committee: Committee) -> IotaResult {
@@ -140,5 +160,33 @@ impl CommitteeStore {
             .next()
             .transpose()?
             .is_none())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::committee::Committee;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn open_reads_existing_genesis_and_rejects_empty() {
+        let dir = iota_common::tempdir();
+        let path = dir.path().to_path_buf();
+        let (genesis_committee, _) = Committee::new_simple_test_committee();
+
+        // A fresh directory has no genesis committee yet.
+        assert!(CommitteeStore::open(path.clone(), None).is_err());
+
+        // `new` initializes the genesis committee; `open` then reads it back
+        // without being handed one.
+        {
+            let _store = CommitteeStore::new(path.clone(), &genesis_committee, None);
+        }
+        let opened = CommitteeStore::open(path, None).expect("store has a genesis committee");
+        assert_eq!(
+            *opened.get_committee(&0).unwrap().unwrap(),
+            genesis_committee,
+        );
     }
 }

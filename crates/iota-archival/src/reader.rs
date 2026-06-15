@@ -287,12 +287,11 @@ impl ArchiveReader {
     /// A summary already present in `store` is left untouched; a new one is
     /// inserted only after [`verify_checkpoint`] checks it against the
     /// previous summary (its committee signature and `previous_digest`
-    /// linkage) when `verify` is set. Unlike a bulk unverified load, this
-    /// never overwrites an existing summary and never persists an unverified
-    /// one — so it is safe to run against a live node's store. Summaries are
-    /// processed in order (via [`get_or_insert_verified_checkpoint`]'s
-    /// dependency on the previous checkpoint), so the genesis checkpoint must
-    /// already be present.
+    /// linkage). Unlike a bulk unverified load, this never overwrites an
+    /// existing summary and never persists an unverified one — so it is safe
+    /// to run against a live node's store. Summaries are processed in order
+    /// (via [`get_or_insert_verified_checkpoint`]'s dependency on the previous
+    /// checkpoint), so the genesis checkpoint must already be present.
     ///
     /// [`get_or_insert_verified_checkpoint`]: Self::get_or_insert_verified_checkpoint
     pub async fn read_summaries_for_range<S>(
@@ -300,7 +299,6 @@ impl ArchiveReader {
         store: S,
         checkpoint_range: Range<CheckpointSequenceNumber>,
         checkpoint_counter: Arc<AtomicU64>,
-        verify: bool,
     ) -> Result<()>
     where
         S: WriteStore + Clone,
@@ -338,7 +336,7 @@ impl ArchiveReader {
                                     && s.sequence_number < checkpoint_range.end
                             })
                             .try_for_each(|summary| {
-                                Self::get_or_insert_verified_checkpoint(&store, summary, verify)?;
+                                Self::get_or_insert_verified_checkpoint(&store, summary, true)?;
                                 checkpoint_counter.fetch_add(1, Ordering::Relaxed);
                                 Ok::<(), anyhow::Error>(())
                             })

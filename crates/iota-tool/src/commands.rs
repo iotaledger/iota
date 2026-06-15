@@ -373,25 +373,19 @@ pub enum ToolCommand {
     /// from genesis (to serve historical checkpoint queries, or to be a full
     /// summary source for syncing peers). Only historical summaries are added;
     /// no watermark is moved.
+    ///
+    /// The network — and thus the archive bucket to read from — is derived
+    /// from the node's own genesis checkpoint (override the bucket via the
+    /// `CUSTOM_ARCHIVE_BUCKET` env vars).
     BackfillCheckpointSummaries {
         /// Path to the node's live database directory (the one containing
         /// `checkpoints/`, `store/`, and `epochs/`). The node must be stopped.
         #[arg(long)]
         path: PathBuf,
-        /// Path to the network's `genesis.blob`.
-        #[arg(long)]
-        genesis: PathBuf,
         /// Number of parallel downloads to perform. Defaults to a reasonable
         /// value based on number of available logical cores.
         #[arg(long)]
         num_parallel_downloads: Option<usize>,
-        /// Network whose default archive bucket to read from. Defaults to
-        /// "mainnet". Overridable via the `CUSTOM_ARCHIVE_BUCKET` env vars.
-        #[arg(long, default_value = "mainnet")]
-        network: Chain,
-        /// Skip the pairwise chain verification of the downloaded summaries.
-        #[arg(long)]
-        skip_verify: bool,
         /// If false (default), log level will be overridden to "off", and
         /// output will be reduced to necessary status information.
         #[arg(long)]
@@ -451,90 +445,6 @@ pub enum ToolCommand {
         #[arg(long, default_value = "http://localhost:50051")]
         address: String,
     },
-}
-
-/// Build the checkpoint-archive `ObjectStoreConfig` for `network`: the
-/// permissionless public archive by default, or a custom bucket when the
-/// `CUSTOM_ARCHIVE_BUCKET` env vars are set.
-fn default_archive_store_config(network: Chain) -> ObjectStoreConfig {
-    let archive_bucket = Some(
-        env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET").unwrap_or_else(|_| match network {
-            Chain::Mainnet => "iota-mainnet-archive".to_string(),
-            Chain::Testnet => "iota-testnet-archive".to_string(),
-            Chain::Unknown => {
-                panic!("Cannot generate default archive bucket for unknown network");
-            }
-        }),
-    );
-
-    let custom_archive_enabled = env::var("CUSTOM_ARCHIVE_BUCKET").is_ok_and(|v| v == "true");
-    if custom_archive_enabled {
-        let aws_region =
-            Some(env::var("FORMAL_SNAPSHOT_ARCHIVE_REGION").unwrap_or("us-west-2".to_string()));
-        let archive_bucket_type = env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE").expect(
-            "If setting `CUSTOM_ARCHIVE_BUCKET=true` Must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE, and credentials",
-        );
-        match archive_bucket_type.to_ascii_lowercase().as_str() {
-            "s3" => ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::S3),
-                bucket: archive_bucket.filter(|s| !s.is_empty()),
-                aws_access_key_id: env::var("AWS_ARCHIVE_ACCESS_KEY_ID").ok(),
-                aws_secret_access_key: env::var("AWS_ARCHIVE_SECRET_ACCESS_KEY").ok(),
-                aws_region,
-                aws_endpoint: env::var("AWS_ARCHIVE_ENDPOINT").ok(),
-                aws_virtual_hosted_style_request: env::var("AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS")
-                    .ok()
-                    .and_then(|b| b.parse().ok())
-                    .unwrap_or(false),
-                object_store_connection_limit: 50,
-                no_sign_request: false,
-                ..Default::default()
-            },
-            "gcs" => ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::GCS),
-                bucket: archive_bucket,
-                google_service_account: env::var("GCS_ARCHIVE_SERVICE_ACCOUNT_FILE_PATH").ok(),
-                object_store_connection_limit: 50,
-                no_sign_request: false,
-                ..Default::default()
-            },
-            "azure" => ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::Azure),
-                bucket: archive_bucket,
-                azure_storage_account: env::var("AZURE_ARCHIVE_STORAGE_ACCOUNT").ok(),
-                azure_storage_access_key: env::var("AZURE_ARCHIVE_STORAGE_ACCESS_KEY").ok(),
-                object_store_connection_limit: 50,
-                no_sign_request: false,
-                ..Default::default()
-            },
-            _ => panic!(
-                "If setting `CUSTOM_ARCHIVE_BUCKET=true` must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE to one of 'gcs', 'azure', or 's3' "
-            ),
-        }
-    } else {
-        // Default to the permissionless archive store.
-        let aws_endpoint = env::var("AWS_ARCHIVE_ENDPOINT")
-            .ok()
-            .or_else(|| match network {
-                Chain::Mainnet => Some("https://archive.mainnet.iota.cafe".to_string()),
-                Chain::Testnet => Some("https://archive.testnet.iota.cafe".to_string()),
-                Chain::Unknown => None,
-            });
-        let aws_virtual_hosted_style_request = env::var("AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS")
-            .ok()
-            .and_then(|b| b.parse().ok())
-            .unwrap_or(matches!(network, Chain::Mainnet | Chain::Testnet));
-        ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::S3),
-            bucket: archive_bucket.filter(|s| !s.is_empty()),
-            aws_region: Some("us-west-2".to_string()),
-            aws_endpoint,
-            aws_virtual_hosted_style_request,
-            object_store_connection_limit: 200,
-            no_sign_request: true,
-            ..Default::default()
-        }
-    }
 }
 
 async fn check_locked_object(
@@ -913,10 +823,7 @@ impl ToolCommand {
             }
             ToolCommand::BackfillCheckpointSummaries {
                 path,
-                genesis,
                 num_parallel_downloads,
-                network,
-                skip_verify,
                 verbose,
             } => {
                 if !verbose {
@@ -929,14 +836,7 @@ impl ToolCommand {
                         .checked_sub(1)
                         .expect("Failed to get number of CPUs")
                 });
-                backfill_checkpoint_summaries(
-                    &path,
-                    &genesis,
-                    default_archive_store_config(network),
-                    num_parallel_downloads,
-                    !skip_verify,
-                )
-                .await?;
+                backfill_checkpoint_summaries(&path, num_parallel_downloads).await?;
             }
             ToolCommand::DownloadDBSnapshot {
                 epoch,
