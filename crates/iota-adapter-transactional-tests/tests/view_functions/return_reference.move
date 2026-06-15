@@ -42,8 +42,8 @@ public fun assert_returns_dynamic_field_reference(object: &Object) {
 
 //# run test::valid_view_functions::create_object --sender A
 
-//# run test::valid_view_functions::assert_returns_dynamic_field_reference --sender A --args object(1,0) 0
+//# run test::valid_view_functions::assert_returns_dynamic_field_reference --sender A --args object(2,1)
 
 //# view-object 1,0
 
-//# view-object 1,1
+//# view-object 2,1

@@ -8,9 +8,9 @@ A: object(0,0)
 
 task 1, lines 6-41:
 //# publish --sender A
-created: object(1,0), object(1,1), object(1,2)
+created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14630000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 22480800, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 43:
 //# run test::valid_view_functions::create_object --sender A
@@ -19,125 +19,80 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4810800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 45:
-//# run test::valid_view_functions::assert_returns_dynamic_field_reference --sender A --args object(1,0) 0
-Error: Error checking transaction input objects: Object object(1,0) is owned by object object(1,1). Objects owned by other objects cannot be used as input arguments
+//# run test::valid_view_functions::assert_returns_dynamic_field_reference --sender A --args object(2,1)
+mutated: object(0,0), object(2,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2363600, storage_rebate: 2363600, non_refundable_storage_fee: 0
 
 task 4, line 47:
 //# view-object 1,0
-Owner: Object(fake(1,1))
+Owner: Object(_)
 Version: 2
-Contents: iota::dynamic_field::Field<iota::package_metadata::PackageMetadataV2Key, iota::package_metadata_inner::PackageMetadataV2Inner> {
+Contents: iota::dynamic_field::Field<iota::module_metadata::ViewFunctionMetadataV1FieldName, vector<std::ascii::String>> {
     id: iota::object::UID {
         id: iota::object::ID {
             bytes: fake(1,0),
         },
     },
-    name: iota::package_metadata::PackageMetadataV2Key {
+    name: iota::module_metadata::ViewFunctionMetadataV1FieldName {
         dummy_field: false,
     },
-    value: iota::package_metadata_inner::PackageMetadataV2Inner {
-        modules_metadata: iota::vec_map::VecMap<std::ascii::String, iota::package_metadata_inner::ModuleMetadataV2> {
-            contents: vector[
-                iota::vec_map::Entry<std::ascii::String, iota::package_metadata_inner::ModuleMetadataV2> {
-                    key: std::ascii::String {
-                        bytes: vector[
-                            118u8,
-                            97u8,
-                            108u8,
-                            105u8,
-                            100u8,
-                            95u8,
-                            118u8,
-                            105u8,
-                            101u8,
-                            119u8,
-                            95u8,
-                            102u8,
-                            117u8,
-                            110u8,
-                            99u8,
-                            116u8,
-                            105u8,
-                            111u8,
-                            110u8,
-                            115u8,
-                        ],
-                    },
-                    value: iota::package_metadata_inner::ModuleMetadataV2 {
-                        authenticator_metadata: vector[],
-                        view_functions_metadata: vector[
-                            iota::package_metadata_inner::ViewFunctionMetadataV1 {
-                                function_name: std::ascii::String {
-                                    bytes: vector[
-                                        97u8,
-                                        110u8,
-                                        115u8,
-                                        119u8,
-                                        101u8,
-                                        114u8,
-                                    ],
-                                },
-                            },
-                            iota::package_metadata_inner::ViewFunctionMetadataV1 {
-                                function_name: std::ascii::String {
-                                    bytes: vector[
-                                        114u8,
-                                        101u8,
-                                        116u8,
-                                        117u8,
-                                        114u8,
-                                        110u8,
-                                        115u8,
-                                        95u8,
-                                        100u8,
-                                        121u8,
-                                        110u8,
-                                        97u8,
-                                        109u8,
-                                        105u8,
-                                        99u8,
-                                        95u8,
-                                        102u8,
-                                        105u8,
-                                        101u8,
-                                        108u8,
-                                        100u8,
-                                        95u8,
-                                        114u8,
-                                        101u8,
-                                        102u8,
-                                        101u8,
-                                        114u8,
-                                        101u8,
-                                        110u8,
-                                        99u8,
-                                        101u8,
-                                    ],
-                                },
-                            },
-                        ],
-                    },
-                },
+    value: vector[
+        std::ascii::String {
+            bytes: vector[
+                97u8,
+                110u8,
+                115u8,
+                119u8,
+                101u8,
+                114u8,
             ],
         },
-    },
+        std::ascii::String {
+            bytes: vector[
+                114u8,
+                101u8,
+                116u8,
+                117u8,
+                114u8,
+                110u8,
+                115u8,
+                95u8,
+                100u8,
+                121u8,
+                110u8,
+                97u8,
+                109u8,
+                105u8,
+                99u8,
+                95u8,
+                102u8,
+                105u8,
+                101u8,
+                108u8,
+                100u8,
+                95u8,
+                114u8,
+                101u8,
+                102u8,
+                101u8,
+                114u8,
+                101u8,
+                110u8,
+                99u8,
+                101u8,
+            ],
+        },
+    ],
 }
 
 task 5, line 49:
-//# view-object 1,1
-Owner: Immutable
-Version: 2
-Contents: iota::package_metadata::PackageMetadataV2 {
+//# view-object 2,1
+Owner: Address(A)
+Version: 4
+Contents: test::valid_view_functions::Object {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(1,1),
+            bytes: fake(2,1),
         },
     },
-    storage_id: iota::object::ID {
-        bytes: test,
-    },
-    runtime_id: iota::object::ID {
-        bytes: test,
-    },
-    package_version: 1u64,
 }
