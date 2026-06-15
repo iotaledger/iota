@@ -56,7 +56,7 @@ impl IotaTxValidator {
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
         let mut authority_cap_batch = Vec::new();
-        let mut user_tx_v1_count: u64 = 0;
+        let mut user_tx_count: u64 = 0;
 
         for tx in txs.iter() {
             match tx {
@@ -136,7 +136,7 @@ impl IotaTxValidator {
                         .tap_err(|e| {
                             warn!("UserTransactionV1 signature verification failed: {}", e)
                         })?;
-                    user_tx_v1_count += 1;
+                    user_tx_count += 1;
                 }
 
                 ConsensusTransactionKind::UserTransactionV2(attested_tx) => {
@@ -153,9 +153,13 @@ impl IotaTxValidator {
 
                     match &attested_tx.attestation {
                         Attestation::Validator { .. } => {
-                            // No explicit signature to verify: the attestor's
-                            // identity is bound to the consensus block and
-                            // checked in post_consensus_validation.
+                            self.epoch_store
+                                .signature_verifier
+                                .verify_tx(attested_tx.transaction.data())
+                                .tap_err(|e| {
+                                    warn!("UserTransactionV2 signature verification failed: {}", e)
+                                })?;
+                            user_tx_count += 1;
                         }
                         Attestation::Explicit { .. } => {
                             // TODO: verify explicit attestor signature against the trusted
@@ -200,7 +204,7 @@ impl IotaTxValidator {
             .inc_by(authority_cap_count as u64);
         self.metrics
             .user_transaction_signatures_verified
-            .inc_by(user_tx_v1_count);
+            .inc_by(user_tx_count);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -272,7 +276,7 @@ impl IotaTxValidatorMetrics {
             .unwrap(),
             user_transaction_signatures_verified: register_int_counter_with_registry!(
                 "user_transaction_signatures_verified",
-                "Number of UserTransactionV1 signatures verified in consensus validator",
+                "Number of user transaction (V1 and V2) signatures verified in consensus validator",
                 registry
             )
             .unwrap(),

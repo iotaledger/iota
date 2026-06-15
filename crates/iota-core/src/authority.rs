@@ -1794,30 +1794,20 @@ impl AuthorityState {
         let tx_data = certificate.data().transaction_data();
         tx_data.validity_check(protocol_config)?;
 
-        // V2 attested path: re-verify the user signature here as a Byzantine attestor
-        // can lie. Catching it pre-execution leaves the (attestation, tx,
-        // attestor_index) tuple on-chain as evidence for the future
-        // attestor-accountability path.
-        if let Some(attestation) = certificate.attestation() {
-            let attestor_index = match attestation {
-                Attestation::Validator { attestor_index, .. } => *attestor_index,
-                Attestation::Explicit { .. } => {
-                    // Explicit attestations are rejected at post-consensus
-                    // (Check #3); reaching here means a protocol-level bug.
-                    return Err(IotaError::UnsupportedFeature {
-                        error: "Explicit attestation reached prepare_certificate".into(),
-                    });
-                }
-            };
-            if epoch_store
-                .signature_verifier
-                .verify_tx(certificate.data())
-                .is_err()
-            {
-                return Err(IotaError::AttestationInvalidUserSignature {
-                    attestor: attestor_index,
-                });
-            }
+        // The user signature of an attested (`UserTransactionV2`) transaction is
+        // verified pre-consensus in the block verifier
+        // (`IotaTxValidator::validate_transactions`), exactly as for
+        // `UserTransactionV1` — it is NOT re-verified at execution. A
+        // bad-signature tx is rejected with its block before sequencing, so it
+        // never reaches here.
+        //
+        // Explicit attestations are rejected pre-consensus (block verifier) and
+        // at post-consensus (Check #3), so one reaching here is a protocol-level
+        // bug.
+        if let Some(Attestation::Explicit { .. }) = certificate.attestation() {
+            return Err(IotaError::UnsupportedFeature {
+                error: "Explicit attestation reached prepare_certificate".into(),
+            });
         }
 
         let (kind, signer, gas_data) = tx_data.execution_parts();

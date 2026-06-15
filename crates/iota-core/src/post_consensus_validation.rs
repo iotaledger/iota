@@ -332,10 +332,10 @@ pub async fn validate_and_resolve_conflicts(
         //   - Gas, ownership, `MoveAuthenticator` execution: re-applied in the
         //     execution pipeline (`check_certificate_input` and
         //     `authenticate_then_execute_transaction_to_effects`).
-        //   - User signature: re-verified pre-execution in `prepare_certificate` so a
-        //     Byzantine attestor cannot forge transactions; the failure is reported as
-        //     `IotaError::AttestationInvalidUserSignature` and carries the
-        //     `attestor_index` for future attestor-accountability.
+        //   - User signature: verified pre-consensus in the block verifier
+        //     (`IotaTxValidator::validate_transactions`, the `Validator` attestation
+        //     arm), exactly as for `UserTransactionV1`, so a Byzantine attestor cannot
+        //     forge transactions.
         //
         // Deny-list check (`TransactionDenyConfig`: sender/object/package deny
         // lists, feature kill-switches): this is a LOCAL check, sourced from
