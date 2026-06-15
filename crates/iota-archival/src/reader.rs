@@ -278,10 +278,18 @@ impl ArchiveReader {
             .await
     }
 
-    /// Load checkpoints from archive into the input store `S` for the given
-    /// checkpoint range. Summaries are downloaded out of order and inserted
-    /// without verification
-    pub async fn read_summaries_for_range_no_verify<S>(
+    /// Load checkpoint summaries for `checkpoint_range` from the archive into
+    /// `store`, in sequence order.
+    ///
+    /// A summary already present in `store` is left untouched; a new one is
+    /// inserted only after [`verify_checkpoint`] checks it against the
+    /// previous summary (its committee signature and `previous_digest`
+    /// linkage). Unlike a bulk unverified load, this never overwrites an
+    /// existing summary and never persists an unverified one — so it is safe
+    /// to run against a live node's store. Summaries are processed in
+    /// sequence order (each is verified against the previous one), so the
+    /// genesis checkpoint must already be present.
+    pub async fn read_summaries_for_range<S>(
         &self,
         store: S,
         checkpoint_range: Range<CheckpointSequenceNumber>,
@@ -307,7 +315,9 @@ impl ArchiveReader {
             })
             .boxed();
         stream
-            .buffer_unordered(self.concurrency)
+            // Ordered: `get_or_insert_verified_checkpoint` verifies each
+            // summary against the previous one, which must already be inserted.
+            .buffered(self.concurrency)
             .try_for_each(|summary_data| {
                 let result: Result<(), anyhow::Error> =
                     make_iterator::<CertifiedCheckpointSummary, Reader<Bytes>>(
@@ -321,7 +331,7 @@ impl ArchiveReader {
                                     && s.sequence_number < checkpoint_range.end
                             })
                             .try_for_each(|summary| {
-                                Self::insert_certified_checkpoint(&store, summary)?;
+                                Self::get_or_insert_verified_checkpoint(&store, summary, true)?;
                                 checkpoint_counter.fetch_add(1, Ordering::Relaxed);
                                 Ok::<(), anyhow::Error>(())
                             })
