@@ -9,6 +9,7 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
+use iota_sdk_transaction_builder::{PTBArgumentList, SharedMut, TransactionBuilder};
 use iota_sdk_types::{ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
@@ -163,7 +164,7 @@ impl TestCaseImpl for CoinIndexTest {
             package.object_id,
             "managed",
             "mint",
-            vec![cap.object_id.into(), 10000u64.into(), account.into()],
+            (cap.object_id, 10000u64, account),
             rgp * 2_000_000,
         )
         .await;
@@ -236,7 +237,7 @@ impl TestCaseImpl for CoinIndexTest {
             package.object_id,
             "managed",
             "mint",
-            vec![cap.object_id.into(), 10u64.into(), account.into()],
+            (cap.object_id, 10u64, account),
             rgp * 2_000_000,
         )
         .await;
@@ -297,7 +298,7 @@ impl TestCaseImpl for CoinIndexTest {
             package.object_id,
             "managed",
             "take_from_envelope",
-            vec![MoveCallArg::SharedMutObjectId(envelope.object_id)],
+            [SharedMut(envelope.object_id)],
             rgp * 2_000_000,
         )
         .await;
@@ -330,10 +331,7 @@ impl TestCaseImpl for CoinIndexTest {
             package.object_id,
             "managed",
             "take_from_envelope_and_burn",
-            vec![
-                cap.object_id.into(),
-                MoveCallArg::SharedMutObjectId(envelope.object_id),
-            ],
+            (cap.object_id, SharedMut(envelope.object_id)),
             rgp * 2_000_000,
         )
         .await;
@@ -358,7 +356,7 @@ impl TestCaseImpl for CoinIndexTest {
             package.object_id,
             "managed",
             "burn",
-            vec![cap.object_id.into(), managed_coin_id_10k.into()],
+            (cap.object_id, managed_coin_id_10k),
             rgp * 2_000_000,
         )
         .await;
@@ -419,12 +417,12 @@ impl TestCaseImpl for CoinIndexTest {
             package.object_id,
             "managed",
             "mint_multi",
-            vec![
-                cap.object_id.into(),
-                5u64.into(),  // balance = 5
-                40u64.into(), // num = 40
-                account.into(),
-            ],
+            (
+                cap.object_id,
+                5u64,  // balance = 5
+                40u64, // num = 40
+                account,
+            ),
             rgp * 2_000_000,
         )
         .await;
@@ -658,7 +656,7 @@ async fn add_to_envelope(
         pkg_id,
         "managed",
         "add_to_envelope",
-        vec![MoveCallArg::SharedMutObjectId(envelope), coin.into()],
+        (SharedMut(envelope), coin),
         rgp * 2_000_000,
     )
     .await;
@@ -669,65 +667,28 @@ async fn add_to_envelope(
     response
 }
 
-/// Argument to a `managed` Move call, covering the cases this test exercises.
-enum MoveCallArg {
-    ObjectId(ObjectId),
-    SharedMutObjectId(ObjectId),
-    U64(u64),
-    Address(IotaAddress),
-}
-
-impl From<ObjectId> for MoveCallArg {
-    fn from(id: ObjectId) -> Self {
-        MoveCallArg::ObjectId(id)
-    }
-}
-
-impl From<u64> for MoveCallArg {
-    fn from(v: u64) -> Self {
-        MoveCallArg::U64(v)
-    }
-}
-
-impl From<IotaAddress> for MoveCallArg {
-    fn from(addr: IotaAddress) -> Self {
-        MoveCallArg::Address(addr)
-    }
-}
-
 /// Build a `managed` Move-call transaction ready to be signed.
-async fn build_move_call_tx(
+///
+/// `args` is anything the builder accepts as an argument list: a tuple of mixed
+/// argument types (`ObjectId` for owned objects, `SharedMut(id)` for shared
+/// mutable objects, `u64`/`IotaAddress` and other pure values), or an
+/// array/`Vec` of a single argument type.
+async fn build_move_call_tx<A: PTBArgumentList>(
     iota_client: &iota_sdk::IotaClient,
     grpc_url: &str,
     sender: IotaAddress,
     package_id: ObjectId,
     module: &str,
     function: &str,
-    args: Vec<MoveCallArg>,
+    args: A,
     gas_budget: u64,
 ) -> TransactionData {
-    use iota_sdk_transaction_builder::unresolved::Argument;
-
     let grpc_client = iota_grpc_client::Client::new(grpc_url).unwrap();
-    let mut builder =
-        iota_sdk_transaction_builder::TransactionBuilder::new(sender).with_client(&grpc_client);
-
-    // Resolve the arguments up front so they can be passed to `move_call`.
-    let arguments: Vec<Argument> = args
-        .into_iter()
-        .map(|arg| match arg {
-            MoveCallArg::ObjectId(id) => builder.apply_argument(id),
-            MoveCallArg::SharedMutObjectId(id) => {
-                builder.apply_argument(iota_sdk_transaction_builder::SharedMut(id))
-            }
-            MoveCallArg::U64(v) => builder.apply_argument(v),
-            MoveCallArg::Address(addr) => builder.apply_argument(addr),
-        })
-        .collect();
+    let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
 
     builder
         .move_call(package_id, module, function)
-        .arguments(arguments);
+        .arguments(args);
 
     // Use a single explicit gas coin; without this, `finish()` would auto-add
     // every IOTA coin the sender owns as gas inputs and merge the leftover into
