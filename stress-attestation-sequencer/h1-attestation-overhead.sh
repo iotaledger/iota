@@ -16,8 +16,9 @@
 # Run as a NORMAL user (cargo must not run as root); `sudo` is used internally
 # only for cleanup/bootstrap.
 #
-# Tunables (env): N, RUN_DURATION, TARGET_QPS, NUM_WORKERS,
-#                 SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM.
+# Tunables (env): N, RUN_DURATION, TARGET_QPS, NUM_WORKERS, NUM_CLIENT_THREADS,
+#                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, SLEEP_BETWEEN_RUNS_S,
+#                 PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM.
 set -euo pipefail
 
 if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
@@ -32,8 +33,15 @@ GENESIS_DIR="$REPO_ROOT/dev-tools/iota-private-network/configs/genesis"
 
 N="${N:-4}"
 RUN_DURATION="${RUN_DURATION:-30s}"
-TARGET_QPS="${TARGET_QPS:-200}"
-NUM_WORKERS="${NUM_WORKERS:-8}"
+TARGET_QPS="${TARGET_QPS:-2000}"
+NUM_WORKERS="${NUM_WORKERS:-24}"
+NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"   # tokio threads driving the client (raise for higher qps)
+NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}" # pure multiplier on setup-phase gas-coin count
+IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"         # max in-flight = IN_FLIGHT_RATIO * TARGET_QPS
+# Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
+# (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
+# NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
+# this scale (concurrency comes from max_ops = TARGET_QPS * IN_FLIGHT_RATIO).
 SLEEP_BETWEEN_RUNS_S="${SLEEP_BETWEEN_RUNS_S:-5}" # idle gap (s) to separate A/B on the timeline
 PRE_SPAM_WAIT_S="${PRE_SPAM_WAIT_S:-0}"       # let the network settle this long after it's up, before the spam
 PRE_STOP_WAIT_S="${PRE_STOP_WAIT_S:-2}"       # keep Run A's network up this long after scraping, before stopping
@@ -205,9 +213,14 @@ run_stress() {
     --genesis-blob-path "$GENESIS_DIR/genesis.blob" \
     --keystore-path "$GENESIS_DIR/benchmark.keystore" \
     --primary-gas-owner-id "$PRIMARY_GAS_OWNER" \
-    --num-client-threads 4 --num-transfer-accounts 10 --run-duration "$RUN_DURATION" \
-    bench --target-qps "$TARGET_QPS" --in-flight-ratio 5 --num-workers "$NUM_WORKERS" \
-    --transfer-object 100 --shared-counter 0)
+    --num-client-threads "$NUM_CLIENT_THREADS" \
+    --num-transfer-accounts "$NUM_TRANSFER_ACCOUNTS" \
+    --run-duration "$RUN_DURATION" \
+    bench --target-qps "$TARGET_QPS" \
+    --in-flight-ratio "$IN_FLIGHT_RATIO" \
+    --num-workers "$NUM_WORKERS" \
+    --transfer-object 100 \
+    --shared-counter 0)
   end=$(date +%s)
   scrape_metrics "$label" "$start" "$end" "$json_out"
 }
