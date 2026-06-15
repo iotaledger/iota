@@ -251,6 +251,21 @@ state-snapshot-read-config:
 
 With this set, the node downloads the per-epoch metadata from the latest formal snapshot at startup (a few seconds; the large object files are not downloaded) and then starts normally. If even the latest snapshot is older than the node's executed history and the missing epochs' data is already pruned locally, the node still refuses to start: wait for a newer snapshot, restore from a formal snapshot, or disable the gRPC API.
 
+### Backfilling the full checkpoint summary history
+
+A node restored from a formal snapshot holds only the end-of-epoch checkpoint summaries (one per epoch). That is enough to run, but the node cannot serve historical checkpoint queries below its restore point, nor act as a complete summary source for peers syncing the header chain. To fill in every intermediate summary from the checkpoint archive, stop the node and run:
+
+```shell
+iota-tool backfill-checkpoint-summaries \
+   --path "<PATH-TO-NODE-DB>/live" \
+   --num-parallel-downloads 50 \
+   --verbose
+```
+
+   - `--path`: The node's live database directory (the one containing `checkpoints/`, `store/`, and `epochs/`). The network — and thus the archive bucket — is derived from the node's own genesis checkpoint, so no genesis file or network flag is needed. Override the bucket with the `CUSTOM_ARCHIVE_BUCKET` environment variables for a custom network.
+
+Each downloaded summary is verified against the committee chain before it is stored. This only adds historical summaries below the node's existing watermarks — it never changes how far the node has synced or executed, and it never overwrites the summaries the node already has. It is safe to re-run.
+
 ## IOTA Foundation managed snapshots
 
 The IOTA Foundation provides the public snapshot access:
