@@ -158,7 +158,6 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 4. Mint 1 MANAGED coin to account, balance 10000
         let txn = build_move_call_tx(
-            &client,
             &grpc_url,
             account,
             package.object_id,
@@ -231,7 +230,6 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 5. Mint another MANAGED coin to account, balance 10
         let txn = build_move_call_tx(
-            &client,
             &grpc_url,
             account,
             package.object_id,
@@ -292,7 +290,6 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 7. take back the balance 10 MANAGED coin
         let txn = build_move_call_tx(
-            &client,
             &grpc_url,
             account,
             package.object_id,
@@ -325,7 +322,6 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 9. Take from envelope and burn
         let txn = build_move_call_tx(
-            &client,
             &grpc_url,
             account,
             package.object_id,
@@ -350,7 +346,6 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 10. Burn the balance=10000 MANAGED coin
         let txn = build_move_call_tx(
-            &client,
             &grpc_url,
             account,
             package.object_id,
@@ -411,7 +406,6 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 11. Mint 40 MANAGED coins with balance 5
         let txn = build_move_call_tx(
-            &client,
             &grpc_url,
             account,
             package.object_id,
@@ -643,14 +637,12 @@ async fn add_to_envelope(
     coin: ObjectId,
 ) -> IotaTransactionBlockResponse {
     let account = ctx.get_wallet_address();
-    let client = ctx.clone_fullnode_client();
     let grpc_url = ctx
         .get_fullnode_grpc_url()
         .expect("coin index test requires a local cluster with the gRPC API enabled")
         .to_string();
     let rgp = ctx.get_reference_gas_price().await;
     let txn = build_move_call_tx(
-        &client,
         &grpc_url,
         account,
         pkg_id,
@@ -674,7 +666,6 @@ async fn add_to_envelope(
 /// mutable objects, `u64`/`IotaAddress` and other pure values), or an
 /// array/`Vec` of a single argument type.
 async fn build_move_call_tx<A: PTBArgumentList>(
-    iota_client: &iota_sdk::IotaClient,
     grpc_url: &str,
     sender: IotaAddress,
     package_id: ObjectId,
@@ -693,16 +684,20 @@ async fn build_move_call_tx<A: PTBArgumentList>(
     // Use a single explicit gas coin; without this, `finish()` would auto-add
     // every IOTA coin the sender owns as gas inputs and merge the leftover into
     // one output coin, breaking tests that observe `coin_object_count`.
-    let gas_coin = iota_client
-        .coin_read_api()
-        .get_coins(sender, None, None, Some(1))
+    let gas_coin = grpc_client
+        .list_owned_objects(sender, Some(StructTag::new_gas_coin()), Some(1), None, None)
+        .collect(Some(1))
         .await
         .expect("failed to fetch gas coin")
-        .data
+        .into_inner()
         .into_iter()
         .next()
         .expect("sender has no gas coin");
-    builder.gas(vec![gas_coin.coin_object_id]);
+    let gas_object_id = *gas_coin
+        .object_reference()
+        .expect("gas coin missing object reference")
+        .object_id();
+    builder.gas(vec![gas_object_id]);
     builder.gas_budget(gas_budget);
 
     builder
