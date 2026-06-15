@@ -24,6 +24,12 @@ services:
       iota-network:
     volumes:
       - ./prometheus.yaml:/etc/prometheus.yaml
+      # Persist the TSDB in a named volume so `docker compose down` (no -v,
+      # which is what cleanup.sh uses) keeps the data. The H1 script tears
+      # Prometheus down between Run A and Run B (so Run B's network bring-up is
+      # not slowed by a running scraper); this volume lets the fresh Prometheus
+      # reload Run A's series on restart, so both runs are visible at once.
+      - prometheus-data:/prometheus
     ports:
       - "9090:9090"
     extra_hosts:
@@ -84,3 +90,6 @@ networks:
   iota-network:
     name: iota-private-network_iota-network
     external: true
+
+volumes:
+  prometheus-data:
