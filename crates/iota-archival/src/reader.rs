@@ -278,9 +278,6 @@ impl ArchiveReader {
             .await
     }
 
-    /// Load checkpoints from archive into the input store `S` for the given
-    /// checkpoint range. Summaries are downloaded out of order and inserted
-    /// without verification
     /// Load checkpoint summaries for `checkpoint_range` from the archive into
     /// `store`, in sequence order.
     ///
@@ -289,11 +286,9 @@ impl ArchiveReader {
     /// previous summary (its committee signature and `previous_digest`
     /// linkage). Unlike a bulk unverified load, this never overwrites an
     /// existing summary and never persists an unverified one — so it is safe
-    /// to run against a live node's store. Summaries are processed in order
-    /// (via [`get_or_insert_verified_checkpoint`]'s dependency on the previous
-    /// checkpoint), so the genesis checkpoint must already be present.
-    ///
-    /// [`get_or_insert_verified_checkpoint`]: Self::get_or_insert_verified_checkpoint
+    /// to run against a live node's store. Summaries are processed in
+    /// sequence order (each is verified against the previous one), so the
+    /// genesis checkpoint must already be present.
     pub async fn read_summaries_for_range<S>(
         &self,
         store: S,
