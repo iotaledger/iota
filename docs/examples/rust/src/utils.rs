@@ -27,11 +27,8 @@ use iota_sdk::{
         transaction::{Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{ObjectId, crypto::Intent};
-use iota_types::{
-    move_package,
-    transaction::{ProgrammableTransaction, TransactionDataAPI},
-};
+use iota_sdk_types::{ObjectId, ProgrammableTransaction, crypto::Intent};
+use iota_types::{move_package, transaction::TransactionDataAPI};
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;

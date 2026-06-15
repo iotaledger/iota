@@ -7,12 +7,12 @@ use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
-use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
-    object::{Data, ObjectRead},
+    object::ObjectRead,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
@@ -53,7 +53,7 @@ async fn test_publishing_with_unpublished_deps() {
     };
 
     assert_eq!(package, read_ref);
-    let Data::Package(move_package) = package_obj.into_inner().data else {
+    let ObjectData::Package(move_package) = package_obj.into_inner().data else {
         panic!("Not a package")
     };
 

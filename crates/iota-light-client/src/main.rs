@@ -20,7 +20,7 @@ use iota_light_client::{
 };
 use iota_package_resolver::Resolver;
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectData, ObjectId};
 use iota_types::{
     base_types::ObjectRef,
     committee::Committee,
@@ -28,7 +28,7 @@ use iota_types::{
     effects::TransactionEffectsExt,
     event::EventID,
     full_checkpoint_content::CheckpointData,
-    object::{Data, bounded_visitor::BoundedVisitor},
+    object::bounded_visitor::BoundedVisitor,
 };
 use tracing::{debug, error, info};
 
@@ -148,7 +148,7 @@ pub async fn main() -> Result<()> {
             let object = get_verified_object(&config, object_id).await?;
             println!("Successfully verified object: {object_id}");
 
-            if let Data::Struct(move_object) = &object.data {
+            if let ObjectData::Struct(move_object) = &object.data {
                 let object_type = move_object.struct_tag();
 
                 let type_layout = resolver.type_layout(move_object.type_tag()).await?;

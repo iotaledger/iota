@@ -7,14 +7,14 @@ use std::{collections::BTreeMap, path::PathBuf};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, PackageUpgradeError,
+    Identifier, ObjectData, ObjectId, PackageUpgradeError,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
     digests::TransactionDigest,
     error::ExecutionErrorKind,
     move_package::MovePackageExt,
-    object::{Data, OBJECT_START_VERSION, Object},
+    object::{OBJECT_START_VERSION, Object},
 };
 use move_binary_format::file_format::CompiledModule;
 
@@ -98,9 +98,12 @@ fn test_new_initial() {
     // also test that move package sizes used for gas computations are estimated
     // correctly (small constant differences can be tolerated and are due to BCS
     // encoding)
-    let a_pkg_obj = Object::new_package_from_data(Data::Package(a_pkg), TransactionDigest::ZERO);
-    let b_pkg_obj = Object::new_package_from_data(Data::Package(b_pkg), TransactionDigest::ZERO);
-    let c_pkg_obj = Object::new_package_from_data(Data::Package(c_pkg), TransactionDigest::ZERO);
+    let a_pkg_obj =
+        Object::new_package_from_data(ObjectData::Package(a_pkg), TransactionDigest::ZERO);
+    let b_pkg_obj =
+        Object::new_package_from_data(ObjectData::Package(b_pkg), TransactionDigest::ZERO);
+    let c_pkg_obj =
+        Object::new_package_from_data(ObjectData::Package(c_pkg), TransactionDigest::ZERO);
     let a_serialized = bcs::to_bytes(&a_pkg_obj).unwrap();
     let b_serialized = bcs::to_bytes(&b_pkg_obj).unwrap();
     let c_serialized = bcs::to_bytes(&c_pkg_obj).unwrap();

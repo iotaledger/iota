@@ -15,8 +15,7 @@ use diesel::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, schema::packages};
 use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
-use iota_sdk_types::{Identifier, move_package::MovePackage as NativeMovePackage};
-use iota_types::object::Data;
+use iota_sdk_types::{Identifier, ObjectData, move_package::MovePackage as NativeMovePackage};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -1109,7 +1108,7 @@ impl TryFrom<&Object> for MovePackage {
             return Err(MovePackageDowncastError);
         };
 
-        if let Data::Package(move_package) = &native.data {
+        if let ObjectData::Package(move_package) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_package.clone(),

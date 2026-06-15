@@ -4,14 +4,14 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use iota_sdk_types::{Argument, Event, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{Argument, Event, ObjectData, ObjectId, Owner, TypeTag};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
-    object::{Data, MoveObjectExt, Object},
+    object::{MoveObjectExt, Object},
     storage::BackingPackageStore,
 };
 
@@ -116,12 +116,12 @@ impl ExecutionResultsV1 {
 
             // Update the version for the written object.
             match &mut obj.data {
-                Data::Struct(obj) => {
+                ObjectData::Struct(obj) => {
                     // Move objects all get the transaction's lamport timestamp
                     obj.increment_version_to(lamport_version);
                 }
 
-                Data::Package(pkg) => {
+                ObjectData::Package(pkg) => {
                     // Modified packages get their version incremented (this is a special case that
                     // only applies to system packages).  All other packages can only be created,
                     // and they are left alone.
