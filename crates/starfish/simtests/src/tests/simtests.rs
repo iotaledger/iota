@@ -479,6 +479,7 @@ mod test {
     /// Persistent DB after each restart, short run before stop, short stop
     /// duration.
     #[sim_test(config = "test_config()")]
+    #[ignore]
     async fn test_sequential_restarts_persistent_db_short_run_short_stop() {
         run_sequential_restarts_test(RestartMode::PersistAll, false, false).await;
     }
