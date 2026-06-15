@@ -14,8 +14,9 @@ use iota_sdk_types::{
     Address, Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    ObjectId, Owner, PackageUpgradeError, RandomnessStateUpdate, SimpleSignature, StructTag,
-    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
+    ObjectData, ObjectId, Owner, PackageUpgradeError, ProgrammableTransaction,
+    RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
+    TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
@@ -38,12 +39,12 @@ use iota_types::{
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    object::{Data, MoveObject, MoveObjectExt, ObjectInner},
+    object::{MoveObject, MoveObjectExt, ObjectInner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        CallArg, ProgrammableTransaction, SenderSignedData, SharedObjectRef, Transaction,
-        TransactionData, TransactionDataAPI,
+        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
@@ -260,13 +261,13 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &event).unwrap();
 
-    // Seed both Data variants. trace_type::<Data> is skipped because the SDK's
-    // MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with, and
-    // Identifier's custom serde (DisplayFromStr) is incompatible with
+    // Seed both ObjectData variants. trace_type::<ObjectData> is skipped because
+    // the SDK's MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with,
+    // and Identifier's custom serde (DisplayFromStr) is incompatible with
     // serde_reflection's tracing deserializer for map keys.
     let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0);
     tracer
-        .trace_value(&mut samples, &Data::Struct(sample_move_obj))
+        .trace_value(&mut samples, &ObjectData::Struct(sample_move_obj))
         .unwrap();
     let sample_upgrade_info = UpgradeInfo {
         upgraded_id: ObjectId::ZERO,
@@ -284,7 +285,7 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &sample_move_pkg).unwrap();
     tracer
-        .trace_value(&mut samples, &Data::Package(sample_move_pkg))
+        .trace_value(&mut samples, &ObjectData::Package(sample_move_pkg))
         .unwrap();
 
     // Trace SDK types with custom serde (ExecutionStatus, ExecutionError,
@@ -372,7 +373,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &TransactionKind::Programmable(sample_pt))
         .unwrap();
     let sample_genesis_obj = GenesisObject::new(
-        Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
+        ObjectData::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
         Owner::Address(Address::ZERO),
     );
     tracer
@@ -423,7 +424,7 @@ fn get_registry() -> Result<Registry> {
     // so we need to trace ObjectInner directly to avoid a format conflict
     // (Struct vs NewTypeStruct both named "Object").
     let sample_obj_inner = ObjectInner {
-        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
+        data: ObjectData::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
         owner: Owner::Address(Address::ZERO),
         previous_transaction: TransactionDigest::default(),
         storage_rebate: 0,

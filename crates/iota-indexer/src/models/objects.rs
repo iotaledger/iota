@@ -583,11 +583,11 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, Identifier, Owner, StructTag, TypeTag};
+    use iota_sdk_types::{Address, Identifier, ObjectData, Owner, StructTag, TypeTag};
     use iota_types::{
         digests::TransactionDigest,
         gas_coin::GasCoin,
-        object::{Data, MoveObject, MoveObjectExt, ObjectInner},
+        object::{MoveObject, MoveObjectExt, ObjectInner},
     };
 
     use super::*;
@@ -653,7 +653,7 @@ mod tests {
         let gas = 10;
 
         let contents = bcs::to_bytes(&vec![GasCoin::new(id, gas)]).unwrap();
-        let data = Data::Struct(
+        let data = ObjectData::Struct(
             MoveObject::new_from_execution_with_limit(object_type, 1.into(), contents, 256)
                 .unwrap(),
         );

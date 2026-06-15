@@ -6,8 +6,8 @@ use iota_json_rpc_api::WriteApiClient;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Command, Identifier, ObjectId, TransactionKind};
-use iota_types::transaction::{CallArg, ProgrammableTransaction};
+use iota_sdk_types::{Command, Identifier, ObjectId, ProgrammableTransaction, TransactionKind};
+use iota_types::transaction::CallArg;
 use jsonrpsee::{core::ClientError, types::ErrorCode};
 use test_cluster::TestClusterBuilder;
 

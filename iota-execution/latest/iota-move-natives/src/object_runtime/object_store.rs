@@ -8,14 +8,14 @@ use std::{
 };
 
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::{ObjectId, Owner, StructTag};
+use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag};
 use iota_types::{
     base_types::SequenceNumber,
     committee::EpochId,
     error::VMMemoryLimitExceededSubStatusCode,
     execution::DynamicallyLoadedObjectMetadata,
     metrics::LimitsMetrics,
-    object::{Data, MoveObject, Object},
+    object::{MoveObject, Object},
     storage::ChildObjectResolver,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -168,7 +168,7 @@ macro_rules! fetch_child_object_unbounded {
                 _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
             };
             match &object.data {
-                Data::Package(_) => {
+                ObjectData::Package(_) => {
                     return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                         format!(
                             "Mismatched object type for {}. \
@@ -177,7 +177,7 @@ macro_rules! fetch_child_object_unbounded {
                         ),
                     ));
                 }
-                Data::Struct(_) => Some(object),
+                ObjectData::Struct(_) => Some(object),
             }
         } else {
             None
@@ -234,7 +234,7 @@ impl Inner<'_> {
                 );
             }
             match object.into_inner().data {
-                Data::Package(_) => {
+                ObjectData::Package(_) => {
                     return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                         format!(
                             "Mismatched object type for {child}. \
@@ -242,7 +242,7 @@ impl Inner<'_> {
                         ),
                     ));
                 }
-                Data::Struct(mo @ MoveObject { .. }) => Some((mo, loaded_metadata)),
+                ObjectData::Struct(mo @ MoveObject { .. }) => Some((mo, loaded_metadata)),
             }
         } else {
             None

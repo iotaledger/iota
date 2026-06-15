@@ -654,7 +654,7 @@ impl PrimaryWorker {
                     .iter()
                     .flat_map(|tx| &tx.output_objects)
                     .filter_map(|o| {
-                        if let iota_types::object::Data::Package(p) = &o.data {
+                        if let iota_sdk_types::ObjectData::Package(p) = &o.data {
                             Some(IndexedPackage {
                                 package_id: o.id(),
                                 move_package: p.clone(),

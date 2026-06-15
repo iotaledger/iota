@@ -9,7 +9,7 @@ pub use checked::*;
 pub mod checked {
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{ObjectId, gas::GasCostSummary};
+    use iota_sdk_types::{ObjectData, ObjectId, gas::GasCostSummary};
     use iota_types::{
         base_types::ObjectRef,
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
@@ -17,7 +17,7 @@ pub mod checked {
         error::ExecutionError,
         gas::{IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
-        object::{Data, MoveObjectExt},
+        object::MoveObjectExt,
     };
     use tracing::trace;
 
@@ -145,7 +145,7 @@ pub mod checked {
                 .iter()
                 .map(|obj_ref| {
                     let obj = temporary_store.objects().get(&obj_ref.object_id).unwrap();
-                    let Data::Struct(move_obj) = &obj.data else {
+                    let ObjectData::Struct(move_obj) = &obj.data else {
                         return Err(ExecutionError::invariant_violation(
                             "Provided non-gas coin object as input for gas!",
                         ));

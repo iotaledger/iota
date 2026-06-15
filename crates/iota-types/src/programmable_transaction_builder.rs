@@ -7,12 +7,14 @@
 
 use anyhow::Context;
 use indexmap::IndexMap;
-use iota_sdk_types::{Address, Argument, Command, Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag,
+};
 use serde::Serialize;
 
 use crate::{
     base_types::ObjectRef,
-    transaction::{CallArg, ProgrammableTransaction, SharedObjectRef},
+    transaction::{CallArg, SharedObjectRef},
 };
 
 #[derive(PartialEq, Eq, Hash)]

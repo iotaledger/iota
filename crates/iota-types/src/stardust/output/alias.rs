@@ -1,17 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectData, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{
-    balance::Balance,
-    collection_types::Bag,
-    error::IotaError,
-    id::UID,
-    object::{Data, Object},
-};
+use crate::{balance::Balance, collection_types::Bag, error::IotaError, id::UID, object::Object};
 
 pub const ALIAS_MODULE_NAME: Identifier = Identifier::from_static("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("alias_output");
@@ -102,12 +96,12 @@ impl TryFrom<&Object> for AliasOutput {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if AliasOutput::is_alias_output(o.struct_tag()) {
                     return AliasOutput::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

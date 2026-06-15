@@ -67,7 +67,8 @@ mod sim_only_tests {
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
     use iota_sdk_types::{
-        Address, Command, Identifier, MoveCall, ObjectId, Owner, TransactionKind,
+        Address, Command, Identifier, MoveCall, ObjectId, Owner, ProgrammableTransaction,
+        TransactionKind,
     };
     use iota_types::{
         base_types::{ConciseableName, ObjectRef, SequenceNumber},
@@ -83,8 +84,7 @@ mod sim_only_tests {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
-            CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData,
-            TransactionDataAPI,
+            CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI,
         },
     };
     use move_binary_format::CompiledModule;

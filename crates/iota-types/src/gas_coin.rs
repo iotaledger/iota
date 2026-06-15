@@ -7,7 +7,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectData, ObjectId};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,7 @@ use crate::{
     base_types::SequenceNumber,
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
-    object::{Data, MoveObject, MoveObjectExt, Object},
+    object::{MoveObject, MoveObjectExt, Object},
 };
 
 /// The number of Nanos per IOTA token
@@ -123,8 +123,8 @@ mod checked {
 
         fn try_from(value: &Object) -> Result<GasCoin, ExecutionError> {
             match &value.data {
-                Data::Struct(obj) => obj.try_into(),
-                Data::Package(_) => Err(ExecutionError::new_with_source(
+                ObjectData::Struct(obj) => obj.try_into(),
+                ObjectData::Package(_) => Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::InvalidGasObject,
                     format!("Gas object type is not a gas coin: {value:?}"),
                 )),

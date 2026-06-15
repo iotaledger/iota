@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{ObjectId, Owner, StructTag, TransactionKind};
+use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag, TransactionKind};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::{
@@ -42,7 +42,7 @@ use iota_types::{
     message_envelope::Message,
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticator,
-    object::{Data, Object},
+    object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
         get_module_by_id,
@@ -2360,7 +2360,7 @@ impl ResourceResolver for LocalExec {
             };
 
             match &object.data {
-                Data::Struct(m) => {
+                ObjectData::Struct(m) => {
                     assert!(
                         m.is_struct_tag(type_),
                         "Invariant violation: ill-typed object in storage \
