@@ -2716,7 +2716,9 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
-    use iota_sdk_types::{GenesisObject, Identifier, ObjectId, Owner, move_package::MovePackage};
+    use iota_sdk_types::{
+        GenesisObject, Identifier, ObjectData, ObjectId, Owner, move_package::MovePackage,
+    };
     use iota_types::{
         base_types::{SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
@@ -2725,7 +2727,6 @@ mod tests {
             TransactionEvents,
         },
         messages_checkpoint::SignedCheckpointSummary,
-        object,
         transaction::VerifiedTransaction,
     };
     use tokio::sync::mpsc;
@@ -2748,7 +2749,7 @@ mod tests {
         let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
         let dummy_tx_with_data = VerifiedTransaction::new_genesis_transaction(
             vec![GenesisObject::new(
-                object::Data::Package(
+                ObjectData::Package(
                     MovePackage::new(
                         ObjectId::random(),
                         SequenceNumber::default(),

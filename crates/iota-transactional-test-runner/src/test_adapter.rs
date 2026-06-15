@@ -33,8 +33,9 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Argument, Command, Event, ExecutionStatus, Identifier, ObjectId, RandomnessRound,
-    TransactionKind, TypeTag, gas::GasCostSummary, move_package::MovePackage,
+    Argument, Command, Event, ExecutionStatus, Identifier, ObjectData, ObjectId,
+    ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag, gas::GasCostSummary,
+    move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -52,14 +53,11 @@ use iota_types::{
     },
     move_authenticator::MoveAuthenticator,
     move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
-    object::{self, GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
+    object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     storage::{ObjectStore, ReadStore},
-    transaction::{
-        CallArg, ProgrammableTransaction, Transaction, TransactionData, TransactionDataAPI,
-        VerifiedTransaction,
-    },
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
         to_sender_signed_transaction_with_optional_sponsor,
@@ -733,7 +731,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             IotaSubcommand::ViewObject(ViewObjectCommand { id: fake_id }) => {
                 let obj = get_obj!(fake_id);
                 Ok(Some(match &obj.data {
-                    object::Data::Struct(move_obj) => {
+                    ObjectData::Struct(move_obj) => {
                         let layout = move_obj.get_layout(&&*self).unwrap();
                         let move_struct =
                             BoundedVisitor::deserialize_struct(move_obj.contents(), &layout)
@@ -746,7 +744,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             move_struct
                         ))
                     }
-                    object::Data::Package(package) => {
+                    ObjectData::Package(package) => {
                         let num_modules = package.serialized_module_map().len();
                         let modules = package
                             .serialized_module_map()
@@ -2004,8 +2002,8 @@ impl IotaTestAdapter {
     // sorting between objects of the same type
     fn get_object_sorting_key(&self, id: &ObjectId) -> String {
         match &self.get_object(id, None).unwrap().data {
-            object::Data::Struct(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
-            object::Data::Package(pkg) => pkg
+            ObjectData::Struct(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
+            ObjectData::Package(pkg) => pkg
                 .serialized_module_map()
                 .keys()
                 .map(|s| s.as_str())

@@ -467,9 +467,9 @@ pub(super) fn create_migration_context(
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::Owner;
+    use iota_sdk_types::{ObjectData, Owner};
     use iota_types::{
-        balance::Balance, base_types::SequenceNumber, gas_coin::GasCoin, id::UID, object::Data,
+        balance::Balance, base_types::SequenceNumber, gas_coin::GasCoin, id::UID,
         timelock::timelock::TimeLock,
     };
 
@@ -510,7 +510,7 @@ mod tests {
             .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
-                    Data::Struct(move_object),
+                    ObjectData::Struct(move_object),
                     Owner::Address(address),
                     tx_context.digest(),
                 )
@@ -554,7 +554,7 @@ mod tests {
             .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
-                    Data::Struct(move_object),
+                    ObjectData::Struct(move_object),
                     Owner::Address(owner),
                     tx_context.digest(),
                 )

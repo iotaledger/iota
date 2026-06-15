@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Owner, StructTag, move_package::MovePackage};
+use iota_sdk_types::{ObjectData, Owner, StructTag, move_package::MovePackage};
 use iota_types::{
     base_types::TransactionDigest,
     coin::Coin,
     error::IotaError,
-    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner},
+    object::{MoveObject, MoveObjectExt, Object, ObjectInner},
     storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
@@ -100,7 +100,7 @@ pub struct StoreObjectValue {
     pub storage_rebate: u64,
 }
 
-/// Forked version of [`iota_types::object::Data`]
+/// Forked version of [`iota_sdk_types::ObjectData`]
 /// Adds extra enum value `IndirectObject`, which represents a reference to an
 /// object stored separately
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
@@ -115,8 +115,8 @@ pub fn get_store_object(object: Object) -> StoreObjectWrapper {
     let object = object.into_inner();
 
     let data = match object.data {
-        Data::Package(package) => StoreData::Package(package),
-        Data::Struct(move_obj) => {
+        ObjectData::Package(package) => StoreData::Package(package),
+        ObjectData::Struct(move_obj) => {
             if move_obj.struct_tag().is_gas_coin() {
                 StoreData::Coin(
                     Coin::from_bcs_bytes(move_obj.contents())
@@ -143,9 +143,9 @@ pub(crate) fn try_construct_object(
     store_object: StoreObjectValue,
 ) -> Result<Object, IotaError> {
     let data = match store_object.data {
-        StoreData::Move(object) => Data::Struct(object),
-        StoreData::Package(package) => Data::Package(package),
-        StoreData::Coin(balance) => Data::Struct(MoveObject::new_from_execution_with_limit(
+        StoreData::Move(object) => ObjectData::Struct(object),
+        StoreData::Package(package) => ObjectData::Package(package),
+        StoreData::Coin(balance) => ObjectData::Struct(MoveObject::new_from_execution_with_limit(
             StructTag::new_gas_coin(),
             object_key.1,
             bcs::to_bytes(&(object_key.0, balance)).expect("serialization failed"),

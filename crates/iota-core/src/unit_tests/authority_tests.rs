@@ -18,7 +18,8 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusDeterminedVersionAssignments, ExecutionError,
-    ExecutionStatus, Identifier, Owner, StructTag, TypeTag, VersionAssignment,
+    ExecutionStatus, Identifier, ObjectData, Owner, ProgrammableTransaction, StructTag, TypeTag,
+    VersionAssignment,
 };
 use iota_types::{
     base_types::{
@@ -37,7 +38,7 @@ use iota_types::{
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
-    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION},
+    object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -1679,7 +1680,7 @@ async fn test_publish_dependent_module_ok() {
         .into_inner()
         .data
     {
-        Data::Package(m) => CompiledModule::deserialize_with_defaults(
+        ObjectData::Package(m) => CompiledModule::deserialize_with_defaults(
             m.serialized_module_map().values().next().unwrap(),
         )
         .unwrap(),
@@ -1800,7 +1801,7 @@ async fn test_publish_non_existing_dependent_module() {
         .into_inner()
         .data
     {
-        Data::Package(m) => CompiledModule::deserialize_with_defaults(
+        ObjectData::Package(m) => CompiledModule::deserialize_with_defaults(
             m.serialized_module_map().values().next().unwrap(),
         )
         .unwrap(),

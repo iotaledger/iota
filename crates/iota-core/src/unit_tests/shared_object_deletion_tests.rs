@@ -9,7 +9,7 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     CommandArgumentError, ExecutionError as ExecutionFailureStatus,
     ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
-    ObjectId,
+    ObjectId, ProgrammableTransaction,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
@@ -20,8 +20,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, ProgrammableTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        Transaction, VerifiedCertificate,
+        CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, Transaction, VerifiedCertificate,
     },
 };
 

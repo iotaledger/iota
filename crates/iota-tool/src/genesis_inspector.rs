@@ -97,7 +97,7 @@ pub fn examine_genesis_checkpoint(
         owner_map.insert(object.id(), object.owner);
 
         match &object.data {
-            iota_types::object::Data::Struct(move_object) => {
+            iota_sdk_types::ObjectData::Struct(move_object) => {
                 if let Ok(gas) = GasCoin::try_from(&object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
@@ -175,7 +175,7 @@ pub fn examine_genesis_checkpoint(
                     other_object_map.insert(object.id(), move_object.clone());
                 }
             }
-            iota_types::object::Data::Package(p) => {
+            iota_sdk_types::ObjectData::Package(p) => {
                 package_map.insert(object.id(), p.clone());
             }
         }

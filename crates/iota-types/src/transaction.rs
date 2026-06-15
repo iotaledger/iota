@@ -20,13 +20,13 @@ use iota_sdk_types::{
     Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
     GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
-    Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins, TransactionExpiration,
-    TransactionKind, TransferObjects, TypeTag, Upgrade,
+    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
-    GasPayment as GasData, ProgrammableTransaction, SharedObjectReference as SharedObjectRef,
-    SystemPackage, Transaction as TransactionData, TransactionV1 as TransactionDataV1,
+    GasPayment as GasData, SharedObjectReference as SharedObjectRef, SystemPackage,
+    Transaction as TransactionData, TransactionV1 as TransactionDataV1,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};

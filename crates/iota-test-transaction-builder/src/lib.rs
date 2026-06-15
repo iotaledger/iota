@@ -15,7 +15,7 @@ use iota_sdk::{
 };
 use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_types::{
-    Identifier, ObjectId, Owner, TypeTag,
+    Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
@@ -25,7 +25,7 @@ use iota_types::{
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
     transaction::{
-        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ProgrammableTransaction, SharedObjectRef,
+        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         Transaction, TransactionData, TransactionDataAPI,
     },

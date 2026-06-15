@@ -8,6 +8,7 @@ use iota_network::api::{
     TxStatusQuery, ValidatorPeer, ValidatorV2,
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_sdk_types::ProgrammableTransaction;
 // Additional imports for white flag tests
 use iota_sdk_types::{
     Argument, Command, Identifier, ObjectId, SplitCoins,
