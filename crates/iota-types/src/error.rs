@@ -554,14 +554,6 @@ pub enum IotaError {
     )]
     AttestationUnitsAboveBudget { actual: u64, maximum: u64 },
 
-    #[error(
-        "Attestor {attestor:?} stamped a `UserTransactionV2` whose user \
-         signature does not verify against `sender`."
-    )]
-    AttestationInvalidUserSignature {
-        attestor: starfish_config::AuthorityIndex,
-    },
-
     #[error("Unexpected message.")]
     UnexpectedMessage,
 
