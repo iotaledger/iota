@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(msim))]
 use std::str::FromStr;
 
 use iota_json::{call_args, type_args};
@@ -12,9 +13,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-#[cfg(not(msim))]
-use iota_sdk_types::ObjectData;
-use iota_sdk_types::{Command, Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Command, Identifier, ObjectData, ObjectId, Owner, StructTag, TypeTag};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
