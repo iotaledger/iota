@@ -21,7 +21,7 @@ use iota::event;
 use iota::iota::IOTA;
 
 /// Minimum deposit required when registering as an attestor.
-/// Devnet-stage value; planned to move into the protocol config once
+/// Planned to move into the protocol config once
 /// `iota::protocol_config` supports reading parameters.
 const MIN_ATTESTOR_JOINING_BOND: u64 = 2_000_000_000_000; // 2,000 IOTA
 /// Minimum bond an active attestor must hold at each epoch boundary.
@@ -131,12 +131,11 @@ public struct AttestorKeyRotatedEvent has copy, drop {
 // === Feature gating (TEMPORARY MOCK) ===
 //
 // TODO(attestor-registry): replace this mock with a real protocol feature
-// flag check once protocol version 26 (which introduces
-// `iota::protocol_config::is_feature_enabled`) is merged into this branch.
+// flag check is possible from within iota-system.
 // The intended call is:
 //   protocol_config::is_feature_enabled(b"enable_validator_attestation")
 // For now the feature is unconditionally treated as enabled so the registry
-// can be exercised without the v26 dependency.
+// can be exercised.
 fun is_validator_attestation_enabled(): bool {
     true
 }
@@ -163,7 +162,7 @@ public(package) fun new(): AttestorRegistryV1 {
 // === Pubkey validation ===
 
 /// A valid attestor pubkey is `flag || raw_key` for one of the plain
-/// signature schemes. Multisig / zklogin / passkey flags are rejected.
+/// signature schemes. Multisig / passkey / AA flags are rejected.
 public(package) fun is_valid_attestor_pubkey(pubkey: &vector<u8>): bool {
     if (pubkey.is_empty()) return false;
     let flag = pubkey[0];
@@ -209,13 +208,15 @@ public(package) fun register(
     let activation_epoch = current_epoch + 1;
     let bond_amount = bond.value();
     let pubkey_for_event = attestor_pubkey;
-    self.pending_active.push_back(AttestorV1 {
-        attestor_address: sender,
-        attestor_pubkey: pubkey_for_event,
-        next_epoch_attestor_pubkey: option::none(),
-        bond,
-        activation_epoch,
-    });
+    self
+        .pending_active
+        .push_back(AttestorV1 {
+            attestor_address: sender,
+            attestor_pubkey: pubkey_for_event,
+            next_epoch_attestor_pubkey: option::none(),
+            bond,
+            activation_epoch,
+        });
     event::emit(AttestorRegisteredEvent {
         epoch: current_epoch,
         attestor_address: sender,
@@ -510,13 +511,15 @@ public fun push_pending_for_testing(
     addr: address,
     bond_amount: u64,
 ) {
-    self.pending_active.push_back(AttestorV1 {
-        attestor_address: addr,
-        attestor_pubkey: vector[],
-        next_epoch_attestor_pubkey: option::none(),
-        bond: balance::create_for_testing(bond_amount),
-        activation_epoch: 0,
-    });
+    self
+        .pending_active
+        .push_back(AttestorV1 {
+            attestor_address: addr,
+            attestor_pubkey: vector[],
+            next_epoch_attestor_pubkey: option::none(),
+            bond: balance::create_for_testing(bond_amount),
+            activation_epoch: 0,
+        });
 }
 
 #[test_only]

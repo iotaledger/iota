@@ -241,7 +241,12 @@ public entry fun register_attestor(
     attestor_registry::assert_feature_enabled();
     let sender = ctx.sender();
     let epoch = ctx.epoch();
-    load_attestor_registry_mut(wrapper).register(bond.into_balance(), attestor_pubkey, sender, epoch);
+    load_attestor_registry_mut(wrapper).register(
+        bond.into_balance(),
+        attestor_pubkey,
+        sender,
+        epoch,
+    );
 }
 
 /// Deregister the sender. A pending registration is refunded immediately;
