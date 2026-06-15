@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::storage::Store;
@@ -1196,6 +1196,13 @@ impl Core {
         let (_, missing) = self
             .block_manager
             .try_accept_blocks(vec![verified_block.clone()], DataSource::OwnBlock);
+        if !missing.is_empty() {
+            error!(
+                ?missing,
+                block_ref = ?verified_block.reference(),
+                "own block proposal returned unexpected missing ancestors"
+            );
+        }
         debug_assert!(
             missing.is_empty(),
             "own block must have no missing ancestors"
