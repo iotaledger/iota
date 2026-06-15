@@ -38,6 +38,7 @@ use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
 use iota_types::{
+    committee::{Committee, CommitteeChainVerifier},
     digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
     iota_system_state::{
@@ -342,24 +343,84 @@ impl EpochInfo {
     }
 }
 
-/// Verify the snapshot's `chain_id`, then restore its `EPOCH_INFO` rows into
-/// the given consumer's epoch store; a foreign-chain snapshot is rejected
-/// before any write. Generic over [`RestoreEpochInfo`] so the gRPC index and
-/// an external indexer each provide their own persistence.
-pub async fn verify_and_restore_epoch_info(
-    db: &impl RestoreEpochInfo,
+/// Chain-verified `EPOCH_INFO`: the snapshot's `chain_id` matched, and every
+/// entry's certified `last_checkpoint_summary` was verified against its
+/// epoch's committee, walking the committee handoffs from the genesis
+/// committee. The only constructor is [`verify_epoch_info_chain`], so holding
+/// one is proof the data is anchored to the operator-provided genesis — the
+/// same trust model as the checkpoint-archive sync.
+#[derive(Debug)]
+pub struct VerifiedEpochInfo {
     epoch_info: EpochInfo,
+    committees: Vec<Committee>,
+}
+
+impl VerifiedEpochInfo {
+    /// Entries for epochs `[0, snapshot_epoch]`, in epoch order.
+    pub fn entries(&self) -> &[EpochInfoV1Entry] {
+        self.epoch_info.entries()
+    }
+
+    /// Committees for epochs `[0, snapshot_epoch + 1]`: the genesis committee
+    /// plus one handed forward by each entry's `end_of_epoch_data`.
+    pub fn committees(&self) -> &[Committee] {
+        &self.committees
+    }
+
+    /// Restore the verified rows `[0, snapshot_epoch]` into the given
+    /// consumer's epoch store.
+    pub async fn restore_epoch_info(self, db: &impl RestoreEpochInfo) -> anyhow::Result<()> {
+        let rows = self.epoch_info.into_epoch_info_v2_rows()?;
+        db.restore_epoch_info(rows).await
+    }
+}
+
+/// Verify a snapshot's `EPOCH_INFO` against the operator's trust roots: the
+/// expected `chain_id`, and the committee chain walked from the genesis
+/// committee — each entry must be the certified close of its epoch (contiguous
+/// from epoch 0, carrying `end_of_epoch_data`), signed by the committee the
+/// previous entry handed forward. Nothing is written; the returned
+/// [`VerifiedEpochInfo`] is the witness consumers require.
+pub fn verify_epoch_info_chain(
+    epoch_info: EpochInfo,
+    genesis_committee: Committee,
     snapshot_chain_id: ChainIdentifier,
     expected_chain_id: ChainIdentifier,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<VerifiedEpochInfo> {
     anyhow::ensure!(
         snapshot_chain_id == expected_chain_id,
         "snapshot chain_id {snapshot_chain_id} does not match this node's chain \
          {expected_chain_id} (snapshot from the wrong network's bucket?)"
     );
+    anyhow::ensure!(
+        genesis_committee.epoch == 0,
+        "the trust root must be the genesis committee, got epoch {}",
+        genesis_committee.epoch
+    );
 
-    let rows = epoch_info.into_epoch_info_v2_rows()?;
-    db.restore_epoch_info(rows).await
+    let mut chain_verifier = CommitteeChainVerifier::new(genesis_committee);
+    let mut committees = vec![chain_verifier.committee().clone()];
+    for (index, entry) in epoch_info.entries().iter().enumerate() {
+        // EPOCH_INFO-specific: entries must be the contiguous epochs from 0.
+        // Everything else (summary epoch, signatures, close-of-epoch,
+        // committee handover) is the chain walk itself.
+        anyhow::ensure!(
+            entry.epoch == index as u64,
+            "EPOCH_INFO entry at index {index} declares epoch {}",
+            entry.epoch,
+        );
+        chain_verifier
+            .verify_epoch_close(entry.last_checkpoint_summary.clone())
+            .map_err(|e| {
+                anyhow::anyhow!("EPOCH_INFO entry for epoch {index} failed verification: {e}")
+            })?;
+        committees.push(chain_verifier.committee().clone());
+    }
+
+    Ok(VerifiedEpochInfo {
+        epoch_info,
+        committees,
+    })
 }
 
 impl TryFrom<EpochInfoV1Entry> for EpochInfoV2 {

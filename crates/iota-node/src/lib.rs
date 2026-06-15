@@ -560,6 +560,7 @@ impl IotaNode {
                 Self::backfill_epochs_v2_from_snapshot(
                     grpc_indexes_store,
                     remote_store_config,
+                    genesis.committee()?,
                     chain_identifier,
                     &store,
                     &checkpoint_store,
@@ -885,6 +886,7 @@ impl IotaNode {
     async fn backfill_epochs_v2_from_snapshot(
         grpc_indexes_store: &GrpcIndexesStore,
         remote_store_config: &ObjectStoreConfig,
+        genesis_committee: Committee,
         expected_chain_id: ChainIdentifier,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
@@ -893,13 +895,15 @@ impl IotaNode {
         info!("backfilling gRPC epochs_v2 from snapshot EPOCH_INFO up to epoch {epoch}");
         let (snapshot_chain_id, epoch_info) =
             StateSnapshotReaderV1::read_epoch_info_only(epoch, remote_store_config).await?;
-        iota_snapshot::verify_and_restore_epoch_info(
-            grpc_indexes_store,
+        // Anchor the bucket's data to this node's trust roots: the chain id
+        // and the committee chain walked from the genesis committee.
+        let verified = iota_snapshot::verify_epoch_info_chain(
             epoch_info,
+            genesis_committee,
             snapshot_chain_id,
             expected_chain_id,
-        )
-        .await?;
+        )?;
+        verified.restore_epoch_info(grpc_indexes_store).await?;
         // The published snapshot can lag local execution (a delayed snapshot
         // pipeline); close as much of the residual gap as pruning still
         // allows by replaying the missing epochs' closing checkpoints.

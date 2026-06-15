@@ -7,11 +7,14 @@ use std::{
     fs,
     io::Write,
     num::NonZeroUsize,
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use byteorder::{BigEndian, ByteOrder};
-use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
+use fastcrypto::{
+    hash::{HashFunction, MultisetHash, Sha3_256},
+    traits::KeyPair,
+};
 use futures::future::AbortHandle;
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
@@ -24,14 +27,17 @@ use iota_node_storage::GrpcIndexes;
 use iota_sdk_types::{GasCostSummary, ObjectId};
 use iota_types::{
     base_types::IotaAddress,
-    committee::EpochId,
-    crypto::AuthorityStrongQuorumSignInfo,
+    committee::{Committee, EpochId},
+    crypto::{AuthorityKeyPair, get_key_pair_from_rng},
     digests::{ChainIdentifier, TransactionDigest},
     effects::TransactionEvents,
     global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
     message_envelope::Envelope,
-    messages_checkpoint::{CheckpointSummary, ECMHLiveObjectSetDigest},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointSummary, ECMHLiveObjectSetDigest, EndOfEpochData,
+        SignedCheckpointSummary,
+    },
     object::Object,
     storage::{
         CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, OwnedObjectCursor,
@@ -39,11 +45,13 @@ use iota_types::{
         error::Result as StorageResult,
     },
 };
+use rand::SeedableRng;
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
     FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
-    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes, writer::StateSnapshotWriterV1,
+    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes, verify_epoch_info_chain,
+    writer::StateSnapshotWriterV1,
 };
 
 /// In-memory `GrpcIndexes` stub for snapshot tests.
@@ -118,27 +126,61 @@ fn test_system_state() -> IotaSystemState {
     state
 }
 
-fn fully_populated_checkpoint_summary(
-    epoch: EpochId,
-) -> iota_types::messages_checkpoint::CertifiedCheckpointSummary {
-    let summary = CheckpointSummary {
+/// One validator set for the whole test process, shared by every fixture:
+/// summaries signed in one helper must verify against committees built in
+/// another. (`new_simple_test_committee` is fixed-seed deterministic; the
+/// `OnceLock` just makes the sharing explicit and skips repeated keygen.)
+fn test_validator_set() -> &'static (Committee, Vec<AuthorityKeyPair>) {
+    static SET: OnceLock<(Committee, Vec<AuthorityKeyPair>)> = OnceLock::new();
+    SET.get_or_init(Committee::new_simple_test_committee)
+}
+
+/// The fixed validator set's committee at `epoch` (the set never rotates in
+/// these fixtures, only the epoch advances).
+fn test_committee_at(epoch: EpochId) -> Committee {
+    let (genesis_committee, _) = test_validator_set();
+    Committee::new(
+        epoch,
+        genesis_committee.voting_rights.iter().cloned().collect(),
+    )
+}
+
+/// An end-of-epoch summary for `epoch`, handing the fixed validator set
+/// forward to `epoch + 1`.
+fn end_of_epoch_summary(epoch: EpochId) -> CheckpointSummary {
+    CheckpointSummary {
         epoch,
         sequence_number: 0,
         network_total_transactions: 0,
         content_digest: Default::default(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: GasCostSummary::default(),
-        end_of_epoch_data: None,
+        end_of_epoch_data: Some(EndOfEpochData {
+            next_epoch_committee: test_validator_set().0.voting_rights.clone(),
+            next_epoch_protocol_version: 1.into(),
+            epoch_commitments: Vec::new(),
+            epoch_supply_change: 0,
+        }),
         timestamp_ms: 0,
         version_specific_data: Vec::new(),
         checkpoint_commitments: Vec::new(),
-    };
-    let sig = AuthorityStrongQuorumSignInfo {
-        epoch,
-        signature: Default::default(),
-        signers_map: Default::default(),
-    };
-    Envelope::new_from_data_and_sig(summary, sig)
+    }
+}
+
+/// Certify `summary` with the fixed validator set (all four sign — a quorum).
+fn certify_summary(summary: CheckpointSummary) -> CertifiedCheckpointSummary {
+    let (_, keys) = test_validator_set();
+    let committee = test_committee_at(summary.epoch);
+    let signatures = keys
+        .iter()
+        .map(|key| SignedCheckpointSummary::sign(summary.epoch, &summary, key, key.public().into()))
+        .collect();
+    CertifiedCheckpointSummary::new(summary, signatures, &committee)
+        .expect("test summary must certify under the test committee")
+}
+
+fn fully_populated_checkpoint_summary(epoch: EpochId) -> CertifiedCheckpointSummary {
+    certify_summary(end_of_epoch_summary(epoch))
 }
 
 fn fully_populated_epoch_info(epoch: EpochId) -> EpochInfoV2 {
@@ -664,15 +706,16 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
         .collect::<Result<_, _>>()?;
     assert_eq!(restored_ids, owned_ids);
 
-    // The remaining restore-tool steps: seed the epoch rows and finalize.
+    // The remaining restore-tool steps: chain-verify EPOCH_INFO, seed the
+    // epoch rows, and finalize.
     let epoch_info = snapshot_reader.read_epoch_info().await?;
-    crate::verify_and_restore_epoch_info(
-        &restored_grpc,
+    let verified = verify_epoch_info_chain(
         epoch_info,
+        test_committee_at(0),
         snapshot_reader.chain_id(),
         ChainIdentifier::default(),
-    )
-    .await?;
+    )?;
+    verified.restore_epoch_info(&restored_grpc).await?;
     assert_eq!(restored_grpc.highest_indexed_epoch()?, Some(0));
     restored_grpc.finalize_restore(0)?;
     Ok(())
@@ -1158,4 +1201,142 @@ fn snapshot_epoch_info_field_order_is_locked() {
         "EpochInfoV1Entry BCS layout changed; re-anchor this test only if \
          the schema change is deliberate and reviewers have signed off"
     );
+}
+
+/// A valid `EPOCH_INFO` for epochs `[0, snapshot_epoch]`, certified by the
+/// fixed test validator set with the committee handed forward at every close.
+fn signed_epoch_info(snapshot_epoch: EpochId) -> EpochInfo {
+    EpochInfo::V1(EpochInfoV1 {
+        entries: (0..=snapshot_epoch)
+            .map(fully_populated_snapshot_epoch_entry)
+            .collect(),
+    })
+}
+
+/// Happy path: a committee-signed EPOCH_INFO verifies against the genesis
+/// committee, yields the committee chain for `[0, snapshot_epoch + 1]`, and
+/// restores into the gRPC epoch index with the watermark advanced.
+#[tokio::test]
+async fn verify_epoch_info_chain_accepts_and_restores() {
+    let verified = verify_epoch_info_chain(
+        signed_epoch_info(2),
+        test_committee_at(0),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect("a committee-signed EPOCH_INFO must verify");
+
+    assert_eq!(verified.entries().len(), 3);
+    let committee_epochs: Vec<_> = verified.committees().iter().map(|c| c.epoch).collect();
+    assert_eq!(committee_epochs, vec![0, 1, 2, 3]);
+
+    let tmp_dir = iota_common::tempdir();
+    let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+    verified.restore_epoch_info(&grpc).await.expect("restore");
+    assert_eq!(grpc.highest_indexed_epoch().unwrap(), Some(2));
+}
+
+/// A wrong-network snapshot is rejected on the chain id, before any
+/// signature work.
+#[test]
+fn verify_epoch_info_chain_rejects_wrong_chain_id() {
+    let err = verify_epoch_info_chain(
+        signed_epoch_info(1),
+        test_committee_at(0),
+        ChainIdentifier::default(),
+        ChainIdentifier::from(iota_types::digests::CheckpointDigest::new([7; 32])),
+    )
+    .expect_err("a foreign chain id must be rejected");
+    assert!(err.to_string().contains("chain_id"), "got: {err}");
+}
+
+/// A trust root other than the signing committee fails at the first entry.
+#[test]
+fn verify_epoch_info_chain_rejects_wrong_genesis_committee() {
+    // `new_simple_test_committee` derives its keys from a fixed seed (it would
+    // return the fixture's own validator set), so generate a genuinely
+    // different one.
+    let mut rng = rand::rngs::StdRng::from_seed([7; 32]);
+    let other_rights: std::collections::BTreeMap<_, _> = (0..4)
+        .map(|_| {
+            let (_, key): (_, AuthorityKeyPair) = get_key_pair_from_rng(&mut rng);
+            (key.public().into(), 2500)
+        })
+        .collect();
+    let other_committee = Committee::new_for_testing_with_normalized_voting_power(0, other_rights);
+
+    let err = verify_epoch_info_chain(
+        signed_epoch_info(1),
+        other_committee,
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("a different validator set must be rejected");
+    assert!(
+        err.to_string().contains("epoch 0"),
+        "the chain walk must fail at the first entry: {err}"
+    );
+}
+
+/// A summary mutated after certification fails signature verification, even
+/// though it carries an otherwise valid quorum signature.
+#[test]
+fn verify_epoch_info_chain_rejects_tampered_summary() {
+    let mut epoch_info = signed_epoch_info(2);
+    let EpochInfo::V1(info) = &mut epoch_info;
+    let certified = &info.entries[1].last_checkpoint_summary;
+    let mut tampered_summary = certified.data().clone();
+    tampered_summary.timestamp_ms = 42; // not what the committee signed
+    info.entries[1].last_checkpoint_summary =
+        Envelope::new_from_data_and_sig(tampered_summary, certified.auth_sig().clone());
+
+    let err = verify_epoch_info_chain(
+        epoch_info,
+        test_committee_at(0),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("a tampered summary must be rejected");
+    assert!(
+        err.to_string().contains("epoch 1"),
+        "the chain walk must fail at the tampered entry: {err}"
+    );
+}
+
+/// An entry that is not a close-of-epoch checkpoint cannot hand a committee
+/// forward and must be rejected.
+#[test]
+fn verify_epoch_info_chain_rejects_missing_end_of_epoch_data() {
+    let mut epoch_info = signed_epoch_info(2);
+    let EpochInfo::V1(info) = &mut epoch_info;
+    let mut summary = end_of_epoch_summary(1);
+    summary.end_of_epoch_data = None;
+    info.entries[1].last_checkpoint_summary = certify_summary(summary);
+
+    let err = verify_epoch_info_chain(
+        epoch_info,
+        test_committee_at(0),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("an entry without end_of_epoch_data must be rejected");
+    assert!(err.to_string().contains("end-of-epoch data"), "got: {err}");
+}
+
+/// Entries must be contiguous from epoch 0: a hole breaks the committee
+/// handoff and must be rejected, not skipped over.
+#[test]
+fn verify_epoch_info_chain_rejects_non_contiguous_entries() {
+    let mut epoch_info = signed_epoch_info(2);
+    let EpochInfo::V1(info) = &mut epoch_info;
+    info.entries.remove(1);
+
+    let err = verify_epoch_info_chain(
+        epoch_info,
+        test_committee_at(0),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("a hole in the entries must be rejected");
+    assert!(err.to_string().contains("declares epoch"), "got: {err}");
 }

@@ -7667,6 +7667,7 @@ dependencies = [
  "num_enum",
  "object_store 0.13.1",
  "prometheus",
+ "rand 0.8.6",
  "serde",
  "tempfile",
  "tokio",
