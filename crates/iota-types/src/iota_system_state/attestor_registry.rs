@@ -147,6 +147,20 @@ pub fn get_attestor_registry(
     )
 }
 
+/// Read the registry and shape its active set for the epoch-start snapshot.
+pub fn read_epoch_start_attestors(
+    object_store: &dyn ObjectStore,
+) -> Result<Vec<EpochStartAttestorInfoV1>, IotaError> {
+    Ok(get_attestor_registry(object_store)?
+        .active_attestors
+        .into_iter()
+        .map(|a| EpochStartAttestorInfoV1 {
+            attestor_address: a.attestor_address,
+            attestor_pubkey: a.attestor_pubkey,
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -161,7 +161,11 @@ impl AuthorityStore {
             });
 
             let epoch_start_configuration = EpochStartConfiguration::new(
-                genesis.iota_system_object().into_epoch_start_state(),
+                // The attestor registry cannot exist at genesis.
+                genesis
+                    .iota_system_object()
+                    .into_epoch_start_state()
+                    .with_attestors(vec![]),
                 *genesis.checkpoint().digest(),
                 &genesis.objects(),
                 initial_epoch_flags,

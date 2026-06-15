@@ -254,7 +254,9 @@ pub async fn setup_db_state(
     // This function should be called once state accumulator based hash verification
     // is complete and live object set state is downloaded to local store
     let system_state_object = get_iota_system_state(&perpetual_db)?;
-    let new_epoch_start_state = system_state_object.into_epoch_start_state();
+    let new_epoch_start_state = system_state_object.into_epoch_start_state().with_attestors(
+        iota_types::iota_system_state::attestor_registry::read_epoch_start_attestors(&perpetual_db)?,
+    );
     let next_epoch_committee = new_epoch_start_state.get_iota_committee();
     let root_digest: ECMHLiveObjectSetDigest = state_hash.digest().into();
     let last_checkpoint = checkpoint_store
