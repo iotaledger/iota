@@ -1008,9 +1008,10 @@ mod checked {
         let fn_handle = module.function_handle_at(fn_definition.function);
         let fn_signature = module.signature_at(fn_handle.parameters);
         // We need the first parameter to be a reference type so we can extract the
-        // inner as the type tag.
+        // inner as the type tag. The account may be passed by immutable or (when
+        // `enable_mutable_shared_in_move_authenticator` is set) mutable reference.
         match &fn_signature.0[0] {
-            SignatureToken::Reference(ref_param) => {
+            SignatureToken::Reference(ref_param) | SignatureToken::MutableReference(ref_param) => {
                 let pool = &mut normalized::RcPool::new();
                 if let Some(type_tag) =
                     normalized::Type::new(pool, module, ref_param).to_type_tag(pool)

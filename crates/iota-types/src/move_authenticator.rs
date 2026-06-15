@@ -354,18 +354,12 @@ impl MoveAuthenticatorV1 {
                 Some(object_ref.version),
                 Some(object_ref.digest),
             ),
-            CallArg::Shared(SharedObjectRef {
-                object_id, mutable, ..
-            }) => {
-                if *mutable {
-                    return Err(UserInputError::Unsupported(
-                        "MoveAuthenticatorV1 cannot authenticate mutable shared objects"
-                            .to_string(),
-                    ));
-                }
-
-                (*object_id, None, None)
-            }
+            // A mutable shared object as the authenticated account is gated by the
+            // `enable_mutable_shared_in_move_authenticator` feature flag, enforced on the
+            // authenticator input objects by `check_move_authenticator_objects`. Here we
+            // only extract the components, which are identical for mutable and immutable
+            // shared objects.
+            CallArg::Shared(SharedObjectRef { object_id, .. }) => (*object_id, None, None),
             CallArg::Receiving(_) => {
                 return Err(UserInputError::Unsupported(
                     "MoveAuthenticator cannot authenticate receiving objects".to_string(),

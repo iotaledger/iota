@@ -85,8 +85,13 @@ pub fn verify_authenticate_func_v1(
     // Additional restrictions on the first argument type are enforced in the
     // following check.
     let account_parameter = &function_signature.0[0];
-    verify_authenticate_account_type(module, &function_handle.type_parameters, account_parameter)
-        .map_err(verification_failure)?;
+    verify_authenticate_account_type(
+        module,
+        &function_handle.type_parameters,
+        account_parameter,
+        enable_mutable_shared,
+    )
+    .map_err(verification_failure)?;
 
     // Check params 2nd to N-2th /////////////////////////////
 
@@ -152,21 +157,34 @@ pub fn verify_authenticate_func_v1(
     Ok(())
 }
 
-/// Verify that the first parameter type of the authenticator function is an
-/// immutable reference to an Object type, i.e., a Datatype with `key` ability.
+/// Verify that the first parameter type of the authenticator function is a
+/// reference to an Object type, i.e., a Datatype with `key` ability.
+///
+/// The reference must be immutable, unless `enable_mutable_shared` is set, in
+/// which case a mutable reference (`&mut`) to the account is also allowed — the
+/// account may then be mutated during authentication. As with the other object
+/// parameters, the verifier cannot tell shared from owned objects here;
+/// restricting `&mut` to *shared* accounts is enforced at runtime.
 fn verify_authenticate_account_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
     param: &SignatureToken,
+    enable_mutable_shared: bool,
 ) -> Result<(), String> {
     use SignatureToken::*;
 
-    // Check that the parameter is an immutable reference
-    if let Reference(ref_param) = param {
+    // The account must be passed by reference: always immutable, and mutable too
+    // when the feature flag is set.
+    let account_type = match param {
+        Reference(ref_param) => Some(&**ref_param),
+        MutableReference(ref_param) if enable_mutable_shared => Some(&**ref_param),
+        _ => None,
+    };
+
+    if let Some(s) = account_type {
         // Check if a type is a concrete object type (i.e., a Datatype with
         // `key` ability or a DatatypeInstantiation with `key` ability
         // and all type arguments being concrete object types).
-        let s = &**ref_param;
         match s {
             Datatype(_) => {
                 let abilities = module
@@ -189,7 +207,7 @@ fn verify_authenticate_account_type(
         }
     }
     Err(format!(
-        "Invalid authenticator function account type: {}. Valid types for the first parameter are immutable references to an object type (with no generics).",
+        "Invalid authenticator function account type: {}. Valid types for the first parameter are references to an object type (with no generics).",
         format_signature_token(module, param),
     ))
 }

@@ -5,7 +5,9 @@ module abstract_account::abstract_account_keyed;
 
 use abstract_account::abstract_account::{Self, AbstractAccount};
 use abstract_account::basic_keyed_aa;
-use iota::authenticator_function::AuthenticatorFunctionRefV1;
+use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
+use iota::package_metadata::PackageMetadataV1;
+use std::ascii;
 
 // === Errors ===
 
@@ -19,6 +21,10 @@ public struct Counter has key {
     id: UID,
     value: u64,
 }
+
+/// Dynamic-field key for a per-account authentication counter, mutated by
+/// `authenticate_ed25519_and_mutate_account`.
+public struct AuthCount has copy, drop, store {}
 
 // === Events ===
 
@@ -177,6 +183,73 @@ public fun authenticate_ed25519_and_increment(
         &signature,
         borrow_public_key(account),
         actx,
+        ctx,
+    );
+}
+
+/// Ed25519 authenticator that *mutates the authenticated account itself*: it
+/// initialises or bumps an `AuthCount` dynamic field on the account.
+///
+/// Requires `enable_mutable_shared_in_move_authenticator`: the account must be
+/// passed by mutable reference (`&mut AbstractAccount`) and as a mutable shared
+/// authenticator input.
+#[authenticator]
+public fun authenticate_ed25519_and_mutate_account(
+    account: &mut AbstractAccount,
+    signature: vector<u8>,
+    actx: &AuthContext,
+    ctx: &TxContext,
+) {
+    // Verify the signature first (immutable borrow, released before mutation).
+    basic_keyed_aa::authenticate_ed25519(
+        &signature,
+        borrow_public_key(account),
+        actx,
+        ctx,
+    );
+
+    // Mutate the account itself: initialise or bump the auth counter.
+    if (account.has_field(AuthCount {})) {
+        let count: &mut u64 = account.borrow_field_mut(AuthCount {}, ctx);
+        *count = *count + 1;
+    } else {
+        account.add_field(AuthCount {}, 1u64, ctx);
+    };
+}
+
+/// Ed25519 authenticator that *rotates the account's own
+/// `AuthenticatorFunctionRef`* to `authenticate_free_access` while
+/// authenticating.
+///
+/// Requires `enable_mutable_shared_in_move_authenticator` (the account is taken
+/// by mutable reference). After a transaction authenticated with this function,
+/// the account is authenticated by `authenticate_free_access`. The package
+/// metadata is passed as an immutable input so the new authenticator reference
+/// can be constructed.
+#[authenticator]
+public fun authenticate_ed25519_and_rotate_to_free_access(
+    account: &mut AbstractAccount,
+    package_metadata: &PackageMetadataV1,
+    signature: vector<u8>,
+    actx: &AuthContext,
+    ctx: &TxContext,
+) {
+    // Verify the signature first (immutable borrow, released before mutation).
+    basic_keyed_aa::authenticate_ed25519(
+        &signature,
+        borrow_public_key(account),
+        actx,
+        ctx,
+    );
+
+    // Build a reference to the free-access authenticator and rotate to it.
+    let new_ref = authenticator_function::create_auth_function_ref_v1<AbstractAccount>(
+        package_metadata,
+        ascii::string(b"abstract_account_keyed"),
+        ascii::string(b"authenticate_free_access"),
+    );
+    let _prev: AuthenticatorFunctionRefV1<AbstractAccount> = account.rotate_auth_function_ref_v1(
+        new_ref,
         ctx,
     );
 }

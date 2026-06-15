@@ -68,6 +68,10 @@ const AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER: &str =
 const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNING_DIGEST: &str =
     "authenticate_ed25519_via_signing_digest";
 const AA_AUTHENTICATE_FN_NAME_ED25519_AND_INCREMENT: &str = "authenticate_ed25519_and_increment";
+const AA_AUTHENTICATE_FN_NAME_ED25519_AND_MUTATE_ACCOUNT: &str =
+    "authenticate_ed25519_and_mutate_account";
+const AA_AUTHENTICATE_FN_NAME_ED25519_AND_ROTATE: &str =
+    "authenticate_ed25519_and_rotate_to_free_access";
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
@@ -193,6 +197,148 @@ async fn test_authenticator_with_mutable_shared_object() -> Result<(), anyhow::E
             > counter_ref.version,
         "the shared counter version should have been bumped by the mutation"
     );
+
+    Ok(())
+}
+
+/// Test that a Move authenticator can mutate the *authenticated account object
+/// itself* (passed by `&mut`), gated by the
+/// `enable_mutable_shared_in_move_authenticator` protocol feature flag.
+///
+/// The authenticator initialises an `AuthCount` dynamic field on the account.
+/// The transaction body deliberately does not touch the account, so the bump of
+/// the account's object version is attributable solely to the authenticator.
+#[sim_test]
+async fn test_authenticator_mutates_account_object() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_mutable_shared_in_move_authenticator_for_testing(true);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_AND_MUTATE_ACCOUNT)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+
+    // The auth counter does not exist on the account yet.
+    assert_eq!(
+        test_env.read_account_auth_count(aa_ref.object_id).await?,
+        None,
+        "the account should not have an AuthCount field before authentication"
+    );
+
+    // Transaction body that does not reference the account, so any change to the
+    // account is attributable solely to the authenticator.
+    let pt = test_env.craft_create_counter_ptb()?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Authenticate with the MoveAuthenticator that passes the account as a
+    // *mutable* shared object and mutates it.
+    let signature = test_env.create_move_authenticator_ed25519_mutate_account(&tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+    test_env.execute_and_check_tx_correctness(tx).await?;
+
+    // The authenticator initialised the account's auth counter to 1, proving the
+    // mutation of the account itself was committed to effects.
+    assert_eq!(
+        test_env.read_account_auth_count(aa_ref.object_id).await?,
+        Some(1),
+        "the authenticator should have set the account's AuthCount to 1"
+    );
+    // ... and bumped the account object version.
+    assert!(
+        test_env
+            .test_cluster
+            .get_latest_object_ref(&aa_ref.object_id)
+            .await
+            .version
+            > aa_ref.version,
+        "the account object version should have been bumped by the authenticator"
+    );
+
+    Ok(())
+}
+
+/// Test that a Move authenticator can change the account's own
+/// `AuthenticatorFunctionRef` while authenticating, gated by the
+/// `enable_mutable_shared_in_move_authenticator` protocol feature flag.
+///
+/// The first transaction authenticates with ed25519 and rotates the account's
+/// authenticator to `authenticate_free_access`. A second transaction then
+/// authenticates with free-access (no signature), which only succeeds if the
+/// authenticator reference was actually changed by the first transaction.
+#[sim_test]
+async fn test_authenticator_rotates_account_auth_function_ref() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_mutable_shared_in_move_authenticator_for_testing(true);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_AND_ROTATE)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // First tx: authenticate with ed25519 and rotate the account's authenticator
+    // to free-access.
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_create_counter_ptb()?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    let signature = test_env.create_move_authenticator_ed25519_rotate(&tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+    test_env.execute_and_check_tx_correctness(tx).await?;
+
+    // The authenticator mutated the account (rotated its auth ref): version bumped.
+    assert!(
+        test_env
+            .test_cluster
+            .get_latest_object_ref(&aa_ref.object_id)
+            .await
+            .version
+            > aa_ref.version,
+        "the account version should have been bumped by the auth-ref rotation"
+    );
+
+    // Second tx: the account is now authenticated by free-access (no signature),
+    // proving the first authenticator changed the AuthenticatorFunctionRef.
+    // Shared objects are referenced by their initial shared version (`aa_ref`).
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_create_counter_ptb()?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+    let free_access_signature =
+        test_env.create_move_authenticator_for_free_access_for_ref(aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![free_access_signature]);
+    test_env.execute_and_check_tx_correctness(tx).await?;
 
     Ok(())
 }
@@ -2486,6 +2632,42 @@ impl TestEnvironment {
         Ok(value)
     }
 
+    /// Read the `AuthCount` dynamic-field value on the account (the counter
+    /// mutated by `authenticate_ed25519_and_mutate_account`). Returns `None` if
+    /// the field has not been created yet.
+    async fn read_account_auth_count(&self, account_id: ObjectId) -> anyhow::Result<Option<u64>> {
+        // Look the field up by name rather than deriving its id, to avoid any
+        // key-encoding assumptions.
+        let fields = self
+            .test_cluster
+            .iota_client()
+            .read_api()
+            .get_dynamic_fields(account_id, None, None)
+            .await?;
+        let Some(field) = fields
+            .data
+            .iter()
+            .find(|f| f.name.type_.to_string().ends_with("::AuthCount"))
+        else {
+            return Ok(None);
+        };
+        let object = self
+            .test_cluster
+            .get_object_from_fullnode_store(&field.object_id)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("auth count field object not found"))?;
+        let move_object = object
+            .data
+            .as_struct_opt()
+            .ok_or_else(|| anyhow::anyhow!("auth count field is not a Move object"))?;
+        // `Field<AuthCount, u64> { id: UID, name: AuthCount, value: u64 }`: the
+        // empty `name` contributes no bytes, so `value` is the trailing 8 bytes.
+        let contents = move_object.contents();
+        Ok(Some(u64::from_le_bytes(<[u8; 8]>::try_from(
+            &contents[contents.len() - 8..],
+        )?)))
+    }
+
     /// Build a `MoveAuthenticator` for `authenticate_ed25519_and_increment`,
     /// passing the `Counter` as a *mutable* shared call argument.
     // public fun authenticate_ed25519_and_increment(
@@ -2533,6 +2715,98 @@ impl TestEnvironment {
         Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_v1(
                 vec![counter_call_arg, signature_call_arg],
+                vec![],
+                account_call_arg,
+            ),
+        ))
+    }
+
+    /// Build a PTB that creates a shared `Counter`. Used as an
+    /// account-independent transaction body so account mutations can be
+    /// attributed solely to the authenticator.
+    fn craft_create_counter_ptb(&self) -> anyhow::Result<ProgrammableTransaction> {
+        let Some(aa_package_id) = self.aa_package_id else {
+            anyhow::bail!("Account abstraction package not published yet");
+        };
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.programmable_move_call(
+            aa_package_id,
+            Identifier::from_static(AA_CREATE_MODULE_NAME),
+            Identifier::from_static("create_counter"),
+            vec![],
+            vec![],
+        );
+        Ok(builder.finish())
+    }
+
+    /// Build a `MoveAuthenticator` for
+    /// `authenticate_ed25519_and_mutate_account`, passing the account
+    /// itself as a *mutable* shared object so the authenticator can mutate
+    /// it.
+    fn create_move_authenticator_ed25519_mutate_account(
+        &self,
+        tx_digest: &[u8; 32],
+    ) -> anyhow::Result<GenericSignature> {
+        let (Some(aa_ref), Some(owner)) = (self.aa_ref, self.owner) else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let signature = self
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_hashed(&owner, tx_digest)?;
+
+        // `object_to_authenticate`: the account itself, as a *mutable* shared object.
+        let account_call_arg =
+            CallArg::Shared(SharedObjectRef::new(aa_ref.object_id, aa_ref.version, true));
+        let hex_encoded_signature: String = Hex::encode(signature)
+            .chars()
+            .skip(2)
+            .take(Ed25519Signature::LENGTH * 2)
+            .collect();
+        let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
+
+        Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_v1(vec![signature_call_arg], vec![], account_call_arg),
+        ))
+    }
+
+    /// Build a `MoveAuthenticator` for
+    /// `authenticate_ed25519_and_rotate_to_free_access`, passing the account as
+    /// a *mutable* shared object and the package metadata as an immutable input
+    /// (needed to construct the new authenticator reference).
+    fn create_move_authenticator_ed25519_rotate(
+        &self,
+        tx_digest: &[u8; 32],
+    ) -> anyhow::Result<GenericSignature> {
+        let (Some(aa_ref), Some(owner), Some(aa_package_metadata_ref)) =
+            (self.aa_ref, self.owner, self.aa_package_metadata_ref)
+        else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let signature = self
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_hashed(&owner, tx_digest)?;
+
+        // `object_to_authenticate`: the account itself, as a *mutable* shared object.
+        let account_call_arg =
+            CallArg::Shared(SharedObjectRef::new(aa_ref.object_id, aa_ref.version, true));
+        // First call arg: the package metadata (immutable), used to build the new ref.
+        let metadata_call_arg = CallArg::ImmutableOrOwned(aa_package_metadata_ref);
+        let hex_encoded_signature: String = Hex::encode(signature)
+            .chars()
+            .skip(2)
+            .take(Ed25519Signature::LENGTH * 2)
+            .collect();
+        let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
+
+        Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_v1(
+                vec![metadata_call_arg, signature_call_arg],
                 vec![],
                 account_call_arg,
             ),
