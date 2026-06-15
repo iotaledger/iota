@@ -5787,6 +5787,33 @@ impl AuthorityState {
         Ok(())
     }
 
+    /// Re-runs the `TransactionDenyConfig` deny checks (disabled features,
+    /// denied signers, denied input/receiving objects, denied package
+    /// dependencies) for an attested (`UserTransactionV2`) transaction in the
+    /// post-consensus phase.
+    ///
+    /// NOTE: This is a **local** check — the deny config is sourced from each
+    /// validator's own `NodeConfig`, so running it post-consensus can make
+    /// validators diverge (a transaction one validator denies, another may
+    /// keep). It is kept here intentionally as a placeholder: a follow-up PR
+    /// replaces the local deny config with a consensus-agreed source so the
+    /// check becomes deterministic across validators.
+    pub(crate) fn check_transaction_deny_list_for_attested_tx(
+        &self,
+        transaction: &VerifiedTransaction,
+    ) -> IotaResult<()> {
+        let tx_data = transaction.data().transaction_data();
+        iota_transaction_checks::deny::check_transaction_for_validation(
+            tx_data,
+            transaction.tx_signatures(),
+            &transaction.input_objects()?,
+            &tx_data.receiving_objects(),
+            &self.config.transaction_deny_config,
+            self.get_backing_package_store().as_ref(),
+        )?;
+        Ok(())
+    }
+
     #[allow(clippy::type_complexity)]
     fn read_objects_for_validation(
         &self,

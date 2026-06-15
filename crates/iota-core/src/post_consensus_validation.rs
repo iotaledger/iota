@@ -30,9 +30,11 @@
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
 //!   — drop with error. Cheap; performed before expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` for
-//!   `UserTransactionV1`, or just the coin deny-list re-check for attested
-//!   `UserTransactionV2` (`check_coin_deny_list_for_attested_tx()`). Drop with
-//!   error. Only reached when all locks are free.
+//!   `UserTransactionV1`, or the deny-list and coin deny-list re-checks for
+//!   attested `UserTransactionV2`
+//!   (`check_transaction_deny_list_for_attested_tx()` then
+//!   `check_coin_deny_list_for_attested_tx()`). Drop with error. Only reached
+//!   when all locks are free.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
@@ -314,13 +316,14 @@ pub async fn validate_and_resolve_conflicts(
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
         //
-        // For `UserTransactionV2` (attested transactions) the only part
-        // re-run here is the coin deny-list check — see below. The rest is
-        // either re-applied during execution or is not safety-critical to
-        // run post-consensus:
-        //   - `TransactionDenyConfig` (sender/object/package deny lists, feature
-        //     kill-switches): loaded from each validator's local `NodeConfig` so it
-        //     shouldn't be re-run post- consensus.
+        // `UserTransactionV1` runs the full
+        // `handle_transaction_validation_checks` (which includes the
+        // `TransactionDenyConfig` deny-list check). For `UserTransactionV2`
+        // (attested transactions) two checks are re-run individually — the
+        // deny-list check and the coin deny-list check (see below). The rest
+        // of `handle_transaction_validation_checks` is skipped for V2 because
+        // it is either re-applied during execution or is not safety-critical
+        // to run post-consensus:
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
         //     when the ref doesn't match current state.
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
@@ -333,6 +336,11 @@ pub async fn validate_and_resolve_conflicts(
         //     Byzantine attestor cannot forge transactions; the failure is reported as
         //     `IotaError::AttestationInvalidUserSignature` and carries the
         //     `attestor_index` for future attestor-accountability.
+        //
+        // Deny-list check (`TransactionDenyConfig`: sender/object/package deny
+        // lists, feature kill-switches): this is a LOCAL check, sourced from
+        // each validator's `NodeConfig`. TODO: a follow-up PR will swap the local deny
+        // config for a consensus-agreed source.
         //
         // Coin deny list v1 MUST be re-checked here for attested
         // transactions: the attestor's view may be stale if a deny-list
@@ -358,6 +366,23 @@ pub async fn validate_and_resolve_conflicts(
             }
         } else {
             let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
+            // Deny-list check (placeholder using the local deny config — see
+            // the `TransactionDenyConfig` note in the Check #6 doc above).
+            if let Err(e) =
+                authority_state.check_transaction_deny_list_for_attested_tx(&verified_tx)
+            {
+                if e.is_storage_or_epoch_error() {
+                    return Err(e);
+                }
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed post-consensus deny-list check, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
             if let Err(e) = authority_state
                 .check_coin_deny_list_for_attested_tx(&verified_tx, epoch_store.epoch())
             {
