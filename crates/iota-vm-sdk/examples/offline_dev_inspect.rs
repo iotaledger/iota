@@ -32,6 +32,7 @@ fn main() -> Result<()> {
 
     let result = vm.execute(tx, ExecuteOptions::dev_inspect())?;
 
+    println!("Result:  {result:?}");
     println!("Status:  {:?}", result.effects.status());
     println!("Committed: {}", result.committed);
     println!("Commands:  {}", result.command_results.len());

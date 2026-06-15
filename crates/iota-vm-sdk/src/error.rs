@@ -3,30 +3,33 @@
 
 //! Typed error surface for the local VM SDK.
 //!
-//! Every fallible entry point returns [`VmSdkError`]. The variants partition
-//! the failure space into the four phases of the SDK — decode, validate,
-//! verify-signature, execute — plus a catch-all for Move VM faults and missing
-//! objects, so callers can branch on the failure phase.
-//!
-//! The sub-error types ([`DecodeError`], [`ValidationError`], …) wrap the
-//! underlying cause as a string.
+//! Every fallible entry point returns [`VmSdkError`]. Its variants partition
+//! the failure space by phase, so callers can branch on where a run failed.
+//! The validation and signature-verification phases carry the underlying
+//! [`IotaError`] as a [`std::error::Error::source`] so callers can match on the
+//! concrete cause; the remaining phases wrap a message because their causes
+//! (BCS / layout / VM invariant failures) are not a single matchable type.
 
 use iota_sdk_types::{ObjectId, Version};
+use iota_types::error::IotaError;
 
 /// Top-level error for every fallible operation in the SDK.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum VmSdkError {
-    /// A static decode step failed (BCS / signature / type-tag parsing).
-    #[error(transparent)]
-    Decode(#[from] DecodeError),
     /// Pre-execution validation of the transaction failed — malformed data,
     /// gas budget below minimum, denied object, failed input check, etc.
     #[error(transparent)]
     Validation(#[from] ValidationError),
-    /// Cryptographic signature verification failed before execution.
+    /// Cryptographic signature verification failed before execution. Match on
+    /// the wrapped [`IotaError`] for the concrete cause.
+    #[error("signature verification failed: {0}")]
+    SignatureVerification(#[source] IotaError),
+    /// A networked store ([`GrpcStore`](crate::grpc::GrpcStore) /
+    /// [`GraphqlStore`](crate::graphql::GraphqlStore)) failed to fetch or
+    /// decode data from a node.
     #[error(transparent)]
-    SignatureVerification(#[from] SignatureError),
+    Store(#[from] StoreError),
     /// A required object was not present in the store.
     #[error("missing object {id}{}", .version.map(|v| format!(" at version {v}")).unwrap_or_default())]
     MissingObject {
@@ -38,7 +41,7 @@ pub enum VmSdkError {
     #[error(transparent)]
     Execution(#[from] ExecutionError),
     /// The Move VM itself faulted in a way that prevented execution (invariant
-    /// violation, executor construction failure, …).
+    /// violation, executor construction failure, authenticator resolution, …).
     #[error(transparent)]
     Vm(#[from] VmError),
     /// This build of the SDK does not know the requested protocol version
@@ -56,43 +59,28 @@ impl VmSdkError {
     }
 }
 
-/// A static decode step failed.
+/// Pre-execution validation failed. `source` is the underlying node error to
+/// match on; `context` names the check that produced it.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
-#[error("{context}: {message}")]
-pub struct DecodeError {
-    pub context: String,
-    pub message: String,
-}
-
-impl DecodeError {
-    pub fn new(context: impl Into<String>, message: impl std::fmt::Display) -> Self {
-        Self {
-            context: context.into(),
-            message: message.to_string(),
-        }
-    }
-}
-
-/// Pre-execution validation failed.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-#[error("{context}: {message}")]
+#[error("{context}: {source}")]
 pub struct ValidationError {
     pub context: String,
-    pub message: String,
+    #[source]
+    pub source: IotaError,
 }
 
 impl ValidationError {
-    pub fn new(context: impl Into<String>, message: impl std::fmt::Display) -> Self {
+    pub fn new(context: impl Into<String>, source: impl Into<IotaError>) -> Self {
         Self {
             context: context.into(),
-            message: message.to_string(),
+            source: source.into(),
         }
     }
 }
 
-/// Cryptographic signature verification failed.
+/// A `MoveAuthenticator` rejected the transaction (the authenticator function
+/// aborted). Carried by [`SignatureStatus::Failed`](crate::SignatureStatus).
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 #[error("signature verification failed: {message}")]
@@ -103,6 +91,24 @@ pub struct SignatureError {
 impl SignatureError {
     pub fn new(message: impl std::fmt::Display) -> Self {
         Self {
+            message: message.to_string(),
+        }
+    }
+}
+
+/// A networked store failed to fetch or decode data from a node.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+#[error("{context}: {message}")]
+pub struct StoreError {
+    pub context: String,
+    pub message: String,
+}
+
+impl StoreError {
+    pub fn new(context: impl Into<String>, message: impl std::fmt::Display) -> Self {
+        Self {
+            context: context.into(),
             message: message.to_string(),
         }
     }

@@ -72,7 +72,7 @@ pub enum ProfileOutput {
 
 /// Artifacts captured from a run. Each field is populated if and only if the
 /// matching [`DebugConfig`] toggle was enabled.
-#[derive(Default)]
+#[derive(Debug, Default)]
 #[non_exhaustive]
 pub struct DebugArtifacts {
     /// Gas profile output, if [`DebugConfig::profile`] was set.
