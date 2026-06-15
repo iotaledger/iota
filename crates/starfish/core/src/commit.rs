@@ -20,8 +20,8 @@ use tracing::debug;
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, SERIALIZED_BLOCK_REF_BYTES, Slot,
+        VerifiedBlockHeader, VerifiedTransactions, uleb128_len,
     },
     context::Context,
     leader_scoring::ReputationScores,
@@ -42,6 +42,43 @@ pub(crate) const WAVE_LENGTH: Round = 3;
 /// The consensus protocol operates in 'waves'. Each wave is composed of a
 /// leader round, at least one voting round, and one certifying round.
 pub(crate) type WaveNumber = u32;
+
+/// Upper bound on the BCS-serialized size of a [`Commit`] for a committee of
+/// `committee_size` authorities and a GC depth of `gc_depth` rounds.
+///
+/// `CommitV3` is the largest variant. Its two variable-length vectors span the
+/// committed sub-DAG, which garbage collection bounds to `gc_depth *
+/// committee_size` blocks (at most one block per authority per uncollected
+/// round); `committed_transactions` carries at most one [`TransactionRef`] per
+/// such block, and `reputation_scores_desc` at most one entry per authority.
+///
+/// Returns [`usize::MAX`] when `gc_depth` or `committee_size` is zero (GC
+/// disabled implies no finite sub-DAG bound), matching the convention that a
+/// zero limit disables the corresponding check.
+pub(crate) fn max_commit_bytes(committee_size: usize, gc_depth: usize) -> usize {
+    if gc_depth == 0 || committee_size == 0 {
+        return usize::MAX;
+    }
+    // `TransactionRef` is round (4) + author (1) + transactions_commitment (32).
+    const SERIALIZED_TRANSACTION_REF_BYTES: usize = 37;
+    // enum tag (1) + index (4) + previous_digest (32) + timestamp_ms (8) +
+    // leader BlockRef (37) + is_optimistic (1).
+    const FIXED_COMMIT_BYTES: usize = 1 + 4 + 32 + 8 + SERIALIZED_BLOCK_REF_BYTES + 1;
+
+    let max_subdag_blocks = gc_depth.saturating_mul(committee_size);
+    let block_headers = uleb128_len(max_subdag_blocks)
+        .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
+    let committed_transactions = uleb128_len(max_subdag_blocks)
+        .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_TRANSACTION_REF_BYTES));
+    // reputation_scores_desc: Vec<(AuthorityIndex (1), u64 (8))>.
+    let reputation_scores =
+        uleb128_len(committee_size).saturating_add(committee_size.saturating_mul(1 + 8));
+
+    FIXED_COMMIT_BYTES
+        .saturating_add(block_headers)
+        .saturating_add(committed_transactions)
+        .saturating_add(reputation_scores)
+}
 
 /// [`Commit`] summarizes [`CommittedSubDag`] for storage and network
 /// communications.
@@ -1192,15 +1229,46 @@ impl Debug for CommitRange {
 mod tests {
     use std::sync::Arc;
 
+    use starfish_config::AuthorityIndex;
+
     use crate::{
         BlockHeaderAPI, BlockTimestampMs, CommitDigest, VerifiedBlockHeader,
-        block_header::{TestBlockHeader, VerifiedBlock},
-        commit::{CommitRange, TrustedCommit, WAVE_LENGTH, load_pending_subdag_from_store},
+        block_header::{BlockRef, TestBlockHeader, VerifiedBlock},
+        commit::{
+            Commit, CommitRange, CommitV3, TrustedCommit, WAVE_LENGTH,
+            load_pending_subdag_from_store, max_commit_bytes,
+        },
         context::Context,
         encoder::create_encoder,
         storage::{Store, WriteBatch, mem_store::MemStore},
-        transaction_ref::convert_block_refs_to_generic_transaction_refs,
+        transaction_ref::{TransactionRef, convert_block_refs_to_generic_transaction_refs},
     };
+
+    /// Pins the `CommitV3` wire layout that `max_commit_bytes` is derived from:
+    /// a commit whose sub-DAG vectors are filled to the GC bound
+    /// (`gc_depth * committee_size`) with one reputation score per authority
+    /// must serialize to exactly the computed bound. Also checks that a zero GC
+    /// depth or committee size disables the bound.
+    #[tokio::test]
+    async fn max_commit_bytes_bounds_maximal_commit() {
+        let n = 4usize;
+        let gc_depth = 5usize;
+        let max_subdag_blocks = gc_depth * n;
+
+        let commit = Commit::V3(CommitV3 {
+            block_headers: vec![BlockRef::MAX; max_subdag_blocks],
+            committed_transactions: vec![TransactionRef::default(); max_subdag_blocks],
+            reputation_scores_desc: vec![(AuthorityIndex::MAX, u64::MAX); n],
+            ..Default::default()
+        });
+        let serialized = bcs::to_bytes(&commit).expect("serialization should succeed");
+
+        assert_eq!(serialized.len(), max_commit_bytes(n, gc_depth));
+
+        // A zero GC depth (GC disabled) or empty committee disables the bound.
+        assert_eq!(max_commit_bytes(n, 0), usize::MAX);
+        assert_eq!(max_commit_bytes(0, gc_depth), usize::MAX);
+    }
 
     #[tokio::test]
     async fn test_new_committed_subdag_from_commit() {
