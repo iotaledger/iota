@@ -45,7 +45,7 @@ pub struct Address;
 
 impl JsonSchema for Address {
     fn schema_name() -> String {
-        "IotaAddress".to_owned()
+        "Address".to_owned()
     }
 
     fn json_schema(_: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
