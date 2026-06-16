@@ -19,7 +19,8 @@
 #
 # Tunables (env): N, RUN_DURATION, TARGET_QPS, NUM_WORKERS, NUM_CLIENT_THREADS,
 #                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, DIRECT,
-#                 NUM_TARGET_VALIDATORS, SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S,
+#                 NUM_TARGET_VALIDATORS, WORKLOAD (owned|shared|slow),
+#                 NUM_SHARED_COUNTERS, SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S,
 #                 PRE_STOP_WAIT_S, PROM, TS_STEP.
 
 set -euo pipefail
@@ -62,6 +63,8 @@ NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}" # pure multiplier on setup-p
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"             # max in-flight = IN_FLIGHT_RATIO * TARGET_QPS
 DIRECT="${DIRECT:-false}"                           # true => submit direct-to-validator (in-docker); false => via fullnode
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"  # DIRECT only: pin submission/attestation to first N validators (empty => all)
+WORKLOAD="${WORKLOAD:-owned}"                       # owned (transfer) | shared (shared-counter) | slow (slow::bimodal)
+NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}"      # WORKLOAD=shared: fewer => more congestion (empty => benchmark default ~qps/2)
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
 # (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
 # NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
@@ -75,6 +78,34 @@ PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26
 STRESS_BIN="$REPO_ROOT/target/release/stress"
 RESULTS_DIR="$SCRIPT_DIR/results/h1/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$RESULTS_DIR"
+
+# Map WORKLOAD to the stress workload-weight flags. `shared`/`slow` are
+# shared-object workloads whose attestation dry-run is more expensive than a
+# plain transfer — the point of varying this.
+case "$WORKLOAD" in
+owned) WORKLOAD_ARGS=(--transfer-object 100 --shared-counter 0) ;;
+shared)
+  # Default counter count is ~qps*(1-hotness/100) ≈ qps/2 — too many to congest.
+  # Set NUM_SHARED_COUNTERS small (e.g. 1) to actually trigger congestion control.
+  WORKLOAD_ARGS=(--transfer-object 0 --shared-counter 100)
+  [[ -n "$NUM_SHARED_COUNTERS" ]] && WORKLOAD_ARGS+=(--num-shared-counters "$NUM_SHARED_COUNTERS")
+  ;;
+slow) WORKLOAD_ARGS=(--transfer-object 0 --slow 100) ;;
+*)
+  echo "${RED}ERROR: unknown WORKLOAD='$WORKLOAD' (expected: owned | shared | slow)${RESET}" >&2
+  exit 1
+  ;;
+esac
+
+# `shared`/`slow` publish a Move package at runtime (basics / slow), compiled
+# from repo sources that depend on the iota-framework — present on the host
+# (fullnode path), but NOT inside the iota-tools image. So they can't run on the
+# in-docker direct path (and therefore can't be pinned). owned needs no publish.
+if [[ "$WORKLOAD" != owned && "$DIRECT" == true ]]; then
+  echo "${RED}ERROR: WORKLOAD=$WORKLOAD needs a runtime Move publish that the in-docker" >&2
+  echo "       iota-tools image can't do. Use DIRECT=false (fullnode path).${RESET}" >&2
+  exit 1
+fi
 
 RULE="$(printf '%80s' '' | tr ' ' '*')"
 banner() {
@@ -136,6 +167,7 @@ dump_timeseries() {
     CFG_in_flight_ratio="$IN_FLIGHT_RATIO" CFG_num_client_threads="$NUM_CLIENT_THREADS" \
     CFG_num_transfer_accounts="$NUM_TRANSFER_ACCOUNTS" CFG_run_duration="$RUN_DURATION" \
     CFG_direct="$DIRECT" CFG_num_target_validators="${NUM_TARGET_VALIDATORS:-all}" CFG_n="$N" \
+    CFG_workload="$WORKLOAD" CFG_num_shared_counters="${NUM_SHARED_COUNTERS:-default}" \
     python3 - "$label" "$start" "$end" "$TS_STEP" "$out" <<'PY'
 import json, os, sys, urllib.parse, urllib.request
 label, start, end, step, out = sys.argv[1:6]
@@ -219,6 +251,7 @@ run_stress() {
       NUM_CLIENT_THREADS="$NUM_CLIENT_THREADS" NUM_TRANSFER_ACCOUNTS="$NUM_TRANSFER_ACCOUNTS" \
       IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" PRIMARY_GAS_OWNER="$PRIMARY_GAS_OWNER" \
       USE_FULLNODE_FOR_EXECUTION=false NUM_TARGET_VALIDATORS="$NUM_TARGET_VALIDATORS" \
+      WORKLOAD="$WORKLOAD" \
       "$SCRIPT_DIR/run-stress-docker.sh" 2>"$stress_log"
   else
     (cd "$REPO_ROOT" && "$STRESS_BIN" \
@@ -235,8 +268,7 @@ run_stress() {
       bench --target-qps "$TARGET_QPS" \
       --in-flight-ratio "$IN_FLIGHT_RATIO" \
       --num-workers "$NUM_WORKERS" \
-      --transfer-object 100 \
-      --shared-counter 0) 2>"$stress_log"
+      "${WORKLOAD_ARGS[@]}") 2>"$stress_log"
   fi
   end=$(date +%s)
   echo "stderr -> $stress_log"

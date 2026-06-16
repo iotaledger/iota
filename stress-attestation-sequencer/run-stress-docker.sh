@@ -52,6 +52,17 @@ USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
 # Pin submission/attestation to the first N validators (validator-1..N) on the
 # direct TD path. Empty/unset => all validators. No effect via the fullnode.
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
+# Workload: owned (transfer) | shared (shared-counter) | slow (slow::bimodal).
+# NOTE: shared/slow publish a Move package at runtime (compiled from repo
+# sources that depend on the iota-framework) which this image does NOT contain,
+# so only `owned` works in-docker. Use the host fullnode path for shared/slow.
+WORKLOAD="${WORKLOAD:-owned}"
+case "$WORKLOAD" in
+owned) WORKLOAD_ARGS=(--transfer-object 100 --shared-counter 0) ;;
+shared) WORKLOAD_ARGS=(--transfer-object 0 --shared-counter 100) ;;
+slow) WORKLOAD_ARGS=(--transfer-object 0 --slow 100) ;;
+*) echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow)" >&2; exit 1 ;;
+esac
 
 # ANSI palette (auto-disabled when stdout is not a terminal), matching the H1 script.
 if [[ -t 1 ]]; then
@@ -85,6 +96,7 @@ fi
 echo "${BLUE}Running stress IN-DOCKER on '$DOCKER_NETWORK' (image: $RUNNER_IMAGE)...${RESET}"
 echo "  - fullnode RPC (reconfig + WFF detect): $FULLNODE_RPC"
 echo "  - use-fullnode-for-execution: $USE_FULLNODE_FOR_EXECUTION (false => direct-to-validator)"
+echo "  - workload: $WORKLOAD"
 
 # Mount the host-generated genesis read-only; attach to the validators' network.
 # `stress` itself comes from the image (--entrypoint), not the host.
@@ -116,5 +128,4 @@ exec docker run --rm \
   bench --target-qps "$TARGET_QPS" \
   --in-flight-ratio "$IN_FLIGHT_RATIO" \
   --num-workers "$NUM_WORKERS" \
-  --transfer-object 100 \
-  --shared-counter 0
+  "${WORKLOAD_ARGS[@]}"
