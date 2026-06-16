@@ -115,7 +115,11 @@ pub async fn execution_process(
         spawn_monitored_task!(epoch_store.within_alive_epoch(async move {
             let _scope = monitored_scope("ExecutionDriver::task");
             let _guard = permit;
-            // Dropped when execution finishes, decrementing the executing gauge.
+            // Held for the whole execution (not dropped right after dispatch as
+            // upstream SUI does): IOTA's `num_pending_certificates` counts
+            // executing certs, matching the legacy TransactionManager, so this
+            // keeps the two schedulers consistent. Dropped on completion or
+            // cancellation, decrementing the executing gauge.
             let _executing_guard = executing_guard;
             if let Ok(true) = authority.try_is_tx_already_executed(&digest) {
                 return;
