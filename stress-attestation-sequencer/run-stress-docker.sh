@@ -57,10 +57,20 @@ NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 # sources that depend on the iota-framework) which this image does NOT contain,
 # so only `owned` works in-docker. Use the host fullnode path for shared/slow.
 WORKLOAD="${WORKLOAD:-owned}"
+NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}" # WORKLOAD=shared: fewer => more congestion
+SLOW_N="${SLOW_N:-}"                           # WORKLOAD=slow: slow::slow(n,size) vector count
+SLOW_SIZE="${SLOW_SIZE:-}"                      # WORKLOAD=slow: each vector size in bytes
 case "$WORKLOAD" in
 owned) WORKLOAD_ARGS=(--transfer-object 100 --shared-counter 0) ;;
-shared) WORKLOAD_ARGS=(--transfer-object 0 --shared-counter 100) ;;
-slow) WORKLOAD_ARGS=(--transfer-object 0 --slow 100) ;;
+shared)
+  WORKLOAD_ARGS=(--transfer-object 0 --shared-counter 100)
+  [[ -n "$NUM_SHARED_COUNTERS" ]] && WORKLOAD_ARGS+=(--num-shared-counters "$NUM_SHARED_COUNTERS")
+  ;;
+slow)
+  WORKLOAD_ARGS=(--transfer-object 0 --slow 100)
+  [[ -n "$SLOW_N" ]] && WORKLOAD_ARGS+=(--slow-n "$SLOW_N")
+  [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
+  ;;
 *) echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow)" >&2; exit 1 ;;
 esac
 

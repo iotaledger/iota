@@ -20,8 +20,8 @@
 # Tunables (env): N, RUN_DURATION, TARGET_QPS, NUM_WORKERS, NUM_CLIENT_THREADS,
 #                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, DIRECT,
 #                 NUM_TARGET_VALIDATORS, WORKLOAD (owned|shared|slow),
-#                 NUM_SHARED_COUNTERS, SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S,
-#                 PRE_STOP_WAIT_S, PROM, TS_STEP.
+#                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, SLEEP_BETWEEN_RUNS_S,
+#                 PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM, TS_STEP.
 
 set -euo pipefail
 
@@ -65,6 +65,8 @@ DIRECT="${DIRECT:-false}"                           # true => submit direct-to-v
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"  # DIRECT only: pin submission/attestation to first N validators (empty => all)
 WORKLOAD="${WORKLOAD:-owned}"                       # owned (transfer) | shared (shared-counter) | slow (slow::bimodal)
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}"      # WORKLOAD=shared: fewer => more congestion (empty => benchmark default ~qps/2)
+SLOW_N="${SLOW_N:-}"                                # WORKLOAD=slow: slow::slow(n,size) — n vectors (empty => default 100)
+SLOW_SIZE="${SLOW_SIZE:-}"                          # WORKLOAD=slow: each vector size in bytes (empty => default 100)
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
 # (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
 # NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
@@ -90,7 +92,13 @@ shared)
   WORKLOAD_ARGS=(--transfer-object 0 --shared-counter 100)
   [[ -n "$NUM_SHARED_COUNTERS" ]] && WORKLOAD_ARGS+=(--num-shared-counters "$NUM_SHARED_COUNTERS")
   ;;
-slow) WORKLOAD_ARGS=(--transfer-object 0 --slow 100) ;;
+slow)
+  # slow::slow(n, size) per tx — bigger n/size => more compute => costlier
+  # attestation dry-run. Empty => the workload's defaults (n=100, size=100).
+  WORKLOAD_ARGS=(--transfer-object 0 --slow 100)
+  [[ -n "$SLOW_N" ]] && WORKLOAD_ARGS+=(--slow-n "$SLOW_N")
+  [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
+  ;;
 *)
   echo "${RED}ERROR: unknown WORKLOAD='$WORKLOAD' (expected: owned | shared | slow)${RESET}" >&2
   exit 1
@@ -168,6 +176,7 @@ dump_timeseries() {
     CFG_num_transfer_accounts="$NUM_TRANSFER_ACCOUNTS" CFG_run_duration="$RUN_DURATION" \
     CFG_direct="$DIRECT" CFG_num_target_validators="${NUM_TARGET_VALIDATORS:-all}" CFG_n="$N" \
     CFG_workload="$WORKLOAD" CFG_num_shared_counters="${NUM_SHARED_COUNTERS:-default}" \
+    CFG_slow_n="${SLOW_N:-default}" CFG_slow_size="${SLOW_SIZE:-default}" \
     python3 - "$label" "$start" "$end" "$TS_STEP" "$out" <<'PY'
 import json, os, sys, urllib.parse, urllib.request
 label, start, end, step, out = sys.argv[1:6]
