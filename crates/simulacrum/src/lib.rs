@@ -790,8 +790,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
                 reference_gas_price: system_state.reference_gas_price(),
                 system_state,
                 // not populated by simulacrum
-                last_checkpoint_summary: None,
-                end_of_epoch_tx_events: None,
+                proof: None,
             })
         }))
     }

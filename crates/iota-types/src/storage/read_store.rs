@@ -858,7 +858,8 @@ pub struct EpochInfo {
 /// Contains metadata about an epoch including timing, checkpoints, protocol
 /// version, and a snapshot of the system state at the start of the epoch.
 ///
-/// Version 2 adds last_checkpoint_summary, and end_of_epoch_tx_events fields.
+/// Version 2 adds the close-of-epoch `proof` bundle, `None` until this epoch's
+/// boundary is indexed.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpochInfoV2 {
     pub epoch: u64,
@@ -868,13 +869,37 @@ pub struct EpochInfoV2 {
     pub start_checkpoint: CheckpointSequenceNumber,
     pub end_checkpoint: Option<CheckpointSequenceNumber>,
     pub reference_gas_price: u64,
-    /// `IotaSystemState` of object `0x5` right after the AdvanceEpoch tx of
-    /// the previous epoch (or the genesis tx for epoch 0).
+    /// `IotaSystemState` of object `0x5` at this epoch's start.
     pub system_state: IotaSystemState,
+    /// Close-of-epoch proof bundle; `None` until this epoch's boundary is
+    /// indexed. The row is finalized exactly when this is `Some`.
+    pub proof: Option<CloseOfEpochProof>,
+}
+
+/// Close-of-epoch proof bundle, written as a unit at an epoch's boundary.
+/// Grouped into one `Option` so a row is finalized exactly when it is `Some`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CloseOfEpochProof {
     /// Certified summary of this epoch's last checkpoint.
-    pub last_checkpoint_summary: Option<CertifiedCheckpointSummary>,
-    /// Events from the AdvanceEpoch tx that closed this epoch.
-    pub end_of_epoch_tx_events: Option<TransactionEvents>,
+    pub last_checkpoint_summary: CertifiedCheckpointSummary,
+    /// Contents of this epoch's last checkpoint.
+    pub last_checkpoint_contents: CheckpointContents,
+    /// Effects of the epoch-change tx (the closing checkpoint's last tx).
+    pub end_of_epoch_tx_effects: TransactionEffects,
+    /// Events from the epoch-change tx; empty on safe-mode boundaries.
+    pub end_of_epoch_tx_events: TransactionEvents,
+    /// Raw bytes of object `0x5` and its inner system-state object as written
+    /// by this boundary (the next epoch's start state); needed to re-publish a
+    /// snapshot, since `system_state` can't round-trip byte-identically.
+    pub next_epoch_start_system_state_objects: Vec<Vec<u8>>,
+}
+
+impl EpochInfoV2 {
+    /// Whether this epoch's boundary has been indexed (its proof bundle is
+    /// present).
+    pub fn is_finalized(&self) -> bool {
+        self.proof.is_some()
+    }
 }
 
 #[derive(Clone)]

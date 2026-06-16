@@ -529,6 +529,19 @@ impl CheckpointContents {
         &self.as_v1().transactions
     }
 
+    /// The `(transaction, effects)` digest pair of the epoch-change
+    /// transaction in an epoch-boundary checkpoint: the last entry, since the
+    /// epoch-change transaction is always ordered last, after every user
+    /// transaction. `None` if `summary` is not an epoch boundary (no
+    /// `end_of_epoch_data`) or the contents are empty.
+    pub fn end_of_epoch_execution_digests(
+        &self,
+        summary: &CheckpointSummary,
+    ) -> Option<&ExecutionDigests> {
+        summary.end_of_epoch_data.as_ref()?;
+        self.inner().last()
+    }
+
     pub fn size(&self) -> usize {
         self.as_v1().transactions.len()
     }
