@@ -357,7 +357,7 @@ public fun create_package_metadata_v1_for_testing(
         type_names,
     );
 
-    let addr = iota::derived_object::derive_address_for_testing(
+    let addr = iota::derived_object::derive_address(
         storage_id,
         PackageMetadataKey {},
     );

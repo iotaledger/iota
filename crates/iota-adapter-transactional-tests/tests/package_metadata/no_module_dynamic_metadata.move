@@ -31,7 +31,7 @@ public fun answer(): u64 {
 
 #[allow(deprecated_usage)]
 public fun assert_inline_metadata(metadata: &PackageMetadataV1) {
-    let module_name = ascii::string(b"inline_v1");
+    let module_name = ascii::string(b"no_module_dynamic_metadata");
     let auth_function_name = ascii::string(b"authenticate");
     let module_metadata = metadata.modules_metadata_v1(&module_name);
     let authenticator_metadata = module_metadata.authenticator_metadata_v1(&auth_function_name);

@@ -1483,16 +1483,10 @@ ViewFunctionMetadataV1FieldName
 borrow_view_functions_metadata_v1
 	public fun
 	0x2::module_metadata
+contains_view_functions_metadata_v1
+	public fun
+	0x2::module_metadata
 is_view_function_v1
-	public fun
-	0x2::module_metadata
-borrow
-	public fun
-	0x2::module_metadata
-contains
-	public fun
-	0x2::module_metadata
-contains_with_type
 	public fun
 	0x2::module_metadata
 length
@@ -1514,6 +1508,15 @@ borrow_mut
 	public(package) fun
 	0x2::module_metadata
 remove
+	public(package) fun
+	0x2::module_metadata
+borrow
+	public(package) fun
+	0x2::module_metadata
+contains
+	public(package) fun
+	0x2::module_metadata
+contains_with_type
 	public(package) fun
 	0x2::module_metadata
 PackageMetadataKey

@@ -13,9 +13,3 @@ public struct DerivedObjectKey<K: copy + drop + store>(K) has copy, drop, store;
 public fun derive_address<K: copy + drop + store>(parent: ID, key: K): address {
     iota::dynamic_field::hash_type_and_key(parent.to_address(), DerivedObjectKey(key))
 }
-
-/// Given an ID and a Key, it calculates the derived address.
-#[test_only]
-public fun derive_address_for_testing<K: copy + drop + store>(parent: ID, key: K): address {
-    iota::dynamic_field::hash_type_and_key(parent.to_address(), DerivedObjectKey(key))
-}

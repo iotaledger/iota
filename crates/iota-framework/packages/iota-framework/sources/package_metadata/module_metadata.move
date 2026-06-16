@@ -18,45 +18,17 @@ public struct ModuleMetadataKey(ascii::String) has copy, drop, store;
 
 public struct ViewFunctionMetadataV1FieldName has copy, drop, store {}
 
-public fun borrow_view_functions_metadata_v1(
-    module_metadata: &ModuleMetadata,
-): &vector<ascii::String> {
-    borrow<ViewFunctionMetadataV1FieldName, vector<ascii::String>>(
-        module_metadata,
-        ViewFunctionMetadataV1FieldName {},
-    )
+public fun borrow_view_functions_metadata_v1(self: &ModuleMetadata): &vector<ascii::String> {
+    self.borrow(ViewFunctionMetadataV1FieldName {})
 }
 
-public fun is_view_function_v1(
-    module_metadata: &ModuleMetadata,
-    function_name: &ascii::String,
-): bool {
-    let view_functions_metadata = borrow_view_functions_metadata_v1(module_metadata);
+public fun contains_view_functions_metadata_v1(self: &ModuleMetadata): bool {
+    self.contains(ViewFunctionMetadataV1FieldName {})
+}
+
+public fun is_view_function_v1(self: &ModuleMetadata, function_name: &ascii::String): bool {
+    let view_functions_metadata = self.borrow_view_functions_metadata_v1();
     view_functions_metadata.find_index!(|s| s == *function_name).is_some()
-}
-
-#[syntax(index)]
-/// Immutable borrows the value associated with the key in the module_metadata `module_metadata: &ModuleMetadata`.
-/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the module_metadata does not have an entry with
-/// that key `k: K`.
-/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the module_metadata has an entry for the key, but
-/// the value does not have the specified type.
-public fun borrow<K: copy + drop + store, V: store>(module_metadata: &ModuleMetadata, k: K): &V {
-    field::borrow(&module_metadata.id, k)
-}
-
-/// Returns true iff there is an value associated with the key `k: K` in the module_metadata `module_metadata: &ModuleMetadata`
-public fun contains<K: copy + drop + store>(module_metadata: &ModuleMetadata, k: K): bool {
-    field::exists_<K>(&module_metadata.id, k)
-}
-
-/// Returns true iff there is an value associated with the key `k: K` in the module_metadata `module_metadata: &ModuleMetadata`
-/// with an assigned value of type `V`
-public fun contains_with_type<K: copy + drop + store, V: store>(
-    module_metadata: &ModuleMetadata,
-    k: K,
-): bool {
-    field::exists_with_type<K, V>(&module_metadata.id, k)
 }
 
 /// Returns the size of the module_metadata, the number of key-value pairs
@@ -112,7 +84,6 @@ public(package) fun add<K: copy + drop + store, V: store>(
     module_metadata.size = module_metadata.size + 1;
 }
 
-#[syntax(index)]
 /// Mutably borrows the value associated with the key in the module_metadata `module_metadata: &mut ModuleMetadata`.
 /// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the module_metadata does not have an entry with
 /// that key `k: K`.
@@ -137,4 +108,30 @@ public(package) fun remove<K: copy + drop + store, V: store>(
     let v = field::remove(&mut module_metadata.id, k);
     module_metadata.size = module_metadata.size - 1;
     v
+}
+
+/// Immutable borrows the value associated with the key in the module_metadata `module_metadata: &ModuleMetadata`.
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the module_metadata does not have an entry with
+/// that key `k: K`.
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the module_metadata has an entry for the key, but
+/// the value does not have the specified type.
+public(package) fun borrow<K: copy + drop + store, V: store>(
+    module_metadata: &ModuleMetadata,
+    k: K,
+): &V {
+    field::borrow(&module_metadata.id, k)
+}
+
+/// Returns true iff there is an value associated with the key `k: K` in the module_metadata `module_metadata: &ModuleMetadata`
+public(package) fun contains<K: copy + drop + store>(module_metadata: &ModuleMetadata, k: K): bool {
+    field::exists_<K>(&module_metadata.id, k)
+}
+
+/// Returns true iff there is an value associated with the key `k: K` in the module_metadata `module_metadata: &ModuleMetadata`
+/// with an assigned value of type `V`
+public(package) fun contains_with_type<K: copy + drop + store, V: store>(
+    module_metadata: &ModuleMetadata,
+    k: K,
+): bool {
+    field::exists_with_type<K, V>(&module_metadata.id, k)
 }
