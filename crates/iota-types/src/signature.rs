@@ -239,8 +239,7 @@ impl GenericSignature {
             #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref().to_vec(),
             GenericSignature::PasskeyAuthenticator(s) => s.to_bytes(),
-            // TODO
-            GenericSignature::MoveAuthenticator(s) => s.as_ref().to_vec(),
+            GenericSignature::MoveAuthenticator(s) => s.to_bytes(),
         }
     }
 
