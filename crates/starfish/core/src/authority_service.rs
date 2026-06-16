@@ -787,11 +787,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
         self.commit_vote_monitor.observe_block(&verified_block);
 
-        // 5. Drop a far-future primary block here — after signature/header
-        // verification and vote observation, but before shard extraction,
-        // transaction messages, digest filtering, and add_shards — so it cannot
-        // grow the shard reconstructor or DagState shard state. BlockManager
-        // applies the same bound again as defense in depth.
+        // 5. Drop a far-future primary block before shard/transaction
+        // processing, so it cannot grow the shard reconstructor or DagState
+        // shard state.
         let far_future_ceiling = self
             .context
             .parameters

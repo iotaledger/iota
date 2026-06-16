@@ -768,8 +768,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .join(", "),
         );
 
-        // Drop headers too far above the accepted frontier to ever connect;
-        // the block manager applies the same bound as defense in depth.
+        // Drop headers too far above the accepted frontier to ever connect. A
+        // peer may volunteer validly-signed headers we never requested, so this
+        // path bounds the response itself rather than trusting the requested set.
         let ceiling = context
             .parameters
             .peer_disseminated_round_ceiling(dag_state.read().highest_accepted_round());

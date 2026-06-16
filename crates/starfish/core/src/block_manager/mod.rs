@@ -169,10 +169,8 @@ impl BlockManager {
     }
 
     /// Drops peer-disseminated blocks/headers whose round is too far above the
-    /// accepted frontier to connect, bounding the round horizon retained in the
-    /// suspender. Certified/local sources (commit sync, recovery, own block)
-    /// are exempt: a node that legitimately trails further catches up through
-    /// commit sync, which bypasses this path.
+    /// accepted frontier to ever connect, bounding the round horizon retained
+    /// in the suspender. Non-peer-disseminated sources pass through unchanged.
     fn drop_far_future<T>(
         &self,
         items: Vec<T>,
@@ -1427,6 +1425,53 @@ mod tests {
                 source.as_str()
             );
         }
+    }
+
+    /// The future-round bound also covers the full-block path: a peer-streamed
+    /// block far above the accepted frontier is dropped before its header or
+    /// transactions can enter the suspender.
+    #[tokio::test]
+    async fn drops_far_future_peer_disseminated_blocks() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        let far_round = context.parameters.peer_disseminated_round_ceiling(0) + 1;
+        let h = header(far_round, 1, vec![block_ref(far_round - 1, 0)]);
+        let txs = crate::block_header::VerifiedTransactions::new_for_test(
+            &h,
+            vec![crate::block_header::Transaction::new(vec![1u8; 16])],
+        );
+        let block = crate::block_header::VerifiedBlock::new(h, txs);
+
+        let (accepted, missing) =
+            block_manager.try_accept_blocks(vec![block], DataSource::BlockStreaming);
+
+        assert!(accepted.is_empty(), "far-future block must not be accepted");
+        assert!(
+            missing.is_empty(),
+            "far-future ancestors must not be queued to fetch"
+        );
+        assert!(block_manager.suspended_blocks_refs().is_empty());
+        assert_eq!(block_manager.suspended_transactions.len(), 0);
+        assert_eq!(
+            dag_state.read().highest_accepted_round(),
+            0,
+            "dropped block must not advance the frontier"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_blocks_total
+                .with_label_values(&["block_manager"])
+                .get(),
+            1
+        );
     }
 
     /// A full block whose own round is at or below the GC floor must not be

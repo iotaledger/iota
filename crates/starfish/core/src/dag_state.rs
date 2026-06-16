@@ -95,10 +95,8 @@ pub(crate) enum DataSource {
 }
 
 impl DataSource {
-    /// Whether the data was pushed or served by a peer, as opposed to
-    /// certified/local sources (commit sync, recovery, own block) whose rounds
-    /// are already bounded. Only peer-disseminated blocks are subject to the
-    /// future-round acceptance bound.
+    /// Whether the data was pushed or served by a peer, as opposed to certified
+    /// or locally produced sources.
     pub(crate) fn is_peer_disseminated(&self) -> bool {
         match self {
             DataSource::BlockStreaming
