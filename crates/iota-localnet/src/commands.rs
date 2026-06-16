@@ -28,7 +28,10 @@ use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
 #[cfg(feature = "indexer")]
-use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
+use iota_indexer::{
+    config::PruningOptions,
+    test_utils::{IndexerTypeConfig, start_test_indexer},
+};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
 use iota_sdk_types::Address;
@@ -102,6 +105,12 @@ pub struct IndexerFeatureArgs {
     /// DB password for the Indexer Postgres DB. Default password is postgrespw.
     #[arg(long, default_value = "postgrespw")]
     pg_password: String,
+    /// Retention options for the indexer writer. By default the indexer keeps
+    /// all data, so its database grows without bound.
+    /// Pass `--pruning-config-path <PATH>` to point at a TOML retention config
+    /// (same format as the `iota-indexer indexer` command) to enable pruning.
+    #[command(flatten)]
+    pruning_options: PruningOptions,
 }
 
 #[cfg(feature = "indexer")]
@@ -116,6 +125,7 @@ impl IndexerFeatureArgs {
             pg_db_name: "iota_indexer".to_string(),
             pg_user: "postgres".to_string(),
             pg_password: "postgrespw".to_string(),
+            pruning_options: PruningOptions::default(),
         }
     }
 }
@@ -202,7 +212,7 @@ pub enum LocalnetCommand {
         with_grpc: Option<String>,
         #[cfg(feature = "indexer")]
         #[command(flatten)]
-        indexer_feature_args: IndexerFeatureArgs,
+        indexer_feature_args: Box<IndexerFeatureArgs>,
         /// Port to start the Fullnode RPC server on. Default port is 9000.
         #[arg(long, default_value = "9000")]
         fullnode_rpc_port: u16,
@@ -328,7 +338,7 @@ impl LocalnetCommand {
                     faucet_coin_count,
                     with_grpc,
                     #[cfg(feature = "indexer")]
-                    indexer_feature_args,
+                    *indexer_feature_args,
                     force_regenesis,
                     epoch_duration_ms,
                     fullnode_rpc_port,
@@ -418,6 +428,7 @@ async fn start(
         pg_db_name,
         pg_user,
         pg_password,
+        pruning_options,
     } = indexer_feature_args;
 
     #[cfg(feature = "indexer")]
@@ -703,7 +714,7 @@ async fn start(
             true,
             None,
             fullnode_grpc_url.clone(),
-            IndexerTypeConfig::writer_mode(None),
+            IndexerTypeConfig::writer_mode(Some(pruning_options)),
             data_ingestion_dir.clone(),
         )
         .await;

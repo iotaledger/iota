@@ -27,7 +27,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus},
+    object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -213,8 +213,6 @@ impl NameRegistration {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -562,8 +560,8 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            let object =
-                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?;
+            let active_object = ActiveObject::try_from(result)?;
+            let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
                     "Expected {0} to be a NameRecord, but it's not a Move Object.",

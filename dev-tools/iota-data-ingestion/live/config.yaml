@@ -15,12 +15,8 @@ path: "./test-checkpoints"
 # 1. The ingestion path matches the IOTA Node's path on same host machine)
 # 2. You don't need a fallback mechanism for data retrieval
 # 3. Local filesystem access is sufficient for your use case
-#
-# Required when:
-# 1. Running on a different host than the IOTA Node
-# 2. Using a different path than the Node
-# 3. HTTP access is preferred over local filesystem
-remote-store-url: "http://localhost:50051"
+remote-store:
+  fullnode-url: "http://localhost:50051"
 
 # Path to the progress store JSON file.
 #

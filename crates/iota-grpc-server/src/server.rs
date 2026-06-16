@@ -21,7 +21,8 @@ use tonic::transport::{Identity, Server, ServerTlsConfig};
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
     MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
-    metrics::GrpcMetricsLayer, traffic_control::TrafficControlLayer,
+    metrics::GrpcMetricsLayer, server_timing::ServerTimingLayer,
+    traffic_control::TrafficControlLayer,
 };
 
 /// Handle to control a running gRPC server
@@ -210,8 +211,8 @@ pub async fn start_grpc_server(
             .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
     }
 
-    // Order matters: the metrics layer is outermost so it observes blocked requests
-    // too.
+    // Order matters: metrics outermost to observe blocked requests; server-timing
+    // innermost so the timer covers only accepted requests.
     let mut layered_builder = server_builder.layer(
         tower::ServiceBuilder::new()
             .option_layer(
@@ -222,7 +223,8 @@ pub async fn start_grpc_server(
             .option_layer(
                 traffic_controller
                     .map(|tc| TrafficControlLayer::new(tc, client_id_source.unwrap_or_default())),
-            ),
+            )
+            .layer(ServerTimingLayer),
     );
     let server_handle = build_and_spawn!(
         layered_builder,

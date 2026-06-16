@@ -10,3 +10,12 @@ storage/
 docker/
 dev-tools/
 setups/
+
+# iota-private-network
+dev-tools/iota-private-network/data
+dev-tools/iota-private-network/configs/validators/validator*
+dev-tools/iota-private-network/configs/genesis/genesis.blob
+dev-tools/iota-private-network/configs/temp/
+dev-tools/iota-private-network/experiments/logs/
+dev-tools/iota-private-network/.env.tmp
+dev-tools/iota-private-network/configs/faucet/*.migrated
