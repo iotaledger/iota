@@ -8,7 +8,7 @@ teams:
   - iotaledger/infrastructure
 ---
 
-The `iota-graphql-rpc` binary serves a GraphQL endpoint backed by the IOTA Indexer database. See the [Extended Data Services overview](./overview) for how it fits together with the indexer and the JSON-RPC service.
+The `iota-graphql-rpc` binary serves a GraphQL endpoint backed by the IOTA Indexer database. See the [Extended Data Services overview](./overview.mdx) for how it fits together with the indexer and the JSON-RPC service.
 
 ## Scope
 
@@ -22,9 +22,9 @@ The GraphQL service holds no state of its own. Multiple instances can run in par
 
 ## Dependencies
 
-- An indexer Postgres database. The schema version in the database must match the one compiled into the GraphQL binary; otherwise the GraphQL service refuses to start. For the `executeTransactionBlock` operation to work properly the indexer writer should be running and synced with the tip of the network. See [IOTA Indexer](./iota-indexer) for details on running the indexer writer.
+- An indexer Postgres database. The schema version in the database must match the one compiled into the GraphQL binary; otherwise the GraphQL service refuses to start. For the `executeTransactionBlock` operation to work properly the indexer writer should be running and synced with the tip of the network. See [IOTA Indexer](./iota-indexer.mdx) for details on running the indexer writer.
 - A fullnode gRPC endpoint. Required at start-up — the server fails to start if `--node-rpc-url` is not set, even when no client issues a mutation or a dry run.
-- Note that currently fallback service cannot be configured for GraphQL, so data pruned by indexer writer is not accessible through GraphQL. See [Pruning](./iota-indexer#pruning) for the indexer-side retention model.
+- Note that currently fallback service cannot be configured for GraphQL, so data pruned by indexer writer is not accessible through GraphQL. See [Pruning](./iota-indexer.mdx#pruning) for the indexer-side retention model.
 
 ## Hardware requirements
 

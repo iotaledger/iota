@@ -8,7 +8,7 @@ teams:
   - iotaledger/infrastructure
 ---
 
-The JSON-RPC reader is started by the `iota-indexer` binary with the `json-rpc-service` subcommand and serves JSON-RPC queries backed by the IOTA Indexer database. See the [Extended Data Services overview](./overview) for how it fits together with the indexer and the GraphQL service.
+The JSON-RPC reader is started by the `iota-indexer` binary with the `json-rpc-service` subcommand and serves JSON-RPC queries backed by the IOTA Indexer database. See the [Extended Data Services overview](./overview.mdx) for how it fits together with the indexer and the GraphQL service.
 
 ## Scope
 
@@ -22,13 +22,13 @@ A transaction executed via `iota_executeTransactionBlock` is visible immediately
 
 The JSON-RPC service holds no state of its own. Multiple instances can run in parallel against the same database.
 
-Paginated reads are not consistent across pages: the underlying tables can be updated by the indexer between requests, so a page may include or skip rows that a previous page would have. Clients that need consistent pagination should use the [GraphQL service](./graphql) instead.
+Paginated reads are not consistent across pages: the underlying tables can be updated by the indexer between requests, so a page may include or skip rows that a previous page would have. Clients that need consistent pagination should use the [GraphQL service](./graphql.mdx) instead.
 
 ## Dependencies
 
-- An indexer Postgres database. The database must already be migrated to at least the schema version compiled into the `iota-indexer` binary; otherwise the service refuses to start. A database with additional applied migrations beyond what the binary knows is tolerated, so a newer writer can be paired with an older JSON-RPC reader during rolling deployments as long as migrations are run first. For the `iota_executeTransactionBlock` method to work properly the indexer writer should be running and synced with the tip of the network. See [IOTA Indexer](./iota-indexer) for details on running the indexer writer.
+- An indexer Postgres database. The database must already be migrated to at least the schema version compiled into the `iota-indexer` binary; otherwise the service refuses to start. A database with additional applied migrations beyond what the binary knows is tolerated, so a newer writer can be paired with an older JSON-RPC reader during rolling deployments as long as migrations are run first. For the `iota_executeTransactionBlock` method to work properly the indexer writer should be running and synced with the tip of the network. See [IOTA Indexer](./iota-indexer.mdx) for details on running the indexer writer.
 - A fullnode gRPC endpoint. Required at start-up — the server fails to start if `--rpc-client-url` is not set, even when no client issues an execute or dry-run request.
-- An optional REST KV store for historic fallback. When configured, it lets the JSON-RPC reader serve point lookups for data already pruned by the indexer writer. Currently experimental. See [Pruned data](#pruned-data) below and [Pruning](./iota-indexer#pruning) for the indexer-side retention model.
+- An optional REST KV store for historic fallback. When configured, it lets the JSON-RPC reader serve point lookups for data already pruned by the indexer writer. Currently experimental. See [Pruned data](#pruned-data) below and [Pruning](./iota-indexer.mdx#pruning) for the indexer-side retention model.
 - An optional analytical worker. A subset of `iotax_*` methods is served from tables populated by a separate `analytical-worker` process. When it isn't running, those methods return empty or zeroed results. See [Analytics](#analytics) below.
 
 ## Hardware requirements
@@ -79,7 +79,7 @@ The historic fallback depends on the API from the `iota-rest-kv` crate which is 
 
 :::
 
-Data already [pruned](./iota-indexer#pruning) by the indexer writer can be served by the JSON-RPC reader using a historic fallback feature.
+Data already [pruned](./iota-indexer.mdx#pruning) by the indexer writer can be served by the JSON-RPC reader using a historic fallback feature.
 To use it, the operator runs a separate self-hosted REST KV store and points the JSON-RPC service at it via `--fallback-kv-url`.
 When `--fallback-kv-url` is unset (the default), no fallback is performed and pruned data is unreachable via JSON-RPC.
 
