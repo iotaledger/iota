@@ -298,7 +298,7 @@ mod move_authenticator {
     /// [`crate::transaction::auth_digest_for_sig`].
     pub fn blake2b256_of_sig(sig: &GenericSignature) -> Digest {
         let mut hasher = DefaultHash::default();
-        hasher.update(sig.as_ref());
+        hasher.update(sig.to_bytes());
         Digest::new(hasher.finalize().into())
     }
 }

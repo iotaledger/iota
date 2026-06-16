@@ -7,7 +7,8 @@ use std::hash::Hash;
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
     ed25519::{Ed25519PublicKey, Ed25519Signature},
-    error::FastCryptoError,
+    encoding::{Base64, Encoding},
+    error::{FastCryptoError, FastCryptoResult},
     secp256k1::{Secp256k1PublicKey, Secp256k1Signature},
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::{EncodeDecodeBase64, ToFromBytes},
@@ -230,14 +231,13 @@ impl GenericSignature {
             }),
         }
     }
-}
 
-/// GenericSignature encodes a single signature [enum Signature] as is `flag ||
-/// signature || pubkey`. [struct Multisig] is encoded as
-/// the MultiSig flag (0x03) concat with the bcs serialized bytes of [struct
-/// Multisig] i.e. `flag || bcs_bytes(Multisig)`.
-impl ToFromBytes for GenericSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        // TODO
+        vec![]
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match SignatureScheme::from_flag_byte(
             bytes.first().ok_or(FastCryptoError::InputTooShort(0))?,
         ) {
@@ -273,17 +273,34 @@ impl ToFromBytes for GenericSignature {
     }
 }
 
-/// Trait useful to get the bytes reference for [enum GenericSignature].
-impl AsRef<[u8]> for GenericSignature {
-    fn as_ref(&self) -> &[u8] {
-        match self {
-            GenericSignature::MultiSig(s) => s.as_ref(),
-            GenericSignature::Signature(s) => s.as_ref(),
-            #[allow(deprecated)]
-            GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref(),
-            GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
-            GenericSignature::MoveAuthenticator(s) => s.as_ref(),
-        }
+// /// GenericSignature encodes a single signature [enum Signature] as is `flag
+// || /// signature || pubkey`. [struct Multisig] is encoded as
+// /// the MultiSig flag (0x03) concat with the bcs serialized bytes of [struct
+// /// Multisig] i.e. `flag || bcs_bytes(Multisig)`.
+// impl ToFromBytes for GenericSignature {}
+
+// /// Trait useful to get the bytes reference for [enum GenericSignature].
+// impl AsRef<[u8]> for GenericSignature {
+//     fn as_ref(&self) -> &[u8] {
+//         match self {
+//             GenericSignature::MultiSig(s) => s.as_ref(),
+//             GenericSignature::Signature(s) => s.as_ref(),
+//             #[allow(deprecated)]
+//             GenericSignature::ZkLoginAuthenticatorDeprecated(s) =>
+// s.as_ref(),             GenericSignature::PasskeyAuthenticator(s) =>
+// s.as_ref(),             GenericSignature::MoveAuthenticator(s) => s.as_ref(),
+//         }
+//     }
+// }
+
+impl EncodeDecodeBase64 for GenericSignature {
+    fn encode_base64(&self) -> String {
+        Base64::encode(self.to_bytes())
+    }
+
+    fn decode_base64(value: &str) -> FastCryptoResult<Self> {
+        let bytes = Base64::decode(value)?;
+        Self::from_bytes(&bytes)
     }
 }
 
@@ -296,7 +313,7 @@ impl ::serde::Serialize for GenericSignature {
         } else {
             #[derive(serde::Serialize)]
             struct GenericSignature<'a>(&'a [u8]);
-            GenericSignature(self.as_ref()).serialize(serializer)
+            GenericSignature(self.to_bytes().as_ref()).serialize(serializer)
         }
     }
 }

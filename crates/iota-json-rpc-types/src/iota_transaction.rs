@@ -1829,7 +1829,7 @@ impl Display for IotaTransactionBlock {
                     // the signatures for multisig and zklogin
                     // are not suited to be parsed out. they
                     // should be interpreted as a whole
-                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
+                    _ => Base64::from_bytes(&tx_sig.to_bytes()).encoded(),
                 }
             )]);
         }
