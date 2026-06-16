@@ -1116,7 +1116,7 @@ impl AuthorityState {
         };
 
         // Step 7: build AttestationData.
-        // `gas_cost_summary().computation_cost` is in NANO; convert to gas
+        // `gas_cost_summary().computation_cost` is in NANOS; convert to gas
         // units (`computation_units = computation_cost / gas_price`) so the
         // attestation is independent of the gas price the user chose.
         let computation_units = effects
@@ -5752,7 +5752,7 @@ impl AuthorityState {
     /// Re-runs the sender-side coin deny-list check for an attested
     /// (`UserTransactionV2`) transaction in the post-consensus phase.
     ///
-    /// The attestor performs this check at attestation time, but the deny
+    /// An honest attestor performs this check at attestation time, but the deny
     /// list is a Move object whose state may change between attestation and
     /// execution. Running the check at execution time would crash the
     /// validator, so we run it during post-consensus validation where the
@@ -5782,12 +5782,8 @@ impl AuthorityState {
     /// dependencies) for an attested (`UserTransactionV2`) transaction in the
     /// post-consensus phase.
     ///
-    /// NOTE: This is a **local** check — the deny config is sourced from each
-    /// validator's own `NodeConfig`, so running it post-consensus can make
-    /// validators diverge (a transaction one validator denies, another may
-    /// keep). It is kept here intentionally as a placeholder: a follow-up PR
-    /// replaces the local deny config with a consensus-agreed source so the
-    /// check becomes deterministic across validators.
+    /// NOTE: the deny config is sourced from each validator's own `NodeConfig`,
+    /// so this check is not deterministic across validators.
     pub(crate) fn check_transaction_deny_list_for_attested_tx(
         &self,
         transaction: &VerifiedTransaction,

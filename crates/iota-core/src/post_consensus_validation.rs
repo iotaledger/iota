@@ -23,8 +23,10 @@
 //! - Check #1: Already executed — silent drop.
 //! - Check #2: `validity_check()` — drop with error.
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
-//!   the claimed attestor matches the block author. Drop with error on mismatch
-//!   or unsupported attestation variant.
+//!   the claimed attestor matches the block author and that the attested
+//!   computation units fall within the valid range (cost floor and ceiling).
+//!   Drop with error on mismatch, out-of-range cost, or unsupported attestation
+//!   variant.
 //! - Check #4: Extract owned input objects (needed for lock conflict
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
@@ -330,8 +332,8 @@ pub async fn validate_and_resolve_conflicts(
         //
         // Deny-list check (`TransactionDenyConfig`: sender/object/package deny
         // lists, feature kill-switches): this is a LOCAL check, sourced from
-        // each validator's `NodeConfig`. TODO: a follow-up PR will swap the local deny
-        // config for a consensus-agreed source.
+        // each validator's `NodeConfig`. TODO: source the deny config from
+        // consensus-agreed state instead of the local `NodeConfig`.
         //
         // Coin deny list v1 MUST be re-checked here for attested
         // transactions: the attestor's view may be stale if a deny-list

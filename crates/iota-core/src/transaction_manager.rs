@@ -79,8 +79,7 @@ pub struct PendingCertificateStats {
 /// versions.
 ///
 /// This is runtime-only scheduling metadata: it is never serialized or
-/// persisted, so it lives here next to its consumers in `iota-core` rather than
-/// alongside the serialized protocol types in `iota-types`.
+/// persisted.
 #[derive(Clone, Debug)]
 pub struct VerifiedExecutableAttestedTransaction {
     tx: VerifiedExecutableTransaction,
