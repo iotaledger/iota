@@ -80,10 +80,7 @@ fn consistent_historical_objects(
 
     let history_window = filter!(
         history_filtered,
-        format!(
-            "superseded_at_checkpoint > {} AND object_status = {ACTIVE}",
-            checkpoint_viewed_at
-        )
+        format!("superseded_at_checkpoint > {checkpoint_viewed_at} AND object_status = {ACTIVE}")
     );
 
     let oldest_subquery = query!(format!(

@@ -53,10 +53,7 @@ fn historical_objects(page: &Page<Cursor>, filter_fn: &impl Fn(RawQuery) -> RawQ
     let history_filtered = filter_fn(query!(format!(
         "SELECT {OBJECT_COLUMNS} FROM objects_backward_history"
     )));
-    let history_window = filter!(
-        history_filtered,
-        format!("object_status = {ACTIVE}")
-    );
+    let history_window = filter!(history_filtered, format!("object_status = {ACTIVE}"));
     let source = query!("SELECT candidates.* FROM ({}) candidates", history_window);
     page.apply::<StoredBackwardObject>(source)
 }
