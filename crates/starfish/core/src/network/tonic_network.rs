@@ -40,7 +40,7 @@ use crate::{
     block_header::{BlockRef, max_signed_block_header_bytes},
     block_verifier::serialized_transactions_size_limit,
     commit::{CommitRange, max_commit_bytes},
-    commit_syncer::CommitSyncType,
+    commit_syncer::{CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY},
     context::Context,
     error::{ConsensusError, ConsensusResult},
     network::{
@@ -82,27 +82,6 @@ fn max_fetch_transactions_response_bytes(context: &Context) -> usize {
                 .max_transactions_per_transaction_sync_fetch,
         );
     max_transactions.saturating_mul(serialized_transactions_size_limit(context))
-}
-
-/// Combined fetch-commits-and-transactions budget: serialized commits, the
-/// certifier headers served alongside them, and the transactions referenced by
-/// those commits.
-fn max_fetch_commits_and_transactions_response_bytes(context: &Context) -> usize {
-    let committee_size = context.committee.size();
-    let gc_depth = context.protocol_config.gc_depth() as usize;
-    let commits = (context.parameters.fast_commit_sync_batch_size as usize)
-        .saturating_mul(max_commit_bytes(committee_size, gc_depth));
-    let certifier_headers = context
-        .parameters
-        .max_headers_per_header_sync_fetch
-        .saturating_mul(max_signed_block_header_bytes(committee_size));
-    let transactions = context
-        .parameters
-        .max_transactions_per_commit_sync_fetch
-        .saturating_mul(serialized_transactions_size_limit(context));
-    commits
-        .saturating_add(certifier_headers)
-        .saturating_add(transactions)
 }
 
 // Implements Tonic RPC client for Consensus.
@@ -474,33 +453,104 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        // First chunk contains commits and certifier headers
+        // First chunk contains commits and certifier headers.
+        //
+        // Bound the response per element and per category while streaming, since
+        // `verify_commits` only runs on the fully-received buffers and so cannot
+        // protect them from a malicious server. Commits and certifier headers
+        // carry the same count caps `verify_commits` applies
+        // (`2 * fast_commit_sync_batch_size` and two headers per authority).
+        // Transactions have no count cap on the fast path — the server returns
+        // every transaction the committed range references — so only their
+        // per-element size is enforced here; their count is validated against
+        // the commits downstream, and the coarse total below bounds the buffer.
+        let committee_size = self.context.committee.size();
+        let gc_depth = self.context.protocol_config.gc_depth() as usize;
+        let max_commits = CommitSyncType::Fast.max_commits_per_response(&self.context);
+        let max_certifier_headers =
+            committee_size.saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
+        let max_commit_size = max_commit_bytes(committee_size, gc_depth);
+        let max_header_size = max_signed_block_header_bytes(committee_size);
+        let max_transaction_size = serialized_transactions_size_limit(&self.context);
+        // Coarse total backstop for the buffer. The commit and certifier-header
+        // terms reuse the per-category caps above so the total never trips
+        // before them; the transaction term uses the commit-sync fetch cap as a
+        // coarse allowance, since the fast path has no transaction count cap.
+        let max_allowed_bytes = max_commits
+            .saturating_mul(max_commit_size)
+            .saturating_add(max_certifier_headers.saturating_mul(max_header_size))
+            .saturating_add(
+                self.context
+                    .parameters
+                    .max_transactions_per_commit_sync_fetch
+                    .saturating_mul(max_transaction_size),
+            );
+
         let mut commits = Vec::new();
         let mut certifier_block_headers = Vec::new();
         let mut transactions = Vec::new();
-        let max_allowed_bytes = max_fetch_commits_and_transactions_response_bytes(&self.context);
         let mut total_fetched_bytes = 0;
 
         loop {
             match stream.message().await {
                 Ok(Some(response)) => {
-                    // Accumulate commits and headers (typically in first chunk)
+                    // Commits (typically in the first chunk): count cap + per-element size.
+                    if commits.len() + response.commits.len() > max_commits {
+                        return Err(ConsensusError::TooManyCommitsFromPeer {
+                            peer,
+                            count: (commits.len() + response.commits.len()) as CommitIndex,
+                            limit: max_commits as CommitIndex,
+                        });
+                    }
                     for c in &response.commits {
+                        if c.len() > max_commit_size {
+                            return Err(ConsensusError::SerializedCommitTooLarge {
+                                peer,
+                                size: c.len(),
+                                limit: max_commit_size,
+                            });
+                        }
                         total_fetched_bytes += c.len();
                     }
                     commits.extend(response.commits);
 
+                    // Certifier headers: count cap + per-element size.
+                    if certifier_block_headers.len() + response.certifier_block_headers.len()
+                        > max_certifier_headers
+                    {
+                        return Err(ConsensusError::TooManyCommitVoteHeaders {
+                            peer,
+                            count: certifier_block_headers.len()
+                                + response.certifier_block_headers.len(),
+                            limit: max_certifier_headers,
+                        });
+                    }
                     for h in &response.certifier_block_headers {
+                        if h.len() > max_header_size {
+                            return Err(ConsensusError::SerializedBlockHeaderTooLarge {
+                                peer,
+                                size: h.len(),
+                                limit: max_header_size,
+                            });
+                        }
                         total_fetched_bytes += h.len();
                     }
                     certifier_block_headers.extend(response.certifier_block_headers);
 
-                    // Accumulate transactions (streamed in subsequent chunks)
+                    // Transactions (streamed in subsequent chunks): per-element size only.
                     for t in &response.transactions {
+                        if t.len() > max_transaction_size {
+                            return Err(ConsensusError::SerializedTransactionsTooLarge {
+                                size: t.len(),
+                                limit: max_transaction_size,
+                            });
+                        }
                         total_fetched_bytes += t.len();
                     }
                     transactions.extend(response.transactions);
 
+                    // Coarse total backstop bounding the transaction buffer, which
+                    // has no precise count cap on the fast path.
                     if total_fetched_bytes > max_allowed_bytes {
                         info!(
                             "fetch_commits_and_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
@@ -1535,8 +1585,9 @@ mod tests {
     };
 
     /// The per-fetch response budgets track the matching server-side count cap:
-    /// the value is the cap times the maximum per-item size, depends only on the
-    /// cap and committee, and never on how many items the caller requested.
+    /// the value is the cap times the maximum per-item size, depends only on
+    /// the cap and committee, and never on how many items the caller
+    /// requested.
     #[tokio::test]
     async fn fetch_response_budgets_track_server_caps() {
         let (mut context, _keys) = Context::new_for_test(4);
