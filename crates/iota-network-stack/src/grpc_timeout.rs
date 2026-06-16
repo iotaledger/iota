@@ -24,13 +24,26 @@ const GRPC_TIMEOUT_HEADER: &str = "grpc-timeout";
 pub struct GrpcTimeout<S> {
     inner: S,
     server_timeout: Option<Duration>,
+    /// Request URI paths exempt from `server_timeout` — for long-lived
+    /// server-streaming RPCs that must not be aborted by a fallback deadline.
+    /// An explicit client `grpc-timeout` is still honored for these paths.
+    timeout_exempt_paths: &'static [&'static str],
 }
 
 impl<S> GrpcTimeout<S> {
     pub fn new(inner: S, server_timeout: Option<Duration>) -> Self {
+        Self::new_with_exempt_paths(inner, server_timeout, &[])
+    }
+
+    pub fn new_with_exempt_paths(
+        inner: S,
+        server_timeout: Option<Duration>,
+        timeout_exempt_paths: &'static [&'static str],
+    ) -> Self {
         Self {
             inner,
             server_timeout,
+            timeout_exempt_paths,
         }
     }
 }
@@ -53,8 +66,16 @@ where
             None
         });
 
+        // Exempt configured paths (long-lived server-streaming RPCs) from the
+        // server-side fallback timeout; an explicit client deadline still applies.
+        let server_timeout = if self.timeout_exempt_paths.contains(&req.uri().path()) {
+            None
+        } else {
+            self.server_timeout
+        };
+
         // Use the shorter of the two durations, if either are set
-        let timeout_duration = match (client_timeout, self.server_timeout) {
+        let timeout_duration = match (client_timeout, server_timeout) {
             (None, None) => None,
             (Some(dur), None) => Some(dur),
             (None, Some(dur)) => Some(dur),
@@ -282,5 +303,49 @@ mod tests {
     fn test_invalid_digits() {
         // gRPC spec states TimeoutValue will be at most 8 digits
         setup_map_try_parse(Some("oneH")).unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn server_timeout_skips_exempt_paths() {
+        use std::{convert::Infallible, future, future::Pending};
+
+        // A service whose responses never become ready, so the only way a call
+        // resolves is via the timeout branch.
+        #[derive(Clone)]
+        struct NeverReady;
+        impl Service<Request<()>> for NeverReady {
+            type Response = Response<Body>;
+            type Error = Infallible;
+            type Future = Pending<Result<Response<Body>, Infallible>>;
+
+            fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+                Poll::Ready(Ok(()))
+            }
+
+            fn call(&mut self, _req: Request<()>) -> Self::Future {
+                future::pending()
+            }
+        }
+
+        const EXEMPT: &[&str] = &["/pkg.Svc/Stream"];
+        let timeout = Duration::from_millis(50);
+
+        // Non-exempt path: the server-side fallback timeout fires.
+        let mut svc = GrpcTimeout::new_with_exempt_paths(NeverReady, Some(timeout), EXEMPT);
+        let fut = svc.call(Request::builder().uri("/pkg.Svc/Unary").body(()).unwrap());
+        assert!(
+            fut.await.is_ok(),
+            "non-exempt request should be completed by the fallback timeout"
+        );
+
+        // Exempt path: no fallback timeout, so the request is never aborted.
+        let mut svc = GrpcTimeout::new_with_exempt_paths(NeverReady, Some(timeout), EXEMPT);
+        let fut = svc.call(Request::builder().uri("/pkg.Svc/Stream").body(()).unwrap());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(150), fut)
+                .await
+                .is_err(),
+            "exempt path must not be aborted by the server timeout"
+        );
     }
 }

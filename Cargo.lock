@@ -13251,6 +13251,7 @@ dependencies = [
  "rand 0.8.6",
  "rs_merkle",
  "serde",
+ "serde_yaml",
  "tracing",
 ]
 
