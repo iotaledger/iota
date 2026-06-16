@@ -8,7 +8,10 @@ publish = false
 description = "Library for a Prometheus metric that computes its value by given closure at collection time"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
+
+# internal dependencies
 prometheus-filtered.workspace = true
 
 [lints]

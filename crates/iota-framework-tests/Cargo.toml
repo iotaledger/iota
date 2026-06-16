@@ -17,7 +17,6 @@ harness = false
 [dev-dependencies]
 # external dependencies
 datatest-stable.workspace = true
-prometheus-filtered.workspace = true
 
 # internal dependencies
 iota-adapter = { path = "../../iota-execution/latest/iota-adapter", package = "iota-adapter-latest" }
@@ -33,5 +32,6 @@ move-bytecode-verifier-meter.workspace = true
 move-cli.workspace = true
 move-package.workspace = true
 move-unit-test.workspace = true
+prometheus-filtered.workspace = true
 
 [dependencies]

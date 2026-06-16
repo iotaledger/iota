@@ -10,7 +10,6 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
-prometheus-filtered.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 tokio-util.workspace = true
 tracing.workspace = true
@@ -19,6 +18,7 @@ tracing.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-metrics.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 
 [dev-dependencies]
 telemetry-subscribers.workspace = true

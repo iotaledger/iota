@@ -87,6 +87,7 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
+prometheus-filtered.workspace = true
 starfish-config.workspace = true
 starfish-core.workspace = true
 telemetry-subscribers.workspace = true

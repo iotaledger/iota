@@ -33,7 +33,6 @@ csv.workspace = true
 dirs.workspace = true
 fastcrypto.workspace = true
 object_store.workspace = true
-prometheus-filtered.workspace = true
 reqwest.workspace = true
 serde_yaml.workspace = true
 
@@ -41,4 +40,5 @@ serde_yaml.workspace = true
 iota-genesis-common.workspace = true
 iota-keys.workspace = true
 iota-names.workspace = true
+prometheus-filtered.workspace = true
 starfish-config.workspace = true

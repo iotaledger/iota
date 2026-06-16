@@ -12,7 +12,6 @@ anyhow.workspace = true
 clap.workspace = true
 colored.workspace = true
 once_cell.workspace = true
-prometheus-filtered.workspace = true
 serde_yaml.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true
@@ -33,6 +32,7 @@ move-ir-types.workspace = true
 move-package.workspace = true
 move-unit-test.workspace = true
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

@@ -20,7 +20,6 @@ byteorder.workspace = true
 bytes.workspace = true
 futures.workspace = true
 object_store.workspace = true
-prometheus-filtered.workspace = true
 rustls.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
@@ -37,6 +36,7 @@ iota-kvstore.workspace = true
 iota-metrics.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [lints]

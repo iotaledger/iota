@@ -20,7 +20,6 @@ gcp-bigquery-client = "0.28.0"
 num_enum.workspace = true
 object_store.workspace = true
 parquet = "54"
-prometheus-filtered.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 snowflake-api = "0.11"
@@ -44,6 +43,7 @@ iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 

@@ -16,7 +16,6 @@ anyhow.workspace = true
 clap.workspace = true
 colored.workspace = true
 fastcrypto.workspace = true
-prometheus-filtered.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
@@ -35,6 +34,7 @@ iota-sdk-types.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]

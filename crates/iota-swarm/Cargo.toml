@@ -16,7 +16,6 @@ dag-visualizer = ["iota-node/dag-visualizer"]
 # external dependencies
 anyhow.workspace = true
 futures.workspace = true
-prometheus-filtered.workspace = true
 rand.workspace = true
 tap.workspace = true
 tempfile.workspace = true
@@ -35,6 +34,7 @@ iota-protocol-config.workspace = true
 iota-swarm-config.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [target.'cfg(msim)'.dependencies]

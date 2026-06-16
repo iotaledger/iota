@@ -25,7 +25,6 @@ num-rational = "0.4"
 packable.workspace = true
 prefix-hex.workspace = true
 primitive-types.workspace = true
-prometheus-filtered.workspace = true
 rand = { workspace = true, features = ["std_rng"] }
 rand_pcg = "0.3"
 rand_seeder = "0.3"
@@ -63,6 +62,7 @@ move-core-types.workspace = true
 move-docgen.workspace = true
 move-package.workspace = true
 move-vm-runtime-latest = { path = "../../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }
+prometheus-filtered.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
