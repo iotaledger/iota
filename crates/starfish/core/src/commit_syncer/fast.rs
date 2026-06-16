@@ -574,7 +574,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
         // so earlier commits are certified as well.
-        let batch_size = inner.sync_type.commit_sync_batch_size(&inner.context) as usize;
+        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
         let (commits, voting_block_headers) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
@@ -584,7 +584,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         commit_range,
                         serialized_commits,
                         serialized_proof_for_last_commit,
-                        2 * batch_size,
+                        max_commits,
                     )
                 }
             })

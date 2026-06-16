@@ -546,7 +546,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         //    returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let batch_size = inner.sync_type.commit_sync_batch_size(&inner.context) as usize;
+        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
         let (commits, _) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
@@ -556,7 +556,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         commit_range,
                         serialized_commits,
                         serialized_voting_block_headers,
-                        batch_size,
+                        max_commits,
                     )
                 }
             })
