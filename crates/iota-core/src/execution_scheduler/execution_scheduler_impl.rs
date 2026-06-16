@@ -279,3 +279,7 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
                 .get()) as usize
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/execution_scheduler_tests.rs"]
+mod execution_scheduler_tests;

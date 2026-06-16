@@ -576,10 +576,21 @@ async fn test_per_object_overload() {
             shared_counter_initial_version,
         )
         .build_and_sign(&key);
-    let res = authorities[3]
-        .transaction_manager()
-        .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
-    let message = format!("{res:?}");
+    // ExecutionScheduler registers per-object pending state asynchronously (in
+    // the per-transaction task), whereas TransactionManager does it
+    // synchronously at enqueue. Poll until the overload condition is observed so
+    // the assertion holds for both schedulers.
+    let mut message = String::new();
+    for _ in 0..200 {
+        let res = authorities[3]
+            .transaction_manager()
+            .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
+        message = format!("{res:?}");
+        if message.contains("TooManyTransactionsPendingOnObject") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     assert!(
         message.contains("TooManyTransactionsPendingOnObject"),
         "{}",

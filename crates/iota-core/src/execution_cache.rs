@@ -1006,6 +1006,13 @@ pub trait ExecutionCacheWrite: Send + Sync {
         tx_outputs: Arc<TransactionOutputs>,
     ) -> IotaResult;
 
+    /// Writes a single object entry directly to the cache, for tests that need
+    /// to make an input object available without constructing full transaction
+    /// outputs. Notifies any waiter (e.g. the execution scheduler) registered
+    /// for the object.
+    #[cfg(test)]
+    fn write_object_entry_for_test(&self, object: Object);
+
     /// Non-fallible version of `try_write_transaction_outputs`.
     fn write_transaction_outputs(&self, epoch_id: EpochId, tx_outputs: Arc<TransactionOutputs>) {
         self.try_write_transaction_outputs(epoch_id, tx_outputs)

@@ -2165,6 +2165,11 @@ impl TransactionCacheRead for WritebackCache {
 }
 
 impl ExecutionCacheWrite for WritebackCache {
+    #[cfg(test)]
+    fn write_object_entry_for_test(&self, object: Object) {
+        self.write_object_entry(&object.id(), object.version(), object.into());
+    }
+
     #[instrument(level = "debug", skip_all)]
     fn try_acquire_transaction_locks(
         &self,
