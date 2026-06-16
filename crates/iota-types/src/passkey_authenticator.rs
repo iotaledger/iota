@@ -13,7 +13,6 @@ use fastcrypto::{
 };
 use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
 use iota_sdk_types::crypto::IntentMessage;
-use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -58,9 +57,6 @@ pub struct PasskeyAuthenticator {
     /// Decoded `client_data_json.challenge` which is expected to be the signing
     /// message `hash(Intent | bcs_message)`
     _challenge: [u8; DefaultHash::OUTPUT_SIZE],
-
-    /// Initialization of bytes for passkey in serialized form.
-    bytes: OnceCell<Vec<u8>>,
 }
 
 /// A raw passkey authenticator struct used during deserialization. Can be
@@ -123,7 +119,6 @@ impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
             signature,
             pk,
             _challenge: challenge,
-            bytes: OnceCell::new(),
         })
     }
 }
