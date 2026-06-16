@@ -43,13 +43,13 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
-        objects::{BackwardHistoryObjectStatus, StoredBackwardHistoryObject},
+        objects::StoredBackwardHistoryObject,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedEpochInfoEvent, IndexedEvent,
         IndexedObject, IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult,
-        TxIndex,
+        ObjectStatus, TxIndex,
     },
 };
 
@@ -619,7 +619,7 @@ impl PrimaryWorker {
                 result.push(StoredBackwardHistoryObject::from_empty(
                     r.object_id,
                     r.version.as_u64() as i64 - 1,
-                    BackwardHistoryObjectStatus::NotYetCreated,
+                    ObjectStatus::NotYetCreated,
                     checkpoint_seq,
                 ));
             }
@@ -632,7 +632,7 @@ impl PrimaryWorker {
                 result.push(StoredBackwardHistoryObject::from_empty(
                     r.object_id,
                     r.version.as_u64() as i64 - 1,
-                    BackwardHistoryObjectStatus::WrappedOrDeleted,
+                    ObjectStatus::WrappedOrDeleted,
                     checkpoint_seq,
                 ));
             }

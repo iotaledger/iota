@@ -85,7 +85,7 @@ pub(crate) struct ConsensusCommitOutput {
     // within one commit.
     report_state_snapshots: BTreeMap<u8, DBReceivedReportsStatePerAuthority>,
 
-    // White flag owned object locks acquired in this commit
+    // P-COOL owned object locks acquired in this commit
     owned_object_locks: HashMap<ObjectRef, LockDetails>,
 }
 
@@ -548,7 +548,7 @@ pub(crate) struct ConsensusOutputQuarantine {
 
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
-    // White flag owned object locks (aggregate across all quarantined commits)
+    // P-COOL owned object locks (aggregate across all quarantined commits)
     owned_object_locks: HashMap<ObjectRef, LockDetails>,
 
     metrics: Arc<EpochMetrics>,

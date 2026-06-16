@@ -74,7 +74,7 @@ fn make_end_of_publish() -> VerifiedSequencedConsensusTransaction {
 #[sim_test]
 async fn test_valid_user_transaction_passes() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -152,7 +152,7 @@ async fn test_non_user_transaction_passes_through() {
 #[sim_test]
 async fn test_duplicate_transaction_deduplicated() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -206,7 +206,7 @@ async fn test_duplicate_transaction_deduplicated() {
 #[sim_test]
 async fn test_mixed_batch_filtering() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -278,7 +278,7 @@ async fn test_simple_conflict() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -362,7 +362,7 @@ async fn test_stale_version_dropped_fresh_kept() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -467,7 +467,7 @@ async fn test_no_conflict() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -549,7 +549,7 @@ async fn test_chain_conflict() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -654,7 +654,7 @@ async fn test_multiple_conflicts_in_batch() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -765,7 +765,7 @@ async fn test_gas_object_conflict() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -847,7 +847,7 @@ async fn test_winner_blocks_multiple_losers() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -963,7 +963,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1085,7 +1085,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
 // Checkpoint-root regression test (issue #11649)
 // ---------------------------------------------------------------------------
 
-/// Regression test for the white-flag checkpoint fork observed in the
+/// Regression test for the P-COOL checkpoint fork observed in the
 /// double-spend stress test (#11649).
 ///
 /// A validator that lags through an epoch boundary executes a transaction via
@@ -1109,7 +1109,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
 #[tokio::test]
 async fn already_executed_tx_must_remain_in_checkpoint_roots() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1205,7 +1205,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
 #[tokio::test]
 async fn double_spend_loser_excluded_from_checkpoint_roots() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 
@@ -1323,7 +1323,7 @@ enum LockTier {
 }
 
 /// Shared setup: one owned object + one gas object, both owned by `sender`.
-/// `_config_guard` keeps the white-flag protocol-config override active for
+/// `_config_guard` keeps the P-COOL protocol-config override active for
 /// the duration of the test; on drop it clears the thread-local override so a
 /// later test on the same OS thread can install its own.
 struct LockTierSetup {
@@ -1340,7 +1340,7 @@ struct LockTierSetup {
 
 async fn setup_lock_tier() -> LockTierSetup {
     let _config_guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
+        config.set_enable_pcool_flow_for_testing(true);
         config
     });
 

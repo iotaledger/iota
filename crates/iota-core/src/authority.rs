@@ -2818,9 +2818,16 @@ impl AuthorityState {
             return Ok(None);
         }
 
-        let layout = resolver
-            .get_annotated_layout(move_object.struct_tag())?
-            .into_layout();
+        let layout = match resolver.get_annotated_layout(move_object.struct_tag()) {
+            Ok(annotated_layout) => annotated_layout.into_layout(),
+            Err(e) => {
+                error!(
+                    "unable to load layout for type `{:?}`: {e}",
+                    move_object.struct_tag()
+                );
+                return Ok(None);
+            }
+        };
 
         let field =
             DFV::FieldVisitor::deserialize(move_object.contents(), &layout).map_err(|e| {
@@ -5459,9 +5466,9 @@ impl AuthorityState {
             // lock is dropped here
         }
 
-        // In the certificate-less mode, the list of pending consensus certificates is
+        // In the P-COOL flow, the list of pending consensus certificates is
         // always empty, so the reverting below is only for the certificate mode.
-        if !epoch_store.protocol_config().enable_white_flag_flow() {
+        if !epoch_store.protocol_config().enable_pcool_flow() {
             let pending_certificates = epoch_store.pending_consensus_certificates();
             info!(
                 "Reverting {} locally executed transactions that was not included in the epoch: \
@@ -5484,7 +5491,7 @@ impl AuthorityState {
             }
             info!("All uncommitted local transactions reverted");
         } else {
-            info!("Certificate-less mode: skipping revert of uncommitted epoch transactions");
+            info!("P-COOL mode: skipping revert of uncommitted epoch transactions");
         }
 
         Ok(())

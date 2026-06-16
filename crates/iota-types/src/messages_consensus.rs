@@ -54,7 +54,7 @@ pub enum ConsensusTransactionKey {
         MisbehaviorReportDigest,
         CheckpointSequenceNumber,
     ),
-    /// White flag user transaction key (by transaction digest).
+    /// P-COOL user transaction key (by transaction digest).
     UserTransaction(TransactionDigest),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
@@ -235,7 +235,7 @@ pub enum ConsensusTransactionKind {
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
     MisbehaviorReport(VersionedMisbehaviorReport),
-    /// White flag user transaction. Raw, uncertified transaction submitted
+    /// P-COOL user transaction. Raw, uncertified transaction submitted
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
     UserTransactionV1(Box<Transaction>),

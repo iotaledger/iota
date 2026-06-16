@@ -21,7 +21,7 @@ mod ingestion_tests {
         models::{
             checkpoints::StoredCheckpoint,
             obj_indices::StoredObjectVersion,
-            objects::{BackwardHistoryObjectStatus, StoredCheckpointedObject, StoredObject},
+            objects::{StoredCheckpointedObject, StoredObject},
             transactions::{StoredTransaction, TxGlobalOrder},
             tx_indices::StoredTxDigest,
         },
@@ -712,10 +712,7 @@ mod ingestion_tests {
         // minus one).
         let entry = find_backward_entry(&pg_store, created_coin_1.as_bytes(), 1)?
             .expect("created coin 1 must have a backward history entry at cp 1");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_1_version.as_u64() as i64 - 1
@@ -725,10 +722,7 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, created_coin_2.as_bytes(), 1)?
             .expect("created coin 2 must have a backward history entry at cp 1");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_2_version.as_u64() as i64 - 1
@@ -742,10 +736,7 @@ mod ingestion_tests {
             2,
             "gas object should have 2 backward history entries in cp 1 (one per tx)"
         );
-        assert_eq!(
-            gas_entries[0].object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(gas_entries[0].object_status, ObjectStatus::Active as i16);
         assert_eq!(
             gas_entries[0].object_version,
             gas_version_before_tx1.as_u64() as i64
@@ -754,10 +745,7 @@ mod ingestion_tests {
         assert!(gas_entries[0].object_digest.is_some());
         assert!(gas_entries[0].owner_type.is_some());
 
-        assert_eq!(
-            gas_entries[1].object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(gas_entries[1].object_status, ObjectStatus::Active as i16);
         assert_eq!(
             gas_entries[1].object_version,
             gas_version_before_tx2.as_u64() as i64
@@ -768,10 +756,7 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, created_coin_3.as_bytes(), 2)?
             .expect("created coin 3 must have a backward history entry at cp 2");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_3_version.as_u64() as i64 - 1
@@ -779,10 +764,7 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)?
             .expect("gas object must have a backward history entry at cp 2");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::Active as i16);
         assert_eq!(entry.object_version, gas_version_before_tx3.as_u64() as i64);
         assert!(entry.serialized_object.is_some());
 

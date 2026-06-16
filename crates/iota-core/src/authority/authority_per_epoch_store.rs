@@ -410,7 +410,7 @@ pub(crate) enum SchedulingResult {
 /// The legacy name (in the certificate era) was
 /// `CancelConsensusCertificateReason`. It is renamed to
 /// `CancelConsensusTransactionReason` because this type now (in the
-/// certificate-less era) covers more consensus transaction kinds, not just
+/// P-COOL flow) covers more consensus transaction kinds, not just
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum CancelConsensusTransactionReason {
@@ -437,7 +437,7 @@ pub enum CancelConsensusTransactionReason {
 ///
 /// The legacy name (in the certificate era) was `ConsensusCertificateResult`.
 /// It is renamed to `ConsensusTransactionResult` because this type now (in
-/// the certificate-less era) covers all consensus transaction kinds, not just
+/// the P-COOL flow) covers all consensus transaction kinds, not just
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum ConsensusTransactionResult {
@@ -1133,9 +1133,8 @@ impl AuthorityPerEpochStore {
 
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, chain.1);
 
-        let pending_consensus_certificates: HashSet<_> = if protocol_config.enable_white_flag_flow()
-        {
-            HashSet::new() // no certificates in certificate-less mode
+        let pending_consensus_certificates: HashSet<_> = if protocol_config.enable_pcool_flow() {
+            HashSet::new() // no certificates in P-COOL mode
         } else {
             pending_consensus_transactions
                 .iter()
@@ -2334,12 +2333,12 @@ impl AuthorityPerEpochStore {
             .pending_consensus_transactions
             .multi_insert(key_value_pairs)?;
 
-        // NOTE: If the white flag flow is enabled (certificate-less mode), we do not
+        // NOTE: If the P-COOL flow is enabled, we do not
         // insert `UserTransactionV1` into the pending set because there is no
         // pre-consensus "promise" (a certificate) that `UserTransactionV1` will be
         // executed before the end of epoch. Thus, the below insertion is only for
-        // certificates, i.e., when the white flag flow is disabled.
-        if !self.protocol_config.enable_white_flag_flow() {
+        // certificates, i.e., when the P-COOL flow is disabled.
+        if !self.protocol_config.enable_pcool_flow() {
             // TODO: lock once for all insert() calls.
             for transaction in transactions {
                 if let ConsensusTransactionKind::CertifiedTransaction(cert) = &transaction.kind {
@@ -2374,11 +2373,11 @@ impl AuthorityPerEpochStore {
             .pending_consensus_transactions
             .multi_remove(keys)?;
 
-        // NOTE: If the white flag flow is enabled, there are no certificates,
+        // NOTE: If the P-COOL flow is enabled, there are no certificates,
         // so there is nothing to remove from `pending_consensus_certificates`.
-        // Thus, the below removal is only for certificates, i.e., when the white
-        // flag flow is disabled.
-        if !self.protocol_config.enable_white_flag_flow() {
+        // Thus, the below removal is only for certificates, i.e., when the
+        // P-COOL flow is disabled.
+        if !self.protocol_config.enable_pcool_flow() {
             // TODO: lock once for all remove() calls.
             for key in keys {
                 if let ConsensusTransactionKey::Certificate(cert) = key {
@@ -3180,13 +3179,13 @@ impl AuthorityPerEpochStore {
         let mut current_commit_sequenced_randomness_transactions =
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
-        let enable_white_flag = self.protocol_config.enable_white_flag_flow();
+        let enable_pcool = self.protocol_config.enable_pcool_flow();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
-            } else if !enable_white_flag && tx.0.is_user_tx_with_randomness() {
+            } else if !enable_pcool && tx.0.is_user_tx_with_randomness() {
                 current_commit_sequenced_randomness_transactions.push(tx);
             } else {
                 current_commit_sequenced_consensus_transactions.push(tx);
@@ -3226,7 +3225,7 @@ impl AuthorityPerEpochStore {
         // price, deferred transactions will be placed earlier in the execution
         // queue.
         //
-        // White-flag flow: when enabled, the categorization loop above puts ALL
+        // P-COOL flow: when enabled, the categorization loop above puts ALL
         // user transactions (including randomness) into
         // current_commit_sequenced_consensus_transactions to preserve consensus
         // DAG ordering during conflict resolution. The deferred-loading paths
@@ -3286,7 +3285,7 @@ impl AuthorityPerEpochStore {
             self.load_and_process_deferred_transactions_for_randomness(
                 &mut output,
                 &mut previously_deferred_tx_digests,
-                if enable_white_flag {
+                if enable_pcool {
                     &mut sequenced_transactions
                 } else {
                     &mut sequenced_randomness_transactions
@@ -3299,7 +3298,7 @@ impl AuthorityPerEpochStore {
             .into_iter()
             .flat_map(|(_, txs)| txs.into_iter())
         {
-            if !enable_white_flag && tx.transaction.0.is_user_tx_with_randomness() {
+            if !enable_pcool && tx.transaction.0.is_user_tx_with_randomness() {
                 sequenced_randomness_transactions.push(tx.transaction);
             } else {
                 sequenced_transactions.push(tx.transaction);
@@ -3312,7 +3311,7 @@ impl AuthorityPerEpochStore {
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
         // already have persistent locks, giving them natural precedence.
-        if enable_white_flag {
+        if enable_pcool {
             let (dropped, owned_object_locks) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -4534,7 +4533,7 @@ impl AuthorityPerEpochStore {
                     && !previously_deferred_tx_digests.contains_key(transaction.digest())
                 {
                     debug!(
-                        "Ignoring white flag transaction {:?} because of end of epoch",
+                        "Ignoring P-COOL transaction {:?} because of end of epoch",
                         transaction.digest()
                     );
                     return Ok(ConsensusTransactionResult::Ignored);
