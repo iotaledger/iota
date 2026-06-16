@@ -79,10 +79,10 @@ const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 /// finality. It adds inflight deduplication, waiting for local execution,
 /// recovery, and epoch change handling.
 pub struct TransactionOrchestrator<A: Clone> {
-    // QuorumDriverHandler for the normal flow. Always present if white flag flow is disabled, and
-    // None if white flag flow is enabled.
+    // QuorumDriverHandler for the normal flow. Always present if P-COOL flow is disabled, and
+    // None if P-COOL flow is enabled.
     quorum_driver_handler: Option<Arc<QuorumDriverHandler<A>>>,
-    /// Optional TransactionDriver for the white flag direct-to-consensus flow.
+    /// Optional TransactionDriver for the P-COOL direct-to-consensus flow.
     transaction_driver: Option<Arc<TransactionDriver<A>>>,
     validator_state: Arc<AuthorityState>,
     _local_executor_handle: Option<JoinHandle<()>>,
@@ -100,11 +100,11 @@ impl TransactionOrchestrator<NetworkAuthorityClient> {
         prometheus_registry: &Registry,
         node_config: Option<&NodeConfig>,
     ) -> Self {
-        // Check protocol config to determine if white flag flow is enabled
+        // Check protocol config to determine if P-COOL flow is enabled
         let epoch_store = validator_state.load_epoch_store_one_call_per_task();
-        let use_transaction_driver = epoch_store.protocol_config().enable_white_flag_flow();
+        let use_transaction_driver = epoch_store.protocol_config().enable_pcool_flow();
 
-        // Create TransactionDriver reconfig observer only if white flag is enabled
+        // Create TransactionDriver reconfig observer only if P-COOL is enabled
         let td_reconfig_observer = if use_transaction_driver {
             Some(TdOnsiteReconfigObserver::new(
                 reconfig_channel.resubscribe(),
@@ -116,7 +116,7 @@ impl TransactionOrchestrator<NetworkAuthorityClient> {
             None
         };
 
-        // Create QuorumDriver reconfig observer only if white flag is NOT enabled
+        // Create QuorumDriver reconfig observer only if P-COOL is NOT enabled
         let qd_reconfig_observer = if !use_transaction_driver {
             Some(OnsiteReconfigObserver::new(
                 reconfig_channel.resubscribe(),
@@ -156,18 +156,18 @@ where
         td_reconfig_observer: Option<TdOnsiteReconfigObserver>,
         node_config: Option<&NodeConfig>,
     ) -> Self {
-        // Check protocol config to determine if white flag flow is enabled
+        // Check protocol config to determine if P-COOL flow is enabled
         let epoch_store = validator_state.load_epoch_store_one_call_per_task();
-        let use_transaction_driver = epoch_store.protocol_config().enable_white_flag_flow();
+        let use_transaction_driver = epoch_store.protocol_config().enable_pcool_flow();
 
         let qd_metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
         let notifier = Arc::new(NotifyRead::new());
 
-        // Create QuorumDriver only if white flag is NOT enabled
+        // Create QuorumDriver only if P-COOL is NOT enabled
         let (quorum_driver_handler, effects_receiver) = if !use_transaction_driver {
             let reconfig_observer = Arc::new(
                 reconfig_observer
-                    .expect("QuorumDriver reconfig observer required when white flag is disabled"),
+                    .expect("QuorumDriver reconfig observer required when P-COOL is disabled"),
             );
             let handler = Arc::new(
                 QuorumDriverHandlerBuilder::new(validators.clone(), qd_metrics)
@@ -181,12 +181,12 @@ where
             (None, None)
         };
 
-        // Create TransactionDriver only if white flag is enabled
+        // Create TransactionDriver only if P-COOL is enabled
         let transaction_driver = if use_transaction_driver {
             let td_metrics = Arc::new(TransactionDriverMetrics::new(prometheus_registry));
             let client_metrics = Arc::new(ValidatorClientMetrics::new(prometheus_registry));
             let observer = td_reconfig_observer
-                .expect("TransactionDriver reconfig observer required when white flag is enabled");
+                .expect("TransactionDriver reconfig observer required when P-COOL is enabled");
             Some(TransactionDriver::new(
                 validators,
                 Arc::new(observer),
@@ -311,7 +311,7 @@ where
         Ok(quorum_driver_response_to_v1(qd_resp))
     }
 
-    /// Submit a transaction using the TransactionDriver (white flag flow).
+    /// Submit a transaction using the TransactionDriver (P-COOL flow).
     #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
                  fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(

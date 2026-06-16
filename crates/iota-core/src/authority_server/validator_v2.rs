@@ -70,9 +70,9 @@ impl ValidatorService {
         );
 
         fp_ensure!(
-            epoch_store.protocol_config().enable_white_flag_flow(),
+            epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "White flag flow is not enabled in this protocol version".to_string()
+                error: "P-COOL flow is not enabled in this protocol version".to_string()
             }
             .into()
         );
@@ -278,9 +278,9 @@ impl ValidatorService {
         );
 
         fp_ensure!(
-            epoch_store.protocol_config().enable_white_flag_flow(),
+            epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "White flag flow is not enabled in this protocol version".to_string()
+                error: "P-COOL flow is not enabled in this protocol version".to_string()
             }
             .into()
         );

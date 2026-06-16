@@ -5455,9 +5455,9 @@ impl AuthorityState {
             // lock is dropped here
         }
 
-        // In the certificate-less mode, the list of pending consensus certificates is
+        // In the P-COOL flow, the list of pending consensus certificates is
         // always empty, so the reverting below is only for the certificate mode.
-        if !epoch_store.protocol_config().enable_white_flag_flow() {
+        if !epoch_store.protocol_config().enable_pcool_flow() {
             let pending_certificates = epoch_store.pending_consensus_certificates();
             info!(
                 "Reverting {} locally executed transactions that was not included in the epoch: \
@@ -5480,7 +5480,7 @@ impl AuthorityState {
             }
             info!("All uncommitted local transactions reverted");
         } else {
-            info!("Certificate-less mode: skipping revert of uncommitted epoch transactions");
+            info!("P-COOL mode: skipping revert of uncommitted epoch transactions");
         }
 
         Ok(())

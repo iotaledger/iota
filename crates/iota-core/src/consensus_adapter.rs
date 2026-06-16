@@ -332,8 +332,8 @@ impl ConsensusAdapter {
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
         let is_pending_consensus_certificates_empty =
-            if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In the certificate-less mode, the list of pending consensus
+            if epoch_store.protocol_config().enable_pcool_flow() {
+                // In the P-COOL flow, the list of pending consensus
                 // certificates is always empty.
                 true
             } else {
@@ -386,7 +386,7 @@ impl ConsensusAdapter {
                     Some(certificate.digest())
                 }
                 ConsensusTransactionKind::UserTransactionV1(_) => {
-                    // White flag: no submit delay needed (number of submitting validators
+                    // P-COOL: no submit delay needed (number of submitting validators
                     // controlled through another mechanism)
                     None
                 }
@@ -579,7 +579,7 @@ impl ConsensusAdapter {
         if transactions.len() > 1 {
             // Soft-bundle batches must be homogeneous: either all
             // CertifiedTransaction (certificate flow) or all
-            // UserTransactionV1 (white-flag flow). submit_and_wait_inner
+            // UserTransactionV1 (P-COOL flow). submit_and_wait_inner
             // assumes a single transaction kind across the batch.
             for transaction in transactions {
                 fp_ensure!(
@@ -853,8 +853,8 @@ impl ConsensusAdapter {
             .expect("Storage error when removing consensus transaction");
 
         let is_user_tx = is_soft_bundle
-            || if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In the certificate-less mode, `UserTransactionV1` kind corresponds
+            || if epoch_store.protocol_config().enable_pcool_flow() {
+                // In the P-COOL flow, `UserTransactionV1` kind corresponds
                 // to user transactions.
                 matches!(
                     transactions[0].kind,
@@ -869,8 +869,8 @@ impl ConsensusAdapter {
                 )
             };
         let send_end_of_publish = if is_user_tx {
-            if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In certificate-less mode, `EndOfPublish` is sent solely from
+            if epoch_store.protocol_config().enable_pcool_flow() {
+                // In the P-COOL flow, `EndOfPublish` is sent solely from
                 // `close_epoch`. There is no pending certificate drain to
                 // monitor here, and sending from this per-transaction callback
                 // would produce N duplicate EndOfPublish messages (one per
@@ -1212,7 +1212,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
     /// It transitions the reconfig state to reject new user transactions.
     /// `ConsensusAdapter` will send `EndOfPublish` once all pending
     /// transactions are drained (in the certificate mode) or right away
-    /// (in the certificate-less mode). Submission is asynchronous —
+    /// (in the P-COOL flow). Submission is asynchronous —
     /// a background task handles retries so this method returns promptly.
     fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) {
         let send_end_of_publish = {
@@ -1222,10 +1222,10 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
                 return;
             }
 
-            let send_end_of_publish = if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In certificate-less mode, there are no pending consensus
+            let send_end_of_publish = if epoch_store.protocol_config().enable_pcool_flow() {
+                // In the P-COOL flow, there are no pending consensus
                 // certificates, so `EndOfPublish` is always sent immediately.
-                debug!(epoch=?epoch_store.epoch(), "Closing epoch in certificate-less mode");
+                debug!(epoch=?epoch_store.epoch(), "Closing epoch in P-COOL mode");
 
                 true
             } else {
