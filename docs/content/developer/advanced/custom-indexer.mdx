@@ -57,13 +57,17 @@ In this example, the [`CheckpointData`](https://iotaledger.github.io/iota/iota_t
 
 ## Checkpoint Stream Sources
 
-Data ingestion for your indexer supports several checkpoint stream sources.
+Data ingestion for your indexer supports several checkpoint stream sources. A source can be [remote](#remote-reader), [local](#local-reader), or a [combination of both](#hybrid-mode).
 
 ### Remote Reader
 
-The most straightforward stream source is to subscribe to a remote store of checkpoint contents. The IOTA Foundation provides the following endpoints for downloading checkpoint data:
+The most straightforward stream source is to subscribe to a remote store of checkpoint contents. A remote source can be either a historical checkpoint store or a direct gRPC stream to an IOTA full node.
 
-#### Historical Checkpoint Data
+#### Historical Checkpoint Store
+
+An IOTA full node is not guaranteed to retain all historical data, depending on its configuration, older checkpoints may be pruned. To sync from genesis up to the tip of the network, the indexer must rely on a dedicated checkpoint store. The IOTA Foundation provides the following endpoints for downloading historical checkpoint data.
+
+**Historical Checkpoint Data**
 
 For syncing historical data up to the tip of the network:
 
@@ -71,7 +75,7 @@ For syncing historical data up to the tip of the network:
 - Testnet: `https://checkpoints.testnet.iota.cafe/ingestion/historical`
 - Mainnet: `https://checkpoints.mainnet.iota.cafe/ingestion/historical`
 
-#### Live Checkpoint Streaming (Optional)
+**Live Checkpoint Streaming (Optional)**
 
 For real-time streaming of current epoch checkpoints only:
 
@@ -115,7 +119,11 @@ In this example, we'll explore a simple custom indexer that can ingest data from
 ```rust file=<rootDir>/examples/custom-indexer/rust/remote_reader.rs
 ```
 
-#### Filtering Checkpoint Data
+#### Fullnode gRPC Checkpoint Data Stream
+
+For local development against a local network, or for public networks that expose a fullnode gRPC API, you can use the [`RemoteUrl::Fullnode`](https://iotaledger.github.io/iota/iota_data_ingestion_core/reader/v2/enum.RemoteUrl.html#variant.Fullnode) variant to connect directly to a fullnode. The gRPC stream delivers checkpoint data efficiently and with minimal latency. For more advanced use cases, it also exposes a filtering mechanism that lets you include only specific transactions in each checkpoint payload.
+
+**Filtering Checkpoint Data**
 
 When using the [`RemoteUrl::Fullnode`](https://iotaledger.github.io/iota/iota_data_ingestion_core/reader/v2/enum.RemoteUrl.html#variant.Fullnode) gRPC checkpoint stream API, you can register a filter that instructs the fullnode to include only specific transactions in each checkpoint payload.
 
