@@ -39,7 +39,7 @@ public fun assert_inline_metadata(metadata: &PackageMetadataV1) {
     assert!(*authenticator_metadata.function_name() == auth_function_name, 1);
 }
 
-//# run test::no_module_dynamic_metadata::assert_inline_metadata --sender A --args object(1,1)
+//# run test::no_module_dynamic_metadata::assert_inline_metadata --sender A --args object(1,0)
 
 //# view-object 1,1
 
