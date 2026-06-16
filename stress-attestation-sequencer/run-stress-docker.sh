@@ -26,6 +26,7 @@
 #                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, PRIMARY_GAS_OWNER,
 #                 RUNNER_IMAGE, DOCKER_NETWORK, FULLNODE_RPC,
 #                 USE_FULLNODE_FOR_EXECUTION.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,18 +53,38 @@ USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
 # direct TD path. Empty/unset => all validators. No effect via the fullnode.
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 
+# ANSI palette (auto-disabled when stdout is not a terminal), matching the H1 script.
+if [[ -t 1 ]]; then
+  RED=$'\033[0;31m'
+  GREEN=$'\033[0;32m'
+  YELLOW=$'\033[0;33m'
+  BLUE=$'\033[0;34m'
+  MAGENTA=$'\033[0;35m'
+  CYAN=$'\033[0;36m'
+  RESET=$'\033[0m'
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  BLUE=''
+  MAGENTA=''
+  CYAN=''
+  RESET=''
+fi
+
 if [[ ! -f "$GENESIS_DIR/genesis.blob" ]]; then
-  echo "ERROR: $GENESIS_DIR/genesis.blob not found (bootstrap the network first)." >&2
+  echo "${RED}ERROR: $GENESIS_DIR/genesis.blob not found (bootstrap the network first).${RESET}" >&2
   exit 1
 fi
 if ! docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
-  echo "ERROR: docker network '$DOCKER_NETWORK' not found. Start the network first (start.sh)." >&2
+  echo "${RED}ERROR: docker network '$DOCKER_NETWORK' not found. Start the network first (start.sh).${RESET}" >&2
   exit 1
 fi
 
-echo "Running stress IN-DOCKER on '$DOCKER_NETWORK' (image: $RUNNER_IMAGE)"
-echo "  fullnode RPC (reconfig + WFF detect): $FULLNODE_RPC"
-echo "  use-fullnode-for-execution: $USE_FULLNODE_FOR_EXECUTION (false => direct-to-validator)"
+
+echo "${BLUE}Running stress IN-DOCKER on '$DOCKER_NETWORK' (image: $RUNNER_IMAGE)...${RESET}"
+echo "  - fullnode RPC (reconfig + WFF detect): $FULLNODE_RPC"
+echo "  - use-fullnode-for-execution: $USE_FULLNODE_FOR_EXECUTION (false => direct-to-validator)"
 
 # Mount the host-generated genesis read-only; attach to the validators' network.
 # `stress` itself comes from the image (--entrypoint), not the host.
@@ -71,8 +92,9 @@ echo "  use-fullnode-for-execution: $USE_FULLNODE_FOR_EXECUTION (false => direct
 target_args=()
 if [[ -n "$NUM_TARGET_VALIDATORS" ]]; then
   target_args=(--num-target-validators "$NUM_TARGET_VALIDATORS")
-  echo "  pinning submission/attestation to first $NUM_TARGET_VALIDATORS validator(s)"
+  echo "  - pinning submission/attestation to first $NUM_TARGET_VALIDATORS validator(s)"
 fi
+echo
 
 exec docker run --rm \
   --network "$DOCKER_NETWORK" \
