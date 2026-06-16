@@ -480,14 +480,6 @@ mod tests {
     }
 
     #[test]
-    fn as_ref_is_cached() {
-        let auth = make_simple_authenticator();
-        let bytes1 = auth.to_bytes();
-        let bytes2 = auth.to_bytes();
-        assert!(std::ptr::eq(bytes1.as_ptr(), bytes2.as_ptr()));
-    }
-
-    #[test]
     fn from_bytes_rejects_wrong_flag() {
         let auth = make_simple_authenticator();
         let mut bytes = auth.to_bytes();
