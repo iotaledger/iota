@@ -1854,14 +1854,39 @@ impl ObjectCacheRead for WritebackCache {
         input_and_receiving_keys: &'a [InputKey],
         receiving_keys: &'a HashSet<InputKey>,
         epoch: &'a EpochId,
-    ) -> BoxFuture<'a, Vec<()>> {
-        super::notify_read_input_objects_impl(
-            &self.object_notify_read,
-            self,
-            input_and_receiving_keys,
-            receiving_keys,
-            epoch,
-        )
+    ) -> BoxFuture<'a, ()> {
+        // Delegate to the production availability check (which consults markers)
+        // rather than a separate code path, so an input that can never appear
+        // (e.g. a received-then-deleted owned object) still resolves and the
+        // waiting transaction proceeds to fail at execution instead of hanging.
+        self.object_notify_read
+            .read::<std::convert::Infallible>(input_and_receiving_keys, |keys| {
+                Ok(self
+                    .multi_input_objects_available(keys, receiving_keys, epoch)
+                    .into_iter()
+                    .map(|available| if available { Some(()) } else { None })
+                    .collect::<Vec<_>>())
+            })
+            .map(|_| ())
+            .boxed()
+    }
+
+    fn multi_input_objects_available_cache_only(&self, keys: &[InputKey]) -> Vec<bool> {
+        keys.iter()
+            .map(|key| {
+                if key.is_cancelled() {
+                    true
+                } else {
+                    match key {
+                        InputKey::VersionedObject { id, version } => matches!(
+                            self.get_object_by_key_cache_only(id, *version),
+                            CacheResult::Hit(_)
+                        ),
+                        InputKey::Package { id } => self.packages.contains_key(id),
+                    }
+                }
+            })
+            .collect()
     }
 }
 
