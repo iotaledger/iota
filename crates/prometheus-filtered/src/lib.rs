@@ -568,8 +568,7 @@ impl Registry {
         })
     }
 
-    /// Creates a registry combining the env-var filter (appended last, highest
-    /// priority) with the supplied config string.
+    /// Creates a registry using the supplied config string.
     pub fn with_filter(filter_str: &str) -> Self {
         Self {
             inner: prometheus::Registry::new(),
