@@ -177,7 +177,7 @@ impl GenericSignature {
                 })
             }
             GenericSignature::PasskeyAuthenticator(s) => Ok(CompressedSignature::Passkey(
-                PasskeyAuthenticatorAsBytes(s.as_ref().to_vec()),
+                PasskeyAuthenticatorAsBytes(s.to_bytes()),
             )),
             _ => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported signature scheme".to_string(),
@@ -238,8 +238,7 @@ impl GenericSignature {
             GenericSignature::Signature(s) => s.as_ref().to_vec(),
             #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref().to_vec(),
-            // TODO
-            GenericSignature::PasskeyAuthenticator(s) => s.as_ref().to_vec(),
+            GenericSignature::PasskeyAuthenticator(s) => s.to_bytes(),
             // TODO
             GenericSignature::MoveAuthenticator(s) => s.as_ref().to_vec(),
         }

@@ -33,7 +33,7 @@ mod passkey_authenticator_test;
 
 /// An passkey authenticator with parsed fields. See field definition below. Can
 /// be initialized from [struct RawPasskeyAuthenticator].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PasskeyAuthenticator {
     /// `authenticatorData` is a bytearray that encodes
     /// [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data)
@@ -203,22 +203,40 @@ impl PasskeyAuthenticator {
         // Safe to unwrap because signature and pk are serialized from valid struct.
         Signature::Secp256r1IotaSignature(Secp256r1IotaSignature::from_bytes(&bytes).unwrap())
     }
-}
 
-/// Necessary trait for [struct SenderSignedData].
-impl PartialEq for PasskeyAuthenticator {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_ref() == other.as_ref()
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let as_bytes = bcs::to_bytes(self).expect("BCS serialization should not fail");
+        let mut bytes = Vec::with_capacity(1 + as_bytes.len());
+        bytes.push(SignatureScheme::PasskeyAuthenticator.flag());
+        bytes.extend_from_slice(as_bytes.as_slice());
+        bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        // The first byte matches the flag of PasskeyAuthenticator.
+        if bytes.first().ok_or(FastCryptoError::InvalidInput)?
+            != &SignatureScheme::PasskeyAuthenticator.flag()
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let passkey: PasskeyAuthenticator =
+            bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
+        Ok(passkey)
     }
 }
 
-/// Necessary trait for [struct SenderSignedData].
-impl Eq for PasskeyAuthenticator {}
+// TODO actually different than derived?
+// /// Necessary trait for [struct SenderSignedData].
+// impl PartialEq for PasskeyAuthenticator {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.as_ref() == other.as_ref()
+//     }
+// }
 
 /// Necessary trait for [struct SenderSignedData].
 impl Hash for PasskeyAuthenticator {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
+        self.to_bytes().hash(state);
     }
 }
 
@@ -236,7 +254,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         let digest = intent_msg.signing_digest();
 
         // TODO https://github.com/iotaledger/iota/issues/11607
-        let authenticator = iota_sdk_types::PasskeyAuthenticator::from_bytes(self.as_bytes())
+        let authenticator = iota_sdk_types::PasskeyAuthenticator::from_bytes(self.to_bytes())
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid passkey authenticator bytes".to_string(),
             })?;
@@ -247,34 +265,6 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Invalid passkey authentication: {e}"),
             })
-    }
-}
-
-impl ToFromBytes for PasskeyAuthenticator {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // The first byte matches the flag of PasskeyAuthenticator.
-        if bytes.first().ok_or(FastCryptoError::InvalidInput)?
-            != &SignatureScheme::PasskeyAuthenticator.flag()
-        {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let passkey: PasskeyAuthenticator =
-            bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
-        Ok(passkey)
-    }
-}
-
-impl AsRef<[u8]> for PasskeyAuthenticator {
-    fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                let as_bytes = bcs::to_bytes(self).expect("BCS serialization should not fail");
-                let mut bytes = Vec::with_capacity(1 + as_bytes.len());
-                bytes.push(SignatureScheme::PasskeyAuthenticator.flag());
-                bytes.extend_from_slice(as_bytes.as_slice());
-                Ok(bytes)
-            })
-            .expect("OnceCell invariant violated")
     }
 }
 
