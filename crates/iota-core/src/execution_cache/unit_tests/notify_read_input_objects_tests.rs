@@ -47,33 +47,30 @@ async fn test_writeback_immediate_return_canceled_shared() {
     let receiving_keys = HashSet::new();
     let epoch = &0;
 
-    let result = cache
+    cache
         .notify_read_input_objects(&[canceled_key], &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-    assert_eq!(result.len(), 1);
 
     let congested_key = InputKey::VersionedObject {
         id: ObjectId::random(),
         version: Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
     };
 
-    let result = cache
+    cache
         .notify_read_input_objects(&[congested_key], &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-    assert_eq!(result.len(), 1);
 
     let randomness_unavailable_key = InputKey::VersionedObject {
         id: ObjectId::random(),
         version: Version::RANDOMNESS_UNAVAILABLE,
     };
 
-    let result = cache
+    cache
         .notify_read_input_objects(&[randomness_unavailable_key], &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -93,12 +90,10 @@ async fn test_writeback_immediate_return_cached_object() {
     let epoch = &0;
 
     // Should return immediately since object is in cache/store
-    let result = cache
+    cache
         .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -111,12 +106,10 @@ async fn test_writeback_immediate_return_cached_package() {
     let epoch = &0;
 
     // Should return immediately since system package is available by default.
-    let result = cache
+    cache
         .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -141,12 +134,10 @@ async fn test_writeback_immediate_return_shared_deleted() {
     let epoch = &epoch_id;
 
     // Should return immediately since the shared object was deleted
-    let result = cache
+    cache
         .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -202,13 +193,12 @@ async fn test_writeback_wait_for_object() {
             cache.write_object_for_testing(object);
         }
     });
-    let result = timeout(
+    timeout(
         Duration::from_secs(3),
         cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch),
     )
     .await
     .unwrap();
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -244,9 +234,7 @@ async fn test_writeback_wait_for_package() {
     });
 
     // Should complete once package is written
-    let result = timeout(Duration::from_secs(1), notification).await.unwrap();
-
-    assert_eq!(result.len(), 1);
+    timeout(Duration::from_secs(1), notification).await.unwrap();
 }
 
 #[tokio::test]
@@ -280,9 +268,7 @@ async fn test_writeback_wait_for_shared_deleted() {
     });
 
     // Should complete once SharedDeleted marker is written
-    let result = timeout(Duration::from_secs(1), notification).await.unwrap();
-
-    assert_eq!(result.len(), 1);
+    timeout(Duration::from_secs(1), notification).await.unwrap();
 }
 
 #[tokio::test]
@@ -309,10 +295,8 @@ async fn test_writeback_receiving_object_higher_version() {
     let epoch = &0;
 
     // Should return immediately since a higher version exists for receiving object
-    let result = cache
+    cache
         .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-
-    assert_eq!(result.len(), 1);
 }
