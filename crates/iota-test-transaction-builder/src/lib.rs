@@ -15,7 +15,7 @@ use iota_sdk::{
 };
 use iota_sdk_crypto::Signer as SdkSigner;
 use iota_sdk_types::{
-    Identifier, ObjectId, Owner, TypeTag,
+    Identifier, Input, ObjectId, Owner, TransactionKind, TypeTag,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::{
@@ -31,6 +31,7 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
+use rand::Rng;
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -38,6 +39,7 @@ pub struct TestTransactionBuilder {
     gas_object: ObjectRef,
     gas_price: u64,
     gas_budget: Option<u64>,
+    nonce: Option<u64>,
 }
 
 impl TestTransactionBuilder {
@@ -48,7 +50,19 @@ impl TestTransactionBuilder {
             gas_object,
             gas_price,
             gas_budget: None,
+            nonce: None,
         }
+    }
+
+    /// Inject a random unused pure input so that two otherwise-identical
+    /// transactions build to distinct digests.
+    ///
+    /// Use this for workloads that repeatedly submit logically identical
+    /// transactions (same sender, gas object and arguments) and must avoid
+    /// colliding on an already-executed digest.
+    pub fn ensure_unique(mut self) -> Self {
+        self.nonce = Some(rand::thread_rng().gen());
+        self
     }
 
     pub fn sender(&self) -> IotaAddress {
@@ -300,6 +314,20 @@ impl TestTransactionBuilder {
     }
 
     pub fn build(self) -> TransactionData {
+        let nonce = self.nonce;
+        let mut data = self.build_inner();
+        if let Some(nonce) = nonce {
+            // A trailing pure input that no command references leaves execution
+            // unchanged but alters the serialized transaction, and hence its
+            // digest.
+            if let TransactionKind::Programmable(pt) = data.kind_mut() {
+                pt.inputs.push(Input::Pure(nonce.to_le_bytes().to_vec()));
+            }
+        }
+        data
+    }
+
+    fn build_inner(self) -> TransactionData {
         match self.test_data {
             TestTransactionData::Move(data) => TransactionData::new_move_call(
                 self.sender,
@@ -762,4 +790,43 @@ pub async fn delete_nft(
             .build(),
     );
     context.execute_transaction_must_succeed(txn).await
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::base_types::{dbg_addr, random_object_ref};
+
+    use super::*;
+
+    #[test]
+    fn ensure_unique_changes_digest() {
+        let sender = dbg_addr(1);
+        let recipient = dbg_addr(2);
+        let gas = random_object_ref();
+        let build =
+            || TestTransactionBuilder::new(sender, gas, 1000).transfer_iota(Some(1), recipient);
+
+        // Identical inputs build to the same digest.
+        assert_eq!(build().build().digest(), build().build().digest());
+
+        let base = build().build();
+        let unique = build().ensure_unique().build();
+
+        // ensure_unique() perturbs the digest by appending one trailing pure
+        // input that no command references.
+        assert_ne!(base.digest(), unique.digest());
+        match (base.kind(), unique.kind()) {
+            (TransactionKind::Programmable(base), TransactionKind::Programmable(unique)) => {
+                assert_eq!(unique.inputs.len(), base.inputs.len() + 1);
+                assert!(matches!(unique.inputs.last(), Some(Input::Pure(_))));
+            }
+            _ => panic!("expected programmable transactions"),
+        }
+
+        // Two independent unique builds differ from each other.
+        assert_ne!(
+            build().ensure_unique().build().digest(),
+            build().ensure_unique().build().digest()
+        );
+    }
 }

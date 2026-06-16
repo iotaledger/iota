@@ -13,6 +13,7 @@ iota-sdk.workspace = true
 iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
 iota-sdk-types.workspace = true
 iota-types.workspace = true
+rand.workspace = true
 
 [lints]
 workspace = true
