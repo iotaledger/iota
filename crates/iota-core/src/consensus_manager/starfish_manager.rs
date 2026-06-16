@@ -18,7 +18,7 @@ use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
 use tracing::info;
 
 use crate::{
@@ -49,6 +49,7 @@ pub struct StarfishManager {
     client: Arc<LazyStarfishClient>,
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
+    consumer_monitor_sender: broadcast::Sender<Arc<CommitConsumerMonitor>>,
 }
 
 impl StarfishManager {
@@ -63,6 +64,7 @@ impl StarfishManager {
         metrics: Arc<ConsensusManagerMetrics>,
         client: Arc<LazyStarfishClient>,
     ) -> Self {
+        let (consumer_monitor_sender, _) = broadcast::channel(1);
         Self {
             protocol_keypair: ProtocolKeyPair::new(protocol_keypair),
             network_keypair: NetworkKeyPair::new(network_keypair),
@@ -75,6 +77,7 @@ impl StarfishManager {
             consensus_handler: Mutex::new(None),
             boot_counter: Mutex::new(0),
             consumer_monitor: ArcSwapOption::empty(),
+            consumer_monitor_sender,
         }
     }
 
@@ -158,6 +161,17 @@ impl ConsensusManagerTrait for StarfishManager {
         let consumer = CommitConsumer::new(commit_sender, starting_commit);
         let monitor = consumer.monitor();
 
+        // Spin up the new starfish consensus handler to listen for committed sub dags,
+        // before starting authority.
+        let handler = StarfishConsensusHandler::new(
+            last_processed_commit,
+            consensus_handler,
+            commit_receiver,
+            monitor.clone(),
+        );
+        let mut consensus_handler = self.consensus_handler.lock().await;
+        *consensus_handler = Some(handler);
+
         // If there is a previous consumer monitor, it indicates that the consensus
         // engine has been restarted, due to an epoch change. However, that on its
         // own doesn't tell us much whether it participated on an active epoch or an old
@@ -208,21 +222,13 @@ impl ConsensusManagerTrait for StarfishManager {
         let registry_id = self.registry_service.add(registry.clone());
 
         let registered_authority = Arc::new((authority, registry_id));
-        self.authority.swap(Some(registered_authority.clone()));
+        self.authority.swap(Some(registered_authority));
 
         // Initialize the client to send transactions to this Starfish instance.
         self.client.set(client);
 
-        // spin up the new starfish consensus handler to listen for committed sub dags
-        let handler = StarfishConsensusHandler::new(
-            last_processed_commit,
-            consensus_handler,
-            commit_receiver,
-            monitor,
-        );
-
-        let mut consensus_handler = self.consensus_handler.lock().await;
-        *consensus_handler = Some(handler);
+        // Send the consumer monitor to the replay waiter.
+        let _ = self.consumer_monitor_sender.send(monitor);
     }
 
     async fn shutdown(&self) {
@@ -258,8 +264,8 @@ impl ConsensusManagerTrait for StarfishManager {
         Running::False != *self.running.lock().await
     }
 
-    fn replay_waiter(&self) -> Option<ReplayWaiter> {
-        let authority = self.authority.load_full()?;
-        Some(ReplayWaiter::new(authority))
+    fn replay_waiter(&self) -> ReplayWaiter {
+        let consumer_monitor_receiver = self.consumer_monitor_sender.subscribe();
+        ReplayWaiter::new(consumer_monitor_receiver)
     }
 }

@@ -15,7 +15,7 @@ use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, Pro
 use tracing::{info, warn};
 
 use crate::{
-    CommitConsumer, CommitConsumerMonitor,
+    CommitConsumer,
     authority_service::AuthorityService,
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
@@ -46,7 +46,6 @@ pub struct ConsensusAuthority {
     transaction_client: Arc<TransactionClient>,
     header_synchronizer: Arc<HeaderSynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
-    commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
     regular_commit_syncer_handle: CommitSyncerHandle,
@@ -362,7 +361,6 @@ impl ConsensusAuthority {
             shard_reconstructor,
             cordial_knowledge,
             transactions_synchronizer,
-            commit_consumer_monitor,
             regular_commit_syncer_handle,
             fast_commit_syncer_handle,
             leader_timeout_handle,
@@ -468,10 +466,6 @@ impl ConsensusAuthority {
         self.transaction_client.clone()
     }
 
-    pub async fn replay_complete(&self) {
-        self.commit_consumer_monitor.replay_complete().await;
-    }
-
     #[cfg(test)]
     pub(crate) fn context(&self) -> &Arc<Context> {
         &self.context
@@ -534,7 +528,7 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::{
-        CommittedSubDag, block_header::GENESIS_ROUND, commit::CommitIndex,
+        CommitConsumerMonitor, CommittedSubDag, block_header::GENESIS_ROUND, commit::CommitIndex,
         transaction::NoopTransactionVerifier,
     };
 
