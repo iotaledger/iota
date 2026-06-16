@@ -172,7 +172,7 @@ use scorer::Scoreboard;
 // The legacy names (in the certificate era) were `CertLockGuard` and
 // `CertTxGuard`. These are renamed to `TxLockGuard` and `TxGuard`,
 // respectively, because these types now (in the certificate-less era)
-// covers more consensus transaction kinds, not just certificates.
+// cover more consensus transaction kinds, not just certificates.
 // The renaming of these internal types is safe and backward-compatible.
 pub struct TxLockGuard(#[expect(unused)] MutexGuard);
 pub struct TxGuard(TxLockGuard);

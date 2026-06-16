@@ -161,7 +161,7 @@ impl SuggestedGasPriceCalculator {
 
     /// Calculate a suggested gas price for a deferred/cancelled `transaction`
     /// using the single-commit congestion info held by the calculator. This
-    /// should only be called for transaction deferred/cancelled due to
+    /// should only be called for transactions deferred/cancelled due to
     /// shared object congestion; otherwise, there is a risk of panic.
     #[instrument(level = "trace", skip_all)]
     pub(super) fn calculate_suggested_gas_price(
