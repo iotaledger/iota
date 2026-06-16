@@ -1,0 +1,68 @@
+---
+description: 'Specification of the Move #[view] attribute on IOTA: the signature constraints enforced on view functions and the on-chain metadata recorded for them.'
+tags:
+  - reference
+  - move-sc
+  - move-vm
+---
+
+# View Functions Reference
+
+A view function is a `public` Move function annotated with `#[view]`. The attribute applies only to functions. A function carrying the attribute must satisfy the signature constraints below; a violation is a compile error and is independently rejected by the IOTA bytecode verifier at publish time.
+
+```move
+#[view]
+public fun total_entries(board: &Leaderboard): u64 {
+    board.entries.length()
+}
+```
+
+## Signature constraints
+
+### Visibility
+
+A view function must be declared `public`. `public(package)`, `friend`, and internal (private) functions cannot be views. The `entry` modifier is permitted: `public entry fun` may also be a view.
+
+### Parameters
+
+| Rule | Allowed | Rejected |
+| --- | --- | --- |
+| Mutable binding | by-value or immutable-reference bindings | `mut` parameter bindings (e.g. `mut x: u64`) |
+| Mutable references | immutable references (`&T`), including `&` to objects | mutable references (`&mut T`), including when nested inside a reference, vector, or generic |
+| By-value values | primitives; non-object structs with `copy` or `drop`; vectors and `Option`s of allowed types | objects (any type with the `key` ability) or values that could contain an object, passed by value |
+| Type parameters | unconstrained when used only behind a reference | a by-value type parameter must have `copy` or `drop` |
+
+Immutable references are always allowed because the referenced value is not moved into the function, so a view can read any object by taking `&T`.
+
+### Return type
+
+| Rule | Allowed | Rejected |
+| --- | --- | --- |
+| Must return a value | one or more return values | unit (`()`) / no return value |
+| Mutable references | immutable references (`&T`); primitives; non-object `copy`/`drop` structs; vectors and `Option`s of allowed types; tuples of allowed types | mutable references (`&mut T`), including when nested |
+| By-value values | non-object values with `copy` or `drop` | objects (`key` ability) or values that could contain an object, returned by value |
+
+A view may return an immutable reference — for example, a reference into a field of an object it received by reference.
+
+### What counts as "could contain an object"
+
+A by-value type is rejected as a parameter or return when it has the `key` ability (it is an object) or when it lacks both `copy` and `drop`, or when any of its type arguments is itself rejected. Equivalently, a by-value struct is allowed only if it has `copy` or `drop`, does not have `key`, and all of its type arguments are likewise allowed.
+
+## On-chain metadata
+
+At publish time the names of a module's view functions are recorded on-chain, queryable through the `iota::module_metadata` module:
+
+- Each module has a `ModuleMetadata` object whose address is derived deterministically from the package storage ID and the module name (`derived_object::derive_address`).
+- The view-function names for a module are stored as a dynamic field under that object, keyed by `ViewFunctionMetadataV1FieldName`, with value type `vector<std::ascii::String>`.
+
+| Function | Returns |
+| --- | --- |
+| `borrow_view_functions_metadata_v1(&ModuleMetadata): &vector<ascii::String>` | the recorded view-function names for the module |
+| `is_view_function_v1(&ModuleMetadata, &ascii::String): bool` | whether the named function is a recorded view in the module |
+
+The `V1` suffix on the field-name key and accessors reflects that the metadata is versioned; additional metadata can be added under new dynamic-field keys without changing the `ModuleMetadata` type.
+
+## Related
+
+- [View Functions](../explanations/view-functions.mdx) — what view functions are and why the constraints exist.
+- [Define a view function](../how-tos/define-a-view-function.mdx) — annotate a function as a view.

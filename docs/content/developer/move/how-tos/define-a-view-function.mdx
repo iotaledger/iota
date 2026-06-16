@@ -1,0 +1,90 @@
+---
+description: 'How to define a read-only view function in a Move module by annotating it with the #[view] attribute.'
+tags:
+  - how-to
+  - move-sc
+---
+
+# Define a View Function
+
+This how-to demonstrates how to mark a Move function as a read-only [view function](../explanations/view-functions.mdx) using the `#[view]` attribute. The examples come from a package with three modules: a `leaderboard` that stores player scores, a `registry` that demonstrates returning references, and a generic `vault`.
+
+## Read State From a View
+
+These examples come from the `leaderboard` module, which stores player scores in a shared object.
+
+1. Start from a module with some state to read. Here a shared `Leaderboard` holds a vector of score `Entry` values.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L6-L14
+```
+2. Annotate a `public` function with `#[view]`. A view takes its object by immutable reference (`&Leaderboard`) and returns a value — this one returns the entry count.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L31-L35
+```
+3. A view may take primitives by value alongside immutable references. This one reads the score for a given `player` address.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L37-L50
+```
+4. A view may return a vector of allowed values, such as `vector<u64>`.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L52-L63
+```
+5. A view need not touch on-chain state at all. A pure view takes only values by copy and returns a computed result.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L65-L71
+```
+
+## Return a Reference From a View
+
+A view may return an **immutable** reference; only mutable references are rejected. This lets a view hand back a borrow into the state it read, instead of a copy. The `registry` module keeps a primary `Setting` inline and stores additional settings as dynamic fields.
+
+1. Define the registry and its settings.
+```move file=<rootDir>/examples/move/view_functions/sources/registry.move#L9-L20
+```
+2. Return an immutable reference into a field of the object received by reference.
+```move file=<rootDir>/examples/move/view_functions/sources/registry.move#L37-L44
+```
+3. Return a reference to a value stored as a dynamic field.
+```move file=<rootDir>/examples/move/view_functions/sources/registry.move#L46-L50
+```
+4. Return a tuple that mixes a value and a reference.
+```move file=<rootDir>/examples/move/view_functions/sources/registry.move#L52-L58
+```
+
+## Write a Generic View
+
+A view can be generic. A type parameter used only behind a reference may be unconstrained; a type parameter passed or returned by value must have `copy` or `drop`. The `vault` module wraps a single generic value.
+
+1. Define a generic container.
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L5-L9
+```
+2. Return an immutable reference to the stored item. `T` needs no extra constraint because it is only accessed behind a reference.
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L16-L23
+```
+3. Accept and return a type parameter by value. It must have `copy` or `drop`.
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L25-L31
+```
+4. Read through an immutable reference to a vector of an unconstrained type.
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L33-L39
+```
+
+## What Not to Annotate
+
+A function that mutates state cannot be a view. `submit_score` takes `&mut Leaderboard` and pushes a new entry, so it is a regular function — adding `#[view]` to it would be a compile error.
+
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L24-L29
+```
+
+For the full list of what a view function may and may not do, see the [view functions reference](../references/view-functions.mdx).
+
+## Full Example Code
+
+The complete `leaderboard` module:
+
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move
+```
+
+The complete `registry` module:
+
+```move file=<rootDir>/examples/move/view_functions/sources/registry.move
+```
+
+The complete `vault` module:
+
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move
+```
