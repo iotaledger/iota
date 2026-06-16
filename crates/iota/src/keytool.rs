@@ -768,7 +768,7 @@ impl KeyToolCommand {
                 let multisig_pk = multisig_public_key(pks, weights, threshold)?;
                 let address: IotaAddress = (&multisig_pk).into();
                 let multisig = MultiSig::new(sigs, multisig_pk)?;
-                let multisig_serialized = Base64::encode(multisig.as_ref());
+                let multisig_serialized = Base64::encode(multisig.to_bytes());
                 CommandOutput::MultiSigCombinePartialSig(MultiSigCombinePartialSig {
                     multisig_address: address,
                     multisig_parsed: multisig,
