@@ -49,9 +49,7 @@ Response: {
     "object1": {
       "digest": "kfqgxZwi4o2rX6KEbFLC9v2vzyt3oBAjTVGrZ4C4h9v"
     },
-    "object2": {
-      "digest": null
-    }
+    "object2": null
   }
 }
 
@@ -80,9 +78,7 @@ task 10, lines 67-75:
 //# run-graphql
 Response: {
   "data": {
-    "object1": {
-      "digest": null
-    },
+    "object1": null,
     "object2": {
       "digest": "d27G5A3VoWJfmErshZcy4evrzjBzjAT8cwYzpztVhLw"
     }
@@ -109,8 +105,6 @@ Response: {
     "object1": {
       "digest": "5JRDDVvrZJ1xrPmSA9ML1KgxCsgRJUSt87gDoob2V7aU"
     },
-    "object2": {
-      "digest": null
-    }
+    "object2": null
   }
 }

@@ -11,7 +11,7 @@ import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/advanced-topics/custom-indexer.json';
 import CodeBlock from '@theme/CodeBlock';
 
-You can build custom indexers using the IOTA data ingestion framework, which is maintained through the [iota-data-ingestion-core][] library. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from IOTA, one that you set up in your local environment, or a combination of the two.
+You can build custom indexers using the IOTA data ingestion framework, which is maintained through the [iota-data-ingestion-core][iota-data-ingestion-core] library. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from IOTA, one that you set up in your local environment, or a combination of the two.
 
 Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA full node, and provides efficient assemblage of checkpoint data.
 
@@ -57,13 +57,17 @@ In this example, the [`CheckpointData`](https://iotaledger.github.io/iota/iota_t
 
 ## Checkpoint Stream Sources
 
-Data ingestion for your indexer supports several checkpoint stream sources.
+Data ingestion for your indexer supports several checkpoint stream sources. A source can be [remote](#remote-reader), [local](#local-reader), or a [combination of both](#hybrid-mode).
 
 ### Remote Reader
 
-The most straightforward stream source is to subscribe to a remote store of checkpoint contents. The IOTA Foundation provides the following endpoints for downloading checkpoint data:
+The most straightforward stream source is to subscribe to a remote store of checkpoint contents. A remote source can be either a historical checkpoint store or a direct gRPC stream to an IOTA full node.
 
-#### Historical Checkpoint Data
+#### Historical Checkpoint Store
+
+An IOTA full node is not guaranteed to retain all historical data, depending on its configuration, older checkpoints may be pruned. To sync from genesis up to the tip of the network, the indexer must rely on a dedicated checkpoint store. The IOTA Foundation provides the following endpoints for downloading historical checkpoint data.
+
+**Historical Checkpoint Data**
 
 For syncing historical data up to the tip of the network:
 
@@ -71,7 +75,7 @@ For syncing historical data up to the tip of the network:
 - Testnet: `https://checkpoints.testnet.iota.cafe/ingestion/historical`
 - Mainnet: `https://checkpoints.mainnet.iota.cafe/ingestion/historical`
 
-#### Live Checkpoint Streaming (Optional)
+**Live Checkpoint Streaming (Optional)**
 
 For real-time streaming of current epoch checkpoints only:
 
@@ -114,6 +118,77 @@ In this example, we'll explore a simple custom indexer that can ingest data from
 
 ```rust file=<rootDir>/examples/custom-indexer/rust/remote_reader.rs
 ```
+
+#### Fullnode gRPC Checkpoint Data Stream
+
+For local development against a local network, or for public networks that expose a fullnode gRPC API, you can use the [`RemoteUrl::Fullnode`](https://iotaledger.github.io/iota/iota_data_ingestion_core/reader/v2/enum.RemoteUrl.html#variant.Fullnode) variant to connect directly to a fullnode. The gRPC stream delivers checkpoint data efficiently and with minimal latency. For more advanced use cases, it also exposes a filtering mechanism that lets you include only specific transactions in each checkpoint payload.
+
+**Filtering Checkpoint Data**
+
+When using the [`RemoteUrl::Fullnode`](https://iotaledger.github.io/iota/iota_data_ingestion_core/reader/v2/enum.RemoteUrl.html#variant.Fullnode) gRPC checkpoint stream API, you can register a filter that instructs the fullnode to include only specific transactions in each checkpoint payload.
+
+Filtering occurs entirely server-side, so the ingestion framework performs no client-side filtering of its own. This is especially useful when a custom indexer targets specific data, since it avoids transferring irrelevant transactions over the network.
+
+```rust file=<rootDir>/examples/custom-indexer/rust/remote_reader_with_filters.rs
+```
+
+In the example above, `CustomWorker::process_checkpoint` is only invoked for checkpoints that contain at least one matching transaction. Checkpoints with no matches are skipped.
+
+A [`TransactionFilter`](https://iotaledger.github.io/iota/iota_data_ingestion_core/reader/filters/fullnode/struct.TransactionFilter.html) is built with a chained builder. Start from `TransactionFilter::new()` and add leaves with the named methods, such as `kinds()`, `sender()`, `receiver()`, and `execution_status()`. An empty `TransactionFilter::new()` is rejected by the fullnode, so always add at least one leaf before passing it to the reader.
+
+:::info Composition semantics
+
+- Each leaf you add **implicitly ANDs** with everything accumulated so far.
+- Use `or()` to compose a logical **OR** with another `TransactionFilter`.
+- Use `negate()` (or the `!` operator) for **NOT**. It wraps the entire filter accumulated so far, not just the most recent leaf ([see below](#negate-scoping)).
+
+:::
+
+A simple filter, showcasing implicit **AND** composition:
+
+```rust
+use iota_data_ingestion_core::filters::fullnode::{TransactionFilter, TransactionKind};
+
+// Programmable AND success
+let filter = TransactionFilter::new()
+    .kinds([TransactionKind::Programmable])
+    .execution_status(true);
+```
+
+Composition with **AND**, **OR**, and **NOT**:
+
+```rust
+// (Programmable AND success AND sender == Alice) OR NOT(receiver == Bob)
+let filter = TransactionFilter::new()
+    .kinds([TransactionKind::Programmable])
+    .execution_status(true)
+    .sender(alice)
+    .or(!TransactionFilter::new().receiver(bob));
+```
+
+:::caution
+
+#### `negate` scoping {#negate-scoping}
+
+The `negate()` method (or the `!` operator) applies a logical **NOT** to the filter chain. Because the filter is built with a chained builder, `negate()` operates on everything accumulated up to that point, not just the most recent method call. The position of `negate()` determines its scope: calling it early negates only the criteria accumulated before it, which are then **AND**ed with whatever follows; calling it at the end negates the entire accumulated expression.
+
+```rust
+// (NOT Programmable) AND sender == Alice
+TransactionFilter::new()
+    .kinds([TransactionKind::Programmable])
+    .negate()
+    .sender(alice);
+
+// NOT (Programmable AND sender == Alice)
+TransactionFilter::new()
+    .kinds([TransactionKind::Programmable])
+    .sender(alice)
+    .negate();
+```
+
+For complex expressions where the scoping is not visually obvious, build sub-filters as named bindings and combine them with `or()`.
+
+:::
 
 ### Local Reader
 

@@ -68,7 +68,7 @@ pub(crate) enum TransactionFetchMode {
     /// referenced by commits in a batch
     FastCommitSync,
     /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
-    /// max_transactions_per_regular_sync_fetch- used by regular commit sync
+    /// max_transactions_per_transaction_sync_fetch- used by regular commit sync
     /// and transactions synchronizer
     TransactionSync,
 }

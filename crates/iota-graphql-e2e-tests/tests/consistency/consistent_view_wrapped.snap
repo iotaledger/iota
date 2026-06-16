@@ -70,13 +70,7 @@ task 11, lines 63-72:
 Response: {
   "data": {
     "objects": {
-      "nodes": [
-        {
-          "address": "0x38fd622e5deb258c999e3ebf9ade5488a32cb9a94ab1b120010d36f251202427",
-          "status": "WRAPPED_OR_DELETED",
-          "version": 3
-        }
-      ]
+      "nodes": []
     }
   }
 }

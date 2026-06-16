@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectData, ObjectId, StructTag, TypeTag};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
@@ -14,7 +14,7 @@ use crate::{
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
-    object::{Data, Object},
+    object::Object,
 };
 
 pub const COIN_JOIN_FUNC_NAME: Identifier = Identifier::from_static("join");
@@ -47,7 +47,7 @@ impl Coin {
     /// The cost is 2 comparisons if not a coin, and deserialization if its a
     /// Coin.
     pub fn extract_balance_if_coin(object: &Object) -> Result<Option<u64>, bcs::Error> {
-        let Data::Struct(obj) = &object.data else {
+        let ObjectData::Struct(obj) = &object.data else {
             return Ok(None);
         };
         let Some(_) = obj.struct_tag().coin_type_opt() else {
@@ -141,12 +141,12 @@ impl TryFrom<Object> for TreasuryCap {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if o.struct_tag().is_treasury_cap() {
                     return TreasuryCap::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {
@@ -204,12 +204,12 @@ impl TryFrom<&Object> for CoinMetadata {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if o.struct_tag().is_coin_metadata() {
                     return CoinMetadata::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

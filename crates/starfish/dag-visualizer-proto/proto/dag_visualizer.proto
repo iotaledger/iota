@@ -1,0 +1,76 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package dag_visualizer;
+
+service DagVisualizerService {
+  rpc GetCommittee(GetCommitteeRequest) returns (CommitteeResponse);
+  rpc GetStatus(GetStatusRequest) returns (StatusResponse);
+  // Server-streaming: initial burst of cached blocks, then live events.
+  // Validator drops events if client is slow (never blocks consensus).
+  rpc StreamDagEvents(StreamDagEventsRequest) returns (stream DagEvent);
+}
+
+message GetCommitteeRequest {}
+message CommitteeResponse {
+  uint64 epoch = 1;
+  uint64 total_stake = 2;
+  uint64 quorum_threshold = 3;
+  repeated ValidatorInfo validators = 4;
+}
+message ValidatorInfo {
+  uint32 index = 1;
+  string hostname = 2;
+  uint64 stake = 3;
+}
+
+message GetStatusRequest {}
+message StatusResponse {
+  uint32 highest_accepted_round = 1;
+  uint32 last_commit_index = 2;
+  uint32 last_commit_round = 3;
+  uint32 num_authorities = 4;
+}
+
+message StreamDagEventsRequest {}
+
+message DagEvent {
+  oneof event {
+    BlockAcceptedEvent block_accepted = 1;
+    LeaderDecidedEvent leader_decided = 2;
+    RoundAdvancedEvent round_advanced = 3;
+  }
+}
+
+message BlockRefProto {
+  uint32 round = 1;
+  uint32 author = 2;
+  bytes digest = 3;  // 32 bytes
+}
+
+message BlockAcceptedEvent {
+  uint32 round = 1;
+  uint32 author = 2;
+  bytes digest = 3;  // 32 bytes
+  uint64 timestamp_ms = 4;
+  repeated BlockRefProto ancestors = 5;
+  repeated BlockRefProto acknowledgments = 6;
+}
+
+enum LeaderStatus {
+  COMMITTED = 0;
+  SKIPPED = 1;
+}
+
+message LeaderDecidedEvent {
+  uint32 wave = 1;
+  uint32 leader_round = 2;
+  uint32 leader_authority = 3;
+  LeaderStatus status = 4;
+  bytes block_digest = 5;  // empty if absent
+}
+
+message RoundAdvancedEvent {
+  uint32 round = 1;
+}

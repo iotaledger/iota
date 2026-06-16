@@ -5,7 +5,7 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectData, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -13,12 +13,8 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
-    balance::Balance,
-    base_types::IotaAddress,
-    collection_types::Bag,
-    error::IotaError,
-    id::UID,
-    object::{Data, Object},
+    balance::Balance, base_types::IotaAddress, collection_types::Bag, error::IotaError, id::UID,
+    object::Object,
 };
 
 pub const BASIC_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("basic_output");
@@ -86,12 +82,12 @@ impl TryFrom<&Object> for BasicOutput {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if BasicOutput::is_basic_output(o.struct_tag()) {
                     return BasicOutput::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

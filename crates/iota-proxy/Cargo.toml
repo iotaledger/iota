@@ -52,7 +52,7 @@ mime = "0.3"
 tower.workspace = true
 
 [build-dependencies]
-prost-build = "0.14.3"
+prost-build.workspace = true
 
 [lints]
 workspace = true

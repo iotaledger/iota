@@ -4,6 +4,7 @@
 mod fields_v1;
 
 pub use fields_v1::*;
+use iota_sdk_types::ProgrammableTransaction;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -17,7 +18,6 @@ use crate::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefV1,
     },
     digests::{Digest, MoveAuthenticatorDigest},
-    transaction::ProgrammableTransaction,
 };
 
 pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");
@@ -267,10 +267,12 @@ pub struct AuthContextData {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Argument, Command, Identifier, ObjectId, TypeTag};
+    use iota_sdk_types::{
+        Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag,
+    };
 
     use super::*;
-    use crate::transaction::{CallArg, ProgrammableTransaction};
+    use crate::transaction::CallArg;
 
     #[test]
     fn auth_context_new_from_components() {

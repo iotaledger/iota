@@ -8,12 +8,12 @@ use std::sync::Arc;
 
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
-    error::IotaError,
+    error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
@@ -349,6 +349,116 @@ async fn test_simple_conflict() {
         "Lock should be acquired for the contested object"
     );
     assert_eq!(locks.get(&object.object_ref()), Some(verified_tx1.digest()));
+}
+
+/// Two transactions in the same commit reference the same owned object at
+/// different versions, with the stale one ordered first (the scenario from
+/// issue #10922). Because owned-object locks are keyed by the full `ObjectRef`,
+/// the two never falsely conflict; the stale transaction is dropped by the
+/// version check in `handle_transaction_validation_checks` (Check #5) and the
+/// fresh transaction is kept and acquires the lock.
+#[sim_test]
+async fn test_stale_version_dropped_fresh_kept() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectId::random();
+    let gas_stale_id = ObjectId::random();
+    let gas_fresh_id = ObjectId::random();
+
+    // The contested object is live at version 2, so a reference to version 1 is
+    // stale and absent from the store.
+    let object = Object::with_id_owner_version_for_testing(
+        object_id,
+        SequenceNumber::from(2),
+        Owner::Address(sender),
+    );
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        object.clone(),
+        Object::with_id_owner_for_testing(gas_stale_id, sender),
+        Object::with_id_owner_for_testing(gas_fresh_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let gas_stale = authority.get_object(&gas_stale_id).await.unwrap();
+    let gas_fresh = authority.get_object(&gas_fresh_id).await.unwrap();
+
+    let fresh_ref = object.object_ref();
+    // Stale reference: same object id and digest, but the previous version.
+    let stale_ref = ObjectRef::new(object_id, SequenceNumber::from(1), fresh_ref.digest);
+
+    let tx_stale = make_transfer_object_transaction(
+        stale_ref,
+        gas_stale.object_ref(),
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let tx_fresh = make_transfer_object_transaction(
+        fresh_ref,
+        gas_fresh.object_ref(),
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+
+    let verified_stale = epoch_store.verify_transaction(tx_stale).unwrap();
+    let verified_fresh = epoch_store.verify_transaction(tx_fresh).unwrap();
+
+    // Stale transaction ordered first, as described in the issue.
+    let mut transactions = vec![
+        make_user_tx_v1_verified(verified_stale.clone()),
+        make_user_tx_v1_verified(verified_fresh.clone()),
+    ];
+
+    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    let (dropped_digests, dropped_errors): (Vec<TransactionDigest>, Vec<IotaError>) =
+        dropped.into_iter().unzip();
+
+    assert_eq!(transactions.len(), 1, "Only the fresh tx should remain");
+    assert_eq!(
+        dropped_digests,
+        vec![*verified_stale.digest()],
+        "Only the stale tx should be dropped"
+    );
+    assert!(
+        matches!(
+            dropped_errors[0],
+            IotaError::UserInput {
+                error: UserInputError::ObjectVersionUnavailableForConsumption { .. }
+            }
+        ),
+        "Stale tx should be dropped because its version is unavailable, got {:?}",
+        dropped_errors[0]
+    );
+
+    // The fresh tx acquired the lock on the live ref; the stale tx never locked
+    // anything.
+    assert_eq!(locks.get(&fresh_ref), Some(verified_fresh.digest()));
+    assert!(
+        !locks.contains_key(&stale_ref),
+        "Stale tx must not acquire a lock"
+    );
 }
 
 /// Two transactions on different objects: both pass with no conflicts.

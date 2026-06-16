@@ -1,14 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, ObjectData, ObjectId, Owner, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{IotaAddress, ObjectRef, TransactionDigest},
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
-    object::{Data, Object},
+    object::Object,
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
@@ -65,12 +65,12 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(o.struct_tag()) {
                     return AuthenticatorFunctionRefV1::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

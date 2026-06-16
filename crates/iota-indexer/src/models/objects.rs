@@ -216,14 +216,22 @@ impl TryFrom<StoredHistoryObject> for Object {
     type Error = IndexerError;
 
     fn try_from(o: StoredHistoryObject) -> Result<Self, Self::Error> {
-        let serialized_object = o.serialized_object.ok_or_else(|| {
+        Self::try_from(&o)
+    }
+}
+
+impl TryFrom<&StoredHistoryObject> for Object {
+    type Error = IndexerError;
+
+    fn try_from(o: &StoredHistoryObject) -> Result<Self, Self::Error> {
+        let serialized_object = o.serialized_object.as_ref().ok_or_else(|| {
             IndexerError::Serde(format!(
                 "Failed to deserialize object: {:?}, error: object is None",
                 o.object_id
             ))
         })?;
 
-        bcs::from_bytes(&serialized_object).map_err(|e| {
+        bcs::from_bytes(serialized_object).map_err(|e| {
             IndexerError::Serde(format!(
                 "Failed to deserialize object: {:?}, error: {e}",
                 o.object_id
@@ -363,16 +371,24 @@ impl From<IndexedObject> for StoredObject {
     }
 }
 
-impl TryFrom<StoredObject> for Object {
+impl TryFrom<&StoredObject> for Object {
     type Error = IndexerError;
 
-    fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
+    fn try_from(o: &StoredObject) -> Result<Self, Self::Error> {
         bcs::from_bytes(&o.serialized_object).map_err(|e| {
             IndexerError::Serde(format!(
                 "Failed to deserialize object: {:?}, error: {}",
                 o.object_id, e
             ))
         })
+    }
+}
+
+impl TryFrom<StoredObject> for Object {
+    type Error = IndexerError;
+
+    fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
+        Self::try_from(&o)
     }
 }
 
@@ -583,12 +599,12 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, Owner, StructTag, TypeTag};
+    use iota_sdk_types::{Identifier, ObjectData, Owner, StructTag, TypeTag};
     use iota_types::{
         base_types::IotaAddress,
         digests::TransactionDigest,
         gas_coin::GasCoin,
-        object::{Data, MoveObject, MoveObjectExt, ObjectInner},
+        object::{MoveObject, MoveObjectExt, ObjectInner},
     };
 
     use super::*;
@@ -654,7 +670,7 @@ mod tests {
         let gas = 10;
 
         let contents = bcs::to_bytes(&vec![GasCoin::new(id, gas)]).unwrap();
-        let data = Data::Struct(
+        let data = ObjectData::Struct(
             MoveObject::new_from_execution_with_limit(object_type, 1.into(), contents, 256)
                 .unwrap(),
         );

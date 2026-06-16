@@ -17,8 +17,8 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError, StructTag,
-        TypeTag, move_package::MovePackage,
+        Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError,
+        ProgrammableTransaction, StructTag, TypeTag, move_package::MovePackage,
     };
     use iota_types::{
         auth_context,
@@ -39,7 +39,6 @@ mod checked {
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
-        transaction::ProgrammableTransaction,
         transfer::RESOLVED_RECEIVING_STRUCT,
     };
     use iota_verifier::{

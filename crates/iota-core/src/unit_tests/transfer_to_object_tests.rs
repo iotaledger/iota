@@ -4,7 +4,9 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner};
+use iota_sdk_types::{
+    ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner, ProgrammableTransaction,
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
@@ -13,10 +15,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, ProgrammableTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        VerifiedCertificate,
-    },
+    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
 };
 
 use crate::{

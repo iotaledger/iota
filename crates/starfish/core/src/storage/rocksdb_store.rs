@@ -696,11 +696,15 @@ impl Store for RocksDBStore {
         Ok(commits)
     }
 
-    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>> {
+    fn read_commit_votes(
+        &self,
+        commit_index: CommitIndex,
+        commit_digest: CommitDigest,
+    ) -> ConsensusResult<Vec<BlockRef>> {
         let mut votes = Vec::new();
         for vote in self.commit_votes.safe_range_iter((
-            Included((commit_index, CommitDigest::MIN, BlockRef::MIN)),
-            Included((commit_index, CommitDigest::MAX, BlockRef::MAX)),
+            Included((commit_index, commit_digest, BlockRef::MIN)),
+            Included((commit_index, commit_digest, BlockRef::MAX)),
         )) {
             let ((_, _, block_ref), _) = vote?;
             votes.push(block_ref);
