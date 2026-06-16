@@ -14,26 +14,28 @@
 //!    execution / finality.
 //!
 //! Assertions are deliberately **black-box** (finality and execution status
-//! only), so they do not depend on which scheduler implementation runs.
+//! only), so the same scenario is valid against either scheduler
+//! implementation. Each scenario therefore runs twice: once against the legacy
+//! `TransactionManager` and once against the new `ExecutionScheduler`, with
+//! `assert_scheduler` confirming which one is actually in effect on the
+//! fullnode.
 //!
 //! ## Why `#[cfg(msim)]`
 //!
-//! P-COOL is enabled here with a protocol-config override (`CONFIG_OVERRIDE`),
-//! which is a **thread-local** (`iota-protocol-config`). The validator/fullnode
-//! nodes only observe it when they run on the test's OS thread — which is the
-//! case under the `msim` simulator (it schedules every node on the calling
-//! thread), but NOT under plain multi-threaded tokio, where `iota-swarm` spawns
-//! each node on its own OS thread and the override is invisible to it. Run
-//! under plain tokio the flag would silently be `false` and the tests would
-//! pass for the wrong reason (the legacy pre-consensus path). So they are gated
-//! to the simulator, and additionally `assert_pcool_active` fails loudly if the
-//! flag is not actually in effect on the fullnode.
+//! P-COOL is enabled with a protocol-config override, which is
+//! **thread-local**. The validator/fullnode nodes only observe it when they run
+//! on the test's OS thread — true under the `msim` simulator (it schedules
+//! every node on the calling thread), but not under plain multi-threaded tokio,
+//! where `iota-swarm` spawns each node on its own thread and the flag would
+//! silently be `false`. So they are gated to the simulator, and
+//! `assert_pcool_active` additionally fails loudly if the flag is not in effect
+//! on the fullnode.
 //!
 //! Run with: `cargo simtest -p iota-e2e-tests test_pcool`.
 //!
-//! Under `enable_pcool_flow`,
-//! `ValidatorService::handle_transaction` is disabled, so transactions MUST be
-//! submitted via the fullnode RPC path (`TransactionDriver`), which is what
+//! Under `enable_pcool_flow`, `ValidatorService::handle_transaction` is
+//! disabled, so transactions must be submitted via the fullnode RPC path
+//! (`TransactionDriver`), which is what
 //! `WalletContext::execute_transaction_may_fail` uses.
 
 #![cfg(msim)]
@@ -45,12 +47,7 @@ use iota_types::base_types::IotaAddress;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Applies a thread-local protocol-config override that enables the P-COOL
-/// flow.
-///
-/// The returned guard is RAII (restores the previous config on drop). It MUST
-/// be held for the whole test, so the guard is created in each test body and
-/// the cluster is built afterwards. See the module docs for why this only
-/// reaches the cluster nodes under the simulator.
+/// flow. The returned guard is RAII and must be held for the whole test.
 fn enable_pcool_for_testing() -> iota_protocol_config::OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
@@ -58,12 +55,31 @@ fn enable_pcool_for_testing() -> iota_protocol_config::OverrideGuard {
     })
 }
 
-async fn build_pcool_test_cluster() -> TestCluster {
-    TestClusterBuilder::new()
+/// Builds a P-COOL test cluster. When `use_execution_scheduler` is set, every
+/// node selects the new `ExecutionScheduler` (via the
+/// `ENABLE_EXECUTION_SCHEDULER` env var read in
+/// `ExecutionSchedulerWrapper::new`); otherwise the legacy `TransactionManager`
+/// is used.
+///
+/// Returns the protocol-config override guard, which must be held for the test.
+async fn build_pcool_cluster(
+    use_execution_scheduler: bool,
+) -> (TestCluster, iota_protocol_config::OverrideGuard) {
+    if use_execution_scheduler {
+        // Read at runtime by every node under the simulator (single process), so
+        // this selects the scheduler cluster-wide. nextest/simtest isolate each
+        // test in its own process, so it does not leak. Must be set before the
+        // nodes are constructed.
+        // SAFETY (edition 2021): plain env mutation, no other threads race it here.
+        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    }
+    let guard = enable_pcool_for_testing();
+    let test_cluster = TestClusterBuilder::new()
         // Long epoch so reconfiguration never interferes mid-test.
         .with_epoch_duration_ms(600_000)
         .build()
-        .await
+        .await;
+    (test_cluster, guard)
 }
 
 /// Fails loudly if P-COOL is not actually in effect on the fullnode, so the
@@ -83,10 +99,31 @@ fn assert_pcool_active(test_cluster: &TestCluster) {
     );
 }
 
+/// Confirms the fullnode is running the expected scheduler, so a parameterized
+/// run can never silently fall back to the other implementation.
+fn assert_scheduler(test_cluster: &TestCluster, expect_execution_scheduler: bool) {
+    let uses_execution_scheduler = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().uses_execution_scheduler());
+    assert_eq!(
+        uses_execution_scheduler, expect_execution_scheduler,
+        "fullnode scheduler mismatch: expected execution_scheduler={expect_execution_scheduler}, \
+         got {uses_execution_scheduler}"
+    );
+}
+
 #[sim_test]
-async fn test_pcool_owned_object_transfer_reaches_finality() {
-    let _guard = enable_pcool_for_testing();
-    let test_cluster = build_pcool_test_cluster().await;
+async fn test_pcool_owned_object_transfer_reaches_finality_transaction_manager() {
+    let (test_cluster, _guard) = build_pcool_cluster(false).await;
+    assert_scheduler(&test_cluster, false);
+    run_owned_object_transfer_reaches_finality(&test_cluster).await;
+}
+
+#[sim_test]
+async fn test_pcool_owned_object_transfer_reaches_finality_execution_scheduler() {
+    let (test_cluster, _guard) = build_pcool_cluster(true).await;
+    assert_scheduler(&test_cluster, true);
     run_owned_object_transfer_reaches_finality(&test_cluster).await;
 }
 
@@ -123,9 +160,16 @@ async fn run_owned_object_transfer_reaches_finality(test_cluster: &TestCluster) 
 }
 
 #[sim_test]
-async fn test_pcool_double_spend_resolves_to_single_winner() {
-    let _guard = enable_pcool_for_testing();
-    let test_cluster = build_pcool_test_cluster().await;
+async fn test_pcool_double_spend_resolves_to_single_winner_transaction_manager() {
+    let (test_cluster, _guard) = build_pcool_cluster(false).await;
+    assert_scheduler(&test_cluster, false);
+    run_double_spend_resolves_to_single_winner(&test_cluster).await;
+}
+
+#[sim_test]
+async fn test_pcool_double_spend_resolves_to_single_winner_execution_scheduler() {
+    let (test_cluster, _guard) = build_pcool_cluster(true).await;
+    assert_scheduler(&test_cluster, true);
     run_double_spend_resolves_to_single_winner(&test_cluster).await;
 }
 

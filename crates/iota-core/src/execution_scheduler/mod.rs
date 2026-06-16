@@ -156,6 +156,12 @@ impl ExecutionSchedulerWrapper {
             ))
         }
     }
+
+    /// Whether the new `ExecutionScheduler` is in use (vs
+    /// `TransactionManager`).
+    pub fn uses_execution_scheduler(&self) -> bool {
+        matches!(self, Self::ExecutionScheduler(_))
+    }
 }
 
 impl ExecutingGuard {
