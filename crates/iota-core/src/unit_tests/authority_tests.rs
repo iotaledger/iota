@@ -6797,6 +6797,141 @@ async fn test_post_consensus_white_flag_simple_conflict() {
     //     epoch_store
 }
 
+/// Pins the post-consensus owned-object conflict seam under P-COOL: the
+/// conflict winner selected by `validate_and_resolve_conflicts` is enqueued
+/// into the execution scheduler and executes, while the dropped loser never
+/// executes.
+///
+/// Execution is observed black-box (`is_tx_already_executed`), so the
+/// assertions do not depend on the scheduler implementation.
+#[sim_test]
+async fn test_post_consensus_white_flag_survivor_executes() {
+    telemetry_subscribers::init_for_testing();
+
+    // Enable P-COOL flow
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    // Setup: two transactions competing for the same owned object.
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient1 = dbg_addr(2);
+    let recipient2 = dbg_addr(3);
+    let object_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_ids_and_object_basics(vec![
+        (sender, object_id),
+        (sender, gas1_id),
+        (sender, gas2_id),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object = authority.get_object(&object_id).await.unwrap();
+    let gas1 = authority.get_object(&gas1_id).await.unwrap();
+    let gas2 = authority.get_object(&gas2_id).await.unwrap();
+
+    let verified_tx1 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient1,
+        object.object_ref(),
+        gas1.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let verified_tx2 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient2,
+        object.object_ref(),
+        gas2.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let consensus_tx1 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        tracking_id: Default::default(),
+    };
+    let consensus_tx2 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        tracking_id: Default::default(),
+    };
+
+    let sequenced_txs = vec![
+        SequencedConsensusTransaction::new_test(consensus_tx1),
+        SequencedConsensusTransaction::new_test(consensus_tx2),
+    ];
+
+    // Run the full post-consensus pipeline (validation + owned-object conflict
+    // resolution). Only the winner (tx1) survives.
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_txs = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_txs,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        executable_txs.len(),
+        1,
+        "only the conflict winner should survive post-consensus validation"
+    );
+    assert_eq!(
+        executable_txs[0].inner().transaction_data().digest(),
+        *verified_tx1.digest(),
+        "the survivor should be tx1 (first in consensus order)"
+    );
+
+    // Hand the survivor to the execution scheduler via the `enqueue` seam. In
+    // production the consensus handler submits through AsyncTransactionScheduler;
+    // here we enqueue directly to keep the test focused on the seam.
+    authority
+        .transaction_manager()
+        .enqueue(executable_txs, &epoch_store);
+
+    // The winner's owned input is available, so it must become ready and execute.
+    // Observe execution black-box, with no dependency on the scheduler internals:
+    // the signal comes from the shared write path (`write_transaction_outputs` ->
+    // `executed_effects_digests_notify_read`), not a TransactionManager-specific
+    // hook, so this survives the ExecutionScheduler swap. Bound the wait so a
+    // regression where the scheduler never makes the winner ready fails clearly
+    // instead of hanging until the harness slow-timeout.
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        authority
+            .get_transaction_cache_reader()
+            .try_notify_read_executed_effects(&[*verified_tx1.digest()]),
+    )
+    .await
+    .expect("conflict winner did not execute within 20s after being enqueued")
+    .unwrap();
+    assert!(
+        authority.is_tx_already_executed(verified_tx1.digest()),
+        "the conflict winner must execute after being enqueued"
+    );
+
+    // The dropped loser was never enqueued, so it must never execute.
+    assert!(
+        !authority.is_tx_already_executed(verified_tx2.digest()),
+        "the dropped conflict loser must not execute"
+    );
+}
+
 #[sim_test]
 async fn test_post_consensus_white_flag_no_conflict() {
     telemetry_subscribers::init_for_testing();
