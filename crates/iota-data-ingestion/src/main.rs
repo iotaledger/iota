@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeSet, env, path::PathBuf, time::Duration};
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use iota_data_ingestion::{
     ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, HistoricalReducer,
     HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
@@ -64,8 +64,8 @@ struct IndexerConfig {
     /// The inclusive sequence number of the checkpoint to end ingestion at.
     #[serde(skip_serializing_if = "Option::is_none")]
     end_checkpoint: Option<CheckpointSequenceNumber>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    remote_store_url: Option<String>,
+    #[serde(rename = "remote-store", skip_serializing_if = "Option::is_none")]
+    remote_store_url: Option<RemoteStoreUrl>,
     #[serde(default = "default_remote_read_batch_size")]
     remote_read_batch_size: usize,
     #[serde(default = "default_metrics_host")]
@@ -84,6 +84,33 @@ fn default_metrics_port() -> u16 {
 
 fn default_remote_read_batch_size() -> usize {
     100
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all_fields = "kebab-case")]
+enum RemoteStoreUrl {
+    #[serde(rename = "fullnode-url")]
+    Fullnode(String),
+    #[serde(rename = "hybrid")]
+    HybridHistoricalStore {
+        historical_url: String,
+        live_url: Option<String>,
+    },
+}
+
+impl From<RemoteStoreUrl> for RemoteUrl {
+    fn from(value: RemoteStoreUrl) -> Self {
+        match value {
+            RemoteStoreUrl::Fullnode(url) => RemoteUrl::Fullnode(url),
+            RemoteStoreUrl::HybridHistoricalStore {
+                historical_url,
+                live_url,
+            } => RemoteUrl::HybridHistoricalStore {
+                historical_url,
+                live_url,
+            },
+        }
+    }
 }
 
 fn setup_env(token: CancellationToken) {
@@ -160,10 +187,9 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::Blob(blob_config) => {
-                let url = config
-                    .remote_store_url
-                    .as_ref()
-                    .ok_or(anyhow!("Blob worker type requires remote store URL"))?;
+                let Some(RemoteStoreUrl::Fullnode(url)) = config.remote_store_url.as_ref() else {
+                    anyhow::bail!("Blob worker type requires a fullnode remote store URL");
+                };
 
                 let grpc_client = Client::new(url)?;
                 let watermark = executor.read_watermark(task_config.name.clone()).await?;
@@ -277,7 +303,7 @@ async fn main() -> Result<()> {
     };
 
     let config = CheckpointReaderConfig {
-        remote_store_url: config.remote_store_url.map(RemoteUrl::Fullnode),
+        remote_store_url: config.remote_store_url.map(Into::into),
         ingestion_path: Some(config.path),
         reader_options,
     };
