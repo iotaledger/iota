@@ -395,6 +395,18 @@ impl IndexStoreTables {
         )
     }
 
+    fn open_with_options<P: Into<PathBuf>>(
+        path: P,
+        options: typed_store::rocksdb::Options,
+    ) -> Self {
+        IndexStoreTables::open_tables_read_write(
+            path.into(),
+            MetricConf::new("grpc-index"),
+            Some(options),
+            None,
+        )
+    }
+
     fn needs_to_do_initialization(&self, checkpoint_store: &CheckpointStore) -> bool {
         (match self.meta.get(&()) {
             Ok(Some(metadata)) => metadata.version != CURRENT_DB_VERSION,
@@ -936,13 +948,34 @@ impl GrpcIndexesStore {
                     typed_store::rocks::safe_drop_db(path.clone(), Duration::from_secs(30))
                         .await
                         .expect("unable to destroy old gRPC index db");
-                    IndexStoreTables::open(path)
+
+                    // Open the empty DB with `unordered_write`s enabled in order to get a ~3x
+                    // speedup when indexing
+                    let mut options = typed_store::rocksdb::Options::default();
+                    options.set_unordered_write(true);
+                    IndexStoreTables::open_with_options(&path, options)
                 };
 
                 tables
                     .init(&authority_store, checkpoint_store)
                     .expect("unable to initialize gRPC index");
-                tables
+
+                let weak_db = Arc::downgrade(&tables.meta.db);
+                drop(tables);
+
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+                loop {
+                    if weak_db.strong_count() == 0 {
+                        break;
+                    }
+                    if std::time::Instant::now() > deadline {
+                        panic!("unable to reopen DB after indexing");
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                }
+
+                // Reopen the DB with default options (eg without `unordered_write`s enabled)
+                IndexStoreTables::open(&path)
             } else {
                 tables
             }
