@@ -25,6 +25,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::CallArg,
 };
+use jsonrpsee::types::error::INVALID_PARAMS_CODE;
 use rand::{SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -1764,4 +1765,32 @@ async fn display_transaction_block_with_empty_balance_changes() {
     assert!(rpc_transaction.balance_changes.as_ref().unwrap().is_empty());
 
     let _ = rpc_transaction.to_string();
+}
+
+#[sim_test]
+async fn try_get_past_object_valid_params() {
+    let cluster = TestClusterBuilder::new().build().await;
+
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "iota_tryGetPastObject",
+        "params": [ObjectId::ZERO.to_string(), 7, null],
+    });
+
+    let response: serde_json::Value = reqwest::Client::new()
+        .post(cluster.rpc_url())
+        .json(&request)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert_ne!(
+        response["error"]["code"].as_i64(),
+        Some(INVALID_PARAMS_CODE as i64),
+        "{response}",
+    );
 }

@@ -6589,6 +6589,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.6",
  "reqwest",
+ "serde_json",
  "telemetry-subscribers",
  "test-cluster",
  "tokio",
