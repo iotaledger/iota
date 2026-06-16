@@ -766,31 +766,14 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
             let system_state = self.get_system_state_for_epoch(epoch)?;
 
-            let (end_timestamp_ms, end_checkpoint) =
-                if let Some(next_epoch_state) = self.get_system_state_for_epoch(epoch + 1) {
-                    (
-                        Some(next_epoch_state.epoch_start_timestamp_ms()),
-                        Some(
-                            store
-                                .get_last_checkpoint_of_epoch(epoch)
-                                .expect("last checkpoint of completed epoch should exist"),
-                        ),
-                    )
-                } else {
-                    (None, None)
-                };
-
             Some(EpochInfoV2 {
                 epoch,
-                protocol_version: system_state.protocol_version(),
-                start_timestamp_ms: start_checkpoint.data().timestamp_ms,
-                end_timestamp_ms,
                 start_checkpoint: start_checkpoint_seq,
-                end_checkpoint,
-                reference_gas_price: system_state.reference_gas_price(),
+                start_timestamp_ms: start_checkpoint.data().timestamp_ms,
                 system_state,
-                // not populated by simulacrum
-                proof: None,
+                // Simulacrum doesn't build the close-of-epoch entry, so the
+                // derived `end_*` fields report `None`.
+                epoch_info_entry: None,
             })
         }))
     }

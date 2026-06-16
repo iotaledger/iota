@@ -39,7 +39,7 @@ use iota_types::{
     },
     object::Object,
     storage::{
-        CloseOfEpochProof, CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, OwnedObjectCursor,
+        CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, OwnedObjectCursor,
         OwnedObjectIteratorItem, PackageVersionIteratorItem, TransactionInfo,
         error::Result as StorageResult,
     },
@@ -201,31 +201,18 @@ fn test_next_epoch_start_system_state_objects() -> Vec<Vec<u8>> {
 fn fully_populated_epoch_info(epoch: EpochId) -> EpochInfoV2 {
     EpochInfoV2 {
         epoch,
-        protocol_version: 0,
-        start_timestamp_ms: 0,
-        end_timestamp_ms: None,
         start_checkpoint: 0,
-        end_checkpoint: None,
-        reference_gas_price: 0,
+        start_timestamp_ms: 0,
         system_state: test_system_state(),
-        proof: Some(CloseOfEpochProof {
-            last_checkpoint_summary: fully_populated_checkpoint_summary(epoch),
-            last_checkpoint_contents: test_checkpoint_contents(),
-            end_of_epoch_tx_effects: test_end_of_epoch_tx_effects(),
-            end_of_epoch_tx_events: TransactionEvents::default(),
-            next_epoch_start_system_state_objects: test_next_epoch_start_system_state_objects(),
-        }),
+        epoch_info_entry: Some(fully_populated_snapshot_epoch_entry(epoch)),
     }
 }
 
-/// On-disk equivalent of [`fully_populated_epoch_info`]: used by tests that
-/// exercise the on-disk `EpochInfoV1Entry` directly (BCS round-trip of
-/// the `EPOCH_INFO` file body) rather than going through the writer's
-/// `EpochInfoV2 → EpochInfoV1Entry` translation.
+/// The close-of-epoch entry embedded in [`fully_populated_epoch_info`] and
+/// written to the `EPOCH_INFO` file; used by tests that exercise the on-disk
+/// `EpochInfoV1Entry` directly (BCS round-trip of the file body).
 fn fully_populated_snapshot_epoch_entry(epoch: EpochId) -> EpochInfoV1Entry {
     EpochInfoV1Entry {
-        epoch,
-        start_checkpoint: 0,
         last_checkpoint_summary: fully_populated_checkpoint_summary(epoch),
         last_checkpoint_contents: test_checkpoint_contents(),
         end_of_epoch_tx_effects: test_end_of_epoch_tx_effects(),
@@ -418,10 +405,6 @@ async fn snapshot_round_trip(
             "next_epoch_start_system_state_objects did not round-trip bit-identical \
              through the snapshot"
         );
-        assert_eq!(
-            entry.start_checkpoint, 0,
-            "start_checkpoint did not round-trip"
-        );
     }
 
     let local_store_restore_config = ObjectStoreConfig {
@@ -457,7 +440,6 @@ async fn snapshot_round_trip(
         "expected one entry per epoch"
     );
     for (i, entry) in epoch_info.entries().iter().enumerate() {
-        assert_eq!(entry.epoch, i as u64);
         assert_eq!(entry.last_checkpoint_summary.epoch(), i as u64);
     }
     Ok(())
@@ -523,8 +505,6 @@ async fn epoch_info_backfill_round_trip(
     //    `iota-e2e-tests`.
     for (epoch, entry) in epoch_info.entries().iter().enumerate() {
         let epoch = epoch as EpochId;
-        assert_eq!(entry.epoch, epoch);
-        assert_eq!(entry.start_checkpoint, 0, "epoch {epoch}: start_checkpoint");
         assert_eq!(
             entry.last_checkpoint_summary.epoch(),
             epoch,
@@ -1102,10 +1082,6 @@ fn epoch_info_v1_bcs_round_trip() {
 #[test]
 fn snapshot_epoch_info_field_order_is_locked() {
     let entry = EpochInfoV1Entry {
-        epoch: 0x0102_0304_0506_0708,
-        // Distinct, recognizable u64 — easy to spot in a hex dump if
-        // this assertion ever needs to be debugged.
-        start_checkpoint: 0xDEAD_BEEF_CAFE_F00D,
         last_checkpoint_summary: fully_populated_checkpoint_summary(0),
         last_checkpoint_contents: test_checkpoint_contents(),
         end_of_epoch_tx_effects: test_end_of_epoch_tx_effects(),
@@ -1117,8 +1093,6 @@ fn snapshot_epoch_info_field_order_is_locked() {
     let entry_bytes = bcs::to_bytes(&entry).expect("entry serialization");
 
     let mut expected = Vec::with_capacity(entry_bytes.len());
-    expected.extend_from_slice(&entry.epoch.to_le_bytes());
-    expected.extend_from_slice(&entry.start_checkpoint.to_le_bytes());
     expected.extend_from_slice(
         &bcs::to_bytes(&entry.last_checkpoint_summary).expect("summary serialization"),
     );
@@ -1185,62 +1159,58 @@ fn verify_epoch_info_chain_rejects_non_contiguous_entries() {
         ChainIdentifier::default(),
     )
     .expect_err("non-contiguous entries must be rejected");
-    assert!(err.to_string().contains("declares epoch"), "got: {err}");
+    assert!(
+        err.to_string().contains("carries a summary for epoch"),
+        "got: {err}"
+    );
 }
 
 /// `epoch_info_v2_row` derives every non-stored `EpochInfoV2` field: the
-/// `end_*` fields from the signed summary, the system-state fields from the
-/// start system state. Locks those derivations (the chain-verify path that
-/// feeds it real entries is exercised in `iota-e2e-tests`).
+/// `epoch` from the signed summary, the `end_*` from the embedded entry, the
+/// system-state fields from the start system state. The chain-verify path that
+/// feeds it real entries is exercised in `iota-e2e-tests`.
 #[test]
 fn epoch_info_v2_row_derives_fields() {
     use iota_types::iota_system_state::IotaSystemStateTrait;
 
     let entry = fully_populated_snapshot_epoch_entry(3);
     let system_state = test_system_state();
-    let row = crate::epoch_info_v2_row(entry.clone(), system_state.clone());
+    let start_checkpoint = 7;
+    let row = crate::epoch_info_v2_row(entry.clone(), system_state.clone(), start_checkpoint);
 
-    assert_eq!(row.epoch, 3);
-    assert_eq!(row.start_checkpoint, entry.start_checkpoint);
+    assert_eq!(row.epoch, 3, "epoch comes from the entry's signed summary");
+    assert_eq!(row.start_checkpoint, start_checkpoint);
     // `end_*` derived from the signed last-checkpoint summary.
     assert_eq!(
-        row.end_checkpoint,
+        row.end_checkpoint(),
         Some(*entry.last_checkpoint_summary.data().sequence_number()),
     );
     assert_eq!(
-        row.end_timestamp_ms,
+        row.end_timestamp_ms(),
         Some(entry.last_checkpoint_summary.data().timestamp_ms),
     );
     // System-state fields derived from the start system state.
-    assert_eq!(row.protocol_version, system_state.protocol_version());
-    assert_eq!(row.reference_gas_price, system_state.reference_gas_price());
+    assert_eq!(row.protocol_version(), system_state.protocol_version());
+    assert_eq!(
+        row.reference_gas_price(),
+        system_state.reference_gas_price()
+    );
     assert_eq!(
         row.start_timestamp_ms,
-        system_state.epoch_start_timestamp_ms(),
+        system_state.epoch_start_timestamp_ms()
     );
 }
 
-/// `is_finalized()` and the `EpochInfoV1Entry` projection agree: a finalized
-/// row projects, clearing its `proof` makes it both non-finalized and
-/// un-projectable.
+/// An open (not-yet-indexed) row has no `epoch_info_entry`, so it is not
+/// finalized and its `end_*` helpers return `None`. The finalized values are
+/// covered by `epoch_info_v2_row_derives_fields`.
 #[test]
-fn finalized_matches_entry_projection() {
-    let finalized = fully_populated_epoch_info(2);
-    assert!(finalized.is_finalized());
-    assert_eq!(
-        EpochInfoV1Entry::try_from(finalized.clone())
-            .expect("a finalized row must project into an on-disk entry")
-            .epoch,
-        2,
-    );
-
-    let unfinalized = EpochInfoV2 {
-        proof: None,
-        ..finalized
+fn open_row_has_no_end_fields() {
+    let open = EpochInfoV2 {
+        epoch_info_entry: None,
+        ..fully_populated_epoch_info(2)
     };
-    assert!(!unfinalized.is_finalized());
-    assert_eq!(
-        EpochInfoV1Entry::try_from(unfinalized).expect_err("an unfinalized row must not project"),
-        "proof",
-    );
+    assert!(!open.is_finalized());
+    assert_eq!(open.end_checkpoint(), None);
+    assert_eq!(open.end_timestamp_ms(), None);
 }

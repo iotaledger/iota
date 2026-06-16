@@ -335,13 +335,6 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
             }),
         ),
         (
-            "start_checkpoint",
-            "declares start_checkpoint",
-            Box::new(|entry| {
-                entry.start_checkpoint = entry.start_checkpoint.wrapping_add(1);
-            }),
-        ),
-        (
             "summary",
             "failed verification",
             Box::new(|entry| {
@@ -641,8 +634,8 @@ fn real_epoch_info(source: &GrpcIndexesStore, current_epoch: EpochId) -> EpochIn
                 .get_epoch_info(epoch)
                 .unwrap()
                 .unwrap_or_else(|| panic!("missing epochs_v2 row for closed epoch {epoch}"));
-            EpochInfoV1Entry::try_from(row).unwrap_or_else(|field| {
-                panic!("epochs_v2 row for closed epoch {epoch} is missing `{field}`")
+            row.epoch_info_entry.unwrap_or_else(|| {
+                panic!("epochs_v2 row for closed epoch {epoch} is not finalized")
             })
         })
         .collect();
@@ -650,19 +643,14 @@ fn real_epoch_info(source: &GrpcIndexesStore, current_epoch: EpochId) -> EpochIn
 }
 
 /// A minimal `epochs_v2` row standing in for one written by a snapshot restore.
-/// Only `epoch` and a decodable `system_state` matter here — the end-of-epoch
-/// fields are left `None` since the test asserts row survival, not
-/// completeness.
+/// Only `epoch` and a decodable `system_state` matter here — the close-of-epoch
+/// entry is left `None` since the test asserts row survival, not completeness.
 fn restored_sentinel_row(epoch: u64) -> EpochInfoV2 {
     EpochInfoV2 {
         epoch,
-        protocol_version: 1,
-        start_timestamp_ms: 0,
-        end_timestamp_ms: None,
         start_checkpoint: 0,
-        end_checkpoint: None,
-        reference_gas_price: 0,
+        start_timestamp_ms: 0,
         system_state: IotaSystemState::for_testing(epoch, 1),
-        proof: None,
+        epoch_info_entry: None,
     }
 }

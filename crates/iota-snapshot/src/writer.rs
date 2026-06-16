@@ -46,10 +46,10 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::debug;
 
 use crate::{
-    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FILE_MAX_BYTES,
-    FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest,
-    ManifestV2, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
-    compute_sha3_checksum, create_file_metadata,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, FILE_MAX_BYTES, FileCompression, FileMetadata,
+    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_FILE_MAGIC,
+    OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, compute_sha3_checksum,
+    create_file_metadata,
 };
 
 /// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj
@@ -526,8 +526,8 @@ impl StateSnapshotWriterV1 {
     }
 
     /// Writes the per-snapshot `EPOCH_INFO` file, one entry per epoch in
-    /// `[0, epoch]`: each row is read via `GrpcIndexes::get_epoch_info` and
-    /// projected with `EpochInfoV1Entry::try_from`. Callers must have run
+    /// `[0, epoch]`: each row is read via `GrpcIndexes::get_epoch_info` and its
+    /// embedded `epoch_info_entry` taken. Callers must have run
     /// [`Self::check_epoch_indexed_watermark`] first; this function trusts the
     /// precondition and panics on any unfinalized row.
     ///
@@ -561,15 +561,15 @@ impl StateSnapshotWriterV1 {
                          watermark covering it — watermark/row inconsistency"
                     )
                 });
-            // The boundary's whole proof bundle is committed in one atomic
-            // batch, so a row the watermark covers must be finalized; a missing
-            // proof means the watermark advanced over an unfinalized row.
-            // Panics for the same blast-radius reason as above.
-            let entry = EpochInfoV1Entry::try_from(epoch_info).unwrap_or_else(|field| {
+            // The boundary's whole entry is committed in one atomic batch, so a
+            // row the watermark covers must be finalized; a missing entry means
+            // the watermark advanced over an unfinalized row. Panics for the
+            // same blast-radius reason as above.
+            let entry = epoch_info.epoch_info_entry.unwrap_or_else(|| {
                 panic!(
-                    "epochs_v2[{epoch_id}] is missing `{field}` despite `EpochIndexed` \
-                     watermark covering it — the watermark must never cover a \
-                     partially written row"
+                    "epochs_v2[{epoch_id}] is not finalized despite `EpochIndexed` \
+                     watermark covering it — the watermark must never cover an \
+                     unfinalized row"
                 )
             });
             // Turn a silent miswrite (row stored under the wrong epoch key)

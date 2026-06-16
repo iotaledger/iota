@@ -38,24 +38,23 @@ use iota_sdk_types::ObjectId;
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
+// Re-exported so `iota_snapshot::EpochInfoV1Entry` (the snapshot file entry,
+// defined in `iota-types` because `EpochInfoV2` embeds it) stays a stable path.
+pub use iota_types::storage::EpochInfoV1Entry;
 use iota_types::{
     IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::ObjectRef,
-    committee::{Committee, CommitteeChainVerifier, EpochId},
+    committee::{Committee, CommitteeChainVerifier},
     digests::ChainIdentifier,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     global_state_hash::GlobalStateHash,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, ECMHLiveObjectSetDigest,
-    },
+    messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
     object::Object,
-    storage::{CloseOfEpochProof, EpochInfoV2},
+    storage::EpochInfoV2,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
@@ -290,71 +289,6 @@ impl Manifest {
     }
 }
 
-/// Per-epoch entry of the `EPOCH_INFO` file. Every field is anchored to the
-/// certified `last_checkpoint_summary` and checked by
-/// `verify_epoch_boundary_proof`, so a restoring node trusts only data
-/// reachable from the signed summary, not the (unsigned) transport.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EpochInfoV1Entry {
-    /// Epoch this entry describes.
-    pub epoch: EpochId,
-
-    /// First checkpoint of this epoch (`0` for genesis; otherwise the prior
-    /// epoch's `last_checkpoint_summary.sequence_number + 1`).
-    pub start_checkpoint: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-
-    /// Certified summary of this epoch's closing checkpoint — the signed
-    /// anchor every other field is proven against.
-    pub last_checkpoint_summary: CertifiedCheckpointSummary,
-
-    /// Contents of that closing checkpoint; `hash == last_checkpoint_summary`'s
-    /// `content_digest`.
-    pub last_checkpoint_contents: CheckpointContents,
-
-    /// Effects of the epoch-change tx (the last tx of the closing checkpoint);
-    /// its `(transaction, effects)` digest pair is the last entry of
-    /// `last_checkpoint_contents`.
-    pub end_of_epoch_tx_effects: TransactionEffects,
-
-    /// Events from the epoch-change tx (carries `SystemEpochInfoEvent`); `hash
-    /// == end_of_epoch_tx_effects.events_digest`, or empty on safe-mode
-    /// boundaries where that digest is `None`.
-    pub end_of_epoch_tx_events: TransactionEvents,
-
-    /// Raw serialized bytes of object `0x5` and its inner system-state object
-    /// as written by this boundary — epoch `epoch + 1`'s start state. Each
-    /// object's digest matches a written-object entry in
-    /// `end_of_epoch_tx_effects`.
-    pub next_epoch_start_system_state_objects: Vec<Vec<u8>>,
-}
-
-impl TryFrom<EpochInfoV2> for EpochInfoV1Entry {
-    /// `"proof"` when the row isn't finalized.
-    type Error = &'static str;
-
-    /// Project a finalized index row into its on-disk entry; `Err` if not
-    /// finalized. Destructuring `CloseOfEpochProof` keeps this exhaustive with
-    /// the bundle.
-    fn try_from(row: EpochInfoV2) -> Result<Self, Self::Error> {
-        let CloseOfEpochProof {
-            last_checkpoint_summary,
-            last_checkpoint_contents,
-            end_of_epoch_tx_effects,
-            end_of_epoch_tx_events,
-            next_epoch_start_system_state_objects,
-        } = row.proof.ok_or("proof")?;
-        Ok(EpochInfoV1Entry {
-            epoch: row.epoch,
-            start_checkpoint: row.start_checkpoint,
-            last_checkpoint_summary,
-            last_checkpoint_contents,
-            end_of_epoch_tx_effects,
-            end_of_epoch_tx_events,
-            next_epoch_start_system_state_objects,
-        })
-    }
-}
-
 /// On-disk schema for the per-snapshot `EPOCH_INFO` file. Versioned for
 /// future schema evolution. `entries[i]` is the entry for epoch `i`;
 /// length is `snapshot_epoch + 1`.
@@ -419,11 +353,19 @@ impl VerifiedEpochInfo {
         } = self;
         // `start_system_states[i]` is epoch `i`'s start state; `zip` drops the
         // trailing one (the state the last boundary proves, which has no row).
+        // Each epoch's start checkpoint is the previous epoch's last + 1 (0 for
+        // epoch 0), derived inline from the signed summaries.
+        let mut previous_end_checkpoint: Option<u64> = None;
         epoch_info
             .into_entries()
             .into_iter()
             .zip(start_system_states)
-            .map(|(entry, start_system_state)| epoch_info_v2_row(entry, start_system_state))
+            .map(|(entry, start_system_state)| {
+                let start_checkpoint = previous_end_checkpoint.map_or(0, |seq| seq + 1);
+                previous_end_checkpoint =
+                    Some(*entry.last_checkpoint_summary.data().sequence_number());
+                epoch_info_v2_row(entry, start_system_state, start_checkpoint)
+            })
             .collect()
     }
 
@@ -466,26 +408,14 @@ pub fn verify_epoch_info_chain(
     // `start_system_states[i]` is epoch `i`'s start state; epoch 0's is the
     // genesis root, every later one is derived from the previous boundary.
     let mut start_system_states = vec![genesis_system_state];
-    let mut previous_end_checkpoint: Option<u64> = None;
     for (index, entry) in epoch_info.entries().iter().enumerate() {
         // EPOCH_INFO-specific: entries must be the contiguous epochs from 0.
-        // Everything else (summary epoch, signatures, close-of-epoch,
-        // committee handover) is the chain walk itself.
+        // The epoch comes from the signed summary, not a stored field, so it
+        // can't disagree with the data it anchors.
+        let epoch = entry.last_checkpoint_summary.epoch();
         anyhow::ensure!(
-            entry.epoch == index as u64,
-            "EPOCH_INFO entry at index {index} declares epoch {}",
-            entry.epoch,
-        );
-
-        // The start checkpoint must be the previous epoch's last + 1 (0 for
-        // epoch 0). Cross-checks the unsigned `start_checkpoint` against the
-        // signed sequence numbers.
-        let expected_start = previous_end_checkpoint.map_or(0, |seq| seq + 1);
-        anyhow::ensure!(
-            entry.start_checkpoint == expected_start,
-            "EPOCH_INFO entry for epoch {index} declares start_checkpoint {} but the \
-             previous epoch's signed close implies {expected_start}",
-            entry.start_checkpoint,
+            epoch == index as u64,
+            "EPOCH_INFO entry at index {index} carries a summary for epoch {epoch}",
         );
 
         // Defense in depth: the committee in epoch `index`'s start state must
@@ -509,7 +439,6 @@ pub fn verify_epoch_info_chain(
         let next_start_state = verify_epoch_boundary_proof(entry)
             .map_err(|e| anyhow::anyhow!("EPOCH_INFO entry for epoch {index}: {e}"))?;
 
-        previous_end_checkpoint = Some(*entry.last_checkpoint_summary.data().sequence_number());
         committees.push(chain_verifier.committee().clone());
         start_system_states.push(next_start_state);
     }
@@ -587,34 +516,21 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
         .map_err(|e| anyhow::anyhow!("decoding the next-epoch system state: {e}"))
 }
 
-/// Build an `EpochInfoV2` index row from a verified entry and its
-/// digest-verified start system state. Infallible: the only caller's entries
-/// already passed `verify_epoch_info_chain`, so `entry.epoch` matches the
-/// summary's epoch; the `debug_assert` re-checks that in debug builds.
-fn epoch_info_v2_row(entry: EpochInfoV1Entry, system_state: IotaSystemState) -> EpochInfoV2 {
-    debug_assert_eq!(
-        entry.epoch,
-        entry.last_checkpoint_summary.epoch(),
-        "a verified entry's epoch must match its summary's epoch",
-    );
-    let end_checkpoint = *entry.last_checkpoint_summary.data().sequence_number();
-    let end_timestamp_ms = entry.last_checkpoint_summary.data().timestamp_ms;
+/// Build an `EpochInfoV2` index row from a verified entry, its digest-verified
+/// start system state, and its start checkpoint. The `epoch` comes from the
+/// entry's signed summary; the `end_*` facts are derived from the embedded
+/// entry by `EpochInfoV2`'s methods.
+fn epoch_info_v2_row(
+    entry: EpochInfoV1Entry,
+    system_state: IotaSystemState,
+    start_checkpoint: CheckpointSequenceNumber,
+) -> EpochInfoV2 {
     EpochInfoV2 {
-        epoch: entry.epoch,
-        protocol_version: system_state.protocol_version(),
+        epoch: entry.last_checkpoint_summary.epoch(),
+        start_checkpoint,
         start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
-        end_timestamp_ms: Some(end_timestamp_ms),
-        start_checkpoint: entry.start_checkpoint,
-        end_checkpoint: Some(end_checkpoint),
-        reference_gas_price: system_state.reference_gas_price(),
         system_state,
-        proof: Some(CloseOfEpochProof {
-            last_checkpoint_summary: entry.last_checkpoint_summary,
-            last_checkpoint_contents: entry.last_checkpoint_contents,
-            end_of_epoch_tx_effects: entry.end_of_epoch_tx_effects,
-            end_of_epoch_tx_events: entry.end_of_epoch_tx_events,
-            next_epoch_start_system_state_objects: entry.next_epoch_start_system_state_objects,
-        }),
+        epoch_info_entry: Some(entry),
     }
 }
 
