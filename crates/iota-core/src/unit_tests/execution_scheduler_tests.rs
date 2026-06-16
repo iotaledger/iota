@@ -4,13 +4,13 @@
 
 use std::{time::Duration, vec};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_key,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
-    transaction::{CallArg, VerifiedTransaction},
+    transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
@@ -92,9 +92,88 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
         .write_object_entry_for_test(new_owned_object);
 
     // The scheduler now releases the transaction for execution.
-    let ready = rx_ready_certificates.recv().await.unwrap().certificate;
-    assert_eq!(ready.digest(), transaction.digest());
+    let ready = rx_ready_certificates.recv().await.unwrap();
+    assert_eq!(ready.certificate.digest(), transaction.digest());
 
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_certificates.try_recv().is_err());
+
+    // The pending gauge was released when the transaction was sent; the executing
+    // gauge is held by the ready certificate's `ExecutingGuard` until execution
+    // completes. Dropping it must return the count to 0 — pins the RAII gauge
+    // accounting that feeds overload admission.
+    assert_eq!(execution_scheduler.num_pending_certificates(), 1);
+    drop(ready);
+    assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+}
+
+/// One object becoming available must release ALL transactions waiting on it.
+/// This exercises the NotifyRead fan-out across the scheduler's independent
+/// per-transaction tasks (each registers its own waiter on the shared input),
+/// and confirms the pending/executing gauges return to 0 afterwards.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_releases_all_waiters_on_one_object() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_objects: Vec<Object> = (0..3)
+        .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), owner))
+        .collect();
+    let shared_object = Object::shared_for_testing();
+    let initial_shared_version = shared_object.version();
+
+    let mut objects = gas_objects.clone();
+    objects.push(shared_object.clone());
+    let state = init_state_with_objects(objects).await;
+    let (execution_scheduler, mut rx_ready_certificates) = make_execution_scheduler(&state);
+
+    // Three read-only transactions, each waiting on the same shared object at a
+    // consensus-assigned version that is not yet available in the cache.
+    let shared_version = 1000.into();
+    let shared_arg = CallArg::Shared(SharedObjectRef::new(
+        shared_object.id(),
+        initial_shared_version,
+        false,
+    ));
+    let mut txns = Vec::new();
+    for gas in &gas_objects {
+        let txn = make_transaction(gas.clone(), vec![shared_arg.clone()]);
+        state
+            .epoch_store_for_testing()
+            .set_shared_object_versions_for_testing(
+                txn.digest(),
+                &[VersionAssignment::new(shared_object.id(), shared_version)],
+            )
+            .unwrap();
+        execution_scheduler.enqueue(vec![txn.clone()], &state.epoch_store_for_testing());
+        txns.push(txn);
+    }
+
+    // None are ready while the shared object version is missing.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_certificates.try_recv().is_err());
+    assert_eq!(execution_scheduler.num_pending_certificates(), txns.len());
+
+    // Make the shared object available at the awaited version: all three release.
+    let new_shared_object = Object::with_id_owner_version_for_testing(
+        shared_object.id(),
+        shared_version,
+        iota_sdk_types::Owner::Shared(initial_shared_version),
+    );
+    state
+        .get_cache_writer()
+        .write_object_entry_for_test(new_shared_object);
+
+    let mut ready = Vec::new();
+    for _ in 0..txns.len() {
+        ready.push(rx_ready_certificates.recv().await.unwrap());
+    }
+    let mut want: Vec<_> = txns.iter().map(|t| *t.digest()).collect();
+    want.sort();
+    let mut got: Vec<_> = ready.iter().map(|p| *p.certificate.digest()).collect();
+    got.sort();
+    assert_eq!(want, got);
+
+    // All three are now executing; dropping them returns the gauge to 0.
+    assert_eq!(execution_scheduler.num_pending_certificates(), txns.len());
+    drop(ready);
+    assert_eq!(execution_scheduler.num_pending_certificates(), 0);
 }

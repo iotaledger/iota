@@ -139,7 +139,7 @@ pub async fn validate_and_resolve_conflicts(
         // keep it in the sequence to flow into checkpoint roots like on every other
         // validator (dropping it forks — issue #11649). Register its owned-object
         // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
-        // `TransactionManager::enqueue` suppresses the re-execution.
+        // the active scheduler's enqueue filter suppresses the re-execution.
         if authority_state
             .get_transaction_cache_reader()
             .try_is_tx_already_executed(&digest)?

@@ -493,6 +493,11 @@ pub trait ObjectCacheRead: Send + Sync {
     /// Like `multi_input_objects_available`, but consults only the in-memory
     /// cache (no store reads). Used as a fast-path availability check before
     /// registering for change notifications.
+    ///
+    /// Implementations MUST NOT read the store: a store-backed answer here
+    /// could release a transaction for execution before its inputs are
+    /// durably available. A cache-only false-negative is safe — the key is
+    /// re-checked via the full marker-aware path.
     fn multi_input_objects_available_cache_only(&self, keys: &[InputKey]) -> Vec<bool>;
 
     /// Return the object with version less then or eq to the provided seq

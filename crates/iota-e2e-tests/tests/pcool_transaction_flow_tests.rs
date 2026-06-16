@@ -72,6 +72,11 @@ async fn build_pcool_cluster(
         // nodes are constructed.
         // SAFETY (edition 2021): plain env mutation, no other threads race it here.
         std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    } else {
+        // Defend against the var leaking from an ExecutionScheduler variant that
+        // ran earlier in the process (process-per-test makes this unlikely, and
+        // assert_scheduler would catch it, but be explicit).
+        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
     }
     let guard = enable_pcool_for_testing();
     let test_cluster = TestClusterBuilder::new()
@@ -206,11 +211,17 @@ async fn run_double_spend_resolves_to_single_winner(test_cluster: &TestCluster) 
             .build(),
     );
 
-    // Submit both concurrently and let P-COOL resolve the conflict.
-    let (r1, r2) = tokio::join!(
-        test_cluster.wallet.execute_transaction_may_fail(tx1),
-        test_cluster.wallet.execute_transaction_may_fail(tx2),
-    );
+    // Submit both concurrently and let P-COOL resolve the conflict. Bound the
+    // wait so a regression where the dropped loser neither finalizes nor errors
+    // fails clearly instead of hanging to the harness slow-timeout.
+    let (r1, r2) = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        tokio::join!(
+            test_cluster.wallet.execute_transaction_may_fail(tx1),
+            test_cluster.wallet.execute_transaction_may_fail(tx2),
+        )
+    })
+    .await
+    .expect("double-spend submissions did not resolve within 60s");
 
     // The loser is dropped post-consensus, so its submission errors (or, at
     // worst, comes back with a non-success status); the winner finalizes

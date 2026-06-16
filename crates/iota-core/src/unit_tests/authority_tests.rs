@@ -6804,9 +6804,18 @@ async fn test_post_consensus_white_flag_simple_conflict() {
 ///
 /// Execution is observed black-box (`is_tx_already_executed`), so the
 /// assertions do not depend on the scheduler implementation.
-#[sim_test]
-async fn test_post_consensus_white_flag_survivor_executes() {
+async fn survivor_executes(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
+
+    // Select the scheduler before the authority is built (read by
+    // ExecutionSchedulerWrapper::new). Process-per-test isolation keeps the two
+    // variants below from leaking into each other.
+    if use_execution_scheduler {
+        // SAFETY (edition 2021): plain env mutation, no other threads race here.
+        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    } else {
+        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
+    }
 
     // Enable P-COOL flow
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -6897,6 +6906,12 @@ async fn test_post_consensus_white_flag_survivor_executes() {
         "the survivor should be tx1 (first in consensus order)"
     );
 
+    // Confirm the wrapper selected the scheduler this run is meant to exercise.
+    assert_eq!(
+        authority.uses_execution_scheduler(),
+        use_execution_scheduler
+    );
+
     // Hand the survivor to the execution scheduler via the `enqueue` seam. In
     // production the consensus handler submits through AsyncTransactionScheduler;
     // here we enqueue directly to keep the test focused on the seam.
@@ -6930,6 +6945,16 @@ async fn test_post_consensus_white_flag_survivor_executes() {
         !authority.is_tx_already_executed(verified_tx2.digest()),
         "the dropped conflict loser must not execute"
     );
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_survivor_executes_transaction_manager() {
+    survivor_executes(false).await;
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_survivor_executes_execution_scheduler() {
+    survivor_executes(true).await;
 }
 
 #[sim_test]
