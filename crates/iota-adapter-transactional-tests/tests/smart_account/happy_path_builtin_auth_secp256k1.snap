@@ -1,0 +1,17 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 2 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 9-12:
+//# programmable --sender A --inputs x"0102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c"
+//> iota::public_key::from_prefixed_bytes(Input(0));
+//> 1: iota::smart_account::builtin_auth_builder_v1(Result(0));
+//> 2: iota::smart_account::build_v1(Result(1));
+events: Event { package_id: ObjectId("iota"), transaction_module: Identifier("smart_account"), sender: Address("A"), type_: StructTag { address: iota, module: Identifier("builtin_authenticator_functions"), name: Identifier("PublicKeyAttached"), type_params: [] }, contents: [12, 187, 119, 151, 157, 102, 150, 177, 83, 244, 76, 83, 189, 66, 12, 246, 136, 14, 23, 83, 222, 207, 15, 157, 182, 252, 79, 234, 29, 236, 248, 88, 1, 33, 2, 51, 124, 202, 33, 113, 253, 191, 207, 214, 87, 250, 89, 136, 31, 70, 38, 159, 30, 89, 11, 95, 250, 182, 2, 54, 134, 199, 173, 46, 204, 44, 28] }, Event { package_id: ObjectId("iota"), transaction_module: Identifier("smart_account"), sender: Address("A"), type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: iota, module: Identifier("smart_account"), name: Identifier("SmartAccount"), type_params: [] })] }, contents: [12, 187, 119, 151, 157, 102, 150, 177, 83, 244, 76, 83, 189, 66, 12, 246, 136, 14, 23, 83, 222, 207, 15, 157, 182, 252, 79, 234, 29, 236, 248, 88, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 31, 98, 117, 105, 108, 116, 105, 110, 95, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 111, 114, 95, 102, 117, 110, 99, 116, 105, 111, 110, 115, 39, 115, 101, 99, 112, 50, 53, 54, 107, 49, 95, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 111, 114, 95, 102, 117, 110, 99, 116, 105, 111, 110, 95, 114, 101, 102, 95, 118, 49] }
+created: object(1,0), object(1,1), object(1,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8785600, storage_rebate: 0, non_refundable_storage_fee: 0
