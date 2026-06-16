@@ -31,8 +31,8 @@ pub struct GrpcStore {
 }
 
 impl GrpcStore {
-    /// Wrap an existing client. The store is seeded with the built-in
-    /// framework packages so Move calls resolve.
+    /// Wrap an existing client. The store starts with the built-in framework
+    /// packages already loaded so Move calls resolve.
     pub fn new(client: Client) -> Self {
         Self {
             inner: InMemoryStore::with_framework(),
@@ -40,8 +40,8 @@ impl GrpcStore {
         }
     }
 
-    /// Connect to a gRPC endpoint (by URL) and create an empty,
-    /// framework-seeded store.
+    /// Connect to a gRPC endpoint (by URL) and create a store containing only
+    /// the built-in framework packages.
     pub fn connect(url: &str) -> Result<Self, VmSdkError> {
         let client = Client::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
         Ok(Self::new(client))
