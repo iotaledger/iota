@@ -29,13 +29,19 @@ pub struct GraphqlStore {
 }
 
 impl GraphqlStore {
-    /// Create a store backed by a GraphQL endpoint, seeded with the built-in
-    /// framework packages.
-    pub fn new(url: impl Into<String>) -> Self {
+    /// Wrap an existing client. The store starts with the built-in framework
+    /// packages already loaded so Move calls resolve.
+    pub fn new(client: SimpleClient) -> Self {
         Self {
             inner: InMemoryStore::with_framework(),
-            client: SimpleClient::new(url),
+            client,
         }
+    }
+
+    /// Connect to a GraphQL endpoint (by URL) and create a store containing
+    /// only the built-in framework packages.
+    pub fn connect(url: impl Into<String>) -> Self {
+        Self::new(SimpleClient::new(url))
     }
 
     /// Fetch the chain parameters a [`LocalVm`](crate::LocalVm) needs.

@@ -3,8 +3,7 @@
 
 //! Public input / output types for the [`LocalVm`](super::LocalVm) surface:
 //! the [`ChainContext`] / [`ExecuteOptions`] inputs and the
-//! [`ExecutionResult`] / [`GasEstimate`] / [`DecodedEvent`] /
-//! [`SignatureStatus`] outputs.
+//! [`ExecutionResult`] / [`DecodedEvent`] / [`SignatureStatus`] outputs.
 
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_types::{Event, ObjectId, gas::GasCostSummary};
@@ -17,17 +16,31 @@ use move_core_types::annotated_value::MoveValue;
 use crate::debug::{DebugArtifacts, DebugConfig};
 
 /// The chain parameters a [`LocalVm`](super::LocalVm) needs.
+///
+/// Usually obtained from a node via
+/// [`GrpcStore::fetch_chain_context`](crate::grpc::GrpcStore::fetch_chain_context)
+/// or
+/// [`GraphqlStore::fetch_chain_context`](crate::graphql::GraphqlStore::fetch_chain_context);
+/// construct it manually only for offline runs.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ChainContext {
+    /// Protocol version the run should use; selects the protocol config.
     pub protocol_version: ProtocolVersion,
+    /// Reference gas price for the epoch, in NANOS.
     pub reference_gas_price: u64,
+    /// Epoch the transaction runs in.
     pub epoch_id: u64,
+    /// Epoch start timestamp in milliseconds (the VM clock).
     pub epoch_timestamp_ms: u64,
+    /// Which chain this is (`Mainnet` / `Testnet` / `Unknown`), used for
+    /// chain-specific protocol behaviour.
     pub chain: Chain,
 }
 
 impl ChainContext {
+    /// Build a [`ChainContext`] from its parts. The three `u64` arguments are,
+    /// in order, `reference_gas_price`, `epoch_id`, and `epoch_timestamp_ms`.
     pub fn new(
         protocol_version: ProtocolVersion,
         reference_gas_price: u64,
@@ -137,7 +150,6 @@ pub struct ExecutionResult {
     pub input_objects: Vec<Object>,
     pub output_objects: Vec<Object>,
     pub gas_summary: GasCostSummary,
-    pub gas_estimate: GasEstimate,
     pub mock_gas_id: Option<ObjectId>,
     pub status: iota_sdk_types::ExecutionStatus,
     pub signature_status: SignatureStatus,
@@ -145,41 +157,6 @@ pub struct ExecutionResult {
     /// the effects were applied back to the store.
     pub committed: bool,
     pub debug: Option<DebugArtifacts>,
-}
-
-/// Convenience summary of a run's gas ledger.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct GasEstimate {
-    pub computation_cost: u64,
-    pub storage_cost: u64,
-    pub storage_rebate: u64,
-    pub non_refundable_storage_fee: u64,
-    /// `computation_cost + storage_cost - storage_rebate`. The figure a gas
-    /// budget needs to cover.
-    pub net_gas_usage: i64,
-}
-
-impl GasEstimate {
-    pub(super) fn from_summary(s: &GasCostSummary) -> Self {
-        Self {
-            computation_cost: s.computation_cost,
-            storage_cost: s.storage_cost,
-            storage_rebate: s.storage_rebate,
-            non_refundable_storage_fee: s.non_refundable_storage_fee,
-            net_gas_usage: s.net_gas_usage(),
-        }
-    }
-
-    /// Suggest a gas budget for a future execution of the same transaction:
-    /// `net_gas_usage * headroom_factor`, rounded up. Returns `0` for a net
-    /// rebate.
-    pub fn suggested_budget_with_headroom(&self, headroom_factor: f64) -> u64 {
-        if self.net_gas_usage <= 0 {
-            return 0;
-        }
-        ((self.net_gas_usage as f64) * headroom_factor).ceil() as u64
-    }
 }
 
 /// A Move event paired with its decoded payload.

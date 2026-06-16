@@ -71,6 +71,8 @@ pub struct ValidationError {
 }
 
 impl ValidationError {
+    /// Wrap the node error from a failed validation check; `context` names the
+    /// check that produced it.
     pub fn new(context: impl Into<String>, source: impl Into<IotaError>) -> Self {
         Self {
             context: context.into(),
@@ -89,6 +91,7 @@ pub struct SignatureError {
 }
 
 impl SignatureError {
+    /// Build a [`SignatureError`] from the authenticator's rejection message.
     pub fn new(message: impl std::fmt::Display) -> Self {
         Self {
             message: message.to_string(),
@@ -106,6 +109,8 @@ pub struct StoreError {
 }
 
 impl StoreError {
+    /// Build a [`StoreError`]; `context` names the fetch/decode step that
+    /// failed and `message` carries the underlying cause.
     pub fn new(context: impl Into<String>, message: impl std::fmt::Display) -> Self {
         Self {
             context: context.into(),
@@ -123,6 +128,7 @@ pub struct ExecutionError {
 }
 
 impl ExecutionError {
+    /// Build an [`ExecutionError`] from a Move-level failure message.
     pub fn new(message: impl std::fmt::Display) -> Self {
         Self {
             message: message.to_string(),
@@ -139,6 +145,7 @@ pub struct VmError {
 }
 
 impl VmError {
+    /// Build a [`VmError`] from a VM fault message.
     pub fn new(message: impl std::fmt::Display) -> Self {
         Self {
             message: message.to_string(),

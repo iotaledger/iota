@@ -55,9 +55,8 @@ pub trait Store {
 
 /// A simple in-memory [`Store`] backed by a `BTreeMap`.
 ///
-/// All objects must be provided upfront via [`Self::insert`] / [`Self::extend`]
-/// (or pre-seeded with [`Self::with_framework`]). No network access is
-/// performed.
+/// All objects must be provided upfront via [`Self::insert`] (or pre-seeded
+/// with [`Self::with_framework`]). No network access is performed.
 #[derive(Clone, Default)]
 pub struct InMemoryStore {
     objects: BTreeMap<ObjectId, Object>,
@@ -80,7 +79,7 @@ impl InMemoryStore {
     }
 
     /// Insert every object from `objects` into the store.
-    pub fn extend<I: IntoIterator<Item = Object>>(&mut self, objects: I) {
+    pub(crate) fn extend<I: IntoIterator<Item = Object>>(&mut self, objects: I) {
         for obj in objects {
             self.insert(obj);
         }

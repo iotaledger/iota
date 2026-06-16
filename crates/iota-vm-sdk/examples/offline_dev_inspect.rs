@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Example: fully offline dev-inspect of a Move transaction.
+//! Example: fully offline dev-inspect of a transaction.
 //!
 //! Runs the Move VM with zero network access. The framework packages are
 //! provided by [`InMemoryStore::with_framework`]; the transaction calls
