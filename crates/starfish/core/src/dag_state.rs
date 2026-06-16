@@ -1993,6 +1993,14 @@ impl DagState {
         self.highest_accepted_round
     }
 
+    /// Highest round a peer-disseminated block may have, given the current
+    /// accepted frontier, to still be close enough to ever connect.
+    pub(crate) fn peer_disseminated_round_ceiling(&self) -> Round {
+        self.context
+            .parameters
+            .peer_disseminated_round_ceiling(self.highest_accepted_round())
+    }
+
     /// Highest round where a block is committed, which is last commit's leader
     /// round.
     pub(crate) fn last_commit_round(&self) -> Round {

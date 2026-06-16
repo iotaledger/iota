@@ -771,9 +771,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         // Drop headers too far above the accepted frontier to ever connect. A
         // peer may volunteer validly-signed headers we never requested, so this
         // path bounds the response itself rather than trusting the requested set.
-        let ceiling = context
-            .parameters
-            .peer_disseminated_round_ceiling(dag_state.read().highest_accepted_round());
+        let ceiling = dag_state.read().peer_disseminated_round_ceiling();
         let before_drop = block_headers.len();
         block_headers.retain(|header| header.round() <= ceiling);
         let dropped = (before_drop - block_headers.len()) as u64;

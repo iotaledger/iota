@@ -790,10 +790,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 5. Drop a far-future primary block before shard/transaction
         // processing, so it cannot grow the shard reconstructor or DagState
         // shard state.
-        let far_future_ceiling = self
-            .context
-            .parameters
-            .peer_disseminated_round_ceiling(self.dag_state.read().highest_accepted_round());
+        let far_future_ceiling = self.dag_state.read().peer_disseminated_round_ceiling();
         if block_ref.round > far_future_ceiling {
             self.context
                 .metrics

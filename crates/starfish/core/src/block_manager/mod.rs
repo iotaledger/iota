@@ -180,11 +180,7 @@ impl BlockManager {
         if !source.is_peer_disseminated() {
             return items;
         }
-        let frontier = self.dag_state.read().highest_accepted_round();
-        let ceiling = self
-            .context
-            .parameters
-            .peer_disseminated_round_ceiling(frontier);
+        let ceiling = self.dag_state.read().peer_disseminated_round_ceiling();
         let total = items.len();
         let kept: Vec<T> = items
             .into_iter()
