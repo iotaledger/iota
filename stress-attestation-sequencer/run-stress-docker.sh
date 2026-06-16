@@ -48,6 +48,9 @@ DOCKER_NETWORK="${DOCKER_NETWORK:-iota-private-network_iota-network}"
 FULLNODE_RPC="${FULLNODE_RPC:-http://fullnode-1:9000}"
 # false => direct-to-validator (the point of this runner); true => via fullnode.
 USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
+# Pin submission/attestation to the first N validators (validator-1..N) on the
+# direct TD path. Empty/unset => all validators. No effect via the fullnode.
+NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 
 if [[ ! -f "$GENESIS_DIR/genesis.blob" ]]; then
   echo "ERROR: $GENESIS_DIR/genesis.blob not found (bootstrap the network first)." >&2
@@ -64,6 +67,13 @@ echo "  use-fullnode-for-execution: $USE_FULLNODE_FOR_EXECUTION (false => direct
 
 # Mount the host-generated genesis read-only; attach to the validators' network.
 # `stress` itself comes from the image (--entrypoint), not the host.
+# Only pass --num-target-validators when set (unset => all validators).
+target_args=()
+if [[ -n "$NUM_TARGET_VALIDATORS" ]]; then
+  target_args=(--num-target-validators "$NUM_TARGET_VALIDATORS")
+  echo "  pinning submission/attestation to first $NUM_TARGET_VALIDATORS validator(s)"
+fi
+
 exec docker run --rm \
   --network "$DOCKER_NETWORK" \
   --ulimit nofile=524288:524288 \
@@ -74,6 +84,7 @@ exec docker run --rm \
   --fullnode-rpc-addresses "$FULLNODE_RPC" \
   --use-fullnode-for-execution "$USE_FULLNODE_FOR_EXECUTION" \
   --use-fullnode-for-reconfig true \
+  "${target_args[@]}" \
   --genesis-blob-path /genesis/genesis.blob \
   --keystore-path /genesis/benchmark.keystore \
   --primary-gas-owner-id "$PRIMARY_GAS_OWNER" \

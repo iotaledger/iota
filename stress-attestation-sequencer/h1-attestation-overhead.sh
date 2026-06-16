@@ -39,6 +39,7 @@ NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"   # tokio threads driving the cli
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}" # pure multiplier on setup-phase gas-coin count
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"         # max in-flight = IN_FLIGHT_RATIO * TARGET_QPS
 DIRECT="${DIRECT:-false}"                        # true => submit direct-to-validator (in-docker); false => via fullnode
+NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}" # DIRECT only: pin submission/attestation to first N validators (empty => all)
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
 # (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
 # NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
@@ -221,7 +222,7 @@ run_stress() {
     RUN_DURATION="$RUN_DURATION" TARGET_QPS="$TARGET_QPS" NUM_WORKERS="$NUM_WORKERS" \
       NUM_CLIENT_THREADS="$NUM_CLIENT_THREADS" NUM_TRANSFER_ACCOUNTS="$NUM_TRANSFER_ACCOUNTS" \
       IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" PRIMARY_GAS_OWNER="$PRIMARY_GAS_OWNER" \
-      USE_FULLNODE_FOR_EXECUTION=false \
+      USE_FULLNODE_FOR_EXECUTION=false NUM_TARGET_VALIDATORS="$NUM_TARGET_VALIDATORS" \
       "$SCRIPT_DIR/run-stress-docker.sh"
   else
     (cd "$REPO_ROOT" && "$STRESS_BIN" \
