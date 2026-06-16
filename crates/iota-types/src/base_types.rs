@@ -235,7 +235,7 @@ impl From<&PublicKey> for Address {
 
 impl TryFrom<&GenericSignature> for Address {
     type Error = IotaError;
-    /// Derive a Address from a serialized signature in IOTA
+    /// Derive an Address from a serialized signature in IOTA
     /// [GenericSignature].
     fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
         match sig {
