@@ -7896,6 +7896,7 @@ dependencies = [
  "iota-sdk-crypto",
  "iota-sdk-types",
  "iota-types",
+ "rand 0.8.6",
 ]
 
 [[package]]
