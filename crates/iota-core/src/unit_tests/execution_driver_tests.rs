@@ -41,6 +41,7 @@ use crate::{
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     consensus_adapter::ConsensusAdapter,
+    execution_scheduler::ExecutionSchedulerAPI,
     safe_client::SafeClient,
     test_authority_clients::LocalAuthorityClient,
     test_utils::{make_transfer_object_move_transaction, make_transfer_object_transaction},

@@ -21,7 +21,9 @@ use tokio::{
 
 use crate::{
     authority::{AuthorityState, authority_tests::init_state_with_objects},
-    transaction_manager::{PendingTransaction, TransactionManager},
+    execution_scheduler::{
+        ExecutionSchedulerAPI, PendingTransaction, transaction_manager::TransactionManager,
+    },
 };
 
 #[expect(clippy::disallowed_methods)] // allow unbounded_channel()

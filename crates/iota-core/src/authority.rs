@@ -174,6 +174,7 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
+    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
@@ -187,7 +188,6 @@ use crate::{
     subscription_handler::SubscriptionHandler,
     traffic_controller::{TrafficController, metrics::TrafficControllerMetrics},
     transaction_input_loader::TransactionInputLoader,
-    transaction_manager::TransactionManager,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,
     verify_indexes::verify_indexes,
@@ -864,7 +864,7 @@ pub struct AuthorityState {
     committee_store: Arc<CommitteeStore>,
 
     /// Manages pending transactions and their missing input objects.
-    transaction_manager: Arc<TransactionManager>,
+    transaction_manager: Arc<ExecutionSchedulerWrapper>,
 
     /// Shuts down the execution task. Used only in testing.
     #[cfg_attr(not(test), expect(unused))]
@@ -1744,8 +1744,9 @@ impl AuthorityState {
         // Notifies transaction manager about transaction and output objects committed.
         // This provides necessary information to transaction manager to start executing
         // additional ready transactions.
-        self.transaction_manager
-            .notify_commit(tx_digest, output_keys, epoch_store);
+        if let ExecutionSchedulerWrapper::TransactionManager(tm) = &*self.transaction_manager {
+            tm.notify_commit(tx_digest, output_keys, epoch_store);
+        }
 
         self.update_metrics(transaction, input_object_count, shared_object_count);
 
@@ -3278,13 +3279,13 @@ impl AuthorityState {
 
         let metrics = Arc::new(AuthorityMetrics::new(prometheus_registry));
         let (tx_ready_transactions, rx_ready_transactions) = unbounded_channel();
-        let transaction_manager = Arc::new(TransactionManager::new(
+        let transaction_manager = Arc::new(ExecutionSchedulerWrapper::new(
             execution_cache_trait_pointers.object_cache_reader.clone(),
             execution_cache_trait_pointers
                 .transaction_cache_reader
                 .clone(),
-            &epoch_store,
             tx_ready_transactions,
+            &epoch_store,
             metrics.clone(),
         ));
         let (tx_execution_shutdown, rx_execution_shutdown) = oneshot::channel();
@@ -3447,7 +3448,7 @@ impl AuthorityState {
         .await
     }
 
-    pub fn transaction_manager(&self) -> &Arc<TransactionManager> {
+    pub fn transaction_manager(&self) -> &Arc<ExecutionSchedulerWrapper> {
         &self.transaction_manager
     }
 
@@ -3685,7 +3686,9 @@ impl AuthorityState {
             )
             .await?;
         assert_eq!(new_epoch_store.epoch(), new_epoch);
-        self.transaction_manager.reconfigure(new_epoch);
+        if let ExecutionSchedulerWrapper::TransactionManager(tm) = &*self.transaction_manager {
+            tm.reconfigure(new_epoch);
+        }
         *execution_lock = new_epoch;
         // drop execution_lock after epoch store was updated
         // see also assert in AuthorityState::process_transaction
@@ -3720,7 +3723,9 @@ impl AuthorityState {
                 .unwrap_or_default(),
         );
         let new_epoch = new_epoch_store.epoch();
-        self.transaction_manager.reconfigure(new_epoch);
+        if let ExecutionSchedulerWrapper::TransactionManager(tm) = &*self.transaction_manager {
+            tm.reconfigure(new_epoch);
+        }
         self.epoch_store.store(new_epoch_store);
         epoch_store.epoch_terminated().await;
         *execution_lock = new_epoch;

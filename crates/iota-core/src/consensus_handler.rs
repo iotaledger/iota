@@ -39,8 +39,8 @@ use crate::{
     checkpoints::{CheckpointService, CheckpointServiceNotify},
     consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
-    transaction_manager::TransactionManager,
 };
 
 pub struct ConsensusHandlerInitializer {
@@ -142,7 +142,7 @@ impl<C> ConsensusHandler<C> {
         epoch_store: Arc<AuthorityPerEpochStore>,
         state: Arc<AuthorityState>,
         checkpoint_service: Arc<C>,
-        transaction_manager: Arc<TransactionManager>,
+        transaction_manager: Arc<ExecutionSchedulerWrapper>,
         cache_reader: Arc<dyn ObjectCacheRead>,
         tx_reader: Arc<dyn TransactionCacheRead>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
@@ -458,7 +458,7 @@ struct AsyncTransactionScheduler {
 
 impl AsyncTransactionScheduler {
     pub fn start(
-        transaction_manager: Arc<TransactionManager>,
+        transaction_manager: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) -> Self {
         let (sender, recv) = tokio::sync::mpsc::channel(16);
@@ -473,7 +473,7 @@ impl AsyncTransactionScheduler {
 
     pub async fn run(
         mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableTransaction>>,
-        transaction_manager: Arc<TransactionManager>,
+        transaction_manager: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
         while let Some(transactions) = recv.recv().await {

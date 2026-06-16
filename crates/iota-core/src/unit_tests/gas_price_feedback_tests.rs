@@ -37,6 +37,7 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
         transaction_deferral::DeferralKey,
     },
+    execution_scheduler::ExecutionSchedulerAPI,
     move_call,
 };
 

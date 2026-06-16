@@ -1,0 +1,174 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use std::{collections::BTreeSet, sync::Arc};
+
+use enum_dispatch::enum_dispatch;
+use execution_scheduler_impl::ExecutionScheduler;
+use iota_config::node::AuthorityOverloadConfig;
+use iota_types::{
+    digests::TransactionEffectsDigest,
+    error::IotaResult,
+    executable_transaction::VerifiedExecutableTransaction,
+    storage::InputKey,
+    transaction::{SenderSignedData, VerifiedCertificate},
+};
+use prometheus::IntGauge;
+use tokio::{sync::mpsc::UnboundedSender, time::Instant};
+use transaction_manager::TransactionManager;
+
+use crate::{
+    authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
+    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+};
+
+pub(crate) mod execution_scheduler_impl;
+mod overload_tracker;
+pub(crate) mod transaction_manager;
+
+#[derive(Clone, Debug)]
+pub struct PendingCertificateStats {
+    /// The time this certificate enters the execution scheduler.
+    #[cfg(test)]
+    pub enqueue_time: Instant,
+    /// The time this certificate becomes ready for execution.
+    pub ready_time: Option<Instant>,
+}
+
+#[derive(Debug)]
+pub struct PendingCertificate {
+    /// Certified transaction to be executed.
+    pub certificate: VerifiedExecutableTransaction,
+    /// When executing from checkpoint, the certified effects digest is
+    /// provided, so that forks can be detected prior to committing the
+    /// transaction.
+    pub expected_effects_digest: Option<TransactionEffectsDigest>,
+    /// The input objects this certificate is waiting for to become available in
+    /// order to be executed. Only used by `TransactionManager`.
+    pub waiting_input_objects: BTreeSet<InputKey>,
+    /// Stats about this transaction.
+    pub stats: PendingCertificateStats,
+    /// Held while the transaction is executing, to keep the
+    /// executing-certificates gauge accurate. Only set by
+    /// `ExecutionScheduler`.
+    pub executing_guard: Option<ExecutingGuard>,
+}
+
+#[derive(Debug)]
+pub struct ExecutingGuard {
+    num_executing_certificates: IntGauge,
+}
+
+#[enum_dispatch]
+pub(crate) trait ExecutionSchedulerAPI {
+    fn enqueue_impl(
+        &self,
+        certs: Vec<(
+            VerifiedExecutableTransaction,
+            Option<TransactionEffectsDigest>,
+        )>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    );
+
+    fn enqueue(
+        &self,
+        certs: Vec<VerifiedExecutableTransaction>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        let certs = certs.into_iter().map(|cert| (cert, None)).collect();
+        self.enqueue_impl(certs, epoch_store)
+    }
+
+    fn enqueue_with_expected_effects_digest(
+        &self,
+        certs: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        let certs = certs
+            .into_iter()
+            .map(|(cert, fx)| (cert, Some(fx)))
+            .collect();
+        self.enqueue_impl(certs, epoch_store)
+    }
+
+    /// Enqueues certificates / verified transactions. Once all of the input
+    /// objects are available locally for a certificate, the certified
+    /// transaction will be sent to the execution driver.
+    ///
+    /// REQUIRED: Shared object locks must be taken before enqueueing
+    /// transactions with shared objects!
+    fn enqueue_certificates(
+        &self,
+        certs: Vec<VerifiedCertificate>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        let executable_txns = certs
+            .into_iter()
+            .map(VerifiedExecutableTransaction::new_from_certificate)
+            .collect();
+        self.enqueue(executable_txns, epoch_store)
+    }
+
+    fn check_execution_overload(
+        &self,
+        overload_config: &AuthorityOverloadConfig,
+        tx_data: &SenderSignedData,
+    ) -> IotaResult;
+
+    /// Returns the number of transactions pending or being executed right now.
+    fn num_pending_certificates(&self) -> usize;
+}
+
+#[enum_dispatch(ExecutionSchedulerAPI)]
+pub enum ExecutionSchedulerWrapper {
+    ExecutionScheduler(ExecutionScheduler),
+    TransactionManager(TransactionManager),
+}
+
+impl ExecutionSchedulerWrapper {
+    pub fn new(
+        object_cache_read: Arc<dyn ObjectCacheRead>,
+        transaction_cache_read: Arc<dyn TransactionCacheRead>,
+        tx_ready_certificates: UnboundedSender<PendingCertificate>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        metrics: Arc<AuthorityMetrics>,
+    ) -> Self {
+        // Default to TransactionManager (behavior unchanged). ExecutionScheduler
+        // is opt-in via the `ENABLE_EXECUTION_SCHEDULER` env var (honored in all
+        // builds, so the suite can be run deterministically against either
+        // implementation); a proper node-config selector is future work.
+        let enable_execution_scheduler = std::env::var("ENABLE_EXECUTION_SCHEDULER").is_ok();
+        if enable_execution_scheduler {
+            Self::ExecutionScheduler(ExecutionScheduler::new(
+                object_cache_read,
+                transaction_cache_read,
+                tx_ready_certificates,
+                metrics,
+            ))
+        } else {
+            Self::TransactionManager(TransactionManager::new(
+                object_cache_read,
+                transaction_cache_read,
+                epoch_store,
+                tx_ready_certificates,
+                metrics,
+            ))
+        }
+    }
+}
+
+impl ExecutingGuard {
+    pub fn new(num_executing_certificates: IntGauge) -> Self {
+        num_executing_certificates.inc();
+        Self {
+            num_executing_certificates,
+        }
+    }
+}
+
+impl Drop for ExecutingGuard {
+    fn drop(&mut self) {
+        self.num_executing_certificates.dec();
+    }
+}
