@@ -158,9 +158,9 @@ let filter = TransactionFilter::new()
     .or(!TransactionFilter::new().receiver(bob));
 ```
 
-<a id="negate-scoping"></a>
+:::caution
 
-:::caution `negate` scoping
+#### `negate` scoping {#negate-scoping}
 
 The `negate()` method (or the `!` operator) applies a logical **NOT** to the filter chain. Because the filter is built with a chained builder, `negate()` operates on everything accumulated up to that point, not just the most recent method call. The position of `negate()` determines its scope: calling it early negates only the criteria accumulated before it, which are then **AND**ed with whatever follows; calling it at the end negates the entire accumulated expression.
 
