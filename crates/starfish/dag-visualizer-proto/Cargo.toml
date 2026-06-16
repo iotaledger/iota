@@ -1,0 +1,21 @@
+[package]
+name = "dag-visualizer-proto"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Proto files for the optional dag-visualizer"
+
+[lints]
+workspace = true
+
+[dependencies]
+prost.workspace = true
+tonic.workspace = true
+tonic-prost.workspace = true
+
+[build-dependencies]
+prost-build.workspace = true
+tonic-build.workspace = true
+tonic-prost-build = "0.14"

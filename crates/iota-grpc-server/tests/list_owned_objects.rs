@@ -12,25 +12,23 @@ mod common;
 use std::{collections::HashMap, sync::Arc};
 
 use common::{MockGrpcStateReader, start_test_server};
-use iota_sdk_ext::{
-    grpc_types::{
-        field::FieldMaskUtil,
-        v1::{
-            state_service::{
-                ListOwnedObjectsRequest, ListOwnedObjectsResponse,
-                state_service_client::StateServiceClient,
-            },
-            types::Address as ProtoAddress,
+use iota_sdk_ext::grpc_types::{
+    field::FieldMaskUtil,
+    v1::{
+        state_service::{
+            ListOwnedObjectsRequest, ListOwnedObjectsResponse,
+            state_service_client::StateServiceClient,
         },
+        types::Address as ProtoAddress,
     },
-    types::{ObjectId, StructTag},
 };
+use iota_sdk_ext::types::{MoveObjectType, ObjectId, Owner, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType},
+    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GasCoin,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
 };
 use prost_types::FieldMask;

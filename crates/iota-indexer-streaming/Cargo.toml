@@ -21,6 +21,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-indexer.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 
 [lints]

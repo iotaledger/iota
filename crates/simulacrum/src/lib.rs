@@ -31,7 +31,7 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_ext::types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
@@ -57,10 +57,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfo, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{
-        EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind, VerifiedTransaction,
-    },
+    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -450,7 +447,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             })?;
 
         let gas_data = iota_types::transaction::GasData {
-            objects: vec![object.compute_object_reference()],
+            objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: NANOS_PER_IOTA,
@@ -463,7 +460,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             builder.finish()
         };
 
-        let kind = iota_types::transaction::TransactionKind::Programmable(pt);
+        let kind = TransactionKind::Programmable(pt);
         let tx_data =
             iota_types::transaction::TransactionData::new_with_gas_data(kind, sender, gas_data);
         let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
@@ -906,7 +903,7 @@ impl Simulacrum {
 
         let kind = TransactionKind::Programmable(pt);
         let gas_data = GasData {
-            objects: vec![object.compute_object_reference()],
+            objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: 1_000_000_000,

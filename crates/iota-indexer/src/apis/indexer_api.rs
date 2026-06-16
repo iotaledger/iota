@@ -193,7 +193,7 @@ async fn construct_object_response(
         ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
             IotaObjectResponseError::Deleted {
                 object_id: object_ref.object_id,
-                version: object_ref.version,
+                version: object_ref.version.into(),
                 digest: object_ref.digest,
             },
         )),

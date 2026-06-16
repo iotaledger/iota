@@ -217,7 +217,7 @@ impl GlobalStateHasher {
     pub fn accumulate_live_object(acc: &mut GlobalStateHash, live_object: &LiveObject) {
         match live_object {
             LiveObject::Normal(object) => {
-                acc.insert(object.compute_object_reference().digest);
+                acc.insert(object.object_ref().digest);
             }
             LiveObject::Wrapped(key) => {
                 acc.insert(

@@ -6,23 +6,23 @@
 use std::{collections::BTreeMap, fs::File, io::Write};
 
 use clap::*;
-use iota_sdk_ext::{
-    crypto::{
-        Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-        secp256r1::Secp256r1PrivateKey,
-    },
-    types::{
-        Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
-        ConsensusDeterminedVersionAssignments, ExecutionError, ExecutionStatus, Identifier,
-        MoveLocation, MovePackage, ObjectId, PackageUpgradeError, SimpleSignature, StructTag,
-        TypeArgumentError, TypeOrigin, TypeTag, UpgradeInfo,
-        crypto::{Intent, IntentMessage, PersonalMessage},
-    },
+use iota_sdk_ext::crypto::{
+    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
+};
+use iota_sdk_ext::types::{
+    Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
+    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
+    ObjectData, ObjectId, Owner, PackageUpgradeError, ProgrammableTransaction,
+    RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
+    TypeArgumentError, TypeTag, UnchangedSharedKind,
+    crypto::{Intent, IntentMessage, PersonalMessage},
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
     base_types::{
-        self, ExecutionData, IotaAddress, MoveObjectType, ObjectDigest, TransactionDigest,
-        TransactionEffectsDigest,
+        self, ExecutionData, IotaAddress, ObjectDigest, TransactionDigest, TransactionEffectsDigest,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -31,10 +31,9 @@ use iota_types::{
     },
     digests::ConsensusCommitDigest,
     effects::{
-        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExt,
-        TransactionEvents, UnchangedSharedKind,
+        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
+        TransactionEvents,
     },
-    event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
@@ -42,13 +41,12 @@ use iota_types::{
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
+    object::{MoveObject, MoveObjectExt, ObjectInner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        CallArg, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
-        ProgrammableTransaction, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
-        Transaction, TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
+        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
@@ -265,13 +263,13 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &event).unwrap();
 
-    // Seed both Data variants. trace_type::<Data> is skipped because the SDK's
-    // MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with, and
-    // Identifier's custom serde (DisplayFromStr) is incompatible with
+    // Seed both ObjectData variants. trace_type::<ObjectData> is skipped because
+    // the SDK's MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with,
+    // and Identifier's custom serde (DisplayFromStr) is incompatible with
     // serde_reflection's tracing deserializer for map keys.
     let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0);
     tracer
-        .trace_value(&mut samples, &Data::Struct(sample_move_obj))
+        .trace_value(&mut samples, &ObjectData::Struct(sample_move_obj))
         .unwrap();
     let sample_upgrade_info = UpgradeInfo {
         upgraded_id: ObjectId::ZERO,
@@ -289,7 +287,7 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &sample_move_pkg).unwrap();
     tracer
-        .trace_value(&mut samples, &Data::Package(sample_move_pkg))
+        .trace_value(&mut samples, &ObjectData::Package(sample_move_pkg))
         .unwrap();
 
     // Trace SDK types with custom serde (ExecutionStatus, ExecutionError,
@@ -377,7 +375,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &TransactionKind::Programmable(sample_pt))
         .unwrap();
     let sample_genesis_obj = GenesisObject::new(
-        Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
+        ObjectData::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
         Owner::Address(IotaAddress::ZERO),
     );
     tracer
@@ -428,7 +426,7 @@ fn get_registry() -> Result<Registry> {
     // so we need to trace ObjectInner directly to avoid a format conflict
     // (Struct vs NewTypeStruct both named "Object").
     let sample_obj_inner = ObjectInner {
-        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
+        data: ObjectData::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
         owner: Owner::Address(IotaAddress::ZERO),
         previous_transaction: TransactionDigest::default(),
         storage_rebate: 0,
@@ -580,7 +578,7 @@ fn get_registry() -> Result<Registry> {
     // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
     // via trace_value (they transitively contain TypeTag).
     let sample_transaction = Transaction::new(sender_data.clone());
-    let sample_effects = TransactionEffects::new_empty_v1(TransactionDigest::default());
+    let sample_effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
     let sample_exec_data = ExecutionData {
         transaction: sample_transaction.clone(),
         effects: sample_effects.clone(),
@@ -612,9 +610,7 @@ fn get_registry() -> Result<Registry> {
         network_total_transactions: 0,
         content_digest: CheckpointContentsDigest::default(),
         previous_digest: None,
-        epoch_rolling_gas_cost_summary: iota_sdk_ext::types::gas::GasCostSummary::new(
-            0, 0, 0, 0, 0,
-        ),
+        epoch_rolling_gas_cost_summary: iota_sdk_ext::types::gas::GasCostSummary::new(0, 0, 0, 0, 0),
         timestamp_ms: 0,
         checkpoint_commitments: vec![],
         end_of_epoch_data: None,

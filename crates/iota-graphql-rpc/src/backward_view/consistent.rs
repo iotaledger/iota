@@ -6,9 +6,7 @@
 //! versions from `objects_backward_history`.
 
 use crate::{
-    backward_view::{
-        CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, NOT_YET_CREATED, merge_and_deduplicate,
-    },
+    backward_view::{CHECKPOINTED_ACTIVE, HISTORY_ACTIVE, OBJECT_COLUMNS, merge_and_deduplicate},
     filter, query,
     raw_query::RawQuery,
     types::{
@@ -32,8 +30,8 @@ pub(crate) fn query(
     ])
 }
 
-/// Returns objects from `checkpointed_objects` (including tombstones) that
-/// were consistent also at the given checkpoint.
+/// Returns active objects from `checkpointed_objects` that were consistent
+/// also at the given checkpoint.
 ///
 /// Uses a LEFT JOIN against `objects_backward_history` to exclude objects
 /// that have any entry with `superseded_at_checkpoint > checkpoint_viewed_at`.
@@ -42,9 +40,12 @@ fn consistent_checkpointed_objects(
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
-    let checkpointed_filtered = filter_fn(query!(format!(
-        "SELECT {CHECKPOINTED_COLUMNS} FROM checkpointed_objects"
-    )));
+    let checkpointed_filtered = filter!(
+        filter_fn(query!(format!(
+            "SELECT {OBJECT_COLUMNS} FROM checkpointed_objects"
+        ))),
+        format!("object_status = {CHECKPOINTED_ACTIVE}")
+    );
 
     let changed_subquery = query!(format!(
         "SELECT DISTINCT object_id FROM objects_backward_history \
@@ -60,26 +61,27 @@ fn consistent_checkpointed_objects(
     page.apply::<StoredBackwardObject>(source)
 }
 
-/// Returns objects from `objects_backward_history` that were consistent at the
-/// given checkpoint.
+/// Returns active objects from `objects_backward_history` that were consistent
+/// at the given checkpoint.
 ///
 /// Picks the earliest superseded version (`MIN(object_version)`) per object,
 /// which represents the state just before the first change after the target
-/// checkpoint. Excludes `NOT_YET_CREATED` entries (objects that didn't exist
-/// at the target checkpoint).
+/// checkpoint. Keeps only `Active` entries: when that earliest version is a
+/// tombstone (or `NotYetCreated`), the object had no live state at the target
+/// checkpoint and drops out of the join.
 fn consistent_historical_objects(
     checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let history_filtered = filter_fn(query!(format!(
-        "SELECT {HISTORY_COLUMNS} FROM objects_backward_history"
+        "SELECT {OBJECT_COLUMNS} FROM objects_backward_history"
     )));
 
     let history_window = filter!(
         history_filtered,
         format!(
-            "superseded_at_checkpoint > {} AND object_status != {NOT_YET_CREATED}",
+            "superseded_at_checkpoint > {} AND object_status = {HISTORY_ACTIVE}",
             checkpoint_viewed_at
         )
     );

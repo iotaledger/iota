@@ -21,13 +21,13 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
     TransactionBlocksPage, TransactionFilter,
 };
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{ObjectId, TransactionKind};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber, TransactionDigest},
     dynamic_field::DynamicFieldName,
     iota_serde::BigInt,
     messages_checkpoint::CheckpointSequenceNumber,
-    transaction::{TransactionData, TransactionKind},
+    transaction::TransactionData,
 };
 use jsonrpsee::core::client::Subscription;
 
@@ -235,7 +235,7 @@ impl ReadApi {
         Ok(self
             .api
             .http
-            .try_get_past_object(object_id, version, Some(options))
+            .try_get_past_object(object_id, version.into(), Some(options))
             .await?)
     }
 

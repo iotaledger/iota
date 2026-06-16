@@ -15,7 +15,7 @@ mod checked {
 
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_ext::types::ObjectId;
+    use iota_sdk_ext::types::{ObjectId, Owner, TransactionKind};
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
         base_types::{IotaAddress, ObjectRef, SequenceNumber},
@@ -24,12 +24,11 @@ mod checked {
         fp_bail, fp_ensure,
         gas::IotaGasStatus,
         metrics::BytecodeVerifierMetrics,
-        object::{Object, Owner},
+        object::Object,
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKind,
-            TransactionKindExt,
+            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKindExt,
         },
     };
     use tracing::{error, instrument};
@@ -116,7 +115,7 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        let gas_object_ref = gas_object.compute_object_reference();
+        let gas_object_ref = gas_object.object_ref();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
 
         let gas_status = check_transaction_input_inner(
@@ -213,7 +212,7 @@ mod checked {
     /// checked authenticator input objects, among which we also find the
     /// account object.
     #[instrument(level = "trace", skip_all)]
-    pub fn check_move_authenticator_input_for_signing(
+    pub fn check_move_authenticator_input_for_validation(
         authenticator_input_objects: InputObjects,
     ) -> IotaResult<CheckedInputObjects> {
         check_move_authenticator_objects(&authenticator_input_objects)?;

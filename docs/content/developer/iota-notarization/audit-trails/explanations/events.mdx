@@ -1,0 +1,247 @@
+---
+title: Audit Trails Events
+description: A reference of every on-chain event emitted by IOTA Audit Trails and the operation that triggers each one.
+sidebar_label: Events
+tags:
+ - explanation
+ - notarization
+ - audit-trails
+---
+
+# Audit Trails Events
+
+Audit Trails emit **on-chain events** for the operations that change a trail's state. Events let off-chain systems observe and react to trail activity — building dashboards, triggering notifications, feeding indexers, or maintaining the [off-chain capability registry](./role-based-access-control.mdx#off-chain-tracking-requirements) that the denylist model relies on.
+
+Every event carries the `ObjectID` of the `AuditTrail` object it relates to, so consumers can filter the event stream per trail. Events that result from a user action also record the address that performed it and a millisecond timestamp.
+
+:::info
+Every operation that changes a trail's persistent state emits an event — including locking-configuration changes, metadata updates, record-tag registry changes, and package migration. Read-only operations, such as reading records or inspecting roles and capabilities, emit nothing.
+:::
+
+---
+
+## Event Overview
+
+| Event | Emitted when | Triggering operation |
+|:------|:-------------|:---------------------|
+| `AuditTrailCreated` | A new `AuditTrail` object is created | [Create an Audit Trail](../how-tos/create-audit-trails.mdx) |
+| `AuditTrailDeleted` | An `AuditTrail` object is destroyed | [Delete an Audit Trail](../how-tos/delete-audit-trails.mdx) |
+| `AuditTrailMigrated` | A trail is migrated to the current package version | Package migration |
+| `MetadataUpdated` | The trail's mutable metadata is updated | [Update metadata](../how-tos/update-metadata.mdx) |
+| `LockingConfigUpdated` | The trail's locking configuration is updated | [Configure locking](../how-tos/configure-locking.mdx) |
+| `RecordAdded` | A record is appended to the trail | [Add a record](../how-tos/add-and-read-records.mdx) |
+| `RecordDeleted` | A record is removed from the trail | [Delete records](../how-tos/delete-records.mdx) |
+| `RecordTagAdded` | A record tag is added to the trail's registry | [Manage record tags](../how-tos/manage-record-tags.mdx) |
+| `RecordTagRemoved` | A record tag is removed from the trail's registry | [Manage record tags](../how-tos/manage-record-tags.mdx) |
+| `RoleCreated` | A new role is added to the trail | [Manage access control](../how-tos/manage-access-control.mdx) |
+| `RoleUpdated` | A role's permissions or tag allowlist change | [Manage access control](../how-tos/manage-access-control.mdx) |
+| `RoleDeleted` | A role is removed from the trail | [Manage access control](../how-tos/manage-access-control.mdx) |
+| `CapabilityIssued` | A capability is issued for a role | [Manage access control](../how-tos/manage-access-control.mdx) |
+| `CapabilityRevoked` | A capability is added to the revoked-capability denylist | [Manage access control](../how-tos/manage-access-control.mdx) |
+| `CapabilityDestroyed` | A capability object is destroyed | [Manage access control](../how-tos/manage-access-control.mdx) |
+| `RevokedCapabilitiesCleanedUp` | Expired entries are pruned from the denylist | [Manage access control](../how-tos/manage-access-control.mdx) |
+
+The exact payload types are available in the [Wasm API reference](../references/wasm/audit_trail_wasm/api_ref.md).
+
+---
+
+## Trail Lifecycle Events
+
+### `AuditTrailCreated`
+
+Emitted once when a new `AuditTrail` object is created.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the newly created trail. |
+| `creator` | Address that created the trail. |
+| `timestamp` | Millisecond event timestamp. |
+
+### `AuditTrailDeleted`
+
+Emitted when an `AuditTrail` object is destroyed. A trail can only be deleted once all of its records have been removed and the `delete_trail_lock` has expired.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the deleted trail. |
+| `timestamp` | Millisecond event timestamp. |
+
+### `AuditTrailMigrated`
+
+Emitted when a trail is migrated to the current package version after a package upgrade.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the migrated trail. |
+| `migrated_by` | Address that migrated the trail. |
+| `timestamp` | Millisecond event timestamp. |
+
+---
+
+## Trail Configuration Events
+
+### `MetadataUpdated`
+
+Emitted when the trail's mutable metadata field is replaced or cleared.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail whose metadata changed. |
+| `updated_by` | Address that updated the metadata. |
+| `timestamp` | Millisecond event timestamp. |
+
+### `LockingConfigUpdated`
+
+Emitted when any part of the trail's [locking configuration](./locking-configuration.mdx) changes — the locking config as a whole, the `delete_record_window`, the `delete_trail_lock`, or the `write_lock`. Each of these operations emits a single `LockingConfigUpdated` event.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail whose locking configuration changed. |
+| `updated_by` | Address that updated the locking configuration. |
+| `timestamp` | Millisecond event timestamp. |
+
+---
+
+## Record Events
+
+### `RecordAdded`
+
+Emitted each time a record is appended to the trail.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail receiving the record. |
+| `sequence_number` | Sequence number assigned to the new record. |
+| `added_by` | Address that added the record. |
+| `timestamp` | Millisecond event timestamp. |
+
+### `RecordDeleted`
+
+Emitted each time a record is removed. A **batch deletion** emits one `RecordDeleted` event per deleted record, not a single aggregate event.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail the record was deleted from. |
+| `sequence_number` | Sequence number of the deleted record. |
+| `deleted_by` | Address that deleted the record. |
+| `timestamp` | Millisecond event timestamp. |
+
+---
+
+## Record Tag Events
+
+Record tags are managed through the trail's tag registry. See [Manage Record Tags](../how-tos/manage-record-tags.mdx) for how tags are added, removed, and applied to records.
+
+### `RecordTagAdded`
+
+Emitted when a record tag is added to the trail's tag registry.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail whose registry changed. |
+| `added_by` | Address that added the tag. |
+| `timestamp` | Millisecond event timestamp. |
+
+### `RecordTagRemoved`
+
+Emitted when a record tag is removed from the trail's tag registry.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail whose registry changed. |
+| `removed_by` | Address that removed the tag. |
+| `timestamp` | Millisecond event timestamp. |
+
+---
+
+## Role Events
+
+Roles and capabilities are managed by the access-control registry. See [Role-Based Access Control](./role-based-access-control.mdx) for how these concepts fit together.
+
+### `RoleCreated`
+
+Emitted when a new role is added to the trail.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail that owns the role. |
+| `role` | Role name. |
+| `permissions` | Permission set granted by the new role. |
+| `data` | Optional `RoleTags` allowlist restricting which tagged records the role can operate on. |
+| `created_by` | Address that created the role. |
+| `timestamp` | Millisecond event timestamp. |
+
+### `RoleUpdated`
+
+Emitted when an existing role's permission set or its `RoleTags` allowlist changes.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail that owns the role. |
+| `role` | Role name. |
+| `permissions` | Updated permission set for the role. |
+| `data` | Updated `RoleTags` allowlist, if any. |
+| `updated_by` | Address that updated the role. |
+| `timestamp` | Millisecond event timestamp. |
+
+### `RoleDeleted`
+
+Emitted when a role is removed from the trail.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail that owned the role. |
+| `role` | Role name. |
+| `deleted_by` | Address that deleted the role. |
+| `timestamp` | Millisecond event timestamp. |
+
+---
+
+## Capability Events
+
+### `CapabilityIssued`
+
+Emitted when a capability is issued for a role.
+
+| Field | Description |
+|:------|:------------|
+| `target_key` | `ObjectID` of the trail the capability is valid for. |
+| `capability_id` | `ObjectID` of the newly created capability. |
+| `role` | Role granted by the capability. |
+| `issued_to` | Address the capability is bound to, if any. |
+| `valid_from` | Millisecond timestamp before which the capability is not yet active, if set. |
+| `valid_until` | Millisecond timestamp after which the capability expires, if set. |
+
+### `CapabilityRevoked`
+
+Emitted when a capability is added to the [revoked-capability denylist](./role-based-access-control.mdx#managing-revoked-capabilities). Revoking the initial admin capability emits this event as well.
+
+| Field | Description |
+|:------|:------------|
+| `target_key` | `ObjectID` of the trail the capability was valid for. |
+| `capability_id` | `ObjectID` of the revoked capability. |
+| `valid_until` | Millisecond timestamp retained for denylist cleanup (`0` means "no expiry — keep indefinitely"). |
+
+### `CapabilityDestroyed`
+
+Emitted when a capability object is destroyed. Destroying the initial admin capability emits this event as well.
+
+| Field | Description |
+|:------|:------------|
+| `target_key` | `ObjectID` of the trail the capability was valid for. |
+| `capability_id` | `ObjectID` of the destroyed capability. |
+| `role` | Role the capability granted. |
+| `issued_to` | Address that held the capability, if any. |
+| `valid_from` | Millisecond timestamp at which the capability became valid, if set. |
+| `valid_until` | Millisecond timestamp at which the capability expired, if set. |
+
+### `RevokedCapabilitiesCleanedUp`
+
+Emitted when a cleanup operation prunes expired entries from the revoked-capability denylist.
+
+| Field | Description |
+|:------|:------------|
+| `trail_id` | `ObjectID` of the trail whose denylist was pruned. |
+| `cleaned_count` | Number of expired entries removed by this call. |
+| `cleaned_by` | Address that triggered the cleanup. |
+| `timestamp` | Millisecond event timestamp. |

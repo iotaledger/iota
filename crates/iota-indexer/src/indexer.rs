@@ -40,6 +40,8 @@ impl Indexer {
         store: PgIndexerStore,
         metrics: IndexerMetrics,
         retention_config: Option<RetentionConfig>,
+        pruning_delay_ms: u64,
+        pruning_batch_size: u64,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
@@ -59,7 +61,13 @@ impl Indexer {
             resolve_remote_url(&config.sources, MAX_URL_RESOLUTION_TIMEOUT).await?;
 
         if let Some(retention_config) = retention_config {
-            let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
+            let pruner = Pruner::new(
+                store.clone(),
+                retention_config,
+                pruning_delay_ms,
+                pruning_batch_size,
+                metrics.clone(),
+            )?;
             let cancel_clone = cancel.clone();
             spawn_monitored_task!(pruner.start(cancel_clone));
         }

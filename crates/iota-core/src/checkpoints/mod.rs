@@ -22,7 +22,7 @@ use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_ext::types::GasCostSummary;
+use iota_sdk_ext::types::{GasCostSummary, TransactionKind};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
     committee::StakeUnit,
@@ -45,7 +45,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     signature::GenericSignature,
-    transaction::{TransactionDataAPI, TransactionKey, TransactionKind},
+    transaction::{TransactionDataAPI, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
@@ -74,12 +74,15 @@ use crate::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
     },
-    authority_client::{AuthorityAPI, make_network_authority_clients_with_network_config},
+    authority_client::{
+        make_network_authority_clients_with_network_config, validator_peer::ValidatorPeerAPI,
+    },
     checkpoints::{
         causal_order::CausalOrder,
         checkpoint_output::{CertifiedCheckpointOutput, CheckpointOutput},
     },
     consensus_handler::SequencedConsensusTransactionKey,
+    consensus_manager::ReplayWaiter,
     execution_cache::TransactionCacheRead,
     global_state_hasher::GlobalStateHasher,
     stake_aggregator::{InsertResult, MultiStakeAggregator},
@@ -1003,9 +1006,20 @@ impl CheckpointBuilder {
         }
     }
 
-    /// Runs the `CheckpointBuilder` in an asynchronous loop, managing the
-    /// creation of checkpoints.
-    async fn run(mut self) {
+    /// This function first waits for ConsensusCommitHandler to finish
+    /// reprocessing commits that have been processed before the last
+    /// restart, if consensus_replay_waiter is supplied. Then it starts
+    /// building checkpoints in a loop.
+    ///
+    /// It is optional to pass in consensus_replay_waiter, to make it easier to
+    /// attribute if slow recovery of previously built checkpoints is due to
+    /// consensus replay or checkpoint building.
+    async fn run(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
+        if let Some(replay_waiter) = consensus_replay_waiter {
+            info!("Waiting for consensus commits to replay ...");
+            replay_waiter.wait_for_replay().await;
+            info!("Consensus commits finished replaying");
+        }
         info!("Starting CheckpointBuilder");
         loop {
             self.maybe_build_checkpoints().await;
@@ -1042,17 +1056,17 @@ impl CheckpointBuilder {
             // - minimum interval has elapsed ...
             let current_timestamp = pending.details().timestamp_ms;
             let can_build = match last_timestamp {
-                    Some(last_timestamp) => {
-                        current_timestamp >= last_timestamp + min_checkpoint_interval_ms
-                    }
-                    None => true,
+                Some(last_timestamp) => {
+                    current_timestamp >= last_timestamp + min_checkpoint_interval_ms
+                }
+                None => true,
                 // - or, next PendingCheckpoint is last-of-epoch (since the last-of-epoch checkpoint
                 //   should be written separately) ...
-                } || checkpoints_iter
-                    .peek()
-                    .is_some_and(|(_, next_pending)| next_pending.details().last_of_epoch)
+            } || checkpoints_iter
+                .peek()
+                .is_some_and(|(_, next_pending)| next_pending.details().last_of_epoch)
                 // - or, we have reached end of epoch.
-                    || pending.details().last_of_epoch;
+                || pending.details().last_of_epoch;
             grouped_pending_checkpoints.push(pending);
             if !can_build {
                 debug!(
@@ -1104,7 +1118,8 @@ impl CheckpointBuilder {
         );
     }
 
-    #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height))]
+    #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height
+    ))]
     async fn make_checkpoint(
         &self,
         pendings: Vec<PendingCheckpoint>,
@@ -1500,9 +1515,15 @@ impl CheckpointBuilder {
                         // already.
                         let digest = *effects.transaction_digest();
                         if !all_roots.contains(&digest) {
-                            transaction_keys.push(SequencedConsensusTransactionKey::External(
-                                ConsensusTransactionKey::Certificate(digest),
-                            ));
+                            // In whiteflag flow, user transactions are submitted as
+                            // UserTransaction, not as Certificate.
+                            let key = if self.epoch_store.protocol_config().enable_white_flag_flow()
+                            {
+                                ConsensusTransactionKey::UserTransaction(digest)
+                            } else {
+                                ConsensusTransactionKey::Certificate(digest)
+                            };
+                            transaction_keys.push(SequencedConsensusTransactionKey::External(key));
                         }
                     }
                 }
@@ -2237,7 +2258,7 @@ async fn diagnose_split_brain(
                 request_content: true,
                 certified: false,
             };
-            client.handle_checkpoint(request)
+            client.get_checkpoint_v2(request)
         })
         .collect::<Vec<_>>();
 
@@ -2512,11 +2533,11 @@ impl CheckpointService {
     /// have a number of consensus commits and resulting checkpoints that
     /// were built but not committed to disk. We want to reprocess the
     /// commits and rebuild the checkpoints before starting normal operation.
-    pub async fn spawn(&self) -> JoinSet<()> {
+    pub async fn spawn(&self, consensus_replay_waiter: Option<ReplayWaiter>) -> JoinSet<()> {
         let mut tasks = JoinSet::new();
 
         let (builder, aggregator, state_hasher) = self.state.lock().take_unstarted();
-        tasks.spawn(monitored_future!(builder.run()));
+        tasks.spawn(monitored_future!(builder.run(consensus_replay_waiter)));
         tasks.spawn(monitored_future!(aggregator.run()));
         tasks.spawn(monitored_future!(state_hasher.run()));
 
@@ -2695,17 +2716,18 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
-    use iota_sdk_ext::types::{Identifier, MovePackage, ObjectId};
+    use iota_sdk_ext::types::{
+        GenesisObject, Identifier, ObjectData, ObjectId, Owner, move_package::MovePackage,
+    };
     use iota_types::{
         base_types::{SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
         effects::{
-            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExt,
+            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
             TransactionEvents,
         },
         messages_checkpoint::SignedCheckpointSummary,
-        object::{self, Owner},
-        transaction::{GenesisObject, VerifiedTransaction},
+        transaction::VerifiedTransaction,
     };
     use tokio::sync::mpsc;
 
@@ -2727,7 +2749,7 @@ mod tests {
         let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
         let dummy_tx_with_data = VerifiedTransaction::new_genesis_transaction(
             vec![GenesisObject::new(
-                object::Data::Package(
+                ObjectData::Package(
                     MovePackage::new(
                         ObjectId::random(),
                         SequenceNumber::default(),
@@ -2843,7 +2865,7 @@ mod tests {
             3,
             100_000,
         );
-        let _tasks = checkpoint_service.spawn().await;
+        let _tasks = checkpoint_service.spawn(None).await;
 
         checkpoint_service
             .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![4], 0))
@@ -3060,7 +3082,7 @@ mod tests {
         dependencies: Vec<TransactionDigest>,
         gas_cost_summary: GasCostSummary,
     ) -> TransactionEffects {
-        let mut effects = TransactionEffects::new_empty_v1(transaction_digest);
+        let mut effects = TransactionEffects::new_empty_v1_for_testing(transaction_digest);
         *effects.dependencies_mut_for_testing() = dependencies;
         *effects.gas_cost_summary_mut_for_testing() = gas_cost_summary;
         effects

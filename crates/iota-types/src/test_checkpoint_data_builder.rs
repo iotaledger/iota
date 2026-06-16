@@ -5,7 +5,10 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_ext::types::{
+    EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag, TransactionKind,
+    TypeTag,
+};
 use tap::Pipe;
 
 use crate::{
@@ -15,10 +18,10 @@ use crate::{
     committee::Committee,
     digests::TransactionDigest,
     effects::{
-        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
-        TransactionEvents,
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
+        TransactionEffectsExtForTesting, TransactionEvents,
     },
-    event::{Event, SystemEpochInfoEventV2},
+    event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
@@ -27,8 +30,8 @@ use crate::{
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
-        TransactionData, TransactionDataAPI, TransactionKind,
+        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 
@@ -148,12 +151,7 @@ impl TestCheckpointDataBuilder {
             self.live_objects.insert(id, gas);
             id
         });
-        let gas_ref = self
-            .live_objects
-            .get(gas_id)
-            .cloned()
-            .unwrap()
-            .compute_object_reference();
+        let gas_ref = self.live_objects.get(gas_id).cloned().unwrap().object_ref();
         self.checkpoint_builder.next_transaction =
             Some(TransactionBuilder::new(sender_idx, gas_ref));
         self
@@ -356,9 +354,7 @@ impl TestCheckpointDataBuilder {
             .expect("Frozen object not found");
 
         assert!(obj.owner().is_immutable());
-        tx_builder
-            .frozen_objects
-            .insert(obj.compute_object_reference());
+        tx_builder.frozen_objects.insert(obj.object_ref());
         self
     }
 
@@ -597,7 +593,7 @@ impl TestCheckpointDataBuilder {
 
         let transaction_events = events.map(TransactionEvents);
 
-        let effects = TransactionEffects::new_empty_v1(*end_of_epoch_tx.digest());
+        let effects = TransactionEffects::new_empty_v1_for_testing(*end_of_epoch_tx.digest());
 
         // Similar to calling self.finish_transaction()
         self.checkpoint_builder

@@ -453,13 +453,17 @@ impl Store for MemStore {
         Ok(commits)
     }
 
-    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>> {
+    fn read_commit_votes(
+        &self,
+        commit_index: CommitIndex,
+        commit_digest: CommitDigest,
+    ) -> ConsensusResult<Vec<BlockRef>> {
         let inner = self.inner.read();
         let votes = inner
             .commit_votes
             .range((
-                Included((commit_index, CommitDigest::MIN, BlockRef::MIN)),
-                Included((commit_index, CommitDigest::MAX, BlockRef::MAX)),
+                Included((commit_index, commit_digest, BlockRef::MIN)),
+                Included((commit_index, commit_digest, BlockRef::MAX)),
             ))
             .map(|(_, _, block_ref)| *block_ref)
             .collect();

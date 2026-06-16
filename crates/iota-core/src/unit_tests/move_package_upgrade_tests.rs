@@ -12,8 +12,8 @@ use std::{
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::types::{
-    Argument, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId,
-    PackageUpgradeError, StructTag,
+    Argument, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner,
+    PackageUpgradeError, ProgrammableTransaction, StructTag,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
@@ -23,10 +23,10 @@ use iota_types::{
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
     move_package::{MovePackageExt, UpgradePolicy},
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::ident_str;
 

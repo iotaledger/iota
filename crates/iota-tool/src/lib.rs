@@ -38,7 +38,7 @@ use iota_config::{
 };
 use iota_core::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    authority_client::{NetworkAuthorityClient, validator::ValidatorAPI},
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,
@@ -198,7 +198,7 @@ impl GroupedObjectOutput {
             let stake = committee.get(name).unwrap();
             let key = match resp {
                 Ok(r) => {
-                    let obj_digest = r.object.compute_object_reference().digest;
+                    let obj_digest = r.object.object_ref().digest;
                     let parent_tx_digest = r.object.previous_transaction;
                     let owner = r.object.owner;
                     let lock = r.lock_for_debugging.as_ref().map(|lock| *lock.digest());
@@ -292,7 +292,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                     "object-fetch-failed", "no-cert-available", "no-owner-available"
                 )?,
                 Ok(resp) => {
-                    let obj_digest = resp.object.compute_object_reference().digest;
+                    let obj_digest = resp.object.object_ref().digest;
                     let parent = resp.object.previous_transaction;
                     let owner = resp.object.owner;
                     write!(f, " {obj_digest:<66} {parent:<45} {owner:<51}")?;
@@ -322,11 +322,7 @@ impl std::fmt::Display for VerboseObjectOutput {
             match resp {
                 Err(e) => writeln!(f, "Error fetching object: {e}")?,
                 Ok(resp) => {
-                    writeln!(
-                        f,
-                        "  -- object digest: {}",
-                        resp.object.compute_object_reference().digest
-                    )?;
+                    writeln!(f, "  -- object digest: {}", resp.object.object_ref().digest)?;
                     if resp.object.is_package() {
                         writeln!(f, "  -- object: <Move Package>")?;
                     } else if let Some(layout) = &resp.layout {

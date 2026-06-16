@@ -431,7 +431,7 @@ impl GrpcReader {
             let mut checkpoint_proto = grpc_checkpoint::Checkpoint::default()
                 .with_sequence_number(sequence_number);
 
-            // Convert to iota_sdk_types for Merge compatibility
+            // Convert to iota_sdk_ext::types for Merge compatibility
             let sdk_summary: iota_sdk_ext::types::CheckpointSummary = checkpoint_summary
                 .data()
                 .clone()

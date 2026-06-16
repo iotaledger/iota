@@ -11,7 +11,7 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{ExecutionStatus, ObjectId};
+use iota_sdk_ext::types::{ExecutionStatus, ObjectData, ObjectId, Owner, gas::GasCostSummary};
 use iota_types::{
     auth_context::AuthContext,
     base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
@@ -27,12 +27,11 @@ use iota_types::{
     },
     execution_config_utils::to_binary_config,
     fp_bail,
-    gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
     layout_resolver::LayoutResolver,
-    object::{Data, Object, Owner},
+    object::Object,
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, DenyListResult, PackageObject,
         Storage,
@@ -376,7 +375,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// otherwise.
     pub fn mutate_child_object(&mut self, old_object: Object, new_object: Object) {
         let id = new_object.id();
-        let old_ref = old_object.compute_object_reference();
+        let old_ref = old_object.object_ref();
         debug_assert_eq!(old_ref.object_id, id);
         self.loaded_runtime_objects.insert(
             id,
@@ -1208,7 +1207,7 @@ impl ResourceResolver for TemporaryStore<'_> {
         };
 
         match &object.data {
-            Data::Struct(m) => {
+            ObjectData::Struct(m) => {
                 assert!(
                     m.is_struct_tag(&struct_tag_core_to_sdk(struct_tag)),
                     "Invariant violation: ill-typed object in storage \

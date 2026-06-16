@@ -134,7 +134,7 @@ impl std::fmt::Debug for ObjectEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectEntry::Object(o) => {
-                write!(f, "ObjectEntry::Object({:?})", o.compute_object_reference())
+                write!(f, "ObjectEntry::Object({:?})", o.object_ref())
             }
             ObjectEntry::Deleted => write!(f, "ObjectEntry::Deleted"),
             ObjectEntry::Wrapped => write!(f, "ObjectEntry::Wrapped"),
@@ -319,13 +319,6 @@ struct CachedCommittedData {
     // See module level comment for an explanation of caching strategy.
     object_cache: MokaCache<ObjectId, Arc<Mutex<CachedVersionMap<ObjectEntry>>>>,
 
-    // We separately cache the latest version of each object. Although this seems
-    // redundant, it is the only way to support populating the cache after a read.
-    // We cannot simply insert objects that we read off the disk into `object_cache`,
-    // since that may violate the no-missing-versions property.
-    // `object_by_id_cache` is also written to on writes so that it is always coherent.
-    object_by_id_cache: MonotonicCache<ObjectId, LatestObjectCacheEntry>,
-
     // See module level comment for an explanation of caching strategy.
     marker_cache: MokaCache<MarkerKey, Arc<Mutex<CachedVersionMap<MarkerValue>>>>,
 
@@ -378,9 +371,6 @@ impl CachedCommittedData {
 
         Self {
             object_cache,
-            object_by_id_cache: MonotonicCache::new(randomize_cache_capacity_in_tests(
-                config.object_by_id_cache_size(),
-            )),
             marker_cache,
             transactions,
             transaction_effects,
@@ -392,7 +382,6 @@ impl CachedCommittedData {
 
     fn clear_and_assert_empty(&self) {
         self.object_cache.invalidate_all();
-        self.object_by_id_cache.invalidate_all();
         self.marker_cache.invalidate_all();
         self.transactions.invalidate_all();
         self.transaction_effects.invalidate_all();
@@ -401,7 +390,6 @@ impl CachedCommittedData {
         self._transaction_objects.invalidate_all();
 
         assert_empty(&self.object_cache);
-        assert!(&self.object_by_id_cache.is_empty());
         assert_empty(&self.marker_cache);
         assert!(self.transactions.is_empty());
         assert!(self.transaction_effects.is_empty());
@@ -424,6 +412,14 @@ where
 pub struct WritebackCache {
     dirty: UncommittedData,
     cached: CachedCommittedData,
+
+    // We separately cache the latest version of each object. Although this seems
+    // redundant, it is the only way to support populating the cache after a read.
+    // We cannot simply insert objects that we read off the disk into `object_cache`,
+    // since that may violate the no-missing-versions property.
+    // `object_by_id_cache` is also written to on writes so that it is always coherent.
+    // Hence it contains both committed and dirty object data.
+    object_by_id_cache: MonotonicCache<ObjectId, LatestObjectCacheEntry>,
 
     // The packages cache is treated separately from objects, because they are immutable and can be
     // used by any number of transactions. Additionally, many operations require loading large
@@ -499,6 +495,9 @@ impl WritebackCache {
         Self {
             dirty: UncommittedData::new(),
             cached: CachedCommittedData::new(config),
+            object_by_id_cache: MonotonicCache::new(randomize_cache_capacity_in_tests(
+                config.object_by_id_cache_size(),
+            )),
             packages,
             object_locks: ObjectLocks::new(),
             executed_effects_digests_notify_read: NotifyRead::new(),
@@ -564,8 +563,7 @@ impl WritebackCache {
         //   fullnodes.
         let mut entry = self.dirty.objects.entry(*object_id).or_default();
 
-        self.cached
-            .object_by_id_cache
+        self.object_by_id_cache
             .insert(
                 object_id,
                 LatestObjectCacheEntry::Object(version, object.clone()),
@@ -688,7 +686,7 @@ impl WritebackCache {
     ) -> CacheResult<(SequenceNumber, ObjectEntry)> {
         self.metrics
             .record_cache_request(request_type, "object_by_id");
-        let entry = self.cached.object_by_id_cache.get(object_id);
+        let entry = self.object_by_id_cache.get(object_id);
 
         if cfg!(debug_assertions) {
             if let Some(entry) = &entry {
@@ -829,7 +827,7 @@ impl WritebackCache {
         request_type: &'static str,
         id: &ObjectId,
     ) -> IotaResult<Option<Object>> {
-        let ticket = self.cached.object_by_id_cache.get_ticket_for_read(id);
+        let ticket = self.object_by_id_cache.get_ticket_for_read(id);
         match self.get_object_entry_by_id_cache_only(request_type, id) {
             CacheResult::Hit((_, object)) => match object {
                 ObjectEntry::Object(object) => Ok(Some(object)),
@@ -919,7 +917,7 @@ impl WritebackCache {
             if !object.is_child_object() {
                 self.write_object_entry(object_id, object.version(), object.clone().into());
                 if object.is_package() {
-                    debug!("caching package: {:?}", object.compute_object_reference());
+                    debug!("caching package: {:?}", object.object_ref());
                     self.packages
                         .insert(*object_id, PackageObject::new(object.clone()));
                 }
@@ -1243,7 +1241,6 @@ impl WritebackCache {
     ) {
         trace!("caching object by id: {} {:?}", object_id, object);
         if self
-            .cached
             .object_by_id_cache
             .insert(object_id, object, ticket)
             .is_ok()
@@ -1292,12 +1289,12 @@ impl WritebackCache {
                 info!("removing non-finalized package from cache: {}", object_id);
                 self.packages.invalidate(object_id);
             }
-            self.cached.object_by_id_cache.invalidate(object_id);
+            self.object_by_id_cache.invalidate(object_id);
             self.cached.object_cache.invalidate(object_id);
         }
 
         for ObjectKey(object_id, _) in outputs.deleted.iter().chain(outputs.wrapped.iter()) {
-            self.cached.object_by_id_cache.invalidate(object_id);
+            self.object_by_id_cache.invalidate(object_id);
             self.cached.object_cache.invalidate(object_id);
         }
 
@@ -1310,13 +1307,13 @@ impl WritebackCache {
         self.store.bulk_insert_genesis_objects(objects)?;
         for obj in objects {
             self.cached.object_cache.invalidate(&obj.id());
-            self.cached.object_by_id_cache.invalidate(&obj.id());
+            self.object_by_id_cache.invalidate(&obj.id());
         }
         Ok(())
     }
 
     fn insert_genesis_object_impl(&self, object: Object) -> IotaResult {
-        self.cached.object_by_id_cache.invalidate(&object.id());
+        self.object_by_id_cache.invalidate(&object.id());
         self.cached.object_cache.invalidate(&object.id());
         self.store.insert_genesis_object(object)
     }
@@ -1324,6 +1321,8 @@ impl WritebackCache {
     pub fn clear_caches_and_assert_empty(&self) {
         info!("clearing caches");
         self.cached.clear_and_assert_empty();
+        self.object_by_id_cache.invalidate_all();
+        assert!(&self.object_by_id_cache.is_empty());
         self.packages.invalidate_all();
         assert_empty(&self.packages);
     }
@@ -1391,10 +1390,7 @@ impl ObjectCacheRead for WritebackCache {
         if let Some(p) = self.get_object_impl("package", package_id)? {
             if p.is_package() {
                 let p = PackageObject::new(p);
-                tracing::trace!(
-                    "caching package: {:?}",
-                    p.object().compute_object_reference()
-                );
+                tracing::trace!("caching package: {:?}", p.object().object_ref());
                 self.metrics.record_cache_write("package");
                 self.packages.insert(*package_id, p.clone());
                 Ok(Some(p))
@@ -1498,7 +1494,7 @@ impl ObjectCacheRead for WritebackCache {
     ) -> IotaResult<Option<ObjectRef>> {
         match self.get_object_entry_by_id_cache_only("latest_objref_or_tombstone", &object_id) {
             CacheResult::Hit((version, entry)) => Ok(Some(match entry {
-                ObjectEntry::Object(object) => object.compute_object_reference(),
+                ObjectEntry::Object(object) => object.object_ref(),
                 ObjectEntry::Deleted => {
                     ObjectRef::new(object_id, version, ObjectDigest::OBJECT_DELETED)
                 }
@@ -1584,7 +1580,7 @@ impl ObjectCacheRead for WritebackCache {
         // if we have the latest version cached, and it is within the bound, we are done
         self.metrics
             .record_cache_request("object_lt_or_eq_version", "object_by_id");
-        let latest_cache_entry = self.cached.object_by_id_cache.get(&object_id);
+        let latest_cache_entry = self.object_by_id_cache.get(&object_id);
         if let Some(latest) = &latest_cache_entry {
             let latest = latest.lock();
             match &*latest {
@@ -1677,9 +1673,7 @@ impl ObjectCacheRead for WritebackCache {
                         LatestObjectCacheEntry::Object(obj_version, obj_entry.clone()),
                         // We can get a ticket at the last second, because we are holding the lock
                         // on dirty, so there cannot be any concurrent writes.
-                        self.cached
-                            .object_by_id_cache
-                            .get_ticket_for_read(&object_id),
+                        self.object_by_id_cache.get_ticket_for_read(&object_id),
                     );
 
                     if obj_version <= version_bound {
@@ -1712,9 +1706,7 @@ impl ObjectCacheRead for WritebackCache {
                     self.cache_object_not_found(
                         &object_id,
                         // okay to get ticket at last second - see above
-                        self.cached
-                            .object_by_id_cache
-                            .get_ticket_for_read(&object_id),
+                        self.object_by_id_cache.get_ticket_for_read(&object_id),
                     );
                     Ok(None)
                 }
@@ -1764,7 +1756,7 @@ impl ObjectCacheRead for WritebackCache {
     ) -> IotaLockResult {
         match self.get_object_by_id_cache_only("lock", &obj_ref.object_id) {
             CacheResult::Hit((_, obj)) => {
-                let actual_objref = obj.compute_object_reference();
+                let actual_objref = obj.object_ref();
                 if obj_ref != actual_objref {
                     Ok(ObjectLockStatus::LockedAtDifferentVersion {
                         locked_ref: actual_objref,
@@ -1803,7 +1795,7 @@ impl ObjectCacheRead for WritebackCache {
                 version: None,
             },
         )?;
-        Ok(obj.compute_object_reference())
+        Ok(obj.object_ref())
     }
 
     fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
@@ -1811,7 +1803,7 @@ impl ObjectCacheRead for WritebackCache {
             owned_object_refs,
             |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.object_id) {
                 CacheResult::Hit((version, obj)) => {
-                    if obj.compute_object_reference() != *obj_ref {
+                    if obj.object_ref() != *obj_ref {
                         Err(UserInputError::ObjectVersionUnavailableForConsumption {
                             provided_obj_ref: *obj_ref,
                             current_version: version,
@@ -2148,6 +2140,10 @@ impl ExecutionCacheWrite for WritebackCache {
             owned_input_objects,
             transaction,
         )
+    }
+
+    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult {
+        ObjectLocks::validate_owned_object_versions(self, owned_input_objects)
     }
 
     fn try_write_transaction_outputs(

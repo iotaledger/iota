@@ -159,8 +159,6 @@ impl CoinMetadata {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -420,10 +418,7 @@ impl CoinMetadata {
                 return Ok(None);
             };
 
-            let Some(native) = object.native_impl() else {
-                return Ok(None);
-            };
-
+            let native = object.native_impl();
             let treasury_cap = TreasuryCap::try_from(native.clone()).map_err(|e| {
                 Error::Internal(format!(
                     "Error while deserializing treasury cap {}: {e}",

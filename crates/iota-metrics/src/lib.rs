@@ -214,21 +214,31 @@ pub async fn with_new_server_timing<T>(fut: impl Future<Output = T> + Send + 'st
     ret.unwrap()
 }
 
+/// The `Server-Timing` HTTP header key.
+pub fn server_timing_header_key() -> &'static str {
+    Timer::header_key()
+}
+
+/// Add a final `finish_request` entry and write the collected timings to the
+/// `Server-Timing` response header. No-op outside a server-timing context.
+pub fn finish_and_set_server_timing_header(headers: &mut http::HeaderMap) {
+    let Some(timer) = get_server_timing() else {
+        return;
+    };
+    let header_value = {
+        let mut timer = timer.lock();
+        timer.add("finish_request");
+        timer.header_value()
+    };
+    if let Ok(value) = http::HeaderValue::try_from(header_value) {
+        headers.insert(server_timing_header_key(), value);
+    }
+}
+
 pub async fn server_timing_middleware(request: Request, next: Next) -> Response {
     with_new_server_timing(async move {
         let mut response = next.run(request).await;
-        add_server_timing("finish_request");
-
-        if let Ok(header_value) = get_server_timing()
-            .expect("server timing not set")
-            .lock()
-            .header_value()
-            .try_into()
-        {
-            response
-                .headers_mut()
-                .insert(Timer::header_key(), header_value);
-        }
+        finish_and_set_server_timing_header(response.headers_mut());
         response
     })
     .await

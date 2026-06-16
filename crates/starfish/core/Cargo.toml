@@ -19,6 +19,7 @@ bytes.workspace = true
 cfg-if = "1.0.0"
 dashmap.workspace = true
 enum_dispatch.workspace = true
+eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
@@ -35,6 +36,7 @@ rs_merkle.workspace = true
 serde.workspace = true
 strum_macros.workspace = true
 tap.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time", "net"] }
 tokio-stream.workspace = true
@@ -47,6 +49,7 @@ tower-http.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+dag-visualizer-proto = { workspace = true, optional = true }
 iota-common.workspace = true
 iota-http.workspace = true
 iota-macros.workspace = true
@@ -61,11 +64,13 @@ typed-store.workspace = true
 # external dependencies
 rstest.workspace = true
 serial_test.workspace = true
-tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 telemetry-subscribers.workspace = true
+
+[features]
+dag-visualizer = ["dep:dag-visualizer-proto", "starfish-config/dag-visualizer"]
 
 [build-dependencies]
 tonic-build.workspace = true

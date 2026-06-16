@@ -96,12 +96,7 @@ Response: {
       ]
     },
     "lamport_v6": {
-      "nodes": [
-        {
-          "status": "WRAPPED_OR_DELETED",
-          "version": 3
-        }
-      ]
+      "nodes": []
     },
     "previous_active_v7": {
       "nodes": [
@@ -112,12 +107,7 @@ Response: {
       ]
     },
     "real_tombstone_v3": {
-      "nodes": [
-        {
-          "status": "WRAPPED_OR_DELETED",
-          "version": 3
-        }
-      ]
+      "nodes": []
     }
   }
 }
@@ -154,7 +144,7 @@ task 21, line 100:
 //# advance-epoch
 Epoch advanced: 3
 
-task 22, lines 102-116:
+task 22, lines 102-110:
 //# run-graphql --wait-for-checkpoint-pruned 4
 Response: {
   "data": {
@@ -166,13 +156,7 @@ Response: {
         }
       ]
     },
-    "lamport_v6": {
-      "nodes": []
-    },
     "previous_active_v7": {
-      "nodes": []
-    },
-    "real_tombstone_v3": {
       "nodes": []
     }
   }

@@ -11,7 +11,11 @@ use std::{
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::crypto::{Intent, IntentScope};
+use iota_sdk_ext::types::{
+    RandomnessRound,
+    crypto::{Intent, IntentScope},
+    gas::GasCostSummary,
+};
 use once_cell::sync::OnceCell;
 #[cfg(not(target_arch = "wasm32"))]
 use prometheus::Histogram;
@@ -31,12 +35,11 @@ use crate::{
     committee::{Committee, EpochId, ProtocolVersion, StakeUnit},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
-        AuthorityStrongQuorumSignInfo, RandomnessRound, default_hash, get_key_pair,
+        AuthorityStrongQuorumSignInfo, default_hash, get_key_pair,
     },
     digests::Digest,
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
-    gas::GasCostSummary,
     global_state_hash::GlobalStateHash,
     iota_serde::{AsProtocolVersion, BigInt, Readable},
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},

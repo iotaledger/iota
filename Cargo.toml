@@ -155,6 +155,7 @@ members = [
   "crates/simulacrum-server",
   "crates/starfish/config",
   "crates/starfish/core",
+  "crates/starfish/dag-visualizer-proto",
   "crates/starfish/simtests",
   "crates/telemetry-subscribers",
   "crates/test-cluster",
@@ -171,7 +172,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.25.0-alpha"
+version = "1.26.0-alpha"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -225,9 +226,9 @@ uninlined_format_args = "warn"
 [workspace.dependencies]
 # external dependencies
 # anemo dependencies
-anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
-anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
-anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
+anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
+anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
+anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
 anyhow = "1.0.71"
 arc-swap = { version = "1.7.1", features = ["serde"] }
 async-graphql = { version = "7.1.0", default-features = false }
@@ -319,6 +320,7 @@ proc-macro2 = "1.0.95"
 prometheus = "0.14.0"
 proptest = "1.6.0"
 prost = "0.14"
+prost-build = "0.14"
 prost-types = "0.14"
 quote = "1.0.23"
 rand = "0.8.5"
@@ -360,6 +362,7 @@ toml = { version = "0.7.4", features = ["preserve_order"] }
 tonic = { version = "0.14", features = ["zstd", "transport"] }
 tonic-build = "0.14"
 tonic-health = "0.14"
+tonic-prost = "0.14"
 tower = { version = "0.4.12", features = ["util", "timeout", "load-shed", "limit"] }
 tower-http = { version = "0.5", features = ["cors", "timeout", "trace", "set-header", "propagate-header"] }
 tracing = "0.1.44"
@@ -369,6 +372,7 @@ uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
 # internal dependencies
 bin-version = { path = "crates/bin-version" }
+dag-visualizer-proto = { path = "crates/starfish/dag-visualizer-proto" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
@@ -434,7 +438,7 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-ext = { package = "iota-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "47119b0f6651357b56b5f9d274830e8a18047916", default-features = false }
+iota-sdk-ext = { package = "iota-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e981fb7d84a8ef53596400ebf10b42edff936c54", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

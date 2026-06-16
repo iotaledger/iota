@@ -525,12 +525,20 @@ pub fn mean_apy_from_exchange_rates<'er>(
     }
 }
 
-/// Calculate the APY by the exchange rate of two consecutive epochs
-/// (`er`, `er_next`).
+/// APY magnitudes below this threshold are treated as exactly zero.
+const APY_DUST_THRESHOLD: f64 = 1e-9;
+
+/// Calculate the APY from the exchange rate of two consecutive epochs
+/// (`er` is the older epoch, `er_next` the newer one).
 ///
-/// The formula used is `APY_e = (er.rate - er_next.rate) / er.rate * 365`
+/// The formula used is `APY_e = (er.rate - er_next.rate) / er_next.rate * 365`.
 fn calculate_apy(er: &PoolTokenExchangeRate, er_next: &PoolTokenExchangeRate) -> f64 {
-    ((er.rate() - er_next.rate()) / er_next.rate()) * 365.0
+    let apy = ((er.rate() - er_next.rate()) / er_next.rate()) * 365.0;
+    if apy.abs() < APY_DUST_THRESHOLD {
+        0.0
+    } else {
+        apy
+    }
 }
 
 fn stake_status(
@@ -950,6 +958,35 @@ mod tests {
         for apy in &apys {
             println!("{}: {}", address_map[&apy.address], apy.apy);
             assert!(apy.apy < 0.15)
+        }
+    }
+
+    #[test]
+    fn calculate_apy_is_not_negative_for_zero_reward_epoch() {
+        // Real mainnet exchange rates for two validators transitioning from
+        // epoch 381 to 382, an epoch in which they earned no rewards. The rate is
+        // therefore unchanged up to integer-truncation dust, so `calculate_apy`
+        // must report an effectively-zero APY (within
+        // `[0, APY_DUST_THRESHOLD)`).
+        let cases = [
+            (
+                (48_913_429_030_426_080u64, 43_331_127_650_932_384u64),
+                (48_641_042_011_532_656u64, 43_089_827_114_043_304u64),
+            ),
+            (
+                (33_370_417_056_337_732u64, 29_578_114_234_284_444u64),
+                (33_370_374_157_145_896u64, 29_578_076_210_270_704u64),
+            ),
+        ];
+
+        for ((i_old, t_old), (i_new, t_new)) in cases {
+            let er = PoolTokenExchangeRate::new_for_testing(i_old, t_old);
+            let er_next = PoolTokenExchangeRate::new_for_testing(i_new, t_new);
+            let apy = calculate_apy(&er, &er_next);
+            assert!(
+                (0.0..APY_DUST_THRESHOLD).contains(&apy),
+                "expected an effectively-zero, non-negative APY, got {apy}"
+            );
         }
     }
 

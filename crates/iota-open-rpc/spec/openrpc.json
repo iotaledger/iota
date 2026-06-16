@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.25.0-alpha"
+    "version": "1.26.0-alpha"
   },
   "methods": [
     {
@@ -1294,13 +1294,14 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "28",
+              "maxSupportedProtocolVersion": "29",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "additional_borrow_checks": false,
                 "additional_multisig_checks": false,
                 "adjust_rewards_by_score": false,
+                "always_advance_dkg_to_resolution": false,
                 "calculate_validator_scores": false,
                 "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
@@ -1315,6 +1316,7 @@
                 "consensus_round_prober": false,
                 "consensus_round_prober_probe_accepted_rounds": false,
                 "consensus_smart_ancestor_selection": false,
+                "consensus_starfish_speed": false,
                 "consensus_zstd_compression": false,
                 "convert_type_argument_error": true,
                 "dependency_linkage_error": false,
@@ -1325,6 +1327,7 @@
                 "enable_move_authentication_for_sponsor": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
+                "enable_white_flag_flow": false,
                 "hardened_otw_check": true,
                 "metadata_in_module_bytes": false,
                 "minimize_child_object_mutations": false,

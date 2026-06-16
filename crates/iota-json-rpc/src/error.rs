@@ -383,7 +383,7 @@ mod tests {
                 - 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 5.0)"#]];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
-                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
+                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[{"object_id":"0x0000000000000000000000000000000000000000000000000000000000000000","version":"0","digest":"11111111111111111111111111111111"}],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[{"object_id":"0x0000000000000000000000000000000000000000000000000000000000000000","version":"0","digest":"11111111111111111111111111111111"}]}"#
             ]];
             let actual_data = error_object.data().unwrap().to_string();
             expected_data.assert_eq(&actual_data);
@@ -424,7 +424,7 @@ mod tests {
                 - 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 40.0)"#]];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
-                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
+                r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[{"object_id":"0x0000000000000000000000000000000000000000000000000000000000000000","version":"0","digest":"11111111111111111111111111111111"}],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[{"object_id":"0x0000000000000000000000000000000000000000000000000000000000000000","version":"0","digest":"11111111111111111111111111111111"}]}"#
             ]];
             let actual_data = error_object.data().unwrap().to_string();
             expected_data.assert_eq(&actual_data);

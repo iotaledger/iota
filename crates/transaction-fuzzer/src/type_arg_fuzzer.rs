@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_core::test_utils::send_and_confirm_transaction;
-use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{
+    Identifier, ObjectId, ProgrammableTransaction, StructTag, TransactionKind, TypeTag,
+};
 use iota_types::{
     base_types::IotaAddress,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ProgrammableTransaction, TransactionData, TransactionDataAPI, TransactionKind},
+    transaction::{TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, prelude::*};
@@ -157,7 +159,7 @@ pub fn run_pt_effects(
     pt: ProgrammableTransaction,
 ) -> Result<TransactionEffects, IotaError> {
     let gas_object = account.new_gas_object(exec);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     let kind = TransactionKind::Programmable(pt);
     let tx_data = TransactionData::new(
         kind,

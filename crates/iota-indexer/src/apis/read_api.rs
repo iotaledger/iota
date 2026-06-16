@@ -11,6 +11,7 @@ use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
+    iota_primitives::SequenceNumberU64,
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
@@ -103,7 +104,7 @@ impl ReadApi {
             ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
                 IotaObjectResponseError::Deleted {
                     object_id: object_ref.object_id,
-                    version: object_ref.version,
+                    version: object_ref.version.into(),
                     digest: object_ref.digest,
                 },
             )),
@@ -143,9 +144,9 @@ impl ReadApi {
                 ))
             }
 
-            PastObjectRead::VersionNotFound(object_id, version) => {
-                Ok(IotaPastObjectResponse::VersionNotFound(object_id, version))
-            }
+            PastObjectRead::VersionNotFound(object_id, version) => Ok(
+                IotaPastObjectResponse::VersionNotFound(object_id, version.into()),
+            ),
 
             PastObjectRead::VersionTooHigh {
                 object_id,
@@ -153,8 +154,8 @@ impl ReadApi {
                 latest_version,
             } => Ok(IotaPastObjectResponse::VersionTooHigh {
                 object_id,
-                asked_version,
-                latest_version,
+                asked_version: asked_version.into(),
+                latest_version: latest_version.into(),
             }),
         }
     }
@@ -319,12 +320,12 @@ impl ReadApiServer for ReadApi {
     async fn try_get_past_object(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: SequenceNumberU64,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
-            .get_past_object_read_with_fallback(object_id, version, false)
+            .get_past_object_read_with_fallback(object_id, version.into(), false)
             .await?;
 
         self.past_object_read_to_response(options, past_object_read)

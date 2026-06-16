@@ -755,7 +755,9 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 .lock_transactions_and_active_request(
                     authority_block_refs.clone(),
                     authority,
-                    context.parameters.max_transactions_per_regular_sync_fetch,
+                    context
+                        .parameters
+                        .max_transactions_per_transaction_sync_fetch,
                     sync_method,
                     active_requests.clone(),
                 )
@@ -2100,7 +2102,9 @@ mod tests {
             let guard = map.lock_transactions_and_active_request(
                 missing_transactions_refs.clone(),
                 authority,
-                context.parameters.max_transactions_per_regular_sync_fetch,
+                context
+                    .parameters
+                    .max_transactions_per_transaction_sync_fetch,
                 sync_method,
                 active_requests.clone(),
             );
@@ -2123,7 +2127,9 @@ mod tests {
             let guard = map.lock_transactions_and_active_request(
                 missing_transactions_refs.clone(),
                 authority,
-                context.parameters.max_transactions_per_regular_sync_fetch,
+                context
+                    .parameters
+                    .max_transactions_per_transaction_sync_fetch,
                 sync_method,
                 active_requests.clone(),
             );
@@ -2138,7 +2144,9 @@ mod tests {
         let guard = map.lock_transactions_and_active_request(
             missing_transactions_refs.clone(),
             AuthorityIndex::new_for_test(MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION as u8),
-            context.parameters.max_transactions_per_regular_sync_fetch,
+            context
+                .parameters
+                .max_transactions_per_transaction_sync_fetch,
             sync_method,
             active_requests,
         );

@@ -17,7 +17,10 @@ use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_ext::types::{Command, Identifier, MovePackage, ObjectId, TypeOrigin};
+use iota_sdk_ext::types::{
+    Command, Identifier, ObjectId, ProgrammableTransaction,
+    move_package::{MovePackage, TypeOrigin},
+};
 use iota_stardust_types::block::output::{
     AliasOutput as StardustAliasOutput, BasicOutput as StardustBasicOutput, FoundryOutput,
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
@@ -38,10 +41,7 @@ use iota_types::{
         coin_type::CoinType,
         output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
     },
-    transaction::{
-        CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
-        ProgrammableTransaction,
-    },
+    transaction::{CallArg, CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult},
 };
 use move_vm_runtime_latest::move_vm::MoveVM;
 
@@ -344,7 +344,7 @@ impl Executor {
             &self.tx_context.borrow(),
             version,
         )?;
-        let move_alias_object_ref = move_alias_object.compute_object_reference();
+        let move_alias_object_ref = move_alias_object.object_ref();
 
         self.store.insert_object(move_alias_object);
 
@@ -363,7 +363,7 @@ impl Executor {
             version,
             coin_type,
         )?;
-        let move_alias_output_object_ref = move_alias_output_object.compute_object_reference();
+        let move_alias_output_object_ref = move_alias_output_object.object_ref();
 
         created_objects.set_output(move_alias_output_object.id())?;
         self.store.insert_object(move_alias_output_object);
@@ -422,7 +422,7 @@ impl Executor {
                 else {
                     anyhow::bail!("foundry coin should exist");
                 };
-                let object_ref = foundry_coin.compute_object_reference();
+                let object_ref = foundry_coin.object_ref();
 
                 object_deps.push(object_ref);
                 foundry_package_deps.push(foundry_ledger_data.package_id);
@@ -520,7 +520,7 @@ impl Executor {
                 else {
                     anyhow::bail!("foundry coin should exist");
                 };
-                let object_ref = foundry_coin.compute_object_reference();
+                let object_ref = foundry_coin.object_ref();
                 foundry_coins.push(foundry_coin.id());
 
                 object_deps.push(object_ref);
@@ -693,7 +693,7 @@ impl Executor {
             version,
         )?;
 
-        let move_nft_object_ref = move_nft_object.compute_object_reference();
+        let move_nft_object_ref = move_nft_object.object_ref();
         self.store.insert_object(move_nft_object);
 
         let (bag, version, fields) = self.create_bag_with_pt(nft.native_tokens())?;
@@ -710,7 +710,7 @@ impl Executor {
             version,
             coin_type,
         )?;
-        let move_nft_output_object_ref = move_nft_output_object.compute_object_reference();
+        let move_nft_output_object_ref = move_nft_output_object.object_ref();
         created_objects.set_output(move_nft_output_object.id())?;
         self.store.insert_object(move_nft_output_object);
 

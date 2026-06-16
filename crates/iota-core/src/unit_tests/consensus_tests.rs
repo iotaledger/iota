@@ -7,11 +7,10 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{Identifier, ObjectId};
+use iota_sdk_ext::types::{Identifier, ObjectId, gas::GasCostSummary};
 use iota_types::{
     base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,
-    gas::GasCostSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
         CheckpointSummary, SignedCheckpointSummary,
@@ -81,7 +80,7 @@ pub async fn test_certificates(
             Identifier::from_static(function),
             // type_args
             vec![],
-            gas_object.compute_object_reference(),
+            gas_object.object_ref(),
             // args
             vec![
                 shared_object_arg.clone(),
@@ -167,6 +166,7 @@ pub fn make_consensus_adapter_for_test(
                                     self.state.get_transaction_cache_reader().as_ref(),
                                     &self.state.metrics,
                                     true,
+                                    self.state.as_ref(),
                                 )
                                 .await?,
                         );
@@ -181,6 +181,7 @@ pub fn make_consensus_adapter_for_test(
                                 self.state.get_transaction_cache_reader().as_ref(),
                                 &self.state.metrics,
                                 true,
+                                self.state.as_ref(),
                             )
                             .await?,
                     );

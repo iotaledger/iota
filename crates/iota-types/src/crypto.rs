@@ -42,7 +42,6 @@ use fastcrypto::{
         Secp256r1SignatureAsBytes,
     },
 };
-pub use iota_sdk_ext::types::RandomnessRound;
 use iota_sdk_ext::types::crypto::{Intent, IntentMessage, IntentScope};
 use rand::{
     SeedableRng,

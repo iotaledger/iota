@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 28;
+pub const MAX_PROTOCOL_VERSION: u64 = 29;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -153,6 +153,19 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             via new AuthContext accessors.
 //             Enable Move-based account authentication in mainnet.
 //             Enable Move-based sponsor account authentication in testnet.
+// Version 29: Keep advancing the random beacon DKG state machine on every
+//             commit while it is still pending -- regardless of whether new DKG
+//             messages or confirmations arrived that commit -- so DKG resolves
+//             from persisted state (completing, or failing once the timeout
+//             round passes) even with no fresh inbound traffic, e.g. after a
+//             validator restart. Without this it can stay pending forever and
+//             block epoch close.
+//             Enable median-based commit timestamp calculation in consensus,
+//             and enforce checkpoint timestamp monotonicity for mainnet.
+//             Enable fast commit syncer for faster recovery on all networks.
+//             Enable consensus block restrictions on all networks:
+//             bound block-header size to O(committee_size) and enable
+//             garbage collection in the block manager.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -234,7 +247,15 @@ pub struct Error(pub String);
 // TODO: There are quite a few non boolean values in the feature flags. We
 // should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
-#[derive(Default, Clone, Serialize, Deserialize, Debug, ProtocolConfigFeatureFlagsGetters)]
+#[derive(
+    Default,
+    Clone,
+    Serialize,
+    Deserialize,
+    Debug,
+    ProtocolConfigFeatureFlagsGetters,
+    ProtocolConfigOverride,
+)]
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
@@ -492,6 +513,25 @@ struct FeatureFlags {
     // If true, only sponsor Move authentication is performed pre-consensus.
     #[serde(skip_serializing_if = "is_false")]
     pre_consensus_sponsor_only_move_authentication: bool,
+
+    // If true, enables the optimistic commit rule (StarfishSpeed) in Starfish consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_starfish_speed: bool,
+
+    // If true, keep advancing the random beacon DKG state machine on every
+    // consensus commit while DKG is still pending, even when no new messages or
+    // confirmations were processed that commit. This lets a validator resolve
+    // DKG from already-persisted state (completing, or failing once the timeout
+    // round passes) with no fresh inbound traffic -- e.g. after a restart --
+    // instead of staying pending forever.
+    #[serde(skip_serializing_if = "is_false")]
+    always_advance_dkg_to_resolution: bool,
+
+    // If true, enables white flag flow for post-consensus owned object conflict resolution.
+    // Transactions bypass pre-consensus certification and owned object locking.
+    // Conflicts are resolved deterministically post-consensus using persistent locks.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_white_flag_flow: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1732,6 +1772,23 @@ impl ProtocolConfig {
         }
         pre_consensus_sponsor_only_move_authentication
     }
+
+    pub fn consensus_starfish_speed(&self) -> bool {
+        let res = self.feature_flags.consensus_starfish_speed;
+        assert!(
+            !res || self.consensus_fast_commit_sync(),
+            "consensus_starfish_speed requires consensus_fast_commit_sync to be enabled"
+        );
+        res
+    }
+
+    pub fn always_advance_dkg_to_resolution(&self) -> bool {
+        self.feature_flags.always_advance_dkg_to_resolution
+    }
+
+    pub fn enable_white_flag_flow(&self) -> bool {
+        self.feature_flags.enable_white_flag_flow
+    }
 }
 
 #[cfg(not(msim))]
@@ -1780,10 +1837,19 @@ impl ProtocolConfig {
             warn!(
                 "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
             );
+
+            // First, deserialize the top-level ProtocolConfig fields
             let overrides: ProtocolConfigOptional =
                 serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
                     .expect("failed to parse ProtocolConfig override env variables");
             overrides.apply_to(&mut ret);
+
+            // Then, separately deserialize FeatureFlags fields
+            let feature_flag_overrides: FeatureFlagsOptional =
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE")
+                    .expect("failed to parse ProtocolConfig feature flags override env variables");
+
+            feature_flag_overrides.apply_to(&mut ret.feature_flags);
         }
 
         ret
@@ -2855,6 +2921,26 @@ impl ProtocolConfig {
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
                 }
+                29 => {
+                    // Keep advancing the random beacon DKG state machine on every commit
+                    // while it is still pending so DKG resolves from persisted state
+                    // (completing, or failing once the timeout round passes) even with no
+                    // fresh inbound traffic -- e.g. after a validator restart -- instead of
+                    // staying pending forever and blocking epoch close.
+                    cfg.feature_flags.always_advance_dkg_to_resolution = true;
+
+                    // Enable median-based commit timestamp calculation in consensus and
+                    // enforce checkpoint timestamp monotonicity for mainnet.
+                    cfg.feature_flags
+                        .consensus_median_timestamp_with_checkpoint_enforcement = true;
+
+                    // Enable fast commit syncer for faster recovery on all networks.
+                    cfg.feature_flags.consensus_fast_commit_sync = true;
+                    // Enable consensus block restrictions on all networks to bound
+                    // header size by committee size and garbage-collect the block
+                    // manager.
+                    cfg.feature_flags.consensus_block_restrictions = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3092,6 +3178,18 @@ impl ProtocolConfig {
     pub fn set_pre_consensus_sponsor_only_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pre_consensus_sponsor_only_move_authentication = val;
+    }
+
+    pub fn set_consensus_starfish_speed_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_starfish_speed = val;
+    }
+
+    pub fn set_always_advance_dkg_to_resolution_for_testing(&mut self, val: bool) {
+        self.feature_flags.always_advance_dkg_to_resolution = val;
+    }
+
+    pub fn set_enable_white_flag_flow_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_white_flag_flow = val;
     }
 }
 

@@ -4,19 +4,18 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_sdk_ext::types::{ExecutionError, ExecutionStatus, Identifier, ObjectId};
+use iota_sdk_ext::types::{
+    ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner, ProgrammableTransaction,
+};
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, ProgrammableTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        VerifiedCertificate,
-    },
+    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
 };
 
 use crate::{
@@ -239,7 +238,7 @@ impl TestRunner {
         // `execute_certificate_with_execution_error` to make sure we go through TM
         let effects = self
             .authority_state
-            .execute_certificate(&ct, &epoch_store)
+            .wait_for_certificate_execution(&ct, &epoch_store)
             .await
             .unwrap();
 

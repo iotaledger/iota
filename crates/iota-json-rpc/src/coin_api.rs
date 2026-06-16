@@ -580,7 +580,7 @@ mod tests {
         base_types::{IotaAddress, SequenceNumber},
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest},
-        effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
+        effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
         error::{IotaError, IotaResult},
         id::UID,
         messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
@@ -1382,7 +1382,8 @@ mod tests {
         #[tokio::test]
         async fn test_object_not_found() {
             let transaction_digest = TransactionDigest::from([0; 32]);
-            let transaction_effects = TransactionEffects::new_empty_v1(transaction_digest);
+            let transaction_effects =
+                TransactionEffects::new_empty_v1_for_testing(transaction_digest);
 
             let mut mock_state = MockStateRead::new();
             mock_state
@@ -1509,7 +1510,8 @@ mod tests {
             let package_id = get_test_package_id();
             let (coin_name, _, _, _, _) = get_test_treasury_cap_peripherals(package_id);
             let transaction_digest = TransactionDigest::from([0; 32]);
-            let transaction_effects = TransactionEffects::new_empty_v1(transaction_digest);
+            let transaction_effects =
+                TransactionEffects::new_empty_v1_for_testing(transaction_digest);
 
             let mut mock_state = MockStateRead::new();
             mock_state

@@ -5,15 +5,13 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
-use iota_sdk_ext::{
-    crypto::{
-        Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-        secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-    },
-    types::{
-        ObjectId, SimpleSignature,
-        crypto::{Intent, IntentMessage},
-    },
+use iota_sdk_ext::crypto::{
+    Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+};
+use iota_sdk_ext::types::{
+    ObjectId, SimpleSignature, TransactionKind,
+    crypto::{Intent, IntentMessage},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -31,7 +29,7 @@ use crate::{
     signature::GenericSignature,
     transaction::{
         SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        TransactionDataAPI,
     },
 };
 
@@ -78,7 +76,7 @@ pub fn create_fake_transaction() -> Transaction {
     };
     let data = TransactionData::new_programmable(
         sender,
-        vec![object.compute_object_reference()],
+        vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,
@@ -96,7 +94,7 @@ pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
     };
     TransactionData::new_programmable(
         sender,
-        vec![object.compute_object_reference()],
+        vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,

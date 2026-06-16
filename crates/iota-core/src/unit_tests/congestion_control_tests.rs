@@ -391,7 +391,7 @@ async fn test_congestion_control_execution_cancellation() {
             .get_object(&owned_object.object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         TEST_ONLY_GAS_UNIT,
     )
     .await;
@@ -506,7 +506,7 @@ async fn test_congestion_control_debt_tracking() {
             .get_object(&owned_object.object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         3 * TEST_ONLY_GAS_UNIT,
     )
     .await;
@@ -558,7 +558,7 @@ async fn test_congestion_control_debt_tracking() {
             .get_object(&owned_object.object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         TEST_ONLY_GAS_UNIT / 2,
     )
     .await;
@@ -612,7 +612,7 @@ async fn test_congestion_control_debt_tracking() {
             .get_object(&owned_object.object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         2 * TEST_ONLY_GAS_UNIT,
     )
     .await;
@@ -697,7 +697,7 @@ async fn test_congestion_control_debt_tracking() {
             .get_object(&owned_object.object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         5 * TEST_ONLY_GAS_UNIT / 2,
     )
     .await;
@@ -755,7 +755,7 @@ async fn test_congestion_control_debt_tracking() {
             .get_object(&owned_object.object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         3 * TEST_ONLY_GAS_UNIT / 2,
     )
     .await;
@@ -845,7 +845,7 @@ async fn test_congestion_control_debt_tracking() {
             .get_object(&owned_object.object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         3 * TEST_ONLY_GAS_UNIT,
     )
     .await;
@@ -899,7 +899,7 @@ async fn test_congestion_control_debt_tracking() {
             .get_object(&owned_object.object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         3 * TEST_ONLY_GAS_UNIT,
     )
     .await;

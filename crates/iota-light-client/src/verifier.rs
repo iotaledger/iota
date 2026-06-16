@@ -86,7 +86,7 @@ pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result
         .expect("Cannot get effects and events");
 
     // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.compute_object_reference();
+    let target_object_ref = object.object_ref();
     effects
         .all_changed_objects()
         .iter()
@@ -210,7 +210,7 @@ pub async fn get_verified_checkpoint(
         .expect("Cannot get effects and events");
 
     // check that this object ID, version and hash is in the effects
-    let target_object_ref = object.compute_object_reference();
+    let target_object_ref = object.object_ref();
     effects
         .all_changed_objects()
         .iter()
@@ -284,10 +284,9 @@ pub async fn get_verified_checkpoint(
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
-    use iota_sdk_ext::types::{Identifier, StructTag};
+    use iota_sdk_ext::types::{Event, Identifier, StructTag};
     use iota_types::{
         base_types::IotaAddress,
-        event::Event,
         messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
     };
 

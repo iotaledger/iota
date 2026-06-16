@@ -20,7 +20,7 @@ use iota_json_rpc_types::{
     IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError,
     IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEffects,
     IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ObjectChange, ProtocolConfigResponse,
+    ObjectChange, ProtocolConfigResponse, iota_primitives::SequenceNumberU64,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
@@ -538,7 +538,7 @@ impl ReadApiServer for ReadApi {
                 ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
                     IotaObjectResponseError::Deleted {
                         object_id: object_ref.object_id,
-                        version: object_ref.version,
+                        version: object_ref.version.into(),
                         digest: object_ref.digest,
                     },
                 )),
@@ -601,10 +601,11 @@ impl ReadApiServer for ReadApi {
     async fn try_get_past_object(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: SequenceNumberU64,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         async move {
+            let version: SequenceNumber = version.into();
             let state = self.state.clone();
             let past_read = spawn_monitored_task!(async move {
             state.get_past_object_read(&object_id, version)
@@ -640,7 +641,7 @@ impl ReadApiServer for ReadApi {
                     Ok(IotaPastObjectResponse::ObjectDeleted(oref))
                 }
                 PastObjectRead::VersionNotFound(id, seq_num) => {
-                    Ok(IotaPastObjectResponse::VersionNotFound(id, seq_num))
+                    Ok(IotaPastObjectResponse::VersionNotFound(id, seq_num.into()))
                 }
                 PastObjectRead::VersionTooHigh {
                     object_id,
@@ -648,8 +649,8 @@ impl ReadApiServer for ReadApi {
                     latest_version,
                 } => Ok(IotaPastObjectResponse::VersionTooHigh {
                     object_id,
-                    asked_version,
-                    latest_version,
+                    asked_version: asked_version.into(),
+                    latest_version: latest_version.into(),
                 }),
             }
         }
@@ -672,7 +673,7 @@ impl ReadApiServer for ReadApi {
             .unwrap_or_default();
         self.try_get_past_object(
             object_id,
-            version,
+            version.into(),
             Some(IotaObjectDataOptions::bcs_lossless()),
         )
         .await
@@ -690,7 +691,7 @@ impl ReadApiServer for ReadApi {
                 for past_object in past_objects {
                     futures.push(self.try_get_past_object(
                         past_object.object_id,
-                        past_object.version,
+                        past_object.version.into(),
                         options.clone(),
                     ));
                 }
