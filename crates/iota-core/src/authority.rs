@@ -1797,9 +1797,7 @@ impl AuthorityState {
         // The user signature of an attested (`UserTransactionV2`) transaction is
         // verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`), exactly as for
-        // `UserTransactionV1` — it is NOT re-verified at execution. A
-        // bad-signature tx is rejected with its block before sequencing, so it
-        // never reaches here.
+        // `UserTransactionV1`, and is not re-checked here.
         //
         // Explicit attestations are rejected pre-consensus (block verifier) and
         // at post-consensus (Check #3), so one reaching here is a protocol-level
@@ -5738,6 +5736,7 @@ impl AuthorityState {
             &tx_receiving_objects,
             &per_authenticator_input_objects,
             &self.get_object_store(),
+            epoch,
         )?;
 
         Ok(ValidationOutputs {
@@ -5773,6 +5772,7 @@ impl AuthorityState {
             &tx_receiving_objects,
             &per_authenticator_input_objects,
             &self.get_object_store(),
+            epoch,
         )?;
         Ok(())
     }

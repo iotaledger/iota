@@ -307,15 +307,6 @@ pub async fn validate_and_resolve_conflicts(
         // expensive object loading for transactions that would be dropped
         // by the lock conflict check.
         //
-        // Safe to skip signature re-verification: the consensus block verifier
-        // (`IotaTxValidator::validate_transactions`) already called
-        // `verify_tx()` on every `UserTransactionV1` before accepting the
-        // block. Re-verifying here would not add safety — if a quorum
-        // committed a bad signature it indicates a protocol-level failure
-        // (2f+1 Byzantine/buggy validators), not something we can recover from
-        // by rejecting the transaction post-consensus. Doing so would also risk
-        // diverging from other honest validators.
-        //
         // `UserTransactionV1` runs the full
         // `handle_transaction_validation_checks` (which includes the
         // `TransactionDenyConfig` deny-list check). For `UserTransactionV2`
@@ -332,10 +323,10 @@ pub async fn validate_and_resolve_conflicts(
         //   - Gas, ownership, `MoveAuthenticator` execution: re-applied in the
         //     execution pipeline (`check_certificate_input` and
         //     `authenticate_then_execute_transaction_to_effects`).
-        //   - User signature: verified pre-consensus in the block verifier
-        //     (`IotaTxValidator::validate_transactions`, the `Validator` attestation
-        //     arm), exactly as for `UserTransactionV1`, so a Byzantine attestor cannot
-        //     forge transactions.
+        //
+        // The user signature is verified pre-consensus in the block verifier
+        // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
+        // and `UserTransactionV2`, and is not re-checked here.
         //
         // Deny-list check (`TransactionDenyConfig`: sender/object/package deny
         // lists, feature kill-switches): this is a LOCAL check, sourced from
