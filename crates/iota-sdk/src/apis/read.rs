@@ -235,7 +235,7 @@ impl ReadApi {
         Ok(self
             .api
             .http
-            .try_get_past_object(object_id, version, Some(options))
+            .try_get_past_object(object_id, version.into(), Some(options))
             .await?)
     }
 

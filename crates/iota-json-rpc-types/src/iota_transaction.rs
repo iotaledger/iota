@@ -60,8 +60,8 @@ use crate::{
     iota_primitives::{
         Base58 as Base58Schema, Base64 as Base64Schema, GenericSignature as GenericSignatureSchema,
         IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
-        SequenceNumberString as SequenceNumberStringSchema,
-        SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
+        SequenceNumberString as SequenceNumberStringSchema, SequenceNumberU64,
+        TypeTag as TypeTagSchema,
     },
     object_changes::ObjectChange,
 };
@@ -1883,9 +1883,9 @@ pub struct IotaConsensusCommitPrologueV1 {
 pub enum IotaConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
     CancelledTransactions(
-        #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64Schema)>)>")]
-        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64Schema)>)>")]
-        Vec<(TransactionDigest, Vec<(ObjectId, SequenceNumber)>)>,
+        #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIdSchema, serde_with::Same)>)>")]
+        #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64)>)>")]
+        Vec<(TransactionDigest, Vec<(ObjectId, SequenceNumberU64)>)>,
     ),
 }
 
@@ -1905,7 +1905,7 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
                             cancelled
                                 .version_assignments
                                 .into_iter()
-                                .map(|va| (va.object_id, va.version))
+                                .map(|va| (va.object_id, va.version.into()))
                                 .collect(),
                         )
                     })
@@ -1933,7 +1933,7 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
                                 .into_iter()
                                 .map(|(object_id, version)| VersionAssignment {
                                     object_id,
-                                    version,
+                                    version: version.into(),
                                 })
                                 .collect(),
                         })

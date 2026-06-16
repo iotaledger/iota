@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::ObjectId;
-use iota_types::{base_types::SequenceNumber, digests::ObjectDigest};
+use iota_types::digests::ObjectDigest;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -10,8 +10,7 @@ use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
 
 use crate::iota_primitives::{
-    Base58 as Base58Schema, ObjectId as ObjectIdSchema,
-    SequenceNumberU64 as SequenceNumberU64Schema,
+    Base58 as Base58Schema, ObjectId as ObjectIdSchema, SequenceNumberU64,
 };
 
 #[serde_as]
@@ -50,9 +49,7 @@ pub enum IotaObjectResponseError {
         #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         /// Object version.
-        #[serde_as(as = "SequenceNumberU64Schema")]
-        #[schemars(with = "SequenceNumberU64Schema")]
-        version: SequenceNumber,
+        version: SequenceNumberU64,
         /// Base64 string representing the object digest
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]

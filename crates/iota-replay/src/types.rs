@@ -222,7 +222,7 @@ impl From<IotaObjectResponseError> for ReplayEngineError {
                 version,
             } => ReplayEngineError::ObjectDeleted {
                 id: object_id,
-                version,
+                version: version.into(),
                 digest,
             },
             _ => ReplayEngineError::IotaObjectResponseError { err },
