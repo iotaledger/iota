@@ -1,0 +1,17 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 2 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 11-14:
+//# programmable --sender A --inputs x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
+//> iota::public_key::from_prefixed_bytes(Input(0));
+//> 1: iota::smart_account::builtin_auth_builder_v1(Result(0));
+//> 2: iota::smart_account::build_immutable_v1(Result(1));
+events: Event { package_id: ObjectId("iota"), transaction_module: Identifier("smart_account"), sender: Address("A"), type_: StructTag { address: iota, module: Identifier("builtin_authenticator_functions"), name: Identifier("PublicKeyAttached"), type_params: [] }, contents: [129, 189, 234, 113, 7, 0, 20, 76, 207, 67, 42, 252, 120, 106, 132, 4, 248, 63, 18, 65, 3, 35, 26, 5, 145, 44, 146, 223, 131, 183, 57, 107, 0, 32, 204, 98, 51, 46, 52, 187, 45, 92, 214, 159, 96, 239, 187, 42, 54, 203, 145, 108, 126, 180, 88, 48, 30, 163, 102, 54, 196, 219, 176, 18, 189, 136] }, Event { package_id: ObjectId("iota"), transaction_module: Identifier("smart_account"), sender: Address("A"), type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("ImmutableAccountCreated"), type_params: [Struct(StructTag { address: iota, module: Identifier("smart_account"), name: Identifier("SmartAccount"), type_params: [] })] }, contents: [129, 189, 234, 113, 7, 0, 20, 76, 207, 67, 42, 252, 120, 106, 132, 4, 248, 63, 18, 65, 3, 35, 26, 5, 145, 44, 146, 223, 131, 183, 57, 107, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 31, 98, 117, 105, 108, 116, 105, 110, 95, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 111, 114, 95, 102, 117, 110, 99, 116, 105, 111, 110, 115, 37, 101, 100, 50, 53, 53, 49, 57, 95, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 111, 114, 95, 102, 117, 110, 99, 116, 105, 111, 110, 95, 114, 101, 102, 95, 118, 49] }
+created: object(1,0), object(1,1), object(1,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8762800, storage_rebate: 0, non_refundable_storage_fee: 0

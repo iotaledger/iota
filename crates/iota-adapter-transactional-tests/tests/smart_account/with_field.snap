@@ -1,0 +1,18 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 2 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 10-14:
+//# programmable --sender A --inputs object(0x10) x"007f51463aeb76d88dc9b75e637250b220c49cf5b7967dbf17c1f9fa7c594a0928" 42u8 99u64
+//> iota::public_key::from_prefixed_bytes(Input(1));
+//> 1: iota::smart_account::claim_builder_v1(Input(0), Result(0));
+//> 2: iota::smart_account::with_field<u8, u64>(Result(1), Input(2), Input(3));
+//> 3: iota::smart_account::build_v1(Result(2));
+events: Event { package_id: ObjectId("iota"), transaction_module: Identifier("smart_account"), sender: Address("A"), type_: StructTag { address: iota, module: Identifier("builtin_authenticator_functions"), name: Identifier("PublicKeyAttached"), type_params: [] }, contents: [140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 32, 127, 81, 70, 58, 235, 118, 216, 141, 201, 183, 94, 99, 114, 80, 178, 32, 196, 156, 245, 183, 150, 125, 191, 23, 193, 249, 250, 124, 89, 74, 9, 40] }, Event { package_id: ObjectId("iota"), transaction_module: Identifier("smart_account"), sender: Address("A"), type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: iota, module: Identifier("smart_account"), name: Identifier("SmartAccount"), type_params: [] })] }, contents: [140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 31, 98, 117, 105, 108, 116, 105, 110, 95, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 111, 114, 95, 102, 117, 110, 99, 116, 105, 111, 110, 115, 37, 101, 100, 50, 53, 53, 49, 57, 95, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 111, 114, 95, 102, 117, 110, 99, 116, 105, 111, 110, 95, 114, 101, 102, 95, 118, 49] }
+created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000010, object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 13148000, storage_rebate: 0, non_refundable_storage_fee: 0
