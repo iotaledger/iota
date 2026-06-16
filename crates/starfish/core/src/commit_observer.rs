@@ -431,6 +431,11 @@ impl CommitObserver {
 
             self.last_sent_commit_index = committed_subdag.commit_ref.index;
             sent_commit_indices.push(committed_subdag.commit_ref.index);
+
+            #[cfg(feature = "dag-visualizer")]
+            self.dag_state
+                .read()
+                .emit_leader_committed_event(&committed_subdag.leader);
         }
 
         Ok(sent_commit_indices)

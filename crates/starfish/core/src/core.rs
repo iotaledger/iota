@@ -1301,6 +1301,14 @@ impl Core {
 
             self.last_decided_leader = last_decided.slot();
 
+            // Emit skip events for the DAG visualizer before filtering.
+            #[cfg(feature = "dag-visualizer")]
+            for leader in &decided_leaders {
+                if let crate::commit::DecidedLeader::Skip(slot) = leader {
+                    self.dag_state.read().emit_leader_skipped_event(*slot);
+                }
+            }
+
             let sequenced_leaders = decided_leaders
                 .into_iter()
                 .filter_map(|leader| leader.into_committed_block())

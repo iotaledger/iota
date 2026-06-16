@@ -48,6 +48,7 @@ tower-http.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+dag-visualizer-proto = { workspace = true, optional = true }
 iota-common.workspace = true
 iota-http.workspace = true
 iota-macros.workspace = true
@@ -67,6 +68,9 @@ tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 telemetry-subscribers.workspace = true
+
+[features]
+dag-visualizer = ["dep:dag-visualizer-proto", "starfish-config/dag-visualizer"]
 
 [build-dependencies]
 tonic-build.workspace = true

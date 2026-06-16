@@ -22,6 +22,15 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
     /// This is called before examining a block's causal history.
     fn verify(&self, block: &SignedBlockHeader) -> ConsensusResult<()>;
 
+    /// Bounds and parses a serialized transaction payload. Call this before
+    /// any expensive processing of the payload; failures cannot be attributed
+    /// to the block author until the payload is bound to the header's
+    /// transactions commitment, so they are sender faults.
+    fn check_and_parse_transactions(
+        &self,
+        serialized_transactions: &[u8],
+    ) -> ConsensusResult<Vec<Transaction>>;
+
     fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()>;
 }
 
@@ -296,6 +305,20 @@ impl BlockVerifier for SignedBlockVerifier {
         Ok(())
     }
 
+    fn check_and_parse_transactions(
+        &self,
+        serialized_transactions: &[u8],
+    ) -> ConsensusResult<Vec<Transaction>> {
+        let limit = serialized_transactions_size_limit(&self.context);
+        if serialized_transactions.len() > limit {
+            return Err(ConsensusError::SerializedTransactionsTooLarge {
+                size: serialized_transactions.len(),
+                limit,
+            });
+        }
+        bcs::from_bytes(serialized_transactions).map_err(ConsensusError::MalformedTransactions)
+    }
+
     fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()> {
         let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
         self.check_transactions(&batch)?;
@@ -305,6 +328,27 @@ impl BlockVerifier for SignedBlockVerifier {
     }
 }
 
+// BCS encodes sequence lengths as ULEB128 values. Ten bytes covers any usize
+// length on supported 64-bit targets.
+const MAX_BCS_LENGTH_PREFIX_BYTES: usize = 10;
+
+/// Upper bound on the BCS-serialized size of any transaction batch that
+/// passes `check_transactions`: the maximum payload bytes plus a length
+/// prefix per transaction and one for the enclosing sequence.
+pub(crate) fn serialized_transactions_size_limit(context: &Context) -> usize {
+    let max_bytes = context.protocol_config.max_transactions_in_block_bytes() as usize;
+    let max_count = context.protocol_config.max_num_transactions_in_block() as usize;
+    // A zero protocol limit disables the corresponding check in
+    // `check_transactions`; without both bounds no finite serialized size is
+    // implied.
+    if max_bytes == 0 || max_count == 0 {
+        return usize::MAX;
+    }
+    max_bytes
+        .saturating_add(max_count.saturating_mul(MAX_BCS_LENGTH_PREFIX_BYTES))
+        .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
+}
+
 #[cfg(test)]
 pub(crate) struct NoopBlockVerifier;
 
@@ -312,6 +356,13 @@ pub(crate) struct NoopBlockVerifier;
 impl BlockVerifier for NoopBlockVerifier {
     fn verify(&self, _block: &SignedBlockHeader) -> ConsensusResult<()> {
         Ok(())
+    }
+
+    fn check_and_parse_transactions(
+        &self,
+        serialized_transactions: &[u8],
+    ) -> ConsensusResult<Vec<Transaction>> {
+        bcs::from_bytes(serialized_transactions).map_err(ConsensusError::MalformedTransactions)
     }
 
     fn check_and_verify_transactions(&self, _transactions: &[Transaction]) -> ConsensusResult<()> {
@@ -330,6 +381,56 @@ pub(crate) mod test {
         context::Context,
         transaction::{TransactionVerifier, ValidationError},
     };
+
+    /// Pins the wire layout `serialized_transactions_size_limit` is derived
+    /// from: a maximal batch accepted by `check_transactions` must serialize
+    /// to exactly one ULEB128 length prefix per sequence plus the raw bytes,
+    /// and fit within the limit. Fails if the BCS framing or the
+    /// `Transaction` layout changes.
+    #[tokio::test]
+    async fn serialized_transactions_size_limit_bounds_maximal_valid_batch() {
+        fn uleb128_len(mut value: usize) -> usize {
+            let mut len = 1;
+            while value >= 0x80 {
+                value >>= 7;
+                len += 1;
+            }
+            len
+        }
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let max_bytes = context.protocol_config.max_transactions_in_block_bytes() as usize;
+        let max_count = context.protocol_config.max_num_transactions_in_block() as usize;
+        let tx_size = max_bytes / max_count;
+        let transactions: Vec<Transaction> = (0..max_count)
+            .map(|_| Transaction::new(vec![0; tx_size]))
+            .collect();
+
+        let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(TxnSizeVerifier {}));
+        let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
+        verifier.check_transactions(&batch).unwrap();
+
+        let serialized = bcs::to_bytes(&transactions).unwrap();
+        let expected = uleb128_len(max_count) + max_count * (uleb128_len(tx_size) + tx_size);
+        assert_eq!(serialized.len(), expected);
+        assert!(serialized.len() <= serialized_transactions_size_limit(&context));
+    }
+
+    #[tokio::test]
+    async fn check_and_parse_transactions_rejects_oversized_payload() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let size_limit = serialized_transactions_size_limit(&context);
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
+
+        let result = verifier.check_and_parse_transactions(&vec![0u8; size_limit + 1]);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
+                if size == size_limit + 1 && limit == size_limit
+        ));
+    }
 
     pub(crate) struct TxnSizeVerifier {}
 

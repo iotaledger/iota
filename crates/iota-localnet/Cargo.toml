@@ -48,3 +48,4 @@ msim.workspace = true
 
 [features]
 indexer = ["dep:iota-indexer", "dep:iota-graphql-rpc"]
+dag-visualizer = ["iota-swarm/dag-visualizer"]

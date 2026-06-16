@@ -22,6 +22,8 @@ use tokio::{
 };
 use tracing::{debug, error, info, trace, warn};
 
+#[cfg(feature = "dag-visualizer")]
+use crate::dag_visualizer::grpc_streamer::DagVisualizerEvent;
 use crate::{
     authority_set::AuthoritySet,
     block_header::{
@@ -281,6 +283,10 @@ pub(crate) struct DagState {
     /// History of strong-vote complaint masks against this node's own
     /// leader rounds, keyed by leader round.
     starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
+
+    /// Broadcast sender for DAG visualizer events.
+    #[cfg(feature = "dag-visualizer")]
+    dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
 }
 
 impl DagState {
@@ -399,6 +405,8 @@ impl DagState {
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             starfish_speed_leader_hints: BTreeMap::new(),
+            #[cfg(feature = "dag-visualizer")]
+            dag_visualizer_sender: None,
         };
 
         // Load cached data for each authority from storage
@@ -430,6 +438,56 @@ impl DagState {
         eviction_sender: watch::Sender<Vec<Round>>,
     ) {
         self.cordial_knowledge_senders = Some((sender, eviction_sender));
+    }
+
+    /// Sets the broadcast sender for DAG visualizer events.
+    #[cfg(feature = "dag-visualizer")]
+    pub fn set_dag_visualizer_sender(
+        &mut self,
+        sender: tokio::sync::broadcast::Sender<DagVisualizerEvent>,
+    ) {
+        if self.context.committee.size() > u8::MAX as usize + 1 {
+            warn!(
+                "DAG visualizer disabled: authority indices are encoded as u8 but committee \
+                 size {} exceeds 256",
+                self.context.committee.size()
+            );
+            return;
+        }
+        self.dag_visualizer_sender = Some(sender);
+    }
+
+    /// Emits a DAG visualizer event if the sender is configured and has
+    /// subscribers.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_dag_visualizer_event(&self, event: DagVisualizerEvent) {
+        if let Some(sender) = &self.dag_visualizer_sender {
+            if sender.receiver_count() > 0 {
+                let _ = sender.send(event);
+            }
+        }
+    }
+
+    /// Returns true if there are active DAG visualizer subscribers.
+    /// Use this to skip expensive event construction when nobody is listening.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn has_dag_visualizer_subscribers(&self) -> bool {
+        self.dag_visualizer_sender
+            .as_ref()
+            .is_some_and(|s| s.receiver_count() > 0)
+    }
+
+    /// Emits a [`DagVisualizerEvent::LeaderSkipped`] event for the given slot.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_leader_skipped_event(&self, slot: Slot) {
+        self.emit_dag_visualizer_event(DagVisualizerEvent::LeaderSkipped(slot));
+    }
+
+    /// Emits a [`DagVisualizerEvent::LeaderCommitted`] event for the given
+    /// leader block reference.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_leader_committed_event(&self, leader: &BlockRef) {
+        self.emit_dag_visualizer_event(DagVisualizerEvent::LeaderCommitted(*leader));
     }
 
     /// Loads cached data (block headers and transactions) for a single
@@ -620,6 +678,19 @@ impl DagState {
             "block header {} pushed to write to store batch by {}",
             block_header, self.context.own_index
         );
+
+        // Emit DAG visualizer event before moving block_header.
+        #[cfg(feature = "dag-visualizer")]
+        if self.has_dag_visualizer_subscribers() {
+            use std::sync::Arc;
+            self.emit_dag_visualizer_event(DagVisualizerEvent::BlockAccepted {
+                block_ref,
+                timestamp_ms: block_header.timestamp_ms(),
+                ancestors: Arc::from(block_header.ancestors()),
+                acknowledgments: Arc::from(block_header.acknowledgments()),
+            });
+        }
+
         self.block_headers_to_write.push(block_header);
         let author_label = if self.context.own_index == block_ref.author {
             "own"
@@ -754,7 +825,18 @@ impl DagState {
             (block_ref.round, block_header.transactions_commitment()),
             block_ref.digest,
         );
+        #[cfg(feature = "dag-visualizer")]
+        let clock_before = self.threshold_clock.get_round();
         self.threshold_clock.add_block_header(block_ref);
+        #[cfg(feature = "dag-visualizer")]
+        {
+            let clock_after = self.threshold_clock.get_round();
+            if clock_after > clock_before {
+                self.emit_dag_visualizer_event(DagVisualizerEvent::RoundAdvanced {
+                    round: clock_after,
+                });
+            }
+        }
         self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
             .metrics
