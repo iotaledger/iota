@@ -9,12 +9,11 @@ use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_ext::types::{ObjectId, TypeTag, crypto::Intent};
+use iota_sdk_ext::types::{ObjectId, Owner, TypeTag, crypto::Intent};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     crypto::Signature,
     move_authenticator::MoveAuthenticator,
-    object::Owner,
     signature::GenericSignature,
     transaction::{CallArg, SharedObjectRef, TransactionData},
 };

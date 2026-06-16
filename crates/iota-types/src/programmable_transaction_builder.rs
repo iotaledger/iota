@@ -7,7 +7,9 @@
 
 use anyhow::Context;
 use indexmap::IndexMap;
-use iota_sdk_ext::types::{Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag};
+use iota_sdk_ext::types::{
+    Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag,
+};
 use serde::Serialize;
 
 use crate::{

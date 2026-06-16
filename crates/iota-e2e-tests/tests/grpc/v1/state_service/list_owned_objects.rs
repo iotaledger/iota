@@ -14,13 +14,12 @@ use iota_sdk_ext::{
             state_service_client::StateServiceClient,
         },
     },
-    types::{StructTag, TypeTag},
+    types::{Owner, StructTag, TypeTag},
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    object::Owner,
     parse_iota_struct_tag,
     transaction::CallArg,
 };

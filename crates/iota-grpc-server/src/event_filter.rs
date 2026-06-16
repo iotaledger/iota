@@ -54,7 +54,9 @@ pub enum EventFilter {
 impl TryFrom<iota_sdk_ext::grpc_types::v1::filter::EventFilter> for EventFilter {
     type Error = String;
 
-    fn try_from(proto: iota_sdk_ext::grpc_types::v1::filter::EventFilter) -> Result<Self, Self::Error> {
+    fn try_from(
+        proto: iota_sdk_ext::grpc_types::v1::filter::EventFilter,
+    ) -> Result<Self, Self::Error> {
         use iota_sdk_ext::grpc_types::v1::filter::event_filter::Filter as ProtoFilter;
 
         let filter = proto.filter.ok_or("event filter is missing")?;

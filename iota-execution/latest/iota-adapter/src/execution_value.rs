@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::types::{CommandArgumentError, ObjectId};
+use iota_sdk_ext::types::{CommandArgumentError, ObjectId, Owner};
 use iota_types::{
     base_types::{IotaAddress, SequenceNumber},
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
-    object::Owner,
     storage::{BackingPackageStore, ChildObjectResolver, StorageView},
     transfer::Receiving,
 };

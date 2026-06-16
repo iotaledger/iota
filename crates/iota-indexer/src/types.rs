@@ -6,7 +6,7 @@ use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
 };
-use iota_sdk_ext::types::{MovePackage, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{MovePackage, ObjectId, Owner, StructTag, TypeTag};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, SequenceNumber},
     crypto::AggregateAuthoritySignature,
@@ -18,7 +18,7 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
     },
-    object::{Object, Owner},
+    object::Object,
     transaction::SenderSignedData,
 };
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]

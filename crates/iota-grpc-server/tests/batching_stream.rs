@@ -20,7 +20,7 @@ use iota_sdk_ext::{
             types::ObjectReference,
         },
     },
-    types::{ObjectId, StructTag},
+    types::{ObjectId, Owner, StructTag},
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -29,7 +29,7 @@ use iota_types::{
     digests::TransactionDigest,
     effects::{TestEffectsBuilder, TransactionEffects},
     gas_coin::GasCoin,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     transaction::VerifiedTransaction,
 };
 use prost::Message;

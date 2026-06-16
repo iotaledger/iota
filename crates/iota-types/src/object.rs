@@ -11,9 +11,9 @@ use std::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::types::{
-    MoveObjectType, ObjectData, ObjectId, StructTag, TypeTag, move_package::MovePackage,
+    MoveObjectType, ObjectData, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
 };
-pub use iota_sdk_ext::types::{MoveStruct as MoveObject, Object as ObjectInner, Owner};
+pub use iota_sdk_ext::types::{MoveStruct as MoveObject, Object as ObjectInner};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
@@ -891,12 +891,12 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_ext::types::ObjectId;
+    use iota_sdk_ext::types::{ObjectId, Owner};
 
     use crate::{
         base_types::{IotaAddress, TransactionDigest},
         gas_coin::GasCoin,
-        object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+        object::{MoveObjectExt, OBJECT_START_VERSION, Object},
     };
 
     // Ensure that object digest computation and bcs serialized format are not

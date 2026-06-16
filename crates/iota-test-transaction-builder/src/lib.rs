@@ -13,10 +13,12 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_ext::crypto::Signer as SdkSigner;
-use iota_sdk_ext::types::{
-    Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
-    crypto::{Intent, IntentMessage, SimpleSignature},
+use iota_sdk_ext::{
+    crypto::Signer as SdkSigner,
+    types::{
+        Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
+        crypto::{Intent, IntentMessage, SimpleSignature},
+    },
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectRef, SequenceNumber},

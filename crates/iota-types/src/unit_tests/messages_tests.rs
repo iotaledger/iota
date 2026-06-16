@@ -12,8 +12,10 @@ use fastcrypto::{
     ed25519::Ed25519KeyPair,
     traits::{AggregateAuthenticator, KeyPair},
 };
-use iota_sdk_ext::crypto::simple::SimpleKeypair;
-use iota_sdk_ext::types::{ExecutionStatus, Owner, StructTag, gas::GasCostSummary};
+use iota_sdk_ext::{
+    crypto::simple::SimpleKeypair,
+    types::{ExecutionStatus, Owner, StructTag, gas::GasCostSummary},
+};
 use roaring::RoaringBitmap;
 
 use super::*;

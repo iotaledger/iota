@@ -14,8 +14,8 @@ use iota_data_ingestion_core::{
     WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
-use iota_sdk_ext::grpc_client::Client;
 use iota_kvstore::{BigTableClient, KvWorker, Table};
+use iota_sdk_ext::grpc_client::Client;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
