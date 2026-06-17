@@ -84,9 +84,9 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_dag_state_cached_rounds")]
     pub dag_state_cached_rounds: u32,
 
-    /// Rounds a peer-disseminated block may lead the locally accepted frontier,
-    /// in addition to `dag_state_cached_rounds`, before it is dropped as too
-    /// far ahead to connect.
+    /// Rounds a header from a far-future-bounded source may lead the locally
+    /// accepted frontier, in addition to `dag_state_cached_rounds`, before it
+    /// is dropped as too far ahead to connect.
     #[serde(default = "Parameters::default_peer_round_ahead_margin")]
     pub peer_round_ahead_margin: u32,
 
@@ -197,10 +197,10 @@ impl Parameters {
         (self.block_rate_window.as_millis() as u64 / interval_ms).max(1)
     }
 
-    /// Highest round a peer-disseminated block may have, relative to the
-    /// accepted `frontier`, to still be close enough to connect; blocks above
-    /// this are too far ahead and dropped.
-    pub fn peer_disseminated_round_ceiling(&self, frontier: u32) -> u32 {
+    /// Highest round a header from a far-future-bounded source may have,
+    /// relative to the accepted `frontier`, to still be close enough to
+    /// connect; headers above this are too far ahead and dropped.
+    pub fn far_future_round_ceiling(&self, frontier: u32) -> u32 {
         frontier
             .saturating_add(self.dag_state_cached_rounds)
             .saturating_add(self.peer_round_ahead_margin)

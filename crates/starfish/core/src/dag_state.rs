@@ -95,9 +95,10 @@ pub(crate) enum DataSource {
 }
 
 impl DataSource {
-    /// Whether the data was pushed or served by a peer, as opposed to certified
-    /// or locally produced sources.
-    pub(crate) fn is_peer_disseminated(&self) -> bool {
+    /// Whether headers from this source are subject to the far-future round
+    /// bound — the live header-ingress paths, as opposed to certified catch-up,
+    /// locally produced, or transaction/shard sources.
+    pub(crate) fn is_subject_to_far_future_bound(&self) -> bool {
         match self {
             DataSource::BlockStreaming
             | DataSource::BlockBundleStream
@@ -1993,12 +1994,12 @@ impl DagState {
         self.highest_accepted_round
     }
 
-    /// Highest round a peer-disseminated block may have, given the current
-    /// accepted frontier, to still be close enough to ever connect.
-    pub(crate) fn peer_disseminated_round_ceiling(&self) -> Round {
+    /// Highest round a header from a far-future-bounded source may have, given
+    /// the current accepted frontier, to still be close enough to ever connect.
+    pub(crate) fn far_future_round_ceiling(&self) -> Round {
         self.context
             .parameters
-            .peer_disseminated_round_ceiling(self.highest_accepted_round())
+            .far_future_round_ceiling(self.highest_accepted_round())
     }
 
     /// Highest round where a block is committed, which is last commit's leader

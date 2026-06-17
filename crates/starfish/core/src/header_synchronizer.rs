@@ -717,7 +717,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         }
 
         // Verify all the fetched block headers
-        let mut block_headers = Handle::current()
+        let block_headers = Handle::current()
             .spawn_blocking({
                 let block_verifier = block_verifier.clone();
                 let verified_cache = verified_cache.clone();
@@ -768,21 +768,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .join(", "),
         );
 
-        // Drop headers too far above the accepted frontier to ever connect. A
-        // peer may volunteer validly-signed headers we never requested, so this
-        // path bounds the response itself rather than trusting the requested set.
-        let ceiling = dag_state.read().peer_disseminated_round_ceiling();
-        let before_drop = block_headers.len();
-        block_headers.retain(|header| header.round() <= ceiling);
-        let dropped = (before_drop - block_headers.len()) as u64;
-        if dropped > 0 {
-            context
-                .metrics
-                .node_metrics
-                .dropped_far_future_blocks_total
-                .with_label_values(&["header_synchronizer"])
-                .inc_by(dropped);
-        }
+        // A peer may volunteer validly-signed headers we never requested, so
+        // bound the response here; the block manager applies the same bound
+        // downstream when these headers are accepted.
+        let block_headers = crate::block_manager::drop_far_future(
+            &context,
+            &dag_state,
+            block_headers,
+            DataSource::HeaderSynchronizer,
+            |header| header.round(),
+        );
 
         // Now send them to core for processing. Ignore the returned missing blocks as
         // we don't want this mechanism to keep feedback looping on fetching
@@ -3402,7 +3397,7 @@ mod tests {
 
         // Frontier is genesis round 0; a header one past the ceiling can never
         // connect and must be dropped, while an in-window header is forwarded.
-        let ceiling = context.parameters.peer_disseminated_round_ceiling(0);
+        let ceiling = context.parameters.far_future_round_ceiling(0);
         let in_window = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(60, 0).build());
         let far_future =
             VerifiedBlockHeader::new_for_test(TestBlockHeader::new(ceiling + 1, 1).build());
@@ -3456,8 +3451,8 @@ mod tests {
             context
                 .metrics
                 .node_metrics
-                .dropped_far_future_blocks_total
-                .with_label_values(&["header_synchronizer"])
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::HeaderSynchronizer.as_str()])
                 .get(),
             1
         );

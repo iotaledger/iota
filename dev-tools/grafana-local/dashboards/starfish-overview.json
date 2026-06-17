@@ -15070,7 +15070,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Rate of peer-disseminated blocks/headers dropped because their round is too far above the accepted frontier to ever connect, by enforcement point (block_bundle, header_synchronizer, block_manager). Near-zero in honest operation; sustained drops indicate a peer streaming far-future rounds.",
+          "description": "Rate of block headers dropped because their round is too far above the accepted frontier to ever connect, by source. Near-zero in honest operation; sustained drops indicate a peer streaming far-future rounds.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -15150,7 +15150,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "sum by(source) (rate(consensus_dropped_far_future_blocks_total[2m]))",
+              "expr": "sum by(source) (rate(consensus_dropped_far_future_headers_total[2m]))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -15160,7 +15160,7 @@
               "useBackend": false
             }
           ],
-          "title": "Far-future blocks dropped by source",
+          "title": "Far-future headers dropped by source",
           "type": "timeseries"
         }
       ],
