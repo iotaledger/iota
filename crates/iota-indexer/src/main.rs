@@ -147,13 +147,12 @@ async fn main() -> Result<(), IndexerError> {
             let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
                 std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN)
             });
-            // Restore bootstraps from a clean slate; an interrupted run is
-            // self-healing because the next run resets the database first.
             {
                 let mut pool_conn = get_pool_connection(&connection_pool)?;
                 reset_database(&mut pool_conn)?;
             }
-            let restore = start(network, epoch, &staging_path, num_parallel_downloads);
+            let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics.clone());
+            let restore = start(network, epoch, &staging_path, num_parallel_downloads, store);
             match cancel.run_until_cancelled(restore).await {
                 Some(result) => result?,
                 None => info!("shutdown signal received, aborting formal snapshot restore"),

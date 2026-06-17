@@ -17,7 +17,7 @@ use iota_types::{
 };
 
 use crate::{
-    errors::{IndexerError, IndexerResult},
+    errors::IndexerError,
     types::{IndexedDeletedObject, IndexedObject},
 };
 

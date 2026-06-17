@@ -6,31 +6,140 @@
 use std::{num::NonZeroUsize, path::Path, sync::Arc};
 
 use anyhow::{anyhow, bail};
+use bytes::Bytes;
+use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
+use futures::future::AbortHandle;
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::db_checkpoint_handler::SUCCESS_MARKER;
 use iota_protocol_config::Chain;
-use iota_snapshot::reader::StateSnapshotReaderV1;
-use iota_storage::object_store::{
-    ObjectStoreGetExt,
-    http::HttpDownloaderBuilder,
-    util::{MANIFEST_FILENAME, Manifest, exists, get_path},
+use iota_snapshot::{
+    FileMetadata,
+    reader::{LiveObjectIter, StateSnapshotReaderV1},
+    restore::Restore,
 };
+use iota_storage::{
+    SHA3_BYTES,
+    object_store::{
+        ObjectStoreGetExt,
+        http::HttpDownloaderBuilder,
+        util::{MANIFEST_FILENAME, Manifest, exists, get_path},
+    },
+};
+use iota_types::global_state_hash::GlobalStateHash;
+use itertools::Itertools;
+use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::{errors::IndexerError, types::IndexerResult};
+use crate::{
+    chunk, errors::IndexerError, ingestion::common::prepare::LiveObject, store::PgIndexerStore,
+    types::IndexerResult,
+};
 
 const MAINNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.mainnet.iota.cafe";
 const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.iota.cafe";
 
+/// Restores the indexer database from the formal snapshot for the given network
+/// and epoch.
+///
+/// # Errors
+///
+/// Returns an error if the reader cannot be instantiated or the download/insert
+/// pipeline fails.
 pub async fn start(
     network: Chain,
     epoch: Option<u64>,
     staging_path: &Path,
     num_parallel_downloads: NonZeroUsize,
+    pg_indexer_store: PgIndexerStore,
 ) -> IndexerResult<()> {
-    let reader = setup_reader(network, epoch, staging_path, num_parallel_downloads).await?;
+    let mut reader = setup_reader(network, epoch, staging_path, num_parallel_downloads).await?;
+
+    // It's ok to ignore the handle. Cancellation is effected by dropping the
+    // `read_to_db` future below, so we don't need to call `abort` explicitly.
+    let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+    let (state_hash_tx, state_hash_rx) =
+        mpsc::channel::<(GlobalStateHash, u64)>(num_parallel_downloads.get());
+
+    let (restore_result, (_root_state_hash, num_objects)) = tokio::join!(
+        reader.read_to_db(&pg_indexer_store, abort_registration, Some(state_hash_tx)),
+        accumulate_state_hash(state_hash_rx),
+    );
+    restore_result?;
+
+    info!(
+        num_objects,
+        "formal snapshot restore complete (state hash accumulated; persistence stubbed)"
+    );
     Ok(())
+}
+
+/// Evaluates the root state hash of the live object set in this snapshot.
+///
+/// This is done by accumulating the partial state hashes received during a
+/// restore.
+///
+/// The total number of objects found in the live set is returned along with the
+/// root state hash.
+async fn accumulate_state_hash(
+    mut state_hash_rx: mpsc::Receiver<(GlobalStateHash, u64)>,
+) -> (GlobalStateHash, u64) {
+    let mut root_state_hash = GlobalStateHash::default();
+    let mut num_objects = 0u64;
+    while let Some((partial_hash, count)) = state_hash_rx.recv().await {
+        root_state_hash.union(&partial_hash);
+        num_objects += count;
+    }
+    (root_state_hash, num_objects)
+}
+
+impl Restore for PgIndexerStore {
+    async fn insert_partition(
+        &self,
+        file_metadata: FileMetadata,
+        bytes: Bytes,
+        expected_checksum: &[u8; SHA3_BYTES],
+    ) -> anyhow::Result<()> {
+        let mut hasher = Sha3_256::default();
+        let partition = LiveObjectIter::new(&file_metadata, bytes)?
+            .filter_map(|snapshot_object| snapshot_object.to_normal())
+            .scan(&mut hasher, |hasher, object| {
+                hasher.update(object.object_ref().digest.inner());
+                Some(LiveObject::new(0, object))
+            });
+        let chunks = chunk!(partition, self.config.parallel_objects_chunk_size);
+        let sha3_digest = hasher.finalize().digest;
+        if *expected_checksum != sha3_digest {
+            tracing::error!(
+                "Sha does not match! expected: {expected_checksum:?}, actual: {sha3_digest:?}",
+            );
+            anyhow::bail!(
+                "checksum verification failed for bucket/partition: {}/{}",
+                file_metadata.bucket_num,
+                file_metadata.part_num
+            );
+        }
+
+        let persist_tasks = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_changed_objects(c)));
+        futures::future::try_join_all(persist_tasks)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "failed to join futures for persisting formal snapshot partition: {e}"
+                );
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "failed to persist all formal snapshot object chunks: {e:?}",
+                ))
+            })?;
+        Ok(())
+    }
 }
 
 /// Downloads the formal snapshot metadata for the given network and epoch, and

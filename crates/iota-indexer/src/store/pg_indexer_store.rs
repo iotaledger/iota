@@ -130,7 +130,7 @@ pub struct PgIndexerStore {
     blocking_cp: ConnectionPool,
     metrics: IndexerMetrics,
     partition_manager: PgPartitionManager,
-    config: PgIndexerStoreConfig,
+    pub(crate) config: PgIndexerStoreConfig,
 }
 
 impl Clone for PgIndexerStore {
@@ -269,7 +269,10 @@ impl PgIndexerStore {
         Ok(())
     }
 
-    fn persist_changed_objects(&self, objects: Vec<LiveObject>) -> Result<(), IndexerError> {
+    pub(crate) fn persist_changed_objects(
+        &self,
+        objects: Vec<LiveObject>,
+    ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_chunks
@@ -1744,7 +1747,7 @@ impl PgIndexerStore {
         .and_then(std::convert::identity)
     }
 
-    fn spawn_blocking_task<F, R>(
+    pub(crate) fn spawn_blocking_task<F, R>(
         &self,
         f: F,
     ) -> tokio::task::JoinHandle<std::result::Result<R, IndexerError>>
