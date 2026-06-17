@@ -87,6 +87,8 @@ public fun package_version(metadata: &PackageMetadataV1): u64 {
     metadata.package_version
 }
 
+/// Borrows the `ModuleMetadata` of the module named `module_name`.
+/// Aborts with `EModuleMetadataNotFound` if the package has no metadata for that module.
 public fun module_metadata(self: &PackageMetadataV1, module_name: &ascii::String): &ModuleMetadata {
     let modules_metadata = dynamic_field::borrow<
         ModulesMetadataFieldName,
@@ -102,6 +104,9 @@ public fun module_metadata(self: &PackageMetadataV1, module_name: &ascii::String
     metadata
 }
 
+/// Borrows the `AuthenticatorMetadataV1` of the function named `function_name`
+/// within the module named `module_name`.
+/// Aborts if the module or the authenticator metadata is not found.
 #[allow(deprecated_usage)]
 public fun module_authenticator_function_metadata_v1(
     self: &PackageMetadataV1,
@@ -111,6 +116,9 @@ public fun module_authenticator_function_metadata_v1(
     self.modules_metadata_v1(module_name).authenticator_metadata_v1(function_name)
 }
 
+/// Borrows the `AuthenticatorMetadataV1` of the function named `function_name`
+/// from the given module metadata.
+/// Aborts if the authenticator metadata is not found.
 #[allow(deprecated_usage)]
 public fun authenticator_function_metadata_v1(
     self: &ModuleMetadata,
@@ -123,6 +131,8 @@ public fun authenticator_function_metadata_v1(
     module_metadata_v1.authenticator_metadata_v1(function_name)
 }
 
+/// Safely gets the `AuthenticatorMetadataV1` of the function named `function_name`
+/// from the given module metadata, returning `none` if it is not found.
 #[allow(deprecated_usage)]
 public fun try_get_authenticator_function_metadata_v1(
     self: &ModuleMetadata,
@@ -140,12 +150,16 @@ public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
     self.account_type
 }
 
+/// Return the name of the authenticate function represented by this metadata
 public fun function_name(self: &AuthenticatorMetadataV1): &ascii::String {
     &self.function_name
 }
 
 // ===  Private constructors ===
 
+/// On-chain constructor: builds a `PackageMetadataV1` with the dynamic-field
+/// layout and freezes it into an immutable object. Invoked by the system when a
+/// package is published or upgraded.
 #[allow(unused_function)]
 fun create_package_metadata_v1_with_dynamic_metadata(
     storage_id: ID,
@@ -214,6 +228,10 @@ fun build_package_metadata_v1_with_dynamic_metadata(
     package_metadata
 }
 
+/// Builds the per-module metadata map for a package, deriving one
+/// `ModuleMetadata` object per module and populating it with the module's
+/// authenticator and view function metadata. The input vectors are parallel:
+/// entry `i` describes the module named `modules[i]`.
 fun create_modules_metadata(
     storage_id: ID,
     modules: vector<ascii::String>,
@@ -344,6 +362,7 @@ public fun authenticator_metadata_v1(
 
 // === Test functions ===
 
+/// Creates a legacy (pre-dynamic-field) `PackageMetadataV1` for testing.
 #[test_only]
 public fun create_package_metadata_v1_for_testing(
     storage_id: ID,
@@ -373,6 +392,8 @@ public fun create_package_metadata_v1_for_testing(
     package_metadata
 }
 
+/// Creates a `PackageMetadataV1` with the dynamic-field layout for testing,
+/// returning the owned object instead of freezing it.
 #[test_only]
 public fun create_package_metadata_v1_with_dynamic_metadata_for_testing(
     storage_id: ID,
@@ -393,6 +414,8 @@ public fun create_package_metadata_v1_with_dynamic_metadata_for_testing(
     )
 }
 
+/// Builds the legacy `ModuleMetadataV1` map for testing. The input vectors are
+/// parallel: entry `i` describes the module named `modules[i]`.
 #[test_only]
 public fun create_modules_metadata_v1(
     modules: vector<ascii::String>,
@@ -425,6 +448,7 @@ public fun create_modules_metadata_v1(
     modules_metadata
 }
 
+/// Creates a single `AuthenticatorMetadataV1` for testing.
 #[test_only]
 public fun create_authenticator_metadata_v1_for_testing(
     function_name: ascii::String,

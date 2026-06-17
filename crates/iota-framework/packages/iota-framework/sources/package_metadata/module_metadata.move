@@ -1,6 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+/// On-chain metadata associated with a single module of a package.
+///
+/// A `ModuleMetadata` is a key-value store backed by dynamic fields, where each
+/// value holds a particular kind of module metadata (e.g. authenticator or view
+/// function information). Instances are owned by the package's
+/// `iota::package_metadata::PackageMetadataV1` object.
 module iota::module_metadata;
 
 use iota::derived_object;
@@ -14,18 +20,24 @@ public struct ModuleMetadata has key, store {
     size: u64,
 }
 
+/// Key used to derive the address of a `ModuleMetadata` object from the owning
+/// package id and the module name.
 public struct ModuleMetadataKey(ascii::String) has copy, drop, store;
 
+/// Dynamic field key for the list of view function names of the module.
 public struct ViewFunctionMetadataV1FieldName has copy, drop, store {}
 
+/// Borrows the list of view function names recorded for the module.
 public fun borrow_view_functions_metadata_v1(self: &ModuleMetadata): &vector<ascii::String> {
     self.borrow(ViewFunctionMetadataV1FieldName {})
 }
 
+/// Returns true iff the module has recorded view function metadata.
 public fun contains_view_functions_metadata_v1(self: &ModuleMetadata): bool {
     self.contains(ViewFunctionMetadataV1FieldName {})
 }
 
+/// Returns true iff `function_name` is one of the module's view functions.
 public fun is_view_function_v1(self: &ModuleMetadata, function_name: &ascii::String): bool {
     let view_functions_metadata = self.borrow_view_functions_metadata_v1();
     view_functions_metadata.find_index!(|s| s == *function_name).is_some()
@@ -61,6 +73,7 @@ public(package) fun new(package_storage_id: ID, module_name: ascii::String): Mod
     }
 }
 
+/// Records the list of view function names for the module.
 public(package) fun add_view_function_metadata_v1(
     module_metadata: &mut ModuleMetadata,
     view_function_names: vector<ascii::String>,
@@ -72,9 +85,8 @@ public(package) fun add_view_function_metadata_v1(
     );
 }
 
-/// Adds a key-value pair to the module_metadata `module_metadata: &mut ModuleMetadata`
-/// Aborts with `iota::dynamic_field::EFieldAlreadyExists` if the module_metadata already has an entry with
-/// that key `k: K`.
+/// Adds a key-value pair to the module metadata.
+/// Aborts with `iota::dynamic_field::EFieldAlreadyExists` if an entry for `k` already exists.
 public(package) fun add<K: copy + drop + store, V: store>(
     module_metadata: &mut ModuleMetadata,
     k: K,
@@ -84,11 +96,9 @@ public(package) fun add<K: copy + drop + store, V: store>(
     module_metadata.size = module_metadata.size + 1;
 }
 
-/// Mutably borrows the value associated with the key in the module_metadata `module_metadata: &mut ModuleMetadata`.
-/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the module_metadata does not have an entry with
-/// that key `k: K`.
-/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the module_metadata has an entry for the key, but
-/// the value does not have the specified type.
+/// Mutably borrows the value associated with `k`.
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if no entry for `k` exists.
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the value is not of type `V`.
 public(package) fun borrow_mut<K: copy + drop + store, V: store>(
     module_metadata: &mut ModuleMetadata,
     k: K,
@@ -96,11 +106,9 @@ public(package) fun borrow_mut<K: copy + drop + store, V: store>(
     field::borrow_mut(&mut module_metadata.id, k)
 }
 
-/// Mutably borrows the key-value pair in the module_metadata `module_metadata: &mut ModuleMetadata` and returns the value.
-/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the module_metadata does not have an entry with
-/// that key `k: K`.
-/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the module_metadata has an entry for the key, but
-/// the value does not have the specified type.
+/// Removes the entry for `k` and returns its value.
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if no entry for `k` exists.
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the value is not of type `V`.
 public(package) fun remove<K: copy + drop + store, V: store>(
     module_metadata: &mut ModuleMetadata,
     k: K,
@@ -110,11 +118,9 @@ public(package) fun remove<K: copy + drop + store, V: store>(
     v
 }
 
-/// Immutable borrows the value associated with the key in the module_metadata `module_metadata: &ModuleMetadata`.
-/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the module_metadata does not have an entry with
-/// that key `k: K`.
-/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the module_metadata has an entry for the key, but
-/// the value does not have the specified type.
+/// Immutably borrows the value associated with `k`.
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if no entry for `k` exists.
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the value is not of type `V`.
 public(package) fun borrow<K: copy + drop + store, V: store>(
     module_metadata: &ModuleMetadata,
     k: K,
@@ -122,13 +128,12 @@ public(package) fun borrow<K: copy + drop + store, V: store>(
     field::borrow(&module_metadata.id, k)
 }
 
-/// Returns true iff there is an value associated with the key `k: K` in the module_metadata `module_metadata: &ModuleMetadata`
+/// Returns true iff there is a value associated with `k`.
 public(package) fun contains<K: copy + drop + store>(module_metadata: &ModuleMetadata, k: K): bool {
     field::exists_<K>(&module_metadata.id, k)
 }
 
-/// Returns true iff there is an value associated with the key `k: K` in the module_metadata `module_metadata: &ModuleMetadata`
-/// with an assigned value of type `V`
+/// Returns true iff there is a value of type `V` associated with `k`.
 public(package) fun contains_with_type<K: copy + drop + store, V: store>(
     module_metadata: &ModuleMetadata,
     k: K,
