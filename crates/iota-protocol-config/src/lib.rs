@@ -166,6 +166,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable consensus block restrictions on all networks:
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
+//             Extend the protocol_config framework module with a generic
+//             `get_attr<T>` native that lets Move code read any numeric or
+//             boolean protocol parameter by name, returning Option<T>.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2922,6 +2925,9 @@ impl ProtocolConfig {
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
                 }
+                // Extend the protocol_config framework module with `get_attr<T>`, a
+                // generic native that lets Move code read any numeric or boolean
+                // protocol parameter by name (returning Option<T>).
                 29 => {
                     // Keep advancing the random beacon DKG state machine on every commit
                     // while it is still pending so DKG resolves from persisted state

@@ -19,3 +19,49 @@ fun test_is_feature_enabled_false() {
     let is_enabled = protocol_config::is_feature_enabled(b"consensus_smart_ancestor_selection");
     assert_eq(is_enabled, false);
 }
+
+// --- get_attr tests ---
+
+#[test]
+// max_tx_size_bytes is a u64 set to 128 * 1024 = 131072 since protocol v1.
+fun test_get_attr_u64() {
+    let val: Option<u64> = protocol_config::get_attr(b"max_tx_size_bytes");
+    assert_eq(val, option::some(131072u64));
+}
+
+#[test]
+// max_arguments is a u32 set to 512 since protocol v1.
+fun test_get_attr_u32() {
+    let val: Option<u32> = protocol_config::get_attr(b"max_arguments");
+    assert_eq(val, option::some(512u32));
+}
+
+#[test]
+// binary_module_handles is a u16 set to 100 since protocol v1.
+fun test_get_attr_u16() {
+    let val: Option<u16> = protocol_config::get_attr(b"binary_module_handles");
+    assert_eq(val, option::some(100u16));
+}
+
+#[test]
+// An unknown parameter name must return none.
+fun test_get_attr_unknown_param() {
+    let val: Option<u64> = protocol_config::get_attr(b"nonexistent_parameter_name");
+    assert_eq(val, option::none());
+}
+
+#[test]
+// Requesting a parameter with the wrong type must return none.
+// max_arguments is a u32; requesting it as u64 should yield none.
+fun test_get_attr_type_mismatch() {
+    let val: Option<u64> = protocol_config::get_attr(b"max_arguments");
+    assert_eq(val, option::none());
+}
+
+#[test]
+// bridge_should_try_to_finalize_committee was deprecated to None at protocol v9.
+// At max protocol version it is not defined, so the native must return none.
+fun test_get_attr_deprecated_to_none() {
+    let val: Option<bool> = protocol_config::get_attr(b"bridge_should_try_to_finalize_committee");
+    assert_eq(val, option::none());
+}

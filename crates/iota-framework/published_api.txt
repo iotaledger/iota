@@ -1114,9 +1114,6 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
@@ -3442,6 +3439,12 @@ max_heapify_recursive
 priorities
 	public fun
 	0x2::priority_queue
+is_feature_enabled
+	public(package) fun
+	0x2::protocol_config
+get_attr
+	public(package) fun
+	0x2::protocol_config
 ProgrammableTransaction
 	public struct
 	0x2::ptb
