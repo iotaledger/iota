@@ -14,7 +14,6 @@ colored.workspace = true
 enum_dispatch.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 itertools.workspace = true
 json_to_table.workspace = true
 schemars.workspace = true
@@ -34,6 +33,7 @@ iota-metrics.workspace = true
 iota-names.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true

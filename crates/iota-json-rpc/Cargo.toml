@@ -25,7 +25,6 @@ futures.workspace = true
 http-body.workspace = true
 hyper.workspace = true
 indexmap.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
@@ -53,6 +52,7 @@ iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-storage.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true

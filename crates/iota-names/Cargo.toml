@@ -10,11 +10,11 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 bcs.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 serde.workspace = true
 thiserror.workspace = true
 
 # internal dependencies
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 
 [lints]

@@ -17,7 +17,6 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 indicatif.workspace = true
 integer-encoding.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 num_enum.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
@@ -30,6 +29,7 @@ tracing.workspace = true
 iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-storage.workspace = true
 iota-types.workspace = true
 

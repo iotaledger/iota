@@ -20,7 +20,6 @@ fastcrypto.workspace = true
 git-version.workspace = true
 hex.workspace = true
 hyper.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 itertools.workspace = true
 multiaddr.workspace = true
 once_cell.workspace = true
@@ -42,6 +41,7 @@ tracing.workspace = true
 # internal dependencies
 iota-metrics.workspace = true
 iota-sdk.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-tls.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true

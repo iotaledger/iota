@@ -23,7 +23,6 @@ eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
-iota-sdk-ext = { workspace = true, features = ["serde"] }
 itertools.workspace = true
 lru.workspace = true
 nom = "7.1.3"
@@ -42,7 +41,7 @@ tokio = { workspace = true, features = ["rt", "macros", "sync", "time", "net"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true
-tonic-prost = "0.14"
+tonic-prost.workspace = true
 tonic-rustls = "0.3.0"
 tower.workspace = true
 tower-http.workspace = true
@@ -56,6 +55,7 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-ext = { workspace = true, features = ["serde"] }
 iota-tls.workspace = true
 starfish-config.workspace = true
 typed-store.workspace = true

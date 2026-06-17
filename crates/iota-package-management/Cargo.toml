@@ -12,13 +12,13 @@ path = "src/lib.rs"
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 thiserror.workspace = true
 
 # internal dependencies
 iota-json-rpc-types.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true

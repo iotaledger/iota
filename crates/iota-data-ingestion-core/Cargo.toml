@@ -16,7 +16,6 @@ byteorder.workspace = true
 bytes.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 notify = "6.1.1"
 object_store.workspace = true
 prometheus.workspace = true
@@ -35,6 +34,7 @@ url.workspace = true
 iota-config.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 iota-storage.workspace = true
 iota-types.workspace = true
 

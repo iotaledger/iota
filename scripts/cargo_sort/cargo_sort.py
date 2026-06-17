@@ -4,7 +4,6 @@ import os, re, argparse, subprocess
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
-
 """
 Cargo.toml dependency management tool.
 
@@ -34,6 +33,7 @@ RESET = '\033[0m'
 COMMENT_DEPENDENCIES_START_EXTERNAL = "# external dependencies"
 COMMENT_DEPENDENCIES_START_INTERNAL = "# internal dependencies"
 
+
 def get_package_name_from_cargo_toml(file_path: str) -> Optional[str]:
     # search for the [package] section in the Cargo.toml file
     section_regex = re.compile(r'^\[([a-zA-Z0-9_-]+)\]$')
@@ -42,12 +42,13 @@ def get_package_name_from_cargo_toml(file_path: str) -> Optional[str]:
 
     with open(file_path, 'r') as file:
         lines = file.readlines()
-    
+
     in_package_section = False
     for line in lines:
         stripped_line = line.strip()
 
-        if not in_package_section and package_section_regex.match(stripped_line):
+        if not in_package_section and package_section_regex.match(
+                stripped_line):
             in_package_section = True
             continue
 
@@ -55,15 +56,17 @@ def get_package_name_from_cargo_toml(file_path: str) -> Optional[str]:
             package_name_match = package_name_regex.match(stripped_line)
             if package_name_match:
                 return package_name_match.group(1)
-            
+
             if section_regex.match(stripped_line):
                 # we are done with the package section
                 return None
-    
+
     # no package section found
     return None
 
-def get_package_names_from_cargo_tomls(directory: str, ignored_patterns: list = None) -> dict:
+
+def get_package_names_from_cargo_tomls(directory: str,
+                                       ignored_patterns: list = None) -> dict:
     # get all internal crate names from the workspace.
     print("Getting \"internal\" crates from 'Cargo.toml' files...")
 
@@ -74,9 +77,13 @@ def get_package_names_from_cargo_tomls(directory: str, ignored_patterns: list = 
         if package_name:
             names_dict[package_name] = None
 
-    find_and_process_toml_files(directory, ignored_patterns or [], extract_package_name, names_dict=package_names)
-    
+    find_and_process_toml_files(directory,
+                                ignored_patterns or [],
+                                extract_package_name,
+                                names_dict=package_names)
+
     return package_names
+
 
 def find_all_cargo_tomls(directory: str, ignored_patterns: list = None) -> list:
     # find all Cargo.toml files in the directory.
@@ -86,11 +93,11 @@ def find_all_cargo_tomls(directory: str, ignored_patterns: list = None) -> list:
 
     for root, dirs, files in os.walk(directory):
         if 'target' in root.split(os.sep):
-            dirs.clear()    # Don't walk into the directory if we're skipping it
+            dirs.clear()  # Don't walk into the directory if we're skipping it
             continue
 
         if any(r.search(root) for r in ignored_regexes):
-            dirs.clear()    # Don't walk into the directory if we're skipping it
+            dirs.clear()  # Don't walk into the directory if we're skipping it
             continue
 
         for file in files:
@@ -99,7 +106,9 @@ def find_all_cargo_tomls(directory: str, ignored_patterns: list = None) -> list:
 
     return cargo_tomls
 
-def find_and_process_toml_files(directory: str, ignored_patterns: list, process_func, **kwargs):
+
+def find_and_process_toml_files(directory: str, ignored_patterns: list,
+                                process_func, **kwargs):
     # find all Cargo.toml files and process them with the given function.
     #   args:
     #       directory: Root directory to search
@@ -109,6 +118,7 @@ def find_and_process_toml_files(directory: str, ignored_patterns: list, process_
     cargo_tomls = find_all_cargo_tomls(directory, ignored_patterns)
     for file_path in cargo_tomls:
         process_func(file_path, **kwargs)
+
 
 def run_dprint_fmt(directory: str):
     # run dprint fmt to format the files.
@@ -120,35 +130,42 @@ def run_dprint_fmt(directory: str):
     finally:
         os.chdir(cwd)
 
+
 # ==============================================================================
 # Sort Mode - Sort dependencies into internal/external groups
 # ==============================================================================
 
-def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: bool):
+
+def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict,
+                            debug: bool):
     # process a single Cargo.toml file - sort dependencies into groups.
     with open(file_path, 'r') as file:
         lines = file.readlines()
 
     array_start_regex = re.compile(r'^([a-zA-Z0-9_-]+)\s*=\s*\[$')
-    crates_line_regex = re.compile(r'^([a-zA-Z0-9_-]+)(?:\.workspace)?\s*=\s*(?:{[^}]*\bpackage\s*=\s*"(.*?)"[^}]*}|.*)$')
+    crates_line_regex = re.compile(
+        r'^([a-zA-Z0-9_-]+)(?:\.workspace)?\s*=\s*(?:{[^}]*\bpackage\s*=\s*"(.*?)"[^}]*}|.*)$'
+    )
 
     class Section(object):
+
         def __init__(self, line):
             self.line = line
             self.unknown_lines_start = []
             self.external_crates = {}
             self.internal_crates = {}
             self.unknown_lines_end = []
-        
+
         def add_node(self, node):
             # we only want to add "internal crates" if we are in a "dependencies" section,
             # otherwise we treat everything as external crates, so we don't have different
             # groups for external and internal crates, but we still sort them.
-            if ('dependencies' not in self.line) or (not node.name in internal_crates_dict):
+            if ('dependencies' not in self.line) or (not node.name
+                                                     in internal_crates_dict):
                 self.external_crates[node.alias] = node
             else:
                 self.internal_crates[node.alias] = node
-        
+
         def add_unknown_line(self, line):
             if not self.external_crates and not self.internal_crates:
                 self.unknown_lines_start.append(line)
@@ -157,17 +174,18 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
 
         def get_processed_lines(self):
             # check if the nodes in the section should be sorted
-            sort_nodes = any(word in self.line for word in ['dependencies', 'profile'])
-            
+            sort_nodes = any(
+                word in self.line for word in ['dependencies', 'profile'])
+
             processed_lines = []
 
             # add potential unprocessed lines (comments at the start of the section)
             if self.unknown_lines_start:
                 processed_lines.extend(self.unknown_lines_start)
-            
+
             # add the section header
             processed_lines.append(self.line)
-                        
+
             both_dependency_groups_exist = self.external_crates and self.internal_crates
             if both_dependency_groups_exist:
                 processed_lines.append(COMMENT_DEPENDENCIES_START_EXTERNAL)
@@ -176,47 +194,57 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
             external_crates = self.external_crates
             if sort_nodes:
                 # sort the external crates by alias
-                external_crates = {key: self.external_crates[key] for key in sorted(self.external_crates)}
+                external_crates = {
+                    key: self.external_crates[key]
+                    for key in sorted(self.external_crates)
+                }
             for crate_alias in external_crates:
-                processed_lines.extend(external_crates[crate_alias].get_processed_lines())
-            
+                processed_lines.extend(
+                    external_crates[crate_alias].get_processed_lines())
+
             if both_dependency_groups_exist:
                 # add a newline between external and internal crates
                 processed_lines.append('')
-            
+
             if both_dependency_groups_exist:
                 processed_lines.append(COMMENT_DEPENDENCIES_START_INTERNAL)
-            
+
             # add the internal crates
             internal_crates = self.internal_crates
             if sort_nodes:
                 # sort the internal crates by alias
-                internal_crates = {key: self.internal_crates[key] for key in sorted(self.internal_crates)}
+                internal_crates = {
+                    key: self.internal_crates[key]
+                    for key in sorted(self.internal_crates)
+                }
             for crate_alias in internal_crates:
-                processed_lines.extend(internal_crates[crate_alias].get_processed_lines())
-            
+                processed_lines.extend(
+                    internal_crates[crate_alias].get_processed_lines())
+
             # add potential unprocessed lines (comments at the end of the section)
             if self.unknown_lines_end:
                 processed_lines.extend(self.unknown_lines_end)
             return processed_lines
 
     class Node(object):
+
         def __init__(self, name, alias, start, is_multiline, comments):
-            self.name           = name
-            self.alias          = alias
-            self.lines          = [start]
-            self.is_multiline   = is_multiline
-            self.comments       = comments
-        
+            self.name = name
+            self.alias = alias
+            self.lines = [start]
+            self.is_multiline = is_multiline
+            self.comments = comments
+
         def add_line(self, line):
             if not self.is_multiline:
                 raise Exception(f"Node {self.name} is not multiline")
             self.lines.append(line)
-        
+
         def get_processed_lines(self):
             if self.is_multiline and len(self.lines) > 2:
                 # sort all the lines except the first and the last one
-                self.lines = [self.lines[0]] + sorted(self.lines[1:-1]) + [self.lines[-1]]
+                self.lines = [self.lines[0]] + sorted(
+                    self.lines[1:-1]) + [self.lines[-1]]
 
             processed_lines = []
             for comment in self.comments:
@@ -228,9 +256,9 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
                 processed_lines.append(line)
             return processed_lines
 
-    processed_lines   = []
-    current_section   = None
-    current_node      = None    
+    processed_lines = []
+    current_section = None
+    current_node = None
     unprocessed_lines = []
 
     def print_debug_info(msg):
@@ -247,7 +275,7 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
         nonlocal current_node, current_section, processed_lines, unprocessed_lines
 
         finish_node()
-        
+
         if current_section:
             # if we have a current section, finish it
             # We need to check were the unprocessed lines belong to by scanning in reverse.
@@ -276,10 +304,10 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
                 # set the unprocessed lines to contain the comments for the next section
                 # this will be picked up while creating the next section
                 unprocessed_lines = unprocessed_lines_next_section
-            
+
             processed_lines.extend(current_section.get_processed_lines())
             current_section = None
-            
+
             # add a newline between sections
             processed_lines.append('')
 
@@ -287,19 +315,23 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
         # strip the line of leading/trailing whitespace
         stripped_line = line.strip()
 
-        if stripped_line in [COMMENT_DEPENDENCIES_START_EXTERNAL, COMMENT_DEPENDENCIES_START_INTERNAL]:
+        if stripped_line in [
+                COMMENT_DEPENDENCIES_START_EXTERNAL,
+                COMMENT_DEPENDENCIES_START_INTERNAL
+        ]:
             # skip the line if it is the start of the external or internal crates
             continue
 
         print_debug_info(f"Processing line: '{stripped_line}'")
 
         # check if the line is a section header
-        is_section_header = stripped_line.startswith('[') and stripped_line.endswith(']')
+        is_section_header = stripped_line.startswith(
+            '[') and stripped_line.endswith(']')
         if is_section_header:
             print_debug_info(f"   -> Section header: {stripped_line}")
 
             finish_section()
-            
+
             # create a new section
             current_section = Section(stripped_line)
             for unprocessed_line in unprocessed_lines:
@@ -313,8 +345,9 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
         # check if the line is an array start
         array_start_regex_search = array_start_regex.search(stripped_line)
         if array_start_regex_search:
-            print_debug_info(f"   -> Array start: {array_start_regex_search.group(1)}")
-            
+            print_debug_info(
+                f"   -> Array start: {array_start_regex_search.group(1)}")
+
             finish_node()
 
             array_name = array_start_regex_search.group(1)
@@ -322,20 +355,24 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
             # create a new node
             if not current_section:
                 raise Exception(f"Node {array_name.name} without section")
-            current_node = Node(name=array_name, alias=array_name, start=stripped_line, is_multiline=True, comments=unprocessed_lines)
+            current_node = Node(name=array_name,
+                                alias=array_name,
+                                start=stripped_line,
+                                is_multiline=True,
+                                comments=unprocessed_lines)
             current_section.add_node(current_node)
             unprocessed_lines = []
-            
+
             continue
-        
+
         # check if the line is an array end
         is_array_end = "[" not in stripped_line and stripped_line.endswith(']')
         if is_array_end:
             print_debug_info(f"   -> Array end: {stripped_line}")
-            
+
             if not current_node:
                 raise Exception(f"Array end {stripped_line} without start")
-            
+
             # add the unprocessed lines to the current node
             for unprocessed_line in unprocessed_lines:
                 if not unprocessed_line.strip():
@@ -351,23 +388,28 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
             continue
 
         # check if the line is a crate line
-        crate_regex_search  = crates_line_regex.search(stripped_line)
+        crate_regex_search = crates_line_regex.search(stripped_line)
         if crate_regex_search:
             print_debug_info(f"   -> Crate: {crate_regex_search.group(1)}")
-            
+
             crate_alias = crate_regex_search.group(1)
             crate_name = crate_regex_search.group(1)
             if crate_regex_search.group(2):
                 crate_name = crate_regex_search.group(2)
-            
+
             # create a new node
             if not current_section:
                 raise Exception(f"Node {crate_name} without section")
-            
-            current_section.add_node(Node(name=crate_name, alias=crate_alias, start=stripped_line, is_multiline=False, comments=unprocessed_lines))
+
+            current_section.add_node(
+                Node(name=crate_name,
+                     alias=crate_alias,
+                     start=stripped_line,
+                     is_multiline=False,
+                     comments=unprocessed_lines))
             unprocessed_lines = []
             continue
-        
+
         # unknown line type, add it to the unprocessed lines
         print_debug_info(f"   -> Unknown line: {stripped_line}")
         unprocessed_lines.append(line.rstrip())
@@ -381,9 +423,11 @@ def process_cargo_toml_sort(file_path: str, internal_crates_dict: dict, debug: b
         for line in processed_lines[:-1]:
             file.write(f"{line}\n")
 
+
 # ==============================================================================
 # Consolidate Mode - Analyze and consolidate/distribute workspace dependencies
 # ==============================================================================
+
 
 def is_special_dep_section(section: str) -> bool:
     """
@@ -399,22 +443,25 @@ def is_special_dep_section(section: str) -> bool:
         return True
     return False
 
+
 def merge_features(features_list: list) -> Optional[list]:
     # merge multiple feature lists into one, removing duplicates.
     all_features = set()
     has_any = False
-    
+
     for features in features_list:
         if features:
             has_any = True
             all_features.update(features)
-    
+
     if not has_any:
         return None
-    
+
     return sorted(all_features)
 
-def is_version_locked_or_bounded(version_str: str) -> Tuple[bool, bool, bool, str]:
+
+def is_version_locked_or_bounded(
+        version_str: str) -> Tuple[bool, bool, bool, str]:
     """
     Check if a version string is locked (exact), upper-bounded, or a wildcard.
     
@@ -427,36 +474,38 @@ def is_version_locked_or_bounded(version_str: str) -> Tuple[bool, bool, bool, st
     """
     if not version_str:
         return (False, False, False, "")
-    
+
     v = version_str.strip()
-    
+
     # Check for wildcard: "*", "1.*", "1.2.*"
     if v == '*' or v.endswith('.*'):
         return (False, False, True, f"wildcard '{v}'")
-    
+
     # Check for exact pin: "=1.0.0" (not ">=" or "<=")
-    if v.startswith('=') and not v.startswith('==') and len(v) > 1 and v[1] != '>':
+    if v.startswith('=') and not v.startswith('==') and len(
+            v) > 1 and v[1] != '>':
         return (True, False, False, f"exact pin '{v}'")
-    
+
     # Check for upper bound: "<1.0.0" or "<=1.0.0"
     if v.startswith('<'):
         return (False, True, False, f"upper bound '{v}'")
-    
+
     # Check for version ranges with upper bounds: ">=1.0, <2.0"
     if ',' in v and '<' in v:
         return (False, True, False, f"bounded range '{v}'")
-    
+
     # Check for exclusions: "!=1.5.0" or ranges with exclusions: ">=1.0, !=1.5"
     if '!=' in v:
         return (False, True, False, f"exclusion '{v}'")
-    
+
     return (False, False, False, "")
+
 
 def parse_version(version_str: str) -> Tuple:
     # parse a version string into a tuple for comparison.
     if not version_str:
         return (0,)
-    
+
     # Note: We strip version prefixes (^, ~, >=, etc.) because for consolidation purposes,
     # we only care about picking the "highest" base version. The prefix semantics (compatible,
     # minimum, etc.) are preserved when we write back the original version string - we don't
@@ -472,6 +521,7 @@ def parse_version(version_str: str) -> Tuple:
             parts.append(0)
 
     return tuple(parts) if parts else (0,)
+
 
 @dataclass
 class Dependency:
@@ -490,6 +540,7 @@ class Dependency:
     raw_spec: str = ""
     is_internal: bool = False
 
+
 @dataclass
 class CargoToml:
     # represents a parsed Cargo.toml file.
@@ -498,6 +549,7 @@ class CargoToml:
     is_root: bool = False
     dependencies: dict = field(default_factory=dict)
     raw_lines: list = field(default_factory=list)
+
 
 def parse_inline_table(spec_str: str) -> dict:
     # parse an inline table like { version = "1.0", features = ["foo"] }.
@@ -509,7 +561,11 @@ def parse_inline_table(spec_str: str) -> dict:
     features_match = re.search(r'features\s*=\s*\[([^\]]*)\]', inner)
     if features_match:
         features_str = features_match.group(1)
-        features = [f.strip().strip('"\'') for f in features_str.split(',') if f.strip()]
+        features = [
+            f.strip().strip('"\'')
+            for f in features_str.split(',')
+            if f.strip()
+        ]
         result['features'] = features
         inner = re.sub(r',?\s*features\s*=\s*\[[^\]]*\]\s*,?', ',', inner)
 
@@ -540,7 +596,7 @@ def parse_inline_table(spec_str: str) -> dict:
         key, value = part.split('=', 1)
         key = key.strip()
         value = value.strip().strip('"\'')
-        
+
         if value.lower() == 'true':
             result[key] = True
         elif value.lower() == 'false':
@@ -549,6 +605,7 @@ def parse_inline_table(spec_str: str) -> dict:
             result[key] = value
 
     return result
+
 
 def parse_dependency_spec(alias: str, spec: str) -> Dependency:
     # parse a dependency specification string.
@@ -586,7 +643,9 @@ def parse_dependency_spec(alias: str, spec: str) -> Dependency:
 
     raise ValueError(f"Unable to parse dependency spec: {spec}")
 
-def parse_cargo_toml_consolidate(file_path: str, internal_crates: set) -> CargoToml:
+
+def parse_cargo_toml_consolidate(file_path: str,
+                                 internal_crates: set) -> CargoToml:
     # parse a Cargo.toml file and extract dependencies for consolidation.
     with open(file_path, 'r') as f:
         lines = f.readlines()
@@ -595,9 +654,11 @@ def parse_cargo_toml_consolidate(file_path: str, internal_crates: set) -> CargoT
     cargo_toml.package_name = get_package_name_from_cargo_toml(file_path)
     cargo_toml.is_root = '[workspace]' in ''.join(lines)
 
-    section_regex = re.compile(r'^\[([a-zA-Z0-9_.\'-]+(?:\.[a-zA-Z0-9_.\'-]+)*)\]$')
+    section_regex = re.compile(
+        r'^\[([a-zA-Z0-9_.\'-]+(?:\.[a-zA-Z0-9_.\'-]+)*)\]$')
     array_section_regex = re.compile(r'^\[\[([a-zA-Z0-9_-]+)\]\]$')
-    dep_line_regex = re.compile(r'^([a-zA-Z0-9_-]+)(?:\.workspace)?\s*=\s*(.+)$')
+    dep_line_regex = re.compile(
+        r'^([a-zA-Z0-9_-]+)(?:\.workspace)?\s*=\s*(.+)$')
 
     current_section = None
     in_array_section = False
@@ -630,10 +691,8 @@ def parse_cargo_toml_consolidate(file_path: str, internal_crates: set) -> CargoT
             # The original file content is preserved when we update dependencies later.
             continue
 
-        is_dep_section = (
-            current_section and
-            current_section.endswith('dependencies')
-        )
+        is_dep_section = (current_section and
+                          current_section.endswith('dependencies'))
 
         if is_dep_section:
             dep_match = dep_line_regex.match(stripped)
@@ -642,7 +701,10 @@ def parse_cargo_toml_consolidate(file_path: str, internal_crates: set) -> CargoT
                 spec = dep_match.group(2)
 
                 if '.workspace' in line and '= true' in line:
-                    dep = Dependency(name=alias, alias=alias, workspace=True, raw_spec="{ workspace = true }")
+                    dep = Dependency(name=alias,
+                                     alias=alias,
+                                     workspace=True,
+                                     raw_spec="{ workspace = true }")
                 else:
                     dep = parse_dependency_spec(alias, spec)
 
@@ -659,6 +721,7 @@ def parse_cargo_toml_consolidate(file_path: str, internal_crates: set) -> CargoT
 
     return cargo_toml
 
+
 def analyze_dependencies(cargo_tomls: list, internal_crates: set) -> dict:
     # Analyze all dependencies across all Cargo.toml files.
     deps_analysis = defaultdict(lambda: {'usages': [], 'root_spec': None})
@@ -674,9 +737,11 @@ def analyze_dependencies(cargo_tomls: list, internal_crates: set) -> dict:
                 if cargo_toml.is_root and section == 'workspace.dependencies':
                     deps_analysis[alias]['root_spec'] = dep
                 else:
-                    deps_analysis[alias]['usages'].append((toml_path, section, dep))
+                    deps_analysis[alias]['usages'].append(
+                        (toml_path, section, dep))
 
     return deps_analysis
+
 
 def build_workspace_dep_spec(dep: Dependency) -> str:
     # build a workspace.dependencies specification string from a Dependency.
@@ -711,6 +776,7 @@ def build_workspace_dep_spec(dep: Dependency) -> str:
         return '{ ' + ', '.join(parts) + ' }'
     return '{ }'
 
+
 def build_crate_workspace_ref(dep: Dependency) -> Optional[str]:
     # build a crate-level workspace reference, preserving local overrides.
     extra_parts = []
@@ -722,7 +788,8 @@ def build_crate_workspace_ref(dep: Dependency) -> Optional[str]:
     # Include both default-features = false AND default-features = true
     # This is necessary when workspace has default-features=false but this crate needs them
     if dep.default_features is not None:
-        extra_parts.append(f'default-features = {str(dep.default_features).lower()}')
+        extra_parts.append(
+            f'default-features = {str(dep.default_features).lower()}')
 
     if dep.optional:
         extra_parts.append('optional = true')
@@ -732,6 +799,7 @@ def build_crate_workspace_ref(dep: Dependency) -> Optional[str]:
 
     parts = ['workspace = true'] + extra_parts
     return '{ ' + ', '.join(parts) + ' }'
+
 
 def build_full_dep_spec(dep: Dependency) -> str:
     # Build a full dependency specification for standalone use (not workspace ref).
@@ -766,7 +834,9 @@ def build_full_dep_spec(dep: Dependency) -> str:
 
     return '{ ' + ', '.join(parts) + ' }'
 
-def update_root_cargo_toml(root_path: str, deps_to_add: dict, deps_to_remove: set):
+
+def update_root_cargo_toml(root_path: str, deps_to_add: dict,
+                           deps_to_remove: set):
     # update the root Cargo.toml to add/remove workspace dependencies.
     with open(root_path, 'r') as f:
         lines = f.readlines()
@@ -790,7 +860,8 @@ def update_root_cargo_toml(root_path: str, deps_to_add: dict, deps_to_remove: se
         if section_match:
             if in_workspace_deps:
                 workspace_deps_end = len(new_lines)
-            in_workspace_deps = section_match.group(1) == 'workspace.dependencies'
+            in_workspace_deps = section_match.group(
+                1) == 'workspace.dependencies'
 
         if in_workspace_deps:
             dep_match = dep_line_regex.match(stripped)
@@ -814,11 +885,13 @@ def update_root_cargo_toml(root_path: str, deps_to_add: dict, deps_to_remove: se
                 insert_lines.append(f'{alias} = {spec}\n')
                 added_deps.add(alias)
 
-        new_lines = new_lines[:workspace_deps_end] + insert_lines + new_lines[workspace_deps_end:]
+        new_lines = new_lines[:workspace_deps_end] + insert_lines + new_lines[
+            workspace_deps_end:]
 
     with open(root_path, 'w') as f:
         f.writelines(new_lines)
     print(f"Updated {root_path}")
+
 
 def update_crate_cargo_toml(toml_path: str, updates: dict):
     # update a crate's Cargo.toml to use workspace refs or full specs.
@@ -829,9 +902,11 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
     current_section = None
     in_array_section = False
 
-    section_regex = re.compile(r'^\[([a-zA-Z0-9_.\'-]+(?:\.[a-zA-Z0-9_.\'-]+)*)\]$')
+    section_regex = re.compile(
+        r'^\[([a-zA-Z0-9_.\'-]+(?:\.[a-zA-Z0-9_.\'-]+)*)\]$')
     array_section_regex = re.compile(r'^\[\[([a-zA-Z0-9_-]+)\]\]$')
-    dep_line_regex = re.compile(r'^([a-zA-Z0-9_-]+)(?:\.workspace)?\s*=\s*(.+)$')
+    dep_line_regex = re.compile(
+        r'^([a-zA-Z0-9_-]+)(?:\.workspace)?\s*=\s*(.+)$')
 
     # Process each line, replacing dependency lines that need updating.
     # We track current section and whether we're in an array section to
@@ -852,17 +927,15 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
             new_lines.append(line)
             continue
 
-        is_dep_section = (
-            current_section and
-            current_section.endswith('dependencies') and
-            not in_array_section
-        )
+        is_dep_section = (current_section and
+                          current_section.endswith('dependencies') and
+                          not in_array_section)
 
         if is_dep_section:
             dep_match = dep_line_regex.match(stripped)
             if dep_match:
                 alias = dep_match.group(1)
-                
+
                 # Check for both regular updates and section-specific updates
                 update_info = None
                 if alias in updates:
@@ -872,7 +945,7 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
                     section_key = f"{alias}:{current_section}"
                     if section_key in updates:
                         update_info = updates[section_key]
-                
+
                 if update_info:
                     # Handle different update info formats
                     if len(update_info) == 3:
@@ -883,35 +956,42 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
                             continue
                     else:
                         action, dep = update_info
-                    
+
                     indent = len(line) - len(line.lstrip())
                     indent_str = line[:indent]
 
                     if action == 'to_workspace':
                         new_spec = build_crate_workspace_ref(dep)
                         if new_spec is None:
-                            new_lines.append(f'{indent_str}{alias}.workspace = true\n')
+                            new_lines.append(
+                                f'{indent_str}{alias}.workspace = true\n')
                         else:
-                            new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
+                            new_lines.append(
+                                f'{indent_str}{alias} = {new_spec}\n')
                     elif action == 'fix_default_features':
                         # Fix invalid default-features=false in workspace dependency
                         if dep.workspace:
                             new_spec = build_crate_workspace_ref(dep)
                             if new_spec is None:
-                                new_lines.append(f'{indent_str}{alias}.workspace = true\n')
+                                new_lines.append(
+                                    f'{indent_str}{alias}.workspace = true\n')
                             else:
-                                new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
+                                new_lines.append(
+                                    f'{indent_str}{alias} = {new_spec}\n')
                         else:
                             # For non-workspace deps, use full spec
                             new_spec = build_full_dep_spec(dep)
-                            new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
+                            new_lines.append(
+                                f'{indent_str}{alias} = {new_spec}\n')
                     elif action == 'clean_features':
                         # Clean up redundant features from workspace dependency
                         new_spec = build_crate_workspace_ref(dep)
                         if new_spec is None:
-                            new_lines.append(f'{indent_str}{alias}.workspace = true\n')
+                            new_lines.append(
+                                f'{indent_str}{alias}.workspace = true\n')
                         else:
-                            new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
+                            new_lines.append(
+                                f'{indent_str}{alias} = {new_spec}\n')
                     else:  # 'to_full'
                         new_spec = build_full_dep_spec(dep)
                         new_lines.append(f'{indent_str}{alias} = {new_spec}\n')
@@ -923,21 +1003,26 @@ def update_crate_cargo_toml(toml_path: str, updates: dict):
         f.writelines(new_lines)
     print(f"Updated {toml_path}")
 
+
 def get_crate_path(toml_path: str, target_dir: str) -> str:
     # Convert absolute toml path to relative crate path from workspace root.
     rel_path = os.path.relpath(toml_path, target_dir)
-    return rel_path.replace('/Cargo.toml', '') if rel_path.endswith('/Cargo.toml') else rel_path
+    return rel_path.replace(
+        '/Cargo.toml', '') if rel_path.endswith('/Cargo.toml') else rel_path
 
-def should_ignore_dependency(args, dep_name: str, crate_path: str = None) -> bool:
+
+def should_ignore_dependency(args,
+                             dep_name: str,
+                             crate_path: str = None) -> bool:
     """Check if a dependency should be ignored based on strict-ignore rules."""
     if not args.strict_ignore:
         return False
-    
+
     # Parse ignore rules
     ignored_deps = set()
     ignored_dep_crate_combos = {}
     ignored_crates = set()
-    
+
     for ignore_rule in args.strict_ignore:
         if ':' in ignore_rule:
             dep_part, crate_part = ignore_rule.split(':', 1)
@@ -949,25 +1034,31 @@ def should_ignore_dependency(args, dep_name: str, crate_path: str = None) -> boo
                 ignored_dep_crate_combos[dep_part].add(crate_part)
         else:
             ignored_deps.add(ignore_rule)
-    
+
     # Check if dependency is completely ignored
     if dep_name in ignored_deps:
         return True
-    
+
     # Check if specific dep:crate combo is ignored
     if crate_path and dep_name in ignored_dep_crate_combos:
         if crate_path in ignored_dep_crate_combos[dep_name]:
             return True
-    
+
     # Check if crate is globally ignored
     if crate_path and crate_path in ignored_crates:
         return True
-    
+
     return False
 
-def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_patterns: list, iteration: int = 1):
+
+def run_consolidate_mode(args,
+                         target_dir: str,
+                         root_cargo_toml: str,
+                         ignore_patterns: list,
+                         iteration: int = 1):
     # run the consolidate dependencies mode.
-    internal_crates = set(get_package_names_from_cargo_tomls(target_dir, ignore_patterns).keys())
+    internal_crates = set(
+        get_package_names_from_cargo_tomls(target_dir, ignore_patterns).keys())
     print(f"  Found {len(internal_crates)} internal crates")
 
     print("Finding Cargo.toml files...")
@@ -975,7 +1066,8 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     print(f"  Found {len(cargo_tomls)} Cargo.toml files")
 
     if not os.path.exists(root_cargo_toml):
-        raise Exception(f"Error: Root Cargo.toml not found at {root_cargo_toml}")
+        raise Exception(
+            f"Error: Root Cargo.toml not found at {root_cargo_toml}")
 
     if root_cargo_toml not in cargo_tomls:
         cargo_tomls.append(root_cargo_toml)
@@ -990,31 +1082,31 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     for alias, info in deps_analysis.items():
         usages = info['usages']
         root_spec = info['root_spec']
-        
+
         # Check for version conflicts for this package
         pkg_name = alias
         if root_spec:
             pkg_name = root_spec.name
         elif usages:
             pkg_name = usages[0][2].name
-        
+
         # Track version conflicts with detailed crate information
         if pkg_name not in version_conflicts:
             workspace_ver = root_spec.version if root_spec and root_spec.version else None
             crate_versions = {}
-            
+
             for toml_path, section, dep in usages:
                 if not dep.workspace and dep.version:
                     if dep.version not in crate_versions:
                         crate_versions[dep.version] = []
                     crate_path = get_crate_path(toml_path, target_dir)
                     crate_versions[dep.version].append(crate_path)
-            
+
             # Check for conflicts
             if workspace_ver and crate_versions:
                 all_versions = set(crate_versions.keys())
                 all_versions.add(workspace_ver)
-                
+
                 if len(all_versions) > 1:
                     version_conflicts[pkg_name] = {
                         'workspace_version': workspace_ver,
@@ -1027,11 +1119,13 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                 }
 
         # Use relative paths from workspace root for unique crate identification
-        unique_crates = set(get_crate_path(usage[0], target_dir) for usage in usages)
+        unique_crates = set(
+            get_crate_path(usage[0], target_dir) for usage in usages)
         usage_count = len(unique_crates)
 
         regular_usages = [u for u in usages if not is_special_dep_section(u[1])]
-        regular_usage_count = len(set(get_crate_path(u[0], target_dir) for u in regular_usages))
+        regular_usage_count = len(
+            set(get_crate_path(u[0], target_dir) for u in regular_usages))
 
         if regular_usage_count >= args.min_usage:
             if not root_spec:
@@ -1047,102 +1141,151 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                         git_deps.append((toml_path, dep))
 
                 if version_deps and git_deps:
-                    print(f"{RED}ERROR: Dependency '{alias}' has MIXED version and git specifications!{RESET}")
+                    print(
+                        f"{RED}ERROR: Dependency '{alias}' has MIXED version and git specifications!{RESET}"
+                    )
                     print(f"  Version specs:")
                     for path, dep in version_deps:
                         print(f"    - {os.path.relpath(path)}: {dep.version}")
                     print(f"  Git specs:")
                     for path, dep in git_deps:
                         rev_info = dep.rev or dep.branch or "no rev"
-                        print(f"    - {os.path.relpath(path)}: {dep.git} ({rev_info})")
+                        print(
+                            f"    - {os.path.relpath(path)}: {dep.git} ({rev_info})"
+                        )
                     print(f"  {RED}Please resolve manually!{RESET}")
-                    raise Exception("Mixed version and git specifications detected.")
+                    raise Exception(
+                        "Mixed version and git specifications detected.")
 
                 best_dep = None
 
                 if version_deps:
-                    unique_versions = set(dep.version for _, dep in version_deps)
+                    unique_versions = set(
+                        dep.version for _, dep in version_deps)
                     if len(unique_versions) > 1:
                         # Check for locked or upper-bounded versions that conflict with higher versions
                         locked_deps = []
                         bounded_deps = []
                         exclusion_conflicts = []
-                        
+
                         # Filter out wildcards for determining highest version (they're too permissive)
-                        non_wildcard_deps = [(p, d) for p, d in version_deps 
-                                             if not is_version_locked_or_bounded(d.version)[2]]
-                        
+                        non_wildcard_deps = [
+                            (p, d)
+                            for p, d in version_deps
+                            if not is_version_locked_or_bounded(d.version)[2]
+                        ]
+
                         if not non_wildcard_deps:
                             # All versions are wildcards, just use the first one
                             highest_version = version_deps[0]
                         else:
-                            highest_version = max(non_wildcard_deps, key=lambda x: parse_version(x[1].version))
-                        highest_version_tuple = parse_version(highest_version[1].version)
+                            highest_version = max(
+                                non_wildcard_deps,
+                                key=lambda x: parse_version(x[1].version))
+                        highest_version_tuple = parse_version(
+                            highest_version[1].version)
                         highest_version_str = highest_version[1].version
-                        
+
                         for path, dep in version_deps:
-                            is_exact, is_bounded, is_wildcard, reason = is_version_locked_or_bounded(dep.version)
+                            is_exact, is_bounded, is_wildcard, reason = is_version_locked_or_bounded(
+                                dep.version)
                             dep_version_tuple = parse_version(dep.version)
-                            
+
                             # Skip wildcards - they're permissive and don't conflict
                             if is_wildcard:
                                 continue
-                            
+
                             if is_exact and dep_version_tuple < highest_version_tuple:
                                 locked_deps.append((path, dep, reason))
                             elif is_bounded:
                                 # For exclusions, check if the highest version is excluded
                                 if '!=' in dep.version:
                                     # Extract excluded versions and check if highest is among them
-                                    excluded = [v.strip().lstrip('!=') for v in dep.version.split(',') if '!=' in v]
+                                    excluded = [
+                                        v.strip().lstrip('!=')
+                                        for v in dep.version.split(',')
+                                        if '!=' in v
+                                    ]
                                     for excl_ver in excluded:
-                                        if parse_version(excl_ver) == highest_version_tuple:
-                                            exclusion_conflicts.append((path, dep, f"excludes '{excl_ver}'"))
+                                        if parse_version(
+                                                excl_ver
+                                        ) == highest_version_tuple:
+                                            exclusion_conflicts.append(
+                                                (path, dep,
+                                                 f"excludes '{excl_ver}'"))
                                             break
                                 elif dep_version_tuple < highest_version_tuple:
                                     bounded_deps.append((path, dep, reason))
-                        
+
                         if locked_deps or bounded_deps or exclusion_conflicts:
-                            print(f"{RED}ERROR: Dependency '{alias}' has CONFLICTING version constraints!{RESET}")
-                            print(f"  Highest version found: {highest_version_str} in {os.path.relpath(highest_version[0])}")
+                            print(
+                                f"{RED}ERROR: Dependency '{alias}' has CONFLICTING version constraints!{RESET}"
+                            )
+                            print(
+                                f"  Highest version found: {highest_version_str} in {os.path.relpath(highest_version[0])}"
+                            )
                             if locked_deps:
                                 print(f"  Exact pins that conflict:")
                                 for path, dep, reason in locked_deps:
-                                    print(f"    - {os.path.relpath(path)}: {reason}")
+                                    print(
+                                        f"    - {os.path.relpath(path)}: {reason}"
+                                    )
                             if bounded_deps:
-                                print(f"  Upper-bounded versions that conflict:")
+                                print(
+                                    f"  Upper-bounded versions that conflict:")
                                 for path, dep, reason in bounded_deps:
-                                    print(f"    - {os.path.relpath(path)}: {reason}")
+                                    print(
+                                        f"    - {os.path.relpath(path)}: {reason}"
+                                    )
                             if exclusion_conflicts:
-                                print(f"  Exclusions that conflict with highest version:")
+                                print(
+                                    f"  Exclusions that conflict with highest version:"
+                                )
                                 for path, dep, reason in exclusion_conflicts:
-                                    print(f"    - {os.path.relpath(path)}: {reason}")
+                                    print(
+                                        f"    - {os.path.relpath(path)}: {reason}"
+                                    )
                             print(f"  {RED}Please resolve manually!{RESET}")
-                            raise Exception("Conflicting version constraints detected.")
-                        
+                            raise Exception(
+                                "Conflicting version constraints detected.")
+
                         # No locked/bounded conflicts, just different SemVer specs - warn and use highest
-                        print(f"{YELLOW}NOTE: Dependency '{alias}' has multiple versions: {unique_versions}{RESET}")
+                        print(
+                            f"{YELLOW}NOTE: Dependency '{alias}' has multiple versions: {unique_versions}{RESET}"
+                        )
                         print(f"  Using highest version.")
 
                     # Handle default-features logic:
                     # If ANY crate uses default-features=false, set workspace to false
                     # and ALL other crates (that didn't explicitly disable defaults) need default-features=true
-                    print(f"[DEBUG] Considering {alias} for consolidation (version_deps):")
+                    print(
+                        f"[DEBUG] Considering {alias} for consolidation (version_deps):"
+                    )
                     for path, dep in version_deps:
-                        print(f"[DEBUG]   {os.path.relpath(path)}: default_features={dep.default_features}")
-                    
+                        print(
+                            f"[DEBUG]   {os.path.relpath(path)}: default_features={dep.default_features}"
+                        )
+
                     # Check if any crate explicitly disables default features
-                    has_explicit_false = any(dep.default_features is False for _, dep in version_deps)
+                    has_explicit_false = any(dep.default_features is False
+                                             for _, dep in version_deps)
                     workspace_default_features = None
-                    
+
                     if has_explicit_false:
                         workspace_default_features = False
-                        print(f"{YELLOW}NOTE: Dependency '{alias}' has at least one crate with default-features=false.{RESET}")
+                        print(
+                            f"{YELLOW}NOTE: Dependency '{alias}' has at least one crate with default-features=false.{RESET}"
+                        )
                         print(f"  Setting default-features=false in workspace.")
-                        print(f"  Other crates will explicitly set default-features=true to maintain behavior.")
+                        print(
+                            f"  Other crates will explicitly set default-features=true to maintain behavior."
+                        )
 
-                    highest_ver_dep = max(version_deps, key=lambda x: parse_version(x[1].version))[1]
-                    all_features = merge_features([dep.features for _, dep in version_deps])
+                    highest_ver_dep = max(
+                        version_deps,
+                        key=lambda x: parse_version(x[1].version))[1]
+                    all_features = merge_features(
+                        [dep.features for _, dep in version_deps])
 
                     best_dep = Dependency(
                         name=highest_ver_dep.name,
@@ -1156,34 +1299,50 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     )
 
                 elif git_deps:
-                    unique_revs = set((dep.git, dep.rev, dep.branch) for _, dep in git_deps)
+                    unique_revs = set(
+                        (dep.git, dep.rev, dep.branch) for _, dep in git_deps)
                     if len(unique_revs) > 1:
-                        print(f"{RED}ERROR: Dependency '{alias}' has CONFLICTING git specifications!{RESET}")
+                        print(
+                            f"{RED}ERROR: Dependency '{alias}' has CONFLICTING git specifications!{RESET}"
+                        )
                         for path, dep in git_deps:
                             rev_info = dep.rev or dep.branch or "no rev"
-                            print(f"    - {os.path.relpath(path)}: {dep.git} ({rev_info})")
+                            print(
+                                f"    - {os.path.relpath(path)}: {dep.git} ({rev_info})"
+                            )
                         print(f"  {RED}Please resolve manually!{RESET}")
-                        raise Exception("Conflicting git specifications detected.")
+                        raise Exception(
+                            "Conflicting git specifications detected.")
 
                     # Handle default-features logic:
                     # If ANY crate uses default-features=false, set workspace to false
                     # and ALL other crates (that didn't explicitly disable defaults) need default-features=true
-                    print(f"[DEBUG] Considering {alias} for consolidation (git_deps):")
+                    print(
+                        f"[DEBUG] Considering {alias} for consolidation (git_deps):"
+                    )
                     for path, dep in git_deps:
-                        print(f"[DEBUG]   {os.path.relpath(path)}: default_features={dep.default_features}")
-                    
+                        print(
+                            f"[DEBUG]   {os.path.relpath(path)}: default_features={dep.default_features}"
+                        )
+
                     # Check if any crate explicitly disables default features
-                    has_explicit_false = any(dep.default_features is False for _, dep in git_deps)
+                    has_explicit_false = any(
+                        dep.default_features is False for _, dep in git_deps)
                     workspace_default_features = None
-                    
+
                     if has_explicit_false:
                         workspace_default_features = False
-                        print(f"{YELLOW}NOTE: Dependency '{alias}' has at least one crate with default-features=false.{RESET}")
+                        print(
+                            f"{YELLOW}NOTE: Dependency '{alias}' has at least one crate with default-features=false.{RESET}"
+                        )
                         print(f"  Setting default-features=false in workspace.")
-                        print(f"  Other crates will explicitly set default-features=true to maintain behavior.")
-                    
+                        print(
+                            f"  Other crates will explicitly set default-features=true to maintain behavior."
+                        )
+
                     first_dep = git_deps[0][1]
-                    all_features = merge_features([dep.features for _, dep in git_deps])
+                    all_features = merge_features(
+                        [dep.features for _, dep in git_deps])
 
                     best_dep = Dependency(
                         name=first_dep.name,
@@ -1212,49 +1371,61 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                 }
 
     print(f"\n=== Analysis Results ===")
-    print(f"Dependencies to consolidate (add to workspace): {len(deps_to_consolidate)}")
-    print(f"Dependencies to distribute (remove from workspace): {len(deps_to_distribute)}")
-    
+    print(
+        f"Dependencies to consolidate (add to workspace): {len(deps_to_consolidate)}"
+    )
+    print(
+        f"Dependencies to distribute (remove from workspace): {len(deps_to_distribute)}"
+    )
+
     # Show dependencies kept in workspace due to --keep-in-workspace
     if args.keep_in_workspace:
         kept_deps = []
         for alias, info in deps_analysis.items():
-            if alias in args.keep_in_workspace and info['root_spec'] and len(info['usages']) == 1:
+            if alias in args.keep_in_workspace and info['root_spec'] and len(
+                    info['usages']) == 1:
                 kept_deps.append(alias)
         if kept_deps:
-            print(f"Dependencies kept in workspace (--keep-in-workspace): {len(kept_deps)}")
+            print(
+                f"Dependencies kept in workspace (--keep-in-workspace): {len(kept_deps)}"
+            )
             for dep in sorted(kept_deps):
                 print(f"  {dep}")
 
     # Show version conflicts with detailed crate information
     if version_conflicts:
         print(f"\n{YELLOW} Version Conflicts Found:{RESET}")
-        
+
         for pkg_name, conflict in version_conflicts.items():
             workspace_ver = conflict['workspace_version']
             crate_versions = conflict['crate_versions']
-            
+
             # Check if this dependency is completely ignored (no crate-specific rules)
-            dep_completely_ignored = args.strict and should_ignore_dependency(args, pkg_name, None)
-            
+            dep_completely_ignored = args.strict and should_ignore_dependency(
+                args, pkg_name, None)
+
             # Helper function to format crates with ignore annotations
             def format_crates_with_ignore(crates):
                 displayed_crates = []
                 for crate in crates:
-                    crate_ignored = args.strict and should_ignore_dependency(args, pkg_name, crate)
-                    
+                    crate_ignored = args.strict and should_ignore_dependency(
+                        args, pkg_name, crate)
+
                     if crate_ignored:
-                        displayed_crates.append(f"{RED}{crate} (ignored){RESET}")
+                        displayed_crates.append(
+                            f"{RED}{crate} (ignored){RESET}")
                     else:
                         displayed_crates.append(crate)
-                
+
                 return ', '.join(displayed_crates)
-            
+
             # Helper function to display version conflicts
-            def display_version_conflict(pkg_name, conflict, dep_completely_ignored, format_crates_fn):
+            def display_version_conflict(pkg_name, conflict,
+                                         dep_completely_ignored,
+                                         format_crates_fn):
                 workspace_ver = conflict['workspace_version']
                 crate_versions = conflict['crate_versions']
-                
+
                 # Print header based on conflict type
                 if workspace_ver:
                     print(f"\n  Package '{pkg_name}' has conflicting versions:")
@@ -1263,32 +1434,35 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     print(f"    WORKSPACE: {workspace_ver}")
                 else:
                     versions_list = sorted(crate_versions.keys())
-                    print(f"\n  Package '{pkg_name}' has multiple versions in crates: {versions_list}")
+                    print(
+                        f"\n  Package '{pkg_name}' has multiple versions in crates: {versions_list}"
+                    )
                     if dep_completely_ignored:
                         print(f"    {RED}(IGNORED in strict mode){RESET}")
-                
+
                 # Print crate versions
                 for version, crates in sorted(crate_versions.items()):
                     crate_list = format_crates_fn(crates)
                     print(f"    {crate_list}: ({version})")
-                
+
                 # Print suggestion
                 suggestion = "using consistent versions across workspace and crates" if workspace_ver else "consolidating to workspace dependency"
                 print(f"    {YELLOW}Consider {suggestion}.{RESET}")
-            
-            display_version_conflict(pkg_name, conflict, dep_completely_ignored, format_crates_with_ignore)
-        
+
+            display_version_conflict(pkg_name, conflict, dep_completely_ignored,
+                                     format_crates_with_ignore)
+
         if args.strict:
             # Check if any conflicts should cause strict mode failure
             strict_failures = {}
             for pkg_name, conflict in version_conflicts.items():
                 if should_ignore_dependency(args, pkg_name, None):
                     continue  # Ignore this dependency completely
-                
+
                 workspace_ver = conflict['workspace_version']
                 crate_versions = conflict['crate_versions']
                 filtered_crate_versions = {}
-                
+
                 for version, crates in crate_versions.items():
                     filtered_crates = []
                     for crate in crates:
@@ -1296,10 +1470,10 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                         if should_ignore_dependency(args, pkg_name, crate):
                             continue
                         filtered_crates.append(crate)
-                    
+
                     if filtered_crates:
                         filtered_crate_versions[version] = filtered_crates
-                
+
                 # Check if there are still conflicts after filtering
                 if workspace_ver and filtered_crate_versions:
                     all_versions = set(filtered_crate_versions.keys())
@@ -1314,14 +1488,17 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                         'workspace_version': None,
                         'crate_versions': filtered_crate_versions
                     }
-            
+
             if strict_failures:
-                raise Exception(f"\n{RED}❌ STRICT MODE: Version conflicts detected (after applying ignore rules)! Exiting with error.{RESET}")
+                raise Exception(
+                    f"\n{RED}❌ STRICT MODE: Version conflicts detected (after applying ignore rules)! Exiting with error.{RESET}"
+                )
 
     if deps_to_consolidate:
         print("\nTo consolidate:")
         for alias, info in sorted(deps_to_consolidate.items()):
-            crates = set(get_crate_path(u[0], target_dir) for u in info['usages'])
+            crates = set(
+                get_crate_path(u[0], target_dir) for u in info['usages'])
             print(f"  {alias}: used by {len(crates)} crates - {crates}")
 
     if deps_to_distribute:
@@ -1343,19 +1520,22 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     # Invalid: workspace dependency with default-features=false (has no effect)
                     if toml_path not in invalid_default_features:
                         invalid_default_features[toml_path] = {}
-                    
+
                     clean_dep = Dependency(
                         name=dep.name,
                         alias=dep.alias,
-                        features=dep.features,  # Keep original features unchanged
+                        features=dep.
+                        features,  # Keep original features unchanged
                         default_features=None,  # Remove the invalid false setting
                         optional=dep.optional,
-                        workspace=True
-                    )
-                    invalid_default_features[toml_path][alias] = ('fix_default_features', clean_dep)
+                        workspace=True)
+                    invalid_default_features[toml_path][alias] = (
+                        'fix_default_features', clean_dep)
 
     if invalid_default_features:
-        print(f"\nFound {sum(len(updates) for updates in invalid_default_features.values())} invalid default-features=false in workspace dependencies:")
+        print(
+            f"\nFound {sum(len(updates) for updates in invalid_default_features.values())} invalid default-features=false in workspace dependencies:"
+        )
         for toml_path, updates in invalid_default_features.items():
             crate_path = get_crate_path(toml_path, target_dir)
             deps_list = list(updates.keys())
@@ -1364,7 +1544,8 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
     # Clean up redundant features in existing workspace dependencies
     redundant_features_cleanup = {}
     for alias, info in deps_analysis.items():
-        if alias not in deps_to_consolidate and alias not in deps_to_distribute and info['root_spec']:
+        if alias not in deps_to_consolidate and alias not in deps_to_distribute and info[
+                'root_spec']:
             workspace_dep = info['root_spec']
             # Check existing workspace dependencies for redundant features
             for toml_path, section, dep in info['usages']:
@@ -1373,37 +1554,44 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     workspace_features_set = set(workspace_dep.features)
                     crate_features_set = set(dep.features)
                     additional_features = crate_features_set - workspace_features_set
-                    
+
                     # Only update if we can remove some features
                     if len(additional_features) < len(crate_features_set):
                         if toml_path not in redundant_features_cleanup:
                             redundant_features_cleanup[toml_path] = {}
-                        
-                        cleaned_features = sorted(list(additional_features)) if additional_features else None
+
+                        cleaned_features = sorted(
+                            list(additional_features
+                                )) if additional_features else None
                         clean_dep = Dependency(
                             name=dep.name,
                             alias=dep.alias,
                             features=cleaned_features,
                             default_features=dep.default_features,
                             optional=dep.optional,
-                            workspace=True
-                        )
+                            workspace=True)
                         # Use section-specific key to handle dependencies in multiple sections
                         section_key = f"{alias}:{section}"
-                        redundant_features_cleanup[toml_path][section_key] = ('clean_features', clean_dep, section)
+                        redundant_features_cleanup[toml_path][section_key] = (
+                            'clean_features', clean_dep, section)
 
     if redundant_features_cleanup:
-        print(f"\nFound {sum(len(updates) for updates in redundant_features_cleanup.values())} workspace dependencies with redundant features:")
+        print(
+            f"\nFound {sum(len(updates) for updates in redundant_features_cleanup.values())} workspace dependencies with redundant features:"
+        )
         for toml_path, updates in redundant_features_cleanup.items():
             crate_path = get_crate_path(toml_path, target_dir)
             # Extract just the dependency names from section-specific keys
             deps_list = [key.split(':')[0] for key in updates.keys()]
-            print(f"  {crate_path}: {', '.join(sorted(set(deps_list)))}")  # Use set to dedupe
+            print(f"  {crate_path}: {', '.join(sorted(set(deps_list)))}"
+                 )  # Use set to dedupe
 
     if not deps_to_consolidate and not deps_to_distribute and not invalid_default_features and not redundant_features_cleanup:
         return False  # No changes made
 
-    root_additions = {alias: info['dep'] for alias, info in deps_to_consolidate.items()}
+    root_additions = {
+        alias: info['dep'] for alias, info in deps_to_consolidate.items()
+    }
     root_removals = set(deps_to_distribute.keys())
 
     if root_additions or root_removals:
@@ -1420,7 +1608,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                 crate_path = get_crate_path(toml_path, target_dir)
                 if should_ignore_dependency(args, alias, crate_path):
                     continue  # Skip this conversion
-                
+
                 # When converting to workspace ref, handle default-features correctly:
                 # If workspace has default-features=false but this crate didn't explicitly disable them,
                 # it needs default-features=true to maintain original behavior
@@ -1431,7 +1619,7 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                 elif dep.default_features is not None and dep.default_features != workspace_dep.default_features:
                     # Crate has explicit setting that differs from workspace
                     explicit_default_features = dep.default_features
-                
+
                 # Only specify features that are not already defined in workspace features
                 explicit_features = None
                 if dep.features and workspace_dep.features:
@@ -1447,20 +1635,20 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                 elif dep.features != workspace_dep.features:
                     # Handle other cases where features differ (e.g., None vs empty list)
                     explicit_features = dep.features
-                
+
                 crate_dep = Dependency(
                     name=dep.name,
                     alias=dep.alias,
                     features=explicit_features,
                     default_features=explicit_default_features,
                     optional=dep.optional,
-                    workspace=True
-                )
+                    workspace=True)
                 crate_updates[toml_path][alias] = ('to_workspace', crate_dep)
 
     # Handle existing workspace dependencies that have non-workspace crate usages
     for alias, info in deps_analysis.items():
-        if alias not in deps_to_consolidate and alias not in deps_to_distribute and info['root_spec']:
+        if alias not in deps_to_consolidate and alias not in deps_to_distribute and info[
+                'root_spec']:
             workspace_dep = info['root_spec']
             for toml_path, section, dep in info['usages']:
                 if not dep.workspace and not is_special_dep_section(section):
@@ -1468,14 +1656,14 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     crate_path = get_crate_path(toml_path, target_dir)
                     if should_ignore_dependency(args, alias, crate_path):
                         continue  # Skip this conversion
-                    
+
                     # Convert non-workspace usage to workspace reference
                     explicit_default_features = None
                     if workspace_dep.default_features is False and dep.default_features is not False:
                         explicit_default_features = True
                     elif dep.default_features is not None and dep.default_features != workspace_dep.default_features:
                         explicit_default_features = dep.default_features
-                    
+
                     # Only specify features that are not already defined in workspace features
                     explicit_features = None
                     if dep.features and workspace_dep.features:
@@ -1483,21 +1671,22 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                         crate_features_set = set(dep.features)
                         additional_features = crate_features_set - workspace_features_set
                         if additional_features:
-                            explicit_features = sorted(list(additional_features))
+                            explicit_features = sorted(
+                                list(additional_features))
                     elif dep.features and not workspace_dep.features:
                         explicit_features = dep.features
                     elif dep.features != workspace_dep.features:
                         explicit_features = dep.features
-                    
+
                     crate_dep = Dependency(
                         name=dep.name,
                         alias=dep.alias,
                         features=explicit_features,
                         default_features=explicit_default_features,
                         optional=dep.optional,
-                        workspace=True
-                    )
-                    crate_updates[toml_path][alias] = ('to_workspace', crate_dep)
+                        workspace=True)
+                    crate_updates[toml_path][alias] = ('to_workspace',
+                                                       crate_dep)
 
     for alias, info in deps_to_distribute.items():
         if info['usage']:
@@ -1511,7 +1700,9 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
                     rev=info['root_spec'].rev,
                     branch=info['root_spec'].branch,
                     features=dep.features or info['root_spec'].features,
-                    default_features=dep.default_features if dep.default_features is not None else info['root_spec'].default_features,
+                    default_features=dep.default_features
+                    if dep.default_features is not None else
+                    info['root_spec'].default_features,
                     optional=dep.optional,
                 )
                 crate_updates[toml_path][alias] = ('to_full', full_dep)
@@ -1531,43 +1722,47 @@ def run_consolidate_mode(args, target_dir: str, root_cargo_toml: str, ignore_pat
             update_crate_cargo_toml(toml_path, updates)
 
     # Return whether any changes were made
-    changes_made = (
-        bool(deps_to_consolidate) or 
-        bool(deps_to_distribute) or 
-        bool(invalid_default_features) or 
-        bool(redundant_features_cleanup)
-    )
-    
+    changes_made = (bool(deps_to_consolidate) or bool(deps_to_distribute) or
+                    bool(invalid_default_features) or
+                    bool(redundant_features_cleanup))
+
     return changes_made
 
-def run_consolidate_mode_with_loop(args, target_dir: str, root_cargo_toml: str, ignore_patterns: list):
+
+def run_consolidate_mode_with_loop(args, target_dir: str, root_cargo_toml: str,
+                                   ignore_patterns: list):
     # Run consolidate mode in a loop until no more changes are detected
     max_iterations = 10  # Safety limit to prevent infinite loops
     iteration = 1
-    
+
     print(f"=== Consolidate Mode (Loop) ===")
-    
+
     while iteration <= max_iterations:
         print(f"\n--- Consolidation Pass {iteration} ---")
-        
+
         try:
-            changes_made = run_consolidate_mode(args, target_dir, root_cargo_toml, ignore_patterns, iteration)
+            changes_made = run_consolidate_mode(args, target_dir,
+                                                root_cargo_toml,
+                                                ignore_patterns, iteration)
         except Exception as e:
             print(f"{RED}ERROR: Consolidation failed with error: {e}{RESET}")
             print("Stopping consolidation due to unresolvable conflicts.")
             return 1
-        
+
         if not changes_made:  # No changes made
             if iteration == 1:
                 print("No changes needed!")
             else:
                 print(f"Consolidation completed after {iteration - 1} passes.")
             return 0
-        
+
         # changes were made, continue to next iteration
         iteration += 1
-    
-    raise Exception(f"{RED}ERROR: Reached maximum iteration limit ({max_iterations}). Some dependencies may still need consolidation.{RESET}")
+
+    raise Exception(
+        f"{RED}ERROR: Reached maximum iteration limit ({max_iterations}). Some dependencies may still need consolidation.{RESET}"
+    )
+
 
 # ==============================================================================
 # Main Entry Point
@@ -1597,63 +1792,60 @@ Examples:
   
   # Consolidate but keep fastcrypto-vdf in workspace even if used by one crate
   python cargo_sort.py --consolidate-deps --keep-in-workspace fastcrypto-vdf
-"""
-    )
-    parser.add_argument(
-        '--target',
-        default='../../',
-        help='Target directory to search in. Default: ../../'
-    )
+""")
+    parser.add_argument('--target',
+                        default='../../',
+                        help='Target directory to search in. Default: ../../')
     parser.add_argument(
         '--ignore',
         action='append',
         default=[],
-        help='Folder patterns to ignore (can be specified multiple times).'
-    )
-    parser.add_argument(
-        '--skip-dprint',
-        action='store_true',
-        help='Skip running dprint fmt.'
-    )
-    parser.add_argument(
-        '--skip-sort',
-        action='store_true',
-        help='Skip sort mode after consolidating dependencies.'
-    )
+        help='Folder patterns to ignore (can be specified multiple times).')
+    parser.add_argument('--skip-dprint',
+                        action='store_true',
+                        help='Skip running dprint fmt.')
+    parser.add_argument('--skip-sort',
+                        action='store_true',
+                        help='Skip sort mode after consolidating dependencies.')
     parser.add_argument(
         '--debug',
         action='store_true',
         help='Show debug prints (for sort mode).',
     )
-    
+
     # Consolidate mode options
     parser.add_argument(
         '--consolidate-deps',
         action='store_true',
-        help='Run consolidate mode: analyze and consolidate/distribute workspace dependencies.'
+        help=
+        'Run consolidate mode: analyze and consolidate/distribute workspace dependencies.'
     )
     parser.add_argument(
         '--min-usage',
         type=int,
         default=2,
-        help='Minimum usages to consolidate a dependency (consolidate mode). Default: 2'
+        help=
+        'Minimum usages to consolidate a dependency (consolidate mode). Default: 2'
     )
     parser.add_argument(
         '--strict',
         action='store_true',
-        help='Strict mode: exit with error if version conflicts are found (consolidate mode).'
+        help=
+        'Strict mode: exit with error if version conflicts are found (consolidate mode).'
     )
     parser.add_argument(
         '--strict-ignore',
         action='append',
         default=[],
-        help='Ignore dependencies/crates in strict mode. Format: "dep_name" or "dep_name:crate/path" or "*:crate/path". Can be specified multiple times.'
+        help=
+        'Ignore dependencies/crates in strict mode. Format: "dep_name" or "dep_name:crate/path" or "*:crate/path". Can be specified multiple times.'
     )
     parser.add_argument(
         '--keep-in-workspace',
         action='append',
         default=[],
-        help='Dependencies to keep in workspace even if used by only one crate (consolidate mode). Can be specified multiple times.'
+        help=
+        'Dependencies to keep in workspace even if used by only one crate (consolidate mode). Can be specified multiple times.'
     )
 
     args = parser.parse_args()
@@ -1678,8 +1870,10 @@ Examples:
         print(f"Root Cargo.toml: {root_cargo_toml}")
         if ignore_patterns:
             print(f"Ignoring folders: {args.ignore}")
-        
-        result = run_consolidate_mode_with_loop(args, target_dir, root_cargo_toml, ignore_patterns)
+
+        result = run_consolidate_mode_with_loop(args, target_dir,
+                                                root_cargo_toml,
+                                                ignore_patterns)
         if result != 0:
             print(f"Consolidate mode failed with code {result}")
             exit(result)
@@ -1694,27 +1888,21 @@ Examples:
     print(f"=== Sort Mode ===")
     if ignore_patterns:
         print(f"Ignoring folders: {args.ignore}")
-    
+
     internal_crates_dict = get_package_names_from_cargo_tomls(target_dir, None)
 
     # add special cases
     internal_crates_dict["iota-flamegraph-svg"] = None
     internal_crates_dict["iota-grpc-client"] = None
     internal_crates_dict["iota-grpc-types"] = None
-    internal_crates_dict["iota-sdk-crypto"] = None
-    internal_crates_dict["iota-sdk-grpc-client"] = None
-    internal_crates_dict["iota-sdk-grpc-types"] = None
-    internal_crates_dict["iota-sdk-transaction-builder"] = None
-    internal_crates_dict["iota-sdk-types"] = None
+    internal_crates_dict["iota-sdk-ext"] = None
 
     print("Processing Cargo.toml files...")
-    find_and_process_toml_files(
-        target_dir,
-        ignore_patterns,
-        process_cargo_toml_sort,
-        internal_crates_dict=internal_crates_dict,
-        debug=args.debug
-    )
+    find_and_process_toml_files(target_dir,
+                                ignore_patterns,
+                                process_cargo_toml_sort,
+                                internal_crates_dict=internal_crates_dict,
+                                debug=args.debug)
 
     if not args.skip_dprint:
         run_dprint_fmt(target_dir)

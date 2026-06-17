@@ -11,12 +11,12 @@ description = "Logic for building IOTA Move Packages"
 # external dependencies
 anyhow.workspace = true
 fastcrypto.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
 serde-reflection.workspace = true
 
 # internal dependencies
 iota-common.workspace = true
 iota-package-management.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
 move-binary-format.workspace = true

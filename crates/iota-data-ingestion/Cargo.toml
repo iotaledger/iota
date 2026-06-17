@@ -19,7 +19,6 @@ bcs.workspace = true
 byteorder.workspace = true
 bytes.workspace = true
 futures.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 object_store.workspace = true
 prometheus.workspace = true
 rustls.workspace = true
@@ -35,6 +34,7 @@ iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-kvstore.workspace = true
 iota-metrics.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
 iota-storage.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true

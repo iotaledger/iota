@@ -83,7 +83,6 @@ pub mod error;
 pub mod iota_client_config;
 pub mod json_rpc_error;
 pub mod wallet_context;
-
 use std::{
     collections::{HashMap, VecDeque},
     fmt::{Debug, Formatter},

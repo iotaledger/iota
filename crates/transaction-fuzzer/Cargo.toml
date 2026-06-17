@@ -12,7 +12,6 @@ workspace = true
 
 [dependencies]
 # external dependencies
-iota-sdk-ext = { workspace = true, features = ["types"] }
 once_cell.workspace = true
 proptest.workspace = true
 proptest-derive = "0.5.1"
@@ -24,5 +23,6 @@ tracing.workspace = true
 iota-core.workspace = true
 iota-move-build.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types = { workspace = true, features = ["fuzzing"] }
 move-core-types.workspace = true
