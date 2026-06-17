@@ -20,23 +20,33 @@ if [ "$PROFILE" = "dev" ]; then
     TARGET_FOLDER="target/debug"
 fi
 IMAGE_TAG=""
+DOCKERFILE_DIR=""
 
 # Parse command line arguments
 # Usage:
 # --image-tag <image_tag> - the name and tag of the image
+# --dockerfile-dir <dir> - optional path (relative to repo root) containing the Dockerfile
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --image-tag=*) 
+        --image-tag=*)
             IMAGE_TAG="${1#*=}"
             shift
             ;;
-        --image-tag) 
+        --image-tag)
             IMAGE_TAG="$2"
             shift 2
             ;;
-        *) 
+        --dockerfile-dir=*)
+            DOCKERFILE_DIR="${1#*=}"
+            shift
+            ;;
+        --dockerfile-dir)
+            DOCKERFILE_DIR="$2"
+            shift 2
+            ;;
+        *)
             print_error "Unknown argument: $1"
-            print_step "Usage: $0 --image-tag <image_tag>"
+            print_step "Usage: $0 --image-tag <image_tag> [--dockerfile-dir <dir>]"
             exit 1
             ;;
     esac
@@ -45,11 +55,15 @@ done
 # check if the image tag is set
 if [ -z "$IMAGE_TAG" ]; then
     print_error "Image tag is not set"
-    print_step "Usage: $0 --image-tag <image_tag>"
+    print_step "Usage: $0 --image-tag <image_tag> [--dockerfile-dir <dir>]"
     exit 1
 fi
 
-DOCKERFILE="$REPO_ROOT/docker/$(basename "${IMAGE_TAG%%:*}")/Dockerfile"
+if [ -n "$DOCKERFILE_DIR" ]; then
+    DOCKERFILE="$REPO_ROOT/$DOCKERFILE_DIR/Dockerfile"
+else
+    DOCKERFILE="$REPO_ROOT/docker/$(basename "${IMAGE_TAG%%:*}")/Dockerfile"
+fi
 
 print_step "Parse the rust toolchain version from 'rust-toolchain.toml'..."
 RUST_VERSION=$(grep -oE 'channel = "[^"]+' ${REPO_ROOT}/rust-toolchain.toml | sed 's/channel = "//')

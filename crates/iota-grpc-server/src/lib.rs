@@ -21,6 +21,7 @@ pub mod transaction_filter;
 pub mod types;
 pub mod utils;
 // Internal helpers — not part of the public API.
+pub(crate) mod server_timing;
 pub(crate) mod validation;
 
 // Re-export commonly used types and traits

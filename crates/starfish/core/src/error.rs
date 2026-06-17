@@ -45,6 +45,9 @@ pub(crate) enum ConsensusError {
     #[error("Block contains too many transaction bytes: {size} > {limit}")]
     TooManyTransactionBytes { size: usize, limit: usize },
 
+    #[error("Serialized block transactions are too large: {size} > {limit}")]
+    SerializedTransactionsTooLarge { size: usize, limit: usize },
+
     #[error("Unexpected block authority {0} from peer {1}")]
     UnexpectedAuthority(AuthorityIndex, AuthorityIndex),
 
@@ -237,6 +240,20 @@ pub(crate) enum ConsensusError {
         stake: Stake,
         peer: AuthorityIndex,
         commit: Box<Commit>,
+    },
+
+    #[error("Received too many commit vote headers from peer {peer}: {count} > {limit}")]
+    TooManyCommitVoteHeaders {
+        peer: AuthorityIndex,
+        count: usize,
+        limit: usize,
+    },
+
+    #[error("Invalid commit range from peer {peer}: start {start} > end {end}")]
+    InvalidCommitRange {
+        peer: AuthorityIndex,
+        start: CommitIndex,
+        end: CommitIndex,
     },
 
     #[error("Received unexpected block header from peer {peer}: {requested:?} vs {received:?}")]
