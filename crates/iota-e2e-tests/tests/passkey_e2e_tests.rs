@@ -4,16 +4,15 @@
 
 use std::net::SocketAddr;
 
-use fastcrypto::traits::ToFromBytes;
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::crypto::{Intent, IntentMessage, SimpleSignature};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{PublicKey, Signature, SignatureScheme},
+    crypto::{PublicKey, SignatureScheme},
     error::{IotaError, IotaResult, UserInputError},
-    passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
+    passkey_authenticator::PasskeyAuthenticator,
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
 };
@@ -164,15 +163,13 @@ async fn create_credential_and_sign_test_tx(
     // request. If change_intent, mangle the intent bytes. If change_tx, mangle
     // the hashed tx bytes.
     let passkey_challenge = if change_intent {
-        to_signing_message(&IntentMessage::new(
-            Intent::personal_message(),
-            intent_msg.value.clone(),
-        ))
-        .to_vec()
+        IntentMessage::new(Intent::personal_message(), intent_msg.value.clone())
+            .signing_digest()
+            .to_vec()
     } else if change_tx {
         random_vec(32)
     } else {
-        to_signing_message(&intent_msg).to_vec()
+        intent_msg.signing_digest().to_vec()
     };
 
     // Request a signature from passkey with challenge set to passkey_digest.
@@ -218,10 +215,10 @@ async fn create_credential_and_sign_test_tx(
 
 fn make_good_passkey_tx(response: PasskeyResponse<TransactionData>) -> Transaction {
     let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );
@@ -263,10 +260,10 @@ async fn test_passkey_fails_mismatched_challenge() {
     // Tweak intent in challenge that is sent to passkey.
     let response = create_credential_and_sign_test_tx(&test_cluster, None, true, false).await;
     let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );
@@ -283,10 +280,10 @@ async fn test_passkey_fails_mismatched_challenge() {
     // Tweak tx_digest bytes in challenge that is sent to passkey.
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, true).await;
     let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );
@@ -312,10 +309,10 @@ async fn test_passkey_fails_to_verify_sig() {
         modified_sig[1] = 0x00;
     }
     let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        PasskeyAuthenticator::new(
             response.authenticator_data.clone(),
             response.client_data_json.clone(),
-            Signature::from_bytes(&modified_sig).unwrap(),
+            SimpleSignature::from_bytes(&modified_sig).unwrap(),
         )
         .unwrap(),
     );
@@ -337,10 +334,10 @@ async fn test_passkey_fails_to_verify_sig() {
         mangled_authenticator_data[1] = 0x00;
     }
     let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        PasskeyAuthenticator::new(
             mangled_authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&modified_sig).unwrap(),
+            SimpleSignature::from_bytes(&modified_sig).unwrap(),
         )
         .unwrap(),
     );
@@ -363,10 +360,10 @@ async fn test_passkey_fails_wrong_author() {
         create_credential_and_sign_test_tx(&test_cluster, Some(IotaAddress::ZERO), false, false)
             .await;
     let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );

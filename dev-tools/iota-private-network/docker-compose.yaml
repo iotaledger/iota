@@ -6,9 +6,9 @@ x-common-validator: &common-validator
     - RPC_WORKER_THREAD=12
     - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
     - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
-    # TODO: Remove these overrides once white flag flow is enabled by default in the protocol config on develop.
+    # TODO: Remove these overrides once P-COOL flow is enabled by default in the protocol config on develop.
     - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=${IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE:-0}
-    - IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW=${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW:-false}
+    - IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW=${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW:-false}
   command: &common-command [
     "/usr/local/bin/iota-node",
     "--config-path",

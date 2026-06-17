@@ -527,11 +527,12 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     always_advance_dkg_to_resolution: bool,
 
-    // If true, enables white flag flow for post-consensus owned object conflict resolution.
-    // Transactions bypass pre-consensus certification and owned object locking.
-    // Conflicts are resolved deterministically post-consensus using persistent locks.
+    // If true, enables the P-COOL (post-consensus owned-object locking) flow:
+    // transactions bypass pre-consensus certification and owned-object locking,
+    // and conflicts are resolved deterministically post-consensus (white-flag
+    // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
-    enable_white_flag_flow: bool,
+    enable_pcool_flow: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1786,8 +1787,8 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution
     }
 
-    pub fn enable_white_flag_flow(&self) -> bool {
-        self.feature_flags.enable_white_flag_flow
+    pub fn enable_pcool_flow(&self) -> bool {
+        self.feature_flags.enable_pcool_flow
     }
 }
 
@@ -3188,8 +3189,8 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
-    pub fn set_enable_white_flag_flow_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_white_flag_flow = val;
+    pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_pcool_flow = val;
     }
 }
 

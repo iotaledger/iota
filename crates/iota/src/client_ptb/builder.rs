@@ -470,7 +470,7 @@ impl<'a> PTBBuilder<'a> {
 
         MovePackage::new(
             package.id,
-            package.version,
+            package.version.into(),
             package
                 .module_map
                 .into_iter()

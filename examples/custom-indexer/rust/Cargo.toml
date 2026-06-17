@@ -26,3 +26,7 @@ path = "remote_reader.rs"
 [[bin]]
 name = "hybrid_reader"
 path = "hybrid_reader.rs"
+
+[[bin]]
+name = "remote_reader_with_filters"
+path = "remote_reader_with_filters.rs"

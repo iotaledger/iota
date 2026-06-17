@@ -8,9 +8,7 @@ pub(crate) mod consistent;
 pub(crate) mod dynamic_fields;
 pub(crate) mod historical;
 
-use iota_indexer::{
-    models::objects::BackwardHistoryObjectStatus, types::ObjectStatus as NativeObjectStatus,
-};
+use iota_indexer::types::ObjectStatus as NativeObjectStatus;
 
 use crate::{query, raw_query::RawQuery, types::object::ObjectFilter};
 
@@ -50,14 +48,10 @@ impl HistoricalFilter {
     }
 }
 
-/// Active status in `checkpointed_objects` (`ObjectStatus`). Backward-view
-/// sources keep only these rows; wrapped or deleted tombstones and
-/// `NotYetCreated` markers are excluded.
-pub(super) const CHECKPOINTED_ACTIVE: i16 = NativeObjectStatus::Active as i16;
-
-/// Active status in `objects_backward_history` (`BackwardHistoryObjectStatus`).
-/// Counterpart of [`CHECKPOINTED_ACTIVE`] for the backward-history table.
-pub(super) const HISTORY_ACTIVE: i16 = BackwardHistoryObjectStatus::Active as i16;
+/// Active status used by backward-view sources in both `checkpointed_objects`
+/// and `objects_backward_history`. Backward-view queries keep only these rows;
+/// wrapped or deleted tombstones and `NotYetCreated` markers are excluded.
+pub(super) const ACTIVE: i16 = NativeObjectStatus::Active as i16;
 
 /// Watermark entity name for `objects_backward_history`. Must match the
 /// `CommitterTables::ObjectsBackwardHistory` strum serialization in

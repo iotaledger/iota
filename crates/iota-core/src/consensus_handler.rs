@@ -1011,9 +1011,9 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_user_transaction_v1() {
         // GIVEN
-        // Enable the white flag flow so UserTransactionV1 transactions are accepted
+        // Enable the P-COOL flow so UserTransactionV1 transactions are accepted
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_white_flag_flow_for_testing(true);
+            config.set_enable_pcool_flow_for_testing(true);
             config
         });
 

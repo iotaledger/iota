@@ -1,7 +1,7 @@
 *~
 *.swp
 **/.terraform/
-target/
+**/target/
 **/*Dockerfile
 **/*Dockerfile.cache
 *.md

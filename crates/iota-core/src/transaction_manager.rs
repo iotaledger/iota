@@ -42,19 +42,19 @@ mod transaction_manager_tests;
 /// Minimum capacity of HashMaps used in TransactionManager.
 const MIN_HASHMAP_CAPACITY: usize = 1000;
 
-/// TransactionManager is responsible for managing object dependencies of
+/// `TransactionManager` is responsible for managing object dependencies of
 /// pending transactions, and publishing a stream of certified transactions
-/// (certificates) ready to execute. It receives certificates from consensus,
+/// (certificates) ready to execute. It receives transactions from consensus,
 /// validator RPC handlers, and checkpoint executor. Execution driver subscribes
-/// to the stream of ready certificates from TransactionManager, and
+/// to the stream of ready transactions from `TransactionManager`, and
 /// executes them in parallel.
-/// The actual execution logic is inside AuthorityState. After a transaction
-/// commits and updates storage, committed objects and certificates are notified
-/// back to TransactionManager.
+/// The actual execution logic is inside `AuthorityState`. After a transaction
+/// commits and updates storage, committed objects and transactions are notified
+/// back to `TransactionManager`.
 pub struct TransactionManager {
     object_cache_read: Arc<dyn ObjectCacheRead>,
     transaction_cache_read: Arc<dyn TransactionCacheRead>,
-    tx_ready_certificates: UnboundedSender<PendingCertificate>,
+    tx_ready_transactions: UnboundedSender<PendingTransaction>,
     metrics: Arc<AuthorityMetrics>,
     // inner is a doubly nested lock so that we can enforce that an outer lock (for read) is held
     // before the inner lock (for read or write) can be acquired. During reconfiguration, we
@@ -63,27 +63,52 @@ pub struct TransactionManager {
     inner: RwLock<RwLock<Inner>>,
 }
 
+/// Timing statistics for a pending transaction in the `TransactionManager`.
+///
+/// It tracks when a transaction was enqueued and when it became ready for
+/// execution and it is used for latency metrics.
+///
+/// The legacy name (in the certificate era) was `PendingCertificateStats`.
+/// It is renamed to `PendingTransactionStats` because this type now (in the
+/// certificate-less era) covers more consensus transaction kinds, not just
+/// certificates. The renaming is safe and backward-compatible since this is
+/// a fully internal type.
 #[derive(Clone, Debug)]
-pub struct PendingCertificateStats {
-    // The time this certificate enters transaction manager.
+pub struct PendingTransactionStats {
+    /// The time this transaction entered the transaction manager.
     #[cfg(test)]
     pub enqueue_time: Instant,
-    // The time this certificate becomes ready for execution.
+
+    /// The time this transaction became ready for execution.
     pub ready_time: Option<Instant>,
 }
 
+/// A transaction that is waiting in the `TransactionManager` for its input
+/// objects to become available before it can be sent to the execution driver.
+///
+/// Once all `waiting_input_objects` are available, the transaction is forwarded
+/// to the execution driver via a channel.
+///
+/// The legacy name (in the certificate era) was `PendingCertificate`.
+/// It is renamed to `PendingTransaction` because this type now (in the
+/// certificate-less era) covers more consensus transaction kinds, not
+/// just certificates. The renaming is safe and backward-compatible
+/// since this is a fully internal type.
 #[derive(Clone, Debug)]
-pub struct PendingCertificate {
-    // Certified transaction to be executed.
-    pub certificate: VerifiedExecutableTransaction,
-    // When executing from checkpoint, the certified effects digest is provided, so that forks can
-    // be detected prior to committing the transaction.
+pub struct PendingTransaction {
+    /// The transaction to be executed.
+    pub transaction: VerifiedExecutableTransaction,
+
+    /// When executing from checkpoint, the certified effects digest is
+    /// provided so that forks can be detected prior to committing the
+    /// transaction.
     pub expected_effects_digest: Option<TransactionEffectsDigest>,
-    // The input object this certificate is waiting for to become available in order to be
-    // executed.
+
+    /// The input objects this transaction is waiting for to become available.
     pub waiting_input_objects: BTreeSet<InputKey>,
-    // Stores stats about this transaction.
-    pub stats: PendingCertificateStats,
+
+    /// Timing statistics for this transaction.
+    pub stats: PendingTransactionStats,
 }
 
 struct CacheInner {
@@ -223,30 +248,31 @@ impl AvailableObjectsCache {
 }
 
 struct Inner {
-    // Current epoch of TransactionManager.
+    /// Current epoch of `TransactionManager`.
     epoch: EpochId,
 
-    // Maps missing input objects to transactions in pending_certificates.
+    /// Maps missing input objects to transactions in `pending_transactions`.
     missing_inputs: HashMap<InputKey, BTreeSet<TransactionDigest>>,
 
-    // Stores age info for all transactions depending on each object.
-    // Used for throttling signing and submitting transactions depending on hot objects.
-    // A `TransactionQueue` is used to ensure that the insertion order is preserved.
+    /// Stores age info for all transactions depending on each object.
+    /// Used for throttling signing and submitting transactions depending
+    /// on hot objects. A `TransactionQueue` is used to ensure that the
+    /// insertion order is preserved.
     input_objects: HashMap<ObjectId, TransactionQueue>,
 
-    // Maps object IDs to the highest observed sequence number of the object. When the value is
-    // None, indicates that the object is immutable, corresponding to an InputKey with no sequence
-    // number.
+    /// Maps object IDs to the highest observed sequence number of the object.
+    /// When the value is `None`, indicates that the object is immutable,
+    /// corresponding to an `InputKey` with no sequence number.
     available_objects_cache: AvailableObjectsCache,
 
-    // A transaction enqueued to TransactionManager must be in either pending_certificates or
-    // executing_certificates.
+    // A transaction enqueued to `TransactionManager` must be in either
+    // `pending_transactions` or `executing_transactions`.
+    /// Maps transaction digests to their content and missing input objects.
+    pending_transactions: HashMap<TransactionDigest, PendingTransaction>,
 
-    // Maps transaction digests to their content and missing input objects.
-    pending_certificates: HashMap<TransactionDigest, PendingCertificate>,
-
-    // Transactions that have all input objects available, but have not finished execution.
-    executing_certificates: HashSet<TransactionDigest>,
+    /// Transactions that have all input objects available, but have not
+    /// finished execution.
+    executing_transactions: HashSet<TransactionDigest>,
 }
 
 impl Inner {
@@ -256,8 +282,8 @@ impl Inner {
             missing_inputs: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             input_objects: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             available_objects_cache: AvailableObjectsCache::new(metrics),
-            pending_certificates: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
-            executing_certificates: HashSet::with_capacity(MIN_HASHMAP_CAPACITY),
+            pending_transactions: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
+            executing_transactions: HashSet::with_capacity(MIN_HASHMAP_CAPACITY),
         }
     }
 
@@ -269,16 +295,16 @@ impl Inner {
         input_key: InputKey,
         update_cache: bool,
         metrics: &Arc<AuthorityMetrics>,
-    ) -> Vec<PendingCertificate> {
+    ) -> Vec<PendingTransaction> {
         if update_cache {
             self.available_objects_cache.insert(&input_key);
         }
 
-        let mut ready_certificates = Vec::new();
+        let mut ready_transactions = Vec::new();
 
         let Some(digests) = self.missing_inputs.remove(&input_key) else {
             // No transaction is waiting on the object yet.
-            return ready_certificates;
+            return ready_transactions;
         };
 
         let input_txns = self
@@ -302,28 +328,28 @@ impl Inner {
         }
 
         for digest in digests {
-            // Pending certificate must exist.
-            let pending_cert = self.pending_certificates.get_mut(&digest).unwrap();
-            assert!(pending_cert.waiting_input_objects.remove(&input_key));
-            // When a certificate has all its input objects, it is ready to execute.
-            if pending_cert.waiting_input_objects.is_empty() {
-                let pending_cert = self.pending_certificates.remove(&digest).unwrap();
-                ready_certificates.push(pending_cert);
+            // Pending transaction must exist.
+            let pending_transaction = self.pending_transactions.get_mut(&digest).unwrap();
+            assert!(pending_transaction.waiting_input_objects.remove(&input_key));
+            // When a transaction has all its input objects, it is ready to execute.
+            if pending_transaction.waiting_input_objects.is_empty() {
+                let pending_transaction = self.pending_transactions.remove(&digest).unwrap();
+                ready_transactions.push(pending_transaction);
             } else {
                 // TODO: we should start logging this at a higher level after some period of
                 // time has elapsed.
-                trace!(tx_digest = ?digest,missing = ?pending_cert.waiting_input_objects, "Certificate waiting on missing inputs");
+                trace!(tx_digest = ?digest,missing = ?pending_transaction.waiting_input_objects, "Transaction waiting on missing inputs");
             }
         }
 
-        ready_certificates
+        ready_transactions
     }
 
     fn maybe_reserve_capacity(&mut self) {
         self.missing_inputs.maybe_reserve_capacity();
         self.input_objects.maybe_reserve_capacity();
-        self.pending_certificates.maybe_reserve_capacity();
-        self.executing_certificates.maybe_reserve_capacity();
+        self.pending_transactions.maybe_reserve_capacity();
+        self.executing_transactions.maybe_reserve_capacity();
     }
 
     /// After reaching 1/4 load in hashmaps, decrease capacity to increase load
@@ -331,14 +357,14 @@ impl Inner {
     fn maybe_shrink_capacity(&mut self) {
         self.missing_inputs.maybe_shrink_capacity();
         self.input_objects.maybe_shrink_capacity();
-        self.pending_certificates.maybe_shrink_capacity();
-        self.executing_certificates.maybe_shrink_capacity();
+        self.pending_transactions.maybe_shrink_capacity();
+        self.executing_transactions.maybe_shrink_capacity();
     }
 }
 
 impl TransactionManager {
     /// If a node restarts, transaction manager recovers in-memory data from
-    /// pending_certificates, which contains certified transactions from
+    /// `pending_transactions`, which contains certified transactions from
     /// consensus output and RPC that are not executed. Transactions from
     /// other sources, e.g. checkpoint executor, have own persistent storage to
     /// retry transactions.
@@ -346,7 +372,7 @@ impl TransactionManager {
         object_cache_read: Arc<dyn ObjectCacheRead>,
         transaction_cache_read: Arc<dyn TransactionCacheRead>,
         epoch_store: &AuthorityPerEpochStore,
-        tx_ready_certificates: UnboundedSender<PendingCertificate>,
+        tx_ready_transactions: UnboundedSender<PendingTransaction>,
         metrics: Arc<AuthorityMetrics>,
     ) -> TransactionManager {
         TransactionManager {
@@ -354,7 +380,7 @@ impl TransactionManager {
             transaction_cache_read,
             metrics: metrics.clone(),
             inner: RwLock::new(RwLock::new(Inner::new(epoch_store.epoch(), metrics))),
-            tx_ready_certificates,
+            tx_ready_transactions,
         }
     }
 
@@ -380,29 +406,29 @@ impl TransactionManager {
     #[instrument("transaction_manager_enqueue_transactions", level = "trace", skip_all)]
     pub(crate) fn enqueue(
         &self,
-        certs: Vec<VerifiedExecutableTransaction>,
+        transactions: Vec<VerifiedExecutableTransaction>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
-        let certs = certs.into_iter().map(|cert| (cert, None)).collect();
-        self.enqueue_impl(certs, epoch_store)
+        let transactions = transactions.into_iter().map(|tx| (tx, None)).collect();
+        self.enqueue_impl(transactions, epoch_store)
     }
 
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn enqueue_with_expected_effects_digest(
         &self,
-        certs: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
+        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
-        let certs = certs
+        let transactions = transactions
             .into_iter()
-            .map(|(cert, fx)| (cert, Some(fx)))
+            .map(|(tx, fx)| (tx, Some(fx)))
             .collect();
-        self.enqueue_impl(certs, epoch_store)
+        self.enqueue_impl(transactions, epoch_store)
     }
 
     fn enqueue_impl(
         &self,
-        certs: Vec<(
+        transactions: Vec<(
             VerifiedExecutableTransaction,
             Option<TransactionEffectsDigest>,
         )>,
@@ -410,16 +436,16 @@ impl TransactionManager {
     ) {
         let reconfig_lock = self.inner.read();
 
-        // filter out already executed certs
-        let certs: Vec<_> = {
+        // filter out already executed transactions.
+        let transactions: Vec<_> = {
             let _span = tracing::trace_span!("filter_already_executed_txs").entered();
 
-            certs
+            transactions
                 .into_iter()
-                .filter(|(cert, _)| {
-                    tracing::trace!(tx_digest = ?cert.digest(), "checking if already executed");
+                .filter(|(tx, _)| {
+                    tracing::trace!(tx_digest = ?tx.digest(), "checking if already executed");
 
-                    let digest = *cert.digest();
+                    let digest = *tx.digest();
                     // skip already executed txes
                     if self
                         .transaction_cache_read
@@ -442,43 +468,42 @@ impl TransactionManager {
 
         let mut object_availability: HashMap<InputKey, Option<bool>> = HashMap::new();
         let mut receiving_objects: HashSet<InputKey> = HashSet::new();
-        let certs: Vec<_> = {
+        let transactions: Vec<_> = {
             let _span = tracing::trace_span!("check_tx_input_objects").entered();
 
-            certs
+            transactions
                 .into_iter()
-                .filter_map(|(cert, fx_digest)| {
+                .filter_map(|(tx, fx_digest)| {
                     // Check availability of all transaction associated input objects(transaction +
                     // authenticators).
                     let input_object_kinds =
-                        cert.input_objects().expect("input_objects() cannot fail");
-                    let mut input_object_keys = match epoch_store
-                        .get_input_object_keys(&cert.key(), &input_object_kinds)
-                    {
-                        Ok(keys) => keys,
-                        Err(e) => {
-                            // Because we do not hold the transaction lock during enqueue, it is
-                            // possible that the transaction was executed and the shared version
-                            // assignments deleted since the earlier check. This is a rare race
-                            // condition, and it is better to handle it ad-hoc here than to hold tx
-                            // locks for every cert for the duration of this function in order to
-                            // remove the race.
-                            if self
-                                .transaction_cache_read
-                                .is_tx_already_executed(cert.digest())
-                            {
-                                return None;
+                        tx.input_objects().expect("input_objects() cannot fail");
+                    let mut input_object_keys =
+                        match epoch_store.get_input_object_keys(&tx.key(), &input_object_kinds) {
+                            Ok(keys) => keys,
+                            Err(e) => {
+                                // Because we do not hold the transaction lock during enqueue, it is
+                                // possible that the transaction was executed and the shared version
+                                // assignments deleted since the earlier check. This is a rare race
+                                // condition, and it is better to handle it ad-hoc here than to hold
+                                // tx locks for every transaction for the duration of this function
+                                // in order to remove the race.
+                                if self
+                                    .transaction_cache_read
+                                    .is_tx_already_executed(tx.digest())
+                                {
+                                    return None;
+                                }
+                                fatal!("Failed to get input object keys: {:?}", e);
                             }
-                            fatal!("Failed to get input object keys: {:?}", e);
-                        }
-                    };
+                        };
 
                     if input_object_kinds.len() != input_object_keys.len() {
                         error!("Duplicated input objects: {:?}", input_object_kinds);
                     }
 
                     let receiving_object_entries =
-                        cert.data().intent_message().value.receiving_objects();
+                        tx.data().intent_message().value.receiving_objects();
                     for entry in receiving_object_entries {
                         let key = InputKey::VersionedObject {
                             id: entry.object_id,
@@ -498,7 +523,7 @@ impl TransactionManager {
                         }
                     }
 
-                    Some((cert, fx_digest, input_object_keys))
+                    Some((tx, fx_digest, input_object_keys))
                 })
                 .collect()
         };
@@ -578,41 +603,41 @@ impl TransactionManager {
         obj_availability_span.exit();
 
         let mut pending = Vec::new();
-        let pending_cert_enqueue_time = Instant::now();
+        let pending_transaction_enqueue_time = Instant::now();
 
-        for (cert, expected_effects_digest, input_object_keys) in certs {
-            pending.push(PendingCertificate {
-                certificate: cert,
+        for (transaction, expected_effects_digest, input_object_keys) in transactions {
+            pending.push(PendingTransaction {
+                transaction,
                 expected_effects_digest,
                 waiting_input_objects: input_object_keys,
-                stats: PendingCertificateStats {
+                stats: PendingTransactionStats {
                     #[cfg(test)]
-                    enqueue_time: pending_cert_enqueue_time,
+                    enqueue_time: pending_transaction_enqueue_time,
                     ready_time: None,
                 },
             });
         }
 
-        for mut pending_cert in pending {
-            let _span = tracing::trace_span!("enqueueing_pending_certificate", cert_digest = %pending_cert.certificate.digest()).entered();
+        for mut pending_transaction in pending {
+            let _span = tracing::trace_span!("enqueueing_pending_transaction", tx_digest = %pending_transaction.transaction.digest()).entered();
             // Tx lock is not held here, which makes it possible to send duplicated
             // transactions to the execution driver after crash-recovery, when
             // the same transaction is recovered from recovery log and pending
-            // certificates table. The transaction will still only execute once,
+            // transactions table. The transaction will still only execute once,
             // because tx lock is acquired in execution driver and executed effects
             // table is consulted. So this behavior is benigh.
-            let digest = *pending_cert.certificate.digest();
+            let digest = *pending_transaction.transaction.digest();
 
-            if inner.epoch != pending_cert.certificate.epoch() {
+            if inner.epoch != pending_transaction.transaction.epoch() {
                 warn!(
-                    "Ignoring enqueued certificate from wrong epoch. Expected={} Certificate={:?}",
-                    inner.epoch, pending_cert.certificate
+                    "Ignoring enqueued transaction from wrong epoch. Expected={} Transaction={:?}",
+                    inner.epoch, pending_transaction.transaction
                 );
                 continue;
             }
 
             // skip already pending txes
-            if inner.pending_certificates.contains_key(&digest) {
+            if inner.pending_transactions.contains_key(&digest) {
                 self.metrics
                     .transaction_manager_num_enqueued_certificates
                     .with_label_values(&["already_pending"])
@@ -620,7 +645,7 @@ impl TransactionManager {
                 continue;
             }
             // skip already executing txes
-            if inner.executing_certificates.contains(&digest) {
+            if inner.executing_transactions.contains(&digest) {
                 self.metrics
                     .transaction_manager_num_enqueued_certificates
                     .with_label_values(&["already_executing"])
@@ -641,40 +666,40 @@ impl TransactionManager {
             let mut waiting_input_objects = BTreeSet::new();
             std::mem::swap(
                 &mut waiting_input_objects,
-                &mut pending_cert.waiting_input_objects,
+                &mut pending_transaction.waiting_input_objects,
             );
             for key in waiting_input_objects {
                 if !object_availability[&key].unwrap() {
                     // The input object is not yet available.
-                    pending_cert.waiting_input_objects.insert(key);
+                    pending_transaction.waiting_input_objects.insert(key);
 
                     assert!(
                         inner.missing_inputs.entry(key).or_default().insert(digest),
-                        "Duplicated certificate {digest} for missing object {key:?}"
+                        "Duplicated transaction {digest:?} for missing object {key:?}"
                     );
                     let input_txns = inner.input_objects.entry(key.id()).or_default();
-                    input_txns.insert(digest, pending_cert_enqueue_time);
+                    input_txns.insert(digest, pending_transaction_enqueue_time);
                 }
             }
 
             // Ready transactions can start to execute.
-            if pending_cert.waiting_input_objects.is_empty() {
+            if pending_transaction.waiting_input_objects.is_empty() {
                 self.metrics
                     .transaction_manager_num_enqueued_certificates
                     .with_label_values(&["ready"])
                     .inc();
-                pending_cert.stats.ready_time = Some(Instant::now());
+                pending_transaction.stats.ready_time = Some(Instant::now());
                 // Send to execution driver for execution.
-                self.certificate_ready(&mut inner, pending_cert);
+                self.transaction_ready(&mut inner, pending_transaction);
                 continue;
             }
 
             assert!(
                 inner
-                    .pending_certificates
-                    .insert(digest, pending_cert)
+                    .pending_transactions
+                    .insert(digest, pending_transaction)
                     .is_none(),
-                "Duplicated pending certificate {digest}"
+                "Duplicated pending transaction {digest:?}"
             );
 
             self.metrics
@@ -688,7 +713,7 @@ impl TransactionManager {
             .set(inner.missing_inputs.len() as i64);
         self.metrics
             .transaction_manager_num_pending_certificates
-            .set(inner.pending_certificates.len() as i64);
+            .set(inner.pending_transactions.len() as i64);
 
         inner.maybe_reserve_capacity();
     }
@@ -728,11 +753,11 @@ impl TransactionManager {
 
         for input_key in input_keys {
             trace!(?input_key, "object available");
-            for mut ready_cert in
+            for mut ready_transaction in
                 inner.find_ready_transactions(input_key, update_cache, &self.metrics)
             {
-                ready_cert.stats.ready_time = Some(available_time);
-                self.certificate_ready(inner, ready_cert);
+                ready_transaction.stats.ready_time = Some(available_time);
+                self.transaction_ready(inner, ready_transaction);
             }
         }
 
@@ -741,10 +766,10 @@ impl TransactionManager {
             .set(inner.missing_inputs.len() as i64);
         self.metrics
             .transaction_manager_num_pending_certificates
-            .set(inner.pending_certificates.len() as i64);
+            .set(inner.pending_transactions.len() as i64);
         self.metrics
             .transaction_manager_num_executing_certificates
-            .set(inner.executing_certificates.len() as i64);
+            .set(inner.executing_transactions.len() as i64);
     }
 
     /// Notifies TransactionManager about a transaction that has been committed.
@@ -763,7 +788,7 @@ impl TransactionManager {
 
             if inner.epoch != epoch_store.epoch() {
                 warn!(
-                    "Ignoring committed certificate from wrong epoch. Expected={} Actual={} CertificateDigest={:?}",
+                    "Ignoring committed transaction from wrong epoch. Expected={} Actual={} TransactionDigest={:?}",
                     inner.epoch,
                     epoch_store.epoch(),
                     digest
@@ -779,9 +804,9 @@ impl TransactionManager {
                 commit_time,
             );
 
-            if !inner.executing_certificates.remove(digest) {
+            if !inner.executing_transactions.remove(digest) {
                 trace!(
-                    "{:?} not found in executing certificates, likely because it is a system transaction",
+                    "{:?} not found in executing transactions, likely because it is a system transaction",
                     digest
                 );
                 return;
@@ -789,24 +814,24 @@ impl TransactionManager {
 
             self.metrics
                 .transaction_manager_num_executing_certificates
-                .set(inner.executing_certificates.len() as i64);
+                .set(inner.executing_transactions.len() as i64);
 
             inner.maybe_shrink_capacity();
         }
     }
 
-    /// Sends the ready certificate for execution.
-    fn certificate_ready(&self, inner: &mut Inner, pending_certificate: PendingCertificate) {
-        trace!(tx_digest = ?pending_certificate.certificate.digest(), "certificate ready");
-        assert_eq!(pending_certificate.waiting_input_objects.len(), 0);
-        // Record as an executing certificate.
+    /// Sends the ready transaction for execution.
+    fn transaction_ready(&self, inner: &mut Inner, pending_transaction: PendingTransaction) {
+        trace!(tx_digest = ?pending_transaction.transaction.digest(), "transaction ready");
+        assert_eq!(pending_transaction.waiting_input_objects.len(), 0);
+        // Record as an executing transaction.
         assert!(
             inner
-                .executing_certificates
-                .insert(*pending_certificate.certificate.digest())
+                .executing_transactions
+                .insert(*pending_transaction.transaction.digest())
         );
         self.metrics.txn_ready_rate_tracker.lock().record();
-        let _ = self.tx_ready_certificates.send(pending_certificate);
+        let _ = self.tx_ready_transactions.send(pending_transaction);
         self.metrics.transaction_manager_num_ready.inc();
         self.metrics.execution_driver_dispatch_queue.inc();
     }
@@ -836,7 +861,7 @@ impl TransactionManager {
     pub(crate) fn inflight_queue_len(&self) -> usize {
         let reconfig_lock = self.inner.read();
         let inner = reconfig_lock.read();
-        inner.pending_certificates.len() + inner.executing_certificates.len()
+        inner.pending_transactions.len() + inner.executing_transactions.len()
     }
 
     // Reconfigures the TransactionManager for a new epoch. Existing transactions
@@ -919,14 +944,14 @@ impl TransactionManager {
             inner.input_objects
         );
         assert!(
-            inner.pending_certificates.is_empty(),
-            "Pending certificates: {:?}",
-            inner.pending_certificates
+            inner.pending_transactions.is_empty(),
+            "Pending transactions: {:?}",
+            inner.pending_transactions
         );
         assert!(
-            inner.executing_certificates.is_empty(),
-            "Executing certificates: {:?}",
-            inner.executing_certificates
+            inner.executing_transactions.is_empty(),
+            "Executing transactions: {:?}",
+            inner.executing_transactions
         );
     }
 }

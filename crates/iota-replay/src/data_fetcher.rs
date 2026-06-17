@@ -663,7 +663,10 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
             Err(ReplayEngineError::ObjectNotExist { id })
         }
         IotaPastObjectResponse::VersionNotFound(id, version) => {
-            Err(ReplayEngineError::ObjectVersionNotFound { id, version })
+            Err(ReplayEngineError::ObjectVersionNotFound {
+                id,
+                version: version.into(),
+            })
         }
         IotaPastObjectResponse::VersionTooHigh {
             object_id,
@@ -671,8 +674,8 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
             latest_version,
         } => Err(ReplayEngineError::ObjectVersionTooHigh {
             id: object_id,
-            asked_version,
-            latest_version,
+            asked_version: asked_version.into(),
+            latest_version: latest_version.into(),
         }),
     }
 }

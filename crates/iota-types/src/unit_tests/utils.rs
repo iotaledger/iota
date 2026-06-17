@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
 use iota_sdk_crypto::{
-    Signer as _, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
@@ -21,7 +21,7 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, Signature, Signer,
-        get_key_pair, get_key_pair_from_rng,
+        ToFromBytes as _, get_key_pair, get_key_pair_from_rng,
     },
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
@@ -308,6 +308,7 @@ pub use move_authenticator::*;
 mod passkey {
     use fastcrypto::secp256r1::Secp256r1KeyPair;
 
+    use super::*;
     use crate::{
         crypto::{Signature, Signer, get_key_pair},
         passkey_authenticator::PasskeyAuthenticator,
@@ -324,9 +325,12 @@ mod passkey {
         let (_, r1_kp): (_, Secp256r1KeyPair) = get_key_pair();
         let user_sig: Signature = r1_kp.sign(&[0u8; 32]);
         let client_data_json = r#"{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://test.iota.org"}"#;
-        let passkey =
-            PasskeyAuthenticator::new_for_testing(vec![], client_data_json.to_string(), user_sig)
-                .unwrap();
+        let passkey = PasskeyAuthenticator::new(
+            vec![],
+            client_data_json.to_string(),
+            SimpleSignature::from_bytes(user_sig.as_bytes()).unwrap(),
+        )
+        .unwrap();
         GenericSignature::PasskeyAuthenticator(passkey)
     }
 }
