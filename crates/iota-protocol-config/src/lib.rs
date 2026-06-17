@@ -524,8 +524,9 @@ impl ConsensusTransactionOrdering {
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
-    TotalGasBudget, // Use txn gas budget as execution cost.
-    TotalTxCount,   // Use total txn count as execution cost.
+    TotalGasBudget,        // Use txn gas budget as execution cost.
+    TotalTxCount,          // Use total txn count as execution cost.
+    TotalComputationUnits, // Use attested computation units as execution cost.
 }
 
 impl PerObjectCongestionControlMode {
@@ -1400,6 +1401,12 @@ impl ProtocolConfig {
     }
 
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
+        // TODO(attestation): Once `enable_validator_attestation` is set in a version
+        // arm, set `per_object_congestion_control_mode = TotalComputationUnits`
+        // there too and revert this to a plain getter.
+        if self.enable_validator_attestation() {
+            return PerObjectCongestionControlMode::TotalComputationUnits;
+        }
         self.feature_flags.per_object_congestion_control_mode
     }
 

@@ -14,7 +14,7 @@ use iota_types::{
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
-    transaction::VerifiedTransaction,
+    transaction::{TransactionDataAPI, VerifiedTransaction},
 };
 
 use crate::{
@@ -49,16 +49,15 @@ fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsens
 }
 
 /// Wraps a `Transaction` in a `UserTransactionV2` consensus transaction with
-/// the given `attestor_index`. The block's `certificate_author_index` is always
-/// `0` (set by `new_test`), so passing `0` produces a matching attestation and
-/// any other value produces a mismatch.
+/// the given `attestor_index` and `computation_units`.
 fn make_user_tx_v2(
     tx: iota_types::transaction::Transaction,
     attestor_index: starfish_config::AuthorityIndex,
+    computation_units: u64,
 ) -> VerifiedSequencedConsensusTransaction {
     let attestation = Attestation::Validator {
         payload: AttestationData::V1 {
-            estimated_computation_cost: 0,
+            computation_units,
             object_versions: vec![],
         },
         attestor_index,
@@ -1131,9 +1130,14 @@ async fn test_v2_passes() {
     let digest = *tx.digest();
 
     // attestor_index 0 == certificate_author_index 0 set by new_test → match.
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
     let mut transactions = vec![make_user_tx_v2(
         tx,
         starfish_config::AuthorityIndex::new_for_test(0),
+        min_units,
     )];
 
     let (dropped, locks, user_tx_digests) =
@@ -1201,9 +1205,17 @@ async fn test_v2_attestor_mismatch() {
     let digest = *tx.digest();
 
     // attestor_index 1 != certificate_author_index 0 → mismatch.
+    // Cost is also below the protocol floor (`min_units - 1`), so BOTH the
+    // mismatch and the floor checks would fire. This pins the check order:
+    // mismatch must be reported before the floor.
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
     let mut transactions = vec![make_user_tx_v2(
         tx,
         starfish_config::AuthorityIndex::new_for_test(1),
+        min_units - 1,
     )];
 
     let (dropped, locks, user_tx_digests) =
@@ -1240,4 +1252,114 @@ async fn test_v2_attestor_mismatch() {
         vec![digest],
         "digest must be collected before Check #3 for soft-lock release",
     );
+}
+
+/// A `UserTransactionV2` whose attestation reports `computation_units` outside
+/// the valid range is malformed and dropped via Check #3:
+/// - below `min(base_tx_cost_fixed, gas_rounding_step)` →
+///   `AttestationUnitsBelowMinimum` (no honest dry-run meters below the
+///   bucketization floor);
+/// - above `gas_budget / gas_price` → `AttestationUnitsAboveBudget` (an honest
+///   dry-run cannot meter more computation than the tx can pay for).
+///
+/// In both cases the digest must still surface in `all_user_tx_digests` for
+/// soft-lock release.
+#[sim_test]
+async fn test_v2_cost_out_of_bounds() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority
+        .get_object(&object_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+    let gas_ref = authority
+        .get_object(&gas_id)
+        .await
+        .unwrap()
+        .compute_object_reference();
+
+    let reference_tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+    let ref_data = reference_tx.data().transaction_data();
+    let max_units = ref_data.gas_budget() / ref_data.gas_price();
+
+    // One case just below the minimum, one just above the maximum..
+    for (attested_units, expect_below) in [(min_units - 1, true), (max_units + 1, false)] {
+        let tx = make_transfer_object_transaction(
+            object_ref,
+            gas_ref,
+            sender,
+            &sender_key,
+            recipient,
+            rgp,
+        );
+        let digest = *tx.digest();
+        let mut transactions = vec![make_user_tx_v2(
+            tx,
+            starfish_config::AuthorityIndex::new_for_test(0),
+            attested_units,
+        )];
+
+        let (dropped, locks, user_tx_digests) =
+            post_consensus_validation::validate_and_resolve_conflicts(
+                &authority,
+                &epoch_store,
+                &mut transactions,
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            transactions.is_empty(),
+            "malformed-cost V2 should be removed from the batch"
+        );
+        assert_eq!(
+            dropped.len(),
+            1,
+            "malformed cost should produce one dropped entry"
+        );
+        match &dropped[0].1 {
+            IotaError::AttestationUnitsBelowMinimum { actual, minimum } if expect_below => {
+                assert_eq!(*actual, min_units - 1);
+                assert_eq!(*minimum, min_units);
+            }
+            IotaError::AttestationUnitsAboveBudget { actual, maximum } if !expect_below => {
+                assert_eq!(*actual, max_units + 1);
+                assert_eq!(*maximum, max_units);
+            }
+            other => panic!("unexpected error for attested_units={attested_units}: {other:?}"),
+        }
+        assert!(
+            locks.is_empty(),
+            "no locks should be acquired for a dropped transaction"
+        );
+        assert_eq!(
+            user_tx_digests,
+            vec![digest],
+            "digest must be collected before Check #3 for soft-lock release",
+        );
+    }
 }

@@ -20,7 +20,7 @@ use crate::{
     id::{ID, UID},
     object::Object,
     storage::{DenyListResult, ObjectStore},
-    transaction::{CheckedInputObjects, ReceivingObjects},
+    transaction::{InputObjects, ReceivingObjects},
 };
 
 pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
@@ -85,13 +85,20 @@ impl MoveTypeTagTrait for GlobalPauseKey {
     }
 }
 
+/// Returns `Ok(())` if no input or receiving object's coin type is on a deny
+/// list for the given `address`.
+///
+/// `cur_epoch` gates the deny-list read to the value settled before this epoch
+/// (entries written in epoch `E` activate in `E + 1`), matching execution and
+/// keeping the result deterministic across validators.
 #[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1(
     address: IotaAddress,
-    tx_input_objects: &CheckedInputObjects,
+    tx_input_objects: &InputObjects,
     tx_receiving_objects: &ReceivingObjects,
-    per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
+    per_authenticator_input_objects: &Vec<&InputObjects>,
     object_store: &dyn ObjectStore,
+    cur_epoch: EpochId,
 ) -> UserInputResult {
     let coin_types = input_object_coin_types_for_denylist_check(
         tx_input_objects,
@@ -102,10 +109,10 @@ pub fn check_coin_deny_list_v1(
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
             continue;
         };
-        if check_global_pause(&deny_list, object_store, None) {
+        if check_global_pause(&deny_list, object_store, Some(cur_epoch)) {
             return Err(UserInputError::CoinTypeGlobalPause { coin_type });
         }
-        if check_address_denied_by_config(&deny_list, address, object_store, None) {
+        if check_address_denied_by_config(&deny_list, address, object_store, Some(cur_epoch)) {
             return Err(UserInputError::AddressDeniedForCoin { address, coin_type });
         }
     }
@@ -272,17 +279,16 @@ where
 /// that it's not a regulated coin.
 #[instrument(level = "trace", skip_all)]
 fn input_object_coin_types_for_denylist_check(
-    tx_input_objects: &CheckedInputObjects,
+    tx_input_objects: &InputObjects,
     tx_receiving_objects: &ReceivingObjects,
-    per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
+    per_authenticator_input_objects: &Vec<&InputObjects>,
 ) -> BTreeSet<String> {
     let all_objects =
         tx_input_objects
-            .inner()
             .iter_objects()
             .chain(tx_receiving_objects.iter_objects())
             .chain(per_authenticator_input_objects.iter().flat_map(
-                |authenticator_input_objects| authenticator_input_objects.inner().iter_objects(),
+                |authenticator_input_objects| authenticator_input_objects.iter_objects(),
             ));
     all_objects
         .filter_map(|obj| {

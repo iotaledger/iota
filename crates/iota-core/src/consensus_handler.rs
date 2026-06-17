@@ -42,7 +42,7 @@ use crate::{
     consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     scoring_decision::update_low_scoring_authorities,
-    transaction_manager::TransactionManager,
+    transaction_manager::{TransactionManager, VerifiedExecutableAttestedTransaction},
 };
 
 pub struct ConsensusHandlerInitializer {
@@ -413,7 +413,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 }
 
 struct AsyncTransactionScheduler {
-    sender: tokio::sync::mpsc::Sender<Vec<VerifiedExecutableTransaction>>,
+    sender: tokio::sync::mpsc::Sender<Vec<VerifiedExecutableAttestedTransaction>>,
 }
 
 impl AsyncTransactionScheduler {
@@ -426,19 +426,19 @@ impl AsyncTransactionScheduler {
         Self { sender }
     }
 
-    pub async fn schedule(&self, transactions: Vec<VerifiedExecutableTransaction>) {
+    pub async fn schedule(&self, transactions: Vec<VerifiedExecutableAttestedTransaction>) {
         tracing::trace_span!("transaction_scheduler_enqueue");
         self.sender.send(transactions).await.ok();
     }
 
     pub async fn run(
-        mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableTransaction>>,
+        mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableAttestedTransaction>>,
         transaction_manager: Arc<TransactionManager>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
         while let Some(transactions) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
-            transaction_manager.enqueue(transactions, &epoch_store);
+            transaction_manager.enqueue_attested(transactions, &epoch_store);
         }
     }
 }

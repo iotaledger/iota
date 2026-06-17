@@ -5,6 +5,7 @@
 use std::{
     cmp::{Reverse, max},
     collections::{BTreeSet, BinaryHeap, HashMap, HashSet, hash_map},
+    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -13,6 +14,7 @@ use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_types::{
+    attestation::Attestation,
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     committee::EpochId,
     digests::TransactionEffectsDigest,
@@ -71,10 +73,69 @@ pub struct PendingCertificateStats {
     pub ready_time: Option<Instant>,
 }
 
+/// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
+/// [`Attestation`] (if any). Carrying the full attestation lets downstream code
+/// consult both scheduling metadata and attestor identity / observed object
+/// versions.
+///
+/// This is runtime-only scheduling metadata: it is never serialized or
+/// persisted.
+#[derive(Clone, Debug)]
+pub struct VerifiedExecutableAttestedTransaction {
+    tx: VerifiedExecutableTransaction,
+    /// `None` for unattested transactions (e.g., `UserTransactionV1`).
+    attestation: Option<Attestation>,
+}
+
+impl VerifiedExecutableAttestedTransaction {
+    pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
+        Self { tx, attestation }
+    }
+
+    /// Returns the attached attestation, or `None` if the transaction was
+    /// not attested.
+    pub fn attestation(&self) -> Option<&Attestation> {
+        self.attestation.as_ref()
+    }
+
+    /// Returns the attestor's estimated computation units, or `None` if the
+    /// transaction was not attested.
+    pub fn attested_computation_units(&self) -> Option<u64> {
+        self.attestation.as_ref().map(|a| a.computation_units())
+    }
+
+    /// Consume the wrapper and return its parts.
+    pub fn into_parts(self) -> (VerifiedExecutableTransaction, Option<Attestation>) {
+        (self.tx, self.attestation)
+    }
+}
+
+impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransaction {
+    fn from(tx: VerifiedExecutableTransaction) -> Self {
+        Self {
+            tx,
+            attestation: None,
+        }
+    }
+}
+
+impl Deref for VerifiedExecutableAttestedTransaction {
+    type Target = VerifiedExecutableTransaction;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tx
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct PendingCertificate {
-    // Certified transaction to be executed.
-    pub certificate: VerifiedExecutableTransaction,
+    // Certified transaction to be executed, paired with its pre-consensus
+    // attestation when sequenced as `UserTransactionV2`. The attestation is
+    // `None` for non-consensus paths (replay, change-epoch, finalizer) and
+    // for `UserTransactionV1`. Available at execution time for future
+    // consumers (comparison metrics, attestor reward/penalty accounting at
+    // checkpoint time).
+    pub certificate: VerifiedExecutableAttestedTransaction,
     // When executing from checkpoint, the certified effects digest is provided, so that forks can
     // be detected prior to committing the transaction.
     pub expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -382,7 +443,19 @@ impl TransactionManager {
         certs: Vec<VerifiedExecutableTransaction>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
-        let certs = certs.into_iter().map(|cert| (cert, None)).collect();
+        let certs = certs.into_iter().map(|cert| (cert.into(), None)).collect();
+        self.enqueue_impl(certs, epoch_store)
+    }
+
+    /// Like [`Self::enqueue`], but preserves the pre-consensus attestation for
+    /// transactions that arrived as `UserTransactionV2`.
+    #[instrument("transaction_manager_enqueue_attested", level = "trace", skip_all)]
+    pub(crate) fn enqueue_attested(
+        &self,
+        certs: Vec<VerifiedExecutableAttestedTransaction>,
+        epoch_store: &AuthorityPerEpochStore,
+    ) {
+        let certs = certs.into_iter().map(|attested| (attested, None)).collect();
         self.enqueue_impl(certs, epoch_store)
     }
 
@@ -394,7 +467,7 @@ impl TransactionManager {
     ) {
         let certs = certs
             .into_iter()
-            .map(|(cert, fx)| (cert, Some(fx)))
+            .map(|(cert, fx)| (cert.into(), Some(fx)))
             .collect();
         self.enqueue_impl(certs, epoch_store)
     }
@@ -402,7 +475,7 @@ impl TransactionManager {
     fn enqueue_impl(
         &self,
         certs: Vec<(
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             Option<TransactionEffectsDigest>,
         )>,
         epoch_store: &AuthorityPerEpochStore,

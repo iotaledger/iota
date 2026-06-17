@@ -11,7 +11,6 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
-    executable_transaction::VerifiedExecutableTransaction,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_consensus::{
         CancelledTransaction, ConsensusDeterminedVersionAssignments, VersionAssignment,
@@ -37,6 +36,7 @@ use crate::{
         transaction_deferral::DeferralKey,
     },
     move_call,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 /// Reference gas price used in gas price feedback mechanism tests.
@@ -255,21 +255,21 @@ impl GasPriceFeedbackTester {
     async fn send_certificates_to_consensus_for_scheduling(
         &self,
         certificates: &[VerifiedCertificate],
-    ) -> Vec<VerifiedExecutableTransaction> {
+    ) -> Vec<VerifiedExecutableAttestedTransaction> {
         send_batch_consensus_no_execution(&self.authority_state, certificates, false).await
     }
 
     /// Enqueue scheduled transactions and execute them to effects.
     async fn enqueue_and_execute_scheduled_transactions(
         &self,
-        transactions: Vec<VerifiedExecutableTransaction>,
+        transactions: Vec<VerifiedExecutableAttestedTransaction>,
     ) -> Vec<TransactionEffects> {
         let transaction_digests = transactions
             .iter()
             .map(|tx| *tx.digest())
             .collect::<Vec<_>>();
 
-        self.authority_state.transaction_manager().enqueue(
+        self.authority_state.transaction_manager().enqueue_attested(
             transactions,
             &self.authority_state.epoch_store_for_testing(),
         );

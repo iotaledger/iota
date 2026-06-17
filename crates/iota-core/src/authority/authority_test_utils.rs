@@ -13,7 +13,10 @@ use iota_types::{
 };
 
 use super::{test_authority_builder::TestAuthorityBuilder, *};
-use crate::{checkpoints::CheckpointServiceNoop, consensus_handler::SequencedConsensusTransaction};
+use crate::{
+    checkpoints::CheckpointServiceNoop, consensus_handler::SequencedConsensusTransaction,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
+};
 
 pub async fn send_and_confirm_transaction(
     authority: &AuthorityState,
@@ -405,7 +408,7 @@ pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertifica
 
     authority
         .transaction_manager()
-        .enqueue(certs, &authority.epoch_store_for_testing());
+        .enqueue_attested(certs, &authority.epoch_store_for_testing());
 }
 
 pub async fn send_consensus_no_execution(authority: &AuthorityState, cert: &VerifiedCertificate) {
@@ -435,7 +438,7 @@ pub async fn send_batch_consensus_no_execution(
     authority: &AuthorityState,
     certificates: &[VerifiedCertificate],
     skip_consensus_commit_prologue_in_test: bool,
-) -> Vec<VerifiedExecutableTransaction> {
+) -> Vec<VerifiedExecutableAttestedTransaction> {
     let transactions = certificates
         .iter()
         .map(|cert| {
