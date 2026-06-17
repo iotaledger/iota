@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
@@ -19,11 +19,11 @@ use crate::{
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     consistency::Checkpointed,
-    data::{self, Conn, DataLoader, Db, DbConnection, QueryExecutor},
+    data::{Conn, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     types::{
         base64::Base64,
-        cursor::{self, Page, Paginated, ScanLimited, Target},
+        cursor::{self, Page, ScanLimited, Target},
         date_time::DateTime,
         digest::Digest,
         epoch::Epoch,
@@ -71,7 +71,6 @@ pub(crate) struct Checkpoint {
 }
 
 pub(crate) type Cursor = cursor::JsonCursor<CheckpointCursor>;
-type Query<ST, GB> = data::Query<ST, checkpoints::table, GB>;
 
 /// The cursor returned for each `Checkpoint` in a connection's page of results.
 /// The `checkpoint_viewed_at` will set the consistent upper bound for
@@ -322,6 +321,44 @@ impl Checkpoint {
         Ok(stored as u64)
     }
 
+    /// Returns the inclusive `[lo, hi]` checkpoint sequence-number range to
+    /// paginate over, given the `checkpoint_viewed_at` and optional `epoch`
+    /// filter. Returns `None` when `filter` targets an epoch that does not
+    /// exist.
+    ///
+    /// The `epochs` table is never pruned but an in-progress epoch's
+    /// `last_checkpoint_id` is NULL - in that case the upper bound is
+    /// capped at `checkpoint_viewed_at`.
+    async fn pagination_range(
+        db: &Db,
+        filter: Option<u64>,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Option<(u64, u64)>, Error> {
+        let Some(epoch) = filter else {
+            return Ok(Some((0, checkpoint_viewed_at)));
+        };
+
+        let row: Option<(i64, Option<i64>)> = db
+            .execute(move |conn| {
+                use iota_indexer::schema::epochs::dsl as e;
+                conn.first(move || {
+                    e::epochs
+                        .select((e::first_checkpoint_id, e::last_checkpoint_id))
+                        .filter(e::epoch.eq(epoch as i64))
+                })
+                .optional()
+            })
+            .await
+            .map_err(|err| Error::Internal(format!("Failed to fetch epoch range: {err}")))?;
+
+        Ok(row.map(|(first, last)| {
+            let hi = last
+                .map(|l| std::cmp::min(l as u64, checkpoint_viewed_at))
+                .unwrap_or(checkpoint_viewed_at);
+            (first as u64, hi)
+        }))
+    }
+
     /// Query the database for a `page` of checkpoints. The Page uses the
     /// checkpoint sequence number of the stored checkpoint and the
     /// checkpoint at which this was viewed at as the cursor, and
@@ -342,31 +379,68 @@ impl Checkpoint {
         filter: Option<u64>,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, Checkpoint>, Error> {
-        use checkpoints::dsl;
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
-        let (prev, next, results) = db
-            .execute(move |conn| {
-                page.paginate_query::<StoredCheckpoint, _, _, _>(
-                    conn,
-                    checkpoint_viewed_at,
-                    move || {
-                        let mut query = dsl::checkpoints.into_boxed();
-                        query = query.filter(dsl::sequence_number.le(checkpoint_viewed_at as i64));
-                        if let Some(epoch) = filter {
-                            query = query.filter(dsl::epoch.eq(epoch as i64));
-                        }
-                        query
-                    },
-                )
-            })
-            .await?;
+        if page.limit() == 0 {
+            return Ok(Connection::new(false, false));
+        }
 
-        // The "checkpoint viewed at" sets a consistent upper bound for the nested
-        // queries.
-        let mut conn = Connection::new(prev, next);
-        for stored in results {
+        let Some((absolute_lo_incl, absolute_hi_incl)) =
+            Self::pagination_range(db, filter, checkpoint_viewed_at).await?
+        else {
+            return Ok(Connection::new(false, false));
+        };
+
+        // Narrow by the page's cursors, keeping in mind cursors are exclusive.
+        let page_lo_incl = match page.after() {
+            Some(cursor) => absolute_lo_incl.max(cursor.sequence_number.saturating_add(1)),
+            None => absolute_lo_incl,
+        };
+        let page_hi_incl = match page.before() {
+            Some(cursor) => absolute_hi_incl.min(cursor.sequence_number.saturating_sub(1)),
+            None => absolute_hi_incl,
+        };
+
+        if page_lo_incl > page_hi_incl {
+            return Ok(Connection::new(false, false));
+        }
+
+        // Take `limit` sequence numbers from the appropriate end of [lo, hi].
+        let limit = page.limit();
+        let picked_seqs: Vec<u64> = if page.is_from_front() {
+            (page_lo_incl..=page_hi_incl).take(limit).collect()
+        } else {
+            (page_lo_incl..=page_hi_incl).rev().take(limit).collect()
+        };
+        let expected_count = picked_seqs.len();
+        let mut all_rows: Vec<StoredCheckpoint> = db
+            .inner
+            .get_stored_checkpoints_by_seqs_with_fallback(picked_seqs)
+            .await
+            .map_err(|err| Error::Internal(format!("Failed to fetch checkpoints: {err}")))?
+            .into_iter()
+            .flatten()
+            .collect();
+        all_rows.sort_by_key(|s| s.sequence_number);
+
+        if all_rows.is_empty() {
+            return Err(Error::Internal(
+                "checkpoints in the requested page have been pruned and are not available in fallback storage".into(),
+            ));
+        }
+
+        let fetched_lo = all_rows.first().expect("checked non-empty").sequence_number as u64;
+        let fetched_hi = all_rows.last().expect("checked non-empty").sequence_number as u64;
+
+        // Pruning progresses from the `lo` side. Too few rows returned -> no usable
+        // previous page.
+        let fully_unpruned_page = all_rows.len() == expected_count;
+        let has_prev = fully_unpruned_page && fetched_lo > absolute_lo_incl;
+        let has_next = fetched_hi < absolute_hi_incl;
+
+        let mut conn = Connection::new(has_prev, has_next);
+        for stored in all_rows {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             conn.edges.push(Edge::new(
                 cursor,
@@ -378,27 +452,6 @@ impl Checkpoint {
         }
 
         Ok(conn)
-    }
-}
-
-impl Paginated<Cursor> for StoredCheckpoint {
-    type Source = checkpoints::table;
-
-    fn filter_ge<ST, GB>(cursor: &Cursor, query: Query<ST, GB>) -> Query<ST, GB> {
-        query.filter(checkpoints::dsl::sequence_number.ge(cursor.sequence_number as i64))
-    }
-
-    fn filter_le<ST, GB>(cursor: &Cursor, query: Query<ST, GB>) -> Query<ST, GB> {
-        query.filter(checkpoints::dsl::sequence_number.le(cursor.sequence_number as i64))
-    }
-
-    fn order<ST, GB>(asc: bool, query: Query<ST, GB>) -> Query<ST, GB> {
-        use checkpoints::dsl;
-        if asc {
-            query.order(dsl::sequence_number)
-        } else {
-            query.order(dsl::sequence_number.desc())
-        }
     }
 }
 
@@ -424,30 +477,23 @@ impl Loader<SeqNumKey> for Db {
     type Error = Error;
 
     async fn load(&self, keys: &[SeqNumKey]) -> Result<HashMap<SeqNumKey, Checkpoint>, Error> {
-        use checkpoints::dsl;
-
-        let checkpoint_ids: BTreeSet<_> = keys
+        // Drop keys querying for a checkpoint after their own consistency cursor.
+        let seqs: Vec<u64> = keys
             .iter()
-            .filter_map(|key| {
-                // Filter out keys querying for checkpoints after their own consistency cursor.
-                (key.checkpoint_viewed_at >= key.sequence_number)
-                    .then_some(key.sequence_number as i64)
-            })
+            .filter(|key| key.checkpoint_viewed_at >= key.sequence_number)
+            .map(|key| key.sequence_number)
             .collect();
 
-        let checkpoints: Vec<StoredCheckpoint> = self
-            .execute(move |conn| {
-                conn.results(move || {
-                    dsl::checkpoints
-                        .filter(dsl::sequence_number.eq_any(checkpoint_ids.iter().cloned()))
-                })
-            })
+        let rows = self
+            .inner
+            .get_stored_checkpoints_by_seqs_with_fallback(seqs.clone())
             .await
             .map_err(|e| Error::Internal(format!("Failed to fetch checkpoints: {e}")))?;
 
-        let checkpoint_id_to_stored: BTreeMap<_, _> = checkpoints
+        let checkpoint_id_to_stored: BTreeMap<u64, StoredCheckpoint> = seqs
             .into_iter()
-            .map(|stored| (stored.sequence_number as u64, stored))
+            .zip(rows)
+            .filter_map(|(seq, row)| row.map(|stored| (seq, stored)))
             .collect();
 
         Ok(keys
@@ -475,22 +521,24 @@ impl Loader<DigestKey> for Db {
     type Error = Error;
 
     async fn load(&self, keys: &[DigestKey]) -> Result<HashMap<DigestKey, Checkpoint>, Error> {
-        use checkpoints::dsl;
-
-        let digests: BTreeSet<_> = keys.iter().map(|key| key.digest.to_vec()).collect();
-
-        let checkpoints: Vec<StoredCheckpoint> = self
-            .execute(move |conn| {
-                conn.results(move || {
-                    dsl::checkpoints.filter(dsl::checkpoint_digest.eq_any(digests.iter().cloned()))
-                })
+        let digests: Vec<CheckpointDigest> = keys
+            .iter()
+            .map(|key| {
+                CheckpointDigest::from_bytes(key.digest.to_vec())
+                    .map_err(|e| Error::Internal(format!("Invalid CheckpointDigest: {e}")))
             })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let rows = self
+            .inner
+            .get_stored_checkpoints_by_digests_with_fallback(digests.clone())
             .await
             .map_err(|e| Error::Internal(format!("Failed to fetch checkpoints: {e}")))?;
 
-        let checkpoint_id_to_stored: BTreeMap<_, _> = checkpoints
+        let checkpoint_id_to_stored: BTreeMap<Vec<u8>, StoredCheckpoint> = digests
             .into_iter()
-            .map(|stored| (stored.checkpoint_digest.clone(), stored))
+            .zip(rows)
+            .filter_map(|(digest, row)| row.map(|stored| (digest.inner().to_vec(), stored)))
             .collect();
 
         Ok(keys
