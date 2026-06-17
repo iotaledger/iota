@@ -54,11 +54,12 @@ pub enum AttestationData {
         /// (`computation_cost / gas_price`). Used by the sequencer to improve
         /// shared-object scheduling before execution.
         computation_units: u64,
-        /// Shared-object versions observed by the attestor during the dry-run.
-        /// Used to determine whether a discrepancy between the attested
-        /// estimate and the actual execution outcome is misbehavior or is
-        /// explained by a legitimate state change between attestation time and
-        /// execution time.
+        /// Versions of the run-time-resolved objects the attestor read during
+        /// the dry-run whose version is NOT already pinned by the signed
+        /// `TransactionData`. This covers shared objects,
+        /// Move-authenticator account and function-ref field objects,
+        /// coin-deny-list references, and dynamic fields / child objects loaded
+        /// during execution.
         object_versions: Vec<ObjectRef>,
     },
 }
