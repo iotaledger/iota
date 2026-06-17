@@ -1651,6 +1651,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
+name = "bech32"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32637268377fc7b10a8c6d51de3e7fba1ce5dd371a96e342b34e6078db558e7f"
+
+[[package]]
 name = "beef"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1780,8 +1786,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc"
 dependencies = [
  "bitcoin_hashes",
- "rand 0.7.3",
- "rand_core 0.5.1",
+ "rand 0.8.6",
+ "rand_core 0.6.4",
  "serde",
  "unicode-normalization",
 ]
@@ -3892,7 +3898,7 @@ dependencies = [
  "ark-serialize",
  "auto_ops",
  "base64ct",
- "bech32",
+ "bech32 0.9.1",
  "bincode",
  "blake2",
  "blst",
@@ -7389,6 +7395,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-rust-sdk"
+version = "1.26.0-alpha"
+dependencies = [
+ "iota-sdk-crypto",
+ "iota-sdk-graphql-client",
+ "iota-sdk-grpc-client",
+ "iota-sdk-grpc-types",
+ "iota-sdk-transaction-builder",
+ "iota-sdk-types",
+]
+
+[[package]]
 name = "iota-sdk"
 version = "1.26.0-alpha"
 dependencies = [
@@ -7432,17 +7450,59 @@ name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4e685468c6e589f2701f4ffd64699f60c430f6da#4e685468c6e589f2701f4ffd64699f60c430f6da"
 dependencies = [
+ "bech32 0.11.1",
  "bip32",
  "bip39",
+ "blst",
  "ed25519-dalek",
  "iota-sdk-types",
  "k256",
  "p256",
+ "pem-rfc7468 0.7.0",
+ "pkcs8 0.10.2",
  "rand_core 0.6.4",
+ "roaring",
  "sha2 0.10.9",
  "signature 2.2.0",
  "slip10_ed25519",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "iota-sdk-graphql-client"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4e685468c6e589f2701f4ffd64699f60c430f6da#4e685468c6e589f2701f4ffd64699f60c430f6da"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "chrono",
+ "cynic",
+ "derive_more 2.1.1",
+ "futures",
+ "getrandom 0.2.15",
+ "iota-sdk-graphql-client-build",
+ "iota-sdk-transaction-builder",
+ "iota-sdk-types",
+ "js-sys",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "strum 0.27.2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "url",
+ "variadics_please",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "iota-sdk-graphql-client-build"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4e685468c6e589f2701f4ffd64699f60c430f6da#4e685468c6e589f2701f4ffd64699f60c430f6da"
+dependencies = [
+ "cynic-codegen",
 ]
 
 [[package]]
@@ -7688,7 +7748,7 @@ dependencies = [
 name = "iota-stardust-types"
 version = "1.26.0-alpha"
 dependencies = [
- "bech32",
+ "bech32 0.9.1",
  "bitflags 2.10.0",
  "derive_more 1.0.0",
  "getset",
@@ -11339,7 +11399,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "343d3bd7056eda839b03204e68deff7d1b13aba7af2b2fd16890697274262ee7"
 dependencies = [
  "heck 0.4.1",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "log",
  "multimap",
  "petgraph 0.8.3",
@@ -11373,7 +11433,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -14604,7 +14664,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.6",
  "static_assertions",
 ]
 
@@ -15206,7 +15266,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

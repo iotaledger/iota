@@ -130,6 +130,7 @@ members = [
   "crates/iota-replay",
   "crates/iota-rest-kv",
   "crates/iota-rpc-loadgen",
+  "crates/iota-rust-sdk",
   "crates/iota-sdk",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
