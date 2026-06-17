@@ -157,19 +157,6 @@ impl Hash for MoveAuthenticator {
     }
 }
 
-// TODO actually different than derived?
-// /// Necessary trait for
-// /// [SenderSignerData](crate::transaction::SenderSignedData). This trait is
-// /// implemented only for MoveAuthenticator and not for specific versions of
-// /// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
-// /// serialization/deserialization signature logic is defined on the
-// /// MoveAuthenticator level.
-// impl PartialEq for MoveAuthenticator {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.as_ref() == other.as_ref()
-//     }
-// }
-
 /// MoveAuthenticatorInner is an enum that represents the different versions
 /// of MoveAuthenticator.
 #[enum_dispatch(AuthenticatorTrait)]
