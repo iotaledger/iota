@@ -39,22 +39,38 @@ pub struct ChainContext {
 }
 
 impl ChainContext {
-    /// Build a [`ChainContext`] from its parts. The three `u64` arguments are,
-    /// in order, `reference_gas_price`, `epoch_id`, and `epoch_timestamp_ms`.
-    pub fn new(
-        protocol_version: ProtocolVersion,
-        reference_gas_price: u64,
-        epoch_id: u64,
-        epoch_timestamp_ms: u64,
-        chain: Chain,
-    ) -> Self {
+    /// Start from the protocol version and chain. The epoch fields default to
+    /// `0`; set them by name with the `with_*` methods to avoid transposing the
+    /// several `u64` parameters.
+    pub fn new(protocol_version: ProtocolVersion, chain: Chain) -> Self {
         Self {
             protocol_version,
-            reference_gas_price,
-            epoch_id,
-            epoch_timestamp_ms,
+            reference_gas_price: 0,
+            epoch_id: 0,
+            epoch_timestamp_ms: 0,
             chain,
         }
+    }
+
+    /// Set the reference gas price for the epoch, in NANOS.
+    #[must_use]
+    pub fn with_reference_gas_price(mut self, reference_gas_price: u64) -> Self {
+        self.reference_gas_price = reference_gas_price;
+        self
+    }
+
+    /// Set the epoch the transaction runs in.
+    #[must_use]
+    pub fn with_epoch_id(mut self, epoch_id: u64) -> Self {
+        self.epoch_id = epoch_id;
+        self
+    }
+
+    /// Set the epoch start timestamp in milliseconds (the VM clock).
+    #[must_use]
+    pub fn with_epoch_timestamp_ms(mut self, epoch_timestamp_ms: u64) -> Self {
+        self.epoch_timestamp_ms = epoch_timestamp_ms;
+        self
     }
 }
 
@@ -126,7 +142,15 @@ impl ExecuteOptions {
         }
     }
 
-    /// Attach a [`DebugConfig`] to capture prints / profile / trace.
+    /// Set the [`ExecutionMode`].
+    #[must_use]
+    pub fn with_mode(mut self, mode: ExecutionMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Attach a [`DebugConfig`] to capture a gas profile and/or an execution
+    /// trace.
     #[must_use]
     pub fn with_debug(mut self, cfg: DebugConfig) -> Self {
         self.debug = cfg;
@@ -134,28 +158,42 @@ impl ExecuteOptions {
     }
 }
 
+/// The engine's per-PTB-command result `(mutable_reference_outputs,
+/// return_values)`, aliased to disambiguate from the SDK's own
+/// [`ExecutionResult`].
+pub type CommandResult = iota_types::execution::ExecutionResult;
+
 /// The full result of a run: effects, events, per-command results, the input
 /// and output object sets, gas accounting, signature status, whether the run
 /// was committed to the store, and any captured debug artifacts.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct ExecutionResult {
+    /// The transaction effects (object changes, gas, status digest).
     pub effects: TransactionEffects,
+    /// Emitted events, if the run produced any.
     pub events: Option<TransactionEvents>,
     /// Per-PTB-command `(mutable_reference_outputs, return_values)`.
     ///
     /// Empty for `MoveAuthenticator`-signed runs: the authenticator engine
     /// entry point does not return per-command results.
-    pub command_results: Vec<iota_types::execution::ExecutionResult>,
+    pub command_results: Vec<CommandResult>,
+    /// Objects read as inputs to the run.
     pub input_objects: Vec<Object>,
+    /// Objects written by the run (created or mutated).
     pub output_objects: Vec<Object>,
+    /// Gas ledger for the run (computation / storage / rebate).
     pub gas_summary: GasCostSummary,
+    /// Id of the mock gas coin minted for a gas-less transaction, if any.
     pub mock_gas_id: Option<ObjectId>,
+    /// The Move-level execution status (success or abort).
     pub status: iota_sdk_types::ExecutionStatus,
+    /// The outcome of signature verification for the run.
     pub signature_status: SignatureStatus,
     /// `true` if and only if [`ExecutionMode::Execute`] ran successfully and
     /// the effects were applied back to the store.
     pub committed: bool,
+    /// Captured debug artifacts (profile / trace), if requested.
     pub debug: Option<DebugArtifacts>,
 }
 

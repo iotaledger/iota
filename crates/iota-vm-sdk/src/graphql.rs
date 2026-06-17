@@ -40,11 +40,29 @@ impl GraphqlStore {
 
     /// Connect to a GraphQL endpoint (by URL) and create a store containing
     /// only the built-in framework packages.
-    pub fn connect(url: impl Into<String>) -> Self {
-        Self::new(SimpleClient::new(url))
+    ///
+    /// Returns a `Result` to mirror
+    /// [`GrpcStore::connect`](crate::grpc::GrpcStore::connect); building the
+    /// client is currently infallible.
+    pub fn connect(url: impl Into<String>) -> Result<Self, VmSdkError> {
+        Ok(Self::new(SimpleClient::new(url)))
+    }
+
+    /// Read-only access to the wrapped in-memory store, e.g. to snapshot the
+    /// objects fetched so far.
+    pub fn store(&self) -> &InMemoryStore {
+        &self.inner
     }
 
     /// Fetch the chain parameters a [`LocalVm`](crate::LocalVm) needs.
+    ///
+    /// Reports [`Chain::Unknown`](crate::Chain) — the chain identity is not
+    /// resolved here; this only affects chain-specific protocol behaviour.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::Store`] if the query fails or epoch fields are
+    /// missing.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let query = r#"{
             epoch {
@@ -98,6 +116,11 @@ impl GraphqlStore {
     /// Fetch every object the transaction references and insert it into the
     /// store. Owned/immutable objects are fetched at their transaction
     /// versions; shared objects and packages at the latest version.
+    ///
+    /// This covers the transaction body only. A `MoveAuthenticator`-signed run
+    /// also needs the authenticator's input objects and each account's
+    /// `AuthenticatorFunctionRefV1` field present in the store; insert them
+    /// before executing such a transaction.
     pub async fn prefetch(&mut self, transaction: &TransactionData) -> Result<(), VmSdkError> {
         let input_object_kinds = transaction
             .input_objects()

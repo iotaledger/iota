@@ -20,7 +20,6 @@ chrono = { workspace = true, optional = true }
 fastcrypto.workspace = true
 prometheus.workspace = true
 reqwest = { workspace = true, optional = true }
-serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tonic = { workspace = true, optional = true }
@@ -44,6 +43,7 @@ move-trace-format.workspace = true
 [dev-dependencies]
 # external dependencies
 anyhow.workspace = true
+serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 # internal dependencies

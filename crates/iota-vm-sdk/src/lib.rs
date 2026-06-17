@@ -35,8 +35,8 @@ pub mod graphql;
 pub use debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink};
 pub use error::{ExecutionError, SignatureError, StoreError, ValidationError, VmError, VmSdkError};
 pub use executor::{
-    ChainContext, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult, LocalVm,
-    SignatureStatus,
+    ChainContext, CommandResult, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
+    LocalVm, SignatureStatus,
 };
 // --- Re-exports of upstream types in the public API ----------------------
 pub use iota_protocol_config::{Chain, ProtocolVersion};

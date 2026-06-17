@@ -42,7 +42,12 @@ impl GrpcStore {
 
     /// Connect to a gRPC endpoint (by URL) and create a store containing only
     /// the built-in framework packages.
-    pub fn connect(url: &str) -> Result<Self, VmSdkError> {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::Store`] if the client cannot be created for `url`.
+    pub fn connect(url: impl Into<String>) -> Result<Self, VmSdkError> {
+        let url: String = url.into();
         let client = Client::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
         Ok(Self::new(client))
     }
@@ -54,6 +59,14 @@ impl GrpcStore {
     }
 
     /// Fetch the chain parameters a [`LocalVm`](crate::LocalVm) needs.
+    ///
+    /// Reports [`Chain::Unknown`](crate::Chain) — the chain identity is not
+    /// resolved here; this only affects chain-specific protocol behaviour.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::Store`] if the epoch RPC fails or can't be
+    /// decoded.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let epoch = self
             .client
@@ -86,6 +99,12 @@ impl GrpcStore {
     /// Fetch every object the transaction references and insert it into the
     /// store. Owned/immutable objects are fetched at their transaction
     /// versions; shared objects and packages at the latest version.
+    ///
+    /// This covers the transaction body only. A `MoveAuthenticator`-signed run
+    /// also needs the authenticator's input objects and each account's
+    /// `AuthenticatorFunctionRefV1` field present — run
+    /// [`prefetch_dynamic_fields`](Self::prefetch_dynamic_fields) (or insert
+    /// them manually) before executing such a transaction.
     pub async fn prefetch(&mut self, transaction: &TransactionData) -> Result<(), VmSdkError> {
         let mut refs: Vec<(ObjectId, Option<Version>)> = Vec::new();
         let input_object_kinds = transaction
@@ -120,6 +139,12 @@ impl GrpcStore {
     /// `request_add_stake` aborts in `dynamic_field::remove_child_object`
     /// without them. Call after [`prefetch`](Self::prefetch); children are
     /// fetched at their latest version, matching how shared objects are loaded.
+    /// Recursion is bounded only by the object graph (a `visited` set breaks
+    /// cycles); intended for local development against trusted nodes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::Store`] if a listing or fetch fails.
     pub async fn prefetch_dynamic_fields(&mut self) -> Result<(), VmSdkError> {
         let mut visited: std::collections::HashSet<ObjectId> = std::collections::HashSet::new();
         let mut queue: Vec<ObjectId> = self.inner.iter().map(|(id, _)| *id).collect();

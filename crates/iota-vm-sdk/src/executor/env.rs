@@ -15,14 +15,13 @@ use iota_protocol_config::ProtocolConfig;
 use iota_types::metrics::{BytecodeVerifierMetrics, LimitsMetrics};
 use move_trace_format::format::MoveTraceBuilder;
 
-use super::local_vm::LocalVm;
 use crate::{
     debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink},
     error::{VmError, VmSdkError},
+    executor::local_vm::LocalVm,
 };
 
-/// Per-run engine + debug wiring, built fresh for each `execute*` call because
-/// `iota_execution::executor` bakes the profiler path in at construction.
+/// The Move engine and debug wiring for a single `execute*` call.
 pub(super) struct ExecutionEnv {
     pub(super) protocol_config: ProtocolConfig,
     pub(super) reference_gas_price: u64,
@@ -37,6 +36,8 @@ pub(super) struct ExecutionEnv {
 
 impl ExecutionEnv {
     pub(super) fn new(vm: &LocalVm, debug: &DebugConfig) -> Result<Self, VmSdkError> {
+        // Built per run because `iota_execution::executor` bakes the profiler
+        // path in at construction, so it cannot be shared across runs.
         let (executor, capture_profile_dir) =
             build_executor_with_profile(&vm.protocol_config, debug)?;
 
@@ -86,7 +87,6 @@ impl Drop for ExecutionEnv {
 /// Build a Move executor with no profiler.
 pub(super) fn build_executor(
     protocol_config: &ProtocolConfig,
-    _debug: &DebugConfig,
 ) -> Result<Arc<dyn Executor + Send + Sync>, VmSdkError> {
     // `silent = true`: the Move `debug::print` natives are compiled out of this
     // build (they need `move-stdlib-natives`'s `testing` feature), so a
@@ -180,8 +180,10 @@ fn merge_profile_dir(dir: &std::path::Path) -> Option<ProfileOutput> {
             for profile in profiles.iter_mut() {
                 if let Some(events) = profile.get_mut("events").and_then(|v| v.as_array_mut()) {
                     for ev in events.iter_mut() {
-                        if let Some(frame) =
-                            ev.get("frame").and_then(|v| v.as_u64()).map(|i| i as usize)
+                        if let Some(frame) = ev
+                            .get("frame")
+                            .and_then(|v| v.as_u64())
+                            .and_then(|i| usize::try_from(i).ok())
                         {
                             if let Some(new) = index_map.get(frame) {
                                 ev["frame"] = serde_json::json!(new);

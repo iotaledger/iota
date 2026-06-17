@@ -24,18 +24,20 @@ use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::language_storage::ModuleId;
 use move_trace_format::format::MoveTraceBuilder;
 
-use super::{
-    env::{ExecutionEnv, build_executor},
-    prepare::{
-        decode_one_event, execute_prepared, execute_with_move_authenticator, prepare_transaction,
-    },
-    types::{
-        ChainContext, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult, SignatureStatus,
-    },
-};
 use crate::{
-    debug::{DebugArtifacts, DebugConfig},
+    debug::DebugArtifacts,
     error::{ExecutionError, VmSdkError},
+    executor::{
+        env::{ExecutionEnv, build_executor},
+        prepare::{
+            decode_one_event, execute_prepared, execute_with_move_authenticators,
+            prepare_transaction,
+        },
+        types::{
+            ChainContext, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
+            SignatureStatus,
+        },
+    },
     store::{Store, StoreBackend},
 };
 
@@ -106,6 +108,11 @@ impl LocalVm {
     /// effects are committed to the store regardless of whether the transaction
     /// would be authorized on-chain. Use [`LocalVm::execute_signed`] when
     /// signature verification is required.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`VmSdkError`] on preparation or VM faults; a Move-level abort
+    /// is reported via [`ExecutionResult::status`], not as an error.
     pub fn execute(
         &mut self,
         tx: TransactionData,
@@ -129,13 +136,24 @@ impl LocalVm {
 
     /// Run a signed transaction, verifying signatures first.
     ///
-    /// Standard schemes are verified cryptographically before execution; a
+    /// Standard schemes are verified cryptographically first. Every
     /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
-    /// is verified by running its function inside the VM during execution.
-    /// When an authenticator-signed run fails, the authenticator function is
-    /// executed once more on its own to tell an authenticator rejection apart
-    /// from a failure in the transaction body (the function is side-effect
-    /// free, so the re-run cannot change state).
+    /// — the sender's and, for a sponsored tx, the sponsor's — is verified by
+    /// running its function in the VM. On failure the authenticators are re-run
+    /// alone to tell a rejection from a body abort.
+    ///
+    /// `opts.mode` governs input-check relaxation
+    /// ([`ExecutionMode::DevInspect`]) and commit
+    /// ([`ExecutionMode::Execute`]) as for [`execute`](Self::execute),
+    /// but the authenticators and transaction body always execute under full
+    /// (non-dev-inspect) VM semantics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::SignatureVerification`] for an invalid
+    /// standard-scheme signature, or another [`VmSdkError`] on preparation/VM
+    /// faults. A rejected `MoveAuthenticator` is reported via
+    /// [`ExecutionResult::signature_status`], not as an error.
     pub fn execute_signed(
         &mut self,
         signed: SenderSignedData,
@@ -143,11 +161,21 @@ impl LocalVm {
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
 
-        let verify_params = VerifyParams::default();
+        // Match the node's verifier, which derives these from the protocol
+        // config (see `AuthorityPerEpochStore`); `VerifyParams::default()` would
+        // hardcode both off and diverge for passkey-in-multisig / additional
+        // multisig checks.
+        let verify_params = VerifyParams::new(
+            self.protocol_config.accept_passkey_in_multisig(),
+            self.protocol_config.additional_multisig_checks(),
+        );
         verify_sender_signed_data_message_signatures(&signed, &verify_params)
             .map_err(VmSdkError::SignatureVerification)?;
 
-        let move_authenticator = signed.sender_move_authenticator().cloned();
+        // All `MoveAuthenticator`s on the transaction — the sender's and, for a
+        // sponsored transaction, the sponsor's — must be verified.
+        let move_authenticators: Vec<_> =
+            signed.move_authenticators().into_iter().cloned().collect();
         // The auth digests must be computed from the signed data before it is
         // consumed; the `MoveAuthenticator` execution path needs them in its
         // `AuthContextData`.
@@ -156,9 +184,10 @@ impl LocalVm {
             .map_err(VmSdkError::SignatureVerification)?;
         let transaction = signed.into_inner().intent_message.value;
 
-        let authenticator_gas_budget = match &move_authenticator {
-            Some(_) => self.protocol_config.max_auth_gas(),
-            None => 0,
+        let authenticator_gas_budget = if move_authenticators.is_empty() {
+            0
+        } else {
+            self.protocol_config.max_auth_gas()
         };
 
         let prepared = {
@@ -175,31 +204,30 @@ impl LocalVm {
 
         let (sim, signature_status) = {
             let backend = StoreBackend::new(self.store.as_ref());
-            match move_authenticator {
-                Some(authenticator) => {
-                    let (sim, verdict) = execute_with_move_authenticator(
-                        &env,
-                        &backend,
-                        prepared,
-                        authenticator,
-                        auth_digests,
-                        authenticator_gas_budget,
-                        &mut trace_builder,
-                    )?;
-                    let status = match verdict {
-                        Ok(()) => SignatureStatus::Verified,
-                        Err(e) => SignatureStatus::Failed(crate::error::SignatureError::new(
-                            format!("authenticator function rejected the transaction: {e}"),
-                        )),
-                    };
-                    (sim, status)
-                }
+            if move_authenticators.is_empty() {
                 // Standard schemes were verified cryptographically above; the
                 // run's outcome cannot retroactively invalidate them.
-                None => (
+                (
                     execute_prepared(&env, &backend, prepared, opts.mode)?,
                     SignatureStatus::Verified,
-                ),
+                )
+            } else {
+                let (sim, verdict) = execute_with_move_authenticators(
+                    &env,
+                    &backend,
+                    prepared,
+                    move_authenticators,
+                    auth_digests,
+                    authenticator_gas_budget,
+                    &mut trace_builder,
+                )?;
+                let status = match verdict {
+                    Ok(()) => SignatureStatus::Verified,
+                    // `SignatureError`'s `Display` already prefixes "signature
+                    // verification failed:", so carry only the cause here.
+                    Err(e) => SignatureStatus::Failed(crate::error::SignatureError::new(e)),
+                };
+                (sim, status)
             }
         };
         let artifacts = env.collect_artifacts(trace_builder);
@@ -214,8 +242,8 @@ impl LocalVm {
         &self,
         events: &TransactionEvents,
     ) -> Vec<Result<DecodedEvent, VmSdkError>> {
-        // Build a default-config executor purely for its layout resolver.
-        let executor = match build_executor(&self.protocol_config, &DebugConfig::default()) {
+        // Build an executor purely for its layout resolver.
+        let executor = match build_executor(&self.protocol_config) {
             Ok(e) => e,
             Err(e) => return vec![Err(e)],
         };
@@ -234,6 +262,11 @@ impl LocalVm {
     /// any struct layouts from the packages in the store. Used to turn
     /// dev-inspect return values and mutable reference outputs (raw
     /// `(bytes, type)` pairs) into readable values.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VmSdkError::Execution`] if the layout can't be resolved or
+    /// `bytes` don't deserialize against it.
     pub fn decode_value(
         &self,
         bytes: &[u8],
@@ -285,6 +318,9 @@ impl LocalVm {
     /// Apply created/mutated/deleted/wrapped changes back into the store so a
     /// subsequent run sees them.
     fn apply_effects(&mut self, sim: &SimulateTransactionResult) {
+        // `output_objects` is authoritative for what survives; then drop what
+        // was deleted or wrapped. `unwrapped_then_deleted` objects were nested,
+        // never standalone store entries, so they need no removal.
         for obj in sim.output_objects.values() {
             self.store.insert(obj.clone());
         }
