@@ -115,10 +115,18 @@ pub fn get_attr(
             let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
 
             match (ty, protocol_config.lookup_attr(param_name)) {
-                (Type::U64, Some(ProtocolConfigValue::u64(value))) => option_some(Value::u64(value), ty)?,
-                (Type::U32, Some(ProtocolConfigValue::u32(value))) => option_some(Value::u32(value), ty)?,
-                (Type::U16, Some(ProtocolConfigValue::u16(value))) => option_some(Value::u16(value), ty)?,
-                (Type::Bool, Some(ProtocolConfigValue::bool(value))) => option_some(Value::bool(value), ty)?,
+                (Type::U64, Some(ProtocolConfigValue::u64(value))) => {
+                    option_some(Value::u64(value), ty)?
+                }
+                (Type::U32, Some(ProtocolConfigValue::u32(value))) => {
+                    option_some(Value::u32(value), ty)?
+                }
+                (Type::U16, Some(ProtocolConfigValue::u16(value))) => {
+                    option_some(Value::u16(value), ty)?
+                }
+                (Type::Bool, Some(ProtocolConfigValue::bool(value))) => {
+                    option_some(Value::bool(value), ty)?
+                }
 
                 // The parameter is absent in the current protocol version.
                 (_, None) => option_none(ty)?,
