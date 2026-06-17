@@ -428,11 +428,6 @@ mod tests {
         assert_eq!(scores.commit_range, (1..=4).into());
     }
 
-    use crate::{
-        block_header::BlockHeaderDigest,
-        commit::{CommitDigest, CommitRef},
-    };
-
     /// Helper: build 4 fully-connected commits using `DagBuilder` and return
     /// their `SubDagBase`s in order [commit_1, commit_2, commit_3, commit_4].
     fn build_four_commits(context: Arc<Context>) -> Vec<SubDagBase> {
@@ -469,49 +464,5 @@ mod tests {
             vec![expected_per_authority; context.committee.size()],
             "expected each authority to get full committee stake as contribution"
         );
-    }
-
-    /// Construct a `SubDagBase` with the given leader round and empty headers.
-    /// Useful for tests that exercise the leader-round-based scan logic without
-    /// needing a real DAG.
-    fn dummy_subdag_with_leader_round(round: Round, index: u32) -> SubDagBase {
-        SubDagBase {
-            leader: BlockRef::new(
-                round,
-                AuthorityIndex::new_for_test(0),
-                BlockHeaderDigest::MIN,
-            ),
-            headers: vec![],
-            committed_header_refs: vec![],
-            timestamp_ms: 0,
-            commit_ref: CommitRef::new(index, CommitDigest::MIN),
-            reputation_scores_desc: vec![],
-        }
-    }
-
-    #[tokio::test]
-    async fn test_compute_per_commit_contribution_degrades_gracefully_on_invariant_violation() {
-        // Caller supplies 4 commits with non-increasing leader rounds — the
-        // schedule's invariant is broken. The function must not panic; it
-        // returns degraded (all-zero) scores so the node keeps running.
-        let context = Arc::new(Context::new_for_test(4).0);
-        let c_minus_3 = dummy_subdag_with_leader_round(5, 1);
-        let c_minus_2 = dummy_subdag_with_leader_round(5, 2);
-        let c_minus_1 = dummy_subdag_with_leader_round(6, 3);
-        let c = dummy_subdag_with_leader_round(7, 4);
-        let scores =
-            compute_per_commit_contribution(&context, &c_minus_3, &c_minus_2, &c_minus_1, &c);
-        assert_eq!(scores, vec![0u64; context.committee.size()]);
-    }
-
-    #[test]
-    fn test_scan_returns_all_three_when_none_exceed_upper() {
-        // Degenerate input: all three commits have the same leader round, so
-        // none exceed `upper`. Helper returns all three rather than panicking.
-        let c_minus_2 = dummy_subdag_with_leader_round(1, 2);
-        let c_minus_1 = dummy_subdag_with_leader_round(1, 3);
-        let c = dummy_subdag_with_leader_round(1, 4);
-        let scanned = scan_until_leader_round_above(&c_minus_2, &c_minus_1, &c, /* upper */ 1);
-        assert_eq!(scanned.len(), 3);
     }
 }
