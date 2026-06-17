@@ -1,6 +1,6 @@
 ---
 title: IOTA Indexer
-description: The IOTA Indexer writer service — its scope, components, system requirements, configuration, and how to run it.
+description: The IOTA Indexer writer service — its scope, dependencies, system requirements, configuration, and how to run it.
 tags:
   - reference
   - pruning
@@ -8,6 +8,104 @@ tags:
 teams:
   - iotaledger/infrastructure
 ---
+
+The `iota-indexer` binary in writer mode ingests checkpoints from an IOTA checkpoint source, writes them into PostgreSQL tables, and maintains that database over time (migrations on start-up, pruning per retention policy). See the [Extended Data Services overview](./overview.mdx) for how it fits together with the JSON-RPC and GraphQL reader services.
+
+The `iota-indexer` binary also has a `run-backfill` subcommand — a one-off maintenance tool for filling specific tables over a historical range, typically after a schema change. Not part of normal operation.
+
+## Scope
+
+The writer:
+
+- Downloads checkpoints from a remote source (a fullnode gRPC endpoint or a historical checkpoint store).
+- Indexes each checkpoint into structured Postgres tables (objects, transactions, events, indexes for `tx_*` and `event_*` filters, and more).
+- Runs the needed schema migrations on the database on start-up. A database ahead of the binary (migrations the binary doesn't know about) fails to start; a database behind the binary is migrated forward.
+- Optionally runs background pruning tasks that enforce per-table retention policies. See [Pruning](#pruning) below.
+- Exposes Prometheus metrics for monitoring, e.g. ingestion lag, indexing throughput, etc.
+
+The writer is the main component that writes to the indexer database.
+Reader services ([JSON-RPC](./json-rpc.mdx), [GraphQL](./graphql.mdx)) read from the same database. They write only to `optimistic_transactions`, `objects`, and `display`, as part of optimistic indexing.
+
+Run a single writer instance per database. Running more than one against the same database is not supported.
+
+## Dependencies
+
+- A PostgreSQL database. The database must not be ahead of the binary; on start-up the writer applies any pending migrations and refuses to start if the database contains migrations the binary doesn't know about. See [Appendix: PostgreSQL configuration](#appendix-postgresql-configuration) for a recommended `postgresql.conf`.
+- A checkpoint source. At least one of:
+  - `--remote-store-url` pointing at a [fullnode](../full-node/overview.mdx) gRPC endpoint (e.g. `http://0.0.0.0:50051`).
+  - `--remote-store-url` pointing at a historical checkpoint store hosting batched checkpoint files.
+  - `--data-ingestion-path` pointing at a local directory that a colocated fullnode populates with checkpoint files.
+- Optionally a live checkpoint store (`--live-checkpoints-store-url`) that serves the latest checkpoints not yet in the historical archive. Combine it with a historical `--remote-store-url` to get full coverage from genesis with low tip latency. See the **Hybrid Historical Checkpoint Store** section in the [overview](./overview.mdx).
+
+URLs for the publicly hosted historical and live checkpoint stores are listed under [Checkpoint sources](#checkpoint-sources).
+
+## Hardware requirements
+
+Disk is the main requirement and depends on the configured retention. See the [sizing table](#sizing-and-retention) under Pruning for predicted database sizes.
+
+Run the writer on the same network as Postgres to keep latency low.
+
+## Running the writer
+
+A minimal start command, ingesting from a fullnode gRPC endpoint into a local Postgres database, without pruning:
+
+```sh
+iota-indexer \
+  --db-url postgres://<user>:<password>@<host>:5432/<db> \
+  indexer \
+  --remote-store-url http://<fullnode-host>:50051
+```
+
+Alternatively, ingesting from a historical checkpoint store combined with a live checkpoint store for minimal tip latency:
+
+```sh
+iota-indexer \
+  --db-url postgres://<user>:<password>@<host>:5432/<db> \
+  indexer \
+  --remote-store-url https://checkpoints.mainnet.iota.cafe/ingestion/historical \
+  --live-checkpoints-store-url https://checkpoints.mainnet.iota.cafe/ingestion/live
+```
+
+For networks other than `mainnet`, use the matching URLs from the [Checkpoint sources](#checkpoint-sources) section below.
+
+## Configuration
+
+Settings come from CLI flags and matching environment variables on the `indexer` subcommand. The only configuration file the writer reads is the optional pruning retention TOML described in the [Pruning configuration file (TOML)](#pruning-configuration-file-toml) section below. All flags are listed in the [reference tables](#all-settings) at the bottom of the page.
+
+### Database connection
+
+- `--db-url` — Postgres connection URL (e.g. `postgres://<user>:<password>@<host>:5432/<db>`). See the [Postgres docs](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) for the full URI syntax.
+- `--pool-size` — connection pool size. Raise it for higher concurrency, but stay within the Postgres `max_connections` setting and account for other clients of the same database.
+- `--connection-timeout` — caps how long a request waits for a free database connection before failing.
+- `--statement-timeout` — caps how long a single SQL query may run before it's cancelled.
+
+### Checkpoint sources
+
+At least one source must be configured. The CLI accepts:
+
+- `--remote-store-url` — a fullnode gRPC URL or a historical checkpoint store URL. A historical checkpoint store covers all checkpoints from genesis; a fullnode only serves the checkpoints it hasn't pruned. Available historical stores:
+    - Mainnet: `https://checkpoints.mainnet.iota.cafe/ingestion/historical`
+    - Testnet: `https://checkpoints.testnet.iota.cafe/ingestion/historical`
+    - Devnet: `https://checkpoints.devnet.iota.cafe/ingestion/historical`
+- `--data-ingestion-path` — a local filesystem directory that a colocated fullnode populates with checkpoint files.
+- `--live-checkpoints-store-url` — a live checkpoint store URL. Used as a fallback for the latest checkpoints that aren't yet in the historical archive. Requires `--remote-store-url` to also be set. Available live stores:
+    - Mainnet: `https://checkpoints.mainnet.iota.cafe/ingestion/live`
+    - Testnet: `https://checkpoints.testnet.iota.cafe/ingestion/live`
+    - Devnet: `https://checkpoints.devnet.iota.cafe/ingestion/live`
+
+### Colocated fullnode
+
+`--data-ingestion-path` requires a colocated fullnode dumping each executed checkpoint into a shared directory. Set `data-ingestion-dir` in the fullnode YAML and point the writer's `--data-ingestion-path` at the same path.
+
+### Prometheus metrics
+
+The Prometheus endpoint exposes ingestion lag, counts of committed checkpoints, transactions, and epochs, indexing latencies, database connection pool size, etc.
+
+`--metrics-address` sets the address the Prometheus metrics endpoint binds to (default `0.0.0.0:9184`).
+
+### Resetting the database
+
+Passing `--reset-db` on the `indexer` subcommand drops every table on start-up and re-applies all migrations from scratch. Use it only on a writer instance you intend to fully rebuild — the operation is destructive and affects any reader sharing the same database. It starts ingestion from scratch. Use with care.
 
 ## Pruning
 
@@ -89,9 +187,9 @@ tx_senders = 5
 The pruner runs as a set of background tasks inside the sync worker process:
 
 - A **watermarks-update task** polls every few seconds. When it detects that the network has advanced to a new epoch, it recomputes each prunable table's lower-bound watermark from the retention policy and writes the new bound into the `watermarks` table.
-- A **per-table pruner task** runs in parallel for each prunable table, polling every few seconds. When that table's watermark has been advanced, the task waits **2 hours** after the update before actually deleting data — the delay protects in-flight reads against losing rows mid-query. It then deletes in batches, sleeping briefly between chunks to limit pressure on the database.
+- A **per-table pruner task** runs in parallel for each prunable table, polling every few seconds. When that table's watermark has been advanced, the task waits a configurable delay (`--pruning-delay-ms`, default **2 hours**) before actually deleting data — the delay protects in-flight reads against losing rows mid-query. It then deletes in batches sized by `--pruning-batch-size` (default `1000`), sleeping briefly between chunks to limit pressure on the database.
 
-As a result, disk usage drops some time after the epoch transition, not at the boundary itself. Likewise, when a sync worker is started with pruning enabled for the first time, deletions will not begin sooner than 2 hours after the worker starts.
+As a result, disk usage drops some time after the epoch transition, not at the boundary itself. Likewise, when a sync worker is started with pruning enabled for the first time, deletions will not begin sooner than the configured `--pruning-delay-ms` after the worker starts.
 
 ### Monitoring pruning progress
 
@@ -138,3 +236,91 @@ Tables not listed here are never pruned by the indexer.
 ### Non-prunable tables
 
 Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
+
+## Appendix: PostgreSQL configuration
+
+The `postgresql.conf` below is the recommended configuration for an indexer host with roughly 96 GB of RAM and NVMe storage (mainnet-class hardware). Scale memory and parallelism values to your hardware.
+
+```conf
+# Connections
+max_connections                  = 2000
+listen_addresses                 = '*'
+superuser_reserved_connections   = 5
+
+# Memory
+shared_buffers                   = 32GB
+effective_cache_size             = 64GB
+work_mem                         = 64MB
+maintenance_work_mem             = 2GB
+temp_buffers                     = 64MB
+wal_buffers                      = 64MB
+
+# Write-ahead log
+wal_level                        = replica
+synchronous_commit               = off
+full_page_writes                 = on
+wal_compression                  = off
+wal_writer_delay                 = 200ms
+checkpoint_completion_target     = 0.9
+checkpoint_timeout               = 15min
+min_wal_size                     = 4GB
+max_wal_size                     = 32GB
+
+# Query planner
+default_statistics_target        = 200
+random_page_cost                 = 1.0
+effective_io_concurrency         = 200
+
+# Parallelism
+max_worker_processes             = 24
+max_parallel_workers             = 16
+max_parallel_workers_per_gather  = 4
+max_parallel_maintenance_workers = 4
+
+# Logging
+log_min_duration_statement       = 500
+log_checkpoints                  = on
+log_autovacuum_min_duration      = 250
+log_temp_files                   = 512kB
+log_statement                    = 'none'
+log_line_prefix                  = '%t [%p]: [%l-1] user=%u db=%d app=%a client=%h '
+
+# Other
+huge_pages                       = try
+max_files_per_process            = 10000
+archive_mode                     = off
+
+# Timeouts
+statement_timeout                = 6000
+```
+
+Per-table autovacuum tuning and `shm_size` guidance that pair with this config are documented in [Storage reclamation](#storage-reclamation) above.
+
+## All settings
+
+### Top-level `iota-indexer` flags
+
+| Flag                     | Env var                  | Default          | Description                                                       |
+| ------------------------ | ------------------------ | ---------------- | ----------------------------------------------------------------- |
+| `--db-url`               | —                        | _(required)_     | Postgres connection URL. Also accepted as `--database-url`.       |
+| `--pool-size`            | `DB_POOL_SIZE`           | `100`            | Number of parallel Postgres connections held in the pool.         |
+| `--connection-timeout`   | `DB_CONNECTION_TIMEOUT`  | `30` (seconds)   | How long a request waits for a free database connection before failing. |
+| `--statement-timeout`    | `DB_STATEMENT_TIMEOUT`   | `3600` (seconds) | Cap on how long a single SQL query may run before it's cancelled. |
+| `--metrics-address`      | —                        | `0.0.0.0:9184`   | Address the Prometheus metrics endpoint binds to.                 |
+
+### `indexer` subcommand flags
+
+| Flag                                       | Env var                                  | Default        | Description                                                                                                              |
+| ------------------------------------------ | ---------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--remote-store-url`                       | —                                        | _(none)_       | Fullnode gRPC URL or historical checkpoint store URL serving batched checkpoint files.                                   |
+| `--live-checkpoints-store-url`             | —                                        | _(none)_       | Live checkpoint store URL. Fallback for the latest checkpoints not yet in the historical archive. Requires `--remote-store-url`. |
+| `--data-ingestion-path`                    | —                                        | _(none)_       | Local directory populated with checkpoint files by a colocated fullnode.                                                 |
+| `--checkpoint-download-queue-size`         | `DOWNLOAD_QUEUE_SIZE`                    | `200`          | Maximum number of checkpoints buffered for indexing.                                                                     |
+| `--checkpoint-download-queue-size-bytes`   | `CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT` | `20000000`     | Byte cap on the checkpoint download queue.                                                                               |
+| `--checkpoint-download-timeout`            | `INGESTION_READER_TIMEOUT_SECS`          | `20`           | Per-checkpoint download timeout, in seconds.                                                                             |
+| `--pruning-config-path`                    | —                                        | _(none)_       | Path to a TOML file describing per-table retention policies. Enables pruning when set. See [Pruning](#pruning).          |
+| `--pruning-delay-ms`                       | `PRUNING_DELAY_MS`                       | `7200000` (ms) | Delay between a watermark's lower bound being advanced and the pruner deleting rows. Lets in-flight reads finish before their data disappears. |
+| `--pruning-batch-size`                     | `PRUNING_BATCH_SIZE`                     | `1000`         | Upper bound on units (checkpoints, transactions, or global sequence numbers) pruned per chunk, and on rows deleted per statement.              |
+| `--reset-db`                               | —                                        | `false`        | Drop all tables and re-apply migrations from scratch on start-up. Starts ingestion from scratch. Use with care. |
+
+At least one of `--remote-store-url` or `--data-ingestion-path` must be set.
