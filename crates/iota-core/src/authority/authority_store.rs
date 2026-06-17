@@ -939,7 +939,7 @@ impl AuthorityStore {
                 [(transaction_digest, effects_digest)],
             )?;
 
-        debug!(effects_digest = ?effects.digest(), "commit_certificate finished");
+        debug!(effects_digest = ?effects.digest(), "commit_transaction finished");
 
         Ok(())
     }

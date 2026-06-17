@@ -221,7 +221,13 @@ impl GenericSignature {
                     error: "zkLogin is not supported".to_string(),
                 })
             }
-            GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
+            GenericSignature::PasskeyAuthenticator(passkey) => {
+                let pk = Secp256r1PublicKey::from_bytes(passkey.public_key().inner().as_ref())
+                    .map_err(|e| {
+                        IotaError::KeyConversion(format!("Cannot parse secp256r1 pk: {e}"))
+                    })?;
+                Ok(PublicKey::Passkey((&pk).into()))
+            }
             GenericSignature::MoveAuthenticator(_) => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported in MoveAuthenticator".to_string(),
             }),
@@ -259,7 +265,8 @@ impl ToFromBytes for GenericSignature {
                     ))
                 }
                 SignatureScheme::PasskeyAuthenticator => {
-                    let passkey = PasskeyAuthenticator::from_bytes(bytes)?;
+                    let passkey = PasskeyAuthenticator::from_bytes(bytes)
+                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))?;
                     Ok(GenericSignature::PasskeyAuthenticator(passkey))
                 }
                 SignatureScheme::MoveAuthenticator => {

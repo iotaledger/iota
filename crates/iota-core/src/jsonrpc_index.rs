@@ -517,7 +517,7 @@ impl IndexStore {
         // 1. Delete old owner if the object is deleted or transferred to a new owner,
         // by looking at `object_index_changes.deleted_owners`.
         // Objects in `deleted_owners` must be coin type (see
-        // `AuthorityState::commit_certificate`).
+        // `AuthorityState::commit_transaction`).
         let coin_delete_keys = object_index_changes
             .deleted_owners
             .iter()
@@ -549,8 +549,8 @@ impl IndexStore {
         // 2. Upsert new owner, by looking at `object_index_changes.new_owners`.
         // For a object to appear in `new_owners`, it must be owned by `Owner::Address`
         // after the tx. It also must not be deleted, hence appear in
-        // written_coins (see `AuthorityState::commit_certificate`) It also must
-        // be a coin type (see `AuthorityState::commit_certificate`).
+        // written_coins (see `AuthorityState::commit_transaction`) It also must
+        // be a coin type (see `AuthorityState::commit_transaction`).
         // Here the coin could be transferred to a new address, to simply have the
         // metadata changed (digest, balance etc) due to a successful or failed
         // transaction.

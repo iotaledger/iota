@@ -18,7 +18,7 @@ use std::{
 use anyhow::bail;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
-use authority_per_epoch_store::CertLockGuard;
+use authority_per_epoch_store::TxLockGuard;
 pub use authority_store::{AuthorityStore, ResolverWrapper, UpdateType};
 use fastcrypto::{
     encoding::{Base58, Encoding},
@@ -156,7 +156,7 @@ pub use crate::checkpoints::checkpoint_executor::utils::{
 };
 use crate::{
     authority::{
-        authority_per_epoch_store::{AuthorityPerEpochStore, CertTxGuard},
+        authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
@@ -814,7 +814,7 @@ pub struct AuthorityState {
     epoch_store: ArcSwap<AuthorityPerEpochStore>,
 
     /// This lock denotes current 'execution epoch'.
-    /// Execution acquires read lock, checks certificate epoch and holds it
+    /// Execution acquires read lock, checks transaction epoch and holds it
     /// until all writes are complete. Reconfiguration acquires write lock,
     /// changes the epoch and revert all transactions from previous epoch
     /// that are executed but did not make into checkpoint.
@@ -828,7 +828,7 @@ pub struct AuthorityState {
 
     committee_store: Arc<CommitteeStore>,
 
-    /// Manages pending certificates and their missing input objects.
+    /// Manages pending transactions and their missing input objects.
     transaction_manager: Arc<TransactionManager>,
 
     /// Shuts down the execution task. Used only in testing.
@@ -1277,7 +1277,7 @@ impl AuthorityState {
             .and_then(|r| r)
     }
 
-    /// Internal logic to execute a certificate.
+    /// Internal logic to execute a transaction.
     ///
     /// Guarantees that
     /// - If input objects are available, return no permanent failure.
@@ -1288,26 +1288,26 @@ impl AuthorityState {
     ///
     /// It is caller's responsibility to ensure input objects are available and
     /// locks are set. If this cannot be satisfied by the caller,
-    /// wait_for_certificate_execution() should be called instead.
+    /// `wait_for_certificate_execution()` should be called instead.
     ///
     /// Should only be called within iota-core.
-    #[instrument(level = "trace", skip_all, fields(tx_digest = ?certificate.digest()))]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn try_execute_immediately(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         let _scope = monitored_scope("Execution::try_execute_immediately");
         let _metrics_guard = self.metrics.internal_execution_latency.start_timer();
 
-        let tx_digest = certificate.digest();
+        let tx_digest = transaction.digest();
 
         // Acquire a lock to prevent concurrent executions of the same transaction.
-        let tx_guard = epoch_store.acquire_tx_guard(certificate)?;
+        let tx_guard = epoch_store.acquire_tx_guard(transaction)?;
 
-        // The cert could have been processed by a concurrent attempt of the same cert,
-        // so check if the effects have already been written.
+        // The transaction could have been processed by a concurrent attempt of the
+        // same transaction, so check if the effects have already been written.
         if let Some(effects) = self
             .get_transaction_cache_reader()
             .try_get_executed_effects(tx_digest)?
@@ -1324,7 +1324,7 @@ impl AuthorityState {
         }
 
         let (tx_input_objects, per_authenticator_inputs) =
-            self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
+            self.read_objects_for_execution(tx_guard.as_lock_guard(), transaction, epoch_store)?;
 
         // If no expected_effects_digest was provided, try to get it from storage.
         // We could be re-executing a previously executed but uncommitted transaction,
@@ -1334,24 +1334,24 @@ impl AuthorityState {
         let expected_effects_digest =
             expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
-        self.process_certificate(
+        self.process_transaction(
             tx_guard,
-            certificate,
+            transaction,
             tx_input_objects,
             per_authenticator_inputs,
             expected_effects_digest,
             epoch_store,
         )
-        .tap_err(|e| info!(?tx_digest, "process_certificate failed: {e}"))
+        .tap_err(|e| info!(?tx_digest, "process_transaction failed: {e}"))
         .tap_ok(
-            |(fx, _)| debug!(?tx_digest, fx_digest=?fx.digest(), "process_certificate succeeded"),
+            |(fx, _)| debug!(?tx_digest, fx_digest=?fx.digest(), "process_transaction succeeded"),
         )
     }
 
     pub fn read_objects_for_execution(
         &self,
-        tx_lock: &CertLockGuard,
-        certificate: &VerifiedExecutableTransaction,
+        tx_lock: &TxLockGuard,
+        transaction: &VerifiedExecutableTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(InputObjects, Vec<(InputObjects, ObjectReadResult)>)> {
         let _scope = monitored_scope("Execution::load_input_objects");
@@ -1360,17 +1360,17 @@ impl AuthorityState {
             .execution_load_input_objects_latency
             .start_timer();
 
-        let input_objects = certificate.collect_all_input_object_kind_for_reading()?;
+        let input_objects = transaction.collect_all_input_object_kind_for_reading()?;
 
         let input_objects = self.input_loader.read_objects_for_execution(
             epoch_store,
-            &certificate.key(),
+            &transaction.key(),
             tx_lock,
             &input_objects,
             epoch_store.epoch(),
         )?;
 
-        certificate.split_input_objects_into_groups_for_reading(input_objects)
+        transaction.split_input_objects_into_groups_for_reading(input_objects)
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -1424,7 +1424,7 @@ impl AuthorityState {
         effects: &TransactionEffects,
         expected_effects_digest: TransactionEffectsDigest,
         inner_temporary_store: &InnerTemporaryStore,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         debug_dump_config: &StateDebugDumpConfig,
     ) -> IotaResult<PathBuf> {
         // Fall back to the OS temp directory if no dump directory is configured.
@@ -1443,39 +1443,38 @@ impl AuthorityState {
             self.get_object_store().as_ref(),
             &epoch_store,
             inner_temporary_store,
-            certificate,
+            transaction,
         )?
         .write_to_file(&dump_dir)
         .map_err(|e| IotaError::FileIO(e.to_string()))
     }
 
-    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?certificate.digest(), sender = ?certificate.data().transaction_data().gas_owner().to_string()
-    ))]
-    pub(crate) fn process_certificate(
+    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = ?transaction.data().transaction_data().gas_owner().to_string()))]
+    pub(crate) fn process_transaction(
         &self,
-        tx_guard: CertTxGuard,
-        certificate: &VerifiedExecutableTransaction,
+        tx_guard: TxGuard,
+        transaction: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
-        let process_certificate_start_time = tokio::time::Instant::now();
-        let digest = *certificate.digest();
+        let process_transaction_start_time = tokio::time::Instant::now();
+        let digest = *transaction.digest();
 
         let _scope = monitored_scope("Execution::process_certificate");
 
-        fail_point_if!("correlated-crash-process-certificate", || {
+        fail_point_if!("correlated-crash-process-transaction", || {
             if iota_simulator::random::deterministic_probability_once(digest, 0.01) {
                 iota_simulator::task::kill_current_node(None);
             }
         });
 
-        let execution_guard = self.execution_lock_for_executable_transaction(certificate);
-        // Any caller that verifies the signatures on the certificate will have already
+        let execution_guard = self.execution_lock_for_executable_transaction(transaction);
+        // Any caller that verifies the signatures on the transaction will have already
         // checked the epoch. But paths that don't verify sigs (e.g. execution
         // from checkpoint, reading from db) present the possibility of an epoch
-        // mismatch. If this cert is not finalzied in previous epoch, then it's
+        // mismatch. If this transaction is not finalized in previous epoch, then it's
         // invalid.
         let execution_guard = match execution_guard {
             Ok(execution_guard) => execution_guard,
@@ -1496,14 +1495,14 @@ impl AuthorityState {
             });
         }
 
-        // Errors originating from execute_certificate may be transient (failure to read
-        // locks) or non-transient (transaction input is invalid, move vm
+        // Errors originating from `execute_transaction` may be transient (failure to
+        // read locks) or non-transient (transaction input is invalid, move vm
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
-        let (inner_temporary_store, effects, execution_error_opt) = match self.execute_certificate(
+        let (inner_temporary_store, effects, execution_error_opt) = match self.execute_transaction(
             &execution_guard,
-            certificate,
+            transaction,
             tx_input_objects,
             per_authenticator_inputs,
             epoch_store,
@@ -1524,7 +1523,7 @@ impl AuthorityState {
                     &effects,
                     expected_effects_digest,
                     &inner_temporary_store,
-                    certificate,
+                    transaction,
                     &self.config.state_debug_dump_config,
                 ) {
                     Ok(out_path) => {
@@ -1555,8 +1554,8 @@ impl AuthorityState {
 
         fail_point!("crash");
 
-        self.commit_certificate(
-            certificate,
+        self.commit_transaction(
+            transaction,
             inner_temporary_store,
             &effects,
             tx_guard,
@@ -1564,7 +1563,7 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        let elapsed = process_certificate_start_time.elapsed().as_micros() as f64;
+        let elapsed = process_transaction_start_time.elapsed().as_micros() as f64;
         if elapsed > 0.0 {
             self.metrics
                 .execution_gas_latency_ratio
@@ -1587,12 +1586,12 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    fn commit_certificate(
+    fn commit_transaction(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         inner_temporary_store: InnerTemporaryStore,
         effects: &TransactionEffects,
-        tx_guard: CertTxGuard,
+        tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
@@ -1600,16 +1599,16 @@ impl AuthorityState {
             monitored_scope("Execution::commit_certificate");
         let _metrics_guard = self.metrics.commit_certificate_latency.start_timer();
 
-        let tx_key = certificate.key();
-        let tx_digest = certificate.digest();
+        let tx_key = transaction.key();
+        let tx_digest = transaction.digest();
         let input_object_count = inner_temporary_store.input_objects.len();
         let shared_object_count = effects.input_shared_objects().len();
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // index certificate
+        // index transaction
         let _ = self
-            .post_process_one_tx(certificate, effects, &inner_temporary_store, epoch_store)
+            .post_process_one_tx(transaction, effects, &inner_temporary_store, epoch_store)
             .tap_err(|e| {
                 self.metrics.post_processing_total_failures.inc();
                 error!(?tx_digest, "tx post processing failed: {e}");
@@ -1624,21 +1623,21 @@ impl AuthorityState {
         fail_point!("crash");
 
         let transaction_outputs = TransactionOutputs::build_transaction_outputs(
-            certificate.clone().into_unsigned(),
+            transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
 
-        if certificate.transaction_data().is_end_of_epoch_tx() {
+        if transaction.transaction_data().is_end_of_epoch_tx() {
             // At the end of epoch, since system packages may have been upgraded, force
             // reload them in the cache.
             self.get_object_cache_reader()
                 .force_reload_system_packages(&BuiltInFramework::all_package_ids());
         }
 
-        // commit_certificate finished, the tx is fully committed to the store.
+        // `commit_transaction()` finished, the tx is fully committed to the store.
         tx_guard.commit_tx();
 
         // Notifies transaction manager about transaction and output objects committed.
@@ -1647,19 +1646,19 @@ impl AuthorityState {
         self.transaction_manager
             .notify_commit(tx_digest, output_keys, epoch_store);
 
-        self.update_metrics(certificate, input_object_count, shared_object_count);
+        self.update_metrics(transaction, input_object_count, shared_object_count);
 
         Ok(())
     }
 
     fn update_metrics(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         input_object_count: usize,
         shared_object_count: usize,
     ) {
         // count signature by scheme, for multisig
-        if certificate.has_upgraded_multisig() {
+        if transaction.has_upgraded_multisig() {
             self.metrics.multisig_sig_count.inc();
         }
 
@@ -1670,7 +1669,7 @@ impl AuthorityState {
             self.metrics.shared_obj_tx.inc();
         }
 
-        if certificate.is_sponsored_tx() {
+        if transaction.is_sponsored_tx() {
             self.metrics.sponsored_tx.inc();
         }
 
@@ -1681,7 +1680,7 @@ impl AuthorityState {
             .num_shared_objects
             .observe(shared_object_count as f64);
         self.metrics.batch_size.observe(
-            certificate
+            transaction
                 .data()
                 .intent_message()
                 .value
@@ -1690,22 +1689,22 @@ impl AuthorityState {
         );
     }
 
-    /// execute_certificate validates the transaction input, and executes the
-    /// certificate, returning effects, output objects, events, etc.
+    /// `execute_transaction()` validates the transaction input, and executes
+    /// the transaction, returning effects, output objects, events, etc.
     ///
     /// It reads state from the db (both owned and shared locks), but it has no
     /// side effects.
     ///
-    /// It can be generally understood that a failure of execute_certificate
+    /// It can be generally understood that a failure of `execute_transaction`
     /// indicates a non-transient error, e.g. the transaction input is
     /// somehow invalid, the correct locks are not held, etc. However, this
     /// is not entirely true, as a transient db read error may also cause
     /// this function to fail.
     #[instrument(level = "trace", skip_all)]
-    fn execute_certificate(
+    fn execute_transaction(
         &self,
         _execution_guard: &ExecutionLockReadGuard<'_>,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1716,7 +1715,7 @@ impl AuthorityState {
     )> {
         let _scope = monitored_scope("Execution::execute_certificate");
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
-        let prepare_certificate_start_time = tokio::time::Instant::now();
+        let prepare_transaction_start_time = tokio::time::Instant::now();
 
         let protocol_config = epoch_store.protocol_config();
 
@@ -1730,16 +1729,16 @@ impl AuthorityState {
 
         let backing_store = self.get_backing_store().as_ref();
 
-        let tx_digest = *certificate.digest();
+        let tx_digest = *transaction.digest();
 
         // TODO: We need to move this to a more appropriate place to avoid redundant
         // checks.
-        let tx_data = certificate.data().transaction_data();
+        let tx_data = transaction.data().transaction_data();
         tx_data.validity_check(protocol_config)?;
 
         let (kind, signer, gas_data) = tx_data.execution_parts();
 
-        let move_authenticators = certificate.move_authenticators();
+        let move_authenticators = transaction.move_authenticators();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
         let (inner_temp_store, _, mut effects, execution_error_opt) = if move_authenticators
@@ -1751,7 +1750,7 @@ impl AuthorityState {
             // tolerated.
             let (tx_gas_status, tx_checked_input_objects) =
                 iota_transaction_checks::check_certificate_input(
-                    certificate,
+                    transaction,
                     tx_input_objects,
                     protocol_config,
                     reference_gas_price,
@@ -1832,7 +1831,7 @@ impl AuthorityState {
                 bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
-                certificate.data().compute_auth_digests()?;
+                transaction.data().compute_auth_digests()?;
 
             // Check the `MoveAuthenticator` input objects.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
@@ -1844,7 +1843,7 @@ impl AuthorityState {
                 per_authenticator_checked_input_objects,
                 authenticator_and_tx_checked_input_objects,
             ) = iota_transaction_checks::check_certificate_and_move_authenticator_input(
-                certificate,
+                transaction,
                 tx_input_objects,
                 per_authenticator_input_objects,
                 authenticator_gas_budget,
@@ -1923,10 +1922,10 @@ impl AuthorityState {
 
         fail_point_if!("cp_execution_nondeterminism", || {
             #[cfg(msim)]
-            self.create_fail_state(certificate, epoch_store, &mut effects);
+            self.create_fail_state(transaction, epoch_store, &mut effects);
         });
 
-        let elapsed = prepare_certificate_start_time.elapsed().as_micros() as f64;
+        let elapsed = prepare_transaction_start_time.elapsed().as_micros() as f64;
         if elapsed > 0.0 {
             self.metrics
                 .prepare_cert_gas_latency_ratio
@@ -1936,9 +1935,9 @@ impl AuthorityState {
         Ok((inner_temp_store, effects, execution_error_opt.err()))
     }
 
-    pub fn prepare_certificate_for_benchmark(
+    pub fn prepare_transaction_for_benchmark(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         input_objects: InputObjects,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(
@@ -1949,9 +1948,9 @@ impl AuthorityState {
         let lock = RwLock::new(epoch_store.epoch());
         let execution_guard = lock.try_read().unwrap();
 
-        self.execute_certificate(
+        self.execute_transaction(
             &execution_guard,
-            certificate,
+            transaction,
             input_objects,
             vec![],
             epoch_store,
@@ -2583,7 +2582,7 @@ impl AuthorityState {
         indexes: &IndexStore,
         digest: &TransactionDigest,
         // TODO: index_tx really just need the transaction data here.
-        cert: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         effects: &TransactionEffects,
         events: &TransactionEvents,
         timestamp_ms: u64,
@@ -2597,8 +2596,9 @@ impl AuthorityState {
             .tap_err(|e| warn!(tx_digest=?digest, "Failed to process object index, index_tx is skipped: {e}"))?;
 
         indexes.index_tx(
-            cert.data().intent_message().value.sender(),
-            cert.data()
+            transaction.data().intent_message().value.sender(),
+            transaction
+                .data()
                 .intent_message()
                 .value
                 .input_objects()?
@@ -2608,7 +2608,8 @@ impl AuthorityState {
                 .all_changed_objects()
                 .into_iter()
                 .map(|(obj_ref, owner, _kind)| (obj_ref, owner)),
-            cert.data()
+            transaction
+                .data()
                 .intent_message()
                 .value
                 .move_calls()
@@ -2627,7 +2628,7 @@ impl AuthorityState {
     #[cfg(msim)]
     fn create_fail_state(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         effects: &mut TransactionEffects,
     ) {
@@ -2637,7 +2638,7 @@ impl AuthorityState {
         thread_local! {
             static FAIL_STATE: RefCell<(u64, HashSet<AuthorityName>)> = RefCell::new((0, HashSet::new()));
         }
-        if !certificate.data().intent_message().value.is_system_tx() {
+        if !transaction.data().intent_message().value.is_system_tx() {
             let committee = epoch_store.committee();
             let cur_stake = (**committee).weight(&self.name);
             if cur_stake > 0 {
@@ -2913,7 +2914,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all, err)]
     fn post_process_one_tx(
         &self,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         effects: &TransactionEffects,
         inner_temporary_store: &InnerTemporaryStore,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -2924,7 +2925,7 @@ impl AuthorityState {
 
         let _scope = monitored_scope("Execution::post_process_one_tx");
 
-        let tx_digest = certificate.digest();
+        let tx_digest = transaction.digest();
         let timestamp_ms = Self::unixtime_now_ms();
         let events = &inner_temporary_store.events;
         let written = &inner_temporary_store.written;
@@ -2940,7 +2941,7 @@ impl AuthorityState {
                 .index_tx(
                     indexes.as_ref(),
                     tx_digest,
-                    certificate,
+                    transaction,
                     effects,
                     events,
                     timestamp_ms,
@@ -2963,7 +2964,7 @@ impl AuthorityState {
             )?;
             // Emit events
             self.subscription_handler
-                .process_tx(certificate.data().transaction_data(), &effects, &events)
+                .process_tx(transaction.data().transaction_data(), &effects, &events)
                 .tap_ok(|_| {
                     self.metrics
                         .post_processing_total_tx_had_event_processed
@@ -3177,14 +3178,14 @@ impl AuthorityState {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
         let metrics = Arc::new(AuthorityMetrics::new(prometheus_registry));
-        let (tx_ready_certificates, rx_ready_certificates) = unbounded_channel();
+        let (tx_ready_transactions, rx_ready_transactions) = unbounded_channel();
         let transaction_manager = Arc::new(TransactionManager::new(
             execution_cache_trait_pointers.object_cache_reader.clone(),
             execution_cache_trait_pointers
                 .transaction_cache_reader
                 .clone(),
             &epoch_store,
-            tx_ready_certificates,
+            tx_ready_transactions,
             metrics.clone(),
         ));
         let (tx_execution_shutdown, rx_execution_shutdown) = oneshot::channel();
@@ -3254,11 +3255,11 @@ impl AuthorityState {
             traffic_controller,
         });
 
-        // Start a task to execute ready certificates.
+        // Start a task to execute ready transactions.
         let authority_state = Arc::downgrade(&state);
         spawn_monitored_task!(execution_process(
             authority_state,
-            rx_ready_certificates,
+            rx_ready_transactions,
             rx_execution_shutdown,
         ));
         spawn_monitored_task!(authority_store_migrations::migrate_events(store));
@@ -3355,10 +3356,10 @@ impl AuthorityState {
     /// execution.
     pub fn enqueue_transactions_for_execution(
         &self,
-        txns: Vec<VerifiedExecutableTransaction>,
+        transactions: Vec<VerifiedExecutableTransaction>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        self.transaction_manager.enqueue(txns, epoch_store)
+        self.transaction_manager.enqueue(transactions, epoch_store)
     }
 
     /// Adds certificates to transaction manager for ordered execution.
@@ -3373,11 +3374,11 @@ impl AuthorityState {
 
     pub fn enqueue_with_expected_effects_digest(
         &self,
-        certs: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
+        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
         self.transaction_manager
-            .enqueue_with_expected_effects_digest(certs, epoch_store)
+            .enqueue_with_expected_effects_digest(transactions, epoch_store)
     }
 
     fn create_owner_index_if_empty(
@@ -3588,7 +3589,7 @@ impl AuthorityState {
         self.transaction_manager.reconfigure(new_epoch);
         *execution_lock = new_epoch;
         // drop execution_lock after epoch store was updated
-        // see also assert in AuthorityState::process_certificate
+        // see also assert in AuthorityState::process_transaction
         // on the epoch store and execution lock epoch match
         Ok(new_epoch_store)
     }
@@ -5402,7 +5403,7 @@ impl AuthorityState {
         let (input_objects, _) =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
-        let (temporary_store, effects, _execution_error_opt) = self.execute_certificate(
+        let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
             &execution_guard,
             &executable_tx,
             input_objects,
@@ -6215,7 +6216,7 @@ impl NodeStateDump {
         object_store: &dyn ObjectStore,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         inner_temporary_store: &InnerTemporaryStore,
-        certificate: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
     ) -> IotaResult<Self> {
         // Epoch info
         let executed_epoch = epoch_store.epoch();
@@ -6291,7 +6292,7 @@ impl NodeStateDump {
             loaded_child_objects,
             modified_at_versions,
             runtime_reads,
-            sender_signed_data: certificate.clone().into_message(),
+            sender_signed_data: transaction.clone().into_message(),
             input_objects: inner_temporary_store
                 .input_objects
                 .values()

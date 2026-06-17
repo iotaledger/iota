@@ -373,22 +373,22 @@ impl SharedObjectCongestionTracker {
     /// be scheduled, this returns a `start_time`, and if it should be deferred,
     /// this returns the deferral key and the congested objects responsible for
     /// the deferral.
-    #[instrument(level = "trace", skip_all, fields(cert_digest = ?cert.digest()))]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(super) fn try_schedule(
         &self,
-        cert: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
         let tx_duration = self
             .congestion_control_parameters
-            .get_estimated_execution_duration(cert);
+            .get_estimated_execution_duration(transaction);
         if tx_duration == 0 {
             // This is a zero-duration transaction, no need to defer.
             return SequencingResult::Schedule(0);
         }
 
-        let shared_input_objects = cert.shared_input_objects();
+        let shared_input_objects = transaction.shared_input_objects();
         if shared_input_objects.is_empty() {
             // This is an owned object only transaction. No need to defer.
             return SequencingResult::Schedule(0);
@@ -449,7 +449,7 @@ impl SharedObjectCongestionTracker {
         assert!(!congested_objects.is_empty());
 
         let deferral_key = if let Some(previous_key_suggested_gas_price_pair) =
-            previously_deferred_tx_digests.get(cert.digest())
+            previously_deferred_tx_digests.get(transaction.digest())
         {
             // This transaction has been deferred in previous consensus commit. Use its
             // previous deferred_from_round.
@@ -467,23 +467,23 @@ impl SharedObjectCongestionTracker {
         SequencingResult::Defer(deferral_key, congested_objects)
     }
 
-    /// Update shared objects' execution slots used in `cert` using `cert`'s
-    /// estimated execution duration. This is called when `cert` is scheduled
-    /// for execution.
+    /// Update shared objects' execution slots used in `transaction` using
+    /// `transaction`'s estimated execution duration. This is called when
+    /// `transaction` is scheduled for execution.
     ///
     /// `start_time` provides the start time of the execution slot assigned to
-    /// `cert`.
+    /// `transaction`.
     ///
-    /// Returns `Some(BumpObjectExecutionSlotsResult)` if `cert`'s estimated
-    /// execution duration is non-zero, else returns `None`.
+    /// Returns `Some(BumpObjectExecutionSlotsResult)` if `transaction`'s
+    /// estimated execution duration is non-zero, else returns `None`.
     pub(super) fn bump_object_execution_slots(
         &mut self,
-        cert: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         start_time: ExecutionTime,
     ) -> Option<BumpObjectExecutionSlotsResult> {
         let estimated_execution_duration = self
             .congestion_control_parameters
-            .get_estimated_execution_duration(cert);
+            .get_estimated_execution_duration(transaction);
 
         if estimated_execution_duration == 0 {
             return None;
@@ -493,7 +493,7 @@ impl SharedObjectCongestionTracker {
         let occupied_slot = ExecutionSlot::new(start_time, end_time);
 
         // Find IDs of shared objects for which execution slots should be bumped.
-        let object_ids = cert
+        let object_ids = transaction
             .shared_input_objects()
             .into_iter()
             .filter_map(|obj| obj.mutable.then_some(obj.object_id))
@@ -510,7 +510,7 @@ impl SharedObjectCongestionTracker {
             object_ids,
             start_time,
             estimated_execution_duration,
-            cert.transaction_data().gas_price(),
+            transaction.transaction_data().gas_price(),
         ))
     }
 
@@ -775,8 +775,8 @@ pub mod shared_object_test_utils {
 
     pub const TEST_ONLY_GAS_PRICE: u64 = 1_000;
 
-    /// Builds a certificate with a list of shared objects and their mutability.
-    /// The certificate is only used to test the
+    /// Builds a transaction with a list of shared objects and their mutability.
+    /// The transaction is only used to test the
     /// `SharedObjectCongestionTracker` functions, therefore the content
     /// other than shared inputs, gas budget and gas price are not
     /// important.
@@ -823,14 +823,14 @@ pub mod shared_object_test_utils {
 
     pub(super) fn initialize_tracker_and_try_schedule(
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-        cert: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableTransaction,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
-        let shared_input_objects = cert.shared_input_objects();
+        let shared_input_objects = transaction.shared_input_objects();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
         shared_object_congestion_tracker.try_schedule(
-            cert,
+            transaction,
             previously_deferred_tx_digests,
             commit_round,
         )
@@ -1367,22 +1367,22 @@ mod object_cost_tests {
         );
 
         // Read two objects should not change the object execution slots.
-        let cert = build_transaction(
+        let transaction = build_transaction(
             &[(object_id_0, false), (object_id_1, false)],
             10,
             TEST_ONLY_GAS_PRICE,
         );
-        let cert_duration = shared_object_congestion_tracker
+        let tx_duration = shared_object_congestion_tracker
             .congestion_control_parameters
-            .get_estimated_execution_duration(&cert);
+            .get_estimated_execution_duration(&transaction);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &cert.shared_input_objects(),
-            cert_duration,
+            &transaction.shared_input_objects(),
+            tx_duration,
         )
         .expect("start time should be computable");
 
-        shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_time);
+        shared_object_congestion_tracker.bump_object_execution_slots(&transaction, start_time);
         assert_eq!(
             shared_object_congestion_tracker,
             new_congestion_tracker_with_initial_value_for_test(
@@ -1397,21 +1397,21 @@ mod object_cost_tests {
 
         // Write to object 0 should only bump object 0's execution slots. The start time
         // should be object 1's duration.
-        let cert = build_transaction(
+        let transaction = build_transaction(
             &[(object_id_0, true), (object_id_1, false)],
             10,
             TEST_ONLY_GAS_PRICE,
         );
-        let cert_duration = shared_object_congestion_tracker
+        let tx_duration = shared_object_congestion_tracker
             .congestion_control_parameters
-            .get_estimated_execution_duration(&cert);
+            .get_estimated_execution_duration(&transaction);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &cert.shared_input_objects(),
-            cert_duration,
+            &transaction.shared_input_objects(),
+            tx_duration,
         )
         .expect("start time should be computable");
-        shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_time);
+        shared_object_congestion_tracker.bump_object_execution_slots(&transaction, start_time);
         let expected_object_0_duration = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 20,
@@ -1440,7 +1440,7 @@ mod object_cost_tests {
 
         // Write to all objects should bump all objects' execution durations, including
         // objects that are seen for the first time.
-        let cert = build_transaction(
+        let transaction = build_transaction(
             &[
                 (object_id_0, true),
                 (object_id_1, true),
@@ -1454,16 +1454,16 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalGasBudget => 30,
             PerObjectCongestionControlMode::TotalTxCount => 12,
         };
-        let cert_duration = shared_object_congestion_tracker
+        let tx_duration = shared_object_congestion_tracker
             .congestion_control_parameters
-            .get_estimated_execution_duration(&cert);
+            .get_estimated_execution_duration(&transaction);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &cert.shared_input_objects(),
-            cert_duration,
+            &transaction.shared_input_objects(),
+            tx_duration,
         )
         .expect("start time should be computable");
-        shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_time);
+        shared_object_congestion_tracker.bump_object_execution_slots(&transaction, start_time);
         assert_eq!(
             shared_object_congestion_tracker
                 .object_execution_slots
@@ -1587,14 +1587,14 @@ mod object_cost_tests {
             panic!("transaction is congesting, should defer");
         }
 
-        let cert_duration = shared_object_congestion_tracker
+        let tx_duration = shared_object_congestion_tracker
             .congestion_control_parameters
             .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &tx.shared_input_objects(),
-                cert_duration,
+                tx_duration,
             )
             .is_none()
         );
@@ -1641,14 +1641,14 @@ mod object_cost_tests {
             panic!("case 2: object 2 is congested, should defer");
         }
 
-        let cert_duration = shared_object_congestion_tracker
+        let tx_duration = shared_object_congestion_tracker
             .congestion_control_parameters
             .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &tx.shared_input_objects(),
-                cert_duration,
+                tx_duration,
             )
             .is_none()
         );
@@ -1679,14 +1679,14 @@ mod object_cost_tests {
             panic!("case 3: object 0 is congested, should defer");
         }
 
-        let cert_duration = shared_object_congestion_tracker
+        let tx_duration = shared_object_congestion_tracker
             .congestion_control_parameters
             .get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &tx.shared_input_objects(),
-                cert_duration,
+                tx_duration,
             )
             .is_none()
         );
