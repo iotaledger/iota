@@ -1651,6 +1651,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
+name = "bech32"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32637268377fc7b10a8c6d51de3e7fba1ce5dd371a96e342b34e6078db558e7f"
+
+[[package]]
 name = "beef"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3892,7 +3898,7 @@ dependencies = [
  "ark-serialize",
  "auto_ops",
  "base64ct",
- "bech32",
+ "bech32 0.9.1",
  "bincode",
  "blake2",
  "blst",
@@ -7376,6 +7382,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-rust-sdk"
+version = "1.26.0-alpha"
+dependencies = [
+ "iota-sdk 3.0.0-alpha.1",
+]
+
+[[package]]
 name = "iota-sdk"
 version = "1.26.0-alpha"
 dependencies = [
@@ -7420,9 +7433,11 @@ version = "3.0.0-alpha.1"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=81f5a3e0e8ba73f79433a18ee0b42212b8af3068#81f5a3e0e8ba73f79433a18ee0b42212b8af3068"
 dependencies = [
  "iota-sdk-crypto",
+ "iota-sdk-graphql-client",
  "iota-sdk-graphql-client-build",
  "iota-sdk-grpc-client",
  "iota-sdk-grpc-types",
+ "iota-sdk-transaction-builder",
  "iota-sdk-types",
 ]
 
@@ -7431,17 +7446,51 @@ name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=81f5a3e0e8ba73f79433a18ee0b42212b8af3068#81f5a3e0e8ba73f79433a18ee0b42212b8af3068"
 dependencies = [
+ "bech32 0.11.1",
  "bip32",
  "bip39",
+ "blst",
  "ed25519-dalek",
  "iota-sdk-types",
  "k256",
  "p256",
+ "pem-rfc7468 0.7.0",
+ "pkcs8 0.10.2",
  "rand_core 0.6.4",
+ "roaring",
  "sha2 0.10.9",
  "signature 2.2.0",
  "slip10_ed25519",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "iota-sdk-graphql-client"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=81f5a3e0e8ba73f79433a18ee0b42212b8af3068#81f5a3e0e8ba73f79433a18ee0b42212b8af3068"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "chrono",
+ "cynic",
+ "derive_more 2.1.1",
+ "futures",
+ "getrandom 0.2.15",
+ "iota-sdk-graphql-client-build",
+ "iota-sdk-transaction-builder",
+ "iota-sdk-types",
+ "js-sys",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "strum 0.27.2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "url",
+ "variadics_please",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -7695,7 +7744,7 @@ dependencies = [
 name = "iota-stardust-types"
 version = "1.26.0-alpha"
 dependencies = [
- "bech32",
+ "bech32 0.9.1",
  "bitflags 2.10.0",
  "derive_more 1.0.0",
  "getset",

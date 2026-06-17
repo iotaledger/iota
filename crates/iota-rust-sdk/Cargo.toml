@@ -1,0 +1,53 @@
+[package]
+name = "iota-rust-sdk"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+iota-sdk-ext = { workspace = true }
+
+[features]
+default = [
+  "bech32",
+  "crypto",
+  "ed25519",
+  "graphql",
+  "hash",
+  "mnemonic",
+  "passkey",
+  "pem",
+  "rand",
+  "secp256k1",
+  "secp256r1",
+  "serde",
+  "txn-builder",
+  "types",
+]
+# Crypto
+crypto = ["iota-sdk-ext/crypto"]
+ed25519 = ["crypto", "iota-sdk-ext/ed25519"]
+secp256r1 = ["crypto", "iota-sdk-ext/secp256r1"]
+passkey = ["crypto", "iota-sdk-ext/passkey"]
+secp256k1 = ["crypto", "iota-sdk-ext/secp256k1"]
+pem = ["crypto", "iota-sdk-ext/pem"]
+bls12381 = ["crypto", "iota-sdk-ext/bls12381"]
+bech32 = ["crypto", "iota-sdk-ext/bech32"]
+mnemonic = ["crypto", "iota-sdk-ext/mnemonic"]
+# GraphQL
+graphql = ["iota-sdk-ext/graphql"]
+# gRPC
+grpc = ["iota-sdk-ext/grpc"]
+# Transaction Builder
+txn-builder = ["iota-sdk-ext/txn-builder"]
+# Types
+types = ["iota-sdk-ext/types"]
+serde = ["types", "iota-sdk-ext/serde"]
+rand = ["types", "iota-sdk-ext/rand"]
+hash = ["types", "iota-sdk-ext/hash"]
+proptest = ["types", "iota-sdk-ext/proptest"]
