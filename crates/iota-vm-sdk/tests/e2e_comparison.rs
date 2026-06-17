@@ -11,7 +11,8 @@ use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk_types::Owner;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{base_types::ObjectRef, effects::TransactionEffectsAPI};
-use iota_vm_sdk::{ExecuteOptions, LocalVm, grpc::GrpcStore};
+use iota_vm_sdk::{ExecuteOptions, LocalVm, TypeTag, grpc::GrpcStore};
+use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
 
 /// Build a staking transaction, simulate it with both the node's dry-run and
@@ -71,7 +72,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
 
     // Local VM: pre-fetch every referenced object over gRPC, then dev-inspect
     // offline against the same Move engine the node uses.
-    let mut store = GrpcStore::connect(&test_cluster.grpc_url()).expect("connect gRPC store");
+    let mut store = GrpcStore::connect(test_cluster.grpc_url()).expect("connect gRPC store");
     let ctx = store
         .fetch_chain_context()
         .await
@@ -149,5 +150,52 @@ async fn compare_local_vm_staking_against_test_cluster() {
     assert_eq!(
         node_deleted, local_deleted,
         "node dry-run and local VM should delete the same objects"
+    );
+
+    // The staking call emits a `StakingRequestEvent`; use it to exercise the
+    // SDK's introspection surface (`decode_events` / `decode_value`).
+    let events = result
+        .events
+        .as_ref()
+        .expect("staking run must emit events");
+    let decoded = vm
+        .decode_events(events)
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .expect("every emitted event must decode");
+    let staking_event = decoded
+        .iter()
+        .find(|d| d.event.type_.name().as_str() == "StakingRequestEvent")
+        .expect("a StakingRequestEvent must be present");
+
+    // The raw BCS contents decode into a struct with the event's named fields.
+    let MoveValue::Struct(decoded_struct) = &staking_event.value else {
+        panic!(
+            "event must decode to a struct, got {:?}",
+            staking_event.value
+        );
+    };
+    let amount = decoded_struct
+        .fields
+        .iter()
+        .find(|(name, _)| name.as_str() == "amount")
+        .map(|(_, value)| value)
+        .expect("StakingRequestEvent has an `amount` field");
+    assert!(
+        matches!(amount, MoveValue::U64(v) if *v > 0),
+        "staked amount must decode to a positive u64, got {amount:?}"
+    );
+
+    // `decode_value` on the same bytes + type reproduces the same value.
+    let event = &staking_event.event;
+    let via_value = vm
+        .decode_value(
+            &event.contents,
+            &TypeTag::Struct(Box::new(event.type_.clone())),
+        )
+        .expect("decode_value must succeed on the event contents");
+    assert_eq!(
+        via_value, staking_event.value,
+        "decode_value and decode_events must agree on the decoded payload"
     );
 }

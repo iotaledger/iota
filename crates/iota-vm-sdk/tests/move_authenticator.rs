@@ -21,7 +21,7 @@ use fastcrypto::traits::ToFromBytes;
 use iota_types::{
     object::Object,
     signature::GenericSignature,
-    transaction::{SenderSignedData, TransactionData},
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, SignatureStatus,
@@ -49,6 +49,23 @@ fn b64(s: &str) -> Vec<u8> {
     base64::engine::general_purpose::STANDARD
         .decode(s)
         .expect("base64 decode")
+}
+
+/// The [`ChainContext`] described by a fixture.
+fn chain_context(f: &Fixture) -> ChainContext {
+    ChainContext::new(ProtocolVersion::new(f.protocol_version), Chain::Unknown)
+        .with_reference_gas_price(f.reference_gas_price)
+        .with_epoch_id(f.epoch_id)
+        .with_epoch_timestamp_ms(f.epoch_timestamp_ms)
+}
+
+/// The fixture's `MoveAuthenticator` signature.
+fn move_authenticator_sig(f: &Fixture) -> GenericSignature {
+    f.signatures
+        .iter()
+        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
+        .find(|s| matches!(s, GenericSignature::MoveAuthenticator(_)))
+        .expect("fixture carries a MoveAuthenticator signature")
 }
 
 fn load(name: &str) -> Fixture {
@@ -81,14 +98,7 @@ fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
         .collect();
     let signed = SenderSignedData::new(tx, sigs);
 
-    let ctx = ChainContext::new(
-        ProtocolVersion::new(f.protocol_version),
-        f.reference_gas_price,
-        f.epoch_id,
-        f.epoch_timestamp_ms,
-        Chain::Unknown,
-    );
-    let mut vm = LocalVm::new(ctx, store).expect("build LocalVm");
+    let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
 
     let result = vm
         .execute_signed(signed, ExecuteOptions::dev_inspect())
@@ -133,14 +143,7 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
         let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
         store.insert(object);
     }
-    let ctx = ChainContext::new(
-        ProtocolVersion::new(f.protocol_version),
-        f.reference_gas_price,
-        f.epoch_id,
-        f.epoch_timestamp_ms,
-        Chain::Unknown,
-    );
-    let mut vm = LocalVm::new(ctx, store).expect("build LocalVm");
+    let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
 
     // First run: the free-access authenticator accepts and `add_field` succeeds.
     let first = vm
@@ -177,6 +180,63 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
         matches!(second.signature_status, SignatureStatus::Verified),
         "an accepting authenticator with an aborting body must stay Verified, got {:?}",
         second.signature_status
+    );
+}
+
+/// A sponsored transaction whose **sponsor** authorizes via a
+/// `MoveAuthenticator` must have that authenticator executed too — not just the
+/// sender's. Here the sender uses the accepting free-access authenticator while
+/// the sponsor uses the rejecting bogus-ed25519 one (both fixtures are reused
+/// as the two signers of one sponsored transaction). The sponsor's rejection
+/// must surface as `SignatureStatus::Failed`. Before the sponsor authenticator
+/// was wired up, only the sender's ran and this was wrongly reported
+/// `Verified`.
+#[test]
+fn sponsor_move_authenticator_is_executed_and_can_reject() {
+    let sender_fx = load("move_auth_free_access_valid.json"); // sender: accepts
+    let sponsor_fx = load("move_auth_ed25519_invalid.json"); // sponsor: rejects
+
+    let sender_auth = move_authenticator_sig(&sender_fx);
+    let sponsor_auth = move_authenticator_sig(&sponsor_fx);
+    let sponsor = match &sponsor_auth {
+        GenericSignature::MoveAuthenticator(a) => a.address().expect("sponsor auth address"),
+        _ => unreachable!("move_authenticator_sig returns a MoveAuthenticator"),
+    };
+
+    // Take the sender fixture's transaction and re-point its gas to the sponsor:
+    // dropping the gas payment mints a mock gas coin for the sponsor, and
+    // sender != gas owner makes it a sponsored transaction. The free-access
+    // authenticator ignores the message, so the mutated tx still authenticates.
+    let mut tx: TransactionData = bcs::from_bytes(&b64(&sender_fx.tx_b64)).expect("decode tx");
+    {
+        let gas = tx.gas_data_mut();
+        gas.objects = vec![];
+        gas.owner = sponsor;
+    }
+    assert!(
+        tx.is_sponsored_tx(),
+        "tx must be sponsored (sender != sponsor)"
+    );
+
+    let signed = SenderSignedData::new(tx, vec![sender_auth, sponsor_auth]);
+
+    // The store needs both accounts' objects (each authenticator resolves its
+    // own `AuthenticatorFunctionRefV1` dynamic field).
+    let mut store = InMemoryStore::with_framework();
+    for obj in sender_fx.objects.iter().chain(sponsor_fx.objects.iter()) {
+        let object: Object = bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object");
+        store.insert(object);
+    }
+
+    let mut vm = LocalVm::new(chain_context(&sender_fx), store).expect("build LocalVm");
+
+    let result = vm
+        .execute_signed(signed, ExecuteOptions::dev_inspect())
+        .expect("execute_signed returns Ok (the rejection is carried in the status)");
+    assert!(
+        matches!(result.signature_status, SignatureStatus::Failed(_)),
+        "the sponsor's rejecting authenticator must surface as Failed, got {:?}",
+        result.signature_status
     );
 }
 

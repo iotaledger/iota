@@ -66,7 +66,9 @@ pub enum ProfileSink {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ProfileOutput {
+    /// Speedscope JSON written to this path (from [`ProfileSink::Path`]).
     Path(PathBuf),
+    /// Merged Speedscope JSON bytes read back (from [`ProfileSink::Capture`]).
     Json(Vec<u8>),
 }
 

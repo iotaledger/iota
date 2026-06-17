@@ -26,7 +26,7 @@ const GAS_PRICE: u64 = 1000;
 const GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 
 fn chain_context() -> ChainContext {
-    ChainContext::new(ProtocolVersion::MAX, GAS_PRICE, 0, 0, Chain::Unknown)
+    ChainContext::new(ProtocolVersion::MAX, Chain::Unknown).with_reference_gas_price(GAS_PRICE)
 }
 
 fn gas_coin(owner: IotaAddress) -> Object {
@@ -137,13 +137,8 @@ fn missing_input_object_is_reported_with_its_id() {
 
 #[test]
 fn unsupported_protocol_version_is_an_error_not_a_panic() {
-    let ctx = ChainContext::new(
-        ProtocolVersion::new(u64::MAX),
-        GAS_PRICE,
-        0,
-        0,
-        Chain::Unknown,
-    );
+    let ctx = ChainContext::new(ProtocolVersion::new(u64::MAX), Chain::Unknown)
+        .with_reference_gas_price(GAS_PRICE);
     let err = LocalVm::new(ctx, InMemoryStore::new())
         .map(|_| ())
         .expect_err("a future protocol version must be rejected");
