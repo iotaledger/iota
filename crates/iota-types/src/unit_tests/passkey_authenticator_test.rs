@@ -272,7 +272,11 @@ async fn test_passkey_fails_invalid_json() {
         client_data_json_too_short,
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
-    assert!(res.is_err());
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("invalid challenge length")
+    );
 
     let client_data_json_too_long = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
@@ -283,7 +287,12 @@ async fn test_passkey_fails_invalid_json() {
         client_data_json_too_long,
         SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
-    assert!(res_2.is_err());
+    assert!(
+        res_2
+            .unwrap_err()
+            .to_string()
+            .contains("invalid challenge length")
+    );
 
     let client_data_json_correct = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
@@ -368,5 +377,9 @@ async fn test_passkey_wrong_challenge_fails_verification() {
         .unwrap(),
     );
     let res = sig.verify_authenticator(&response.intent_msg, response.sender, &Default::default());
-    assert!(res.is_err());
+    let err = res.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("passkey challenge does not match expected message")
+    );
 }
