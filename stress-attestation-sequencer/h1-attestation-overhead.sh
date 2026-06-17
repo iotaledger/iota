@@ -20,8 +20,10 @@
 # Tunables (env): N, RUN_DURATION, TARGET_QPS, NUM_WORKERS, NUM_CLIENT_THREADS,
 #                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, DIRECT,
 #                 NUM_TARGET_VALIDATORS, WORKLOAD (owned|shared|slow),
-#                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, SLEEP_BETWEEN_RUNS_S,
-#                 PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM, TS_STEP.
+#                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, MAX_DEFERRAL_ROUNDS,
+#                 MAX_ACCUMULATED_TXN_COST, MAX_CONGESTION_OVERSHOOT,
+#                 SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM,
+#                 TS_STEP.
 
 set -euo pipefail
 
@@ -67,6 +69,11 @@ WORKLOAD="${WORKLOAD:-owned}"                       # owned (transfer) | shared 
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}"      # WORKLOAD=shared: fewer => more congestion (empty => benchmark default ~qps/2)
 SLOW_N="${SLOW_N:-}"                                # WORKLOAD=slow: slow::slow(n,size) — n vectors (empty => default 100)
 SLOW_SIZE="${SLOW_SIZE:-}"                          # WORKLOAD=slow: each vector size in bytes (empty => default 100)
+# Congestion-control protocol overrides (empty => protocol default). Applied by
+# start.sh to the network for BOTH runs; recorded in each run's config below.
+MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-}"       # rounds a tx may stay deferred before it is CANCELLED (default 10)
+MAX_ACCUMULATED_TXN_COST="${MAX_ACCUMULATED_TXN_COST:-}" # base per-object per-commit budget (TotalTxCount => tx count; default 10)
+MAX_CONGESTION_OVERSHOOT="${MAX_CONGESTION_OVERSHOOT:-}"  # burst allowed over the base budget per commit (default 100)
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
 # (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
 # NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
@@ -106,13 +113,14 @@ slow)
 esac
 
 # `shared`/`slow` publish a Move package at runtime (basics / slow), compiled
-# from repo sources that depend on the iota-framework — present on the host
-# (fullnode path), but NOT inside the iota-tools image. So they can't run on the
-# in-docker direct path (and therefore can't be pinned). owned needs no publish.
+# from repo sources that depend on the iota-framework. On the host (fullnode
+# path) those sources are the repo. In DIRECT mode they must be baked into the
+# iota-tools image (docker/iota-tools/Dockerfile copies examples/move +
+# iota-benchmark workload data + iota-framework/packages) — so rebuild that
+# image after pulling those changes, or the in-docker publish will fail.
 if [[ "$WORKLOAD" != owned && "$DIRECT" == true ]]; then
-  echo "${RED}ERROR: WORKLOAD=$WORKLOAD needs a runtime Move publish that the in-docker" >&2
-  echo "       iota-tools image can't do. Use DIRECT=false (fullnode path).${RESET}" >&2
-  exit 1
+  echo "${YELLOW}NOTE: WORKLOAD=$WORKLOAD publishes a Move package in-container; this needs the" >&2
+  echo "      iota-tools image rebuilt with the Move sources baked in (Dockerfile).${RESET}" >&2
 fi
 
 RULE="$(printf '%80s' '' | tr ' ' '*')"
@@ -177,6 +185,9 @@ dump_timeseries() {
     CFG_direct="$DIRECT" CFG_num_target_validators="${NUM_TARGET_VALIDATORS:-all}" CFG_n="$N" \
     CFG_workload="$WORKLOAD" CFG_num_shared_counters="${NUM_SHARED_COUNTERS:-default}" \
     CFG_slow_n="${SLOW_N:-default}" CFG_slow_size="${SLOW_SIZE:-default}" \
+    CFG_max_deferral_rounds="${MAX_DEFERRAL_ROUNDS:-default}" \
+    CFG_max_accumulated_txn_cost="${MAX_ACCUMULATED_TXN_COST:-default}" \
+    CFG_max_congestion_overshoot="${MAX_CONGESTION_OVERSHOOT:-default}" \
     python3 - "$label" "$start" "$end" "$TS_STEP" "$out" <<'PY'
 import json, os, sys, urllib.parse, urllib.request
 label, start, end, step, out = sys.argv[1:6]
@@ -198,9 +209,31 @@ for base in (
     metrics[f"{base}_bucket"] = f"{base}_bucket"
     metrics[f"{base}_count"] = f"{base}_count"
     metrics[f"{base}_sum"] = f"{base}_sum"
+# deferral-rounds histogram (per-tx rounds spent deferred; cancellation fires
+# when this exceeds max_deferral_rounds — so its p99 tells you how close you are).
+for sfx in ("bucket", "count", "sum"):
+    metrics[f"consensus_handler_transaction_deferral_rounds_{sfx}"] = (
+        f"consensus_handler_transaction_deferral_rounds_{sfx}"
+    )
 # raw counters / gauges
 metrics["transactions_included_in_checkpoint"] = "transactions_included_in_checkpoint"
 metrics["validator_attestations_total"] = "validator_attestations_total"
+# congestion-control counters (deferred ⊇ congested; cancelled = deferred past
+# the round limit). Cumulative — compute rate() offline.
+metrics["consensus_handler_deferred_transactions"] = "consensus_handler_deferred_transactions"
+metrics["consensus_handler_congested_transactions"] = "consensus_handler_congested_transactions"
+metrics["consensus_handler_cancelled_transactions"] = "consensus_handler_cancelled_transactions"
+# txns dropped by post-consensus validation (dedup / already-executed / validity
+# / attestation / lock-conflict). A deferred tx that self-conflicts on its own
+# prior-round lock surfaces here instead of being re-scheduled, so this rate
+# tracking the deferred rate signals deferred txns are being dropped, not rolled.
+metrics["consensus_handler_validation_dropped_transactions"] = (
+    "consensus_handler_validation_dropped_transactions"
+)
+# max scheduled per-object cost in a commit (compare vs the per-commit budget).
+metrics["consensus_handler_max_congestion_control_object_costs"] = (
+    "consensus_handler_max_congestion_control_object_costs"
+)
 metrics["container_cpu_usage_seconds_total"] = (
     'container_cpu_usage_seconds_total{name=~"validator-.*|fullnode-.*"}'
 )
@@ -310,7 +343,10 @@ sudo "$SCRIPT_DIR/bootstrap.sh" -b -n "$N" >>"$RESULTS_DIR/bootstrap.log" 2>&1
 echo "cleanup/bootstrap output -> $RESULTS_DIR/bootstrap.log"
 
 banner "== H1 [3/5] Run A — V1 (attestation OFF, control) =="
-MODE=TotalTxCount ATTEST=false "$SCRIPT_DIR/start.sh" -n "$N" faucet
+MODE=TotalTxCount ATTEST=false \
+  MAX_DEFERRAL_ROUNDS="$MAX_DEFERRAL_ROUNDS" MAX_ACCUMULATED_TXN_COST="$MAX_ACCUMULATED_TXN_COST" \
+  MAX_CONGESTION_OVERSHOOT="$MAX_CONGESTION_OVERSHOOT" \
+  "$SCRIPT_DIR/start.sh" -n "$N" faucet
 run_stress "Run A — V1 (attestation off)" "$RESULTS_DIR/run-a-v1.timeseries.json"
 
 # Run A is scraped; let the network run a moment so the post-run tail is
@@ -331,7 +367,10 @@ banner "== H1 [4/5] Run B — V2 (attestation ON) — fresh genesis, empty DB ==
 # empty data dir and brings up a fresh monitoring stack (reset_network tore the
 # old one down), so Run B cold-starts exactly like Run A — only attestation
 # differs. Run A's metrics live in run-a-v1.timeseries.json (already saved).
-MODE=TotalTxCount "$SCRIPT_DIR/start.sh" -n "$N" faucet
+MODE=TotalTxCount \
+  MAX_DEFERRAL_ROUNDS="$MAX_DEFERRAL_ROUNDS" MAX_ACCUMULATED_TXN_COST="$MAX_ACCUMULATED_TXN_COST" \
+  MAX_CONGESTION_OVERSHOOT="$MAX_CONGESTION_OVERSHOOT" \
+  "$SCRIPT_DIR/start.sh" -n "$N" faucet
 run_stress "Run B — V2 (attestation on)" "$RESULTS_DIR/run-b-v2.timeseries.json"
 
 # Symmetric with the end of Run A: let the network run the same moment after the
@@ -374,7 +413,28 @@ echo "${BLUE}This run's raw data: $RESULTS_DIR${RESET}"
 echo "  - run-a-v1.timeseries.json, run-b-v2.timeseries.json"
 echo "${BLUE}Aggregated summary (same-config runs under results/h1/): $H1_ROOT/summary.md${RESET}"
 python3 "$SCRIPT_DIR/h1-aggregate.py" "$H1_ROOT" "$H1_ROOT/summary.md"
-echo
+
+# Capture per-node logs + restart/OOM state BEFORE teardown — `cleanup.sh` runs
+# `docker compose down`, which removes the containers and their logs, so a crash
+# (e.g. a validator dying under load) is undebuggable afterward. Note: `docker
+# logs` shows only the current incarnation; the RestartCount/OOMKilled from
+# `docker inspect` reveals whether a node restarted/was killed during the run.
+node_logs="$RESULTS_DIR/node-logs"
+mkdir -p "$node_logs"
+echo "${BLUE}Capturing node logs + state -> $node_logs/${RESET}"
+mapfile -t _nodes < <(docker ps --format '{{.Names}}' | grep -E '^(validator|fullnode)-[0-9]+$' | sort)
+: >"$node_logs/_state.txt"
+for c in "${_nodes[@]}"; do
+  docker inspect "$c" --format \
+    '{{.Name}} status={{.State.Status}} restarts={{.RestartCount}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}}' \
+    >>"$node_logs/_state.txt" 2>&1 || true
+  docker logs "$c" >"$node_logs/$c.log" 2>&1 || true
+done
+# Quick crash digest across all nodes (panics / fatal / OOM).
+grep -rniE "panic|fatal|stack backtrace|out of memory|abort" "$node_logs"/*.log \
+  >"$node_logs/_crashes.txt" 2>/dev/null || true
+echo "  - restart/OOM state: $node_logs/_state.txt;"
+echo "  - crash digest: $node_logs/_crashes.txt"
 
 # Always stop + clean the network (down + wipe data) via the privnet's OWN
 # cleanup, which leaves the monitoring stack up so both runs stay visible in

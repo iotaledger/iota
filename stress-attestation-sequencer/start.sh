@@ -142,11 +142,16 @@ done < <(env | grep -E '^IOTA_PROTOCOL_CONFIG_(FEATURE_FLAGS_)?OVERRIDE_')
 
 list_validators() { docker compose ps --services 2>/dev/null | grep -E '^validator-[0-9]+$' | sort; }
 mismatches() { # $1 = service ; prints "field expected got" for each missing/wrong override
-  local svc="$1" logs field
+  local svc="$1" logs field want pfx
   logs="$(docker compose logs "$svc" 2>&1)"
   for field in "${!expected[@]}"; do
-    grep -qF "ProtocolConfig field \"$field\" has been overridden with the value: ${expected[$field]}" <<<"$logs" ||
-      echo "  [$svc] $field (want '${expected[$field]}')"
+    want="${expected[$field]}"
+    pfx="ProtocolConfig field \"$field\" has been overridden with the value:"
+    # The override log prints the value via {:?} (Debug). For Option<T> fields
+    # (e.g. max_deferral_rounds_for_congestion_control, the congestion limits)
+    # that's "Some(<v>)", not "<v>" — accept both so Option overrides verify.
+    grep -qF "$pfx $want" <<<"$logs" || grep -qF "$pfx Some($want)" <<<"$logs" ||
+      echo "  [$svc] $field (want '$want')"
   done
 }
 

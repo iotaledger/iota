@@ -52,10 +52,11 @@ USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
 # Pin submission/attestation to the first N validators (validator-1..N) on the
 # direct TD path. Empty/unset => all validators. No effect via the fullnode.
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
-# Workload: owned (transfer) | shared (shared-counter) | slow (slow::bimodal).
-# NOTE: shared/slow publish a Move package at runtime (compiled from repo
-# sources that depend on the iota-framework) which this image does NOT contain,
-# so only `owned` works in-docker. Use the host fullnode path for shared/slow.
+# Workload: owned (transfer) | shared (shared-counter) | slow (slow::slow).
+# NOTE: shared/slow publish a Move package at runtime (compiled from repo sources
+# that depend on the iota-framework). The iota-tools Dockerfile bakes those
+# sources in (examples/move + iota-benchmark workload data + iota-framework/
+# packages), so they work in this image — rebuild it after pulling that change.
 WORKLOAD="${WORKLOAD:-owned}"
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}" # WORKLOAD=shared: fewer => more congestion
 SLOW_N="${SLOW_N:-}"                           # WORKLOAD=slow: slow::slow(n,size) vector count
@@ -122,6 +123,8 @@ exec docker run --rm \
   --network "$DOCKER_NETWORK" \
   --ulimit nofile=524288:524288 \
   -v "$GENESIS_DIR":/genesis:ro \
+  -e MOVE_EXAMPLES_DIR=/iota/examples/move \
+  -e BENCHMARK_MOVE_BASE_DIR=/iota/crates/iota-benchmark \
   --entrypoint /usr/local/bin/stress \
   "$RUNNER_IMAGE" \
   --local false \
