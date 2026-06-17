@@ -84,7 +84,7 @@ pub(crate) struct CommitObserver {
 }
 
 impl CommitObserver {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         context: Arc<Context>,
         commit_consumer: CommitConsumer,
         dag_state: Arc<RwLock<DagState>>,
@@ -108,7 +108,8 @@ impl CommitObserver {
         };
 
         observer
-            .recover_and_send_commits(last_processed_commit_index, CommittedSubDagSource::Recover);
+            .recover_and_send_commits(last_processed_commit_index, CommittedSubDagSource::Recover)
+            .await;
         observer
     }
 
@@ -117,7 +118,7 @@ impl CommitObserver {
     /// - Recovering linearizer state (transaction ack tracker, traversed
     ///   headers)
     /// - Only re-sends commits that are > last_commit_index (none in this case)
-    pub(crate) fn reinitialize(&mut self, last_commit_index: CommitIndex) {
+    pub(crate) async fn reinitialize(&mut self, last_commit_index: CommitIndex) {
         let now = Instant::now();
 
         // Clear linearizer state
@@ -126,7 +127,8 @@ impl CommitObserver {
 
         // Reuse existing recovery logic - it won't resend commits since
         // they're all <= last_commit_index
-        self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer);
+        self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer)
+            .await;
 
         info!(
             "CommitObserver reinitialized at commit index {}, took {:?}",
@@ -256,7 +258,7 @@ impl CommitObserver {
         ))
     }
 
-    fn recover_and_send_commits(
+    async fn recover_and_send_commits(
         &mut self,
         last_processed_commit_index: CommitIndex,
         source: CommittedSubDagSource,
@@ -283,7 +285,8 @@ impl CommitObserver {
             last_processed_commit_index,
             last_commit_index,
             source,
-        );
+        )
+        .await;
 
         // Phase 2: Recover linearizer and solidifier state
         // Skip if fast sync is ongoing - block data may not be available and
@@ -292,12 +295,13 @@ impl CommitObserver {
             info!("Skipping linearizer/solidifier recovery - fast sync ongoing");
             return;
         }
-        self.recover_linearizer_and_solidifier_state(last_commit_index, source);
+        self.recover_linearizer_and_solidifier_state(last_commit_index, source)
+            .await;
     }
 
     /// Recovers linearizer trackers from recent commits and seeds the
     /// commit solidifier with any unprocessed commits.
-    fn recover_linearizer_and_solidifier_state(
+    async fn recover_linearizer_and_solidifier_state(
         &mut self,
         last_commit_index: CommitIndex,
         source: CommittedSubDagSource,
@@ -374,6 +378,8 @@ impl CommitObserver {
             if commit_index >= solidifier_recovery_start {
                 pending_for_solidifier.push(pending_sub_dag);
             }
+
+            tokio::task::yield_now().await;
         }
 
         if !pending_for_solidifier.is_empty() {
@@ -446,7 +452,7 @@ impl CommitObserver {
     /// Note: it is possible that some commits in interval
     /// last_processed_commit_index+1.. last_commit_index might be not yet
     /// solid.
-    fn resend_unprocessed_solid_commits(
+    async fn resend_unprocessed_solid_commits(
         &mut self,
         last_processed_commit_index: CommitIndex,
         last_commit_index: CommitIndex,
@@ -478,54 +484,98 @@ impl CommitObserver {
             return;
         }
 
-        let unprocessed_commits = self
-            .store
-            .scan_commits((last_processed_commit_index + 1..=last_commit_index).into())
-            .expect("Scanning commits should not fail");
-
         info!(
-            "Resending {} unprocessed commits (indices {}..={})",
-            unprocessed_commits.len(),
-            last_processed_commit_index + 1,
-            last_commit_index
+            "Resending unprocessed commits in range [{}..={last_commit_index}]",
+            last_processed_commit_index + 1
         );
 
-        let num_commits = unprocessed_commits.len();
-        let mut committed_subdags = Vec::new();
-        for (expected_commit_index, (index, commit)) in
-            (self.last_sent_commit_index + 1..).zip(unprocessed_commits.into_iter().enumerate())
+        // To avoid loading too many commits at once and causing OOM under stress
+        // (e.g. when an authority quarantines commits for a long period), process
+        // in bounded batches.
+        const COMMIT_RECOVERY_BATCH_SIZE: u32 = if cfg!(test) { 3 } else { 250 };
+
+        let mut any_sent = false;
+        let mut expected_commit_index = last_processed_commit_index;
+        for start_index in (last_processed_commit_index + 1..=last_commit_index)
+            .step_by(COMMIT_RECOVERY_BATCH_SIZE as usize)
         {
-            let commit_index = commit.index();
-            assert_eq!(commit_index, expected_commit_index);
+            let end_index = start_index
+                .saturating_add(COMMIT_RECOVERY_BATCH_SIZE - 1)
+                .min(last_commit_index);
 
-            // Only the last commit carries scores for leader schedule consumers.
-            let reputation_scores = if index == num_commits - 1 {
-                self.leader_schedule
-                    .leader_swap_table
-                    .read()
-                    .reputation_scores_desc
-                    .clone()
-            } else {
-                vec![]
-            };
+            let batch_commits = self
+                .store
+                .scan_commits((start_index..=end_index).into())
+                .expect("Scanning commits should not fail");
 
-            let Some(committed_subdag) =
-                self.build_committed_subdag_from_commit(&commit, reputation_scores)
-            else {
-                info!(
-                    "Stopping resend at commit {} due to missing transactions",
-                    commit_index
-                );
+            if batch_commits.is_empty() {
                 break;
-            };
+            }
 
-            committed_subdags.push(committed_subdag);
+            info!(
+                "Resending {} unprocessed commits in range [{start_index}..={end_index}]",
+                batch_commits.len()
+            );
+
+            let mut committed_subdags = Vec::new();
+            let mut stop_after_batch = false;
+            for commit in batch_commits {
+                let commit_index = commit.index();
+                expected_commit_index += 1;
+                assert_eq!(commit_index, expected_commit_index);
+
+                // Only the globally-last commit carries reputation scores.
+                let reputation_scores = if commit_index == last_commit_index {
+                    self.leader_schedule
+                        .leader_swap_table
+                        .read()
+                        .reputation_scores_desc
+                        .clone()
+                } else {
+                    vec![]
+                };
+
+                let Some(committed_subdag) =
+                    self.build_committed_subdag_from_commit(&commit, reputation_scores)
+                else {
+                    info!(
+                        "Stopping resend at commit {} due to missing transactions",
+                        commit_index
+                    );
+                    stop_after_batch = true;
+                    break;
+                };
+
+                committed_subdags.push(committed_subdag);
+            }
+
+            if !committed_subdags.is_empty() {
+                any_sent = true;
+                self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)
+                    .expect("We should successfully send committed subdags during resend");
+
+                if let Some(last) = committed_subdags.last() {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .commit_observer_last_recovered_commit_index
+                        .set(last.commit_ref.index as i64);
+                }
+            }
+
+            if stop_after_batch || end_index == last_commit_index {
+                break;
+            }
+
+            // Yield between batches so the executor can run other tasks during
+            // a potentially long recovery.
+            tokio::task::yield_now().await;
         }
 
         // If we couldn't resend any commits, still initialize
         // last_solid_subdag_base from last_processed so fast sync
         // starts from the right position instead of index 0.
-        if committed_subdags.is_empty() && last_processed_commit_index > 0 {
+        if !any_sent && last_processed_commit_index > 0 {
             if let Some(commit) = self
                 .store
                 .scan_commits((last_processed_commit_index..=last_processed_commit_index).into())
@@ -537,9 +587,6 @@ impl CommitObserver {
                 }
             }
         }
-
-        self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)
-            .expect("We should successfully send committed subdags during resend");
     }
 
     /// Get all missing transactions from pending subdags along with authorities
@@ -702,7 +749,8 @@ mod tests {
             dag_state.clone(),
             mem_store.clone(),
             leader_schedule,
-        );
+        )
+        .await;
 
         // Populate fully connected test blocks for round 0 ~ 10, authorities 0 ~ 3.
         let num_rounds = 10;
@@ -822,7 +870,8 @@ mod tests {
             dag_state.clone(),
             mem_store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // Populate fully connected test blocks for round 0 ~ 10, authorities 0 ~ 3.
         let num_rounds = 10;
@@ -922,7 +971,8 @@ mod tests {
             dag_state,
             mem_store,
             leader_schedule,
-        );
+        )
+        .await;
 
         // Check commits sent over consensus output channel is accurate starting
         // from last processed index of 2 and finishing at last sent index of 3.
@@ -973,7 +1023,8 @@ mod tests {
             dag_state.clone(),
             mem_store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // Populate fully connected test blocks for round 0 ~ 10, authorities 0 ~ 3.
         let num_rounds = 10;
@@ -1026,7 +1077,8 @@ mod tests {
             dag_state,
             mem_store,
             leader_schedule,
-        );
+        )
+        .await;
 
         // No commits should be resubmitted as consensus store's last commit index
         // is equal to last processed index by consumer
@@ -1076,7 +1128,8 @@ mod tests {
             dag_state.clone(),
             mem_store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let leaders = builder
             .leader_blocks(1..=num_rounds)
@@ -1151,7 +1204,8 @@ mod tests {
             dag_state,
             mem_store,
             leader_schedule,
-        );
+        )
+        .await;
 
         // Check commits sent over consensus output channel during recovery.
         // Recovery resends subdags with empty headers (like fast sync).
@@ -1282,7 +1336,8 @@ mod tests {
             dag_state.clone(),
             mem_store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let mut builder = DagBuilder::new(context.clone());
         builder
@@ -1325,7 +1380,8 @@ mod tests {
             dag_state.clone(),
             mem_store,
             leader_schedule,
-        );
+        )
+        .await;
 
         // Drain recovery commits
         while let Ok(_subdag) = receiver.try_recv() {}
@@ -1413,7 +1469,8 @@ mod tests {
             dag_state.clone(),
             mem_store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let mut builder = DagBuilder::new(context.clone());
         builder
@@ -1464,7 +1521,8 @@ mod tests {
             dag_state.clone(),
             mem_store,
             leader_schedule,
-        );
+        )
+        .await;
         while receiver.try_recv().is_ok() {}
 
         builder.layers(6..=8).build().persist_layers(dag_state);

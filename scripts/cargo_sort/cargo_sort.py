@@ -1702,6 +1702,7 @@ Examples:
     internal_crates_dict["iota-grpc-client"] = None
     internal_crates_dict["iota-grpc-types"] = None
     internal_crates_dict["iota-sdk-crypto"] = None
+    internal_crates_dict["iota-sdk-graphql-client"] = None
     internal_crates_dict["iota-sdk-grpc-client"] = None
     internal_crates_dict["iota-sdk-grpc-types"] = None
     internal_crates_dict["iota-sdk-transaction-builder"] = None

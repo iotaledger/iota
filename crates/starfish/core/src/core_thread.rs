@@ -301,7 +301,7 @@ impl CoreThread {
                                 "Reinitializing components with {} block headers, exiting fast sync mode",
                                 block_headers.len()
                             );
-                            self.core.reinitialize_components(block_headers)?;
+                            self.core.reinitialize_components(block_headers).await?;
                             self.fast_sync_ongoing = false;
                             sender.send(()).ok();
                         }
@@ -760,7 +760,8 @@ pub(crate) mod tests {
             dag_state.clone(),
             store,
             leader_schedule.clone(),
-        );
+        )
+        .await;
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),
