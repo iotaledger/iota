@@ -168,47 +168,58 @@ impl StoredHistoryObject {
             ))
         })?;
 
-        if let ObjectStatus::WrappedOrDeleted = object_status {
-            let object_ref = ObjectRef::new(
-                ObjectId::from_bytes(self.object_id.clone())
-                    .map_err(|_| IndexerError::ObjectIdParse(ObjectIdParseError::TryFromSlice))?,
-                SequenceNumber::from_u64(self.object_version as u64),
-                ObjectDigest::OBJECT_DELETED,
-            );
-            return Ok(PastObjectRead::ObjectDeleted(object_ref));
-        }
+        match object_status {
+            ObjectStatus::Active => {
+                let object: Object = self.try_into()?;
+                let object_ref = object.object_ref();
 
-        let object: Object = self.try_into()?;
-        let object_ref = object.object_ref();
+                let Some(move_object) = object.data.as_struct_opt().cloned() else {
+                    return Ok(PastObjectRead::VersionFound(object_ref, object, None));
+                };
 
-        let Some(move_object) = object.data.as_struct_opt().cloned() else {
-            return Ok(PastObjectRead::VersionFound(object_ref, object, None));
-        };
+                let move_type_layout = package_resolver
+                    .type_layout(move_object.type_tag())
+                    .await
+                    .map_err(|e| {
+                    IndexerError::ResolveMoveStruct(format!(
+                        "failed to convert into object read for obj {}:{}, type: {}. error: {e}",
+                        object.id(),
+                        object.version(),
+                        move_object.struct_tag(),
+                    ))
+                })?;
 
-        let move_type_layout = package_resolver
-            .type_layout(move_object.type_tag())
-            .await
-            .map_err(|e| {
-                IndexerError::ResolveMoveStruct(format!(
-                    "failed to convert into object read for obj {}:{}, type: {}. error: {e}",
-                    object.id(),
-                    object.version(),
-                    move_object.struct_tag(),
+                let move_struct_layout = match move_type_layout {
+                    MoveTypeLayout::Struct(s) => Ok(s),
+                    _ => Err(IndexerError::ResolveMoveStruct(
+                        "MoveTypeLayout is not a Struct".to_string(),
+                    )),
+                }?;
+
+                Ok(PastObjectRead::VersionFound(
+                    object_ref,
+                    object,
+                    Some(*move_struct_layout),
                 ))
-            })?;
-
-        let move_struct_layout = match move_type_layout {
-            MoveTypeLayout::Struct(s) => Ok(s),
-            _ => Err(IndexerError::ResolveMoveStruct(
-                "MoveTypeLayout is not a Struct".to_string(),
-            )),
-        }?;
-
-        Ok(PastObjectRead::VersionFound(
-            object_ref,
-            object,
-            Some(*move_struct_layout),
-        ))
+            }
+            ObjectStatus::WrappedOrDeleted => {
+                let object_ref = ObjectRef::new(
+                    ObjectId::from_bytes(self.object_id.clone()).map_err(|_| {
+                        IndexerError::ObjectIdParse(ObjectIdParseError::TryFromSlice)
+                    })?,
+                    SequenceNumber::from_u64(self.object_version as u64),
+                    ObjectDigest::OBJECT_DELETED,
+                );
+                Ok(PastObjectRead::ObjectDeleted(object_ref))
+            }
+            ObjectStatus::NotYetCreated => {
+                Err(IndexerError::PersistentStorageDataCorruption(format!(
+                    "Object {} at version {} has status NotYetCreated for past object read",
+                    ObjectId::from_bytes(self.object_id.clone()).unwrap(),
+                    self.object_version,
+                )))
+            }
+        }
     }
 }
 
@@ -268,7 +279,7 @@ impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
         Ok(Self {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
-            object_status: BackwardHistoryObjectStatus::Active as i16,
+            object_status: ObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
             superseded_at_checkpoint: checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
@@ -703,17 +714,6 @@ mod tests {
     }
 }
 
-/// Status of an object in the backward history table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BackwardHistoryObjectStatus {
-    /// The object existed and was active before being superseded.
-    Active = 0,
-    /// The object was wrapped or deleted (no data available).
-    WrappedOrDeleted = 1,
-    /// The object did not exist yet (it was created in this checkpoint).
-    NotYetCreated = 2,
-}
-
 #[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
 #[diesel(table_name = objects_backward_history, primary_key(superseded_at_checkpoint, object_id, object_version))]
 pub struct StoredBackwardHistoryObject {
@@ -741,7 +741,7 @@ impl StoredBackwardHistoryObject {
     pub fn from_empty(
         object_id: ObjectId,
         object_version: i64,
-        status: BackwardHistoryObjectStatus,
+        status: ObjectStatus,
         superseded_at_checkpoint: i64,
     ) -> Self {
         Self {

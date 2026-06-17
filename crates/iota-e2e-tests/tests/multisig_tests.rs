@@ -17,7 +17,6 @@ use iota_types::{
     base_types::IotaAddress,
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    passkey_authenticator::to_signing_message,
     signature::GenericSignature,
     transaction::Transaction,
     utils::{make_upgraded_multisig_tx, multisig_keys},
@@ -153,15 +152,13 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     // request. If change_intent, mangle the intent bytes. If change_tx, mangle the
     // hashed tx bytes.
     let passkey_challenge = if change_intent {
-        to_signing_message(&IntentMessage::new(
-            Intent::personal_message(),
-            intent_msg.value.clone(),
-        ))
-        .to_vec()
+        IntentMessage::new(Intent::personal_message(), intent_msg.value.clone())
+            .signing_digest()
+            .to_vec()
     } else if change_tx {
         random_vec(32)
     } else {
-        to_signing_message(&intent_msg).to_vec()
+        intent_msg.signing_digest().to_vec()
     };
 
     // Request a signature from passkey with challenge set to passkey_digest.

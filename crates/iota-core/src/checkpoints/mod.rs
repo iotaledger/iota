@@ -1515,10 +1515,9 @@ impl CheckpointBuilder {
                         // already.
                         let digest = *effects.transaction_digest();
                         if !all_roots.contains(&digest) {
-                            // In whiteflag flow, user transactions are submitted as
+                            // In P-COOL flow, user transactions are submitted as
                             // UserTransaction, not as Certificate.
-                            let key = if self.epoch_store.protocol_config().enable_white_flag_flow()
-                            {
+                            let key = if self.epoch_store.protocol_config().enable_pcool_flow() {
                                 ConsensusTransactionKey::UserTransaction(digest)
                             } else {
                                 ConsensusTransactionKey::Certificate(digest)
