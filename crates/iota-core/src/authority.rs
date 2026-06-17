@@ -1106,6 +1106,15 @@ impl AuthorityState {
             (inner_temp_store, effects)
         };
 
+        // Refuse to attest a transaction whose dry-run did not succeed. This
+        // covers a failed Move authentication as well as any other execution
+        // failure.
+        if let ExecutionStatus::Failure { error, command } = effects.status() {
+            return Err(IotaError::Execution(format!(
+                "refusing to attest transaction with failing dry-run: {error:?} (command {command:?})"
+            )));
+        }
+
         // Step 7: build AttestationData.
         // `gas_cost_summary().computation_cost` is in NANOS; convert to gas
         // units (`computation_units = computation_cost / gas_price`) so the
