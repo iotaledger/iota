@@ -76,7 +76,7 @@ pub use crate::authority::authority_test_utils::*;
 use crate::{
     authority::{
         AuthorityState, AuthorityStore, SIMULATION_GAS_COIN_VALUE,
-        authority_per_epoch_store::{AuthorityPerEpochStore, CertLockGuard},
+        authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
         authority_store_tables::AuthorityPerpetualTables,
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
@@ -6641,7 +6641,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .read_objects_for_execution(
             &authority.epoch_store_for_testing(),
             &cancelled_txn.key(),
-            &CertLockGuard::guard_for_tests(),
+            &TxLockGuard::guard_for_tests(),
             &cancelled_txn
                 .data()
                 .transaction_data()

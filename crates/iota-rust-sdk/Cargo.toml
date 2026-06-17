@@ -1,0 +1,58 @@
+[package]
+name = "iota-rust-sdk"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+iota-grpc-client = { workspace = true, optional = true }
+iota-grpc-types = { workspace = true, optional = true }
+iota-sdk-crypto = { workspace = true, optional = true }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "4e685468c6e589f2701f4ffd64699f60c430f6da", optional = true }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "4e685468c6e589f2701f4ffd64699f60c430f6da", default-features = false, optional = true }
+iota-sdk-types = { workspace = true, optional = true }
+
+[features]
+default = [
+  "bech32",
+  "crypto",
+  "ed25519",
+  "graphql",
+  "hash",
+  "mnemonic",
+  "passkey",
+  "pem",
+  "rand",
+  "secp256k1",
+  "secp256r1",
+  "serde",
+  "txn-builder",
+  "types",
+]
+# Crypto
+crypto = ["dep:iota-sdk-crypto"]
+ed25519 = ["crypto", "iota-sdk-crypto/ed25519"]
+secp256r1 = ["crypto", "iota-sdk-crypto/secp256r1"]
+passkey = ["crypto", "iota-sdk-crypto/passkey"]
+secp256k1 = ["crypto", "iota-sdk-crypto/secp256k1"]
+pem = ["crypto", "iota-sdk-crypto/pem"]
+bls12381 = ["crypto", "iota-sdk-crypto/bls12381"]
+bech32 = ["crypto", "iota-sdk-crypto/bech32"]
+mnemonic = ["crypto", "iota-sdk-crypto/mnemonic"]
+# GraphQL
+graphql = ["dep:iota-sdk-graphql-client"]
+# gRPC
+grpc = ["dep:iota-grpc-client", "dep:iota-grpc-types"]
+# Transaction Builder
+txn-builder = ["dep:iota-sdk-transaction-builder"]
+# Types
+types = ["dep:iota-sdk-types"]
+serde = ["types", "iota-sdk-types/serde"]
+rand = ["types", "iota-sdk-types/rand"]
+hash = ["types", "iota-sdk-types/hash"]
+proptest = ["types", "iota-sdk-types/proptest"]

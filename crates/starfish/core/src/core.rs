@@ -691,7 +691,7 @@ impl Core {
     /// over.
     ///
     /// Block headers should cover the cached_rounds window (~500 rounds).
-    pub(crate) fn reinitialize_components(
+    pub(crate) async fn reinitialize_components(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<()> {
@@ -742,7 +742,7 @@ impl Core {
         self.last_decided_leader = last_commit_leader;
 
         // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
-        self.commit_observer.reinitialize(last_commit_index);
+        self.commit_observer.reinitialize(last_commit_index).await;
 
         // 9. Reset signaling state
         self.last_signaled_round = threshold_round.saturating_sub(1);
@@ -1830,7 +1830,10 @@ impl CoreSignalsReceivers {
 /// corresponding stakes. The method returns the cores and their respective
 /// signal receivers are returned in `AuthorityIndex` order asc.
 #[cfg(test)]
-pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<CoreTextFixture> {
+pub(crate) async fn create_cores(
+    context: Context,
+    authorities: Vec<Stake>,
+) -> Vec<CoreTextFixture> {
     let mut cores = Vec::new();
 
     for index in 0..authorities.len() {
@@ -1841,7 +1844,8 @@ pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<Cor
             own_index,
             false,
             false,
-        );
+        )
+        .await;
         cores.push(core);
     }
     cores
@@ -1858,7 +1862,7 @@ pub(crate) struct CoreTextFixture {
 
 #[cfg(test)]
 impl CoreTextFixture {
-    fn new(
+    async fn new(
         context: Context,
         authorities: Vec<Stake>,
         own_index: AuthorityIndex,
@@ -1901,7 +1905,8 @@ impl CoreTextFixture {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let block_signer = signers.remove(own_index.value()).1;
 
@@ -2031,7 +2036,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // Check no commits have been persisted to dag_state or store.
         let last_commit = store.read_last_commit().unwrap();
@@ -2161,7 +2167,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // Check no commits have been persisted to dag_state & store
         let last_commit = store.read_last_commit().unwrap();
@@ -2256,7 +2263,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
         let mut encoder = create_encoder(&context);
 
         // First send some transactions, since the block will be created once we recover
@@ -2416,7 +2424,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let mut core = Core::new(
             context.clone(),
@@ -2505,7 +2514,8 @@ mod test {
             AuthorityIndex::new_for_test(0),
             false,
             false,
-        );
+        )
+        .await;
         let core = &fixture.core;
 
         // (1) saturating_sub clamps small clock_rounds to 0.
@@ -2539,7 +2549,8 @@ mod test {
             AuthorityIndex::new_for_test(0),
             false,
             false,
-        );
+        )
+        .await;
         assert_eq!(
             fixture_off.core.min_ancestor_round(1000),
             GENESIS_ROUND,
@@ -2578,7 +2589,8 @@ mod test {
             dag_state.clone(),
             store,
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let mut core = Core::new(
             context.clone(),
@@ -2674,7 +2686,7 @@ mod test {
 
         let (context, _) = Context::new_for_test(4);
         // Create the cores for all authorities
-        let mut all_cores = create_cores(context, vec![1, 1, 1, 1]);
+        let mut all_cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
         // Create blocks for rounds 1..=3 from all Cores except last Core of authority
         // 3, so we miss the block from it. As it will be the leader of round 3
@@ -2795,7 +2807,8 @@ mod test {
             dag_state.clone(),
             store,
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let mut core = Core::new(
             context.clone(),
@@ -2844,7 +2857,7 @@ mod test {
 
         let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
-        let mut cores = create_cores(context, vec![1, 1, 1, 1]);
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
@@ -3010,7 +3023,8 @@ mod test {
             own_index,
             true,
             false,
-        );
+        )
+        .await;
         // create a DAG of 2*gc_depth rounds
         let mut dag_builder = DagBuilder::new(Arc::new(context.clone()));
         let gc_depth = context.protocol_config.gc_depth();
@@ -3027,7 +3041,8 @@ mod test {
             catch_up_index,
             true,
             true,
-        );
+        )
+        .await;
         let active_authorities = (0..(committee_size - 1) as u8)
             .map(AuthorityIndex::new_for_test)
             .collect::<Vec<_>>();
@@ -3225,7 +3240,8 @@ mod test {
         });
 
         let authority_index = AuthorityIndex::new_for_test(0);
-        let core = CoreTextFixture::new(context, vec![1, 1, 1, 1], authority_index, true, false);
+        let core =
+            CoreTextFixture::new(context, vec![1, 1, 1, 1], authority_index, true, false).await;
         let store = core.store.clone();
         let mut core = core.core;
 
@@ -3321,7 +3337,7 @@ mod test {
         let (context, _) = Context::new_for_test(6);
 
         // create the cores and their signals for all the authorities
-        let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]);
+        let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]).await;
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
@@ -3451,7 +3467,7 @@ mod test {
 
         let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
-        let mut cores = create_cores(context, vec![1, 1, 1, 1]);
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
@@ -3544,7 +3560,7 @@ mod test {
 
         let (context, _) = Context::new_for_test(4);
         // create the cores and their signals for all the authorities
-        let mut cores = create_cores(context, vec![1, 1, 1, 1]);
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
         let mut last_round_block_headers = Vec::new();
         let mut all_block_headers = Vec::new();
@@ -3712,7 +3728,8 @@ mod test {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         // Check no commits have been persisted to dag_state or store.
         let last_commit = store.read_last_commit().unwrap();
@@ -3863,7 +3880,8 @@ mod test {
             AuthorityIndex::new_for_test(0),
             false,
             false,
-        );
+        )
+        .await;
 
         let leader = AuthorityIndex::new_for_test(1);
         let strong_vote = StrongVote {
