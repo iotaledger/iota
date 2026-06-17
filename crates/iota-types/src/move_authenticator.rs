@@ -113,24 +113,19 @@ impl MoveAuthenticator {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let as_bytes = bcs::to_bytes(&self.inner).expect("BCS serialization should not fail");
-        let mut bytes = Vec::with_capacity(1 + as_bytes.len());
-        bytes.push(SignatureScheme::MoveAuthenticator.flag());
-        bytes.extend_from_slice(as_bytes.as_slice());
+        let mut bytes = vec![SignatureScheme::MoveAuthenticator.flag()];
+        bcs::serialize_into(&mut bytes, &self.inner).expect("BCS serialization should not fail");
         bytes
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // The first byte matches the flag of MoveAuthenticator.
-        if bytes.first().ok_or(FastCryptoError::InvalidInput)?
-            != &SignatureScheme::MoveAuthenticator.flag()
-        {
-            return Err(FastCryptoError::InvalidInput);
+        match bytes.split_first() {
+            Some((flag, tail)) if flag == &SignatureScheme::MoveAuthenticator.flag() => {
+                let inner = bcs::from_bytes(tail).map_err(|_| FastCryptoError::InvalidSignature)?;
+                Ok(Self { inner })
+            }
+            _ => Err(FastCryptoError::InvalidInput),
         }
-
-        let inner: MoveAuthenticatorInner =
-            bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
-        Ok(Self { inner })
     }
 }
 
