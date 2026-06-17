@@ -14,8 +14,8 @@ use std::{
 use futures::future::join_all;
 use iota_common::fatal;
 use iota_config::{
-    Config, ExecutionCacheConfig, ExecutionCacheType, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG, NodeConfig, PersistedConfig,
+    Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
+    NodeConfig, PersistedConfig,
     genesis::Genesis,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
 };
@@ -38,6 +38,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_types::ObjectId;
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
@@ -50,7 +51,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
+    base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectRef},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
     digests::TransactionDigest,
@@ -263,14 +264,14 @@ impl TestCluster {
             .expect("failed to get reference gas price")
     }
 
-    pub async fn get_object_from_fullnode_store(&self, object_id: &ObjectID) -> Option<Object> {
+    pub async fn get_object_from_fullnode_store(&self, object_id: &ObjectId) -> Option<Object> {
         self.fullnode_handle
             .iota_node
             .with_async(|node| async { node.state().get_object(object_id).await })
             .await
     }
 
-    pub async fn get_latest_object_ref(&self, object_id: &ObjectID) -> ObjectRef {
+    pub async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectRef {
         self.get_object_from_fullnode_store(object_id)
             .await
             .unwrap()
@@ -279,7 +280,7 @@ impl TestCluster {
 
     pub async fn get_object_or_tombstone_from_fullnode_store(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> ObjectRef {
         self.fullnode_handle
             .iota_node
@@ -778,7 +779,7 @@ impl TestCluster {
         sender: IotaAddress,
         receiver: IotaAddress,
         amount: u64,
-    ) -> ObjectID {
+    ) -> ObjectId {
         let tx = self
             .test_transaction_builder_with_sender(sender)
             .await
@@ -848,8 +849,8 @@ impl TestCluster {
         &self,
         sender: IotaAddress,
         receiver: IotaAddress,
-        object_ids: Vec<ObjectID>,
-        gas: ObjectID,
+        object_ids: Vec<ObjectId>,
+        gas: ObjectId,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> anyhow::Result<Vec<IotaTransactionBlockResponse>> {
         let mut transaction_block_resp: Vec<IotaTransactionBlockResponse> = Vec::new();
@@ -871,8 +872,8 @@ impl TestCluster {
         &self,
         sender: IotaAddress,
         receiver: IotaAddress,
-        object_id: ObjectID,
-        gas: ObjectID,
+        object_id: ObjectId,
+        gas: ObjectId,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> anyhow::Result<IotaTransactionBlockResponse> {
         let http_client = self.rpc_client();
@@ -989,7 +990,6 @@ pub struct TestClusterBuilder {
     num_unpruned_validators: Option<usize>,
     config_dir: Option<PathBuf>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    execution_cache_type: Option<ExecutionCacheType>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
@@ -1023,7 +1023,6 @@ impl TestClusterBuilder {
             num_unpruned_validators: None,
             config_dir: None,
             authority_overload_config: None,
-            execution_cache_type: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
@@ -1227,12 +1226,6 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_execution_cache_type(mut self, config: ExecutionCacheType) -> Self {
-        assert!(self.network_config.is_none());
-        self.execution_cache_type = Some(config);
-        self
-    }
-
     pub fn with_execution_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
         assert!(self.network_config.is_none());
         self.execution_cache_config = Some(config);
@@ -1358,10 +1351,6 @@ impl TestClusterBuilder {
 
         if let Some(authority_overload_config) = self.authority_overload_config.take() {
             builder = builder.with_authority_overload_config(authority_overload_config);
-        }
-
-        if let Some(execution_cache_type) = self.execution_cache_type.take() {
-            builder = builder.with_execution_cache_type(execution_cache_type);
         }
 
         if let Some(execution_cache_config) = self.execution_cache_config.take() {

@@ -4,10 +4,8 @@
 
 use std::path::Path;
 
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    transaction::TransactionData,
-};
+use iota_sdk_types::ObjectId;
+use iota_types::{base_types::IotaAddress, transaction::TransactionData};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use typed_store::{DBMapUtils, Map, TypedStoreError, rocks::DBMap};
@@ -22,7 +20,7 @@ use uuid::Uuid;
 /// were in-flight that it needs to confirm succeeded or failed.
 #[derive(DBMapUtils, Clone)]
 pub struct WriteAheadLog {
-    pub log: DBMap<ObjectID, Entry>,
+    pub log: DBMap<ObjectId, Entry>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -51,7 +49,7 @@ impl WriteAheadLog {
     pub(crate) fn reserve(
         &mut self,
         uuid: Uuid,
-        coin: ObjectID,
+        coin: ObjectId,
         recipient: IotaAddress,
         tx: TransactionData,
     ) -> Result<(), TypedStoreError> {
@@ -79,7 +77,7 @@ impl WriteAheadLog {
     /// Check whether `coin` has a pending transaction in the WAL.  Returns
     /// `Ok(Some(entry))` if a pending transaction exists, `Ok(None)` if
     /// not, and `Err(_)` if there was an internal error accessing the WAL.
-    pub(crate) fn reclaim(&self, coin: ObjectID) -> Result<Option<Entry>, TypedStoreError> {
+    pub(crate) fn reclaim(&self, coin: ObjectId) -> Result<Option<Entry>, TypedStoreError> {
         match self.log.get(&coin) {
             Ok(entry) => Ok(entry),
             Err(TypedStoreError::Serialization(_)) => {
@@ -97,11 +95,11 @@ impl WriteAheadLog {
 
     /// Indicate that the transaction in flight for `coin` has landed, and the
     /// entry in the WAL can be removed.
-    pub(crate) fn commit(&mut self, coin: ObjectID) -> Result<(), TypedStoreError> {
+    pub(crate) fn commit(&mut self, coin: ObjectId) -> Result<(), TypedStoreError> {
         self.log.remove(&coin)
     }
 
-    pub(crate) fn increment_retry_count(&mut self, coin: ObjectID) -> Result<(), TypedStoreError> {
+    pub(crate) fn increment_retry_count(&mut self, coin: ObjectId) -> Result<(), TypedStoreError> {
         if let Some(mut entry) = self.log.get(&coin)? {
             entry.retry_count += 1;
             self.log.insert(&coin, &entry)?;
@@ -111,7 +109,7 @@ impl WriteAheadLog {
 
     pub(crate) fn set_in_flight(
         &mut self,
-        coin: ObjectID,
+        coin: ObjectId,
         bool: bool,
     ) -> Result<(), TypedStoreError> {
         if let Some(mut entry) = self.log.get(&coin)? {

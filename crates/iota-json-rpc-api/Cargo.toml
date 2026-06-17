@@ -22,6 +22,7 @@ iota-json-rpc-types.workspace = true
 iota-metrics.workspace = true
 iota-open-rpc.workspace = true
 iota-open-rpc-macros.workspace = true
+iota-sdk-types.workspace = true
 iota-types.workspace = true
 # NOTE: It's important to keep the above dependency list short.
 # This and the iota-sdk crate are widely used to develop on IOTA and it's valuable

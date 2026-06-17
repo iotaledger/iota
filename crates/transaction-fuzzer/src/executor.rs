@@ -10,11 +10,10 @@ use iota_core::{
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
-    base_types::ObjectID,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
@@ -42,7 +41,7 @@ fn build_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
 pub fn assert_is_acceptable_result(result: &ExecutionResult) {
     if let Ok(
         e @ ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::InvariantViolation,
+            error: ExecutionError::InvariantViolation,
             command: _,
         },
     ) = result
@@ -113,7 +112,7 @@ impl Executor {
     pub fn publish(
         &mut self,
         package_name: &str,
-        dep_ids: Vec<ObjectID>,
+        dep_ids: Vec<ObjectId>,
         account: &mut AccountCurrent,
     ) -> TransactionEffects {
         let (_, modules) = build_test_modules(package_name);

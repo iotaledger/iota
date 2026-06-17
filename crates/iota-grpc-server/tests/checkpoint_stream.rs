@@ -14,9 +14,10 @@ use iota_grpc_client::{
 };
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
+use iota_sdk_types::{Identifier, ObjectId, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, StructTag, random_object_ref},
+    base_types::{IotaAddress, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEvents},
     event::Event,
@@ -142,9 +143,8 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     let (server_handle, _) = common::start_test_server(mock, config_customizer).await;
 
     let server_addr = server_handle.address();
-    let mut client = Client::new(&format!("http://{server_addr}"))
-        .await
-        .expect("Failed to connect to gRPC server");
+    let mut client =
+        Client::new(format!("http://{server_addr}")).expect("Failed to connect to gRPC server");
 
     if let Some(max_size) = client_max_message_size_bytes {
         client = client.with_max_decoding_message_size(usize::try_from(max_size).unwrap());
@@ -930,7 +930,7 @@ fn build_checkpoint_transactions_with_events(
             let mut data = Vec::with_capacity(events_per_tx);
             for _ in 0..events_per_tx {
                 data.push(Event {
-                    package_id: ObjectID::ZERO,
+                    package_id: ObjectId::ZERO,
                     module: Identifier::from_static("test_module"),
                     sender,
                     type_: StructTag::new(
@@ -942,7 +942,7 @@ fn build_checkpoint_transactions_with_events(
                     contents: vec![0u8; 64], // 64 bytes of dummy content
                 });
             }
-            Some(TransactionEvents { data })
+            Some(TransactionEvents(data))
         } else {
             None
         };

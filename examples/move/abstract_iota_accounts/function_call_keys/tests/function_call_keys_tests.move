@@ -623,6 +623,8 @@ fun create_auth_context_with_commands_for_testing(cmds: vector<Command>): AuthCo
         vector[],
         b"00000000000000000000000000000000",
         option::none(),
+        option::none(),
+        option::none(),
     )
 }
 

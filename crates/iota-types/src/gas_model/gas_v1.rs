@@ -11,7 +11,7 @@ mod checked {
     use move_core_types::vm_status::StatusCode;
 
     use crate::{
-        ObjectID,
+        ObjectId,
         error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
         gas::{self, GasCostSummary, IotaGasStatusAPI},
         gas_model::{
@@ -204,7 +204,7 @@ mod checked {
         /// Per Object Storage Cost and Storage Rebate, used to get accumulated
         /// values at the end of execution to determine storage charges
         /// and rebates.
-        per_object_storage: Vec<(ObjectID, PerObjectStorage)>,
+        per_object_storage: Vec<(ObjectId, PerObjectStorage)>,
         // storage rebate rate as defined in the ProtocolConfig
         rebate_rate: u64,
         /// Amount of storage rebate accumulated when we are running in
@@ -359,7 +359,7 @@ mod checked {
             self.storage_gas_units()
         }
 
-        pub fn per_object_storage(&self) -> &Vec<(ObjectID, PerObjectStorage)> {
+        pub fn per_object_storage(&self) -> &Vec<(ObjectId, PerObjectStorage)> {
             &self.per_object_storage
         }
     }
@@ -495,7 +495,7 @@ mod checked {
         /// `new_size`.
         fn track_storage_mutation(
             &mut self,
-            object_id: ObjectID,
+            object_id: ObjectId,
             new_size: usize,
             storage_rebate: u64,
         ) -> u64 {

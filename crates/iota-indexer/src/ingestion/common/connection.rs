@@ -4,7 +4,6 @@
 use std::time::Duration;
 
 use backoff::{self, ExponentialBackoff};
-use futures::TryFutureExt;
 use iota_data_ingestion_core::{
     create_remote_store_client, history::manifest::Manifest, reader::v2::RemoteUrl,
 };
@@ -71,10 +70,12 @@ pub async fn resolve_remote_url(
     backoff::future::retry(backoff, || {
         let url = url.clone();
         async move {
-            let grpc_result = GrpcClient::new(url.clone())
-                .and_then(|client| async move { client.get_health(None).await })
-                .await
-                .inspect_err(|e| debug!("gRPC health check failed: {e}"));
+            let grpc_result = async {
+                let client = GrpcClient::new(url.clone())?;
+                client.get_health(None).await
+            }
+            .await
+            .inspect_err(|e| debug!("gRPC health check failed: {e}"));
 
             if grpc_result.is_ok() {
                 info!("resolved remote store as fullnode gRPC: {url}");

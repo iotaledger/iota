@@ -25,6 +25,7 @@ use crate::{
     },
     context::Context,
     leader_scoring::ReputationScores,
+    misbehavior_store::MisbehaviorCounts,
     storage::Store,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
@@ -578,6 +579,10 @@ pub struct CommittedSubDag {
     pub base: SubDagBase,
     /// All the committed blocks that are part of this sub-dag
     pub transactions: Vec<VerifiedTransactions>,
+    /// Absolute per-authority misbehavior counts (`persisted + in_memory`)
+    /// snapshotted from `MisbehaviorStore` at emission. Indexed by
+    /// `AuthorityIndex`; consumers diff for deltas.
+    pub misbehavior_counts: Vec<MisbehaviorCounts>,
 }
 
 impl CommittedSubDag {
@@ -590,6 +595,7 @@ impl CommittedSubDag {
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+        misbehavior_counts: Vec<MisbehaviorCounts>,
     ) -> Self {
         Self {
             base: SubDagBase {
@@ -601,6 +607,7 @@ impl CommittedSubDag {
                 reputation_scores_desc,
             },
             transactions,
+            misbehavior_counts,
         }
     }
 
@@ -1007,7 +1014,7 @@ mod tests {
     #[tokio::test]
     async fn test_new_committed_subdag_from_commit() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut encoder = create_encoder(&context);
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
@@ -1131,7 +1138,7 @@ mod tests {
     #[tokio::test]
     async fn test_new_pending_subdag_from_commit() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;
         let num_authorities: u8 = 4;

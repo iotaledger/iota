@@ -2,12 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::hash::Hash;
 
 use iota_sdk_types::crypto::Intent;
+#[cfg(not(target_arch = "wasm32"))]
 use lru::LruCache;
 use nonempty::NonEmpty;
+#[cfg(not(target_arch = "wasm32"))]
 use parking_lot::RwLock;
+#[cfg(not(target_arch = "wasm32"))]
 use prometheus::IntCounter;
 
 use crate::{
@@ -21,8 +25,10 @@ use crate::{
 // than peak transactions per second, on the assumption that we should see most
 // certs twice within about 10-20 seconds at most: Once via RPC, once via
 // consensus.
+#[cfg(not(target_arch = "wasm32"))]
 const VERIFIED_CERTIFICATE_CACHE_SIZE: usize = 100_000;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub struct VerifiedDigestCache<D> {
     inner: RwLock<LruCache<D, ()>>,
     cache_hits_counter: IntCounter,
@@ -30,6 +36,7 @@ pub struct VerifiedDigestCache<D> {
     cache_evictions_counter: IntCounter,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
     pub fn new(
         cache_hits_counter: IntCounter,

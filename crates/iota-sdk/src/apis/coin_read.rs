@@ -8,10 +8,8 @@ use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::CoinReadApiClient;
 use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
-use iota_types::{
-    balance::Supply,
-    base_types::{IotaAddress, ObjectID},
-};
+use iota_sdk_types::ObjectId;
+use iota_types::{balance::Supply, base_types::IotaAddress};
 
 use crate::{
     RpcClient,
@@ -58,7 +56,7 @@ impl CoinReadApi {
         &self,
         owner: IotaAddress,
         coin_type: impl Into<Option<String>>,
-        cursor: impl Into<Option<ObjectID>>,
+        cursor: impl Into<Option<ObjectId>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
         Ok(self
@@ -92,7 +90,7 @@ impl CoinReadApi {
     pub async fn get_all_coins(
         &self,
         owner: IotaAddress,
-        cursor: impl Into<Option<ObjectID>>,
+        cursor: impl Into<Option<ObjectId>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
         Ok(self
@@ -194,7 +192,7 @@ impl CoinReadApi {
         address: IotaAddress,
         coin_type: impl Into<Option<String>>,
         amount: u128,
-        exclude: Vec<ObjectID>,
+        exclude: Vec<ObjectId>,
     ) -> IotaRpcResult<Vec<Coin>> {
         let mut total = 0u128;
         let coins = self

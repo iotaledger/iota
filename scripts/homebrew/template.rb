@@ -26,10 +26,10 @@ class Iota < Formula
     sha256 checksums[@@arch]
 
     depends_on "postgresql@15"
+    depends_on "libpq"
 
     if @@arch == "source"
         depends_on "cmake" => :build
-        depends_on "libpq" => :build
         depends_on "rust" => :build
         depends_on "protobuf" => :build
         on_linux do

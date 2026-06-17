@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::Owner;
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
@@ -12,7 +13,6 @@ use iota_stardust_types::block::{
 use iota_types::{
     balance::Balance,
     dynamic_field::{Field, derive_dynamic_field_id},
-    object::Owner,
     stardust::coin_type::CoinType,
 };
 

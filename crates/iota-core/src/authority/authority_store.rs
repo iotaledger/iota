@@ -288,7 +288,6 @@ impl AuthorityStore {
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
-                .data
                 .iter()
                 .enumerate()
                 .map(|(i, e)| ((event_digests, i), e));
@@ -336,7 +335,6 @@ impl AuthorityStore {
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
                     let events_iter = events
-                        .data
                         .iter()
                         .enumerate()
                         .map(|(i, e)| ((events.digest(), i), e));
@@ -429,7 +427,7 @@ impl AuthorityStore {
             .safe_range_iter((*event_digest, 0)..=(*event_digest, usize::MAX))
             .map_ok(|(_, event)| event)
             .collect::<Result<Vec<_>, TypedStoreError>>()?;
-        Ok(data.is_empty().not().then_some(TransactionEvents { data }))
+        Ok(data.is_empty().not().then_some(TransactionEvents(data)))
     }
 
     pub fn multi_get_events(
@@ -499,7 +497,7 @@ impl AuthorityStore {
 
     pub fn get_marker_value(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: &SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
@@ -512,7 +510,7 @@ impl AuthorityStore {
 
     pub fn get_latest_marker(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
         let min_key = (epoch_id, ObjectKey::min_for_id(object_id));
@@ -612,7 +610,7 @@ impl AuthorityStore {
 
     pub fn object_exists_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> IotaResult<bool> {
         Ok(self
@@ -651,7 +649,7 @@ impl AuthorityStore {
     }
 
     /// Get many objects
-    pub fn get_objects(&self, objects: &[ObjectID]) -> Result<Vec<Option<Object>>, IotaError> {
+    pub fn get_objects(&self, objects: &[ObjectId]) -> Result<Vec<Option<Object>>, IotaError> {
         let mut result = Vec::new();
         for id in objects {
             result.push(self.try_get_object(id)?);
@@ -661,7 +659,7 @@ impl AuthorityStore {
 
     pub fn have_deleted_owned_object_at_version_or_after(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
         epoch_id: EpochId,
     ) -> Result<bool, IotaError> {
@@ -922,7 +920,6 @@ impl AuthorityStore {
         // Continue writing events into the old table for now keyed off of events digest
         let event_digest = events.digest();
         let events = events
-            .data
             .iter()
             .enumerate()
             .map(|(i, e)| ((event_digest, i), e));
@@ -1067,7 +1064,7 @@ impl AuthorityStore {
     /// object.
     pub(crate) fn get_latest_live_version_for_object_id(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> IotaResult<ObjectRef> {
         let mut iterator = self
             .perpetual_tables
@@ -1303,7 +1300,7 @@ impl AuthorityStore {
     /// have version number less then or eq to the parent.
     pub fn find_object_lt_or_eq_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
         self.perpetual_tables
@@ -1322,7 +1319,7 @@ impl AuthorityStore {
     /// If no entry for the object_id is found, return None.
     pub fn get_latest_object_ref_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<ObjectRef>, IotaError> {
         self.perpetual_tables
             .get_latest_object_ref_or_tombstone(object_id)
@@ -1332,7 +1329,7 @@ impl AuthorityStore {
     /// live (i.e. it does not return tombstones)
     pub fn get_latest_object_ref_if_alive(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<ObjectRef>, IotaError> {
         match self.get_latest_object_ref_or_tombstone(object_id)? {
             Some(objref) if objref.digest.is_object_alive() => Ok(Some(objref)),
@@ -1346,7 +1343,7 @@ impl AuthorityStore {
     /// If no entry for the object_id is found, return None.
     pub fn get_latest_object_or_tombstone(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
         let Some((object_key, store_object)) = self
             .perpetual_tables
@@ -1712,7 +1709,7 @@ impl AuthorityStore {
     // Counts the number of versions exist in object store for `object_id`. This
     // includes tombstone.
     #[cfg(msim)]
-    pub fn count_object_versions(&self, object_id: ObjectID) -> usize {
+    pub fn count_object_versions(&self, object_id: ObjectId) -> usize {
         self.perpetual_tables
             .objects
             .safe_iter_with_bounds(
@@ -1771,14 +1768,14 @@ impl ObjectStore for AuthorityStore {
     /// Read an object and return it, or Ok(None) if the object was not found.
     fn try_get_object(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.perpetual_tables.as_ref().try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         self.perpetual_tables

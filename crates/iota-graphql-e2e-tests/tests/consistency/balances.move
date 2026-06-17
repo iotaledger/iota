@@ -15,7 +15,7 @@
 // snapshot@[0, 4), first two transaction blocks are out of available range.
 // snapshot@[0, 6), all transaction blocks are out of available range.
 
-//# init --protocol-version 4 --addresses P0=0x0 --accounts A B --simulator --objects-snapshot-min-checkpoint-lag 7
+//# init --protocol-version 4 --addresses P0=0x0 --accounts A B --simulator
 
 //# publish --sender A
 module P0::fake {
@@ -79,7 +79,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 2. Fake coin balance should be 700.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -102,7 +102,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 3. Fake coin balance should be 500.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -125,7 +125,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 4. Fake coin balance should be 400.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -152,7 +152,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":2,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 2. Fake coin balance should be 700.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -175,7 +175,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 3. Fake coin balance should be 500.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -198,7 +198,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 4. Fake coin balance should be 400.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -240,7 +240,7 @@ module P0::fake {
       sequenceNumber
     }
   }
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -263,7 +263,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":3,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 3. Fake coin balance should be 500.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -286,7 +286,7 @@ module P0::fake {
 //# run-graphql --cursors {"c":4,"t":1,"i":false}
 # Emulating viewing transaction blocks at checkpoint 4. Fake coin balance should be 400.
 {
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -334,7 +334,7 @@ module P0::fake {
       sequenceNumber
     }
   }
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -365,7 +365,7 @@ module P0::fake {
       sequenceNumber
     }
   }
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
@@ -396,7 +396,7 @@ module P0::fake {
       sequenceNumber
     }
   }
-  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {sentAddress: "@{A}"}) {
     nodes {
       sender {
         fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {

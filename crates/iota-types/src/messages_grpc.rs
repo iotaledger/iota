@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectId;
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{SequenceNumber, TransactionDigest},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
     messages_consensus::SignedAuthorityCapabilitiesV1,
@@ -38,7 +39,7 @@ pub enum LayoutGenerationOption {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ObjectInfoRequest {
     /// The id of the object to retrieve, at the latest version.
-    pub object_id: ObjectID,
+    pub object_id: ObjectId,
     /// if true return the layout of the object.
     pub generate_layout: LayoutGenerationOption,
     /// The type of request, either latest object info or the past.
@@ -47,7 +48,7 @@ pub struct ObjectInfoRequest {
 
 impl ObjectInfoRequest {
     pub fn past_object_info_debug_request(
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         generate_layout: LayoutGenerationOption,
     ) -> Self {
@@ -59,7 +60,7 @@ impl ObjectInfoRequest {
     }
 
     pub fn latest_object_info_request(
-        object_id: ObjectID,
+        object_id: ObjectId,
         generate_layout: LayoutGenerationOption,
     ) -> Self {
         ObjectInfoRequest {

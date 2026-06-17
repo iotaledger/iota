@@ -37,6 +37,88 @@ pub mod flamegraph;
 pub mod span_latency_prom;
 pub use flamegraph::FlameSub;
 
+/// Global filter layer that rejects callsites above the configured levels at
+/// registration time.
+///
+/// Without this, per-layer filtering causes the Registry to return
+/// `Interest::always()` for every callsite. Trace-level `#[instrument]` spans
+/// would still be allocated in the slab, have their per-layer filters walked,
+/// and be immediately discarded — all at significant cost. The same applies to
+/// events below the env filter threshold.
+///
+/// By rejecting high-verbosity callsites globally, `Span::new` short-circuits
+/// to `Span::none()` and event macros short-circuit before formatting
+/// arguments.
+struct GlobalLevelFilter {
+    max_span_level: LevelFilter,
+    /// The maximum event level any layer will accept. Seeded from the
+    /// EnvFilter's `max_level_hint` and updated via a shared atomic when the
+    /// filter is reloaded.
+    max_event_level: Arc<std::sync::atomic::AtomicU8>,
+}
+
+impl GlobalLevelFilter {
+    fn load_max_event_level(&self) -> LevelFilter {
+        level_filter_from_u8(self.max_event_level.load(Ordering::Relaxed))
+    }
+
+    fn exceeds_max_level(&self, metadata: &tracing::Metadata<'_>) -> bool {
+        if metadata.is_span() {
+            LevelFilter::from_level(*metadata.level()) > self.max_span_level
+        } else {
+            let max = self.load_max_event_level();
+            !max.eq(&LevelFilter::OFF) && LevelFilter::from_level(*metadata.level()) > max
+        }
+    }
+}
+
+fn level_filter_to_u8(lf: LevelFilter) -> u8 {
+    match lf {
+        LevelFilter::OFF => 0,
+        LevelFilter::ERROR => 1,
+        LevelFilter::WARN => 2,
+        LevelFilter::INFO => 3,
+        LevelFilter::DEBUG => 4,
+        LevelFilter::TRACE => 5,
+    }
+}
+
+fn level_filter_from_u8(v: u8) -> LevelFilter {
+    match v {
+        0 => LevelFilter::OFF,
+        1 => LevelFilter::ERROR,
+        2 => LevelFilter::WARN,
+        3 => LevelFilter::INFO,
+        4 => LevelFilter::DEBUG,
+        _ => LevelFilter::TRACE,
+    }
+}
+
+impl<S: tracing::Subscriber> Layer<S> for GlobalLevelFilter {
+    fn register_callsite(
+        &self,
+        metadata: &'static tracing::Metadata<'static>,
+    ) -> tracing::subscriber::Interest {
+        if self.exceeds_max_level(metadata) {
+            tracing::subscriber::Interest::never()
+        } else {
+            // Return always() for passing callsites. The final interest will be
+            // determined by the Registry (which returns sometimes() when
+            // per-layer filters are present). We intentionally do NOT override
+            // enabled() — doing so would add an extra check to every enabled()
+            // walk, which the per-layer filters already handle. For dynamic env
+            // filter reloads, rebuild_interest_cache() re-calls
+            // register_callsite with our updated atomic max_event_level.
+            tracing::subscriber::Interest::always()
+        }
+    }
+
+    fn max_level_hint(&self) -> Option<LevelFilter> {
+        let event = self.load_max_event_level();
+        Some(std::cmp::max(self.max_span_level, event))
+    }
+}
+
 /// Alias for a type-erased error type.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -67,10 +149,11 @@ pub struct TelemetryConfig {
     /// Log level to set ("error/warn/info/debug/trace"), defaults to "info".
     /// Provided by `RUST_LOG` env var.
     pub log_string: Option<String>,
-    /// Span level - what level of spans should be created.  Note this is not
-    /// same as logging level If set to None, then defaults to "info".
-    /// Provided by `TOKIO_SPAN_LEVEL` env var.
-    pub span_level: Option<Level>,
+    /// Span level - what level of spans should be created. Note this is not
+    /// same as logging level. If set to None, then defaults to "info". Use
+    /// `LevelFilter::OFF` to disable all spans.
+    /// Provided by `TOKIO_SPAN_LEVEL` env var (supports "off").
+    pub span_level: Option<LevelFilter>,
     /// Set a panic hook.
     pub panic_hook: bool,
     /// Crash on panic.
@@ -79,6 +162,10 @@ pub struct TelemetryConfig {
     /// Optional Prometheus registry - if present, all enabled span latencies
     /// are measured.
     pub prom_registry: Option<prometheus::Registry>,
+    /// Disable the `PrometheusSpanLatencyLayer` even when a `prom_registry`
+    /// is set. The layer is a known tracing hotspot in node production
+    /// configs that don't read span-latency metrics.
+    pub disable_span_latency: bool,
     /// Sample rate for tracing spans, that will be used in the
     /// "TraceIdRatioBased" sampler. Values rate>=1 - always sample, rate<0
     /// never sample, rate<1 - sample rate with rate probability,
@@ -120,17 +207,26 @@ impl Drop for TelemetryGuards {
 }
 
 #[derive(Clone, Debug)]
-pub struct FilterHandle(reload::Handle<EnvFilter, Registry>);
+pub struct FilterHandle {
+    reload: reload::Handle<EnvFilter, Registry>,
+    /// Shared with `GlobalLevelFilter` so that reloading the env filter also
+    /// updates the global event-level gate.
+    max_event_level: Option<Arc<std::sync::atomic::AtomicU8>>,
+}
 
 impl FilterHandle {
     pub fn update<S: AsRef<str>>(&self, directives: S) -> Result<(), BoxError> {
         let filter = EnvFilter::try_new(directives)?;
-        self.0.reload(filter)?;
+        if let Some(ref max_level) = self.max_event_level {
+            let hint = filter.max_level_hint().unwrap_or(LevelFilter::TRACE);
+            max_level.store(level_filter_to_u8(hint), Ordering::Relaxed);
+        }
+        self.reload.reload(filter)?;
         Ok(())
     }
 
     pub fn get(&self) -> Result<String, BoxError> {
-        self.0
+        self.reload
             .with_current(|filter| filter.to_string())
             .map_err(Into::into)
     }
@@ -283,6 +379,7 @@ impl TelemetryConfig {
             panic_hook: true,
             crash_on_panic: false,
             prom_registry: None,
+            disable_span_latency: false,
             sample_rate: 1.0,
             trace_target: None,
             enable_flamegraph: false,
@@ -300,7 +397,15 @@ impl TelemetryConfig {
     }
 
     pub fn with_span_level(mut self, span_level: Level) -> Self {
-        self.span_level = Some(span_level);
+        self.span_level = Some(LevelFilter::from_level(span_level));
+        self
+    }
+
+    /// Disable the `PrometheusSpanLatencyLayer` even when a `prom_registry`
+    /// is set. Useful for production configs that don't read span-latency
+    /// metrics; the layer is a known tracing hotspot.
+    pub fn with_disable_span_latency(mut self, disable: bool) -> Self {
+        self.disable_span_latency = disable;
         self
     }
 
@@ -352,7 +457,7 @@ impl TelemetryConfig {
 
         if let Ok(span_level) = env::var("TOKIO_SPAN_LEVEL") {
             self.span_level =
-                Some(Level::from_str(&span_level).expect("Cannot parse TOKIO_SPAN_LEVEL"));
+                Some(LevelFilter::from_str(&span_level).expect("Cannot parse TOKIO_SPAN_LEVEL"));
         }
 
         if let Ok(filepath) = env::var("RUST_LOG_FILE") {
@@ -387,15 +492,22 @@ impl TelemetryConfig {
         }
         let env_filter =
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(directives));
+        let max_event_level_seed = env_filter.max_level_hint().unwrap_or(LevelFilter::TRACE);
+        let max_event_level = Arc::new(std::sync::atomic::AtomicU8::new(level_filter_to_u8(
+            max_event_level_seed,
+        )));
         let (log_filter, reload_handle) = reload::Layer::new(env_filter);
-        let log_filter_handle = FilterHandle(reload_handle);
+        let log_filter_handle = FilterHandle {
+            reload: reload_handle,
+            max_event_level: Some(max_event_level.clone()),
+        };
 
         // Separate span level filter.
         // This is a dumb filter for now - allows all spans that are below a given
         // level. TODO: implement a sampling filter
-        let span_level = config.span_level.unwrap_or(Level::INFO);
+        let span_level = config.span_level.unwrap_or(LevelFilter::INFO);
         let span_filter = filter::filter_fn(move |metadata| {
-            metadata.is_span() && *metadata.level() <= span_level
+            metadata.is_span() && LevelFilter::from_level(*metadata.level()) <= span_level
         });
 
         let mut layers = Vec::new();
@@ -408,9 +520,11 @@ impl TelemetryConfig {
         }
 
         if let Some(registry) = config.prom_registry {
-            let span_lat_layer = PrometheusSpanLatencyLayer::try_new(&registry, 15)
-                .expect("Could not initialize span latency layer");
-            layers.push(span_lat_layer.with_filter(span_filter.clone()).boxed());
+            if !config.disable_span_latency {
+                let span_lat_layer = PrometheusSpanLatencyLayer::try_new(&registry, 15)
+                    .expect("Could not initialize span latency layer");
+                layers.push(span_lat_layer.with_filter(span_filter.clone()).boxed());
+            }
         }
 
         let mut trace_filter_handle = None;
@@ -485,7 +599,13 @@ impl TelemetryConfig {
 
             let trace_env_filter = EnvFilter::try_from_env("TRACE_FILTER").unwrap();
             let (trace_env_filter, reload_handle) = reload::Layer::new(trace_env_filter);
-            trace_filter_handle = Some(FilterHandle(reload_handle));
+            // The trace filter's verbosity is independent of the global event
+            // level gate (it routes to OTLP, not to the log subscriber), so we
+            // don't share its max-level hint with `GlobalLevelFilter`.
+            trace_filter_handle = Some(FilterHandle {
+                reload: reload_handle,
+                max_event_level: None,
+            });
 
             layers.push(telemetry.with_filter(trace_env_filter).boxed());
         }
@@ -518,7 +638,24 @@ impl TelemetryConfig {
             layers.push(flamesub.boxed());
         }
 
-        let subscriber = tracing_subscriber::registry().with(layers);
+        // Global level filter: rejects span callsites above `span_level` and
+        // event callsites above the env filter's max level at registration
+        // time, preventing the Registry from dispatching callsites that every
+        // per-layer filter would immediately discard.
+        //
+        // Must be stacked on top of `layers` via `.with()` rather than pushed
+        // into the Vec. `Vec<Layer>::register_callsite` aggregates child
+        // interests as "most permissive wins", so a `never()` from this filter
+        // would be overridden by any layer (e.g. fmt+EnvFilter) returning
+        // `sometimes()`. As an outer `Layered`, the `Interest::and` combiner
+        // gives `never()` priority and the inner stack is short-circuited.
+        let global_filter = GlobalLevelFilter {
+            max_span_level: span_level,
+            max_event_level,
+        };
+        let subscriber = tracing_subscriber::registry()
+            .with(layers)
+            .with(global_filter);
         ::tracing::subscriber::set_global_default(subscriber)
             .expect("unable to initialize tracing subscriber");
 

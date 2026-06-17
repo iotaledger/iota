@@ -171,7 +171,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.24.0"
+version = "1.25.0"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -395,9 +395,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "cdf7afb2ce3d785f1622711ef1800b18eea391f4" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "35a27488b887e28e844a1e46d7edb78605871155" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "cdf7afb2ce3d785f1622711ef1800b18eea391f4" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "35a27488b887e28e844a1e46d7edb78605871155" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -436,7 +436,8 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "cdf7afb2ce3d785f1622711ef1800b18eea391f4", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "35a27488b887e28e844a1e46d7edb78605871155", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "35a27488b887e28e844a1e46d7edb78605871155", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -467,6 +468,7 @@ move-command-line-common = { path = "external-crates/move/crates/move-command-li
 move-compiler = { path = "external-crates/move/crates/move-compiler" }
 move-core-types = { path = "external-crates/move/crates/move-core-types" }
 move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
+move-docgen = { path = "external-crates/move/crates/move-docgen" }
 move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
 move-package-alt = { path = "external-crates/move/crates/move-package-alt" }

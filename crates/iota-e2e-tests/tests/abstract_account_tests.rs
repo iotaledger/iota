@@ -26,25 +26,25 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{
+    Argument, ExecutionError, Identifier, MoveLocation, ObjectId, Owner, TypeTag, crypto::Intent,
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{PublicKey, SignatureScheme},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
-    execution_status::{ExecutionFailureStatus, MoveLocation},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
     move_authenticator::MoveAuthenticator,
     move_package,
-    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
     signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        Argument, CallArg, ProgrammableTransaction, SharedObjectRef,
+        CallArg, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
         TransactionDataAPI,
     },
@@ -457,7 +457,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     assert!(
         matches!(
             summary.status.unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
+            ExecutionError::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
             if module.as_str() == "basic_keyed_aa"
             && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
             && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
@@ -1421,7 +1421,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     assert!(
         matches!(
             summary.status.unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort { .. }
+            ExecutionError::MoveAbort { .. }
         ),
         "Expected a Move abort from the failed ED25519 authentication"
     );
@@ -1551,7 +1551,7 @@ struct TestEnvironment {
     test_cluster: TestCluster,
     owner: Option<IotaAddress>,
     authenticate_fn_name: Option<String>,
-    aa_package_id: Option<ObjectID>,
+    aa_package_id: Option<ObjectId>,
     aa_package_metadata_ref: Option<ObjectRef>,
     aa_ref: Option<ObjectRef>,
     aa_create_transaction: Option<Transaction>,
@@ -1694,7 +1694,7 @@ impl TestEnvironment {
 
     /// Publish the Account Abstraction Move package and return its ID and
     /// metadata object reference.
-    async fn publish_account_abstraction_package(&mut self) -> (ObjectID, ObjectRef) {
+    async fn publish_account_abstraction_package(&mut self) -> (ObjectId, ObjectRef) {
         let path = [env!("CARGO_MANIFEST_DIR"), AA_PACKAGE_PATH]
             .iter()
             .collect();
@@ -2079,7 +2079,7 @@ impl TestEnvironment {
         &self,
         owner: IotaAddress,
         authenticate_fn_name: &str,
-        aa_package_id: ObjectID,
+        aa_package_id: ObjectId,
         aa_package_metadata_ref: ObjectRef,
     ) -> anyhow::Result<Transaction> {
         let aa_owner_pk = self
@@ -2100,7 +2100,7 @@ impl TestEnvironment {
                 builder.pure(authenticate_fn_name)?,
             ];
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectId::FRAMEWORK,
                 Identifier::from_static("authenticator_function"),
                 Identifier::from_static("create_auth_function_ref_v1"),
                 vec![abstract_account_type_tag(&aa_package_id)],
@@ -2212,7 +2212,7 @@ impl TestEnvironment {
         &self,
         owner: IotaAddress,
         authenticate_fn_name: &str,
-        aa_package_id: ObjectID,
+        aa_package_id: ObjectId,
         aa_package_metadata_ref: ObjectRef,
     ) -> anyhow::Result<TransactionEffects> {
         let transaction = if let Some(transaction) = &self.aa_create_transaction {
@@ -2352,12 +2352,12 @@ impl TestEnvironment {
 // --- Utilities -------------------------------------
 // ---------------------------------------------------
 
-fn abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
+fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
         .unwrap()
 }
 
-fn delayed_abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
+fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(
         format!("{aa_package_id}::{AA_DELAYED_MODULE_NAME}::{AA_DELAYED_ACCOUNT_NAME}").as_str(),
     )

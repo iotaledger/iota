@@ -23,5 +23,6 @@ tracing.workspace = true
 iota-core.workspace = true
 iota-move-build.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-types = { workspace = true, features = ["fuzzing"] }
 move-core-types.workspace = true

@@ -28,9 +28,10 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TransactionDigest},
+    base_types::{IotaAddress, SequenceNumber, TransactionDigest},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,
@@ -488,7 +489,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
         async move {
@@ -550,7 +551,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, object_ids), fields(object_ids = object_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_objects(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>> {
         async move {
@@ -599,7 +600,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_past_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
@@ -659,7 +660,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_object_before_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse> {
         let version = self
@@ -956,9 +957,8 @@ impl ReadApiServer for ReadApi {
                     .pop()
                     .flatten();
                 Ok(match events {
-                    Some(events) => events
-                        .data
-                        .into_iter()
+                    Some(mut events) => events
+                        .drain(..)
                         .enumerate()
                         .map(|(seq, e)| {
                             let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
@@ -1274,10 +1274,8 @@ fn parse_template(template: &str, move_struct: &IotaMoveStruct) -> Result<String
                 let value = get_value_from_move_struct(move_struct, &var_name)?;
                 output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
             }
-            _ if !escaped => {
-                if in_braces {
-                    var_name.push(ch);
-                }
+            _ if !escaped && in_braces => {
+                var_name.push(ch);
             }
             _ => {}
         }
@@ -1461,7 +1459,7 @@ fn calculate_checkpoint_numbers(
 impl PackageStore for ReadApi {
     async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
+        match backing_store.get_package_object(&ObjectId::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

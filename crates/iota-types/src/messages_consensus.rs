@@ -14,10 +14,6 @@ use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use iota_sdk_types::crypto::IntentScope;
-pub use iota_sdk_types::{
-    CancelledTransaction, CheckpointTimestamp as TimestampMs, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, VersionAssignment,
-};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use tracing::warn;

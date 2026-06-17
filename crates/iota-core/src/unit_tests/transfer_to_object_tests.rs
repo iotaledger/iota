@@ -4,14 +4,14 @@
 
 use std::{collections::HashSet, sync::Arc};
 
+use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
-    execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    object::{Object, Owner},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, ProgrammableTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
@@ -64,7 +64,7 @@ macro_rules! transfer_test_runner {
 struct TestRunner {
     pub sender: IotaAddress,
     pub sender_key: AccountKeyPair,
-    pub gas_object_ids: Vec<ObjectID>,
+    pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
     pub package: ObjectRef,
     pub upgrade_cap: ObjectRef,
@@ -85,7 +85,7 @@ impl TestRunner {
         let rgp = authority_state.reference_gas_price_for_testing().unwrap();
         let mut gas_object_ids = vec![];
         for _ in 0..num {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
             authority_state.insert_genesis_object(gas_object).await;
             gas_object_ids.push(gas_object_id);
@@ -266,7 +266,7 @@ fn get_parent_and_child(
     let (child, parent_id) = created
         .iter()
         .find_map(|child @ (_, owner)| match owner {
-            Owner::Address(j) if created_addrs.contains(&ObjectID::from(*j)) => {
+            Owner::Address(j) if created_addrs.contains(&ObjectId::from(*j)) => {
                 Some((child, (*j).into()))
             }
             _ => None,
@@ -437,7 +437,7 @@ async fn test_tto_invalid_receiving_arguments() {
                 Box::new(|err| matches!(err, UserInputError::InvalidSequenceNumber)),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(ObjectID::ZERO, x.version, x.digest)),
+                Box::new(|x: ObjectRef| ObjectRef::new(ObjectId::ZERO, x.version, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::ObjectNotFound { .. })),
             ),
             (
@@ -1003,7 +1003,7 @@ async fn verify_tto_not_locked(
     assert!(matches!(
         invalid_effects.status(),
         ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::MoveAbort { .. },
+            error: ExecutionError::MoveAbort { .. },
             ..
         }
     ));
@@ -1607,7 +1607,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
         // Type mismatch is an abort code of 2 from `receive_impl`
         let is_type_mismatch_error = matches!(
             effects.status().clone().unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort{location: x, code: 2} if x.function_name == Some(Identifier::from_static("receive_impl"))
+            ExecutionError::MoveAbort{location: x, code: 2} if x.function_name == Some(Identifier::from_static("receive_impl"))
         );
         assert!(is_type_mismatch_error);
         assert!(effects.created().is_empty());

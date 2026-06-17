@@ -15,13 +15,26 @@ futures.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 rand.workspace = true
-tempfile.workspace = true
-tokio = { workspace = true, features = ["sync"] }
 tracing.workspace = true
 
 # internal dependencies
 iota-macros.workspace = true
+
+# Deps that don't compile to wasm32 (tempfile uses fs, iota-metrics pulls in
+# axum/anemo). They're consumed by node-side helpers in this crate that are
+# themselves gated below.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# external dependencies
+tempfile.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+# internal dependencies
 iota-metrics.workspace = true
+
+# `rand::thread_rng()` (in `random.rs`) pulls `getrandom`, which on
+# `wasm32-unknown-unknown` needs the `js` feature for a randomness source.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }

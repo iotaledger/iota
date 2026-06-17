@@ -28,7 +28,8 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStoreTables,
 };
-use iota_types::base_types::{EpochId, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::EpochId;
 use prometheus::Registry;
 use strum_macros::EnumString;
 use tracing::info;
@@ -173,7 +174,7 @@ pub fn duplicate_objects_summary(db_path: PathBuf) -> anyhow::Result<(usize, usi
     let mut total_bytes = 0;
     let mut duplicated_bytes = 0;
 
-    let mut object_id: ObjectID = ObjectID::random();
+    let mut object_id: ObjectId = ObjectId::random();
     let mut data: HashMap<Vec<u8>, usize> = HashMap::new();
 
     for item in iter {

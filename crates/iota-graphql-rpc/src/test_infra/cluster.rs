@@ -5,7 +5,6 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
-pub use iota_indexer::config::SnapshotLagConfig;
 use iota_indexer::{
     config::PruningOptions,
     errors::IndexerError,
@@ -38,7 +37,6 @@ pub struct ExecutorCluster {
     pub indexer_join_handle: JoinHandle<Result<(), IndexerError>>,
     pub graphql_server_join_handle: JoinHandle<()>,
     pub graphql_client: SimpleClient,
-    pub snapshot_config: SnapshotLagConfig,
     pub graphql_connection_config: ConnectionConfig,
     pub cancellation_token: CancellationToken,
 }
@@ -74,7 +72,7 @@ pub async fn start_cluster(
         true,
         None,
         grpc_url.clone(),
-        IndexerTypeConfig::writer_mode(None, None),
+        IndexerTypeConfig::writer_mode(None),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
@@ -118,7 +116,6 @@ pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
     _executor: Arc<dyn GrpcStateReader + Send + Sync>,
-    snapshot_config: Option<SnapshotLagConfig>,
     epochs_to_keep: Option<u64>,
     data_ingestion_path: PathBuf,
 ) -> ExecutorCluster {
@@ -140,13 +137,10 @@ pub async fn serve_executor(
         true,
         None,
         format!("http://{executor_server_url}"),
-        IndexerTypeConfig::writer_mode(
-            snapshot_config.clone(),
-            Some(PruningOptions {
-                epochs_to_keep,
-                ..Default::default()
-            }),
-        ),
+        IndexerTypeConfig::writer_mode(Some(PruningOptions {
+            epochs_to_keep,
+            ..Default::default()
+        })),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
@@ -176,7 +170,6 @@ pub async fn serve_executor(
         indexer_join_handle: pg_handle,
         graphql_server_join_handle: graphql_server_handle,
         graphql_client: client,
-        snapshot_config: snapshot_config.unwrap_or_default(),
         graphql_connection_config,
         cancellation_token,
     }

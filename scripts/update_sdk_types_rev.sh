@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# Script to update the rev for iota-sdk-types in the three Cargo.toml files
-# and update the corresponding Cargo.lock files by running 'cargo check'
-# in each directory to resolve dependencies and update the lock without full compilation.
+# Script to update the rev for iota-sdk-types and iota-sdk-crypto in the
+# Cargo.toml files and update the corresponding Cargo.lock files by running
+# 'cargo check' in each directory to resolve dependencies and update the lock
+# without full compilation.
 
 # Usage: ./scripts/update_sdk_types_rev.sh <new_rev>
 
@@ -40,26 +41,37 @@ run_with_timeout() {
     fi
 }
 
-# Replace the iota-sdk-types rev in a single Cargo.toml
+# Replace the rev for a given crate in a single Cargo.toml. Only lines that
+# mention the crate name are touched, so crates with different revs in the
+# same file are updated independently.
 update_rev() {
-    local file="$1"
+    local crate="$1"
+    local file="$2"
     local old_rev
-    old_rev=$(sed -n 's/.*iota-sdk-types.*rev = "\([^"]*\)".*/\1/p' "$file" | head -1)
+    old_rev=$(sed -n "s/.*${crate}.*rev = \"\([^\"]*\)\".*/\1/p" "$file" | head -1)
     if [ -z "$old_rev" ]; then
-        echo "Warning: Could not find current rev in $file, skipping"
         return
     fi
-    echo "  $file: $old_rev -> $NEW_REV"
-    sed_inplace "s/$old_rev/$NEW_REV/g" "$file"
+    echo "  $file [$crate]: $old_rev -> $NEW_REV"
+    sed_inplace "/${crate}/s/rev = \"[^\"]*\"/rev = \"$NEW_REV\"/" "$file"
+}
+
+# Update both iota-sdk-types and iota-sdk-crypto in the given Cargo.toml.
+update_file() {
+    local file="$1"
+    update_rev iota-sdk-types "$file"
+    update_rev iota-sdk-crypto "$file"
+    update_rev iota-sdk-grpc-types "$file"
+    update_rev iota-sdk-grpc-client "$file"
 }
 
 echo "New rev: $NEW_REV"
 echo "Updating Cargo.toml files..."
 
-update_rev Cargo.toml
-update_rev crates/iota-genesis-builder/Cargo.toml
-update_rev examples/tic-tac-toe/cli/Cargo.toml
-update_rev docs/examples/rust/Cargo.toml
+update_file Cargo.toml
+update_file crates/iota-genesis-builder/Cargo.toml
+update_file examples/tic-tac-toe/cli/Cargo.toml
+update_file docs/examples/rust/Cargo.toml
 
 echo "Updated rev in Cargo.toml files."
 

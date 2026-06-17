@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 27;
+pub const MAX_PROTOCOL_VERSION: u64 = 28;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -148,6 +148,11 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable consensus block restrictions on testnet and devnet:
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
+// Version 28: Move authenticator contracts can now inspect which authenticator
+//             function the sender and sponsor used during transaction execution
+//             via new AuthContext accessors.
+//             Enable Move-based account authentication in mainnet.
+//             Enable Move-based sponsor account authentication in testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1350,6 +1355,10 @@ pub struct ProtocolConfig {
     // tx_inputs: vector<I>, tx_commands: vector<C>, tx_data_bytes: vector<u8>)`
     auth_context_replace_cost_base: Option<u64>,
     auth_context_replace_cost_per_byte: Option<u64>,
+    // Cost params for the Move native functions
+    // `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
+    // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
+    auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -2313,6 +2322,7 @@ impl ProtocolConfig {
             auth_context_tx_inputs_cost_per_byte: None,
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
+            auth_context_authenticator_function_info_v1_cost_base: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2811,6 +2821,36 @@ impl ProtocolConfig {
 
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Only sponsor Move authentication is performed pre-consensus in devnet.
+                        cfg.feature_flags
+                            .pre_consensus_sponsor_only_move_authentication = true;
+                    }
+                }
+                28 => {
+                    // AuthenticatorFunctionInfoV1 max BCS size:
+                    // package (32) + module_name (128) + function_name (128) = 288 bytes = 9 ×
+                    // digest. auth_context_digest_cost_base = 30 for 32 bytes →
+                    // 9 × 30 = 270.
+                    cfg.auth_context_authenticator_function_info_v1_cost_base = Some(270);
+
+                    // Enable storing metadata in module bytes and then
+                    // publishing package metadata in mainnet.
+                    cfg.feature_flags.metadata_in_module_bytes = true;
+                    cfg.feature_flags.publish_package_metadata = true;
+                    // Enable Move authentication in mainnet.
+                    cfg.feature_flags.enable_move_authentication = true;
+                    // Increase the base cost for transfer receive object in mainnet, since the
+                    // implementation now does check if parent is not an account.
+                    cfg.transfer_receive_object_cost_base = Some(100);
+
+                    if chain != Chain::Unknown {
+                        // max_auth_gas is 0.00002 IOTA in testnet and mainnet.
+                        cfg.max_auth_gas = Some(20_000);
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Enable Move-based sponsor account authentication in testnet.
+                        cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                        // Only sponsor Move authentication is performed pre-consensus in testnet.
                         cfg.feature_flags
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::bail;
 use clap::Parser;
-use iota_types::base_types::ObjectID;
+use iota_sdk_types::ObjectId;
 use move_cli::base;
 use move_package::{
     BuildConfig,
@@ -32,13 +32,13 @@ pub struct ManagePackage {
     pub chain_id: String,
     #[arg(long)]
     /// The original address (Object ID) where this package is published.
-    pub original_id: ObjectID,
+    pub original_id: ObjectId,
     #[arg(long)]
     /// The most recent address (Object ID) where this package is published. It
     /// is the same as 'original-id' if the package is immutable and
     /// published once. It is different from 'original-id' if the package has
     /// been upgraded to a different address.
-    pub latest_id: ObjectID,
+    pub latest_id: ObjectId,
     #[arg(long)]
     /// The version number of the published package. It is '1' if the package is
     /// immutable and published once. It is some number greater than '1' if

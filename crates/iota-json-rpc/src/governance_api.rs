@@ -18,9 +18,10 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
+use iota_sdk_types::ObjectId;
 use iota_types::{
     MoveTypeTagTrait,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     committee::EpochId,
     dynamic_field::{DynamicFieldInfo, get_dynamic_field_from_store},
     error::{IotaError, UserInputError},
@@ -47,7 +48,7 @@ use crate::{
     logger::FutureWithTracing as _,
 };
 
-type ValidatorTable = (IotaAddress, ObjectID, ObjectID, u64, bool);
+type ValidatorTable = (IotaAddress, ObjectId, ObjectId, u64, bool);
 
 #[derive(Clone)]
 pub struct GovernanceReadApi {
@@ -94,7 +95,7 @@ impl GovernanceReadApi {
 
     async fn get_stakes_by_ids(
         &self,
-        staked_iota_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedStake>, Error> {
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
@@ -138,7 +139,7 @@ impl GovernanceReadApi {
 
     async fn get_timelocked_stakes_by_ids(
         &self,
-        timelocked_staked_iota_ids: Vec<ObjectID>,
+        timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> Result<Vec<DelegatedTimelockedStake>, Error> {
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
@@ -371,7 +372,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     #[instrument(skip(self, staked_iota_ids), fields(staked_iota_ids = staked_iota_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn get_stakes_by_ids(
         &self,
-        staked_iota_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedStake>> {
         self.get_stakes_by_ids(staked_iota_ids).trace().await
     }
@@ -384,7 +385,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     #[instrument(skip(self, timelocked_staked_iota_ids), fields(timelocked_staked_iota_ids = timelocked_staked_iota_ids.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn get_timelocked_stakes_by_ids(
         &self,
-        timelocked_staked_iota_ids: Vec<ObjectID>,
+        timelocked_staked_iota_ids: Vec<ObjectId>,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
         self.get_timelocked_stakes_by_ids(timelocked_staked_iota_ids)
             .trace()
@@ -751,7 +752,7 @@ fn candidate_validators_exchange_rate(
 /// Move tables.
 ///
 /// To retrieve validator status information, this function utilizes the
-/// corresponding `table_id` (an `ObjectID` value) and a `limit` to specify the
+/// corresponding `table_id` (an `ObjectId` value) and a `limit` to specify the
 /// number of records to fetch. Both the `table_id` and `limit` can be obtained
 /// from `IotaSystemStateSummary` in the caller. Additionally, keys are
 /// extracted from the table `DynamicFieldInfo` values according to the `key`
@@ -790,7 +791,7 @@ fn candidate_validators_exchange_rate(
 /// ```
 fn validator_summary_from_system_state<K, F>(
     state: &Arc<dyn StateRead>,
-    table_id: ObjectID,
+    table_id: ObjectId,
     limit: u64,
     key: F,
     protocol_version: Option<u64>,
@@ -822,7 +823,7 @@ where
 #[derive(Clone, Debug)]
 pub struct ValidatorExchangeRates {
     pub address: IotaAddress,
-    pub pool_id: ObjectID,
+    pub pool_id: ObjectId,
     pub active: bool,
     pub rates: Vec<(EpochId, PoolTokenExchangeRate)>,
 }
@@ -905,7 +906,7 @@ mod tests {
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
-                    pool_id: ObjectID::random(),
+                    pool_id: ObjectId::random(),
                     active: true,
                     rates: backfill_rates(rates_vec),
                 }
@@ -937,7 +938,7 @@ mod tests {
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
-                    pool_id: ObjectID::random(),
+                    pool_id: ObjectId::random(),
                     active: true,
                     rates: backfill_rates(rates_vec),
                 }

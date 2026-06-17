@@ -5,6 +5,7 @@
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_types::ObjectId;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -14,9 +15,13 @@ use super::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaValidatorSummary,
     },
 };
+#[cfg(not(target_arch = "wasm32"))]
+use crate::iota_system_state::epoch_start_iota_system_state::{
+    EpochStartSystemState, EpochStartValidatorInfoV1, convert_validator_to_epoch_start_info,
+};
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::IotaAddress,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
@@ -26,9 +31,6 @@ use crate::{
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
-    iota_system_state::epoch_start_iota_system_state::{
-        EpochStartSystemState, EpochStartValidatorInfoV1, convert_validator_to_epoch_start_info,
-    },
     multiaddr::Multiaddr,
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
@@ -154,15 +156,19 @@ impl ValidatorMetadataV1 {
             .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
 
         // Ensure p2p and primary address are both Multiaddr's and valid
-        // anemo addresses
+        // anemo addresses. The anemo check is node-only; on wasm we're
+        // inspecting already-on-chain state, which the Move verifier
+        // gated at validator creation time.
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
+        #[cfg(not(target_arch = "wasm32"))]
         p2p_address
             .to_anemo_address()
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
 
         let primary_address = Multiaddr::try_from(self.primary_address.clone())
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
+        #[cfg(not(target_arch = "wasm32"))]
         primary_address
             .to_anemo_address()
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
@@ -233,6 +239,7 @@ impl ValidatorMetadataV1 {
             Some(address) => {
                 let address =
                     Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
+                #[cfg(not(target_arch = "wasm32"))]
                 address
                     .to_anemo_address()
                     .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
@@ -246,6 +253,7 @@ impl ValidatorMetadataV1 {
             Some(address) => {
                 let address =
                     Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
+                #[cfg(not(target_arch = "wasm32"))]
                 address
                     .to_anemo_address()
                     .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
@@ -416,7 +424,7 @@ impl ValidatorV1 {
 /// Rust version of the Move iota_system::staking_pool::StakingPoolV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakingPoolV1 {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub activation_epoch: Option<u64>,
     pub deactivation_epoch: Option<u64>,
     pub iota_balance: u64,
@@ -553,6 +561,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             .collect())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn into_epoch_start_state(self) -> EpochStartSystemState {
         let committee_validators: Vec<EpochStartValidatorInfoV1> = self
             .validators
@@ -693,6 +702,6 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
 /// iota_system::validator_cap::UnverifiedValidatorOperationCap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct UnverifiedValidatorOperationCap {
-    pub id: ObjectID,
+    pub id: ObjectId,
     pub authorizer_validator_address: IotaAddress,
 }

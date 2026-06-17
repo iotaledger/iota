@@ -40,18 +40,17 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{ObjectId, Owner, StructTag};
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{
         AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
     },
     gas_coin::GasCoin,
     move_package::{MovePackage, UpgradeInfo},
-    object::Owner,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
@@ -70,7 +69,7 @@ struct TreeShakingTest {
     test_cluster: TestCluster,
     client: IotaClient,
     rgp: u64,
-    gas_obj_id: ObjectID,
+    gas_obj_id: ObjectId,
     temp_dir: TempDir,
 }
 
@@ -129,7 +128,7 @@ impl TreeShakingTest {
         &mut self,
         package_name: &str,
         with_unpublished_dependencies: bool,
-    ) -> Result<(ObjectID, ObjectID), anyhow::Error> {
+    ) -> Result<(ObjectId, ObjectId), anyhow::Error> {
         publish_package(
             self.package_path(package_name),
             self.test_cluster.wallet_mut(),
@@ -140,7 +139,7 @@ impl TreeShakingTest {
         .await
     }
 
-    async fn publish_package_without_tree_shaking(&mut self, package_name: &str) -> ObjectID {
+    async fn publish_package_without_tree_shaking(&mut self, package_name: &str) -> ObjectId {
         let package_path = self.package_path(package_name);
 
         let obj_ref = iota_test_transaction_builder::publish_package(
@@ -155,8 +154,8 @@ impl TreeShakingTest {
     async fn upgrade_package(
         &mut self,
         package_name: &str,
-        upgrade_capability: ObjectID,
-    ) -> Result<ObjectID, anyhow::Error> {
+        upgrade_capability: ObjectId,
+    ) -> Result<ObjectId, anyhow::Error> {
         let mut build_config = BuildConfig::new_for_testing().config;
         build_config.lock_file = Some(self.package_path(package_name).join("Move.lock"));
         let resp = IotaClientCommands::Upgrade {
@@ -194,7 +193,7 @@ impl TreeShakingTest {
         Ok(package_a_v1.object_id())
     }
 
-    async fn fetch_linkage_table(&self, pkg: ObjectID) -> BTreeMap<ObjectID, UpgradeInfo> {
+    async fn fetch_linkage_table(&self, pkg: ObjectId) -> BTreeMap<ObjectId, UpgradeInfo> {
         let move_pkg = fetch_move_packages(&self.client, vec![pkg]).await;
         move_pkg.first().unwrap().linkage_table().clone()
     }
@@ -207,9 +206,9 @@ async fn publish_package(
     package_path: PathBuf,
     context: &mut WalletContext,
     rgp: u64,
-    gas_obj_id: ObjectID,
+    gas_obj_id: ObjectId,
     with_unpublished_dependencies: bool,
-) -> Result<(ObjectID, ObjectID), anyhow::Error> {
+) -> Result<(ObjectId, ObjectId), anyhow::Error> {
     let mut build_config = BuildConfig::new_for_testing().config;
     let move_lock_path = package_path.clone().join("Move.lock");
     build_config.lock_file = Some(move_lock_path.clone());
@@ -294,7 +293,7 @@ fn isolate_test_package(src_pkg: &Path) -> (TempDir, PathBuf) {
 /// Fetch move packages based on the provided package IDs.
 pub async fn fetch_move_packages(
     client: &IotaClient,
-    package_ids: Vec<ObjectID>,
+    package_ids: Vec<ObjectId>,
 ) -> Vec<MovePackage> {
     let objects = client
         .read_api()
@@ -323,8 +322,8 @@ pub async fn fetch_move_packages(
 /// deps.
 fn add_ids_to_manifest(
     package_path: &Path,
-    published_at_id: &ObjectID,
-    address_id: Option<ObjectID>,
+    published_at_id: &ObjectId,
+    address_id: Option<ObjectId>,
 ) -> Result<(), anyhow::Error> {
     let content = std::fs::read_to_string(package_path.join("Move.toml"))?;
     let mut toml: toml::Value = toml::from_str(&content)?;
@@ -642,7 +641,7 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
 
     let object_changes = transaction_response.object_changes.unwrap();
 
-    let upgrade_capabilities: Vec<ObjectID> = object_changes
+    let upgrade_capabilities: Vec<ObjectId> = object_changes
         .iter()
         .filter_map(|c| {
             if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
@@ -750,7 +749,7 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
 async fn publish_package_for_upgrade(
     context: &mut WalletContext,
     package_path: &Path,
-) -> Result<ObjectID, anyhow::Error> {
+) -> Result<ObjectId, anyhow::Error> {
     let publish_ptb_string = format!(
         r#"
         --move-call iota::tx_context::sender
@@ -1269,7 +1268,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     resp.print(true);
 
     // Get the created object
-    let created_obj: ObjectID = if let IotaClientCommandResult::TransactionBlock(resp) = resp {
+    let created_obj: ObjectId = if let IotaClientCommandResult::TransactionBlock(resp) = resp {
         resp.effects
             .unwrap()
             .created()
@@ -1810,7 +1809,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
     let (parent, child) =
         if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
             let created = response.effects.unwrap().created().to_vec();
-            let owners: BTreeSet<ObjectID> = created
+            let owners: BTreeSet<ObjectId> = created
                 .iter()
                 .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
@@ -1948,7 +1947,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
     let (parent, child) =
         if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
             let created = response.effects.unwrap().created().to_vec();
-            let owners: BTreeSet<ObjectID> = created
+            let owners: BTreeSet<ObjectId> = created
                 .iter()
                 .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
@@ -2086,7 +2085,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
     let (parent, child) =
         if let IotaClientCommandResult::TransactionBlock(response) = start_call_result {
             let created = response.effects.unwrap().created().to_vec();
-            let owners: BTreeSet<ObjectID> = created
+            let owners: BTreeSet<ObjectId> = created
                 .iter()
                 .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
@@ -3208,7 +3207,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
 fn test_bug_1078() {
     let read = IotaClientCommandResult::Object(IotaObjectResponse::new_with_error(
         IotaObjectResponseError::NotExists {
-            object_id: ObjectID::random(),
+            object_id: ObjectId::random(),
         },
     ));
     let mut writer = String::new();
@@ -3464,7 +3463,7 @@ fn get_gas_value(o: &IotaObjectData) -> u64 {
     GasCoin::try_from(o).unwrap().value()
 }
 
-async fn get_object(id: ObjectID, context: &WalletContext) -> Option<IotaObjectData> {
+async fn get_object(id: ObjectId, context: &WalletContext) -> Option<IotaObjectData> {
     let client = context.get_client().await.unwrap();
     let response = client
         .read_api()
@@ -3475,7 +3474,7 @@ async fn get_object(id: ObjectID, context: &WalletContext) -> Option<IotaObjectD
 }
 
 async fn get_parsed_object_assert_existence(
-    object_id: ObjectID,
+    object_id: ObjectId,
     context: &WalletContext,
 ) -> IotaObjectData {
     get_object(object_id, context)
@@ -4305,7 +4304,7 @@ async fn key_identity_test() {
     );
 }
 
-fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectID, command: &str) {
+fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectId, command: &str) {
     if let IotaClientCommandResult::DryRun(response) = dry_run {
         assert_eq!(
             *response.effects.status(),
@@ -4466,7 +4465,7 @@ async fn test_cluster_helper() -> (
     TestCluster,
     IotaClient,
     u64,
-    [ObjectID; 3],
+    [ObjectId; 3],
     [KeyIdentity; 2],
     [IotaAddress; 2],
 ) {
@@ -6607,7 +6606,7 @@ async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
 
 /// Publishes a Move-authenticator example package, links its authenticator
 /// function, and funds the resulting shared `Account` object with
-/// `fund_amount` nanos. Returns the shared `Account`'s `ObjectID`, whose bytes
+/// `fund_amount` nanos. Returns the shared `Account`'s `ObjectId`, whose bytes
 /// are the abstract-account address.
 async fn setup_move_authenticator_account(
     context: &mut WalletContext,
@@ -6616,7 +6615,7 @@ async fn setup_move_authenticator_account(
     module: &str,
     function: &str,
     fund_amount: u64,
-) -> Result<ObjectID, anyhow::Error> {
+) -> Result<ObjectId, anyhow::Error> {
     let client = context.get_client().await?;
     let gas_obj_id = client
         .coin_read_api()
@@ -7067,6 +7066,146 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
     assert!(
         effects.status().is_ok(),
         "Sponsored tx with MoveAuthenticator sender and sponsor should succeed: {:?}",
+        effects.status()
+    );
+    let tx_block = tx.transaction.as_ref().expect("transaction block");
+    assert_eq!(tx_block.data.sender(), &IotaAddress::from(sender_aa));
+    assert_eq!(
+        tx_block.data.gas_data().owner,
+        IotaAddress::from(sponsor_aa)
+    );
+
+    Ok(())
+}
+
+/// Tests that the CLI can sign for an abstract account whose authenticator
+/// function takes no user-facing inputs, without supplying `--auth-call-args`
+/// or `--auth-type-args`.
+#[sim_test]
+async fn test_move_authenticator_no_user_args() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let sender_address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    // Bind the AA to `account::authenticate_no_args`, which has no
+    // user-facing parameters (only `&Account`, `&AuthContext`, `&TxContext`).
+    let account_address = setup_move_authenticator_account(
+        context,
+        sender_address,
+        "examples/move/account",
+        "account",
+        "authenticate_no_args",
+        2_000_000_000,
+    )
+    .await?;
+
+    // Switch to the AA so subsequent commands treat it as the active address.
+    IotaClientCommands::Switch {
+        address: Some(IotaAddress::from(account_address).into()),
+        env: None,
+    }
+    .execute(context)
+    .await?;
+
+    // Submit a PTB with NO `--auth-call-args` / `--auth-type-args`.
+    let ptb_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[1]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{account_address}"),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+    assert!(matches!(
+        ptb_resp,
+        IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
+    ));
+
+    Ok(())
+}
+
+/// Tests that the CLI can submit a sponsored transaction where the sender is
+/// an abstract account with a 1-argument authenticator and the sponsor is an
+/// abstract account whose authenticator takes no user-facing inputs: passing
+/// `--auth-call-args` for the sender but omitting `--sponsor-auth-call-args`
+/// entirely.
+#[sim_test]
+async fn test_move_authenticator_sender_and_sponsor_no_sponsor_args() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let publisher = test_cluster.get_address_0();
+    let recipient = test_cluster.get_address_1();
+    let context = &mut test_cluster.wallet;
+
+    // Sender AA: authenticator requires the literal "hello" as its only user arg.
+    let sender_aa = setup_move_authenticator_account(
+        context,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate",
+        2_000_000_000,
+    )
+    .await?;
+
+    // Sponsor AA: authenticator takes no user-facing args.
+    let sponsor_aa = setup_move_authenticator_account(
+        context,
+        publisher,
+        "examples/move/account",
+        "account",
+        "authenticate_no_args",
+        2_000_000_000,
+    )
+    .await?;
+    assert_ne!(sender_aa, sponsor_aa);
+
+    // Sponsored PTB splitting a nano off the sponsor's gas and transferring it
+    // to `recipient`. Sender is authenticated via `--auth-call-args hello`;
+    // sponsor has no user-facing inputs, so `--sponsor-auth-call-args` is
+    // omitted and the CLI must still route the sponsor through the
+    // `MoveAuthenticator` path with an empty call-args vector.
+    let ptb_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[1]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{recipient}"),
+            "--sender".to_string(),
+            format!("@{sender_aa}"),
+            "--gas-sponsor".to_string(),
+            format!("@{sponsor_aa}"),
+            "--auth-call-args".to_string(),
+            "hello".to_string(),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+
+    let IotaClientCommandResult::TransactionBlock(tx) = ptb_resp else {
+        panic!("Expected TransactionBlock result, got {ptb_resp:?}");
+    };
+    let effects = tx.effects.as_ref().unwrap();
+    assert!(
+        effects.status().is_ok(),
+        "Sponsored tx with a no-user-args sponsor authenticator should succeed: {:?}",
         effects.status()
     );
     let tx_block = tx.transaction.as_ref().expect("transaction block");

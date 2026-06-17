@@ -12,9 +12,10 @@ use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     global_state_hasher::GlobalStateHasher,
 };
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::ObjectID, global_state_hash::GlobalStateHash,
-    messages_checkpoint::ECMHLiveObjectSetDigest, object::Object,
+    global_state_hash::GlobalStateHash, messages_checkpoint::ECMHLiveObjectSetDigest,
+    object::Object,
 };
 
 use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1};
@@ -23,7 +24,7 @@ pub fn insert_keys(
     db: &AuthorityPerpetualTables,
     total_unique_object_ids: u64,
 ) -> Result<(), anyhow::Error> {
-    let mut id = ObjectID::ZERO;
+    let mut id = ObjectId::ZERO;
     for _ in 0..total_unique_object_ids {
         let object = Object::immutable_with_id_for_testing(id);
         db.insert_object_test_only(object)?;

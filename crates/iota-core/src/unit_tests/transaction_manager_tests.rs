@@ -4,13 +4,13 @@
 
 use std::{time::Duration, vec};
 
+use iota_sdk_types::{ObjectId, Owner, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     crypto::deterministic_random_account_key,
     executable_transaction::VerifiedExecutableTransaction,
-    messages_consensus::VersionAssignment,
-    object::{Object, Owner},
+    object::Object,
     storage::InputKey,
     transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
 };
@@ -49,7 +49,7 @@ fn make_transaction(gas_object: Object, input: Vec<CallArg>) -> VerifiedExecutab
     let (sender, keypair) = deterministic_random_account_key();
     let transaction =
         TestTransactionBuilder::new(sender, gas_object.compute_object_reference(), rgp)
-            .move_call(ObjectID::FRAMEWORK, "counter", "assert_value", input)
+            .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", input)
             .build_and_sign(&keypair);
     VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(transaction), 0)
 }
@@ -70,7 +70,7 @@ async fn transaction_manager_basics() {
     let (owner, _keypair) = deterministic_random_account_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             Object::with_id_owner_for_testing(gas_object_id, owner)
         })
         .collect();
@@ -124,7 +124,7 @@ async fn transaction_manager_basics() {
 
     // Enqueue a transaction with a new gas object, empty input.
     let gas_object_new = Object::with_id_owner_version_for_testing(
-        ObjectID::random(),
+        ObjectId::random(),
         0.into(),
         Owner::Address(owner),
     );
@@ -202,7 +202,7 @@ async fn transaction_manager_object_dependency() {
     let (owner, _keypair) = deterministic_random_account_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             Object::with_id_owner_for_testing(gas_object_id, owner)
         })
         .collect();
@@ -365,7 +365,7 @@ async fn transaction_manager_receiving_notify_commit() {
     let (owner, _keypair) = deterministic_random_account_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             Object::with_id_owner_for_testing(gas_object_id, owner)
         })
         .collect();
@@ -379,7 +379,7 @@ async fn transaction_manager_receiving_notify_commit() {
     // TM should be empty at the beginning.
     transaction_manager.check_empty_for_testing();
 
-    let obj_id = ObjectID::random();
+    let obj_id = ObjectId::random();
     let object_arguments: Vec<_> = (0..10)
         .map(|i| {
             let object =
@@ -458,7 +458,7 @@ async fn transaction_manager_receiving_object_ready_notifications() {
     let (owner, _keypair) = deterministic_random_account_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             Object::with_id_owner_for_testing(gas_object_id, owner)
         })
         .collect();
@@ -472,7 +472,7 @@ async fn transaction_manager_receiving_object_ready_notifications() {
     // TM should be empty at the beginning.
     transaction_manager.check_empty_for_testing();
 
-    let obj_id = ObjectID::random();
+    let obj_id = ObjectId::random();
     let receiving_object_new0 =
         Object::with_id_owner_version_for_testing(obj_id, 0.into(), Owner::Address(owner));
     let receiving_object_new1 =
@@ -542,7 +542,7 @@ async fn transaction_manager_receiving_object_ready_notifications_multiple_of_sa
     let (owner, _keypair) = deterministic_random_account_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             Object::with_id_owner_for_testing(gas_object_id, owner)
         })
         .collect();
@@ -556,7 +556,7 @@ async fn transaction_manager_receiving_object_ready_notifications_multiple_of_sa
     // TM should be empty at the beginning.
     transaction_manager.check_empty_for_testing();
 
-    let obj_id = ObjectID::random();
+    let obj_id = ObjectId::random();
     let receiving_object_new0 =
         Object::with_id_owner_version_for_testing(obj_id, 0.into(), Owner::Address(owner));
     let receiving_object_new1 =
@@ -647,12 +647,12 @@ async fn transaction_manager_receiving_object_ready_if_current_version_greater()
     let (owner, _keypair) = deterministic_random_account_key();
     let mut gas_objects: Vec<Object> = (0..10)
         .map(|_| {
-            let gas_object_id = ObjectID::random();
+            let gas_object_id = ObjectId::random();
             Object::with_id_owner_for_testing(gas_object_id, owner)
         })
         .collect();
     let receiving_object = Object::with_id_owner_version_for_testing(
-        ObjectID::random(),
+        ObjectId::random(),
         10.into(),
         Owner::Address(owner),
     );
@@ -717,10 +717,10 @@ async fn transaction_manager_receiving_object_ready_if_current_version_greater()
 async fn transaction_manager_with_cancelled_transactions() {
     // Initialize an authority state, with gas objects and 3 shared objects.
     let (owner, _keypair) = deterministic_random_account_key();
-    let gas_object = Object::with_id_owner_for_testing(ObjectID::random(), owner);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let shared_object_1 = Object::shared_for_testing();
     let shared_object_2 = Object::shared_for_testing();
-    let owned_object = Object::with_id_owner_for_testing(ObjectID::random(), owner);
+    let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
 
     let state = init_state_with_objects(vec![
         gas_object.clone(),

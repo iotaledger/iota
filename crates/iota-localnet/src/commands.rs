@@ -705,7 +705,7 @@ async fn start(
             true,
             None,
             fullnode_grpc_url.clone(),
-            IndexerTypeConfig::writer_mode(None, None),
+            IndexerTypeConfig::writer_mode(None),
             data_ingestion_dir.clone(),
         )
         .await;

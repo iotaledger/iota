@@ -10,10 +10,10 @@
 // 3  | 5
 // 4  | 6
 // 5  | 7
-// Then have objects snapshot processor update `objects_snapshot` so that the available range is between checkpoints 7 and 11.
-// The object should still be accessible through point lookups at all versions.
+// The object should still be accessible through point lookups at all versions
+// inside the available consistent range.
 
-//# init --protocol-version 4 --addresses Test=0x0 --accounts A --simulator --objects-snapshot-min-checkpoint-lag 5
+//# init --protocol-version 4 --addresses Test=0x0 --accounts A --simulator
 
 //# publish
 module Test::M1 {

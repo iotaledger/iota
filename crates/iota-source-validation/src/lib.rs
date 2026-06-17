@@ -11,7 +11,8 @@ use iota_sdk::{
     error::Error as SdkError,
     rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMovePackage},
 };
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::IotaAddress;
 use move_binary_format::CompiledModule;
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_symbol_pool::Symbol;
@@ -415,7 +416,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
     async fn pkg_for_address(&self, addr: IotaAddress) -> Result<IotaRawMovePackage, Error> {
         // Move packages are specified with an AccountAddress, but are
         // fetched from a iota network via iota_getObject, which takes an object ID
-        let obj_id = ObjectID::new(addr.into_bytes());
+        let obj_id = ObjectId::new(addr.into_bytes());
 
         // fetch the IOTA object at the address specified for the package in the local
         // resolution table if future packages with a large set of dependency

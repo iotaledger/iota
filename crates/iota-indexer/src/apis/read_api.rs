@@ -15,8 +15,9 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::ObjectId;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::SequenceNumber,
     digests::{ChainIdentifier, TransactionDigest},
     iota_serde::BigInt,
     object::{ObjectRead, PastObjectRead},
@@ -191,7 +192,7 @@ impl ReadApi {
 impl ReadApiServer for ReadApi {
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
         let object_read = self
@@ -204,7 +205,7 @@ impl ReadApiServer for ReadApi {
 
     async fn multi_get_objects(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>> {
         if object_ids.len() > *QUERY_MAX_RESULT_LIMIT {
@@ -219,18 +220,18 @@ impl ReadApiServer for ReadApi {
             .multi_get_objects_in_blocking_task(object_ids.clone())
             .await?;
 
-        // Map the returned `StoredObject`s to `ObjectID`
-        let object_map: Arc<HashMap<ObjectID, StoredObject>> = Arc::new(
+        // Map the returned `StoredObject`s to `ObjectId`
+        let object_map: Arc<HashMap<ObjectId, StoredObject>> = Arc::new(
             stored_objects
                 .into_iter()
                 .map(|obj| {
-                    let object_id = ObjectID::from_bytes(obj.object_id.clone()).map_err(|_| {
+                    let object_id = ObjectId::from_bytes(obj.object_id.clone()).map_err(|_| {
                         IndexerError::PersistentStorageDataCorruption(format!(
-                            "failed to parse ObjectID: {:?}",
+                            "failed to parse ObjectId: {:?}",
                             obj.object_id
                         ))
                     })?;
-                    Ok::<(ObjectID, StoredObject), IndexerError>((object_id, obj))
+                    Ok::<(ObjectId, StoredObject), IndexerError>((object_id, obj))
                 })
                 .collect::<Result<_, IndexerError>>()?,
         );
@@ -315,7 +316,7 @@ impl ReadApiServer for ReadApi {
 
     async fn try_get_past_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
@@ -330,7 +331,7 @@ impl ReadApiServer for ReadApi {
 
     async fn try_get_object_before_version(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self

@@ -1,10 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::ObjectID,
     committee::EpochId,
     error::IotaError,
     governance::StakedIota,
@@ -27,12 +27,12 @@ pub struct TimelockedStakedIota {
 
 impl TimelockedStakedIota {
     /// Get the TimelockedStakedIota's `id`.
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         self.id.id.bytes
     }
 
     /// Get the wrapped StakedIota's `pool_id`.
-    pub fn pool_id(&self) -> ObjectID {
+    pub fn pool_id(&self) -> ObjectId {
         self.staked_iota.pool_id()
     }
 

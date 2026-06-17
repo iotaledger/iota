@@ -1,15 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TransactionDigest, TypeTag,
-    },
+    base_types::{IotaAddress, ObjectRef, TransactionDigest},
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
-    object::{Data, Object, Owner},
+    object::{Data, Object},
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
@@ -24,9 +23,17 @@ pub enum AuthenticatorFunctionRef {
     V1(AuthenticatorFunctionRefV1),
 }
 
+impl From<AuthenticatorFunctionRef> for Option<AuthenticatorFunctionRefV1> {
+    fn from(authenticator_function_ref: AuthenticatorFunctionRef) -> Self {
+        match authenticator_function_ref {
+            AuthenticatorFunctionRef::V1(v1) => Some(v1),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefV1 {
-    pub package: ObjectID,
+    pub package: ObjectId,
     pub module: String,
     pub function: String,
 }
@@ -78,7 +85,7 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefForExecution {
     pub authenticator_function_ref: AuthenticatorFunctionRef,
-    pub loaded_object_id: ObjectID,
+    pub loaded_object_id: ObjectId,
     pub loaded_object_metadata: DynamicallyLoadedObjectMetadata,
 }
 
@@ -103,3 +110,27 @@ impl AuthenticatorFunctionRefForExecution {
         }
     }
 }
+
+/// Extracts the sender's and sponsor's [`AuthenticatorFunctionRef`] by calling
+/// `find_ref` for `sender` and, when the gas owner differs, for `gas_owner`.
+pub fn extract_auth_fun_refs(
+    sender: IotaAddress,
+    gas_owner: IotaAddress,
+    find_ref: impl Fn(IotaAddress) -> Option<AuthenticatorFunctionRef>,
+) -> (
+    Option<AuthenticatorFunctionRef>,
+    Option<AuthenticatorFunctionRef>,
+) {
+    (
+        find_ref(sender),
+        if gas_owner != sender {
+            find_ref(gas_owner)
+        } else {
+            None
+        },
+    )
+}
+
+#[cfg(test)]
+#[path = "../unit_tests/authenticator_function_tests.rs"]
+mod authenticator_function_tests;

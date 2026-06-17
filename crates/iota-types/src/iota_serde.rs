@@ -11,6 +11,7 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{StructTag, TypeTag};
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},
@@ -18,10 +19,7 @@ use serde::{
 };
 use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
-use crate::{
-    base_types::{IotaAddress, StructTag, TypeTag},
-    parse_iota_struct_tag, parse_iota_type_tag,
-};
+use crate::{base_types::IotaAddress, parse_iota_struct_tag, parse_iota_type_tag};
 
 #[inline]
 pub(crate) fn to_custom_deser_error<'de, D, E>(e: E) -> D::Error
@@ -139,7 +137,7 @@ pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error
     Ok(f)
 }
 
-fn to_iota_type_tag_string(value: &TypeTag) -> Result<String, fmt::Error> {
+pub fn to_iota_type_tag_string(value: &TypeTag) -> Result<String, fmt::Error> {
     match value {
         TypeTag::Vector(t) => Ok(format!("vector<{}>", to_iota_type_tag_string(t)?)),
         TypeTag::Struct(s) => to_iota_struct_tag_string(s),
