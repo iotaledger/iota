@@ -56,20 +56,16 @@ update_rev() {
     sed_inplace "/${crate}/s/rev = \"[^\"]*\"/rev = \"$NEW_REV\"/" "$file"
 }
 
-# Update both iota-sdk-types and iota-sdk-crypto in the given Cargo.toml.
+# Update iota-sdk in the given Cargo.toml.
 update_file() {
     local file="$1"
-    update_rev iota-sdk-types "$file"
-    update_rev iota-sdk-crypto "$file"
-    update_rev iota-sdk-grpc-types "$file"
-    update_rev iota-sdk-grpc-client "$file"
+    update_rev iota-sdk-ext "$file"
 }
 
 echo "New rev: $NEW_REV"
 echo "Updating Cargo.toml files..."
 
 update_file Cargo.toml
-update_file crates/iota-genesis-builder/Cargo.toml
 update_file examples/tic-tac-toe/cli/Cargo.toml
 update_file docs/examples/rust/Cargo.toml
 
@@ -79,7 +75,7 @@ echo "Updating Cargo.lock for workspace..."
 run_with_timeout 5 cargo check
 
 echo "Updating Cargo.lock for docs/examples/rust..."
-cd docs/examples/rust
+cd docs/examples/rust || exit 1
 run_with_timeout 5 cargo check
 cd ../../..
 
