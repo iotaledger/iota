@@ -909,7 +909,8 @@ pub(crate) mod tests {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         let mut block_receiver = signal_receivers.block_broadcast_receiver();
