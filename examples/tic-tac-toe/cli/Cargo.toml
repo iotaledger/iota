@@ -23,3 +23,8 @@ iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "4e685468c6e589f2701f4ffd64699f60c430f6da" }
 iota-types = { path = "../../../crates/iota-types" }
+
+[package.metadata.cargo-machete]
+ignored = [
+  "time", # declared only to pin the version of a transitive dep (see above)
+]
