@@ -244,9 +244,8 @@ impl ScoringSubdag {
 
 /// Walks `[c_minus_2, c_minus_1, c]` in order, returning every commit up to and
 /// **including** the first whose leader round is strictly greater than `upper`.
-/// If none exceed `upper`, returns all three — this only happens if the caller
-/// supplied commits that violate the strictly-increasing-leader-rounds
-/// invariant, in which case the contribution will degrade gracefully to zeros.
+/// Callers pass strictly increasing leader rounds, so the scan always stops on
+/// a commit above `upper` rather than running off the end.
 fn scan_until_leader_round_above<'a>(
     c_minus_2: &'a SubDagBase,
     c_minus_1: &'a SubDagBase,
@@ -277,9 +276,8 @@ fn scan_until_leader_round_above<'a>(
 /// window, `contribution[A] = 0`.
 ///
 /// Assumes consecutive commits have strictly increasing leader rounds
-/// (`c_minus_3 < c_minus_2 < c_minus_1 < c`). The schedule that drives this
-/// function maintains this invariant by construction. If it is violated, the
-/// function returns degraded scores (typically all zeros) rather than crashing.
+/// (`c_minus_3 < c_minus_2 < c_minus_1 < c`), which the driving schedule
+/// maintains by construction.
 pub(crate) fn compute_per_commit_contribution(
     context: &Context,
     c_minus_3: &SubDagBase,
