@@ -45,7 +45,7 @@ use iota_types::{
     base_types::ObjectRef,
     crypto::SignatureScheme,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::MoveAuthenticatorV1,
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -2351,13 +2351,14 @@ fn make_move_authenticator(
     account_ref: ObjectRef,
     extra_args: Vec<CallArg>,
 ) -> anyhow::Result<GenericSignature> {
-    let self_call_arg = CallArg::Shared(SharedObjectRef {
-        object_id: account_ref.object_id,
-        initial_shared_version: account_ref.version,
-        mutable: false,
-    });
     Ok(GenericSignature::MoveAuthenticator(
-        MoveAuthenticator::new_v1(extra_args, vec![], self_call_arg),
+        MoveAuthenticatorV1::new_shared(
+            extra_args,
+            vec![],
+            account_ref.object_id,
+            account_ref.version,
+        )
+        .into(),
     ))
 }
 

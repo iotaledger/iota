@@ -33,9 +33,9 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Argument, Command, Event, ExecutionStatus, Identifier, ObjectData, ObjectId,
-    ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag, gas::GasCostSummary,
-    move_package::MovePackage,
+    Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
+    ObjectData, ObjectId, ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag,
+    gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -51,7 +51,6 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
-    move_authenticator::MoveAuthenticator,
     move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -1412,25 +1411,31 @@ impl IotaTestAdapter {
             .next()
             .ok_or_else(|| anyhow::anyhow!("Missing account for MoveAuthenticator"))?;
         let aa_call_arg = aa_arg.into_call_arg(self)?;
-        let aa_id = match &aa_call_arg {
-            CallArg::ImmutableOrOwned(obj_ref) => obj_ref.object_id,
-            CallArg::Shared(shared) => shared.object_id,
-            CallArg::Pure(_) | CallArg::Receiving(_) => {
-                return Err(anyhow::anyhow!(
-                    "abstract: account must be an object representing the abstract account"
-                ));
-            }
-            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
-        };
 
-        Ok((
-            aa_id,
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-                auth_inputs,
-                vec![],
-                aa_call_arg,
+        match &aa_call_arg {
+            CallArg::ImmutableOrOwned(obj_ref) => Ok((
+                obj_ref.object_id,
+                GenericSignature::MoveAuthenticator(
+                    MoveAuthenticatorV1::new_immutable(auth_inputs, vec![], obj_ref.clone()).into(),
+                ),
             )),
-        ))
+            CallArg::Shared(shared) => Ok((
+                shared.object_id,
+                GenericSignature::MoveAuthenticator(
+                    MoveAuthenticatorV1::new_shared(
+                        auth_inputs,
+                        vec![],
+                        shared.object_id,
+                        shared.initial_shared_version,
+                    )
+                    .into(),
+                ),
+            )),
+            CallArg::Pure(_) | CallArg::Receiving(_) => Err(anyhow::anyhow!(
+                "abstract: account must be an object representing the abstract account"
+            )),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
+        }
     }
 
     fn named_variables(&self) -> BTreeMap<String, String> {
