@@ -2940,10 +2940,12 @@ impl ProtocolConfig {
                     // fresh inbound traffic -- e.g. after a validator restart -- instead of
                     // staying pending forever and blocking epoch close.
                     cfg.feature_flags.always_advance_dkg_to_resolution = true;
-                    // Publish package metadata with the module metadata stored as a
-                    // dynamic field.
-                    cfg.feature_flags
-                        .package_metadata_with_dynamic_module_metadata = true;
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
