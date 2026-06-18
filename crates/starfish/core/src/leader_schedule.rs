@@ -1090,6 +1090,61 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_update_leader_schedule_sliding_window() {
+        let mut context = Context::new_for_test(4).0;
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
+        let context = Arc::new(context);
+        let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=9).build();
+        let commits = dag_builder
+            .get_sub_dag_and_commits(1..=9)
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        // Feed the first 6 commits, then rebuild: scores come from the sliding
+        // window (commits 1..=3 are scored, given the 3-commit lookback), not from
+        // a ScoringSubdag snapshot.
+        leader_schedule.feed_committed_subdags(commits[..6].iter().map(|(s, _)| s.base.clone()));
+        {
+            let mut ds = dag_state.write();
+            ds.set_last_commit(commits[5].1.clone());
+            leader_schedule.update_leader_schedule(&mut ds);
+        }
+        let range = leader_schedule
+            .leader_swap_table
+            .read()
+            .reputation_scores
+            .commit_range
+            .clone();
+        assert_eq!(range, (1..=3).into());
+
+        // Feed 3 more and rebuild again. The new window range (1..=6) overlaps the
+        // previous one (1..=3) — V2's range_validation would reject that, so this
+        // not panicking confirms the sliding-window path skips it.
+        leader_schedule.feed_committed_subdags(commits[6..].iter().map(|(s, _)| s.base.clone()));
+        {
+            let mut ds = dag_state.write();
+            ds.set_last_commit(commits[8].1.clone());
+            leader_schedule.update_leader_schedule(&mut ds);
+        }
+        let range = leader_schedule
+            .leader_swap_table
+            .read()
+            .reputation_scores
+            .commit_range
+            .clone();
+        assert_eq!(range, (1..=6).into());
+    }
+
+    #[tokio::test]
     async fn test_leader_swap_table() {
         telemetry_subscribers::init_for_testing();
         let context = Arc::new(Context::new_for_test(4).0);
