@@ -7071,3 +7071,167 @@ async fn test_single_authority_reconfigure() {
     state.reconfigure_for_testing().await;
     assert_eq!(state.epoch_store_for_testing().epoch(), 1);
 }
+
+/// Regression test: a deferred transaction must be executed in a later round,
+/// not dropped.
+///
+/// A transaction acquires its owned-object locks when
+/// `validate_and_resolve_conflicts` first processes it in some round; if the
+/// transaction is deferred in that round, it is then reloaded and re-validated
+/// by the same function in a next round. The lock-conflict check used to treat
+/// the transaction's *own* prior-round lock as a conflict and drop it
+/// immediately in the next round, effectively breaking the core logic of the
+/// deferral machinery: a deferred transaction should eventually be executed or
+/// cancelled.
+///
+/// Deferral has more than one trigger (shared-object congestion, randomness not
+/// yet available); this test uses congestion as the lever because it is the
+/// simplest to force deterministically. Two transactions touch the same shared
+/// object in one commit; with a per-commit limit of one transaction per shared
+/// object and zero overshoot, the first executes and the second is deferred,
+/// then must execute in the next round instead of being dropped.
+///
+/// Driving the consensus handler commit-by-commit places both transactions in
+/// the same commit deterministically, independent of the simulator seed.
+#[sim_test]
+async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+
+    // One shared object both transactions contend on, plus a distinct gas coin
+    // each so the only contention is the shared object (congestion), not the gas.
+    let shared_objects = create_shared_objects(1);
+    let gas_objects = create_gas_objects(2, sender);
+
+    // Enable the P-COOL flow (where the bug lived) and force congestion-driven
+    // deferral: count each transaction as one unit of cost, allow only one unit
+    // per shared object per commit, and forbid any overshoot, so the second
+    // transaction touching the shared object in the same commit is deferred.
+    // Allow one deferral round so the deferred transaction has a next round to
+    // execute in, rather than being cancelled.
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(true);
+    protocol_config.set_per_object_congestion_control_mode_for_testing(
+        PerObjectCongestionControlMode::TotalTxCount,
+    );
+    protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+    protocol_config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+    protocol_config.set_max_deferral_rounds_for_congestion_control_for_testing(1);
+
+    let authority = TestAuthorityBuilder::new()
+        .with_reference_gas_price(1000)
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+    let mut genesis_objects = gas_objects.clone();
+    genesis_objects.extend(shared_objects.clone());
+    authority.insert_genesis_objects(&genesis_objects).await;
+
+    // Build two `UserTransactionV1` transactions touching the same shared object,
+    // each paid by a distinct gas coin. The move call is never executed (the
+    // consensus handler only schedules here), so a placeholder `set_value` call
+    // is enough to declare the shared-object input for congestion accounting.
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let make_user_tx = |gas_object: &Object| {
+        let data = TransactionData::new_move_call(
+            sender,
+            ObjectId::FRAMEWORK,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("set_value"),
+            vec![],
+            gas_object.object_ref(),
+            vec![
+                CallArg::Shared(SharedObjectRef::new(
+                    shared_objects[0].id(),
+                    OBJECT_START_VERSION,
+                    true,
+                )),
+                CallArg::Pure(16u64.to_le_bytes().to_vec()),
+            ],
+            rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+            rgp,
+        )
+        .unwrap();
+        let tx = to_sender_signed_transaction(data, &keypair);
+        epoch_store.verify_transaction(tx).unwrap()
+    };
+    let tx1 = make_user_tx(&gas_objects[0]);
+    let tx2 = make_user_tx(&gas_objects[1]);
+    let tx1_digest = *tx1.digest();
+    let tx2_digest = *tx2.digest();
+
+    let seq = |tx: VerifiedTransaction| {
+        SequencedConsensusTransaction::new_test(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+            tracking_id: Default::default(),
+        })
+    };
+    let process = |txns: Vec<SequencedConsensusTransaction>| {
+        let authority = &authority;
+        async move {
+            authority
+                .epoch_store_for_testing()
+                .process_consensus_transactions_for_tests(
+                    txns,
+                    &Arc::new(CheckpointServiceNoop {}),
+                    authority.get_object_cache_reader().as_ref(),
+                    authority.get_transaction_cache_reader().as_ref(),
+                    &authority.metrics,
+                    true,
+                    authority,
+                )
+                .await
+                .unwrap()
+                .iter()
+                .map(|tx| *tx.digest())
+                .collect::<Vec<_>>()
+        }
+    };
+
+    // Round r: both transactions are sequenced in one commit.
+    // `validate_and_resolve_conflicts` sets owned-object (gas) locks for BOTH
+    // before congestion scheduling defers the second one.
+    let scheduled_r = process(vec![seq(tx1), seq(tx2)]).await;
+    assert_eq!(
+        scheduled_r,
+        vec![tx1_digest],
+        "only the first transaction executes in round r; the second is deferred"
+    );
+    assert_eq!(
+        authority
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .len(),
+        1,
+        "the second transaction must be deferred, not dropped"
+    );
+
+    // Round r+1: no new transactions. The deferred transaction is reloaded and
+    // re-validated, where it finds its OWN gas-coin lock from round r. With the
+    // self-exemption it survives and executes; without it, it is dropped as
+    // `ObjectLockConflict` and never executes.
+    let scheduled_r1 = process(vec![]).await;
+    assert_eq!(
+        scheduled_r1,
+        vec![tx2_digest],
+        "the deferred transaction must be executed in the next round, not dropped"
+    );
+    assert!(
+        authority
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .is_empty(),
+        "no transaction should remain deferred"
+    );
+    assert_eq!(
+        authority
+            .metrics
+            .consensus_handler_validation_dropped_transactions
+            .get(),
+        0,
+        "no transaction should be dropped during post-consensus validation"
+    );
+}
