@@ -583,7 +583,7 @@ async fn test_per_object_overload() {
     let mut message = String::new();
     for _ in 0..200 {
         let res = authorities[3]
-            .transaction_manager()
+            .execution_scheduler()
             .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
         message = format!("{res:?}");
         if message.contains("TooManyTransactionsPendingOnObject") {
@@ -713,7 +713,7 @@ async fn test_txn_age_overload() {
         )
         .build_and_sign(&key);
     let res = authorities[3]
-        .transaction_manager()
+        .execution_scheduler()
         .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
     let message = format!("{res:?}");
     assert!(

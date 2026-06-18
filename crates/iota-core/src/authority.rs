@@ -863,8 +863,8 @@ pub struct AuthorityState {
 
     committee_store: Arc<CommitteeStore>,
 
-    /// Manages pending transactions and their missing input objects.
-    transaction_manager: Arc<ExecutionSchedulerWrapper>,
+    /// Schedules transaction execution.
+    execution_scheduler: Arc<ExecutionSchedulerWrapper>,
 
     /// Shuts down the execution task. Used only in testing.
     #[cfg_attr(not(test), expect(unused))]
@@ -1252,7 +1252,7 @@ impl AuthorityState {
                     self.update_overload_metrics("execution_queue");
                 })?;
             }
-            self.transaction_manager
+            self.execution_scheduler
                 .check_execution_overload(self.overload_config(), tx_data)
                 .tap_err(|_| {
                     self.update_overload_metrics("execution_pending");
@@ -1741,11 +1741,14 @@ impl AuthorityState {
         // `commit_transaction()` finished, the tx is fully committed to the store.
         tx_guard.commit_tx();
 
-        // Notifies transaction manager about transaction and output objects committed.
-        // This provides necessary information to transaction manager to start executing
-        // additional ready transactions.
-        if let ExecutionSchedulerWrapper::TransactionManager(tm) = &*self.transaction_manager {
-            tm.notify_commit(tx_digest, output_keys, epoch_store);
+        match self.execution_scheduler.as_ref() {
+            ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
+            ExecutionSchedulerWrapper::TransactionManager(tm) => {
+                // Notifies transaction manager about transaction and output objects committed.
+                // This provides necessary information to transaction manager to start executing
+                // additional ready transactions.
+                tm.notify_commit(tx_digest, output_keys, epoch_store);
+            }
         }
 
         self.update_metrics(transaction, input_object_count, shared_object_count);
@@ -3279,7 +3282,7 @@ impl AuthorityState {
 
         let metrics = Arc::new(AuthorityMetrics::new(prometheus_registry));
         let (tx_ready_transactions, rx_ready_transactions) = unbounded_channel();
-        let transaction_manager = Arc::new(ExecutionSchedulerWrapper::new(
+        let execution_scheduler = Arc::new(ExecutionSchedulerWrapper::new(
             execution_cache_trait_pointers.object_cache_reader.clone(),
             execution_cache_trait_pointers
                 .transaction_cache_reader
@@ -3340,7 +3343,7 @@ impl AuthorityState {
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
             committee_store,
-            transaction_manager,
+            execution_scheduler,
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
             _pruner,
@@ -3448,14 +3451,14 @@ impl AuthorityState {
         .await
     }
 
-    pub fn transaction_manager(&self) -> &Arc<ExecutionSchedulerWrapper> {
-        &self.transaction_manager
+    pub(crate) fn execution_scheduler(&self) -> &Arc<ExecutionSchedulerWrapper> {
+        &self.execution_scheduler
     }
 
     /// Whether this authority runs the new `ExecutionScheduler` (vs the
     /// `TransactionManager`). Used by tests to assert which is active.
     pub fn uses_execution_scheduler(&self) -> bool {
-        self.transaction_manager.uses_execution_scheduler()
+        self.execution_scheduler.uses_execution_scheduler()
     }
 
     /// Adds transactions / certificates to transaction manager for ordered
@@ -3465,7 +3468,7 @@ impl AuthorityState {
         transactions: Vec<VerifiedExecutableTransaction>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        self.transaction_manager.enqueue(transactions, epoch_store)
+        self.execution_scheduler.enqueue(transactions, epoch_store)
     }
 
     /// Adds certificates to transaction manager for ordered execution.
@@ -3474,16 +3477,16 @@ impl AuthorityState {
         certs: Vec<VerifiedCertificate>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        self.transaction_manager
+        self.execution_scheduler
             .enqueue_certificates(certs, epoch_store)
     }
 
     pub fn enqueue_with_expected_effects_digest(
         &self,
         transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
-        epoch_store: &AuthorityPerEpochStore,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        self.transaction_manager
+        self.execution_scheduler
             .enqueue_with_expected_effects_digest(transactions, epoch_store)
     }
 
@@ -3692,8 +3695,11 @@ impl AuthorityState {
             )
             .await?;
         assert_eq!(new_epoch_store.epoch(), new_epoch);
-        if let ExecutionSchedulerWrapper::TransactionManager(tm) = &*self.transaction_manager {
-            tm.reconfigure(new_epoch);
+        match self.execution_scheduler.as_ref() {
+            ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
+            ExecutionSchedulerWrapper::TransactionManager(tm) => {
+                tm.reconfigure(new_epoch);
+            }
         }
         *execution_lock = new_epoch;
         // drop execution_lock after epoch store was updated
@@ -3729,8 +3735,11 @@ impl AuthorityState {
                 .unwrap_or_default(),
         );
         let new_epoch = new_epoch_store.epoch();
-        if let ExecutionSchedulerWrapper::TransactionManager(tm) = &*self.transaction_manager {
-            tm.reconfigure(new_epoch);
+        match self.execution_scheduler.as_ref() {
+            ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
+            ExecutionSchedulerWrapper::TransactionManager(tm) => {
+                tm.reconfigure(new_epoch);
+            }
         }
         self.epoch_store.store(new_epoch_store);
         epoch_store.epoch_terminated().await;
@@ -5968,7 +5977,7 @@ impl RandomnessRoundReceiver {
 
         // Send transaction to TransactionManager for execution.
         self.authority_state
-            .transaction_manager()
+            .execution_scheduler()
             .enqueue(vec![transaction], &epoch_store);
 
         let authority_state = self.authority_state.clone();

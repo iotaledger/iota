@@ -19,7 +19,7 @@ use tracing::{info, instrument, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
-    checkpoints::CheckpointServiceNotify, execution_scheduler::ExecutionSchedulerWrapper,
+    checkpoints::CheckpointServiceNotify,
 };
 
 /// Allows verifying the validity of transactions
@@ -27,7 +27,6 @@ use crate::{
 pub struct IotaTxValidator {
     epoch_store: Arc<AuthorityPerEpochStore>,
     checkpoint_service: Arc<dyn CheckpointServiceNotify + Send + Sync>,
-    _transaction_manager: Arc<ExecutionSchedulerWrapper>,
     metrics: Arc<IotaTxValidatorMetrics>,
 }
 
@@ -35,7 +34,6 @@ impl IotaTxValidator {
     pub fn new(
         epoch_store: Arc<AuthorityPerEpochStore>,
         checkpoint_service: Arc<dyn CheckpointServiceNotify + Send + Sync>,
-        transaction_manager: Arc<ExecutionSchedulerWrapper>,
         metrics: Arc<IotaTxValidatorMetrics>,
     ) -> Self {
         info!(
@@ -45,7 +43,6 @@ impl IotaTxValidator {
         Self {
             epoch_store,
             checkpoint_service,
-            _transaction_manager: transaction_manager,
             metrics,
         }
     }
@@ -180,7 +177,7 @@ impl IotaTxValidator {
         // which is unnecessary for owned object transactions.
         // It is unnecessary to write to pending_certificates table because the
         // certs will be written via consensus output.
-        // self.transaction_manager
+        // self.execution_scheduler
         //     .enqueue_certificates(owned_tx_certs, &self.epoch_store)
         //     .wrap_err("Failed to schedule certificates for execution")
     }
@@ -307,7 +304,6 @@ mod tests {
         let validator = IotaTxValidator::new(
             state.epoch_store_for_testing().clone(),
             Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
             metrics,
         );
         let res = validator.verify_batch(&[&first_transaction_bytes]);
@@ -392,7 +388,6 @@ mod tests {
         let validator = IotaTxValidator::new(
             state.epoch_store_for_testing().clone(),
             Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
             metrics,
         );
 

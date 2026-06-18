@@ -1563,7 +1563,6 @@ impl IotaNode {
             let iota_tx_validator = IotaTxValidator::new(
                 epoch_store.clone(),
                 checkpoint_service.clone(),
-                state.transaction_manager().clone(),
                 iota_tx_validator_metrics.clone(),
             );
             let consensus_manager = consensus_manager.clone();

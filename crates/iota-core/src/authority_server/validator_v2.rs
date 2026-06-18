@@ -603,7 +603,7 @@ impl ValidatorService {
             ValidatorHealthResponse {
                 num_inflight_execution_transactions: self
                     .state
-                    .transaction_manager()
+                    .execution_scheduler()
                     .num_pending_certificates()
                     as u64,
                 num_inflight_consensus_transactions: self

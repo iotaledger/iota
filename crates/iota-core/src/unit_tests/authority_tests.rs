@@ -91,6 +91,7 @@ use crate::{
     },
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
+    execution_scheduler::ExecutionSchedulerAPI,
     test_utils::{init_state_parameters_from_rng, make_transfer_object_transaction},
     transaction_input_loader::TransactionInputLoader,
 };
@@ -6840,9 +6841,9 @@ async fn survivor_executes(use_execution_scheduler: bool) {
 
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let object = authority.get_object(&object_id).await.unwrap();
-    let gas1 = authority.get_object(&gas1_id).await.unwrap();
-    let gas2 = authority.get_object(&gas2_id).await.unwrap();
+    let object = authority.get_object(&object_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let gas2 = authority.get_object(&gas2_id).unwrap();
 
     let verified_tx1 = init_transfer_transaction(
         &authority,
@@ -6916,7 +6917,7 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // production the consensus handler submits through AsyncTransactionScheduler;
     // here we enqueue directly to keep the test focused on the seam.
     authority
-        .transaction_manager()
+        .execution_scheduler()
         .enqueue(executable_txs, &epoch_store);
 
     // The winner's owned input is available, so it must become ready and execute.

@@ -26,7 +26,8 @@ use iota_types::{
 use super::test_authority_builder::TestAuthorityBuilder;
 use crate::{
     authority::AuthorityState, checkpoints::CheckpointServiceNoop,
-    consensus_handler::SequencedConsensusTransaction, global_state_hasher::GlobalStateHasher,
+    consensus_handler::SequencedConsensusTransaction, execution_scheduler::ExecutionSchedulerAPI,
+    global_state_hasher::GlobalStateHasher,
 };
 
 pub async fn send_and_confirm_transaction(
@@ -415,7 +416,7 @@ pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertifica
         .unwrap();
 
     authority
-        .transaction_manager()
+        .execution_scheduler()
         .enqueue(certs, &authority.epoch_store_for_testing());
 }
 
