@@ -903,10 +903,8 @@ impl EpochInfoV2 {
     }
 }
 
-/// Per-epoch entry of the snapshot `EPOCH_INFO` file, also held by
-/// [`EpochInfoV2`] as its `epoch_info_entry`. Every field is anchored to the
-/// certified `last_checkpoint_summary`. `epoch` and `start_checkpoint` are not
-/// stored — they are derived from the signed summaries.
+/// Per-epoch entry of the snapshot `EPOCH_INFO` file. Every field is anchored to the
+/// certified `last_checkpoint_summary`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpochInfoV1Entry {
     /// Certified summary of this epoch's closing checkpoint — the signed
