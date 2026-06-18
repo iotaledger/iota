@@ -88,15 +88,11 @@ public fun package_version(metadata: &PackageMetadataV1): u64 {
 }
 
 /// Borrows the `ModuleMetadata` of the module named `module_name`.
+/// Aborts with `EWrongPackageVersion` if the package has the legacy metadata layout.
 /// Aborts with `EModuleMetadataNotFound` if the package has no metadata for that module.
 public fun module_metadata(self: &PackageMetadataV1, module_name: &ascii::String): &ModuleMetadata {
-    let modules_metadata = dynamic_field::borrow<
-        ModulesMetadataFieldName,
-        VecMap<ModuleName, ModuleMetadata>,
-    >(
-        &self.id,
-        ModulesMetadataFieldName {},
-    );
+    assert!(self.has_package_metadata_version_field(), EWrongPackageVersion);
+    let modules_metadata = self.borrow_modules_metadata();
     let name = ModuleName(*module_name);
     assert!(modules_metadata.contains(&name), EModuleMetadataNotFound);
     let idx = modules_metadata.get_idx(&name);
@@ -153,6 +149,34 @@ public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
 /// Return the name of the authenticate function represented by this metadata
 public fun function_name(self: &AuthenticatorMetadataV1): &ascii::String {
     &self.function_name
+}
+
+/// Returns true iff the metadata uses the dynamic-field layout, i.e. it carries
+/// a package metadata version field. Legacy metadata stores the modules inline
+/// and does not have this field.
+public fun has_package_metadata_version_field(self: &PackageMetadataV1): bool {
+    dynamic_field::exists_<PackageMetadataVersionFieldName>(
+        &self.id,
+        PackageMetadataVersionFieldName {},
+    )
+}
+
+/// Borrows the package metadata version.
+/// Aborts if the metadata uses the legacy layout (see `has_package_metadata_version_field`).
+public fun borrow_package_metadata_version_field(self: &PackageMetadataV1): &u64 {
+    dynamic_field::borrow<PackageMetadataVersionFieldName, u64>(
+        &self.id,
+        PackageMetadataVersionFieldName {},
+    )
+}
+
+/// Borrows the map from module name to `ModuleMetadata`.
+/// Aborts if the metadata uses the legacy layout (see `has_package_metadata_version_field`).
+public fun borrow_modules_metadata(self: &PackageMetadataV1): &VecMap<ModuleName, ModuleMetadata> {
+    dynamic_field::borrow<ModulesMetadataFieldName, VecMap<ModuleName, ModuleMetadata>>(
+        &self.id,
+        ModulesMetadataFieldName {},
+    )
 }
 
 // ===  Private constructors ===
@@ -242,7 +266,7 @@ fun create_modules_metadata(
     assert!(modules.length() == auth_functions.length());
     assert!(modules.length() == type_names.length());
     assert!(modules.length() == view_function_names.length());
-    let mut modules_metadata = vec_map::empty<ModuleName, ModuleMetadata>();
+    let mut modules_metadata = vec_map::empty();
     let mut i = 0;
     while (i < modules.length()) {
         let module_name = modules[i];
@@ -278,21 +302,10 @@ public fun try_get_modules_metadata_v1(
     self: &PackageMetadataV1,
     module_name: &ascii::String,
 ): Option<ModuleMetadataV1> {
-    if (
-        dynamic_field::exists_<PackageMetadataVersionFieldName>(
-            &self.id,
-            PackageMetadataVersionFieldName {},
-        )
-    ) {
-        let package_metadata_version = dynamic_field::borrow<PackageMetadataVersionFieldName, u64>(
-            &self.id,
-            PackageMetadataVersionFieldName {},
-        );
+    if (self.has_package_metadata_version_field()) {
+        let package_metadata_version = self.borrow_package_metadata_version_field();
         assert!(package_metadata_version == 2, EWrongPackageVersion);
-        let modules_metadata = dynamic_field::borrow<
-            ModulesMetadataFieldName,
-            VecMap<ModuleName, ModuleMetadata>,
-        >(&self.id, ModulesMetadataFieldName {});
+        let modules_metadata = self.borrow_modules_metadata();
         let name = ModuleName(*module_name);
         if (!modules_metadata.contains(&name)) {
             return option::none()
@@ -316,16 +329,8 @@ public fun modules_metadata_v1(
     self: &PackageMetadataV1,
     module_name: &ascii::String,
 ): &ModuleMetadataV1 {
-    if (
-        dynamic_field::exists_<PackageMetadataVersionFieldName>(
-            &self.id,
-            PackageMetadataVersionFieldName {},
-        )
-    ) {
-        let package_metadata_version = dynamic_field::borrow<PackageMetadataVersionFieldName, u64>(
-            &self.id,
-            PackageMetadataVersionFieldName {},
-        );
+    if (self.has_package_metadata_version_field()) {
+        let package_metadata_version = self.borrow_package_metadata_version_field();
         assert!(package_metadata_version == 2, EWrongPackageVersion);
         let module_metadata = self.module_metadata(module_name);
         module_metadata.borrow(ModuleMetadataV1FieldName {})
@@ -424,7 +429,7 @@ public fun create_modules_metadata_v1(
 ): VecMap<ascii::String, ModuleMetadataV1> {
     assert!(modules.length() == auth_functions.length());
     assert!(modules.length() == type_names.length());
-    let mut modules_metadata = vec_map::empty<ascii::String, ModuleMetadataV1>();
+    let mut modules_metadata = vec_map::empty();
     let mut i = 0;
     while (i < modules.length()) {
         let module_name = modules[i];

@@ -44,13 +44,13 @@ public fun is_view_function_v1(self: &ModuleMetadata, function_name: &ascii::Str
 }
 
 /// Returns the size of the module_metadata, the number of key-value pairs
-public fun length(module_metadata: &ModuleMetadata): u64 {
-    module_metadata.size
+public fun length(self: &ModuleMetadata): u64 {
+    self.size
 }
 
 /// Returns true iff the module_metadata is empty (if `length` returns `0`)
-public fun is_empty(module_metadata: &ModuleMetadata): bool {
-    module_metadata.size == 0
+public fun is_empty(self: &ModuleMetadata): bool {
+    self.size == 0
 }
 
 // === Public(package) functions ===
@@ -75,11 +75,10 @@ public(package) fun new(package_storage_id: ID, module_name: ascii::String): Mod
 
 /// Records the list of view function names for the module.
 public(package) fun add_view_function_metadata_v1(
-    module_metadata: &mut ModuleMetadata,
+    self: &mut ModuleMetadata,
     view_function_names: vector<ascii::String>,
 ) {
-    add(
-        module_metadata,
+    self.add(
         ViewFunctionMetadataV1FieldName {},
         view_function_names,
     );
@@ -87,56 +86,46 @@ public(package) fun add_view_function_metadata_v1(
 
 /// Adds a key-value pair to the module metadata.
 /// Aborts with `iota::dynamic_field::EFieldAlreadyExists` if an entry for `k` already exists.
-public(package) fun add<K: copy + drop + store, V: store>(
-    module_metadata: &mut ModuleMetadata,
-    k: K,
-    v: V,
-) {
-    field::add(&mut module_metadata.id, k, v);
-    module_metadata.size = module_metadata.size + 1;
+public(package) fun add<K: copy + drop + store, V: store>(self: &mut ModuleMetadata, k: K, v: V) {
+    field::add(&mut self.id, k, v);
+    self.size = self.size + 1;
 }
 
 /// Mutably borrows the value associated with `k`.
 /// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if no entry for `k` exists.
 /// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the value is not of type `V`.
 public(package) fun borrow_mut<K: copy + drop + store, V: store>(
-    module_metadata: &mut ModuleMetadata,
+    self: &mut ModuleMetadata,
     k: K,
 ): &mut V {
-    field::borrow_mut(&mut module_metadata.id, k)
+    field::borrow_mut(&mut self.id, k)
 }
 
 /// Removes the entry for `k` and returns its value.
 /// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if no entry for `k` exists.
 /// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the value is not of type `V`.
-public(package) fun remove<K: copy + drop + store, V: store>(
-    module_metadata: &mut ModuleMetadata,
-    k: K,
-): V {
-    let v = field::remove(&mut module_metadata.id, k);
-    module_metadata.size = module_metadata.size - 1;
+public(package) fun remove<K: copy + drop + store, V: store>(self: &mut ModuleMetadata, k: K): V {
+    let v = field::remove(&mut self.id, k);
+    self.size = self.size - 1;
     v
 }
 
 /// Immutably borrows the value associated with `k`.
 /// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if no entry for `k` exists.
 /// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the value is not of type `V`.
-public(package) fun borrow<K: copy + drop + store, V: store>(
-    module_metadata: &ModuleMetadata,
-    k: K,
-): &V {
-    field::borrow(&module_metadata.id, k)
+public(package) fun borrow<K: copy + drop + store, V: store>(self: &ModuleMetadata, k: K): &V {
+    field::borrow(&self.id, k)
 }
 
 /// Returns true iff there is a value associated with `k`.
-public(package) fun contains<K: copy + drop + store>(module_metadata: &ModuleMetadata, k: K): bool {
-    field::exists_<K>(&module_metadata.id, k)
+public(package) fun contains<K: copy + drop + store>(self: &ModuleMetadata, k: K): bool {
+    field::exists_<K>(&self.id, k)
 }
 
 /// Returns true iff there is a value of type `V` associated with `k`.
 public(package) fun contains_with_type<K: copy + drop + store, V: store>(
-    module_metadata: &ModuleMetadata,
+    self: &ModuleMetadata,
     k: K,
 ): bool {
-    field::exists_with_type<K, V>(&module_metadata.id, k)
+    field::exists_with_type<K, V>(&self.id, k)
 }
