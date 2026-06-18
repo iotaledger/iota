@@ -55,12 +55,12 @@
       ]
     },
 
-    { "type": "row", "title": "attestation — accuracy", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 }, "id": 10, "collapsed": false },
+    { "type": "row", "title": "attestation — accuracy", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 }, "id": 10, "collapsed": false },
     {
       "type": "timeseries", "title": "actual / attested CUs — p50 (1.0 = perfect)",
       "description": "Per-host p50 of actual_to_attested_computation_units_ratio. 1.0 = the attestor's estimate matched actual execution; >1 the attestor under-reported, <1 over-reported. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 44 }, "id": 11,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 61 }, "id": 11,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 0 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -73,7 +73,7 @@
       "type": "timeseries", "title": "actual / attested CUs — p95 (1.0 = perfect)",
       "description": "Per-host p95 of actual_to_attested_computation_units_ratio. 1.0 = the attestor's estimate matched actual execution; >1 the attestor under-reported, <1 over-reported. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 44 }, "id": 13,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 61 }, "id": 13,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 0 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -86,7 +86,7 @@
       "type": "timeseries", "title": "attested vs actual computation units (CUs, p50)",
       "description": "Per-host p50 of attested_computation_units (attestor's pre-consensus estimate) vs actual_computation_units (effects' computation_cost / gas_price), both in gas units (CUs). Gap between a validator's two lines = its estimate error. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 44 }, "id": 12,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 61 }, "id": 12,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -99,12 +99,12 @@
       ]
     },
 
-    { "type": "row", "title": "attestation — overhead", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 }, "id": 20, "collapsed": false },
+    { "type": "row", "title": "attestation — overhead", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 }, "id": 20, "collapsed": false },
     {
       "type": "timeseries", "title": "attestation latency p50 (pre-consensus dry-run)",
       "description": "Per-host p50 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 53 }, "id": 21,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 35 }, "id": 21,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -117,7 +117,7 @@
       "type": "timeseries", "title": "attestation latency p95 (pre-consensus dry-run)",
       "description": "Per-host p95 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 53 }, "id": 24,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 35 }, "id": 24,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -130,7 +130,7 @@
       "type": "timeseries", "title": "attestation latency p99 (pre-consensus dry-run)",
       "description": "Per-host p99 of validator_attestation_latency: time for the pre-consensus attestation dry-run (attest_transaction), one curve per validator. Validators only (fullnodes do not attest). Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 53 }, "id": 25,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 35 }, "id": 25,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -143,7 +143,7 @@
       "type": "timeseries", "title": "attestations / sec",
       "description": "Per-host rate(validator_attestations_total) = attestations completed per second on each validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 }, "id": 22,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 }, "id": 22,
       "fieldConfig": { "defaults": { "unit": "txs/s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -156,7 +156,7 @@
       "type": "stat", "title": "attestation task panics (per validator)",
       "description": "validator_attestation_task_panics per validator (one stat tile per host). Any non-zero value (red) means an attestation dry-run task panicked on that validator - a robustness regression.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 }, "id": 23,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 }, "id": 23,
       "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
       "targets": [
@@ -439,12 +439,12 @@
       ]
     },
 
-    { "type": "row", "title": "queues", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 }, "id": 50, "collapsed": false },
+    { "type": "row", "title": "queues", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 51 }, "id": 50, "collapsed": false },
     {
       "type": "timeseries", "title": "execution dispatch queue",
       "description": "Per-host execution_driver_dispatch_queue: transactions that are ready to execute and queued at the execution driver, waiting for a worker to pick them up. Grows when execution can't keep up with admitted work (backpressure). One curve per validator.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 35 }, "id": 51,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 52 }, "id": 51,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -457,7 +457,7 @@
       "type": "timeseries", "title": "pending transactions (waiting for inputs)",
       "description": "Per-host transaction_manager_num_pending_certificates: transactions in the transaction manager waiting for their input objects to become available (not yet ready to execute). Not draining is a stall/overload signal. One curve per validator.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 35 }, "id": 53,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 52 }, "id": 53,
       "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
@@ -470,7 +470,7 @@
       "type": "timeseries", "title": "execution queueing delay p95",
       "description": "Per-host p95 of execution_queueing_delay_s: delay between a transaction becoming ready and actually starting execution (sampled). Grows when execution workers are saturated. One curve per validator. Rate window: $__rate_interval (~1m).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 35 }, "id": 52,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 52 }, "id": 52,
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [

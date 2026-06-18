@@ -6,9 +6,10 @@
 #   1. cleanup    tear down anything already running (best-effort)
 #   2. bootstrap  -b, regenerate genesis with benchmark gas accounts
 #   3. Run A — V1 attestation OFF (control), owned-object load, TotalTxCount
-#   4. Run B — V2 attestation ON, same load (FULL reset between runs — cleanup +
-#                 re-bootstrap, incl. a fresh Prometheus — so Run B cold-starts
-#                 exactly like Run A; Run A's timeseries is saved beforehand)
+#   4. Run B — V2 attestation ON, same load (network reset between runs — cleanup
+#                 + re-bootstrap of a fresh genesis, so Run B cold-starts like Run
+#                 A; the Prometheus TSDB is PRESERVED so both runs — and prior
+#                 invocations — coexist in Grafana; Run A's JSON is saved first)
 #   then        save each run's window as a raw timeseries JSON (Run A before its
 #               reset), aggregate raw histograms across the same-config runs under
 #               results/h1/ into summary.md, stop + clean the network, and prompt
@@ -170,7 +171,7 @@ wait_for_fullnode() {
 # aggregated summary.md, built from the saved timeseries, is unaffected).
 reset_network() {
   echo "${YELLOW}Tearing everything down and re-bootstrapping a fresh genesis for Run B...${RESET}"
-  echo "  - cleanup/bootstrap output -> $RESULTS_DIR/bootstrap.log"
+  echo "  - cleanup -> $RESULTS_DIR/cleanup.log ; bootstrap -> $RESULTS_DIR/bootstrap.log"
   # NOTE: cleanup.sh brings the monitoring stack down WITHOUT -v, so the
   # Prometheus data volume PERSISTS on purpose — Run A and Run B both stay
   # visible in one Grafana view. The cost: Run B reuses the same validator-N
@@ -179,7 +180,7 @@ reset_network() {
   # scrape window (a reset within the window). dump_timeseries strips that
   # carryforward (reset-aware) so the per-run JSON stays correct. Do NOT add
   # `down -v` here unless you also stop needing the combined A+B Grafana view.
-  sudo "$SCRIPT_DIR/cleanup.sh" >>"$RESULTS_DIR/bootstrap.log" 2>&1 || true
+  sudo "$SCRIPT_DIR/cleanup.sh" >>"$RESULTS_DIR/cleanup.log" 2>&1 || true
   sudo "$SCRIPT_DIR/bootstrap.sh" -b -n "$N" >>"$RESULTS_DIR/bootstrap.log" 2>&1
 }
 
@@ -403,19 +404,22 @@ banner "== H1 [0/5] build stress binary =="
 
 banner "== H1 [1/5] cleanup (in case something is running) =="
 # cleanup/bootstrap are verbose (docker compose + genesis tooling); send their
-# output to bootstrap.log to keep the console readable.
-sudo "$SCRIPT_DIR/cleanup.sh" >>"$RESULTS_DIR/bootstrap.log" 2>&1 || true
-# Start this invocation with an EMPTY Prometheus TSDB (ONCE, here) so stale
-# series from previous invocations don't linger. reset_network between Run A and
-# Run B deliberately does NOT wipe it, so both runs stay visible in one Grafana
-# view; the resulting Run A->Run B counter carryforward into Run B's window is
-# stripped by dump_timeseries (reset-aware), keeping the per-run JSON correct.
-(cd "$REPO_ROOT/dev-tools/grafana-local" && docker compose down -v --remove-orphans) >/dev/null 2>&1 || true
-echo "cleanup/bootstrap output -> $RESULTS_DIR/bootstrap.log"
+# output to cleanup.log / bootstrap.log to keep the console readable.
+# cleanup.sh brings the network AND the monitoring stack down WITHOUT -v (same
+# as reset_network does between Run A and Run B), so the Prometheus TSDB is
+# PRESERVED. We deliberately do NOT `down -v` here: keeping the volume lets this
+# invocation's runs — and those of PREVIOUS invocations — accumulate in one
+# Grafana view, so you can compare many runs over time. Each run reuses the same
+# validator-N series labels, so older (higher) counter values carry forward into
+# the start of a new run's window; dump_timeseries strips that (reset-aware), so
+# every per-run JSON stays correct. To start clean, wipe manually beforehand:
+#   (cd dev-tools/grafana-local && docker compose down -v).
+sudo "$SCRIPT_DIR/cleanup.sh" >>"$RESULTS_DIR/cleanup.log" 2>&1 || true
+echo "cleanup output -> $RESULTS_DIR/cleanup.log"
 
 banner "== H1 [2/5] bootstrap (-b, $N validators) =="
 sudo "$SCRIPT_DIR/bootstrap.sh" -b -n "$N" >>"$RESULTS_DIR/bootstrap.log" 2>&1
-echo "cleanup/bootstrap output -> $RESULTS_DIR/bootstrap.log"
+echo "bootstrap output -> $RESULTS_DIR/bootstrap.log"
 
 banner "== H1 [3/5] Run A — V1 (attestation OFF, control) =="
 MODE=TotalTxCount ATTEST=false \
@@ -515,7 +519,7 @@ echo "  - crash digest: $node_logs/_crashes.txt"
 # cleanup, which leaves the monitoring stack up so both runs stay visible in
 # Grafana. (cd in first: it runs `docker compose down` against the cwd.)
 echo "${YELLOW}Stopping and cleaning the network...${RESET}"
-(cd "$REPO_ROOT/dev-tools/iota-private-network" && sudo ./cleanup.sh) >>"$RESULTS_DIR/bootstrap.log" 2>&1
+(cd "$REPO_ROOT/dev-tools/iota-private-network" && sudo ./cleanup.sh) >>"$RESULTS_DIR/cleanup.log" 2>&1
 echo "  - Network stopped and cleaned. Monitoring is still up — both runs visible:"
 echo "${CYAN}    - Grafana: http://localhost:3000/d/attestation-sequencer-stress${RESET}"
 echo
