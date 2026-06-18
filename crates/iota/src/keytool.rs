@@ -552,7 +552,7 @@ impl KeyToolCommand {
                                 serde_json::to_string(&arg).unwrap_or_else(|_| format!("{arg:?}"))
                             })
                             .collect();
-                        let type_arguments = serde_json::to_value(move_auth.type_arguments())
+                        let type_arguments = serde_json::to_value(move_auth.type_args())
                             .map_err(|e| anyhow!("Failed to serialize type_arguments: {e}"))?;
                         let object_to_authenticate = serde_json::to_value(
                             move_auth.object_to_authenticate(),

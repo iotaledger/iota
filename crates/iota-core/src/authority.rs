@@ -111,7 +111,7 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{
         MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
@@ -981,9 +981,7 @@ impl AuthorityState {
                 move_authenticators
                     .iter()
                     .zip(per_authenticator_checked_inputs.iter())
-                    .find(|(move_authenticator, _)| {
-                        move_authenticator.address().ok().as_ref() == Some(&address)
-                    })
+                    .find(|(move_authenticator, _)| move_authenticator.address() == address)
                     .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
             });
 
@@ -1803,7 +1801,7 @@ impl AuthorityState {
                             auth_account_object_digest,
                         ) = move_authenticator.object_to_authenticate_components()?;
 
-                        let signer = move_authenticator.address()?;
+                        let signer = move_authenticator.address();
 
                         let authenticator_function_ref_for_execution = self.check_move_account(
                             auth_account_object_id,
@@ -1884,7 +1882,7 @@ impl AuthorityState {
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .find(|t| t.0.address() == address)
                         .map(|t| t.1.authenticator_function_ref.clone())
                 });
 
@@ -5716,7 +5714,7 @@ impl AuthorityState {
                         auth_account_object_digest,
                     ) = move_authenticator.object_to_authenticate_components()?;
 
-                    let signer = move_authenticator.address()?;
+                    let signer = move_authenticator.address();
 
                     // Make sure the signer is a Move account.
                     let AuthenticatorFunctionRefForExecution {

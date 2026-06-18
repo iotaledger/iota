@@ -871,7 +871,7 @@ impl LocalExec {
                 extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address().ok().as_ref() == Some(&address))
+                        .find(|t| t.0.address() == address)
                         .map(|t| t.1.authenticator_function_ref.clone())
                 });
 

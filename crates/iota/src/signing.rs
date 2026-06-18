@@ -13,9 +13,9 @@ use iota_sdk_types::{Address, ObjectId, Owner, TypeTag, crypto::Intent};
 use iota_types::{
     base_types::SequenceNumber,
     crypto::Signature,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::MoveAuthenticatorV1,
     signature::GenericSignature,
-    transaction::{CallArg, SharedObjectRef, TransactionData},
+    transaction::{CallArg, TransactionData},
 };
 use serde::Serialize;
 
@@ -89,15 +89,13 @@ pub(crate) async fn sign_transaction(
                 get_shared_object_version(&iota_client, signer_address).await?;
 
             Ok(GenericSignature::MoveAuthenticator(
-                MoveAuthenticator::new_v1(
+                MoveAuthenticatorV1::new_shared(
                     auth_call_args,
                     auth_type_args,
-                    CallArg::Shared(SharedObjectRef::new(
-                        ObjectId::from(*signer_address),
-                        initial_shared_version,
-                        false,
-                    )),
-                ),
+                    ObjectId::from(*signer_address),
+                    initial_shared_version,
+                )
+                .into(),
             ))
         }
         StoredKey::KeyPair(_) => {
