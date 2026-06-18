@@ -18,7 +18,7 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    traits::{EncodeDecodeBase64, ToFromBytes},
+    traits::EncodeDecodeBase64,
 };
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
