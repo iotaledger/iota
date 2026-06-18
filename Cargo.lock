@@ -7183,7 +7183,6 @@ dependencies = [
  "iota-protocol-config",
  "iota-sdk",
  "iota-sdk-types",
- "iota-types",
  "move-package",
  "move-symbol-pool",
  "thiserror 1.0.64",
