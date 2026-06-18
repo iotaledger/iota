@@ -84,6 +84,12 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_dag_state_cached_rounds")]
     pub dag_state_cached_rounds: u32,
 
+    /// Rounds a header from a far-future-bounded source may lead the locally
+    /// accepted frontier, in addition to `dag_state_cached_rounds`, before it
+    /// is dropped as too far ahead to connect.
+    #[serde(default = "Parameters::default_peer_round_ahead_margin")]
+    pub peer_round_ahead_margin: u32,
+
     // Number of authorities commit syncer fetches in parallel.
     // Both commits in a range and blocks referenced by the commits are fetched per authority.
     #[serde(default = "Parameters::default_commit_sync_parallel_fetches")]
@@ -191,6 +197,15 @@ impl Parameters {
         (self.block_rate_window.as_millis() as u64 / interval_ms).max(1)
     }
 
+    /// Highest round a header from a far-future-bounded source may have,
+    /// relative to the accepted `frontier`, to still be close enough to
+    /// connect; headers above this are too far ahead and dropped.
+    pub fn far_future_round_ceiling(&self, frontier: u32) -> u32 {
+        frontier
+            .saturating_add(self.dag_state_cached_rounds)
+            .saturating_add(self.peer_round_ahead_margin)
+    }
+
     /// Maximum number of block headers served per fetch request, depending on
     /// whether the request comes from commit sync or the header synchronizer.
     pub fn max_headers_per_fetch(&self, commit_sync: bool) -> usize {
@@ -256,6 +271,10 @@ impl Parameters {
         } else {
             500
         }
+    }
+
+    pub(crate) fn default_peer_round_ahead_margin() -> u32 {
+        1000
     }
 
     pub(crate) fn default_commit_sync_parallel_fetches() -> usize {
@@ -338,6 +357,7 @@ impl Default for Parameters {
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
             dag_state_cached_rounds: Parameters::default_dag_state_cached_rounds(),
+            peer_round_ahead_margin: Parameters::default_peer_round_ahead_margin(),
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),
             commit_sync_batches_ahead: Parameters::default_commit_sync_batches_ahead(),

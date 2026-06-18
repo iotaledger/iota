@@ -647,6 +647,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 peer_index,
                                 blocks_guard,
                                 core_dispatcher.clone(),
+                                dag_state.clone(),
                                 block_verifier.clone(),
                                 verified_cache.clone(),
                                 commit_vote_monitor.clone(),
@@ -688,6 +689,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         peer_index: AuthorityIndex,
         requested_blocks_guard: BlocksGuard,
         core_dispatcher: Arc<D>,
+        dag_state: Arc<RwLock<DagState>>,
         block_verifier: Arc<V>,
         verified_cache: Arc<Mutex<LruCache<BlockHeaderDigest, ()>>>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
@@ -764,6 +766,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .iter()
                 .map(|b| b.reference().to_string())
                 .join(", "),
+        );
+
+        // A peer may volunteer validly-signed headers we never requested, so
+        // bound the response here; the block manager applies the same bound
+        // downstream when these headers are accepted.
+        let block_headers = crate::block_manager::drop_far_future(
+            &context,
+            &dag_state,
+            block_headers,
+            DataSource::HeaderSynchronizer,
+            |header| header.round(),
         );
 
         // Now send them to core for processing. Ignore the returned missing blocks as
@@ -1197,7 +1210,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     inflight_block_headers_map.clone(),
                     network_client,
                     missing_blocks_refs,
-                    dag_state,
+                    dag_state.clone(),
                 )
                 .await;
                 context
@@ -1220,6 +1233,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                         peer,
                         blocks_guard,
                         core_dispatcher.clone(),
+                        dag_state.clone(),
                         block_verifier.clone(),
                         verified_cache.clone(),
                         commit_vote_monitor.clone(),
@@ -3285,6 +3299,7 @@ mod tests {
             peer_index,
             blocks_guard, // The guard is consumed here
             core_dispatcher.clone(),
+            dag_state.clone(),
             block_verifier.clone(),
             verified_cache.clone(),
             commit_vote_monitor.clone(),
@@ -3327,6 +3342,7 @@ mod tests {
             peer_index,
             blocks_guard_second,
             core_dispatcher.clone(),
+            dag_state.clone(),
             block_verifier,
             verified_cache.clone(),
             commit_vote_monitor,
@@ -3357,6 +3373,88 @@ mod tests {
             "Expected {} entries in the LruCache, but got {}",
             expected_block_refs.len(),
             cache_size
+        );
+    }
+
+    #[tokio::test]
+    async fn test_process_fetched_drops_far_future() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+        let network_client = Arc::new(MockNetworkClient::default());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
+        // Frontier is genesis round 0; a header one past the ceiling can never
+        // connect and must be dropped, while an in-window header is forwarded.
+        let ceiling = context.parameters.far_future_round_ceiling(0);
+        let in_window = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(60, 0).build());
+        let far_future =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(ceiling + 1, 1).build());
+        let serialized = vec![
+            in_window.serialized().clone(),
+            far_future.serialized().clone(),
+        ];
+        let refs = [in_window.reference(), far_future.reference()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        let peer_index = AuthorityIndex::new_for_test(2);
+        let inflight_blocks_map = InflightBlockHeadersMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(refs, peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks");
+        let verified_cache = Arc::new(parking_lot::Mutex::new(lru::LruCache::new(
+            NonZero::new(1000).unwrap(),
+        )));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+
+        let result = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            serialized,
+            peer_index,
+            blocks_guard,
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier,
+            verified_cache,
+            commit_vote_monitor,
+            transactions_synchronizer,
+            context.clone(),
+            commands_sender,
+            "live",
+            misbehavior_store,
+        )
+        .await;
+        assert!(result.is_ok());
+
+        // Only the in-window header reaches core; the far-future one is dropped.
+        let added = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(
+            added.iter().map(|b| b.reference()).collect::<Vec<_>>(),
+            vec![in_window.reference()],
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::HeaderSynchronizer.as_str()])
+                .get(),
+            1
         );
     }
 }
