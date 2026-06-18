@@ -17,7 +17,6 @@
 use std::{fs, path::PathBuf};
 
 use base64::Engine;
-use fastcrypto::traits::ToFromBytes;
 use iota_types::{
     object::Object,
     signature::GenericSignature,

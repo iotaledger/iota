@@ -9,29 +9,26 @@ description = "Local IOTA Move VM SDK: decode, store, execute and introspect tra
 
 [features]
 default = []
-grpc = ["dep:tonic", "dep:iota-grpc-client", "dep:iota-grpc-types"]
-graphql = ["dep:chrono", "dep:reqwest", "dep:iota-graphql-rpc-client"]
+grpc = ["dep:iota-grpc-client", "dep:tokio"]
+graphql = ["dep:chrono", "dep:iota-sdk-graphql-client", "dep:tokio"]
 
 [dependencies]
 # external dependencies
 base64.workspace = true
 bcs.workspace = true
 chrono = { workspace = true, optional = true }
-fastcrypto.workspace = true
 prometheus.workspace = true
-reqwest = { workspace = true, optional = true }
 serde_json.workspace = true
 thiserror.workspace = true
-tonic = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"] }
 
 # internal dependencies
 iota-config.workspace = true
 iota-execution = { workspace = true, features = ["tracing"] }
 iota-framework.workspace = true
-iota-graphql-rpc-client = { workspace = true, optional = true }
 iota-grpc-client = { workspace = true, optional = true }
-iota-grpc-types = { workspace = true, optional = true }
 iota-protocol-config.workspace = true
+iota-sdk-graphql-client = { workspace = true, optional = true }
 iota-sdk-types.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
@@ -48,7 +45,6 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 # internal dependencies
 iota-json-rpc-types.workspace = true
-iota-sdk-graphql-client.workspace = true
 iota-sdk-transaction-builder.workspace = true
 iota-test-transaction-builder.workspace = true
 test-cluster.workspace = true
@@ -75,7 +71,6 @@ required-features = ["grpc"]
 [package.metadata.cargo-udeps.ignore]
 development = [
   "iota-json-rpc-types",
-  "iota-sdk-graphql-client",
   "iota-sdk-transaction-builder",
   "iota-test-transaction-builder",
   "test-cluster",

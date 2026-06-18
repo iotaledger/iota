@@ -4,9 +4,8 @@
 //! Per-run execution environment.
 //!
 //! A fresh [`ExecutionEnv`] is built for each [`LocalVm`] run, holding the
-//! debug-configured Move engine for that one `execute*` / `execute_signed` call
-//! (a single `LocalVm` may run many). This module also owns the executor
-//! construction and the gas-profile capture.
+//! debug-configured Move engine for that one call. This module also owns the
+//! executor construction and the gas-profile capture.
 
 use std::sync::Arc;
 
@@ -136,8 +135,9 @@ fn profile_capture_dir() -> std::path::PathBuf {
 
 /// Merge every Speedscope JSON file the profiler wrote into `dir` into one
 /// document. The profiler writes one file per VM invocation (e.g. an
-/// authenticator call + the PTB body), each with its own frames table; the
-/// merge concatenates `profiles` and rebuilds a de-duplicated `shared.frames`.
+/// authenticator call plus the PTB body), each with its own frames table, so
+/// the merge concatenates `profiles` and rebuilds a de-duplicated
+/// `shared.frames`.
 fn merge_profile_dir(dir: &std::path::Path) -> Option<ProfileOutput> {
     let entries = std::fs::read_dir(dir).ok()?;
     let mut docs: Vec<serde_json::Value> = Vec::new();

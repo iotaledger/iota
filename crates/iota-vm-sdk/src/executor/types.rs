@@ -40,8 +40,7 @@ pub struct ChainContext {
 
 impl ChainContext {
     /// Start from the protocol version and chain. The epoch fields default to
-    /// `0`; set them by name with the `with_*` methods to avoid transposing the
-    /// several `u64` parameters.
+    /// `0`; set them with the `with_*` methods.
     pub fn new(protocol_version: ProtocolVersion, chain: Chain) -> Self {
         Self {
             protocol_version,
@@ -80,8 +79,7 @@ impl ChainContext {
 pub enum ExecutionMode {
     /// Relaxed Move VM checks; the store is never modified.
     DevInspect,
-    /// Full sign-time checks; the store is never modified. The default: full
-    /// validation without committing.
+    /// Full sign-time checks; the store is never modified. The default.
     ///
     /// Object references in the transaction (gas payments and owned inputs)
     /// are resolved against whatever versions the store holds, so a stale
@@ -159,13 +157,10 @@ impl ExecuteOptions {
 }
 
 /// The engine's per-PTB-command result `(mutable_reference_outputs,
-/// return_values)`, aliased to disambiguate from the SDK's own
-/// [`ExecutionResult`].
+/// return_values)`.
 pub type CommandResult = iota_types::execution::ExecutionResult;
 
-/// The full result of a run: effects, events, per-command results, the input
-/// and output object sets, gas accounting, signature status, whether the run
-/// was committed to the store, and any captured debug artifacts.
+/// The full result of a run.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct ExecutionResult {

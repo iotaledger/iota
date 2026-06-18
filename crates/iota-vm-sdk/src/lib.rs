@@ -13,17 +13,19 @@
 //!
 //! # Features
 //!
+//! Both are off by default; enable one to pull in its networked store.
+//!
 //! - `grpc` — a [`GrpcStore`](grpc::GrpcStore) that pre-fetches objects from a
 //!   node via gRPC into an [`InMemoryStore`].
 //! - `graphql` — a [`GraphqlStore`](graphql::GraphqlStore) over GraphQL.
-//!
-//! The networked stores and their heavy dependencies are feature-gated off by
-//! default.
 
 mod debug;
 mod error;
 mod executor;
 mod store;
+
+#[cfg(any(feature = "grpc", feature = "graphql"))]
+mod caching;
 
 #[cfg(feature = "grpc")]
 pub mod grpc;

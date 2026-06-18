@@ -69,9 +69,8 @@ impl InMemoryStore {
     }
 
     /// A store pre-seeded with every built-in framework package object
-    /// ([`BuiltInFramework::genesis_objects`]). This is the standard starting
-    /// point for offline execution — any non-trivial Move call needs the
-    /// framework on hand.
+    /// ([`BuiltInFramework::genesis_objects`]). The standard starting point for
+    /// offline execution, since any non-trivial Move call needs the framework.
     pub fn with_framework() -> Self {
         let mut store = Self::new();
         store.extend(BuiltInFramework::genesis_objects());
@@ -138,9 +137,9 @@ impl Store for InMemoryStore {
 /// requires.
 ///
 /// The engine reads objects through three traits ([`ObjectStore`],
-/// [`BackingPackageStore`], [`ChildObjectResolver`]); this thin wrapper
-/// implements all three in terms of the four public [`Store`] methods.
-/// `BackingStore` is then granted by its blanket impl.
+/// [`BackingPackageStore`], [`ChildObjectResolver`]); this wrapper implements
+/// all three in terms of the four public [`Store`] methods, and `BackingStore`
+/// follows from its blanket impl.
 pub(crate) struct StoreBackend<'a> {
     inner: &'a dyn Store,
 }

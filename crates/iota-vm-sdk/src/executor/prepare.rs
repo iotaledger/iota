@@ -103,6 +103,8 @@ pub(super) fn prepare_transaction(
         None
     };
 
+    // Offline default: an empty deny-list. A live validator may be configured
+    // with denied addresses/packages, so this check will not match a real chain.
     let deny_config = iota_config::transaction_deny_config::TransactionDenyConfig::default();
     let receiving_object_refs = transaction.receiving_objects();
     iota_transaction_checks::deny::check_transaction_for_validation(
@@ -132,6 +134,8 @@ pub(super) fn prepare_transaction(
         .map_err(|e| ValidationError::new("gas status", e))?;
         (gas_status, checked_input_objects)
     } else {
+        // Offline default: the verifier-signing limits may differ from those a
+        // live validator enforces, so this check will not match a real chain.
         let verifier_signing_config =
             iota_config::verifier_signing_config::VerifierSigningConfig::default();
         iota_transaction_checks::check_transaction_input(
@@ -170,9 +174,8 @@ pub(super) fn execute_prepared(
 
     let dev_inspect = matches!(mode, ExecutionMode::DevInspect);
     let (kind, signer, gas_data) = transaction.execution_parts();
-    // The current `dev_inspect_transaction` engine entry point does not accept a
-    // `MoveTraceBuilder`; instruction tracing is only available on the
-    // authenticator path (`authenticate_then_execute_transaction_to_effects`).
+    // `dev_inspect_transaction` accepts no `MoveTraceBuilder`; tracing is only
+    // available on the `authenticate_then_execute_transaction_to_effects` path.
     let (inner_temp_store, _, effects, execution_result) = env.executor.dev_inspect_transaction(
         store,
         &env.protocol_config,
@@ -248,8 +251,8 @@ pub(super) fn execute_with_move_authenticators(
     }
     let union_checked = CheckedInputObjects::new_with_checked_transaction_inputs(union_inputs);
 
-    let tx_data_bytes =
-        bcs::to_bytes(&transaction).expect("TransactionData serialization cannot fail");
+    let tx_data_bytes = bcs::to_bytes(&transaction)
+        .map_err(|e| VmError::new(format!("serialize transaction data: {e}")))?;
     let (kind, signer, gas_data) = transaction.execution_parts();
 
     // Map each signer (sender / sponsor) to its authenticator function ref.
@@ -310,10 +313,9 @@ pub(super) fn execute_with_move_authenticators(
     } else {
         // The combined run failed; re-run the authenticators alone to learn
         // whether an authenticator rejected the transaction or the body failed.
-        // Meter them with the authenticator budget the engine's signing phase
-        // uses (`max_auth_gas`), not the transaction budget — otherwise a tx
-        // budget smaller than the authenticators' needs would make the re-run
-        // run out of gas and look like a rejection.
+        // Meter with the authenticator budget the signing phase uses
+        // (`max_auth_gas`), not the transaction budget — a smaller tx budget
+        // would starve the re-run and look like a rejection.
         let verdict_gas_status = IotaGasStatus::new(
             authenticator_gas_budget,
             transaction.gas_price(),
