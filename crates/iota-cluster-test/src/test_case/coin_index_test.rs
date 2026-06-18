@@ -10,10 +10,10 @@ use iota_json_rpc_types::{
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
 use iota_sdk_transaction_builder::{PTBArgumentList, SharedMut, TransactionBuilder};
-use iota_sdk_types::{ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::TransactionData,
@@ -663,11 +663,11 @@ async fn add_to_envelope(
 ///
 /// `args` is anything the builder accepts as an argument list: a tuple of mixed
 /// argument types (`ObjectId` for owned objects, `SharedMut(id)` for shared
-/// mutable objects, `u64`/`IotaAddress` and other pure values), or an
+/// mutable objects, `u64`/`Address` and other pure values), or an
 /// array/`Vec` of a single argument type.
 async fn build_move_call_tx<A: PTBArgumentList>(
     grpc_url: &str,
-    sender: IotaAddress,
+    sender: Address,
     package_id: ObjectId,
     module: &str,
     function: &str,

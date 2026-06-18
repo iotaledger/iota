@@ -26,7 +26,6 @@ use iota_json_rpc_types::{
 use iota_sdk_types::{Address, Command, Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -1712,7 +1711,7 @@ async fn assert_paginated_events_ascending(
 /// signed.
 async fn split_coin_equal_tx(
     grpc_client: &iota_grpc_client::Client,
-    sender: IotaAddress,
+    sender: Address,
     coin_to_split: ObjectId,
     num_coins: u64,
     gas_coin: Option<ObjectId>,
