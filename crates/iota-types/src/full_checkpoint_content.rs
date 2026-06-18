@@ -66,6 +66,24 @@ impl CheckpointData {
             .collect()
     }
 
+    /// The transaction that closes this checkpoint's epoch — the `AdvanceEpoch`
+    /// / `advance_epoch_safe_mode` transaction. `None` if this isn't an
+    /// epoch-boundary checkpoint (genesis included), or its last transaction
+    /// unexpectedly isn't an end-of-epoch transaction.
+    pub fn end_of_epoch_transaction(&self) -> Option<&CheckpointTransaction> {
+        // Guard: only epoch-boundary checkpoints carry a closing tx — bail otherwise.
+        self.checkpoint_summary.end_of_epoch_data.as_ref()?;
+        // The epoch-change tx is always ordered last, after every user tx;
+        // verify rather than assume, since callers treat `None` as a hard error.
+        let transaction = self.transactions.last()?;
+        transaction
+            .transaction
+            .intent_message()
+            .value
+            .is_end_of_epoch_tx()
+            .then_some(transaction)
+    }
+
     /// Returns the epoch boundary information for this checkpoint, paired
     /// with the events of the transaction that produced this epoch's start
     /// system state (`EndOfEpoch` for non-genesis checkpoints, `Genesis`
@@ -82,12 +100,7 @@ impl CheckpointData {
         }
 
         let (start_checkpoint, transaction) = if self.checkpoint_summary.sequence_number != 0 {
-            let Some(transaction) = self.transactions.iter().find(|tx| {
-                matches!(
-                    tx.transaction.intent_message().value.kind(),
-                    TransactionKind::EndOfEpoch(_)
-                )
-            }) else {
+            let Some(transaction) = self.end_of_epoch_transaction() else {
                 return Err(StorageError::custom(format!(
                     "Failed to get end of epoch transaction in checkpoint {} with EndOfEpochData",
                     self.checkpoint_summary.sequence_number,
