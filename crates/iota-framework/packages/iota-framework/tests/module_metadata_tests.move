@@ -115,6 +115,17 @@ fun view_functions_absent_returns_false() {
     test_utils::destroy(md);
 }
 
+#[test]
+fun contains_view_functions_metadata_v1_reflects_presence() {
+    let mut md = new_test_metadata();
+    assert!(!md.contains_view_functions_metadata_v1());
+
+    md.add_view_function_metadata_v1(vector[ascii::string(b"view_a")]);
+    assert!(md.contains_view_functions_metadata_v1());
+
+    test_utils::destroy(md);
+}
+
 // === Abort behaviour ===
 
 #[test]
