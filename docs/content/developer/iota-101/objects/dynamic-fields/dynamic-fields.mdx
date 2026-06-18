@@ -146,7 +146,7 @@ public fun mutate_child_via_parent(parent: &mut Parent) {
 
 In this example, `mutate_child` directly modifies a `Child` object, while `mutate_child_via_parent` accesses
 and modifies a `Child` object that has been added as a dynamic field in a `Parent` object
-using the [`borrow_mut`](../../../../developer/references/framework/iota/dynamic_field.mdx#function-borrow_mut) function.
+using the [`borrow_mut`](../../../../developer/references/framework/iota/dynamic_field.mdx#iota_dynamic_field_borrow_mut) function.
 
 :::tip
 
@@ -182,7 +182,7 @@ The [`iota::dynamic_object_field`](../../../../developer/references/framework/io
 :::
 
 Once removed, the value can be used like any other value. 
-For instance, you can [`delete`](../../../../developer/references/framework/iota/object.mdx#function-delete)
+For instance, you can [`delete`](../../../../developer/references/framework/iota/object.mdx#iota_object_delete)
 or [`transfer`](../../../../developer/references/framework/iota/transfer.mdx) a removed object:
 
 ```move
