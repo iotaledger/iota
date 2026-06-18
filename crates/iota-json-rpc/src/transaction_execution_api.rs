@@ -5,7 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use fastcrypto::{encoding::Base64, traits::ToFromBytes};
+use fastcrypto::encoding::Base64;
 use iota_core::{
     authority::AuthorityState, authority_client::NetworkAuthorityClient,
     transaction_orchestrator::TransactionOrchestrator,

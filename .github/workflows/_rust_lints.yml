@@ -85,6 +85,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+  cargo-machete:
+    if: (!cancelled() && inputs.isRust)
+    runs-on: [self-hosted-x64]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check for unused dependencies
+        run: cargo machete
+
+  cargo-machete-cancel:
+    needs: [cargo-machete]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   examples:
     if: (!cancelled() && inputs.isRustExample)
     uses: ./.github/workflows/_rust_examples.yml

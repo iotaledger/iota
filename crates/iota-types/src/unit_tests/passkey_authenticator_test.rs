@@ -8,7 +8,6 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
     rsa::{Base64UrlUnpadded, Encoding as _},
-    traits::ToFromBytes,
 };
 use iota_sdk_ext::types::{
     ObjectId,
@@ -226,7 +225,7 @@ async fn test_passkey_serde() {
     let signature = GenericSignature::PasskeyAuthenticator(passkey);
     let serialized_str = serde_json::to_string(&signature).unwrap();
     let deserialized: GenericSignature = serde_json::from_str(&serialized_str).unwrap();
-    assert_eq!(deserialized.as_ref(), signature.as_ref());
+    assert_eq!(deserialized.to_bytes(), signature.to_bytes());
 }
 
 #[tokio::test]

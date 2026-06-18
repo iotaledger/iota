@@ -2486,7 +2486,7 @@ impl Transaction {
                 .inner()
                 .tx_signatures
                 .iter()
-                .map(|s| Base64::from_bytes(s.as_ref()))
+                .map(|s| Base64::from_bytes(&s.to_bytes()))
                 .collect(),
         )
     }
@@ -3364,7 +3364,7 @@ pub fn auth_digest_for_sig(sig: &GenericSignature) -> IotaResult<Digest> {
         | GenericSignature::Signature(_)
         | GenericSignature::PasskeyAuthenticator(_) => {
             let mut hasher = DefaultHash::default();
-            hasher.update(sig.as_ref());
+            hasher.update(sig.to_bytes());
             Ok(Digest::new(hasher.finalize().into()))
         }
     }
