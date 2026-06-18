@@ -1570,6 +1570,15 @@ account_type
 function_name
 	public fun
 	0x2::package_metadata
+has_package_metadata_version_field
+	public fun
+	0x2::package_metadata
+borrow_package_metadata_version_field
+	public fun
+	0x2::package_metadata
+borrow_modules_metadata
+	public fun
+	0x2::package_metadata
 create_package_metadata_v1_with_dynamic_metadata
 	fun
 	0x2::package_metadata
