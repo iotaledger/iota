@@ -1031,6 +1031,13 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     // this window.
     tokio::time::sleep(Duration::from_secs(2)).await;
 
+    assert!(
+        store_2
+            .get_full_checkpoint_contents_by_sequence_number(2)
+            .is_some(),
+        "content loop did not even fetch seq 2 within the window — test is not exercising the gap",
+    );
+
     // REGRESSION CHECK: the synced watermark must not have advanced past
     // genesis (sequence 0) while checkpoint 1's contents are unavailable.
     assert_eq!(
