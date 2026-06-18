@@ -923,7 +923,7 @@ pub struct EpochInfoV1Entry {
     /// == end_of_epoch_tx_effects.events_digest`, or empty on safe-mode
     /// boundaries where that digest is `None`.
     pub end_of_epoch_tx_events: TransactionEvents,
-    /// Raw serialized bytes of object `0x5` and its inner system-state object
+    /// Raw serialized bytes of system-state wrapper object and its inner system-state object
     /// as written by this boundary — the next epoch's start state. Each
     /// object's digest matches a written-object entry in
     /// `end_of_epoch_tx_effects`.
