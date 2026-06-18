@@ -41,13 +41,13 @@ use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::{
-    ObjectId, Owner, StructTag,
+    Address, ObjectId, Owner, StructTag,
     move_package::{MovePackage, UpgradeInfo},
 };
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::{
         AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
@@ -676,8 +676,7 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
             };
             let package_value = &fields_map["package"];
             let package_addr =
-                IotaAddress::from_str(package_value.clone().to_json_value().as_str().unwrap())
-                    .unwrap();
+                Address::from_str(package_value.clone().to_json_value().as_str().unwrap()).unwrap();
 
             let package_object = client
                 .read_api()
@@ -815,7 +814,7 @@ async fn publish_package_for_upgrade(
             .to_json_value()
             .as_str()
             .unwrap()
-            .parse::<IotaAddress>()
+            .parse::<Address>()
             .unwrap()
     } else {
         panic!("Expected MoveObject");
@@ -1109,7 +1108,7 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
 
     // Send an object
     IotaClientCommands::Transfer {
-        to: KeyIdentity::Address(IotaAddress::random()),
+        to: KeyIdentity::Address(Address::random()),
         object_id: object_to_send,
         payment: PaymentArgs {
             gas: vec![object_id],
@@ -1144,7 +1143,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     let address1 = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
-    let address2 = IotaAddress::random();
+    let address2 = Address::random();
 
     let client = context.get_client().await?;
     // publish the object basics package
@@ -3025,7 +3024,7 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
-    let recipient = IotaAddress::random();
+    let recipient = Address::random();
     let client = context.get_client().await?;
     let object_refs = client
         .read_api()
@@ -4356,7 +4355,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
 
     // === TRANSFER === //
     let transfer_dry_run = IotaClientCommands::Transfer {
-        to: KeyIdentity::Address(IotaAddress::random()),
+        to: KeyIdentity::Address(Address::random()),
         object_id: object_to_send,
         payment: PaymentArgs {
             gas: vec![object_id],
@@ -4378,7 +4377,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     // === PAY === //
     let pay_dry_run = IotaClientCommands::Pay {
         input_coins: vec![object_id],
-        recipients: vec![KeyIdentity::Address(IotaAddress::random())],
+        recipients: vec![KeyIdentity::Address(Address::random())],
         amounts: vec![1],
         payment: PaymentArgs::default(),
         gas_data: GasDataArgs {
@@ -4404,7 +4403,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     let gas_coin_id = object_refs.data.last().unwrap().object().unwrap().object_id;
     let pay_dry_run = IotaClientCommands::Pay {
         input_coins: vec![object_id],
-        recipients: vec![KeyIdentity::Address(IotaAddress::random())],
+        recipients: vec![KeyIdentity::Address(Address::random())],
         amounts: vec![1],
         payment: PaymentArgs {
             gas: vec![gas_coin_id],
@@ -4426,7 +4425,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     // === PAY IOTA === //
     let pay_iota_dry_run = IotaClientCommands::PayIota {
         input_coins: Some(vec![object_id]),
-        recipients: vec![KeyIdentity::Address(IotaAddress::random())],
+        recipients: vec![KeyIdentity::Address(Address::random())],
         amounts: vec![1],
         gas_data: GasDataArgs {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
@@ -4445,7 +4444,7 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     // === PAY ALL IOTA === //
     let pay_all_iota_dry_run = IotaClientCommands::PayAllIota {
         input_coins: vec![object_id],
-        recipient: KeyIdentity::Address(IotaAddress::random()),
+        recipient: KeyIdentity::Address(Address::random()),
         gas_data: GasDataArgs {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             ..Default::default()
@@ -4469,7 +4468,7 @@ async fn test_cluster_helper() -> (
     u64,
     [ObjectId; 3],
     [KeyIdentity; 2],
-    [IotaAddress; 2],
+    [Address; 2],
 ) {
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(2)
@@ -4501,8 +4500,8 @@ async fn test_cluster_helper() -> (
         .object_id;
     let object_id2 = object_refs.data.get(1).unwrap().object().unwrap().object_id;
     let object_id3 = object_refs.data.get(2).unwrap().object().unwrap().object_id;
-    let address2 = IotaAddress::random();
-    let address3 = IotaAddress::random();
+    let address2 = Address::random();
+    let address3 = Address::random();
     let recipient1 = KeyIdentity::Address(address2);
     let recipient2 = KeyIdentity::Address(address3);
 
@@ -5539,7 +5538,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     // Generate multiple addresses
     let addresses: Vec<_> = (0..6)
         .map(|_| get_key_pair::<AccountKeyPair>().0)
-        .collect::<Vec<IotaAddress>>();
+        .collect::<Vec<Address>>();
 
     // Ensure all addresses have zero gas objects initially
     for address in &addresses {
@@ -6018,7 +6017,7 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
     // --pks ADtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdop --weights 1 --threshold
     // 1` where the pubKey is for the privKey with all zeros)
     let multisig_address =
-        IotaAddress::from_str("0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa")
+        Address::from_str("0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa")
             .unwrap();
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(2)
@@ -6612,7 +6611,7 @@ async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
 /// are the abstract-account address.
 async fn setup_move_authenticator_account(
     context: &mut WalletContext,
-    publisher: IotaAddress,
+    publisher: Address,
     package_relative_path: &str,
     module: &str,
     function: &str,
@@ -6763,7 +6762,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
 
     // Switch to the AA so subsequent commands treat it as the active address.
     IotaClientCommands::Switch {
-        address: Some(IotaAddress::from(account_address).into()),
+        address: Some(Address::from(account_address).into()),
         env: None,
     }
     .execute(context)
@@ -6874,7 +6873,7 @@ async fn test_move_authenticator_nested_vec() -> Result<(), anyhow::Error> {
 
     // Switch to the AA so subsequent commands treat it as the active address.
     IotaClientCommands::Switch {
-        address: Some(IotaAddress::from(account_address).into()),
+        address: Some(Address::from(account_address).into()),
         env: None,
     }
     .execute(context)
@@ -7071,11 +7070,8 @@ async fn test_move_authenticator_sender_and_sponsor() -> Result<(), anyhow::Erro
         effects.status()
     );
     let tx_block = tx.transaction.as_ref().expect("transaction block");
-    assert_eq!(tx_block.data.sender(), &IotaAddress::from(sender_aa));
-    assert_eq!(
-        tx_block.data.gas_data().owner,
-        IotaAddress::from(sponsor_aa)
-    );
+    assert_eq!(tx_block.data.sender(), &Address::from(sender_aa));
+    assert_eq!(tx_block.data.gas_data().owner, Address::from(sponsor_aa));
 
     Ok(())
 }
@@ -7106,7 +7102,7 @@ async fn test_move_authenticator_no_user_args() -> Result<(), anyhow::Error> {
 
     // Switch to the AA so subsequent commands treat it as the active address.
     IotaClientCommands::Switch {
-        address: Some(IotaAddress::from(account_address).into()),
+        address: Some(Address::from(account_address).into()),
         env: None,
     }
     .execute(context)
@@ -7211,11 +7207,8 @@ async fn test_move_authenticator_sender_and_sponsor_no_sponsor_args() -> Result<
         effects.status()
     );
     let tx_block = tx.transaction.as_ref().expect("transaction block");
-    assert_eq!(tx_block.data.sender(), &IotaAddress::from(sender_aa));
-    assert_eq!(
-        tx_block.data.gas_data().owner,
-        IotaAddress::from(sponsor_aa)
-    );
+    assert_eq!(tx_block.data.sender(), &Address::from(sender_aa));
+    assert_eq!(tx_block.data.gas_data().owner, Address::from(sponsor_aa));
 
     Ok(())
 }

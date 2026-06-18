@@ -15,10 +15,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -35,14 +35,14 @@ use crate::common::{
     start_test_cluster_with_read_write_indexer,
 };
 
-static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, IotaKeyPair, String)> =
+static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(Address, IotaKeyPair, String)> =
     OnceCell::const_new();
 
 /// Creates a new address with 5 IOTA coins and 1 custom coin.
 async fn create_addr_and_custom_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
-) -> (IotaAddress, IotaKeyPair, String) {
+) -> (Address, IotaKeyPair, String) {
     let (address, keypair): (_, AccountKeyPair) = get_key_pair();
     let keypair = IotaKeyPair::Ed25519(keypair);
 
@@ -80,7 +80,7 @@ async fn create_addr_and_custom_coins(
 async fn get_or_init_addr_and_custom_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
-) -> &'static (IotaAddress, IotaKeyPair, String) {
+) -> &'static (Address, IotaKeyPair, String) {
     COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME
         .get_or_init(|| async { create_addr_and_custom_coins(cluster, indexer_client).await })
         .await
@@ -335,7 +335,7 @@ fn get_all_balances_with_zero_iotas() {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         let (owner, keypair, _) = create_addr_and_custom_coins(cluster, client).await;
-        let coins_dump_address = IotaAddress::random();
+        let coins_dump_address = Address::random();
 
         // first call is to make node and potentially the indexer cache the result
         // and increase chance of producing wrong result on the second call
@@ -663,7 +663,7 @@ fn get_total_supply_with_nonexistent_coin() {
 async fn get_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
-    owner: IotaAddress,
+    owner: Address,
     coin_type: Option<String>,
     cursor: Option<ObjectId>,
     limit: Option<usize>,
@@ -683,7 +683,7 @@ async fn get_coins_fullnode_indexer(
 async fn get_all_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
-    owner: IotaAddress,
+    owner: Address,
     cursor: Option<ObjectId>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
@@ -699,7 +699,7 @@ async fn get_all_coins_fullnode_indexer(
 async fn get_balance_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
-    owner: IotaAddress,
+    owner: Address,
     coin_type: Option<String>,
 ) -> (Balance, Balance) {
     let result_fullnode = cluster
@@ -714,7 +714,7 @@ async fn get_balance_fullnode_indexer(
 async fn get_all_balances_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
-    owner: IotaAddress,
+    owner: Address,
 ) -> (Vec<Balance>, Vec<Balance>) {
     let result_fullnode = cluster.rpc_client().get_all_balances(owner).await.unwrap();
     let result_indexer = client.get_all_balances(owner).await.unwrap();
@@ -756,7 +756,7 @@ async fn get_total_supply_fullnode_indexer(
 
 async fn create_trusted_coins(
     cluster: &TestCluster,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
@@ -783,7 +783,7 @@ async fn create_trusted_coins(
 
 pub async fn execute_move_call(
     client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &dyn Signer<Signature>,
     package_object_id: ObjectId,
     module: String,
@@ -830,7 +830,7 @@ pub async fn execute_move_call(
 async fn mint_trusted_coin(
     cluster: &TestCluster,
     coin_name: String,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
     amount: u64,
 ) -> Result<ObjectRef, anyhow::Error> {
@@ -872,7 +872,7 @@ async fn create_migrated_coin_manager_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
     pg_store: &PgIndexerStore,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
     let (coin_name, immutable_metadata_coin_name) =
@@ -1021,7 +1021,7 @@ async fn create_native_coin_manager_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
     pg_store: &PgIndexerStore,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
@@ -1041,7 +1041,7 @@ async fn create_native_coin_manager_coins(
 
 async fn get_single_owned_object_by_type(
     http_client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     struct_tag: StructTag,
 ) -> IotaObjectData {
     http_client
@@ -1067,9 +1067,9 @@ async fn transfer_all_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
-    from_address: IotaAddress,
+    from_address: Address,
     keypair: &IotaKeyPair,
-    to_address: IotaAddress,
+    to_address: Address,
 ) {
     let coins: Vec<_> = cluster
         .rpc_client()

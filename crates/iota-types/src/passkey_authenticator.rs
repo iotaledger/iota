@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
-use iota_sdk_types::crypto::IntentMessage;
 pub use iota_sdk_types::crypto::PasskeyAuthenticator;
+use iota_sdk_types::{Address, crypto::IntentMessage};
 use serde::Serialize;
 
 use crate::{
-    base_types::IotaAddress,
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
 };
@@ -22,7 +21,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where

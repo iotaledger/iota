@@ -13,8 +13,9 @@ use std::{
 
 use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_macros::{register_fail_point, sim_test};
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
+    base_types::TransactionDigest,
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair},
     effects::TransactionEffectsAPI,
     object::{Object, generate_test_gas_objects},
@@ -55,15 +56,10 @@ async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
     (aggregator, tx)
 }
 
-fn make_tx(
-    gas: &Object,
-    sender: IotaAddress,
-    keypair: &AccountKeyPair,
-    gas_price: u64,
-) -> Transaction {
+fn make_tx(gas: &Object, sender: Address, keypair: &AccountKeyPair, gas_price: u64) -> Transaction {
     make_transfer_iota_transaction(
         gas.object_ref(),
-        IotaAddress::random(),
+        Address::random(),
         None,
         sender,
         keypair,
@@ -246,7 +242,7 @@ async fn test_quorum_driver_update_validators_and_max_retry_times() {
 #[tokio::test]
 async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let gas_objects = generate_test_gas_objects();
-    let (sender, keypair): (IotaAddress, AccountKeyPair) = deterministic_random_account_key();
+    let (sender, keypair): (Address, AccountKeyPair) = deterministic_random_account_key();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
     let (aggregator, authorities, genesis, _) =

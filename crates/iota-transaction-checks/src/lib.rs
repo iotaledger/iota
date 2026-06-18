@@ -15,10 +15,10 @@ mod checked {
 
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{ObjectId, Owner, TransactionKind};
+    use iota_sdk_types::{Address, ObjectId, Owner, TransactionKind};
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        base_types::{IotaAddress, ObjectRef, SequenceNumber},
+        base_types::{ObjectRef, SequenceNumber},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
         fp_bail, fp_ensure,
@@ -185,7 +185,7 @@ mod checked {
             ))
             .into());
         }
-        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
+        let mut used_objects: HashSet<Address> = HashSet::new();
         for input_object in input_objects.iter() {
             let Some(object) = input_object.as_object() else {
                 // object was deleted
@@ -514,7 +514,7 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     fn check_objects(transaction: &TransactionData, objects: &InputObjects) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
-        let mut used_objects: HashSet<IotaAddress> = HashSet::new();
+        let mut used_objects: HashSet<Address> = HashSet::new();
         for object in objects.iter() {
             if object.is_mutable() {
                 fp_ensure!(
@@ -566,7 +566,7 @@ mod checked {
 
     /// Check one object against a reference
     fn check_one_object(
-        owner: &IotaAddress,
+        owner: &Address,
         object_kind: InputObjectKind,
         object: &Object,
         system_transaction: bool,

@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     error::{IotaError, UserInputError},
@@ -78,7 +78,7 @@ async fn test_valid_user_transaction_passes() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     let object_id = ObjectId::random();
@@ -156,7 +156,7 @@ async fn test_duplicate_transaction_deduplicated() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     let object_id = ObjectId::random();
@@ -210,7 +210,7 @@ async fn test_mixed_batch_filtering() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     let obj1_id = ObjectId::random();
@@ -1113,7 +1113,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     let object_id = ObjectId::random();
@@ -1209,7 +1209,7 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     // One owned object spent by both transactions, plus a distinct gas object each
@@ -1331,9 +1331,9 @@ enum LockTier {
 struct LockTierSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     object_ref: iota_types::base_types::ObjectRef,
     gas_ref: iota_types::base_types::ObjectRef,
     rgp: u64,
@@ -1346,7 +1346,7 @@ async fn setup_lock_tier() -> LockTierSetup {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();

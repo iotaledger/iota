@@ -14,10 +14,9 @@ use iota_json_rpc_types::{
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GAS,
@@ -777,7 +776,7 @@ fn request_withdraw_timelocked_stake_from_active() {
         .unwrap();
 }
 
-async fn get_address_balances(indexer_client: &HttpClient, address: IotaAddress) -> Vec<u64> {
+async fn get_address_balances(indexer_client: &HttpClient, address: Address) -> Vec<u64> {
     indexer_client
         .get_coins(address, None, None, None)
         .await
@@ -791,7 +790,7 @@ async fn get_address_balances(indexer_client: &HttpClient, address: IotaAddress)
 async fn create_coins_and_wait_for_indexer(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     objects_count: u32,
 ) -> Vec<ObjectId> {
     let mut coins: Vec<ObjectId> = Vec::new();
@@ -810,7 +809,7 @@ async fn create_coins_and_wait_for_indexer(
 }
 
 async fn create_cluster_with_timelocked_iota(
-    address: IotaAddress,
+    address: Address,
     indexer_db_name: &str,
 ) -> (TestCluster, PgIndexerStore, HttpClient, ObjectId) {
     let principal = 100_000_000_000;
@@ -883,7 +882,7 @@ async fn create_cluster_with_timelocked_iota(
     (cluster, store, client, timelocked_balance)
 }
 
-async fn get_validator(client: &HttpClient) -> IotaAddress {
+async fn get_validator(client: &HttpClient) -> Address {
     let iota_system_state = client
         .get_latest_iota_system_state_v2()
         .await
@@ -898,7 +897,7 @@ async fn get_validator(client: &HttpClient) -> IotaAddress {
     }
 }
 
-async fn get_gas_object_id(client: &HttpClient, address: IotaAddress) -> ObjectId {
+async fn get_gas_object_id(client: &HttpClient, address: Address) -> ObjectId {
     client
         .get_coins(address, None, None, None)
         .await

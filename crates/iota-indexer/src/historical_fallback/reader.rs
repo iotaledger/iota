@@ -13,9 +13,9 @@ use std::collections::HashMap;
 
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
@@ -551,7 +551,7 @@ impl HistoricalFallbackReader {
     /// address.
     pub(crate) async fn paginate_transaction_digests_by_address(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionDigest>,
         limit: usize,
         oldest_first: bool,
@@ -581,7 +581,7 @@ impl HistoricalFallbackReader {
     /// Fetches a paginated list of transactions that affect a given address.
     pub(crate) async fn transactions_by_address(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionDigest>,
         limit: usize,
         oldest_first: bool,

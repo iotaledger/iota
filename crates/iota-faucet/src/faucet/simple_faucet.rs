@@ -20,9 +20,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{ObjectId, Owner, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, Owner, crypto::Intent};
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
+    base_types::TransactionDigest,
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -51,19 +51,19 @@ use crate::{
 
 pub struct SimpleFaucet {
     wallet: WalletContext,
-    active_address: IotaAddress,
+    active_address: Address,
     producer: Mutex<Sender<ObjectId>>,
     consumer: Mutex<Receiver<ObjectId>>,
     batch_producer: Mutex<Sender<ObjectId>>,
     batch_consumer: Mutex<Receiver<ObjectId>>,
     pub metrics: FaucetMetrics,
     pub wal: Mutex<WriteAheadLog>,
-    request_producer: Sender<(Uuid, IotaAddress, Vec<u64>)>,
+    request_producer: Sender<(Uuid, Address, Vec<u64>)>,
     batch_request_size: u64,
     task_id_cache: Mutex<TtlCache<Uuid, BatchSendStatus>>,
     ttl_expiration: u64,
     coin_amount: u64,
-    request_times: Mutex<HashMap<IotaAddress, VecDeque<Instant>>>,
+    request_times: Mutex<HashMap<Address, VecDeque<Instant>>>,
     /// Shuts down the batch transfer task. Used only in testing.
     #[cfg_attr(not(test), expect(unused))]
     batch_transfer_shutdown: parking_lot::Mutex<Option<oneshot::Sender<()>>>,
@@ -138,9 +138,8 @@ impl SimpleFaucet {
         let (producer, consumer) = mpsc::channel(coins.len());
         let (batch_producer, batch_consumer) = mpsc::channel(coins.len());
 
-        let (sender, mut receiver) = mpsc::channel::<(Uuid, IotaAddress, Vec<u64>)>(
-            config.max_request_queue_length as usize,
-        );
+        let (sender, mut receiver) =
+            mpsc::channel::<(Uuid, Address, Vec<u64>)>(config.max_request_queue_length as usize);
 
         // Split the coins eventually into two pools: one for the gas pool and one for
         // the batch pool. The batch pool will only be populated if the batch feature is
@@ -211,7 +210,7 @@ impl SimpleFaucet {
             coin_amount: config.amount,
             batch_transfer_shutdown: parking_lot::Mutex::new(Some(batch_transfer_shutdown)),
             // rate limiting
-            request_times: Mutex::new(HashMap::<IotaAddress, VecDeque<Instant>>::new()),
+            request_times: Mutex::new(HashMap::<Address, VecDeque<Instant>>::new()),
             enable_rate_limiting: config.enable_rate_limiting,
             max_requests_per_window: config.max_requests_per_window,
             rate_window_secs: config.rate_window_secs,
@@ -434,7 +433,7 @@ impl SimpleFaucet {
     async fn sign_and_execute_txn(
         &self,
         uuid: Uuid,
-        recipient: IotaAddress,
+        recipient: Address,
         coin_id: ObjectId,
         tx_data: TransactionData,
         for_batch: bool,
@@ -516,7 +515,7 @@ impl SimpleFaucet {
     async fn transfer_gases(
         &self,
         amounts: &[u64],
-        recipient: IotaAddress,
+        recipient: Address,
         uuid: Uuid,
     ) -> Result<(TransactionDigest, Vec<ObjectId>), FaucetError> {
         let number_of_coins = amounts.len();
@@ -603,7 +602,7 @@ impl SimpleFaucet {
         &self,
         tx: &Transaction,
         coin_id: ObjectId,
-        recipient: IotaAddress,
+        recipient: Address,
         uuid: Uuid,
     ) -> IotaTransactionBlockResponse {
         let mut retry_delay = Duration::from_millis(500);
@@ -635,7 +634,7 @@ impl SimpleFaucet {
         &self,
         tx: &Transaction,
         coin_id: ObjectId,
-        recipient: IotaAddress,
+        recipient: Address,
         uuid: Uuid,
     ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
         self.metrics.current_executions_in_flight.inc();
@@ -685,8 +684,8 @@ impl SimpleFaucet {
     async fn build_pay_iota_txn(
         &self,
         coin_id: ObjectId,
-        signer: IotaAddress,
-        recipient: IotaAddress,
+        signer: Address,
+        recipient: Address,
         amounts: &[u64],
         budget: u64,
     ) -> Result<TransactionData, anyhow::Error> {
@@ -707,7 +706,7 @@ impl SimpleFaucet {
         &self,
         res: IotaTransactionBlockResponse,
         number_of_coins: usize,
-        recipient: IotaAddress,
+        recipient: Address,
     ) -> Result<(TransactionDigest, Vec<ObjectId>), FaucetError> {
         let created = res
             .effects
@@ -739,8 +738,8 @@ impl SimpleFaucet {
     async fn build_batch_pay_iota_txn(
         &self,
         coin_id: ObjectId,
-        batch_requests: Vec<(Uuid, IotaAddress, Vec<u64>)>,
-        signer: IotaAddress,
+        batch_requests: Vec<(Uuid, Address, Vec<u64>)>,
+        signer: Address,
         budget: u64,
     ) -> Result<TransactionData, anyhow::Error> {
         let gas_payment = self.wallet.get_object_ref(coin_id).await?;
@@ -768,10 +767,10 @@ impl SimpleFaucet {
     async fn check_and_map_batch_transfer_gas_result(
         &self,
         res: IotaTransactionBlockResponse,
-        requests: Vec<(Uuid, IotaAddress, Vec<u64>)>,
+        requests: Vec<(Uuid, Address, Vec<u64>)>,
     ) -> Result<(), FaucetError> {
         // Grab the list of created coins and turn it into a map of destination
-        // IotaAddress to Vec<Coins>
+        // Address to Vec<Coins>
         let created = res
             .effects
             .ok_or_else(|| {
@@ -783,7 +782,7 @@ impl SimpleFaucet {
             .created()
             .to_vec();
 
-        let mut address_coins_map: HashMap<IotaAddress, Vec<OwnedObjectRef>> = HashMap::new();
+        let mut address_coins_map: HashMap<Address, Vec<OwnedObjectRef>> = HashMap::new();
         created.iter().for_each(|created_coin_owner_ref| {
             let owner = created_coin_owner_ref.owner;
             let coin_obj_ref = created_coin_owner_ref.clone();
@@ -797,7 +796,7 @@ impl SimpleFaucet {
 
         // Assert that the number of times a iota_address occurs is the number of times
         // the coins come up in the vector.
-        let mut request_count: HashMap<IotaAddress, u64> = HashMap::new();
+        let mut request_count: HashMap<Address, u64> = HashMap::new();
         // Acquire lock and update all of the request Uuids
         let mut task_map = self.task_id_cache.lock().await;
         for (uuid, addy, amounts) in requests {
@@ -893,7 +892,7 @@ impl SimpleFaucet {
 
 #[async_trait]
 impl Faucet for SimpleFaucet {
-    async fn rate_limit(&self, recipient: IotaAddress) -> Result<(), FaucetError> {
+    async fn rate_limit(&self, recipient: Address) -> Result<(), FaucetError> {
         let mut request_times = self.request_times.lock().await;
 
         // Define the time window based on configuration.
@@ -945,7 +944,7 @@ impl Faucet for SimpleFaucet {
     async fn send(
         &self,
         id: Uuid,
-        recipient: IotaAddress,
+        recipient: Address,
         amounts: &[u64],
     ) -> Result<FaucetReceipt, FaucetError> {
         info!(?recipient, uuid = ?id, ?amounts, "Getting faucet requests");
@@ -1000,7 +999,7 @@ impl Faucet for SimpleFaucet {
     async fn batch_send(
         &self,
         id: Uuid,
-        recipient: IotaAddress,
+        recipient: Address,
         amounts: &[u64],
     ) -> Result<BatchFaucetReceipt, FaucetError> {
         info!(?recipient, uuid = ?id, "Getting faucet request");
@@ -1036,8 +1035,8 @@ impl Faucet for SimpleFaucet {
 }
 
 pub async fn batch_gather(
-    request_consumer: &mut Receiver<(Uuid, IotaAddress, Vec<u64>)>,
-    requests: &mut Vec<(Uuid, IotaAddress, Vec<u64>)>,
+    request_consumer: &mut Receiver<(Uuid, Address, Vec<u64>)>,
+    requests: &mut Vec<(Uuid, Address, Vec<u64>)>,
     batch_request_size: u64,
 ) -> Result<(), FaucetError> {
     // Gather the rest of the batch after the first item has been taken.
@@ -1056,7 +1055,7 @@ pub async fn batch_gather(
 // Function to process the batch send of the mcsp queue
 pub async fn batch_transfer_gases(
     weak_faucet: &Weak<SimpleFaucet>,
-    request_consumer: &mut Receiver<(Uuid, IotaAddress, Vec<u64>)>,
+    request_consumer: &mut Receiver<(Uuid, Address, Vec<u64>)>,
     rx_batch_transfer_shutdown: &mut oneshot::Receiver<()>,
 ) -> Result<TransactionDigest, FaucetError> {
     let mut requests = Vec::new();
@@ -1123,7 +1122,7 @@ pub async fn batch_transfer_gases(
                 // Because we are batching transactions to faucet, we will just not use a real
                 // recipient for iota address, and instead just fill it with the
                 // ZERO address.
-                let recipient = IotaAddress::ZERO;
+                let recipient = Address::ZERO;
                 {
                     // Register the intention to send this transaction before we send it, so that if
                     // faucet fails or we give up before we get a definite response, we have a
@@ -1324,8 +1323,7 @@ mod tests {
         let number_of_coins = gas_coins.len();
         let amounts = &vec![1; number_of_coins];
         let _ = futures::future::join_all(
-            (0..number_of_coins)
-                .map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+            (0..number_of_coins).map(|_| faucet.send(Uuid::new_v4(), Address::random(), amounts)),
         )
         .await
         .into_iter()
@@ -1390,7 +1388,7 @@ mod tests {
         let amounts = &[coin_amount];
 
         // Create a vector containing five randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..5).map(|_| IotaAddress::random()).collect();
+        let target_addresses: Vec<Address> = (0..5).map(|_| Address::random()).collect();
 
         let response = futures::future::join_all(
             target_addresses
@@ -1468,7 +1466,7 @@ mod tests {
 
         let amounts = &[1; 1];
         // Create a vector containing five randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..5).map(|_| IotaAddress::random()).collect();
+        let target_addresses: Vec<Address> = (0..5).map(|_| Address::random()).collect();
 
         let response = futures::future::join_all(
             target_addresses
@@ -1530,7 +1528,7 @@ mod tests {
             .pay_all_iota(
                 address,
                 vec![bad_gas.object_id],
-                IotaAddress::random(),
+                Address::random(),
                 gas_budget,
             )
             .await
@@ -1542,7 +1540,7 @@ mod tests {
         // We traverse the list twice, which must trigger the transferred gas to be
         // kicked out
         futures::future::join_all(
-            (0..2).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+            (0..2).map(|_| faucet.send(Uuid::new_v4(), Address::random(), amounts)),
         )
         .await;
 
@@ -1579,7 +1577,7 @@ mod tests {
         let original_available = faucet.metrics.total_available_coins.get();
         let original_discarded = faucet.metrics.total_discarded_coins.get();
 
-        let recipient = IotaAddress::random();
+        let recipient = Address::random();
         let faucet_address = faucet.active_address;
         let uuid = Uuid::new_v4();
 
@@ -1695,7 +1693,7 @@ mod tests {
         // We traverse the list ten times, which must trigger the tiny gas to be
         // examined and then discarded
         futures::future::join_all(
-            (0..10).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+            (0..10).map(|_| faucet.send(Uuid::new_v4(), Address::random(), amounts)),
         )
         .await;
         info!(
@@ -1749,7 +1747,7 @@ mod tests {
             .unwrap();
         execute_tx(&mut context, tx_data).await.unwrap();
 
-        let destination_address = IotaAddress::random();
+        let destination_address = Address::random();
         // Transfer all valid gases away except for 1
         for gas in gas_coins.iter().take(gas_coins.len() - 1) {
             let tx_data = client
@@ -1788,7 +1786,7 @@ mod tests {
 
         // We traverse the list twice, which must trigger the split gas to be kicked out
         futures::future::join_all(
-            (0..2).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), &[30000000000])),
+            (0..2).map(|_| faucet.send(Uuid::new_v4(), Address::random(), &[30000000000])),
         )
         .await;
 
@@ -1835,7 +1833,7 @@ mod tests {
 
         execute_tx(&mut context, tx_data).await.unwrap();
 
-        let destination_address = IotaAddress::random();
+        let destination_address = Address::random();
 
         // Transfer all valid gases away
         for gas in gas_coins {
@@ -1872,7 +1870,7 @@ mod tests {
         .await
         .unwrap();
 
-        let destination_address = IotaAddress::random();
+        let destination_address = Address::random();
         // Assert that faucet will discard and also terminate
         let res = faucet
             .send(Uuid::new_v4(), destination_address, &[30000000000])
@@ -1899,7 +1897,7 @@ mod tests {
         .await
         .unwrap();
 
-        let recipient = IotaAddress::random();
+        let recipient = Address::random();
         let faucet_address = faucet.active_address;
         let uuid = Uuid::new_v4();
 
@@ -1996,7 +1994,7 @@ mod tests {
         .unwrap();
 
         // Create a vector containing two randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..2).map(|_| IotaAddress::random()).collect();
+        let target_addresses: Vec<Address> = (0..2).map(|_| Address::random()).collect();
 
         // Send 2 coins of 1 iota each. We
         let coins_sent = 2;
@@ -2047,7 +2045,7 @@ mod tests {
     }
 
     async fn test_send_interface_has_success_status(faucet: &impl Faucet) {
-        let recipient = IotaAddress::random();
+        let recipient = Address::random();
         let amounts = vec![1, 2, 3];
         let uuid_test = Uuid::new_v4();
 
@@ -2068,7 +2066,7 @@ mod tests {
     }
 
     async fn test_basic_interface(faucet: &impl Faucet) {
-        let recipient = IotaAddress::random();
+        let recipient = Address::random();
         let amounts = vec![1, 2, 3];
 
         let FaucetReceipt { sent } = faucet

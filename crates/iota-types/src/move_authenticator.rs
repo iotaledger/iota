@@ -9,11 +9,11 @@ use std::{
 use enum_dispatch::enum_dispatch;
 use fastcrypto::error::FastCryptoError;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, TypeTag, crypto::IntentMessage};
+use iota_sdk_types::{Address, ObjectId, TypeTag, crypto::IntentMessage};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
@@ -64,7 +64,7 @@ impl MoveAuthenticator {
     }
 
     /// Returns the address of the MoveAuthenticator.
-    pub fn address(&self) -> IotaResult<IotaAddress> {
+    pub fn address(&self) -> IotaResult<Address> {
         self.inner.address()
     }
 
@@ -135,7 +135,7 @@ impl AuthenticatorTrait for MoveAuthenticator {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
@@ -184,7 +184,7 @@ impl MoveAuthenticatorInner {
         }
     }
 
-    pub fn address(&self) -> IotaResult<IotaAddress> {
+    pub fn address(&self) -> IotaResult<Address> {
         match self {
             MoveAuthenticatorInner::V1(v1) => v1.address(),
         }
@@ -268,9 +268,9 @@ impl MoveAuthenticatorV1 {
 
     /// Returns the address of the MoveAuthenticatorV1, which is the object ID
     /// of the object to authenticate.
-    pub fn address(&self) -> IotaResult<IotaAddress> {
+    pub fn address(&self) -> IotaResult<Address> {
         let (id, _, _) = self.object_to_authenticate_components()?;
-        Ok(IotaAddress::from(id))
+        Ok(Address::from(id))
     }
 
     pub fn call_args(&self) -> &Vec<CallArg> {
@@ -411,7 +411,7 @@ impl AuthenticatorTrait for MoveAuthenticatorV1 {
     fn verify_claims<T>(
         &self,
         _value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where

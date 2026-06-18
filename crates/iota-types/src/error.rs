@@ -5,7 +5,7 @@
 
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
-use iota_sdk_types::{CommandArgumentError, ObjectId, Owner};
+use iota_sdk_types::{Address, CommandArgumentError, ObjectId, Owner};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -260,10 +260,7 @@ pub enum UserInputError {
     MutableParameterExpected { object_id: ObjectId },
 
     #[error("Address {address} is denied for coin {coin_type}")]
-    AddressDeniedForCoin {
-        address: IotaAddress,
-        coin_type: String,
-    },
+    AddressDeniedForCoin { address: Address, coin_type: String },
 
     #[error("Commands following a command with Random can only be TransferObjects or MergeCoins")]
     PostRandomCommandRestrictions,

@@ -13,10 +13,10 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+    Address, Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, ObjectType, TxContext, TxContextKind},
+    base_types::{ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
@@ -35,7 +35,7 @@ impl TransactionBuilder {
     /// Select a gas coin for the provided gas budget.
     pub async fn select_gas(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         input_gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
         input_objects: Vec<ObjectId>,

@@ -26,12 +26,13 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag, gas::GasCostSummary};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, Owner, StructTag, TypeTag, gas::GasCostSummary,
+};
 use iota_types::{
     balance::Supply,
     base_types::{
-        IotaAddress, ObjectDigest, ObjectRef, ObjectType, SequenceNumber, TransactionDigest,
-        random_object_ref,
+        ObjectDigest, ObjectRef, ObjectType, SequenceNumber, TransactionDigest, random_object_ref,
     },
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
@@ -137,8 +138,8 @@ impl RpcExampleProvider {
     }
 
     fn batch_transaction_examples(&mut self) -> Examples {
-        let signer = IotaAddress::from(ObjectId::new(self.rng.gen()));
-        let recipient = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let signer = Address::from(ObjectId::new(self.rng.gen()));
+        let recipient = Address::from(ObjectId::new(self.rng.gen()));
         let gas_id = ObjectId::new(self.rng.gen());
         let object_id = ObjectId::new(self.rng.gen());
         let coin_ref = random_object_ref();
@@ -288,7 +289,7 @@ impl RpcExampleProvider {
                 vec![
                     (
                         "sender_address",
-                        json!(IotaAddress::from(ObjectId::new(self.rng.gen()))),
+                        json!(Address::from(ObjectId::new(self.rng.gen()))),
                     ),
                     ("tx_bytes", json!(tx_bytes.tx_bytes)),
                     ("gas_price", json!(1000)),
@@ -333,9 +334,7 @@ impl RpcExampleProvider {
                         )
                         .unwrap(),
                     ),
-                    owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                        self.rng.gen(),
-                    )))),
+                    owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                     storage_rebate: Some(100),
                     object_id,
@@ -377,9 +376,7 @@ impl RpcExampleProvider {
                 )
                 .unwrap(),
             ),
-            owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                self.rng.gen(),
-            )))),
+            owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
             storage_rebate: Some(100),
             object_id,
@@ -470,7 +467,7 @@ impl RpcExampleProvider {
     }
 
     fn get_owned_objects(&mut self) -> Examples {
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let result = (0..4)
             .map(|_| IotaObjectData {
                 object_id: ObjectId::new(self.rng.gen()),
@@ -670,12 +667,12 @@ impl RpcExampleProvider {
     ) -> (
         TransactionData,
         Vec<GenericSignature>,
-        IotaAddress,
+        Address,
         ObjectId,
         IotaTransactionBlockResponse,
     ) {
         let (signer, kp): (_, AccountKeyPair) = get_key_pair_from_rng(&mut self.rng);
-        let recipient = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let recipient = Address::from(ObjectId::new(self.rng.gen()));
         let obj_id = ObjectId::new(self.rng.gen());
         let gas_ref = ObjectRef::new(
             ObjectId::new(self.rng.gen()),
@@ -791,7 +788,7 @@ impl RpcExampleProvider {
             },
             package_id: ObjectId::new(self.rng.gen()),
             transaction_module: Identifier::from_static("test_module"),
-            sender: IotaAddress::from(ObjectId::new(self.rng.gen())),
+            sender: Address::from(ObjectId::new(self.rng.gen())),
             type_: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
             parsed_json: json!({"test": "example value"}),
             bcs: BcsEvent::new(vec![]),
@@ -840,7 +837,7 @@ impl RpcExampleProvider {
     }
 
     fn iotax_get_all_balances(&mut self) -> Examples {
-        let address = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let address = Address::from(ObjectId::new(self.rng.gen()));
 
         let result = Balance {
             coin_type: "0x2::iota::IOTA".to_string(),
@@ -859,7 +856,7 @@ impl RpcExampleProvider {
 
     fn iotax_get_all_coins(&mut self) -> Examples {
         let limit = 3;
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let cursor = ObjectId::new(self.rng.gen());
         let next = ObjectId::new(self.rng.gen());
         let coins = (0..3)
@@ -894,7 +891,7 @@ impl RpcExampleProvider {
     }
 
     fn iotax_get_balance(&mut self) -> Examples {
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let coin_type = "0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC".to_string();
         let result = Balance {
             coin_type: coin_type.clone(),
@@ -949,7 +946,7 @@ impl RpcExampleProvider {
 
     fn iotax_get_coins(&mut self) -> Examples {
         let coin_type = "0x2::iota::IOTA".to_string();
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let coins = (0..3)
             .map(|_| Coin {
                 coin_type: coin_type.clone(),
@@ -1127,15 +1124,15 @@ impl RpcExampleProvider {
     fn iotax_get_validators_apy(&mut self) -> Examples {
         let result = vec![
             ValidatorApy {
-                address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                address: Address::from(ObjectId::new(self.rng.gen())),
                 apy: 0.06,
             },
             ValidatorApy {
-                address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                address: Address::from(ObjectId::new(self.rng.gen())),
                 apy: 0.02,
             },
             ValidatorApy {
-                address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                address: Address::from(ObjectId::new(self.rng.gen())),
                 apy: 0.05,
             },
         ];
@@ -1225,9 +1222,7 @@ impl RpcExampleProvider {
                 )
                 .unwrap(),
             ),
-            owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                self.rng.gen(),
-            )))),
+            owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
             storage_rebate: Some(100),
             object_id: parent_object_id,
@@ -1255,7 +1250,7 @@ impl RpcExampleProvider {
     }
 
     fn iotax_get_owned_objects(&mut self) -> Examples {
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let version: u64 = 13488;
         let options = Some(
             IotaObjectDataOptions::new()
@@ -1330,7 +1325,7 @@ impl RpcExampleProvider {
                 id: event_id,
                 package_id,
                 transaction_module: identifier.clone(),
-                sender: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                sender: Address::from(ObjectId::new(self.rng.gen())),
                 type_: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
                 parsed_json: serde_json::Value::String("some_value".to_string()),
                 bcs: BcsEvent::new(vec![]),
@@ -1390,10 +1385,10 @@ impl RpcExampleProvider {
 
     fn iotax_get_stakes(&mut self) -> Examples {
         let principal = 200000000000;
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let result = vec![
             DelegatedStake {
-                validator_address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                validator_address: Address::from(ObjectId::new(self.rng.gen())),
                 staking_pool: ObjectId::new(self.rng.gen()),
                 stakes: vec![
                     Stake {
@@ -1415,7 +1410,7 @@ impl RpcExampleProvider {
                 ],
             },
             DelegatedStake {
-                validator_address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                validator_address: Address::from(ObjectId::new(self.rng.gen())),
                 staking_pool: ObjectId::new(self.rng.gen()),
                 stakes: vec![Stake {
                     staked_iota_id: ObjectId::new(self.rng.gen()),
@@ -1442,7 +1437,7 @@ impl RpcExampleProvider {
         let stake1 = ObjectId::new(self.rng.gen());
         let stake2 = ObjectId::new(self.rng.gen());
         let result = DelegatedStake {
-            validator_address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+            validator_address: Address::from(ObjectId::new(self.rng.gen())),
             staking_pool: ObjectId::new(self.rng.gen()),
             stakes: vec![
                 Stake {
@@ -1496,9 +1491,7 @@ impl RpcExampleProvider {
                     )
                     .unwrap(),
                 ),
-                owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                    self.rng.gen(),
-                )))),
+                owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: Some(100),
                 object_id,
@@ -1516,9 +1509,7 @@ impl RpcExampleProvider {
                     )
                     .unwrap(),
                 ),
-                owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                    self.rng.gen(),
-                )))),
+                owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: Some(100),
                 object_id: object_id2,

@@ -4,8 +4,7 @@
 
 use std::collections::HashSet;
 
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -37,7 +36,7 @@ pub struct TransactionDenyConfig {
     /// A list of iota addresses that are not allowed to be used as the sender
     /// or sponsor.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    address_deny_list: Vec<IotaAddress>,
+    address_deny_list: Vec<Address>,
 
     /// Whether publishing new packages is disabled.
     #[serde(default)]
@@ -65,7 +64,7 @@ pub struct TransactionDenyConfig {
     package_deny_set: OnceCell<HashSet<ObjectId>>,
 
     #[serde(skip)]
-    address_deny_set: OnceCell<HashSet<IotaAddress>>,
+    address_deny_set: OnceCell<HashSet<Address>>,
 
     /// Whether receiving objects transferred to other objects is allowed
     #[serde(default)]
@@ -90,7 +89,7 @@ impl TransactionDenyConfig {
             .get_or_init(|| self.package_deny_list.iter().cloned().collect())
     }
 
-    pub fn get_address_deny_set(&self) -> &HashSet<IotaAddress> {
+    pub fn get_address_deny_set(&self) -> &HashSet<Address> {
         self.address_deny_set
             .get_or_init(|| self.address_deny_list.iter().cloned().collect())
     }
@@ -164,7 +163,7 @@ impl TransactionDenyConfigBuilder {
         self
     }
 
-    pub fn add_denied_address(mut self, address: IotaAddress) -> Self {
+    pub fn add_denied_address(mut self, address: Address) -> Self {
         self.config.address_deny_list.push(address);
         self
     }
