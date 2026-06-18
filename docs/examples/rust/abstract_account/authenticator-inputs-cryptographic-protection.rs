@@ -32,7 +32,7 @@ use iota_types::{
     crypto::PublicKey,
     signature::GenericSignature,
     transaction::{CallArg, SharedObjectRef},
-    utils::MoveAuthenticator,
+    utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -368,11 +368,7 @@ pub async fn create_test_transaction(
     let tx_digest = tx_data.digest();
 
     // Create a transaction
-    let account_call_arg = CallArg::Shared(SharedObjectRef::new(
-        account_ref.object_id,
-        account_ref.version,
-        false,
-    ));
+
     let blacklist_call_arg = CallArg::Shared(SharedObjectRef::new(
         blacklist_ref.object_id,
         blacklist_ref.version,
@@ -396,11 +392,15 @@ pub async fn create_test_transaction(
             .collect();
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
-    let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-        vec![blacklist_call_arg, raw_value_arg, signature_call_arg],
-        vec![],
-        account_call_arg.clone(),
-    ));
+    let signature = GenericSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_shared(
+            vec![blacklist_call_arg, raw_value_arg, signature_call_arg],
+            vec![],
+            account_ref.object_id,
+            account_ref.version,
+        )
+        .into(),
+    );
 
     Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))
 }
@@ -421,17 +421,34 @@ pub fn swap_blacklist_in_transaction(
             let raw_value_call_arg = move_authenticator.call_args()[1].clone();
             let signature_call_arg = move_authenticator.call_args()[2].clone();
 
-            let account_call_arg = move_authenticator.object_to_authenticate().clone();
-
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-                vec![
-                    new_blacklist_ref_call_arg,
-                    raw_value_call_arg,
-                    signature_call_arg,
-                ],
-                vec![],
-                account_call_arg,
-            ))
+            match move_authenticator.object_to_authenticate() {
+                CallArg::ImmutableOrOwned(immutable) => GenericSignature::MoveAuthenticator(
+                    MoveAuthenticatorV1::new_immutable(
+                        vec![
+                            new_blacklist_ref_call_arg,
+                            raw_value_call_arg,
+                            signature_call_arg,
+                        ],
+                        vec![],
+                        *immutable,
+                    )
+                    .into(),
+                ),
+                CallArg::Shared(shared) => GenericSignature::MoveAuthenticator(
+                    MoveAuthenticatorV1::new_shared(
+                        vec![
+                            new_blacklist_ref_call_arg,
+                            raw_value_call_arg,
+                            signature_call_arg,
+                        ],
+                        vec![],
+                        shared.object_id,
+                        shared.initial_shared_version,
+                    )
+                    .into(),
+                ),
+                _ => panic!("Expected ImmutableOrOwned or Shared object"),
+            }
         }
         _ => panic!("Expected MoveAuthenticator signature"),
     };
@@ -453,17 +470,34 @@ pub fn swap_raw_value_in_transaction(
             let blacklist_call_arg = move_authenticator.call_args()[0].clone();
             let signature_call_arg = move_authenticator.call_args()[2].clone();
 
-            let account_call_arg = move_authenticator.object_to_authenticate().clone();
-
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-                vec![
-                    blacklist_call_arg,
-                    new_raw_value_call_arg,
-                    signature_call_arg,
-                ],
-                vec![],
-                account_call_arg,
-            ))
+            match move_authenticator.object_to_authenticate() {
+                CallArg::ImmutableOrOwned(immutable) => GenericSignature::MoveAuthenticator(
+                    MoveAuthenticatorV1::new_immutable(
+                        vec![
+                            blacklist_call_arg,
+                            new_raw_value_call_arg,
+                            signature_call_arg,
+                        ],
+                        vec![],
+                        *immutable,
+                    )
+                    .into(),
+                ),
+                CallArg::Shared(shared) => GenericSignature::MoveAuthenticator(
+                    MoveAuthenticatorV1::new_shared(
+                        vec![
+                            blacklist_call_arg,
+                            new_raw_value_call_arg,
+                            signature_call_arg,
+                        ],
+                        vec![],
+                        shared.object_id,
+                        shared.initial_shared_version,
+                    )
+                    .into(),
+                ),
+                _ => panic!("Expected ImmutableOrOwned or Shared object"),
+            }
         }
         _ => panic!("Expected MoveAuthenticator signature"),
     };
