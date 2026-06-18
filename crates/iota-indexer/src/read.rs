@@ -1574,8 +1574,10 @@ impl IndexerReader {
         &self,
         filter: Option<&TransactionFilterKind>,
     ) -> IndexerResult<&'static [CommitterTables]> {
+        use CommitterTables::*;
+
         let Some(filter) = filter else {
-            return Ok(&[CommitterTables::Transactions]);
+            return Ok(&[Transactions]);
         };
         let tables: &'static [CommitterTables] = match filter {
             TransactionFilterKind::V1(TransactionFilter::MoveFunction {
@@ -1586,56 +1588,53 @@ impl IndexerReader {
                 function,
                 ..
             }) => match (module, function) {
-                (Some(_), Some(_)) => &[CommitterTables::TxCallsFun],
-                (Some(_), None) => &[CommitterTables::TxCallsMod],
+                (Some(_), Some(_)) => &[TxCallsFun, TxDigests],
+                (Some(_), None) => &[TxCallsMod, TxDigests],
                 (None, Some(_)) => {
                     return Err(IndexerError::InvalidArgument(
                         "Function cannot be present without Module.".into(),
                     ));
                 }
-                (None, None) => &[CommitterTables::TxCallsPkg],
+                (None, None) => &[TxCallsPkg, TxDigests],
             },
             TransactionFilterKind::V1(TransactionFilter::InputObject(_))
             | TransactionFilterKind::V2(TransactionFilterV2::InputObject(_)) => {
-                &[CommitterTables::TxInputObjects]
+                &[TxInputObjects, TxDigests]
             }
             TransactionFilterKind::V1(TransactionFilter::ChangedObject(_))
             | TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(_)) => {
-                &[CommitterTables::TxChangedObjects]
+                &[TxChangedObjects, TxDigests]
             }
             TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(_)) => {
-                &[CommitterTables::TxWrappedOrDeletedObjects]
+                &[TxWrappedOrDeletedObjects, TxDigests]
             }
             TransactionFilterKind::V1(TransactionFilter::FromAddress(_))
             | TransactionFilterKind::V2(TransactionFilterV2::FromAddress(_)) => {
-                &[CommitterTables::TxSenders]
+                &[TxSenders, TxDigests]
             }
             TransactionFilterKind::V1(TransactionFilter::ToAddress(_))
             | TransactionFilterKind::V2(TransactionFilterV2::ToAddress(_)) => {
-                &[CommitterTables::TxRecipients]
+                &[TxRecipients, TxDigests]
             }
             TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { .. })
             | TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { .. }) => {
-                &[CommitterTables::TxSenders, CommitterTables::TxRecipients]
+                &[TxSenders, TxRecipients, TxDigests]
             }
             TransactionFilterKind::V1(TransactionFilter::TransactionKind(_))
             | TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(_))
             | TransactionFilterKind::V1(TransactionFilter::TransactionKindIn(_))
             | TransactionFilterKind::V2(TransactionFilterV2::TransactionKindIn(_)) => {
-                &[CommitterTables::TxKinds]
+                &[TxKinds, TxDigests]
             }
             // Served by dedicated fallback paths
             TransactionFilterKind::V1(TransactionFilter::Checkpoint(_))
-            | TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_)) => &[
-                CommitterTables::Transactions,
-                CommitterTables::PrunerCpWatermark,
-            ],
+            | TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_)) => {
+                &[Transactions, PrunerCpWatermark, TxDigests]
+            }
             TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { .. })
-            | TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. }) => &[
-                CommitterTables::TxSenders,
-                CommitterTables::TxRecipients,
-                CommitterTables::Transactions,
-            ],
+            | TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. }) => {
+                &[TxSenders, TxRecipients, TxDigests]
+            }
             // Unsupported V2-only filters error out in the query match.
             TransactionFilterKind::V2(_) => {
                 return Err(IndexerError::InvalidArgument(
