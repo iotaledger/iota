@@ -120,3 +120,4 @@ dev-tools/iota-private-network/configs/genesis/benchmark.keystore
 
 # stress-test run artifacts (h1-attestation-overhead.sh etc.)
 stress-attestation-sequencer/results/
+sweeps/
