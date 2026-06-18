@@ -771,7 +771,7 @@ impl IndexStoreTables {
                         StorageError::custom(format!("serializing start-state objects: {e}"))
                     })?;
 
-                previous_epoch.epoch_info_entry = Some(EpochInfoV1Entry {
+                previous_epoch.epoch_close_proof = Some(EpochInfoV1Entry {
                     last_checkpoint_summary: checkpoint.checkpoint_summary.clone(),
                     last_checkpoint_contents: checkpoint.checkpoint_contents.clone(),
                     end_of_epoch_tx_effects: change_epoch_tx.effects.clone(),
@@ -785,14 +785,14 @@ impl IndexStoreTables {
             }
         }
 
-        // seed the new epoch's row; its close-of-epoch entry is filled in when
+        // seed the new epoch's row; its close-of-epoch proof is filled in when
         // the next epoch's boundary is indexed.
         let new_info = EpochInfoV2 {
             epoch: epoch_info.epoch,
             start_checkpoint: epoch_info.start_checkpoint,
             start_timestamp_ms: epoch_info.start_timestamp_ms,
             system_state: epoch_info.system_state,
-            epoch_info_entry: None,
+            epoch_close_proof: None,
         };
         batch.insert_batch(&self.epochs_v2, [(new_epoch_id, new_info)])?;
 
@@ -892,7 +892,7 @@ impl IndexStoreTables {
             start_checkpoint,
             start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
             system_state,
-            epoch_info_entry: None,
+            epoch_close_proof: None,
         };
 
         self.epochs_v2.insert(&epoch_info.epoch, &epoch_info)?;
@@ -1957,7 +1957,7 @@ mod tests {
         ))
     }
 
-    /// A finalized `EpochInfoV2` row (its `epoch_info_entry` is `Some`) — the
+    /// A finalized `EpochInfoV2` row (its `epoch_close_proof` is `Some`) — the
     /// only shape `reconcile` counts toward the `EpochIndexed` watermark.
     fn complete_epoch_info(epoch: EpochId) -> EpochInfoV2 {
         EpochInfoV2 {
@@ -1965,7 +1965,7 @@ mod tests {
             start_checkpoint: 0,
             start_timestamp_ms: 0,
             system_state: IotaSystemState::for_testing(epoch, 1),
-            epoch_info_entry: Some(EpochInfoV1Entry {
+            epoch_close_proof: Some(EpochInfoV1Entry {
                 last_checkpoint_summary: certified_summary(epoch, 0),
                 last_checkpoint_contents: CheckpointContents::new_with_digests_only_for_tests(
                     std::iter::empty(),

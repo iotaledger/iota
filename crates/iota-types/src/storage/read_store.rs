@@ -857,7 +857,7 @@ pub struct EpochInfo {
 ///
 /// Stores only the start-of-epoch identity (`epoch`, `start_checkpoint`,
 /// `start_timestamp_ms`, `system_state`) plus the close-of-epoch
-/// `epoch_info_entry`. Everything derivable from those — `protocol_version`,
+/// `epoch_close_proof`. Everything derivable from those — `protocol_version`,
 /// `reference_gas_price`, `end_timestamp_ms`, `end_checkpoint` — is a method,
 /// not a stored field.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -867,15 +867,15 @@ pub struct EpochInfoV2 {
     pub start_timestamp_ms: u64,
     /// `IotaSystemState` of object `0x5` at this epoch's start.
     pub system_state: IotaSystemState,
-    /// Close-of-epoch entry; `None` until this epoch's boundary is indexed. The
-    /// row is finalized exactly when this is `Some`.
-    pub epoch_info_entry: Option<EpochInfoV1Entry>,
+    /// Close-of-epoch proof bundle; `None` until this epoch's boundary is
+    /// indexed. The row is finalized exactly when this is `Some`.
+    pub epoch_close_proof: Option<EpochInfoV1Entry>,
 }
 
 impl EpochInfoV2 {
     /// Whether this epoch's boundary has been indexed.
     pub fn is_finalized(&self) -> bool {
-        self.epoch_info_entry.is_some()
+        self.epoch_close_proof.is_some()
     }
 
     /// Protocol version in effect this epoch (from the start system state).
@@ -890,14 +890,14 @@ impl EpochInfoV2 {
 
     /// Timestamp of this epoch's last checkpoint; `None` until finalized.
     pub fn end_timestamp_ms(&self) -> Option<u64> {
-        self.epoch_info_entry
+        self.epoch_close_proof
             .as_ref()
             .map(|entry| entry.last_checkpoint_summary.data().timestamp_ms)
     }
 
     /// This epoch's last checkpoint sequence number; `None` until finalized.
     pub fn end_checkpoint(&self) -> Option<CheckpointSequenceNumber> {
-        self.epoch_info_entry
+        self.epoch_close_proof
             .as_ref()
             .map(|entry| *entry.last_checkpoint_summary.data().sequence_number())
     }

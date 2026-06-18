@@ -71,6 +71,7 @@ impl CheckpointData {
     /// epoch-boundary checkpoint (genesis included), or its last transaction
     /// unexpectedly isn't an end-of-epoch transaction.
     pub fn end_of_epoch_transaction(&self) -> Option<&CheckpointTransaction> {
+        // Guard: only epoch-boundary checkpoints carry a closing tx — bail otherwise.
         self.checkpoint_summary.end_of_epoch_data.as_ref()?;
         // The epoch-change tx is always ordered last, after every user tx;
         // verify rather than assume, since callers treat `None` as a hard error.

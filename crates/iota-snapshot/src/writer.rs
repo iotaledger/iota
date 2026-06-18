@@ -527,7 +527,7 @@ impl StateSnapshotWriterV1 {
 
     /// Writes the per-snapshot `EPOCH_INFO` file, one entry per epoch in
     /// `[0, epoch]`: each row is read via `GrpcIndexes::get_epoch_info` and its
-    /// embedded `epoch_info_entry` taken. Callers must have run
+    /// embedded `epoch_close_proof` taken. Callers must have run
     /// [`Self::check_epoch_indexed_watermark`] first; this function trusts the
     /// precondition and panics on any unfinalized row.
     ///
@@ -565,7 +565,7 @@ impl StateSnapshotWriterV1 {
             // row the watermark covers must be finalized; a missing entry means
             // the watermark advanced over an unfinalized row. Panics for the
             // same reason as above.
-            let entry = epoch_info.epoch_info_entry.unwrap_or_else(|| {
+            let entry = epoch_info.epoch_close_proof.unwrap_or_else(|| {
                 panic!(
                     "epochs_v2[{epoch_id}] is not finalized despite `EpochIndexed` \
                      watermark covering it — the watermark must never cover an \

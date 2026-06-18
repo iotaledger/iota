@@ -296,7 +296,7 @@ impl IotaSystemState {
 }
 
 /// The raw system state wrapper object together with the
-/// `IotaSystemStateWrapper` decoded from it's contents.
+/// `IotaSystemStateWrapper` decoded from its contents.
 fn get_iota_system_state_wrapper_with_object(
     object_store: &dyn ObjectStore,
 ) -> Result<(Object, IotaSystemStateWrapper), IotaError> {
@@ -403,13 +403,13 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
 /// caller can persist the exact bytes their `ObjectDigest`s commit to.
 pub fn get_iota_system_state_objects(
     object_store: &dyn ObjectStore,
-) -> Result<Vec<Object>, IotaError> {
+) -> Result<[Object; 2], IotaError> {
     let (wrapper_object, wrapper) = get_iota_system_state_wrapper_with_object(object_store)?;
     // Same derivation as `get_iota_system_state`, so this can never select a
     // different inner object than the one that decodes the state.
     let inner_object =
         get_dynamic_field_object_from_store(object_store, wrapper.id.id.bytes, &wrapper.version)?;
-    Ok(vec![wrapper_object, inner_object])
+    Ok([wrapper_object, inner_object])
 }
 
 /// Given a system state type version, and the ID of the table, along with a

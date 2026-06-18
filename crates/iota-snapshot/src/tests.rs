@@ -204,11 +204,11 @@ fn fully_populated_epoch_info(epoch: EpochId) -> EpochInfoV2 {
         start_checkpoint: 0,
         start_timestamp_ms: 0,
         system_state: test_system_state(),
-        epoch_info_entry: Some(fully_populated_snapshot_epoch_entry(epoch)),
+        epoch_close_proof: Some(fully_populated_snapshot_epoch_entry(epoch)),
     }
 }
 
-/// The close-of-epoch entry embedded in [`fully_populated_epoch_info`] and
+/// The close-of-epoch proof embedded in [`fully_populated_epoch_info`] and
 /// written to the `EPOCH_INFO` file; used by tests that exercise the on-disk
 /// `EpochInfoV1Entry` directly (BCS round-trip of the file body).
 fn fully_populated_snapshot_epoch_entry(epoch: EpochId) -> EpochInfoV1Entry {
@@ -1201,13 +1201,13 @@ fn epoch_info_v2_row_derives_fields() {
     );
 }
 
-/// An open (not-yet-indexed) row has no `epoch_info_entry`, so it is not
+/// An open (not-yet-indexed) row has no `epoch_close_proof`, so it is not
 /// finalized and its `end_*` helpers return `None`. The finalized values are
 /// covered by `epoch_info_v2_row_derives_fields`.
 #[test]
 fn open_row_has_no_end_fields() {
     let open = EpochInfoV2 {
-        epoch_info_entry: None,
+        epoch_close_proof: None,
         ..fully_populated_epoch_info(2)
     };
     assert!(!open.is_finalized());

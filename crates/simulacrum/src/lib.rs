@@ -771,9 +771,9 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
                 start_checkpoint: start_checkpoint_seq,
                 start_timestamp_ms: start_checkpoint.data().timestamp_ms,
                 system_state,
-                // Simulacrum doesn't build the close-of-epoch entry, so the
+                // Simulacrum doesn't build the close-of-epoch proof, so the
                 // derived `end_*` fields report `None`.
-                epoch_info_entry: None,
+                epoch_close_proof: None,
             })
         }))
     }

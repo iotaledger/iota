@@ -3,14 +3,14 @@
 
 use iota_core::{checkpoints::CheckpointStore, grpc_indexes::GrpcIndexesStore};
 use iota_macros::sim_test;
-use iota_snapshot::{EpochInfo, EpochInfoV1, EpochInfoV1Entry};
+use iota_snapshot::{EpochInfo, EpochInfoV1};
 use iota_types::{
     committee::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointContents,
-    storage::EpochInfoV2,
+    storage::{EpochInfoV1Entry, EpochInfoV2},
 };
 use test_cluster::TestClusterBuilder;
 
@@ -634,7 +634,7 @@ fn real_epoch_info(source: &GrpcIndexesStore, current_epoch: EpochId) -> EpochIn
                 .get_epoch_info(epoch)
                 .unwrap()
                 .unwrap_or_else(|| panic!("missing epochs_v2 row for closed epoch {epoch}"));
-            row.epoch_info_entry.unwrap_or_else(|| {
+            row.epoch_close_proof.unwrap_or_else(|| {
                 panic!("epochs_v2 row for closed epoch {epoch} is not finalized")
             })
         })
@@ -651,6 +651,6 @@ fn restored_sentinel_row(epoch: u64) -> EpochInfoV2 {
         start_checkpoint: 0,
         start_timestamp_ms: 0,
         system_state: IotaSystemState::for_testing(epoch, 1),
-        epoch_info_entry: None,
+        epoch_close_proof: None,
     }
 }

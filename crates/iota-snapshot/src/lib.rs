@@ -38,9 +38,6 @@ use iota_sdk_types::ObjectId;
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
-// Re-exported so `iota_snapshot::EpochInfoV1Entry` (the snapshot file entry,
-// defined in `iota-types` because `EpochInfoV2` embeds it) stays a stable path.
-pub use iota_types::storage::EpochInfoV1Entry;
 use iota_types::{
     IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::ObjectRef,
@@ -54,7 +51,7 @@ use iota_types::{
     },
     messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
     object::Object,
-    storage::EpochInfoV2,
+    storage::{EpochInfoV1Entry, EpochInfoV2},
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
@@ -468,12 +465,13 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
     // 2. The epoch-change effects are the last tx of the verified contents.
     let expected_execution_digest = entry
         .last_checkpoint_contents
-        .end_of_epoch_execution_digests(summary)
+        .inner()
+        .last()
         .ok_or_else(|| anyhow::anyhow!("the closing checkpoint has no transactions"))?;
     let effects = &entry.end_of_epoch_tx_effects;
     anyhow::ensure!(
-        effects.execution_digests() == *expected,
-        "end_of_epoch_tx_effects is not the last transaction of the closing checkpoint",
+        effects.execution_digests() == *expected_execution_digest,
+        "end_of_epoch_tx_effects digest pair does not match the closing checkpoint's last transaction",
     );
 
     // 3. Events hash to the effects' events_digest (`None` ⇒ events empty, the
@@ -531,7 +529,7 @@ fn epoch_info_v2_row(
         start_checkpoint,
         start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
         system_state,
-        epoch_info_entry: Some(entry),
+        epoch_close_proof: Some(entry),
     }
 }
 
