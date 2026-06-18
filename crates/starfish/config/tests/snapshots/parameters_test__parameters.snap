@@ -22,6 +22,7 @@ sync_last_known_own_block_timeout:
   secs: 5
   nanos: 0
 dag_state_cached_rounds: 500
+peer_round_ahead_margin: 1000
 commit_sync_parallel_fetches: 8
 commit_sync_batch_size: 100
 commit_sync_batches_ahead: 32
