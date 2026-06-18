@@ -314,7 +314,7 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
         ),
         (
             "effects",
-            "is not the last transaction of the closing checkpoint",
+            "digest pair does not match the closing checkpoint's last transaction",
             Box::new(|entry| {
                 entry.end_of_epoch_tx_effects =
                     TransactionEffects::new_empty_v1_for_testing(TransactionDigest::ZERO);
