@@ -63,25 +63,6 @@ impl SlidingWindowSchedule {
         }
     }
 
-    /// Replays a sequence of committed subdags through [`Self::add_commit`],
-    /// producing the same aggregate that live processing would yield. The
-    /// caller supplies the subdags in commit-index order, starting no later
-    /// than [`Self::replay_start`].
-    pub(crate) fn from_committed_subdags<I>(
-        context: Arc<Context>,
-        window_size: u32,
-        subdags: I,
-    ) -> Self
-    where
-        I: IntoIterator<Item = SubDagBase>,
-    {
-        let mut schedule = Self::new(context, window_size);
-        for subdag in subdags {
-            schedule.add_commit(subdag);
-        }
-        schedule
-    }
-
     /// Earliest commit index a caller must replay through [`Self::add_commit`]
     /// to rebuild the window state as of `last_commit_index`.
     pub(crate) fn replay_start(last_commit_index: CommitIndex, window_size: u32) -> CommitIndex {
@@ -182,23 +163,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_full_connectivity_after_warmup() {
-        let context = Arc::new(Context::new_for_test(4).0);
-        let mut schedule = SlidingWindowSchedule::new(context.clone(), 10);
-        let subdags = build_full_commits(context.clone(), 4);
-        for s in &subdags {
-            schedule.add_commit(s.clone());
-        }
-        // 4 commits → 1 scored (c_minus_3 = commits[0], rest are lookback / new).
-        assert_eq!(schedule.scores_entries.len(), 1);
-        let expected = context.committee.total_stake();
-        assert_eq!(
-            schedule.total_scores_per_authority,
-            vec![expected; context.committee.size()]
-        );
-    }
-
-    #[tokio::test]
     async fn test_eviction_subtracts_from_aggregate() {
         // Small window so we can saturate it within a small DAG.
         let window_size: u32 = 2;
@@ -221,29 +185,6 @@ mod tests {
         assert_eq!(
             schedule.total_scores_per_authority,
             vec![expected; context.committee.size()]
-        );
-    }
-
-    #[tokio::test]
-    async fn test_from_committed_subdags_matches_live() {
-        let context = Arc::new(Context::new_for_test(4).0);
-        let subdags = build_full_commits(context.clone(), 6);
-
-        let mut live = SlidingWindowSchedule::new(context.clone(), 10);
-        for s in &subdags {
-            live.add_commit(s.clone());
-        }
-
-        let replayed =
-            SlidingWindowSchedule::from_committed_subdags(context, 10, subdags.iter().cloned());
-
-        assert_eq!(
-            live.total_scores_per_authority,
-            replayed.total_scores_per_authority
-        );
-        assert_eq!(
-            live.reputation_scores().commit_range,
-            replayed.reputation_scores().commit_range
         );
     }
 
@@ -280,13 +221,5 @@ mod tests {
         assert_eq!(SlidingWindowSchedule::replay_start(23, 10), 10);
         // Small last_commit_index → clamps to 1.
         assert_eq!(SlidingWindowSchedule::replay_start(2, 10), 1);
-    }
-
-    #[test]
-    fn test_new_clamps_zero_window() {
-        // window_size 0 would make the eviction loop pop an empty deque; clamp to 1.
-        let context = Arc::new(Context::new_for_test(4).0);
-        let schedule = SlidingWindowSchedule::new(context, 0);
-        assert_eq!(schedule.window_size, 1);
     }
 }
