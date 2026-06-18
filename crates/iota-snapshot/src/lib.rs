@@ -327,7 +327,7 @@ pub struct VerifiedEpochInfo {
     committees: Vec<Committee>,
     /// Digest-verified start state per epoch: `[i]` is epoch `i`'s start state
     /// — the genesis root for `i == 0`, else derived from epoch `i - 1`'s
-    /// boundary. Length `snapshot_epoch + 2`; the trailing entry has no row.
+    /// boundary. Length `snapshot_epoch + 2`; the trailing entry has no epoch info row.
     start_system_states: Vec<IotaSystemState>,
 }
 
