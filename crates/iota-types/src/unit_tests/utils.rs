@@ -255,7 +255,7 @@ mod move_authenticator {
         let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new_shared(
             vec![],
             vec![],
-            address.into(),
+            address,
             OBJECT_START_VERSION,
         ));
         let sig = GenericSignature::MoveAuthenticator(authenticator.clone());

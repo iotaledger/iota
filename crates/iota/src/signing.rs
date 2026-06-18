@@ -92,7 +92,7 @@ pub(crate) async fn sign_transaction(
                 MoveAuthenticatorV1::new_shared(
                     auth_call_args,
                     auth_type_args,
-                    ObjectId::from(*signer_address),
+                    *signer_address,
                     initial_shared_version,
                 )
                 .into(),
