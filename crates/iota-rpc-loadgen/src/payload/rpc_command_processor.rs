@@ -387,7 +387,9 @@ pub enum CacheType {
 impl fmt::Display for CacheType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CacheType::Address => write!(f, "Address"),
+            // This is kept `IotaAddress` (as opposed to `Address`) to not invalidate existing
+            // caches
+            CacheType::Address => write!(f, "IotaAddress"),
             CacheType::TransactionDigest => write!(f, "TransactionDigest"),
             // This is kept `ObjectID` (as opposed to `ObjectId`) to not invalidate existing caches
             CacheType::ObjectId => write!(f, "ObjectID"),
