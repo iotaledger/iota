@@ -11,9 +11,9 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_move_build::test_utils::compile_basics_package;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
+    base_types::TransactionDigest,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair,
@@ -62,7 +62,7 @@ async fn init_genesis(
             name: format!("validator-{i}"),
             authority_key: authority_pubkey_bytes,
             protocol_key: protocol_pubkey,
-            account_address: IotaAddress::from(&account_key_pair.public()),
+            account_address: Address::from(&account_key_pair.public()),
             network_key: network_key_pair.public().clone(),
             gas_price: 1,
             commission_rate: 0,

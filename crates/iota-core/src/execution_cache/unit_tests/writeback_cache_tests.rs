@@ -15,10 +15,10 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
-use iota_sdk_types::{Event, Identifier, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
+    base_types::random_object_ref,
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION},
@@ -54,9 +54,9 @@ fn random_event() -> Event {
     Event {
         package_id: ObjectId::random(),
         module: Identifier::new("test").unwrap(),
-        sender: IotaAddress::random(),
+        sender: Address::random(),
         type_: StructTag::new(
-            IotaAddress::random(),
+            Address::random(),
             Identifier::new("test").unwrap(),
             Identifier::new("test").unwrap(),
             vec![],
@@ -157,8 +157,8 @@ impl Scenario {
 
     fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
-        let (sender, keypair): (IotaAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
-        let (receiver, _): (IotaAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (sender, keypair): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (receiver, _): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
         // is that it has a unique digest every time.
@@ -1211,7 +1211,7 @@ async fn latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectId::random();
-    let owner = IotaAddress::random();
+    let owner = Address::random();
 
     // a writer thread that keeps writing new versions
     let writer = {
@@ -1393,7 +1393,7 @@ async fn concurrent_latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectId::random();
-    let owner = IotaAddress::random();
+    let owner = Address::random();
 
     // write a new version on request
     let mut write_version = OBJECT_START_VERSION;
@@ -1504,8 +1504,8 @@ async fn concurrent_latest_object_cache_collision_test() {
         key_generation_hash(&object2_id)
     );
 
-    let owner1 = IotaAddress::random();
-    let owner2 = IotaAddress::random();
+    let owner1 = Address::random();
+    let owner2 = Address::random();
 
     // write a new version on request
     let mut write1_version = OBJECT_START_VERSION;

@@ -25,9 +25,9 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{Address, Argument, Identifier, ObjectId, Owner, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::PublicKey,
     signature::GenericSignature,
     transaction::{CallArg, SharedObjectRef},
@@ -104,7 +104,7 @@ async fn main() -> Result<(), anyhow::Error> {
         create_blacklist(&iota_client, &mut keystore, publisher, &package_id).await?;
 
     // Create an abstract account transaction
-    let recipient_a = IotaAddress::random();
+    let recipient_a = Address::random();
 
     println!("Recipient A address: {recipient_a}");
 
@@ -139,7 +139,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Create an abstract account transaction after the account address is
     // blacklisted
-    let recipient_b = IotaAddress::random();
+    let recipient_b = Address::random();
 
     println!("Recipient B address: {recipient_b}");
 
@@ -185,7 +185,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Create one more test transaction
-    let recipient_c = IotaAddress::random();
+    let recipient_c = Address::random();
 
     println!("Recipient C address: {recipient_c}");
 
@@ -223,7 +223,7 @@ async fn main() -> Result<(), anyhow::Error> {
 pub async fn create_account(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
-    publisher: IotaAddress,
+    publisher: Address,
     package_id: &ObjectId,
     package_metadata_ref: ObjectRef,
     pub_key: &PublicKey,
@@ -293,7 +293,7 @@ pub async fn create_account(
 pub async fn create_blacklist(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
-    publisher: IotaAddress,
+    publisher: Address,
     package_id: &ObjectId,
 ) -> Result<ObjectRef> {
     // Create a PTB that creates a blacklist shared object instance
@@ -338,9 +338,9 @@ pub async fn add_address_to_blacklist(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
     package_id: &ObjectId,
-    publisher: IotaAddress,
+    publisher: Address,
     blacklist_ref: &ObjectRef,
-    address_to_add: IotaAddress,
+    address_to_add: Address,
 ) -> Result<()> {
     // Create a PTB that adds an address to the blacklist
     let pt = {
@@ -382,8 +382,8 @@ pub async fn add_address_to_blacklist(
 pub async fn create_test_transaction(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
-    publisher: IotaAddress,
-    recipient: IotaAddress,
+    publisher: Address,
+    recipient: Address,
     account_ref: &ObjectRef,
     blacklist_ref: &ObjectRef,
 ) -> Result<Transaction> {

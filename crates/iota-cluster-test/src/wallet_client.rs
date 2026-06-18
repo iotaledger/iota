@@ -4,9 +4,9 @@
 
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, IotaClientBuilder, wallet_context::WalletContext};
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{Address, crypto::Intent};
 use iota_types::{
-    base_types::{IotaAddress, address_from_iota_pub_key},
+    base_types::address_from_iota_pub_key,
     crypto::{KeypairTraits, Signature},
     transaction::TransactionData,
 };
@@ -17,7 +17,7 @@ use crate::cluster::new_wallet_context_from_cluster;
 
 pub struct WalletClient {
     wallet_context: WalletContext,
-    address: IotaAddress,
+    address: Address,
     fullnode_client: IotaClient,
 }
 
@@ -48,7 +48,7 @@ impl WalletClient {
         &mut self.wallet_context
     }
 
-    pub fn get_wallet_address(&self) -> IotaAddress {
+    pub fn get_wallet_address(&self) -> Address {
         self.address
     }
 

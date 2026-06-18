@@ -5,10 +5,10 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
-    base_types::{IotaAddress, ObjectDigest, SequenceNumber},
+    base_types::{ObjectDigest, SequenceNumber},
     gas_coin::GasCoin,
     object::{MoveObject, MoveObjectExt},
     parse_iota_struct_tag,
@@ -127,7 +127,7 @@ fn test_serde() {
             id: ObjectId::random(),
         },
         IotaMoveValue::String("some test string".to_string()),
-        IotaMoveValue::Address(IotaAddress::random()),
+        IotaMoveValue::Address(Address::random()),
         IotaMoveValue::Bool(true),
         IotaMoveValue::Option(Box::new(None)),
         IotaMoveValue::Vector(vec![
@@ -187,7 +187,7 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
 
     for tag in offending_tags {
         let oc = ObjectChange::Created {
-            sender: IotaAddress::ZERO,
+            sender: Address::ZERO,
             owner: Owner::Immutable,
             object_type: parse_iota_struct_tag(tag).unwrap(),
             object_id: ObjectId::random(),

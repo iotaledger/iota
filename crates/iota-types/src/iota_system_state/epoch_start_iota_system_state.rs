@@ -10,12 +10,13 @@ use anemo::{
 };
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::Address;
 use serde::{Deserialize, Serialize};
 use starfish_config::{Authority, Committee as ConsensusCommittee};
 use tracing::{error, warn};
 
 use crate::{
-    base_types::{AuthorityName, EpochId, IotaAddress},
+    base_types::{AuthorityName, EpochId},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit},
     crypto::{AuthorityPublicKey, NetworkPublicKey},
     iota_system_state::iota_system_state_inner_v1::ValidatorV1,
@@ -30,7 +31,7 @@ pub trait EpochStartSystemStateTrait {
     fn safe_mode(&self) -> bool;
     fn epoch_start_timestamp_ms(&self) -> u64;
     fn epoch_duration_ms(&self) -> u64;
-    fn get_validator_addresses(&self) -> Vec<IotaAddress>;
+    fn get_validator_addresses(&self) -> Vec<Address>;
     fn get_iota_committee(&self) -> Committee;
     fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata;
     fn get_consensus_committee(&self) -> ConsensusCommittee;
@@ -186,7 +187,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         self.epoch_duration_ms
     }
 
-    fn get_validator_addresses(&self) -> Vec<IotaAddress> {
+    fn get_validator_addresses(&self) -> Vec<Address> {
         self.committee_validators
             .iter()
             .map(|validator| validator.iota_address)
@@ -368,7 +369,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
         self.v1.epoch_duration_ms()
     }
 
-    fn get_validator_addresses(&self) -> Vec<IotaAddress> {
+    fn get_validator_addresses(&self) -> Vec<Address> {
         self.v1.get_validator_addresses()
     }
 
@@ -406,7 +407,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct EpochStartValidatorInfoV1 {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     pub authority_pubkey: AuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,
@@ -445,10 +446,10 @@ mod test {
     use fastcrypto::traits::{KeyPair, ToFromBytes};
     use iota_network_stack::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
+    use iota_sdk_types::Address;
     use rand::thread_rng;
 
     use crate::{
-        base_types::IotaAddress,
         committee::CommitteeTrait,
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
         iota_system_state::epoch_start_iota_system_state::{
@@ -463,7 +464,7 @@ mod test {
         let mut committee_validators = vec![];
 
         for i in 0..10 {
-            let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
+            let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
             let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
 
             committee_validators.push(EpochStartValidatorInfoV1 {
@@ -532,7 +533,7 @@ mod test {
         let mut non_committee_validators = vec![];
 
         for i in 0..10 {
-            let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
+            let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
             let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
 
             committee_validators.push(EpochStartValidatorInfoV1 {
@@ -547,7 +548,7 @@ mod test {
                 hostname: format!("committee-{i}").to_string(),
             });
 
-            let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
+            let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
             let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
 
             non_committee_validators.push(EpochStartValidatorInfoV1 {
@@ -656,7 +657,7 @@ mod test {
     #[test]
     fn test_epoch_start_system_state_versioning() {
         // Create test validators
-        let (iota_address1, authority_key1): (IotaAddress, AuthorityKeyPair) = get_key_pair();
+        let (iota_address1, authority_key1): (Address, AuthorityKeyPair) = get_key_pair();
         let protocol_network_key1 = NetworkKeyPair::generate(&mut thread_rng());
         let net_address1 = "/ip4/127.0.0.1/tcp/1337".parse().unwrap();
         let p2p_address1 = "/ip4/127.0.0.1/tcp/1338".parse().unwrap();
@@ -674,7 +675,7 @@ mod test {
             hostname: "committee-1.example.com".to_string(),
         };
 
-        let (iota_address2, authority_key2): (IotaAddress, AuthorityKeyPair) = get_key_pair();
+        let (iota_address2, authority_key2): (Address, AuthorityKeyPair) = get_key_pair();
         let protocol_network_key2 = NetworkKeyPair::generate(&mut thread_rng());
         let net_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2337".parse().unwrap();
         let p2p_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2338".parse().unwrap();

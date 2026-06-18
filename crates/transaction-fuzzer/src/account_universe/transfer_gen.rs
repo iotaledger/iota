@@ -6,9 +6,9 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionKind};
+use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, TransactionKind};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -129,7 +129,7 @@ impl TransactionSponsorship {
         accounts: &mut AccountTriple,
         exec: &mut Executor,
         gas_coins: u32,
-    ) -> (Vec<ObjectRef>, (u64, Object), IotaAddress) {
+    ) -> (Vec<ObjectRef>, (u64, Object), Address) {
         match self {
             TransactionSponsorship::None => {
                 let gas_object = accounts.account_1.new_gas_object(exec);

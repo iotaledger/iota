@@ -5,7 +5,7 @@
 //! during migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectData, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner};
 use iota_stardust_types::block::output::AliasOutput as StardustAlias;
 use iota_types::{
     balance::Balance,
@@ -51,7 +51,7 @@ impl AliasExt for Alias {
         } else {
             Some(alias.state_metadata().to_vec())
         };
-        let sender: Option<iota_types::base_types::IotaAddress> = alias
+        let sender: Option<Address> = alias
             .features()
             .sender()
             .map(|sender_feat| stardust_to_iota_address(sender_feat.address()))
@@ -60,7 +60,7 @@ impl AliasExt for Alias {
             .features()
             .metadata()
             .map(|metadata_feat| metadata_feat.data().to_vec());
-        let immutable_issuer: Option<iota_types::base_types::IotaAddress> = alias
+        let immutable_issuer: Option<Address> = alias
             .immutable_features()
             .issuer()
             .map(|issuer_feat| stardust_to_iota_address(issuer_feat.address()))

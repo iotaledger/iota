@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    base_types::{AuthorityName, EpochId, IotaAddress},
+    base_types::{AuthorityName, EpochId},
     committee::{Committee, StakeUnit},
 };
 use schemars::JsonSchema;
@@ -13,7 +13,7 @@ use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
     IotaAuthorityPublicKeyBytes,
-    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema},
+    iota_primitives::{Address as AddressSchema, ObjectId as ObjectIdSchema},
 };
 
 /// RPC representation of the [Committee] type.
@@ -52,9 +52,9 @@ impl From<IotaCommittee> for Committee {
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedStake {
     /// Validator's Address.
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub validator_address: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub validator_address: Address,
     /// Staking pool object id.
     #[serde_as(as = "ObjectIdSchema")]
     #[schemars(with = "ObjectIdSchema")]
@@ -66,9 +66,9 @@ pub struct DelegatedStake {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DelegatedTimelockedStake {
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub validator_address: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub validator_address: Address,
     #[serde_as(as = "ObjectIdSchema")]
     #[schemars(with = "ObjectIdSchema")]
     pub staking_pool: ObjectId,
@@ -146,8 +146,8 @@ pub struct ValidatorApys {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ValidatorApy {
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub address: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub address: Address,
     pub apy: f64,
 }

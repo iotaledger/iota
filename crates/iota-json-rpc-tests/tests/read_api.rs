@@ -17,9 +17,9 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     digests::TransactionDigest,
     messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -121,7 +121,7 @@ fn is_descending(vec: &[u64]) -> bool {
 
 async fn get_objects_to_mutate(
     cluster: &TestCluster,
-    address: IotaAddress,
+    address: Address,
 ) -> (Vec<ObjectId>, ObjectId) {
     let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
 

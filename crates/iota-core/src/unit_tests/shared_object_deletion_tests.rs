@@ -7,12 +7,12 @@ use std::sync::Arc;
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    CommandArgumentError, ExecutionError as ExecutionFailureStatus,
+    Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
     ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
     ObjectId, ProgrammableTransaction,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
     committee::EpochId,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -39,7 +39,7 @@ use crate::{
 };
 
 pub struct TestRunner {
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub sender_key: AccountKeyPair,
     pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,

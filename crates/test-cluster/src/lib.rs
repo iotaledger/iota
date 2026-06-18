@@ -38,7 +38,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
@@ -51,7 +51,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectRef},
+    base_types::{AuthorityName, ConciseableName, ObjectRef},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
     digests::TransactionDigest,
@@ -104,7 +104,7 @@ impl FullNodeHandle {
 }
 
 struct Faucet {
-    address: IotaAddress,
+    address: Address,
     keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>,
 }
 
@@ -148,22 +148,22 @@ impl TestCluster {
         &mut self.wallet
     }
 
-    pub fn get_addresses(&self) -> Vec<IotaAddress> {
+    pub fn get_addresses(&self) -> Vec<Address> {
         self.wallet.get_addresses()
     }
 
     // Helper function to get the 0th address in WalletContext
-    pub fn get_address_0(&self) -> IotaAddress {
+    pub fn get_address_0(&self) -> Address {
         self.get_addresses()[0]
     }
 
     // Helper function to get the 1st address in WalletContext
-    pub fn get_address_1(&self) -> IotaAddress {
+    pub fn get_address_1(&self) -> Address {
         self.get_addresses()[1]
     }
 
     // Helper function to get the 2nd address in WalletContext
-    pub fn get_address_2(&self) -> IotaAddress {
+    pub fn get_address_2(&self) -> Address {
         self.get_addresses()[2]
     }
 
@@ -552,7 +552,7 @@ impl TestCluster {
 
     pub async fn test_transaction_builder_with_sender(
         &self,
-        sender: IotaAddress,
+        sender: Address,
     ) -> TestTransactionBuilder {
         let gas = self
             .wallet
@@ -566,7 +566,7 @@ impl TestCluster {
 
     pub async fn test_transaction_builder_with_gas_object(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         gas: ObjectRef,
     ) -> TestTransactionBuilder {
         let rgp = self.get_reference_gas_price().await;
@@ -711,7 +711,7 @@ impl TestCluster {
         &self,
         rgp: u64,
         amount: Option<u64>,
-        funding_address: IotaAddress,
+        funding_address: Address,
     ) -> (ObjectRef, TransactionDigest) {
         let Faucet { address, keypair } = &self
             .faucet
@@ -766,7 +766,7 @@ impl TestCluster {
         &self,
         rgp: u64,
         amount: Option<u64>,
-        funding_address: IotaAddress,
+        funding_address: Address,
     ) -> ObjectRef {
         let (object_ref, _tx_digest) = self
             .fund_address_and_return_gas_and_tx(rgp, amount, funding_address)
@@ -776,8 +776,8 @@ impl TestCluster {
 
     pub async fn transfer_iota_must_exceed(
         &self,
-        sender: IotaAddress,
-        receiver: IotaAddress,
+        sender: Address,
+        receiver: Address,
         amount: u64,
     ) -> ObjectId {
         let tx = self
@@ -827,7 +827,7 @@ impl TestCluster {
     /// Get all objects owned by an address
     pub async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         options: Option<IotaObjectDataOptions>,
     ) -> anyhow::Result<Vec<IotaObjectResponse>> {
         let page = self
@@ -847,8 +847,8 @@ impl TestCluster {
     /// by transferring them from one address to another
     pub async fn transfer_objects(
         &self,
-        sender: IotaAddress,
-        receiver: IotaAddress,
+        sender: Address,
+        receiver: Address,
         object_ids: Vec<ObjectId>,
         gas: ObjectId,
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -870,8 +870,8 @@ impl TestCluster {
     /// The object's type must allow public transfers
     pub async fn transfer_object(
         &self,
-        sender: IotaAddress,
-        receiver: IotaAddress,
+        sender: Address,
+        receiver: Address,
         object_id: ObjectId,
         gas: ObjectId,
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -1179,7 +1179,7 @@ impl TestClusterBuilder {
 
     pub fn with_validator_candidates(
         mut self,
-        addresses: impl IntoIterator<Item = IotaAddress>,
+        addresses: impl IntoIterator<Item = Address>,
     ) -> Self {
         self.get_or_init_genesis_config()
             .accounts
@@ -1210,7 +1210,7 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
+    pub fn with_delegator(mut self, delegator: Address) -> Self {
         self.get_or_init_genesis_config().delegator = Some(delegator);
         self
     }
@@ -1268,7 +1268,7 @@ impl TestClusterBuilder {
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
         // `NetworkConfig` can be used to configure and build the cluster.
         let faucet = self.network_config.is_none().then(|| {
-            let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
+            let (faucet_address, faucet_keypair): (Address, AccountKeyPair) = get_key_pair();
             let accounts = &mut self.get_or_init_genesis_config().accounts;
             accounts.push(AccountConfig {
                 address: Some(faucet_address),

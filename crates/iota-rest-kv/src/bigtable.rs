@@ -28,8 +28,7 @@ use iota_kvstore::{
 };
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
-    base_types::IotaAddress, digests::TransactionDigest, effects::TransactionEvents,
-    storage::ObjectKey,
+    digests::TransactionDigest, effects::TransactionEvents, sdk_types::Address, storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -434,7 +433,7 @@ impl KvStoreClient {
     /// `oldest_first` order.
     pub async fn transactions_by_address(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionSequenceNumber>,
         limit: usize,
         oldest_first: bool,

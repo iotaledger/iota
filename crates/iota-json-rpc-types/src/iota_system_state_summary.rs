@@ -3,22 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    base_types::IotaAddress,
-    iota_system_state::iota_system_state_summary::{
-        IotaSystemStateSummary as NativeSystemStateSummary,
-        IotaSystemStateSummaryV1 as NativeSystemStateSummaryV1,
-        IotaSystemStateSummaryV2 as NativeSystemStateSummaryV2,
-        IotaValidatorSummary as NativeValidatorSummary,
-    },
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::iota_system_state::iota_system_state_summary::{
+    IotaSystemStateSummary as NativeSystemStateSummary,
+    IotaSystemStateSummaryV1 as NativeSystemStateSummaryV1,
+    IotaSystemStateSummaryV2 as NativeSystemStateSummaryV2,
+    IotaValidatorSummary as NativeValidatorSummary,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::iota_primitives::{
-    Base64 as Base64Schema, IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
+    Address as AddressSchema, Base64 as Base64Schema, ObjectId as ObjectIdSchema,
 };
 
 /// This is the JSON-RPC type for IOTA system state objects.
@@ -244,13 +241,13 @@ pub struct IotaSystemStateSummaryV1 {
     pub validator_candidates_size: u64,
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
-    #[schemars(with = "Vec<(IotaAddressSchema, String)>")]
-    #[serde_as(as = "Vec<(IotaAddressSchema, DisplayFromStr)>")]
-    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    #[schemars(with = "Vec<(AddressSchema, String)>")]
+    #[serde_as(as = "Vec<(AddressSchema, DisplayFromStr)>")]
+    pub at_risk_validators: Vec<(Address, u64)>,
     /// A map storing the records of validator reporting each other.
-    #[serde_as(as = "Vec<(IotaAddressSchema, Vec<IotaAddressSchema>)>")]
-    #[schemars(with = "Vec<(IotaAddressSchema, Vec<IotaAddressSchema>)>")]
-    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+    #[serde_as(as = "Vec<(AddressSchema, Vec<AddressSchema>)>")]
+    #[schemars(with = "Vec<(AddressSchema, Vec<AddressSchema>)>")]
+    pub validator_report_records: Vec<(Address, Vec<Address>)>,
 }
 
 impl SerializeAs<NativeSystemStateSummaryV1> for IotaSystemStateSummaryV1 {
@@ -542,13 +539,13 @@ pub struct IotaSystemStateSummaryV2 {
     pub validator_candidates_size: u64,
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
-    #[schemars(with = "Vec<(IotaAddressSchema, String)>")]
-    #[serde_as(as = "Vec<(IotaAddressSchema, DisplayFromStr)>")]
-    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    #[schemars(with = "Vec<(AddressSchema, String)>")]
+    #[serde_as(as = "Vec<(AddressSchema, DisplayFromStr)>")]
+    pub at_risk_validators: Vec<(Address, u64)>,
     /// A map storing the records of validator reporting each other.
-    #[serde_as(as = "Vec<(IotaAddressSchema, Vec<IotaAddressSchema>)>")]
-    #[schemars(with = "Vec<(IotaAddressSchema, Vec<IotaAddressSchema>)>")]
-    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+    #[serde_as(as = "Vec<(AddressSchema, Vec<AddressSchema>)>")]
+    #[schemars(with = "Vec<(AddressSchema, Vec<AddressSchema>)>")]
+    pub validator_report_records: Vec<(Address, Vec<Address>)>,
 }
 
 impl SerializeAs<NativeSystemStateSummaryV2> for IotaSystemStateSummaryV2 {
@@ -678,9 +675,9 @@ impl From<NativeSystemStateSummaryV2> for IotaSystemStateSummaryV2 {
 #[serde(rename_all = "camelCase")]
 pub struct IotaValidatorSummary {
     // Metadata
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub iota_address: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub iota_address: Address,
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
     pub authority_pubkey_bytes: Vec<u8>,

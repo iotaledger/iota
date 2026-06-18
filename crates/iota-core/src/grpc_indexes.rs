@@ -10,9 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     committee::EpochId,
     digests::TransactionDigest,
     error::IotaResult,
@@ -145,7 +145,7 @@ fn read_merge_write_coin(
 /// balances sort first** (richest first).
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct OwnerIndexKey {
-    pub owner: IotaAddress,
+    pub owner: Address,
     pub object_type_identifier: u64,
     pub object_type_params: u64,
     pub inverted_balance: Option<u64>,
@@ -226,7 +226,7 @@ fn hash_type_params(tag: &StructTag) -> u64 {
 /// When `cursor` is `Some`, the lower bound is set to the cursor's exact
 /// position (inclusive) so that RocksDB can seek directly.
 fn owner_bounds(
-    owner: IotaAddress,
+    owner: Address,
     cursor: Option<&OwnedObjectCursor>,
     filter: &OwnerTypeFilter,
 ) -> (OwnerIndexKey, OwnerIndexKey) {
@@ -280,7 +280,7 @@ fn owner_bounds(
 }
 
 /// Build an `OwnerIndexKey` for an address-owned object.
-fn make_owner_key(owner: IotaAddress, object: &Object) -> Option<(OwnerIndexKey, OwnerIndexInfo)> {
+fn make_owner_key(owner: Address, object: &Object) -> Option<(OwnerIndexKey, OwnerIndexInfo)> {
     let struct_tag: StructTag = object.type_()?.clone().into();
     let id_hash = hash_type_identifier(&struct_tag);
     let params_hash = hash_type_params(&struct_tag);
@@ -854,7 +854,7 @@ impl IndexStoreTables {
 
     fn owner_iter(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<&OwnedObjectCursor>,
         type_filter: OwnerTypeFilter,
     ) -> Result<
@@ -1064,7 +1064,7 @@ impl GrpcIndexesStore {
 
     pub fn owner_iter(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<&OwnedObjectCursor>,
         type_filter: OwnerTypeFilter,
     ) -> Result<
@@ -1125,7 +1125,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
 
     fn account_owned_objects_info_iter(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
     ) -> iota_types::storage::error::Result<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>>

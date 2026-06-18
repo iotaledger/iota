@@ -6,9 +6,9 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_sdk_types::{Argument, Owner};
+use iota_sdk_types::{Address, Argument, Owner};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     move_package::UpgradePolicy,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -477,7 +477,7 @@ impl IotaExtraValueArgs {
         } else {
             let mut u256_bytes = i.to_le_bytes().to_vec();
             u256_bytes.reverse();
-            let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+            let address: Address = Address::from_bytes(&u256_bytes).unwrap();
             FakeID::Known(address.into())
         };
         parser.advance(ValueToken::RParen)?;
@@ -689,7 +689,7 @@ fn parse_fake_id(s: &str) -> anyhow::Result<FakeID> {
         let (i, _) = parse_u256(s)?;
         let mut u256_bytes = i.to_le_bytes().to_vec();
         u256_bytes.reverse();
-        let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+        let address: Address = Address::from_bytes(&u256_bytes).unwrap();
         FakeID::Known(address.into())
     })
 }

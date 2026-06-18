@@ -20,7 +20,6 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::IotaAddress,
         crypto::SignatureScheme::ED25519,
         digests::TransactionDigest,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -29,7 +28,7 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Argument, Command, ObjectId, crypto::Intent};
+use iota_sdk_types::{Address, Argument, Command, ObjectId, crypto::Intent};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;
@@ -55,7 +54,7 @@ pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.cafe"; // te
 /// or reuse the existing one and its active address. This function should be
 /// used when two addresses are needed, e.g., transferring objects from one
 /// address to another.
-pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress), anyhow::Error> {
+pub async fn setup_for_write() -> Result<(IotaClient, Address, Address), anyhow::Error> {
     let (client, active_address) = setup_for_read().await?;
     // make sure we have some IOTA (5_000_000 NANOS) on this address
     let coin = fetch_coin(&client, &active_address).await?;
@@ -82,7 +81,7 @@ pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress),
 /// and ensures that the active address of the wallet has IOTA on it.
 /// If there is no IOTA owned by the active address, then it will request
 /// IOTA from the faucet.
-pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error> {
+pub async fn setup_for_read() -> Result<(IotaClient, Address), anyhow::Error> {
     let client = IotaClientBuilder::default().build_testnet().await?;
     println!("IOTA testnet version is: {}", client.api_version());
     let wallet = retrieve_wallet()?;
@@ -95,7 +94,7 @@ pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error
 
 /// Request tokens from the Faucet for the given address
 pub async fn request_tokens_from_faucet(
-    address: IotaAddress,
+    address: Address,
     client: &IotaClient,
 ) -> Result<(), anyhow::Error> {
     let address_str = address.to_string();
@@ -182,7 +181,7 @@ pub async fn request_tokens_from_faucet(
 /// otherwise returns None
 pub async fn fetch_coin(
     client: &IotaClient,
-    sender: &IotaAddress,
+    sender: &Address,
 ) -> Result<Option<Coin>, anyhow::Error> {
     let coin_type = "0x2::iota::IOTA".to_string();
     let coins_stream = client.coin_read_api().get_coins_stream(*sender, coin_type);
@@ -197,7 +196,7 @@ pub async fn fetch_coin(
 /// Return a transaction digest from a split coin + merge coins transaction
 pub async fn split_coin_digest(
     client: &IotaClient,
-    sender: &IotaAddress,
+    sender: &Address,
 ) -> Result<TransactionDigest, anyhow::Error> {
     let coin = match fetch_coin(client, sender).await? {
         None => {
@@ -300,7 +299,7 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 
 pub async fn sign_and_execute_transaction(
     client: &IotaClient,
-    sender: &IotaAddress,
+    sender: &Address,
     tx_data: TransactionData,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;

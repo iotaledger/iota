@@ -19,11 +19,8 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    base_types::IotaAddress, digests::TransactionDigest,
-    messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::{digests::TransactionDigest, messages_checkpoint::CheckpointSequenceNumber};
 pub use rpc_command_processor::{
     RpcCommandProcessor, load_addresses_from_file, load_digests_from_file, load_objects_from_file,
 };
@@ -103,7 +100,7 @@ impl Command {
 
     pub fn new_query_transaction_blocks(
         address_type: AddressQueryType,
-        addresses: Vec<IotaAddress>,
+        addresses: Vec<Address>,
     ) -> Self {
         let query_transactions = QueryTransactionBlocks {
             address_type,
@@ -142,7 +139,7 @@ impl Command {
         }
     }
 
-    pub fn new_get_all_balances(addresses: Vec<IotaAddress>, chunk_size: usize) -> Self {
+    pub fn new_get_all_balances(addresses: Vec<Address>, chunk_size: usize) -> Self {
         let get_all_balances = GetAllBalances {
             addresses,
             chunk_size,
@@ -211,7 +208,7 @@ pub struct PayIota {}
 #[derive(Clone, Default)]
 pub struct QueryTransactionBlocks {
     pub address_type: AddressQueryType,
-    pub addresses: Vec<IotaAddress>,
+    pub addresses: Vec<Address>,
 }
 
 #[derive(Clone)]
@@ -241,7 +238,7 @@ pub struct GetObject {
 
 #[derive(Clone)]
 pub struct GetAllBalances {
-    pub addresses: Vec<IotaAddress>,
+    pub addresses: Vec<Address>,
     pub chunk_size: usize,
 }
 

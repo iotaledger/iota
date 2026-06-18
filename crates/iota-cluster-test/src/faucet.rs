@@ -10,7 +10,8 @@ use iota_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, Faucet, FaucetConfig, FaucetResponse,
     SimpleFaucet,
 };
-use iota_types::{base_types::IotaAddress, crypto::KeypairTraits};
+use iota_sdk_types::Address;
+use iota_types::crypto::KeypairTraits;
 use tracing::{Instrument, debug, info, info_span};
 use uuid::Uuid;
 
@@ -53,8 +54,8 @@ impl FaucetClientFactory {
 /// Faucet Client abstraction
 #[async_trait]
 pub trait FaucetClient {
-    async fn request_iota_coins(&self, request_address: IotaAddress) -> FaucetResponse;
-    async fn batch_request_iota_coins(&self, request_address: IotaAddress) -> BatchFaucetResponse;
+    async fn request_iota_coins(&self, request_address: Address) -> FaucetResponse;
+    async fn batch_request_iota_coins(&self, request_address: Address) -> BatchFaucetResponse;
     async fn get_batch_send_status(&self, task_id: Uuid) -> BatchStatusFaucetResponse;
 }
 
@@ -74,7 +75,7 @@ impl RemoteFaucetClient {
 impl FaucetClient for RemoteFaucetClient {
     /// Request test IOTA coins from faucet.
     /// It also verifies the effects are observed by fullnode.
-    async fn request_iota_coins(&self, request_address: IotaAddress) -> FaucetResponse {
+    async fn request_iota_coins(&self, request_address: Address) -> FaucetResponse {
         let gas_url = format!("{}/gas", self.remote_url);
         debug!("Getting coin from remote faucet {gas_url}");
         let data = HashMap::from([("recipient", Hex::encode(request_address))]);
@@ -103,7 +104,7 @@ impl FaucetClient for RemoteFaucetClient {
 
         faucet_response
     }
-    async fn batch_request_iota_coins(&self, request_address: IotaAddress) -> BatchFaucetResponse {
+    async fn batch_request_iota_coins(&self, request_address: Address) -> BatchFaucetResponse {
         let gas_url = format!("{}/v1/gas", self.remote_url);
         debug!("Getting coin from remote faucet {gas_url}");
         let data = HashMap::from([("recipient", Hex::encode(request_address))]);
@@ -172,7 +173,7 @@ impl LocalFaucetClient {
 }
 #[async_trait]
 impl FaucetClient for LocalFaucetClient {
-    async fn request_iota_coins(&self, request_address: IotaAddress) -> FaucetResponse {
+    async fn request_iota_coins(&self, request_address: Address) -> FaucetResponse {
         let receipt = self
             .simple_faucet
             .send(Uuid::new_v4(), request_address, &[200_000_000_000; 5])
@@ -181,7 +182,7 @@ impl FaucetClient for LocalFaucetClient {
 
         receipt.into()
     }
-    async fn batch_request_iota_coins(&self, request_address: IotaAddress) -> BatchFaucetResponse {
+    async fn batch_request_iota_coins(&self, request_address: Address) -> BatchFaucetResponse {
         let receipt = self
             .simple_faucet
             .batch_send(Uuid::new_v4(), request_address, &[200_000_000_000; 5])

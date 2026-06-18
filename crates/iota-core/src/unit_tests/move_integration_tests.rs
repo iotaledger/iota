@@ -2377,7 +2377,7 @@ async fn test_entry_point_string_option_error() {
 async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
     gas: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     package_id: ObjectId,
     t: TypeTag,
@@ -2628,9 +2628,9 @@ make_vec_tests_for_type!(test_make_move_vec_u128, u128, TypeTag::U128, 0u128);
 make_vec_tests_for_type!(test_make_move_vec_u256, U256, TypeTag::U256, U256::zero());
 make_vec_tests_for_type!(
     test_make_move_vec_address,
-    IotaAddress,
+    Address,
     TypeTag::Address,
-    IotaAddress::ZERO
+    Address::ZERO
 );
 make_vec_tests_for_type!(
     test_make_move_vec_address_id,
@@ -2649,7 +2649,7 @@ make_vec_tests_for_type!(
 async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
     gas: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     t: TypeTag,
     value: T,
@@ -2807,9 +2807,9 @@ make_vec_error_tests_for_type!(
 );
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address,
-    IotaAddress,
+    Address,
     TypeTag::Address,
-    IotaAddress::ZERO
+    Address::ZERO
 );
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address_id,
@@ -2858,7 +2858,7 @@ fn resolved_struct(
     type_args: Vec<TypeTag>,
 ) -> TypeTag {
     TypeTag::Struct(Box::new(StructTag::new(
-        IotaAddress::new(address.into_bytes()),
+        Address::new(address.into_bytes()),
         Identifier::new_unchecked(module.as_str()),
         Identifier::new_unchecked(name.as_str()),
         type_args,
@@ -2920,7 +2920,7 @@ pub fn build_package(
 
 pub async fn build_and_try_publish_test_package(
     authority: &AuthorityState,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
     test_dir: &str,
@@ -2960,7 +2960,7 @@ pub async fn build_and_try_publish_test_package(
 
 pub async fn build_and_publish_test_package(
     authority: &AuthorityState,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
     test_dir: &str,
@@ -2980,7 +2980,7 @@ pub async fn build_and_publish_test_package(
 
 pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
     test_dir: &str,
@@ -3047,7 +3047,7 @@ pub async fn collect_packages_and_upgrade_caps(
 
 pub async fn run_multi_txns(
     authority: &AuthorityState,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
     builder: ProgrammableTransactionBuilder,
@@ -3069,7 +3069,7 @@ pub async fn run_multi_txns(
 
 pub fn build_multi_publish_txns(
     builder: &mut ProgrammableTransactionBuilder,
-    sender: IotaAddress,
+    sender: Address,
     packages: Vec<(Vec<Vec<u8>>, Vec<ObjectId>)>,
 ) {
     for (modules, dep_ids) in packages {

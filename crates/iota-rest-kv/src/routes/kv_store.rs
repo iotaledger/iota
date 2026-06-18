@@ -12,7 +12,7 @@ use axum::{
 };
 use iota_kvstore::client::TransactionSequenceNumber;
 use iota_storage::http_key_value_store::{ItemType, Key};
-use iota_types::base_types::IotaAddress;
+use iota_types::sdk_types::Address;
 use serde::Deserialize;
 
 use crate::{
@@ -184,7 +184,7 @@ pub(crate) struct TransactionDigestsByAddressQuery {
 ///
 /// # Path Parameters
 ///
-/// * `address`: Base64-url-encoded [`IotaAddress`].
+/// * `address`: Base64-url-encoded [`Address`].
 ///
 /// # Query Parameters
 ///
@@ -213,7 +213,7 @@ pub async fn transaction_digests_by_address(
     let address = base64_url::decode(&address)
         .map_err(|_| ApiError::BadRequest("address is not valid base64-url".into()))?;
 
-    let address = IotaAddress::from_bytes(&address)
+    let address = Address::from_bytes(&address)
         .map_err(|_| ApiError::BadRequest("invalid address".into()))?;
 
     let TransactionDigestsByAddressQuery {
