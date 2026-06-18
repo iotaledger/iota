@@ -16,13 +16,6 @@ use crate::{
     transaction::{CallArg, CallArgExt, InputObjectKind, SharedObjectRef},
 };
 
-// impl MoveAuthenticator {
-//     /// Computes the digest of the MoveAuthenticator.
-//     pub fn digest(&self) -> MoveAuthenticatorDigest {
-//         MoveAuthenticatorDigest::new(default_hash(self))
-//     }
-// }
-
 mod move_authenticator_ext {
     pub trait Sealed {}
     impl Sealed for super::MoveAuthenticator {}
@@ -210,6 +203,27 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
         })?;
 
         Ok(())
+    }
+}
+
+impl AuthenticatorTrait for MoveAuthenticator {
+    // This function accepts all inputs, as signature verification is performed
+    // later on the Move side.
+    fn verify_claims<T>(
+        &self,
+        value: &IntentMessage<T>,
+        author: Address,
+        aux_verify_data: &VerifyParams,
+    ) -> IotaResult
+    where
+        T: Serialize,
+    {
+        match self {
+            Self::V1(v1) => v1.verify_claims(value, author, aux_verify_data),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
+        }
     }
 }
 

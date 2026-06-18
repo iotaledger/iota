@@ -257,7 +257,9 @@ impl TryFrom<&GenericSignature> for Address {
                 })
             }
             GenericSignature::PasskeyAuthenticator(s) => Ok(Address::from(s.public_key())),
-            GenericSignature::MoveAuthenticator(move_authenticator) => move_authenticator.address(),
+            GenericSignature::MoveAuthenticator(move_authenticator) => {
+                Ok(move_authenticator.address())
+            }
         }
     }
 }

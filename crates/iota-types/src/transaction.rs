@@ -47,7 +47,7 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
@@ -2076,12 +2076,13 @@ impl SenderSignedData {
     pub fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator> {
         let sender = self.intent_message().value.sender();
 
-        self.move_authenticators()
-            .into_iter()
-            .find(|a| match a.address() {
-                Ok(addr) => addr == sender,
-                Err(_) => false,
-            })
+        self.move_authenticators().into_iter().find(
+            |a| a.address() == sender,
+            //     match a.address() {
+            //     Ok(addr) => addr == sender,
+            //     Err(_) => false,
+            // }
+        )
     }
 
     /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is
@@ -2092,12 +2093,13 @@ impl SenderSignedData {
         if tx_data.is_sponsored_tx() {
             let gas_owner = tx_data.gas_owner();
 
-            self.move_authenticators()
-                .into_iter()
-                .find(|a| match a.address() {
-                    Ok(addr) => addr == gas_owner,
-                    Err(_) => false,
-                })
+            self.move_authenticators().into_iter().find(
+                |a| a.address() == gas_owner,
+                //     match a.address() {
+                //     Ok(addr) => addr == gas_owner,
+                //     Err(_) => false,
+                // }
+            )
         } else {
             None
         }

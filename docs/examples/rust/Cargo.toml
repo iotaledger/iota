@@ -20,7 +20,7 @@ tokio = "1.46.1"
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-move-build = { path = "../../../crates/iota-move-build" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d0d94d6735a4444211aef02e0ec7c7e23ff050db" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "8820ff0000ba2631f1b849b7a18a8190cd554259" }
 iota-types = { path = "../../../crates/iota-types" }
 move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
 
