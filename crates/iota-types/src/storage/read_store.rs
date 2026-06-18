@@ -15,7 +15,7 @@ use crate::{
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    iota_system_state::IotaSystemState,
+    iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         FullCheckpointContents, VerifiedCheckpoint,
@@ -855,26 +855,77 @@ pub struct EpochInfo {
 
 /// Epoch information structure for indexing.
 ///
-/// Contains metadata about an epoch including timing, checkpoints, protocol
-/// version, and a snapshot of the system state at the start of the epoch.
-///
-/// Version 2 adds last_checkpoint_summary, and end_of_epoch_tx_events fields.
+/// Stores only the start-of-epoch identity (`epoch`, `start_checkpoint`,
+/// `start_timestamp_ms`, `system_state`) plus the close-of-epoch
+/// `epoch_close_proof`. Everything derivable from those — `protocol_version`,
+/// `reference_gas_price`, `end_timestamp_ms`, `end_checkpoint` — is a method,
+/// not a stored field.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpochInfoV2 {
     pub epoch: u64,
-    pub protocol_version: u64,
-    pub start_timestamp_ms: u64,
-    pub end_timestamp_ms: Option<u64>,
     pub start_checkpoint: CheckpointSequenceNumber,
-    pub end_checkpoint: Option<CheckpointSequenceNumber>,
-    pub reference_gas_price: u64,
-    /// `IotaSystemState` of object `0x5` right after the AdvanceEpoch tx of
-    /// the previous epoch (or the genesis tx for epoch 0).
+    pub start_timestamp_ms: u64,
+    /// `IotaSystemState` of object `0x5` at this epoch's start.
     pub system_state: IotaSystemState,
-    /// Certified summary of this epoch's last checkpoint.
-    pub last_checkpoint_summary: Option<CertifiedCheckpointSummary>,
-    /// Events from the AdvanceEpoch tx that closed this epoch.
-    pub end_of_epoch_tx_events: Option<TransactionEvents>,
+    /// Close-of-epoch proof bundle; `None` until this epoch's boundary is
+    /// indexed. The row is finalized exactly when this is `Some`.
+    pub epoch_close_proof: Option<EpochInfoV1Entry>,
+}
+
+impl EpochInfoV2 {
+    /// Whether this epoch's boundary has been indexed.
+    pub fn is_finalized(&self) -> bool {
+        self.epoch_close_proof.is_some()
+    }
+
+    /// Protocol version in effect this epoch (from the start system state).
+    pub fn protocol_version(&self) -> u64 {
+        self.system_state.protocol_version()
+    }
+
+    /// Reference gas price for this epoch (from the start system state).
+    pub fn reference_gas_price(&self) -> u64 {
+        self.system_state.reference_gas_price()
+    }
+
+    /// Timestamp of this epoch's last checkpoint; `None` until finalized.
+    pub fn end_timestamp_ms(&self) -> Option<u64> {
+        self.epoch_close_proof
+            .as_ref()
+            .map(|entry| entry.last_checkpoint_summary.data().timestamp_ms)
+    }
+
+    /// This epoch's last checkpoint sequence number; `None` until finalized.
+    pub fn end_checkpoint(&self) -> Option<CheckpointSequenceNumber> {
+        self.epoch_close_proof
+            .as_ref()
+            .map(|entry| *entry.last_checkpoint_summary.data().sequence_number())
+    }
+}
+
+/// Per-epoch entry of the snapshot `EPOCH_INFO` file. Every field is anchored
+/// to the certified `last_checkpoint_summary`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EpochInfoV1Entry {
+    /// Certified summary of this epoch's closing checkpoint — the signed
+    /// anchor every other field is proven against.
+    pub last_checkpoint_summary: CertifiedCheckpointSummary,
+    /// Contents of that closing checkpoint; `hash == last_checkpoint_summary`'s
+    /// `content_digest`.
+    pub last_checkpoint_contents: CheckpointContents,
+    /// Effects of the epoch-change tx (the last tx of the closing checkpoint);
+    /// its `(transaction, effects)` digest pair is the last entry of
+    /// `last_checkpoint_contents`.
+    pub end_of_epoch_tx_effects: TransactionEffects,
+    /// Events from the epoch-change tx (carries `SystemEpochInfoEvent`); `hash
+    /// == end_of_epoch_tx_effects.events_digest`, or empty on safe-mode
+    /// boundaries where that digest is `None`.
+    pub end_of_epoch_tx_events: TransactionEvents,
+    /// Raw serialized bytes of system-state wrapper object and its inner
+    /// system-state object as written by this boundary — the next epoch's
+    /// start state. Each object's digest matches a written-object entry in
+    /// `end_of_epoch_tx_effects`.
+    pub next_epoch_start_system_state_objects: Vec<Vec<u8>>,
 }
 
 #[derive(Clone)]
