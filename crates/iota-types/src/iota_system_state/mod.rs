@@ -295,9 +295,7 @@ impl IotaSystemState {
     }
 }
 
-/// The `0x5` object together with the `IotaSystemStateWrapper` decoded from
-/// it. `get_iota_system_state_wrapper` discards the object; callers that need
-/// the raw bytes (e.g. to persist it) keep it.
+/// The raw system state wrapper object together with the `IotaSystemStateWrapper` decoded from it's contents.
 fn get_iota_system_state_wrapper_with_object(
     object_store: &dyn ObjectStore,
 ) -> Result<(Object, IotaSystemStateWrapper), IotaError> {
