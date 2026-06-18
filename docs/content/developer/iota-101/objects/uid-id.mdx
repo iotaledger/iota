@@ -30,7 +30,7 @@ public struct ID has store, drop {
 - IOTA Verifier will not allow using a UID that wasn't created in the same function. That prevents
   UIDs from being pre-generated and reused after the object was unpacked.
 
-You can create a new UID with the [`object::new(ctx)` function](../../../developer/references/framework/iota/object.mdx#function-new). It takes a mutable reference to TxContext,
+You can create a new UID with the [`object::new(ctx)` function](../../../developer/references/framework/iota/object.mdx#iota_object_new). It takes a mutable reference to TxContext,
 and returns a new UID.
 
 ```move
@@ -45,8 +45,8 @@ in this chapter.
 
 ## UID Lifecycle
 
-The `UID` type is created with the [`object::new(ctx)` function](../../../developer/references/framework/iota/object.mdx#function-new), and it is destroyed with the
-[`object::delete(uid)` function](../../../developer/references/framework/iota/object.mdx#function-delete). The `object::delete` consumes the UID _by value_, and it is
+The `UID` type is created with the [`object::new(ctx)` function](../../../developer/references/framework/iota/object.mdx#iota_object_new), and it is destroyed with the
+[`object::delete(uid)` function](../../../developer/references/framework/iota/object.mdx#iota_object_delete). The `object::delete` consumes the UID _by value_, and it is
 impossible to delete it unless the value was unpacked from an Object.
 
 ```move
