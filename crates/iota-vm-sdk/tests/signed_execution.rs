@@ -18,18 +18,19 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use iota_vm_sdk::{
-    Chain, ChainContext, ExecuteOptions, InMemoryStore, IotaAddress, LocalVm, ProtocolVersion,
+    Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion,
     SignatureStatus, Store, VmSdkError,
 };
 
 const GAS_PRICE: u64 = 1000;
 const GAS_COIN_VALUE: u64 = 1_000_000_000_000;
+const TRANSFER_AMOUNT: u64 = 1000;
 
 fn chain_context() -> ChainContext {
     ChainContext::new(ProtocolVersion::MAX, Chain::Unknown).with_reference_gas_price(GAS_PRICE)
 }
 
-fn gas_coin(owner: IotaAddress) -> Object {
+fn gas_coin(owner: Address) -> Object {
     Object::new_move(
         MoveObject::new_gas_coin(SequenceNumber::from(1), ObjectId::random(), GAS_COIN_VALUE),
         Owner::Address(owner),
@@ -39,12 +40,12 @@ fn gas_coin(owner: IotaAddress) -> Object {
 
 #[test]
 fn standard_signature_is_verified_on_success() {
-    let (sender, key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, key): (Address, AccountKeyPair) = get_key_pair();
     let gas = gas_coin(sender);
-    let recipient = IotaAddress::from(ObjectId::random());
+    let recipient = Address::from(ObjectId::random());
 
     let mut b = ProgrammableTransactionBuilder::new();
-    b.transfer_iota(recipient, Some(1000));
+    b.transfer_iota(recipient, Some(TRANSFER_AMOUNT));
     let tx = TransactionData::new_programmable(
         sender,
         vec![gas.object_ref()],
@@ -69,13 +70,48 @@ fn standard_signature_is_verified_on_success() {
     );
 }
 
+/// A standard-scheme signature authored by the wrong key must be rejected up
+/// front with [`VmSdkError::SignatureVerification`], never run as if valid.
+#[test]
+fn invalid_standard_signature_is_rejected() {
+    let (sender, _key): (Address, AccountKeyPair) = get_key_pair();
+    let (_other, wrong_key): (Address, AccountKeyPair) = get_key_pair();
+    let gas = gas_coin(sender);
+    let recipient = Address::from(ObjectId::random());
+
+    let mut b = ProgrammableTransactionBuilder::new();
+    b.transfer_iota(recipient, Some(TRANSFER_AMOUNT));
+    let tx = TransactionData::new_programmable(
+        sender,
+        vec![gas.object_ref()],
+        b.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+        GAS_PRICE,
+    );
+    // Sign with a key that does not own `sender`: the signature is well-formed
+    // but authored by the wrong address.
+    let signed = to_sender_signed_transaction(tx, &wrong_key).into_data();
+
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas);
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let err = vm
+        .execute_signed(signed, ExecuteOptions::dry_run())
+        .expect_err("a signature from the wrong key must be rejected");
+    assert!(
+        matches!(err, VmSdkError::SignatureVerification(_)),
+        "expected SignatureVerification, got {err:?}"
+    );
+}
+
 /// A failure in the transaction body must not be misreported as a signature
 /// failure: the ed25519 signature verified fine.
 #[test]
 fn standard_signature_stays_verified_when_body_aborts() {
-    let (sender, key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, key): (Address, AccountKeyPair) = get_key_pair();
     let gas = gas_coin(sender);
-    let recipient = IotaAddress::from(ObjectId::random());
+    let recipient = Address::from(ObjectId::random());
 
     // Try to split off more than the gas coin holds: the body aborts.
     let mut b = ProgrammableTransactionBuilder::new();
@@ -109,13 +145,13 @@ fn standard_signature_stays_verified_when_body_aborts() {
 
 #[test]
 fn missing_input_object_is_reported_with_its_id() {
-    let gas = gas_coin(IotaAddress::ZERO);
+    let gas = gas_coin(Address::ZERO);
     let phantom_id = gas.id();
-    let recipient = IotaAddress::from(ObjectId::random());
+    let recipient = Address::from(ObjectId::random());
     let mut b = ProgrammableTransactionBuilder::new();
-    b.transfer_iota(recipient, Some(1000));
+    b.transfer_iota(recipient, Some(TRANSFER_AMOUNT));
     let tx = TransactionData::new_programmable(
-        IotaAddress::ZERO,
+        Address::ZERO,
         vec![gas.object_ref()],
         b.finish(),
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,

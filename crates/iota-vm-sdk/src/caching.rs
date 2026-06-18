@@ -83,16 +83,6 @@ impl<F: ObjectFetcher> CachingStore<F> {
         self.inner.lock().expect("store lock poisoned").clone()
     }
 
-    /// The ids of every object currently cached.
-    pub(crate) fn cached_ids(&self) -> Vec<ObjectId> {
-        self.inner
-            .lock()
-            .expect("store lock poisoned")
-            .iter()
-            .map(|(id, _)| *id)
-            .collect()
-    }
-
     /// The most recent on-demand fetch failure, if any.
     ///
     /// The synchronous [`Store`] surface cannot return an error from a cache

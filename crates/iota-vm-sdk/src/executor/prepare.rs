@@ -106,7 +106,6 @@ pub(super) fn prepare_transaction(
     // Offline default: an empty deny-list. A live validator may be configured
     // with denied addresses/packages, so this check will not match a real chain.
     let deny_config = iota_config::transaction_deny_config::TransactionDenyConfig::default();
-    let receiving_object_refs = transaction.receiving_objects();
     iota_transaction_checks::deny::check_transaction_for_validation(
         &transaction,
         &[],
@@ -138,7 +137,7 @@ pub(super) fn prepare_transaction(
         // live validator enforces, so this check will not match a real chain.
         let verifier_signing_config =
             iota_config::verifier_signing_config::VerifierSigningConfig::default();
-        iota_transaction_checks::check_transaction_input(
+        let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             &env.protocol_config,
             env.reference_gas_price,
             &transaction,
@@ -148,7 +147,23 @@ pub(super) fn prepare_transaction(
             &verifier_signing_config,
             authenticator_gas_budget,
         )
-        .map_err(|e| ValidationError::new("transaction input check", e))?
+        .map_err(|e| ValidationError::new("transaction input check", e))?;
+        // `check_transaction_input` meters the signing phase and caps the budget
+        // at `max_auth_gas` when an authenticator budget is set. The combined
+        // authenticator + body run executes to effects, so meter it at the full
+        // transaction budget; the standalone verdict re-run keeps `max_auth_gas`.
+        let gas_status = if authenticator_gas_budget > 0 {
+            IotaGasStatus::new(
+                transaction.gas_budget(),
+                transaction.gas_price(),
+                env.reference_gas_price,
+                &env.protocol_config,
+            )
+            .map_err(|e| ValidationError::new("gas status", e))?
+        } else {
+            gas_status
+        };
+        (gas_status, checked_input_objects)
     };
 
     Ok(PreparedTransaction {
@@ -226,7 +241,13 @@ pub(super) fn execute_with_move_authenticators(
     ),
     authenticator_gas_budget: u64,
     trace_builder_opt: &mut Option<MoveTraceBuilder>,
-) -> Result<(SimulateTransactionResult, Result<(), String>), VmSdkError> {
+) -> Result<
+    (
+        SimulateTransactionResult,
+        Result<(), iota_types::error::ExecutionError>,
+    ),
+    VmSdkError,
+> {
     let PreparedTransaction {
         transaction,
         gas_status,
@@ -236,6 +257,9 @@ pub(super) fn execute_with_move_authenticators(
 
     // Resolve each authenticator's input objects and function ref, unioning
     // every authenticator's inputs into the transaction's checked inputs.
+    // Offline default: the per-authenticator object restrictions a node enforces
+    // (`check_move_authenticator_objects`) are not applied here, so inputs a live
+    // chain would reject at signing time still run.
     let mut union_inputs = checked_input_objects.into_inner();
     let mut prepared_auths = Vec::with_capacity(authenticators.len());
     for authenticator in authenticators {
@@ -345,24 +369,22 @@ pub(super) fn execute_with_move_authenticators(
         let aggregated_auth_inputs =
             iota_transaction_checks::aggregate_authenticator_input_objects(&per_auth_checked_refs)
                 .map_err(|e| ValidationError::new("aggregate authenticator inputs", e))?;
-        env.executor
-            .authenticate_transaction(
-                store,
-                &env.protocol_config,
-                env.limits_metrics.clone(),
-                &env.epoch_id,
-                env.epoch_timestamp_ms,
-                gas_data,
-                verdict_gas_status,
-                verdict_authenticators,
-                aggregated_auth_inputs,
-                kind,
-                signer,
-                transaction.digest(),
-                auth_context_data,
-                &mut None,
-            )
-            .map_err(|e| e.to_string())
+        env.executor.authenticate_transaction(
+            store,
+            &env.protocol_config,
+            env.limits_metrics.clone(),
+            &env.epoch_id,
+            env.epoch_timestamp_ms,
+            gas_data,
+            verdict_gas_status,
+            verdict_authenticators,
+            aggregated_auth_inputs,
+            kind,
+            signer,
+            transaction.digest(),
+            auth_context_data,
+            &mut None,
+        )
     };
 
     Ok((
@@ -398,14 +420,10 @@ fn resolve_authenticator_function_ref(
     )
     .map_err(|e| VmError::new(format!("derive authenticator field id: {e}")))?;
 
-    let field_obj =
-        store
-            .as_object_store()
-            .get_object(&field_id)
-            .ok_or(VmSdkError::MissingObject {
-                id: field_id,
-                version: None,
-            })?;
+    let field_obj = store
+        .as_object_store()
+        .get_object(&field_id)
+        .ok_or(VmSdkError::missing_object(field_id, None))?;
 
     let field_move_object = field_obj.data.as_struct_opt().ok_or_else(|| {
         VmError::new("authenticator dynamic field: field object is not a Move object")
@@ -435,10 +453,7 @@ fn build_input_objects(
         let obj = store
             .as_object_store()
             .get_object(&kind.object_id())
-            .ok_or(VmSdkError::MissingObject {
-                id: kind.object_id(),
-                version: kind.version(),
-            })?;
+            .ok_or(VmSdkError::missing_object(kind.object_id(), kind.version()))?;
 
         let updated_kind = match kind {
             InputObjectKind::MovePackage(_) => *kind,
@@ -471,10 +486,10 @@ fn build_receiving_objects(
         let obj = store
             .as_object_store()
             .get_object(&objref.object_id)
-            .ok_or(VmSdkError::MissingObject {
-                id: objref.object_id,
-                version: Some(objref.version),
-            })?;
+            .ok_or(VmSdkError::missing_object(
+                objref.object_id,
+                Some(objref.version),
+            ))?;
         let updated_ref = obj.object_ref();
         receiving_objects.push(ReceivingObjectReadResult::new(updated_ref, obj.into()));
     }

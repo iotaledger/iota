@@ -13,8 +13,6 @@
 //! [`LocalVm::execute`](crate::LocalVm::execute) must run inside a
 //! multi-threaded Tokio runtime (e.g. `#[tokio::main]`).
 
-use std::collections::HashSet;
-
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_sdk_graphql_client::Client;
 use iota_sdk_types::{ObjectId, Version};
@@ -31,6 +29,11 @@ use crate::{
 /// demand.
 ///
 /// Clones share the same cache and client.
+///
+/// # Panics
+///
+/// On-demand object resolution (via the synchronous [`Store`] impl) panics
+/// unless called from within a multi-threaded Tokio runtime.
 #[derive(Clone)]
 pub struct GraphqlStore {
     cache: CachingStore<GraphqlFetcher>,
@@ -141,103 +144,6 @@ impl GraphqlStore {
     pub async fn prefetch(&mut self, transaction: &TransactionData) -> Result<(), VmSdkError> {
         self.cache.prefetch(transaction).await
     }
-
-    /// Eagerly fetch the dynamic-field children of every object already cached,
-    /// recursively, and insert them too. Mirrors
-    /// [`GrpcStore::prefetch_dynamic_fields`](crate::grpc::GrpcStore::prefetch_dynamic_fields).
-    ///
-    /// The GraphQL `dynamicFields` connection returns each field's name and
-    /// value but not the `Field` wrapper object's id, so the wrapper id is
-    /// derived from the field name the same way the Move VM derives it
-    /// on-chain.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`VmSdkError::Store`] if a listing or fetch fails.
-    pub async fn prefetch_dynamic_fields(&mut self) -> Result<(), VmSdkError> {
-        let mut visited: HashSet<ObjectId> = HashSet::new();
-        let mut queue: Vec<ObjectId> = self.cache.cached_ids();
-        while let Some(parent) = queue.pop() {
-            if !visited.insert(parent) {
-                continue;
-            }
-            let ids = self.list_dynamic_field_object_ids(parent).await?;
-            if ids.is_empty() {
-                continue;
-            }
-            let refs: Vec<(ObjectId, Option<Version>)> = ids.iter().map(|id| (*id, None)).collect();
-            self.cache.fetch_and_insert(&refs).await?;
-            // Recurse into the newly fetched children to find their descendants.
-            queue.extend(ids);
-        }
-        Ok(())
-    }
-
-    /// List the object ids that make up `parent`'s dynamic fields: the derived
-    /// `Field` wrapper for every field, plus the separate child object of each
-    /// dynamic *object* field.
-    async fn list_dynamic_field_object_ids(
-        &self,
-        parent: ObjectId,
-    ) -> Result<Vec<ObjectId>, VmSdkError> {
-        let mut ids: Vec<ObjectId> = Vec::new();
-        let mut cursor: Option<String> = None;
-        loop {
-            let after = match &cursor {
-                Some(c) => format!(r#", after: "{c}""#),
-                None => String::new(),
-            };
-            let query = format!(
-                r#"{{ object(address: "{parent}") {{ dynamicFields(first: 50{after}) {{
-                    pageInfo {{ hasNextPage endCursor }}
-                    nodes {{
-                        name {{ type {{ repr }} bcs }}
-                        value {{ __typename ... on MoveObject {{ address }} }}
-                    }}
-                }} }} }}"#
-            );
-            let data = self
-                .cache
-                .fetcher()
-                .query("list dynamic fields via GraphQL", query)
-                .await?;
-            let Some(fields) = data.pointer("/object/dynamicFields") else {
-                break;
-            };
-            if let Some(nodes) = fields.get("nodes").and_then(|v| v.as_array()) {
-                for node in nodes {
-                    if let Some(field_id) = derive_field_wrapper_id(parent, node) {
-                        ids.push(field_id);
-                    }
-                    // A dynamic *object* field keeps its value in a separate
-                    // child object, addressable directly.
-                    if node.pointer("/value/__typename").and_then(|v| v.as_str())
-                        == Some("MoveObject")
-                    {
-                        if let Some(id) = node
-                            .pointer("/value/address")
-                            .and_then(|v| v.as_str())
-                            .and_then(|s| s.parse::<ObjectId>().ok())
-                        {
-                            ids.push(id);
-                        }
-                    }
-                }
-            }
-            let has_next = fields
-                .pointer("/pageInfo/hasNextPage")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            cursor = fields
-                .pointer("/pageInfo/endCursor")
-                .and_then(|v| v.as_str())
-                .map(String::from);
-            if !has_next || cursor.is_none() {
-                break;
-            }
-        }
-        Ok(ids)
-    }
 }
 
 impl Store for GraphqlStore {
@@ -316,33 +222,26 @@ impl ObjectFetcher for GraphqlFetcher {
         }
         let query = format!("{{ {} }}", aliases.join("\n"));
         let data = self.query("GraphQL query", query).await?;
-        let mut objects = Vec::new();
-        if let Some(obj_map) = data.as_object() {
-            for (alias, value) in obj_map {
-                if let Some(bcs_b64) = value.pointer("/bcs").and_then(|v| v.as_str()) {
-                    let bytes = BASE64
-                        .decode(bcs_b64)
-                        .map_err(|e| StoreError::new(format!("decode {alias}"), e))?;
-                    let obj: Object = bcs::from_bytes(&bytes)
-                        .map_err(|e| StoreError::new(format!("bcs {alias}"), e))?;
-                    objects.push(obj);
-                }
-            }
+        // All-or-nothing, matching the gRPC fetcher: every requested ref must
+        // resolve, else fail loudly rather than return a partial Vec.
+        let mut objects = Vec::with_capacity(refs.len());
+        for (index, (id, _)) in refs.iter().enumerate() {
+            let alias = format!("v{index}");
+            let bcs_b64 = data
+                .pointer(&format!("/{alias}/bcs"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    StoreError::new("GraphQL query", format!("object {id} not found"))
+                })?;
+            let bytes = BASE64
+                .decode(bcs_b64)
+                .map_err(|e| StoreError::new(format!("decode {alias}"), e))?;
+            let obj: Object =
+                bcs::from_bytes(&bytes).map_err(|e| StoreError::new(format!("bcs {alias}"), e))?;
+            objects.push(obj);
         }
         Ok(objects)
     }
-}
-
-/// Derive the on-chain `Field` wrapper object id for a `dynamicFields` node
-/// from its name (the field's type repr and BCS bytes), matching the Move VM's
-/// derivation. Returns `None` if the node is missing a name or it can't be
-/// parsed.
-fn derive_field_wrapper_id(parent: ObjectId, node: &serde_json::Value) -> Option<ObjectId> {
-    let repr = node.pointer("/name/type/repr").and_then(|v| v.as_str())?;
-    let name_bcs = node.pointer("/name/bcs").and_then(|v| v.as_str())?;
-    let tag = repr.parse::<iota_sdk_types::TypeTag>().ok()?;
-    let name_bytes = BASE64.decode(name_bcs).ok()?;
-    iota_types::dynamic_field::derive_dynamic_field_id(*parent.as_address(), &tag, &name_bytes).ok()
 }
 
 /// Parse the GraphQL `startTimestamp` scalar — an RFC 3339 datetime string

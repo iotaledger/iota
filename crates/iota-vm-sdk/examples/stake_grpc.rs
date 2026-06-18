@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Example: build a staking transaction with the transaction builder and
-//! dry-run it locally against objects pre-fetched over gRPC.
+//! dry-run it locally against objects resolved on demand over gRPC.
 //!
 //! The transaction is never signed: the builder resolves it against testnet,
 //! its input objects (plus the system-state dynamic fields staking reads) are
-//! pulled into a [`GrpcStore`], and the run is a local
+//! resolved on demand from a [`GrpcStore`], and the run is a local
 //! [`ExecutionMode::DryRun`] — nothing is submitted to the network.
 //!
 //! Run with:
@@ -26,8 +26,7 @@ async fn main() -> Result<()> {
     // An active testnet validator to stake with.
     let validator =
         Address::from_hex("0xa276b4c076fff55588255630e9ee35cf0d07e8d80c78991cfd58b43b687b4206")?;
-    // Amount to stake, in nanos (1 IOTA = 1_000_000_000 nanos).
-    let stake_amount: u64 = 1_000_000_000;
+    let stake_amount_nanos: u64 = 1_000_000_000;
 
     // Build the staking transaction with the transaction builder over testnet
     // gRPC. `stake` splits the stake amount off the gas coin, so the sender only
@@ -35,7 +34,7 @@ async fn main() -> Result<()> {
     // budget, and returns the transaction unsigned.
     let client = Client::new_testnet().context("connect testnet gRPC client")?;
     let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
-    builder.stake(stake_amount, validator);
+    builder.stake(stake_amount_nanos, validator);
     let tx: TransactionData = builder.finish().await.context("resolve staking tx")?;
 
     // The store resolves every object the VM reads over gRPC on demand —

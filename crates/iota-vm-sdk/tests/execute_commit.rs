@@ -27,19 +27,19 @@ use iota_types::{
     },
 };
 use iota_vm_sdk::{
-    Chain, ChainContext, ExecuteOptions, InMemoryStore, IotaAddress, LocalVm, ProtocolVersion,
-    Store,
+    Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
 };
 
 const GAS_PRICE: u64 = 1000;
 const GAS_COIN_VALUE: u64 = 1_000_000_000_000;
+const TRANSFER_AMOUNT: u64 = 1000;
 
 fn chain_context() -> ChainContext {
     ChainContext::new(ProtocolVersion::MAX, Chain::Unknown).with_reference_gas_price(GAS_PRICE)
 }
 
 /// A fresh, well-funded gas coin owned by `owner`.
-fn gas_coin(owner: IotaAddress) -> Object {
+fn gas_coin(owner: Address) -> Object {
     Object::new_move(
         MoveObject::new_gas_coin(SequenceNumber::from(1), ObjectId::random(), GAS_COIN_VALUE),
         Owner::Address(owner),
@@ -49,12 +49,7 @@ fn gas_coin(owner: IotaAddress) -> Object {
 
 /// `transfer_iota(recipient, Some(amount))`: splits a fresh coin off gas and
 /// transfers it. Mutates the gas coin and creates one new coin.
-fn transfer_tx(
-    sender: IotaAddress,
-    gas: &Object,
-    recipient: IotaAddress,
-    amount: u64,
-) -> TransactionData {
+fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -> TransactionData {
     let mut b = ProgrammableTransactionBuilder::new();
     b.transfer_iota(recipient, Some(amount));
     TransactionData::new_programmable(
@@ -67,9 +62,9 @@ fn transfer_tx(
 }
 
 #[test]
-fn execute_commits_writes_and_deletions_to_store() {
-    let sender = IotaAddress::ZERO;
-    let recipient = IotaAddress::from(ObjectId::random());
+fn execute_commits_writes_to_store() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
 
     let gas = gas_coin(sender);
     let gas_id = gas.id();
@@ -82,7 +77,7 @@ fn execute_commits_writes_and_deletions_to_store() {
 
     let result = vm
         .execute(
-            transfer_tx(sender, &gas, recipient, 1000),
+            transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT),
             ExecuteOptions::execute(),
         )
         .expect("execute must succeed");
@@ -117,10 +112,74 @@ fn execute_commits_writes_and_deletions_to_store() {
     );
 }
 
+/// `Execute` mode must also commit deletions: `pay` merges the second input
+/// coin into the first, consuming (deleting) it — it must be removed from the
+/// store.
+#[test]
+fn execute_commits_deletions_to_store() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let gas = gas_coin(sender);
+    // Two owned coins; `pay` merges the second into the first, deleting it.
+    let primary = gas_coin(sender);
+    let merged = gas_coin(sender);
+    let merged_id = merged.id();
+
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    store.insert(primary.clone());
+    store.insert(merged.clone());
+
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut b = ProgrammableTransactionBuilder::new();
+    b.pay(
+        vec![primary.object_ref(), merged.object_ref()],
+        vec![recipient],
+        vec![TRANSFER_AMOUNT],
+    )
+    .expect("build pay PTB");
+    let tx = TransactionData::new_programmable(
+        sender,
+        vec![gas.object_ref()],
+        b.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+        GAS_PRICE,
+    );
+
+    let result = vm
+        .execute(tx, ExecuteOptions::execute())
+        .expect("execute must succeed");
+    assert!(
+        result.status.is_success(),
+        "pay must succeed, got {:?}",
+        result.status
+    );
+    assert!(
+        result.committed,
+        "successful Execute must set committed = true"
+    );
+
+    // The merged-in coin is reported deleted and is gone from the store.
+    assert!(
+        result
+            .effects
+            .deleted()
+            .iter()
+            .any(|o| o.object_id == merged_id),
+        "merged coin must appear in effects.deleted()"
+    );
+    assert!(
+        vm.store_mut().get_object(&merged_id, None).is_none(),
+        "deleted coin must be removed from the store"
+    );
+}
+
 #[test]
 fn dev_inspect_and_dry_run_leave_store_unchanged() {
-    let sender = IotaAddress::ZERO;
-    let recipient = IotaAddress::from(ObjectId::random());
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
 
     for opts in [ExecuteOptions::dev_inspect(), ExecuteOptions::dry_run()] {
         let mode = opts.mode;
@@ -135,7 +194,7 @@ fn dev_inspect_and_dry_run_leave_store_unchanged() {
         let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
 
         let result = vm
-            .execute(transfer_tx(sender, &gas, recipient, 1000), opts)
+            .execute(transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT), opts)
             .unwrap_or_else(|e| panic!("{mode:?} must succeed: {e}"));
 
         assert!(result.status.is_success(), "{mode:?} run must succeed");

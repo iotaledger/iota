@@ -59,7 +59,8 @@ impl DebugConfig {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum ProfileSink {
-    /// Write the profile JSON to the given path on disk.
+    /// Write the merged profile JSON to the given path on disk. If the path
+    /// can't be written, the run yields no profile rather than an error.
     Path(PathBuf),
     /// Write the profile to a temporary location and read its bytes back into
     /// [`ProfileOutput::Json`] after execution.
