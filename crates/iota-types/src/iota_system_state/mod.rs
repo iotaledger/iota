@@ -396,7 +396,7 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
 }
 
 /// The two objects `get_iota_system_state` reads to decode the system state:
-/// the `0x5` wrapper and its inner system-state object. These two fully
+/// the raw system state wrapper object and its inner system-state object. These two fully
 /// determine the state, so none of the per-validator objects the epoch-change
 /// tx also writes are needed. Returned as raw `Object`s so a caller can
 /// persist the exact bytes their `ObjectDigest`s commit to.
