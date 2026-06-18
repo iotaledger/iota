@@ -564,7 +564,7 @@ impl StateSnapshotWriterV1 {
             // The boundary's whole entry is committed in one atomic batch, so a
             // row the watermark covers must be finalized; a missing entry means
             // the watermark advanced over an unfinalized row. Panics for the
-            // same blast-radius reason as above.
+            // same reason as above.
             let entry = epoch_info.epoch_info_entry.unwrap_or_else(|| {
                 panic!(
                     "epochs_v2[{epoch_id}] is not finalized despite `EpochIndexed` \
