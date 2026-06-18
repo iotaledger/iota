@@ -83,8 +83,13 @@ impl SlidingWindowSchedule {
     }
 
     /// Earliest commit index a caller must replay through [`Self::add_commit`]
-    /// to reconstruct the aggregate as of `last_commit_index`.
+    /// to rebuild the window state as of `last_commit_index`.
     pub(crate) fn replay_start(last_commit_index: CommitIndex, window_size: u32) -> CommitIndex {
+        // Replays a full window, not just the latest commit: the window slides by
+        // adding new and subtracting evicted per-commit contributions, so recovery
+        // must rebuild those per-commit entries — the aggregate sum alone cannot
+        // evict. The swap table in effect at restart is recovered separately, from
+        // the scores persisted in `CommitInfo`, not by this replay.
         last_commit_index
             .saturating_sub(window_size + MAX_PENDING_COMMITS as u32)
             .max(1)
