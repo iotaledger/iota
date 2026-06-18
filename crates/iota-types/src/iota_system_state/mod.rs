@@ -295,7 +295,8 @@ impl IotaSystemState {
     }
 }
 
-/// The raw system state wrapper object together with the `IotaSystemStateWrapper` decoded from it's contents.
+/// The raw system state wrapper object together with the
+/// `IotaSystemStateWrapper` decoded from it's contents.
 fn get_iota_system_state_wrapper_with_object(
     object_store: &dyn ObjectStore,
 ) -> Result<(Object, IotaSystemStateWrapper), IotaError> {
@@ -396,10 +397,10 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
 }
 
 /// The two objects `get_iota_system_state` reads to decode the system state:
-/// the raw system state wrapper object and its inner system-state object. These two fully
-/// determine the state, so none of the per-validator objects the epoch-change
-/// tx also writes are needed. Returned as raw `Object`s so a caller can
-/// persist the exact bytes their `ObjectDigest`s commit to.
+/// the raw system state wrapper object and its inner system-state object. These
+/// two fully determine the state, so none of the per-validator objects the
+/// epoch-change tx also writes are needed. Returned as raw `Object`s so a
+/// caller can persist the exact bytes their `ObjectDigest`s commit to.
 pub fn get_iota_system_state_objects(
     object_store: &dyn ObjectStore,
 ) -> Result<Vec<Object>, IotaError> {

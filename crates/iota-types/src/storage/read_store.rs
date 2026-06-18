@@ -903,8 +903,8 @@ impl EpochInfoV2 {
     }
 }
 
-/// Per-epoch entry of the snapshot `EPOCH_INFO` file. Every field is anchored to the
-/// certified `last_checkpoint_summary`.
+/// Per-epoch entry of the snapshot `EPOCH_INFO` file. Every field is anchored
+/// to the certified `last_checkpoint_summary`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpochInfoV1Entry {
     /// Certified summary of this epoch's closing checkpoint — the signed
@@ -921,9 +921,9 @@ pub struct EpochInfoV1Entry {
     /// == end_of_epoch_tx_effects.events_digest`, or empty on safe-mode
     /// boundaries where that digest is `None`.
     pub end_of_epoch_tx_events: TransactionEvents,
-    /// Raw serialized bytes of system-state wrapper object and its inner system-state object
-    /// as written by this boundary — the next epoch's start state. Each
-    /// object's digest matches a written-object entry in
+    /// Raw serialized bytes of system-state wrapper object and its inner
+    /// system-state object as written by this boundary — the next epoch's
+    /// start state. Each object's digest matches a written-object entry in
     /// `end_of_epoch_tx_effects`.
     pub next_epoch_start_system_state_objects: Vec<Vec<u8>>,
 }

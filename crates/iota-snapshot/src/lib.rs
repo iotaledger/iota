@@ -319,15 +319,16 @@ impl EpochInfo {
 /// Chain-verified `EPOCH_INFO`: the `chain_id` matched and every entry was
 /// anchored to its certified `last_checkpoint_summary` — the committee chain
 /// walked from the genesis committee, every byte hash-checked back to that
-/// signed summary. The only constructor is `verify_epoch_info_chain`, so holding
-/// one is proof the data is anchored to the operator-provided genesis.
+/// signed summary. The only constructor is `verify_epoch_info_chain`, so
+/// holding one is proof the data is anchored to the operator-provided genesis.
 #[derive(Debug)]
 pub struct VerifiedEpochInfo {
     epoch_info: EpochInfo,
     committees: Vec<Committee>,
     /// Digest-verified start state per epoch: `[i]` is epoch `i`'s start state
     /// — the genesis root for `i == 0`, else derived from epoch `i - 1`'s
-    /// boundary. Length `snapshot_epoch + 2`; the trailing entry has no epoch info row.
+    /// boundary. Length `snapshot_epoch + 2`; the trailing entry has no epoch
+    /// info row.
     start_system_states: Vec<IotaSystemState>,
 }
 
