@@ -112,8 +112,8 @@ fn test_serde_roundtrip() {
     // Single sig serialization unchanged.
     let sig = Ed25519IotaSignature::default();
     let single_sig = GenericSignature::Signature(sig.clone().into());
-    let single_sig_bytes = single_sig.as_bytes();
-    let single_sig_roundtrip = GenericSignature::from_bytes(single_sig_bytes).unwrap();
+    let single_sig_bytes = single_sig.to_bytes();
+    let single_sig_roundtrip = GenericSignature::from_bytes(&single_sig_bytes).unwrap();
     assert_eq!(single_sig, single_sig_roundtrip);
     assert_eq!(single_sig_bytes.len(), Ed25519IotaSignature::LENGTH);
     assert_eq!(

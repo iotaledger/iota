@@ -253,7 +253,7 @@ impl TransactionBlock {
         self.native_signed_data().map(|s| {
             s.tx_signatures()
                 .iter()
-                .map(|sig| Base64::from(sig.as_ref()))
+                .map(|sig| Base64::from(sig.to_bytes()))
                 .collect()
         })
     }
