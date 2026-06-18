@@ -528,6 +528,13 @@ struct FeatureFlags {
     // Conflicts are resolved deterministically post-consensus using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_white_flag_flow: bool,
+
+    // If true, the Starfish leader schedule scores reputation over a sliding
+    // window and rebuilds the swap table every `consensus_commits_per_schedule`
+    // commits with a uniform base election; when false, V2 snapshot scoring +
+    // stake-weighted base election is used.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_enable_sliding_window_leader_schedule: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1395,6 +1402,16 @@ pub struct ProtocolConfig {
     // `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
     // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
     auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
+
+    /// Number of committed subdags between leader-schedule recomputations — the
+    /// rotation cadence (formerly the `CONSENSUS_COMMITS_PER_SCHEDULE` const).
+    /// When unset, defaults to 300.
+    consensus_commits_per_schedule: Option<u32>,
+
+    /// Number of committed subdags the sliding-window leader scorer aggregates
+    /// over (the scoring depth). When unset, defaults to 600. Consulted only
+    /// when `consensus_enable_sliding_window_leader_schedule` is set.
+    consensus_leader_schedule_window_size: Option<u32>,
 }
 
 // feature flags
@@ -1784,6 +1801,30 @@ impl ProtocolConfig {
 
     pub fn enable_white_flag_flow(&self) -> bool {
         self.feature_flags.enable_white_flag_flow
+    }
+
+    pub fn commits_per_schedule(&self) -> u64 {
+        if cfg!(msim) {
+            // Exercise faster leader-schedule rotation in simtests.
+            min(10, self.consensus_commits_per_schedule.unwrap_or(300)) as u64
+        } else {
+            self.consensus_commits_per_schedule.unwrap_or(300) as u64
+        }
+    }
+
+    pub fn leader_schedule_window_size(&self) -> u32 {
+        self.consensus_leader_schedule_window_size.unwrap_or(600)
+    }
+
+    pub fn consensus_enable_sliding_window_leader_schedule(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_enable_sliding_window_leader_schedule;
+        assert!(
+            !res || self.leader_schedule_window_size() as u64 >= self.commits_per_schedule(),
+            "consensus_enable_sliding_window_leader_schedule requires window_size >= commits_per_schedule"
+        );
+        res
     }
 }
 
@@ -2385,6 +2426,10 @@ impl ProtocolConfig {
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
             auth_context_authenticator_function_info_v1_cost_base: None,
+
+            consensus_commits_per_schedule: None,
+
+            consensus_leader_schedule_window_size: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3179,6 +3224,19 @@ impl ProtocolConfig {
 
     pub fn set_enable_white_flag_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_white_flag_flow = val;
+    }
+
+    pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
+        self.consensus_commits_per_schedule = Some(val);
+    }
+
+    pub fn set_leader_schedule_window_size_for_testing(&mut self, val: u32) {
+        self.consensus_leader_schedule_window_size = Some(val);
+    }
+
+    pub fn set_consensus_enable_sliding_window_leader_schedule_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_enable_sliding_window_leader_schedule = val;
     }
 }
 
