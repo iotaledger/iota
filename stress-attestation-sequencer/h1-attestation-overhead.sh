@@ -27,6 +27,14 @@
 
 set -euo pipefail
 
+# Raise the open-file soft limit to the hard max for this script and every child
+# (the host stress client, docker). The closed-loop client holds
+# TARGET_QPS * IN_FLIGHT_RATIO concurrent fullnode connections (+ retries); the
+# default soft limit (often 1024) is exhausted well below that, surfacing as
+# "Too many open files" (EMFILE) transport errors that drop txs and pollute the
+# throughput/latency numbers. (run-stress-docker.sh sets --ulimit separately.)
+ulimit -n "$(ulimit -Hn)" || true
+
 # ANSI palette (auto-disabled when stdout is not a terminal), matching the H1 script.
 if [[ -t 1 ]]; then
   RED=$'\033[0;31m'
@@ -71,9 +79,9 @@ SLOW_N="${SLOW_N:-}"                                # WORKLOAD=slow: slow::slow(
 SLOW_SIZE="${SLOW_SIZE:-}"                          # WORKLOAD=slow: each vector size in bytes (empty => default 100)
 # Congestion-control protocol overrides (empty => protocol default). Applied by
 # start.sh to the network for BOTH runs; recorded in each run's config below.
-MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-}"       # rounds a tx may stay deferred before it is CANCELLED (default 10)
+MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-}"           # rounds a tx may stay deferred before it is CANCELLED (default 10)
 MAX_ACCUMULATED_TXN_COST="${MAX_ACCUMULATED_TXN_COST:-}" # base per-object per-commit budget (TotalTxCount => tx count; default 10)
-MAX_CONGESTION_OVERSHOOT="${MAX_CONGESTION_OVERSHOOT:-}"  # burst allowed over the base budget per commit (default 100)
+MAX_CONGESTION_OVERSHOOT="${MAX_CONGESTION_OVERSHOOT:-}" # burst allowed over the base budget per commit (default 100)
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
 # (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
 # NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
@@ -161,8 +169,16 @@ wait_for_fullnode() {
 # tearing Prometheus down here only drops Run A's live Grafana history (the
 # aggregated summary.md, built from the saved timeseries, is unaffected).
 reset_network() {
-  echo "${YELLOW}Tearing everything down (incl. Prometheus) and re-bootstrapping a fresh genesis for Run B...${RESET}"
+  echo "${YELLOW}Tearing everything down and re-bootstrapping a fresh genesis for Run B...${RESET}"
   echo "  - cleanup/bootstrap output -> $RESULTS_DIR/bootstrap.log"
+  # NOTE: cleanup.sh brings the monitoring stack down WITHOUT -v, so the
+  # Prometheus data volume PERSISTS on purpose — Run A and Run B both stay
+  # visible in one Grafana view. The cost: Run B reuses the same validator-N
+  # series labels and its fresh processes reset the cumulative counters, so
+  # Prometheus carries Run A's last (higher) value into the START of Run B's
+  # scrape window (a reset within the window). dump_timeseries strips that
+  # carryforward (reset-aware) so the per-run JSON stays correct. Do NOT add
+  # `down -v` here unless you also stop needing the combined A+B Grafana view.
   sudo "$SCRIPT_DIR/cleanup.sh" >>"$RESULTS_DIR/bootstrap.log" 2>&1 || true
   sudo "$SCRIPT_DIR/bootstrap.sh" -b -n "$N" >>"$RESULTS_DIR/bootstrap.log" 2>&1
 }
@@ -269,13 +285,41 @@ metrics["total_client_double_spend_attempts_detected"] = (
     "total_client_double_spend_attempts_detected"
 )
 
+# Cumulative counters/histograms reset to 0 when a process restarts. Because the
+# Prometheus TSDB is kept across runs (so A+B coexist in Grafana), Run B reuses
+# Run A's series labels: Prometheus carries Run A's last (higher) value into the
+# START of Run B's window before the fresh process's series take over — i.e. a
+# reset WITHIN the window that makes naive last-first go negative. Drop every
+# sample up to and including the LAST such reset, so last-first over the kept
+# samples = this process's in-window increase (matches PromQL increase()).
+# GAUGES legitimately rise and fall (not monotonic), so they are left raw.
+GAUGES = {
+    "consensus_handler_max_congestion_control_object_costs",
+    "execution_cache_backpressure_status",
+    "execution_driver_dispatch_queue",
+    "transaction_manager_num_pending_certificates",
+    "container_memory_rss",
+    "global_state_hash_inconsistent_state",
+}
+def trim_after_last_reset(values):
+    last = 0
+    for i in range(1, len(values)):
+        if float(values[i][1]) < float(values[i - 1][1]):
+            last = i
+    return values[last:]
+
 series = {}
 for name, q in metrics.items():
     url = prom + "/api/v1/query_range?" + urllib.parse.urlencode(
         {"query": q, "start": start, "end": end, "step": step})
     try:
         with urllib.request.urlopen(url, timeout=60) as r:
-            series[name] = json.load(r).get("data", {}).get("result", [])
+            result = json.load(r).get("data", {}).get("result", [])
+        if name not in GAUGES:
+            for s_ in result:
+                if s_.get("values"):
+                    s_["values"] = trim_after_last_reset(s_["values"])
+        series[name] = result
     except Exception as e:
         series[name] = {"error": str(e)}
 
@@ -361,11 +405,11 @@ banner "== H1 [1/5] cleanup (in case something is running) =="
 # cleanup/bootstrap are verbose (docker compose + genesis tooling); send their
 # output to bootstrap.log to keep the console readable.
 sudo "$SCRIPT_DIR/cleanup.sh" >>"$RESULTS_DIR/bootstrap.log" 2>&1 || true
-# Start this invocation with an EMPTY Prometheus TSDB. The data volume is
-# persistent (so it survives the between-runs teardown and both runs stay
-# visible), but here — once, at the very start — we drop it with `down -v` so
-# stale series from previous invocations don't linger. reset_network between
-# Run A and Run B deliberately does NOT pass -v, so Run A's data is kept.
+# Start this invocation with an EMPTY Prometheus TSDB (ONCE, here) so stale
+# series from previous invocations don't linger. reset_network between Run A and
+# Run B deliberately does NOT wipe it, so both runs stay visible in one Grafana
+# view; the resulting Run A->Run B counter carryforward into Run B's window is
+# stripped by dump_timeseries (reset-aware), keeping the per-run JSON correct.
 (cd "$REPO_ROOT/dev-tools/grafana-local" && docker compose down -v --remove-orphans) >/dev/null 2>&1 || true
 echo "cleanup/bootstrap output -> $RESULTS_DIR/bootstrap.log"
 
