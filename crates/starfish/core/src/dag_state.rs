@@ -95,6 +95,25 @@ pub(crate) enum DataSource {
 }
 
 impl DataSource {
+    /// Whether headers from this source are subject to the far-future round
+    /// bound — the live header-ingress paths, as opposed to certified catch-up,
+    /// locally produced, or transaction/shard sources.
+    pub(crate) fn is_subject_to_far_future_bound(&self) -> bool {
+        match self {
+            DataSource::BlockStreaming
+            | DataSource::BlockBundleStream
+            | DataSource::HeaderSynchronizer => true,
+            DataSource::TransactionSynchronizer
+            | DataSource::ShardReconstructor
+            | DataSource::Recover
+            | DataSource::OwnBlock
+            | DataSource::CommitSyncer
+            | DataSource::FastCommitSyncer => false,
+            #[cfg(test)]
+            DataSource::Test => false,
+        }
+    }
+
     /// Returns the string label used for metrics reporting.
     /// This ensures consistency with existing metrics that may be monitored.
     pub(crate) fn as_str(&self) -> &'static str {
@@ -1973,6 +1992,14 @@ impl DagState {
 
     pub(crate) fn highest_accepted_round(&self) -> Round {
         self.highest_accepted_round
+    }
+
+    /// Highest round a header from a far-future-bounded source may have, given
+    /// the current accepted frontier, to still be close enough to ever connect.
+    pub(crate) fn far_future_round_ceiling(&self) -> Round {
+        self.context
+            .parameters
+            .far_future_round_ceiling(self.highest_accepted_round())
     }
 
     /// Highest round where a block is committed, which is last commit's leader
