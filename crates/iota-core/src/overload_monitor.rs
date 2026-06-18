@@ -23,7 +23,10 @@ use tokio::time::sleep;
 use tracing::{debug, info};
 use twox_hash::XxHash64;
 
-use crate::{authority::AuthorityState, consensus_adapter::ConsensusAdapter};
+use crate::{
+    authority::AuthorityState, consensus_adapter::ConsensusAdapter,
+    execution_scheduler::ExecutionSchedulerAPI,
+};
 
 #[derive(Default)]
 pub struct AuthorityOverloadInfo {
@@ -145,7 +148,7 @@ fn check_execution_overload(
         .unwrap_or_default();
     let txn_ready_rate = authority.metrics.txn_ready_rate_tracker.lock().rate();
     let execution_rate = authority.metrics.execution_rate_tracker.lock().rate();
-    let inflight_queue_len = authority.transaction_manager().inflight_queue_len();
+    let inflight_queue_len = authority.execution_scheduler().num_pending_certificates();
     let cache_pending_count = authority
         .get_cache_commit()
         .approximate_pending_transaction_count() as usize;

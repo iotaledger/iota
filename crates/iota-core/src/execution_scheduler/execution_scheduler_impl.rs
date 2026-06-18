@@ -20,7 +20,7 @@ use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{debug, warn};
 
 use super::{
-    ExecutingGuard, ExecutionSchedulerAPI, PendingCertificate, PendingCertificateStats,
+    ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
     overload_tracker::OverloadTracker,
 };
 use crate::{
@@ -33,7 +33,7 @@ pub struct ExecutionScheduler {
     object_cache_read: Arc<dyn ObjectCacheRead>,
     transaction_cache_read: Arc<dyn TransactionCacheRead>,
     overload_tracker: Arc<OverloadTracker>,
-    tx_ready_certificates: UnboundedSender<PendingCertificate>,
+    tx_ready_transactions: UnboundedSender<PendingTransaction>,
     metrics: Arc<AuthorityMetrics>,
 }
 
@@ -73,7 +73,7 @@ impl ExecutionScheduler {
     pub(crate) fn new(
         object_cache_read: Arc<dyn ObjectCacheRead>,
         transaction_cache_read: Arc<dyn TransactionCacheRead>,
-        tx_ready_certificates: UnboundedSender<PendingCertificate>,
+        tx_ready_transactions: UnboundedSender<PendingTransaction>,
         metrics: Arc<AuthorityMetrics>,
     ) -> Self {
         tracing::info!("Creating new ExecutionScheduler");
@@ -81,7 +81,7 @@ impl ExecutionScheduler {
             object_cache_read,
             transaction_cache_read,
             overload_tracker: Arc::new(OverloadTracker::new()),
-            tx_ready_certificates,
+            tx_ready_transactions,
             metrics,
         }
     }
@@ -180,11 +180,11 @@ impl ExecutionScheduler {
         expected_effects_digest: Option<TransactionEffectsDigest>,
         _enqueue_time: Instant,
     ) {
-        let pending_cert = PendingCertificate {
-            certificate: cert.clone(),
+        let pending_cert = PendingTransaction {
+            transaction: cert.clone(),
             expected_effects_digest,
             waiting_input_objects: BTreeSet::new(),
-            stats: PendingCertificateStats {
+            stats: PendingTransactionStats {
                 #[cfg(test)]
                 enqueue_time: _enqueue_time,
                 ready_time: Some(Instant::now()),
@@ -195,7 +195,7 @@ impl ExecutionScheduler {
                     .clone(),
             )),
         };
-        let _ = self.tx_ready_certificates.send(pending_cert);
+        let _ = self.tx_ready_transactions.send(pending_cert);
     }
 }
 

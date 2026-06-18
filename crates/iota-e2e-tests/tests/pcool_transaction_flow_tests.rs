@@ -43,7 +43,7 @@
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::IotaAddress;
+use iota_types::base_types::dbg_addr;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Applies a thread-local protocol-config override that enables the P-COOL
@@ -140,7 +140,7 @@ async fn run_owned_object_transfer_reaches_finality(test_cluster: &TestCluster) 
     assert_pcool_active(test_cluster);
 
     let sender = test_cluster.get_address_0();
-    let recipient = IotaAddress::random();
+    let recipient = dbg_addr(2);
 
     let txn = test_cluster
         .test_transaction_builder_with_sender(sender)
@@ -187,8 +187,8 @@ async fn run_double_spend_resolves_to_single_winner(test_cluster: &TestCluster) 
     assert_pcool_active(test_cluster);
 
     let sender = test_cluster.get_address_0();
-    let recipient1 = IotaAddress::random();
-    let recipient2 = IotaAddress::random();
+    let recipient1 = dbg_addr(2);
+    let recipient2 = dbg_addr(3);
 
     // Both transactions use the SAME gas coin as their (owned) input, so they
     // conflict on that object. Distinct recipients give them distinct digests.

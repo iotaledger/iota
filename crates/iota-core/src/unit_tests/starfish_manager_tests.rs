@@ -108,7 +108,6 @@ async fn test_starfish_manager() {
                 IotaTxValidator::new(
                     epoch_store.clone(),
                     Arc::new(CheckpointServiceNoop {}),
-                    state.transaction_manager().clone(),
                     IotaTxValidatorMetrics::new(&Registry::new()),
                 ),
             )
@@ -176,7 +175,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
         epoch_store.clone(),
         state.clone(),
         checkpoint_service_for_testing(state.clone()),
-        state.transaction_manager().clone(),
+        state.execution_scheduler().clone(),
         state.get_object_cache_reader().clone(),
         state.get_transaction_cache_reader().clone(),
         Arc::new(ArcSwap::default()),
