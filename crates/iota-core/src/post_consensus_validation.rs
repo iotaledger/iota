@@ -163,9 +163,7 @@ pub async fn validate_and_resolve_conflicts(
         }
 
         // Check #2: Structural validity.
-        if let Err(e) =
-            transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-        {
+        if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             warn!(
                 ?digest,
                 error = ?e,

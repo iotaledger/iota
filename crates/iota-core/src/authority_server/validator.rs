@@ -85,7 +85,7 @@ impl ValidatorService {
             .into()
         );
 
-        transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+        transaction.validity_check(&epoch_store.tx_validity_check_context())?;
 
         // When authority is overloaded and decide to reject this tx, we still lock the
         // object and ask the client to retry in the future. This is because
@@ -407,7 +407,7 @@ impl ValidatorService {
         );
 
         let certificate = request.into_inner();
-        certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+        certificate.validity_check(&epoch_store.tx_validity_check_context())?;
 
         let span = error_span!("submit_certificate", tx_digest = ?certificate.digest());
         self.handle_certificates(
@@ -450,7 +450,7 @@ impl ValidatorService {
         let request = request.into_inner();
         request
             .certificate
-            .validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+            .validity_check(&epoch_store.tx_validity_check_context())?;
 
         let span = error_span!("handle_certificate_v1", tx_digest = ?request.certificate.digest());
         self.handle_certificates(
@@ -598,9 +598,8 @@ impl ValidatorService {
         let mut total_size_bytes = 0;
         for certificate in &certificates {
             // We need to check this first because we haven't verified the cert signature.
-            total_size_bytes += certificate
-                .validity_check(epoch_store.protocol_config(), epoch_store.epoch())?
-                as u64;
+            total_size_bytes +=
+                certificate.validity_check(&epoch_store.tx_validity_check_context())? as u64;
         }
 
         self.metrics

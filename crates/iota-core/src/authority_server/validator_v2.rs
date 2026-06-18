@@ -170,9 +170,7 @@ impl ValidatorService {
         }
 
         // Validate transaction.
-        if let Err(e) =
-            transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-        {
+        if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             let weight = normalize(&e);
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
