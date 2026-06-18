@@ -31,14 +31,14 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
+use iota_sdk_types::{Address, EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, VersionNumber},
+    base_types::{AuthorityName, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -411,23 +411,24 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
-    /// use iota_types::{base_types::IotaAddress, gas_coin::NANOS_PER_IOTA};
+    /// use iota_sdk_types::Address;
+    /// use iota_types::gas_coin::NANOS_PER_IOTA;
     /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
-    /// let address = simulacrum.with_rng(|rng| IotaAddress::generate(rng));
+    /// let address = simulacrum.with_rng(|rng| Address::generate(rng));
     /// simulacrum.request_gas(address, NANOS_PER_IOTA).unwrap();
     ///
     /// // `account` now has a Coin<IOTA> object with single IOTA in it.
     /// // ...
     /// # }
     /// ```
-    pub fn request_gas(&self, address: IotaAddress, amount: u64) -> Result<TransactionEffects> {
+    pub fn request_gas(&self, address: Address, amount: u64) -> Result<TransactionEffects> {
         // For right now we'll just use the first account as the `faucet` account. We
         // may want to explicitly cordon off the faucet account from the rest of
         // the accounts though.
-        let (sender, key) = self.with_keystore(|keystore| -> Result<(IotaAddress, _)> {
+        let (sender, key) = self.with_keystore(|keystore| -> Result<(Address, _)> {
             let (s, k) = keystore
                 .accounts()
                 .next()
@@ -828,7 +829,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn account_owned_objects_info_iter(
         &self,
-        _owner: iota_types::base_types::IotaAddress,
+        _owner: Address,
         _cursor: Option<&iota_types::storage::OwnedObjectCursor>,
         _object_type: Option<StructTag>,
     ) -> iota_types::storage::error::Result<
@@ -879,7 +880,7 @@ impl Simulacrum {
     /// iota-test-transaction-builder by defining a trait
     /// that both WalletContext and Simulacrum implement. Then we can remove
     /// this function.
-    pub fn transfer_txn(&self, recipient: IotaAddress) -> (Transaction, u64) {
+    pub fn transfer_txn(&self, recipient: Address) -> (Transaction, u64) {
         let (sender, key) = self.with_keystore(|keystore| {
             let (s, k) = keystore.accounts().next().unwrap();
             (*s, k.copy())
@@ -919,8 +920,7 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
-        transaction::TransactionDataAPI,
+        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionDataAPI,
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -997,7 +997,7 @@ mod tests {
     #[test]
     fn transfer() {
         let sim = Simulacrum::new();
-        let recipient = IotaAddress::random();
+        let recipient = Address::random();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
         let gas_id = tx.data().transaction_data().gas_data().objects[0].object_id;

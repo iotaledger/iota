@@ -36,12 +36,13 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Argument, Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag, crypto::Intent,
+    Address, Argument, Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
+    crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::SignatureScheme,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     move_authenticator::MoveAuthenticator,
@@ -552,7 +553,7 @@ async fn run_time_locked(env: &TestEnvironment) -> PackageResult {
         };
         // create(public_key, none<address>, unlock_time, authenticator, ctx)
         let pk_arg = b.pure(env.owner_pk_bytes()).unwrap();
-        let admin_arg = b.pure::<Option<IotaAddress>>(None).unwrap();
+        let admin_arg = b.pure::<Option<Address>>(None).unwrap();
         let unlock_time_arg = b.pure(1u64).unwrap();
         b.programmable_move_call(
             pkg_id,
@@ -701,7 +702,7 @@ async fn run_function_call_keys(env: &TestEnvironment) -> PackageResult {
             }
         };
         let pk_arg = b.pure(env.owner_pk_bytes()).unwrap();
-        let admin_arg = b.pure::<Option<IotaAddress>>(None).unwrap();
+        let admin_arg = b.pure::<Option<Address>>(None).unwrap();
         b.programmable_move_call(
             pkg_id,
             Identifier::from_static("function_call_keys"),
@@ -791,7 +792,7 @@ async fn run_dynamic_multisig_account(env: &TestEnvironment) -> PackageResult {
         };
 
         // members = [owner], weights = [1], threshold = 1
-        let members_arg = b.pure::<Vec<IotaAddress>>(vec![env.owner]).unwrap();
+        let members_arg = b.pure::<Vec<Address>>(vec![env.owner]).unwrap();
         let weights_arg = b.pure::<Vec<u64>>(vec![1]).unwrap();
         let threshold_arg = b.pure(1u64).unwrap();
         b.programmable_move_call(
@@ -818,7 +819,7 @@ async fn run_dynamic_multisig_account(env: &TestEnvironment) -> PackageResult {
 
     // Build the AA transaction we intend to authenticate, so we can compute
     // its digest BEFORE submitting it.
-    let aa_sender: IotaAddress = account_ref.object_id.into();
+    let aa_sender: Address = account_ref.object_id.into();
     let rgp = env.test_cluster.get_reference_gas_price().await;
     let gas = env
         .test_cluster
@@ -957,7 +958,7 @@ async fn run_onesig(env: &TestEnvironment) -> PackageResult {
     // as gas for a different timestamp_ms PTB), build a sorted-pair keccak
     // Merkle tree over their digests, sign the resulting root once, then
     // submit ONE of the three transactions with its corresponding proof.
-    let aa_sender: IotaAddress = account_ref.object_id.into();
+    let aa_sender: Address = account_ref.object_id.into();
     let rgp = env.test_cluster.get_reference_gas_price().await;
     let gas1 = env
         .test_cluster
@@ -1044,8 +1045,8 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
     // `generate_addresses.rs` generates the first 500 addresses; we scan
     // those indices and remove the ones that don't match to keep the
     // keystore clean.
-    let target_addr = IotaAddress::from_str(LEAN_IMT_TARGET_ADDRESS).unwrap();
-    let mut signer: Option<IotaAddress> = None;
+    let target_addr = Address::from_str(LEAN_IMT_TARGET_ADDRESS).unwrap();
+    let mut signer: Option<Address> = None;
     for i in 0..500u32 {
         let path = DerivationPath::from_str(&format!("m/44'/4218'/0'/0'/{i}'")).unwrap();
         let keystore = env.test_cluster.wallet.config_mut().keystore_mut();
@@ -1132,7 +1133,7 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
     };
 
     // Build the AA tx and sign its digest with the matching key.
-    let aa_sender: IotaAddress = account_ref.object_id.into();
+    let aa_sender: Address = account_ref.object_id.into();
     let rgp = env.test_cluster.get_reference_gas_price().await;
     let gas = env
         .test_cluster
@@ -1275,7 +1276,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
 
     // Build a trivial PTB sent FROM the AA and authenticate it with the five
     // magic auth-call-args plus the shared Clock.
-    let aa_sender: IotaAddress = account_ref.object_id.into();
+    let aa_sender: Address = account_ref.object_id.into();
     let rgp = env.test_cluster.get_reference_gas_price().await;
     let gas = env
         .test_cluster
@@ -1445,8 +1446,8 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let sender_addr: IotaAddress = sender_account_ref.object_id.into();
-    let sponsor_addr: IotaAddress = sponsor_account_ref.object_id.into();
+    let sender_addr: Address = sender_account_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_account_ref.object_id.into();
     let rgp = env.test_cluster.get_reference_gas_price().await;
     let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
     let allowance: u64 = gas_budget.saturating_mul(2);
@@ -1686,8 +1687,8 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     // Build the sponsored transaction. The PTB body itself is trivial — only
     // the two authenticators (regular sender signature + AA sponsor) matter
     // for this scenario.
-    let sender_addr: IotaAddress = env.owner;
-    let sponsor_addr: IotaAddress = sponsor_account_ref.object_id.into();
+    let sender_addr: Address = env.owner;
+    let sponsor_addr: Address = sponsor_account_ref.object_id.into();
     let rgp = env.test_cluster.get_reference_gas_price().await;
     let sponsor_gas = env
         .test_cluster
@@ -1916,7 +1917,7 @@ async fn run_account_for_benchmarks(
         r.publish_ok = true;
         r.create_outcome = Outcome::Pass;
 
-        let aa_sender: IotaAddress = account_ref.object_id.into();
+        let aa_sender: Address = account_ref.object_id.into();
         let rgp = env.test_cluster.get_reference_gas_price().await;
         let gas = env
             .test_cluster
@@ -1963,7 +1964,7 @@ struct TestEnvironment {
     test_cluster: TestCluster,
     /// Address of the first keystore key — used as the sender for publish /
     /// create-account transactions.
-    owner: IotaAddress,
+    owner: Address,
 }
 
 impl TestEnvironment {
@@ -2124,7 +2125,7 @@ fn type_tag(package: &ObjectId, module: &str, type_name: &str) -> TypeTag {
 async fn tx_data_from_pt(
     env: &TestEnvironment,
     pt: ProgrammableTransaction,
-    sender: IotaAddress,
+    sender: Address,
     gas: ObjectRef,
 ) -> TransactionData {
     let gas_price = env.test_cluster.get_reference_gas_price().await;
@@ -2224,7 +2225,7 @@ async fn run_simple_auth_ed25519(
     _pkg_id: ObjectId,
     args: AuthCallArgs,
 ) -> anyhow::Result<(Outcome, Option<String>)> {
-    let aa_sender: IotaAddress = account_ref.object_id.into();
+    let aa_sender: Address = account_ref.object_id.into();
 
     let rgp = env.test_cluster.get_reference_gas_price().await;
     let gas = env

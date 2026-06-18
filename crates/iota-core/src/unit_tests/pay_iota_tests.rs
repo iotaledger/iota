@@ -5,9 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use futures::future::join_all;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, dbg_addr},
+    base_types::{ObjectRef, dbg_addr},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -402,9 +402,9 @@ struct PayIotaTransactionBlockExecutionResult {
 
 async fn execute_pay_iota(
     input_coin_objects: Vec<Object>,
-    recipients: Vec<IotaAddress>,
+    recipients: Vec<Address>,
     amounts: Vec<u64>,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: AccountKeyPair,
     gas_budget: u64,
 ) -> PayIotaTransactionBlockExecutionResult {
@@ -438,8 +438,8 @@ async fn execute_pay_iota(
 
 async fn execute_pay_all_iota(
     input_coin_objects: Vec<&Object>,
-    recipient: IotaAddress,
-    sender: IotaAddress,
+    recipient: Address,
+    sender: Address,
     sender_key: AccountKeyPair,
     gas_budget: u64,
 ) -> PayIotaTransactionBlockExecutionResult {

@@ -4,15 +4,14 @@
 
 pub use enum_dispatch::enum_dispatch;
 use iota_sdk_crypto::{Verifier, multisig::MultisigVerifier};
-use iota_sdk_types::crypto::IntentMessage;
 pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
     MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
 };
+use iota_sdk_types::{Address, crypto::IntentMessage};
 use serde::Serialize;
 
 use crate::{
-    base_types::IotaAddress,
     error::IotaError,
     signature::{AuthenticatorTrait, VerifyParams},
 };
@@ -25,7 +24,7 @@ impl AuthenticatorTrait for MultiSig {
     fn verify_claims<T>(
         &self,
         intent_message: &IntentMessage<T>,
-        multisig_address: IotaAddress,
+        multisig_address: Address,
         verify_params: &VerifyParams,
     ) -> Result<(), IotaError>
     where

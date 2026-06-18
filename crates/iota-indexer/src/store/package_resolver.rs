@@ -7,7 +7,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
-use iota_types::{base_types::IotaAddress, object::Object};
+use iota_sdk_types::Address;
+use iota_types::object::Object;
 
 use crate::{db::ConnectionPool, errors::IndexerError, schema::objects, store::diesel_macro::*};
 
@@ -32,7 +33,7 @@ impl IndexerStorePackageResolver {
 
 #[async_trait]
 impl PackageStore for IndexerStorePackageResolver {
-    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>, PackageResolverError> {
         let pkg = self
             .get_package_from_db_in_blocking_task(id)
             .await
@@ -45,7 +46,7 @@ impl PackageStore for IndexerStorePackageResolver {
 }
 
 impl IndexerStorePackageResolver {
-    fn get_package_from_db(&self, id: IotaAddress) -> Result<Package, IndexerError> {
+    fn get_package_from_db(&self, id: Address) -> Result<Package, IndexerError> {
         let Some(bcs) = read_only_blocking!(&self.cp, |conn| {
             let query = objects::dsl::objects
                 .select(objects::dsl::serialized_object)
@@ -65,7 +66,7 @@ impl IndexerStorePackageResolver {
 
     async fn get_package_from_db_in_blocking_task(
         &self,
-        id: IotaAddress,
+        id: Address,
     ) -> Result<Package, IndexerError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_package_from_db(id)).await?

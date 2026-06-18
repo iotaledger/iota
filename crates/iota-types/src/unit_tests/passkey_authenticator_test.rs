@@ -10,7 +10,7 @@ use fastcrypto::{
     rsa::{Base64UrlUnpadded, Encoding as _},
 };
 use iota_sdk_types::{
-    ObjectId,
+    Address, ObjectId,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use p256::pkcs8::DecodePublicKey;
@@ -30,7 +30,7 @@ use passkey_types::{
 use url::Url;
 
 use crate::{
-    base_types::{IotaAddress, dbg_addr},
+    base_types::dbg_addr,
     crypto::{DefaultHash, PublicKey, SignatureScheme},
     object::Object,
     passkey_authenticator::PasskeyAuthenticator,
@@ -73,7 +73,7 @@ pub struct PasskeyResponse<T> {
     authenticator_data: Vec<u8>,
     client_data_json: String,
     intent_msg: IntentMessage<T>,
-    sender: IotaAddress,
+    sender: Address,
 }
 
 /// Create a new passkey credential, derives its address
@@ -110,7 +110,7 @@ async fn create_credential_and_sign_test_tx(
     let pk = PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator, &pk_bytes).unwrap();
 
     // Derives its iota address and make a test transaction with it as sender.
-    let sender = IotaAddress::from(&pk);
+    let sender = Address::from(&pk);
     let recipient = dbg_addr(2);
     let object_id = ObjectId::ZERO;
     let object = Object::immutable_with_id_for_testing(object_id);
@@ -342,7 +342,7 @@ async fn test_passkey_fails_wrong_client_data_type() {
 async fn test_real_passkey_output() {
     // response from a real passkey authenticator created in iCloud, from typescript client: https://passkey-example.vercel.app/ (repo: https://github.com/MystenLabs/passkey-example)
     let address =
-        IotaAddress::from_str("0x9c0c00e929f08431583dad0e9409b5afb20cdbae0043fa5577f2577dbe88a0db")
+        Address::from_str("0x9c0c00e929f08431583dad0e9409b5afb20cdbae0043fa5577f2577dbe88a0db")
             .unwrap();
     let sig = GenericSignature::from_bytes(&Base64::decode("BiUL6eJ3+l0jTWmL4buH5lE8Vxe1+ge6xSU0oczBPpmt+h0AAAAAkwF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJ5TzEtb3VBczFBRUsyOWd0X1dJTGM4ZndDdlFjMkhEQmEwX2dTU3RpU1FzIiwib3JpZ2luIjoiaHR0cHM6Ly9wYXNza2V5LWV4YW1wbGUudmVyY2VsLmFwcCIsImNyb3NzT3JpZ2luIjpmYWxzZX1iAu0JsgVDVgBZQJhsl9MUZmUfUkNTh1qCg0zNWFrXfTx3NKuakm8Wqaa3qnfo+s9K2KvfYp8jT8BazhK7bi9YSmsCATpOyeWH387SdhY7+172wODmilJnXx5QcaUnR+3QlEM=").unwrap()).unwrap();
     let tx_data: TransactionData = bcs::from_bytes(&Base64::decode("AAAAAJwMAOkp8IQxWD2tDpQJta+yDNuuAEP6VXfyV32+iKDbARrKzR59iiRcEIbBEBlB283cnWUBeUeKCiMa3UKM6NURNRHQFAAAAAAgVLos3IwH9g4OHDSWiKyUZCvixybPtnDQIeML1f+ErGOcDADpKfCEMVg9rQ6UCbWvsgzbrgBD+lV38ld9voig2+gDAAAAAAAAgIQeAAAAAAAA").unwrap()).unwrap();

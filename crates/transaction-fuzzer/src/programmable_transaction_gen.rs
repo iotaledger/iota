@@ -5,10 +5,9 @@
 use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Argument, Command, Identifier, ObjectId, ProgrammableTransaction};
+use iota_sdk_types::{Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    base_types::ObjectRef, programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
 };
 use once_cell::sync::Lazy;
@@ -186,7 +185,7 @@ pub fn arg_len_strategy_input_match() -> impl Strategy<Value = usize> {
 }
 
 prop_compose! {
-    pub fn gen_many_input_match(recipient: IotaAddress, package: ObjectId, cap: ObjectRef)
+    pub fn gen_many_input_match(recipient: Address, package: ObjectId, cap: ObjectRef)
         (mut command_sketches in vec(gen_command_input_match(), 1..=MAX_COMMANDS_INPUT_MATCH)) -> ProgrammableTransaction {
             let mut builder = ProgrammableTransactionBuilder::new();
             let mut prev_cmd_num = -1;
@@ -211,7 +210,7 @@ fn gen_input(
     prev_command: Option<&CommandSketch>,
     cmd: &CommandSketch,
     prev_cmd_num: i64,
-    recipient: IotaAddress,
+    recipient: Address,
     package: ObjectId,
     cap: ObjectRef,
 ) -> (Command, i64) {
@@ -242,7 +241,7 @@ pub fn gen_transfer_input(
     prev_command: Option<&CommandSketch>,
     cmd: &CommandSketch,
     prev_cmd_num: i64,
-    recipient: IotaAddress,
+    recipient: Address,
     package: ObjectId,
     cap: ObjectRef,
 ) -> (Command, i64) {

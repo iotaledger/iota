@@ -16,7 +16,10 @@ use axum::{
 use iota_faucet::{
     BatchFaucetResponse, CoinInfo, FaucetError, FaucetReceipt, FaucetRequest, FaucetResponse,
 };
-use iota_types::effects::{TransactionEffectsAPI, TransactionEffectsExt};
+use iota_types::{
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    sdk_types::Address,
+};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -30,7 +33,7 @@ pub async fn health() -> Result<Json<&'static str>, StatusCode> {
 /// Internal function that handles the actual gas request logic
 async fn request_gas_internal(
     state: &AppState,
-    recipient: iota_types::base_types::IotaAddress,
+    recipient: Address,
 ) -> Result<FaucetReceipt, String> {
     let amount = state.faucet_request_amount;
 

@@ -16,8 +16,8 @@ use iota_genesis_builder::{
     SnapshotSource,
     validator_info::{GenesisValidatorInfo, ValidatorInfo},
 };
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::IotaAddress,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
@@ -74,7 +74,7 @@ impl ValidatorGenesisConfig {
             authority_key,
             protocol_key,
             network_key,
-            account_address: IotaAddress::from(&account_key),
+            account_address: Address::from(&account_key),
             gas_price: self.gas_price,
             commission_rate: self.commission_rate,
             network_address,
@@ -219,7 +219,7 @@ pub struct GenesisConfig {
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
     pub migration_sources: Vec<SnapshotSource>,
-    pub delegator: Option<IotaAddress>,
+    pub delegator: Option<Address>,
 }
 
 impl Config for GenesisConfig {}
@@ -284,7 +284,7 @@ fn default_iota_key_pair() -> IotaKeyPair {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AccountConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub address: Option<IotaAddress>,
+    pub address: Option<Address>,
     pub gas_amounts: Vec<u64>,
 }
 
@@ -309,7 +309,7 @@ impl GenesisConfig {
         )
     }
 
-    pub fn for_local_testing_with_addresses(addresses: Vec<IotaAddress>) -> Self {
+    pub fn for_local_testing_with_addresses(addresses: Vec<Address>) -> Self {
         Self::custom_genesis_with_addresses(addresses, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT)
     }
 
@@ -329,7 +329,7 @@ impl GenesisConfig {
     }
 
     pub fn custom_genesis_with_addresses(
-        addresses: Vec<IotaAddress>,
+        addresses: Vec<Address>,
         num_objects_per_account: usize,
     ) -> Self {
         let mut accounts = Vec::new();
@@ -401,7 +401,7 @@ impl GenesisConfig {
         let account_configs = Self::benchmark_gas_keys(num_accounts)
             .iter()
             .map(|gas_key| {
-                let gas_address = IotaAddress::from(&gas_key.public());
+                let gas_address = Address::from(&gas_key.public());
 
                 AccountConfig {
                     address: Some(gas_address),
@@ -452,7 +452,7 @@ impl GenesisConfig {
         self
     }
 
-    pub fn add_delegator(mut self, address: IotaAddress) -> Self {
+    pub fn add_delegator(mut self, address: Address) -> Self {
         self.delegator = Some(address);
         self
     }

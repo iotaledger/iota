@@ -14,13 +14,13 @@ use std::{
 use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
-use iota_sdk_types::crypto::{Intent, IntentMessage};
-use iota_types::{
-    base_types::IotaAddress,
-    crypto::{
-        EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, SignatureScheme, enum_dispatch,
-        get_key_pair_from_rng,
-    },
+use iota_sdk_types::{
+    Address,
+    crypto::{Intent, IntentMessage},
+};
+use iota_types::crypto::{
+    EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, SignatureScheme, enum_dispatch,
+    get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
@@ -48,25 +48,24 @@ pub trait AccountKeystore: Send + Sync {
         alias: Option<String>,
         key: impl Into<StoredKey>,
     ) -> Result<(), anyhow::Error>;
-    fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error>;
+    fn remove_key(&mut self, address: &Address) -> Result<(), anyhow::Error>;
     fn keys(&self) -> Vec<&StoredKey>;
-    fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error>;
+    fn get_key(&self, address: &Address) -> Result<&StoredKey, anyhow::Error>;
 
-    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8])
-    -> Result<Signature, signature::Error>;
+    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error>;
 
     fn sign_secure<T>(
         &self,
-        address: &IotaAddress,
+        address: &Address,
         msg: &T,
         intent: Intent,
     ) -> Result<Signature, signature::Error>
     where
         T: Serialize;
-    fn addresses(&self) -> Vec<IotaAddress> {
+    fn addresses(&self) -> Vec<Address> {
         self.keys().into_iter().map(|k| k.address()).collect()
     }
-    fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)>;
+    fn addresses_with_alias(&self) -> Vec<(&Address, &Alias)>;
     fn aliases(&self) -> Vec<&Alias>;
     fn aliases_mut(&mut self) -> Vec<&mut Alias>;
     fn alias_names(&self) -> Vec<&str> {
@@ -76,8 +75,8 @@ pub trait AccountKeystore: Send + Sync {
             .collect()
     }
     /// Get alias of address
-    fn get_alias_by_address(&self, address: &IotaAddress) -> Result<String, anyhow::Error>;
-    fn get_address_by_alias(&self, alias: String) -> Result<&IotaAddress, anyhow::Error>;
+    fn get_alias_by_address(&self, address: &Address) -> Result<String, anyhow::Error>;
+    fn get_address_by_alias(&self, alias: String) -> Result<&Address, anyhow::Error>;
     /// Check if an alias exists by its name
     fn alias_exists(&self, alias: &str) -> bool {
         self.alias_names().contains(&alias)
@@ -119,7 +118,7 @@ pub trait AccountKeystore: Send + Sync {
         alias: Option<String>,
         derivation_path: Option<DerivationPath>,
         word_length: Option<String>,
-    ) -> Result<(IotaAddress, String, SignatureScheme), anyhow::Error> {
+    ) -> Result<(Address, String, SignatureScheme), anyhow::Error> {
         let (address, kp, scheme, phrase) =
             generate_new_key(key_scheme, derivation_path, word_length)?;
         self.add_key(alias, kp)?;
@@ -132,7 +131,7 @@ pub trait AccountKeystore: Send + Sync {
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
         alias: Option<String>,
-    ) -> Result<IotaAddress, anyhow::Error> {
+    ) -> Result<Address, anyhow::Error> {
         let mnemonic = Mnemonic::from_phrase(phrase, Language::English)
             .map_err(|e| anyhow::anyhow!("Invalid mnemonic phrase: {:?}", e))?;
         let seed = Seed::new(&mnemonic, "");
@@ -145,7 +144,7 @@ pub trait AccountKeystore: Send + Sync {
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
         alias: Option<String>,
-    ) -> Result<IotaAddress, anyhow::Error> {
+    ) -> Result<Address, anyhow::Error> {
         match derive_key_pair_from_path(seed, derivation_path, &key_scheme) {
             Ok((address, kp)) => {
                 self.add_key(alias, kp)?;
@@ -213,7 +212,7 @@ pub struct Alias {
 pub enum StoredKey {
     #[serde(with = "serde_iota_keypair")]
     KeyPair(IotaKeyPair),
-    Account(IotaAddress),
+    Account(Address),
     External {
         source: String,
         #[serde_as(as = "Option<DisplayFromStr>")]
@@ -231,7 +230,7 @@ impl From<IotaKeyPair> for StoredKey {
 }
 
 impl StoredKey {
-    pub fn address(&self) -> IotaAddress {
+    pub fn address(&self) -> Address {
         match self {
             StoredKey::KeyPair(key) => (&key.public()).into(),
             StoredKey::Account(address) => *address,
@@ -284,8 +283,8 @@ impl StoredKey {
 
 #[derive(Default)]
 pub struct FileBasedKeystore {
-    keys: BTreeMap<IotaAddress, StoredKey>,
-    aliases: BTreeMap<IotaAddress, Alias>,
+    keys: BTreeMap<Address, StoredKey>,
+    aliases: BTreeMap<Address, Alias>,
     path: PathBuf,
 }
 
@@ -317,16 +316,12 @@ pub struct FileBasedKeystoreFile {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AliasedKey {
     pub alias: String,
-    pub address: IotaAddress,
+    pub address: Address,
     pub key: StoredKey,
 }
 
 impl AccountKeystore for FileBasedKeystore {
-    fn sign_hashed(
-        &self,
-        address: &IotaAddress,
-        msg: &[u8],
-    ) -> Result<Signature, signature::Error> {
+    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error> {
         let stored_key = self.keys.get(address).ok_or_else(|| {
             signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
         })?;
@@ -343,7 +338,7 @@ impl AccountKeystore for FileBasedKeystore {
     }
     fn sign_secure<T>(
         &self,
-        address: &IotaAddress,
+        address: &Address,
         msg: &T,
         intent: Intent,
     ) -> Result<Signature, signature::Error>
@@ -381,7 +376,7 @@ impl AccountKeystore for FileBasedKeystore {
         Ok(())
     }
 
-    fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error> {
+    fn remove_key(&mut self, address: &Address) -> Result<(), anyhow::Error> {
         self.aliases.remove(address);
         self.keys.remove(address);
         self.save()?;
@@ -394,7 +389,7 @@ impl AccountKeystore for FileBasedKeystore {
         self.aliases.values().collect()
     }
 
-    fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)> {
+    fn addresses_with_alias(&self) -> Vec<(&Address, &Alias)> {
         self.aliases.iter().collect::<Vec<_>>()
     }
 
@@ -428,7 +423,7 @@ impl AccountKeystore for FileBasedKeystore {
     }
 
     /// Get the address by its alias
-    fn get_address_by_alias(&self, alias: String) -> Result<&IotaAddress, anyhow::Error> {
+    fn get_address_by_alias(&self, alias: String) -> Result<&Address, anyhow::Error> {
         self.addresses_with_alias()
             .iter()
             .find(|x| x.1.alias == alias)
@@ -437,14 +432,14 @@ impl AccountKeystore for FileBasedKeystore {
     }
 
     /// Get the alias if it exists, or return an error if it does not exist.
-    fn get_alias_by_address(&self, address: &IotaAddress) -> Result<String, anyhow::Error> {
+    fn get_alias_by_address(&self, address: &Address) -> Result<String, anyhow::Error> {
         match self.aliases.get(address) {
             Some(alias) => Ok(alias.alias.clone()),
             None => bail!("Cannot find alias for address {address}"),
         }
     }
 
-    fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error> {
+    fn get_key(&self, address: &Address) -> Result<&StoredKey, anyhow::Error> {
         match self.keys.get(address) {
             Some(key) => Ok(key),
             None => Err(anyhow!("Cannot find key for address: [{address}]")),
@@ -478,7 +473,7 @@ impl FileBasedKeystore {
                 .iter()
                 .map(|kpstr| {
                     let key = IotaKeyPair::decode(kpstr);
-                    key.map(|k| (IotaAddress::from(&k.public()), StoredKey::KeyPair(k)))
+                    key.map(|k| (Address::from(&k.public()), StoredKey::KeyPair(k)))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .map_err(|e| anyhow!("Invalid keystore file: {}. {}", path.display(), e))?
@@ -512,7 +507,7 @@ impl FileBasedKeystore {
                     let key = PublicKey::decode_base64(&legacy_alias.public_key_base64);
                     key.map(|k| {
                         (
-                            Into::<IotaAddress>::into(&k),
+                            Into::<Address>::into(&k),
                             Alias {
                                 alias: legacy_alias.alias,
                             },
@@ -710,16 +705,12 @@ impl FileBasedKeystore {
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct InMemKeystore {
-    aliases: BTreeMap<IotaAddress, Alias>,
-    keys: BTreeMap<IotaAddress, StoredKey>,
+    aliases: BTreeMap<Address, Alias>,
+    keys: BTreeMap<Address, StoredKey>,
 }
 
 impl AccountKeystore for InMemKeystore {
-    fn sign_hashed(
-        &self,
-        address: &IotaAddress,
-        msg: &[u8],
-    ) -> Result<Signature, signature::Error> {
+    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error> {
         let stored_key = self.keys.get(address).ok_or_else(|| {
             signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
         })?;
@@ -736,7 +727,7 @@ impl AccountKeystore for InMemKeystore {
     }
     fn sign_secure<T>(
         &self,
-        address: &IotaAddress,
+        address: &Address,
         msg: &T,
         intent: Intent,
     ) -> Result<Signature, signature::Error>
@@ -765,7 +756,7 @@ impl AccountKeystore for InMemKeystore {
         key: impl Into<StoredKey>,
     ) -> Result<(), anyhow::Error> {
         let key = key.into();
-        let address: IotaAddress = (&key.public()).into();
+        let address: Address = (&key.public()).into();
         let alias = alias.unwrap_or_else(|| {
             random_name(
                 &self
@@ -782,7 +773,7 @@ impl AccountKeystore for InMemKeystore {
         Ok(())
     }
 
-    fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error> {
+    fn remove_key(&mut self, address: &Address) -> Result<(), anyhow::Error> {
         self.aliases.remove(address);
         self.keys.remove(address);
         Ok(())
@@ -793,7 +784,7 @@ impl AccountKeystore for InMemKeystore {
         self.aliases.values().collect()
     }
 
-    fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)> {
+    fn addresses_with_alias(&self) -> Vec<(&Address, &Alias)> {
         self.aliases.iter().collect::<Vec<_>>()
     }
 
@@ -801,7 +792,7 @@ impl AccountKeystore for InMemKeystore {
         self.keys.values().collect()
     }
 
-    fn get_key(&self, address: &IotaAddress) -> Result<&StoredKey, anyhow::Error> {
+    fn get_key(&self, address: &Address) -> Result<&StoredKey, anyhow::Error> {
         match self.keys.get(address) {
             Some(key) => Ok(key),
             None => Err(anyhow!("Cannot find key for address: [{address}]")),
@@ -809,7 +800,7 @@ impl AccountKeystore for InMemKeystore {
     }
 
     /// Get alias of address
-    fn get_alias_by_address(&self, address: &IotaAddress) -> Result<String, anyhow::Error> {
+    fn get_alias_by_address(&self, address: &Address) -> Result<String, anyhow::Error> {
         match self.aliases.get(address) {
             Some(alias) => Ok(alias.alias.clone()),
             None => bail!("Cannot find alias for address {address}"),
@@ -817,7 +808,7 @@ impl AccountKeystore for InMemKeystore {
     }
 
     /// Get the address by its alias
-    fn get_address_by_alias(&self, alias: String) -> Result<&IotaAddress, anyhow::Error> {
+    fn get_address_by_alias(&self, alias: String) -> Result<&Address, anyhow::Error> {
         self.addresses_with_alias()
             .iter()
             .find(|x| x.1.alias == alias)
@@ -865,7 +856,7 @@ impl InMemKeystore {
         let keys = (0..initial_key_number)
             .map(|_| get_key_pair_from_rng(&mut rng))
             .map(|(ad, k)| (ad, IotaKeyPair::Ed25519(k).into()))
-            .collect::<BTreeMap<IotaAddress, StoredKey>>();
+            .collect::<BTreeMap<Address, StoredKey>>();
 
         let aliases = keys
             .iter()

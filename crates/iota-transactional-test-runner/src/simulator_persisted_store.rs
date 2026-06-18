@@ -7,10 +7,10 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{ObjectRef, SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::TransactionDigest,
@@ -220,7 +220,7 @@ impl SimulatorStore for PersistedStore {
         None
     }
 
-    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
+    fn owned_objects(&self, owner: Address) -> Box<dyn Iterator<Item = Object> + '_> {
         Box::new(
             self.read_write
                 .live_objects

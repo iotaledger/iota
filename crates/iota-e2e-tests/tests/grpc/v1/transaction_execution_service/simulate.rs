@@ -17,7 +17,7 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_sdk_types::Command;
+use iota_sdk_types::{Address, Command};
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionData, TransactionDataAPI},
@@ -133,7 +133,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
     gas.sort_by_key(|object_ref| object_ref.object_id);
@@ -193,7 +193,7 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
     gas.sort_by_key(|object_ref| object_ref.object_id);
@@ -636,22 +636,10 @@ async fn simulate_transaction_batch() {
     let obj = gas.first().unwrap();
 
     // Build two distinct simulation transactions
-    let tx_data1 = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
-    let tx_data2 = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
+    let tx_data1 =
+        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
+    let tx_data2 =
+        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
 
     let items = vec![
         build_simulate_item(
@@ -698,14 +686,8 @@ async fn simulate_transaction_batch_partial_failure() {
     let obj = gas.first().unwrap();
 
     // First item: valid transaction
-    let tx_data = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
+    let tx_data =
+        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
     let valid_item = build_simulate_item(
         ProtoTransaction::default()
             .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),

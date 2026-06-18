@@ -4,10 +4,9 @@
 
 use iota_core::test_utils::send_and_confirm_transaction;
 use iota_sdk_types::{
-    Identifier, ObjectId, ProgrammableTransaction, StructTag, TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, ProgrammableTransaction, StructTag, TransactionKind, TypeTag,
 };
 use iota_types::{
-    base_types::IotaAddress,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -54,7 +53,7 @@ pub fn gen_nested_type_tag() -> impl Strategy<Value = TypeTag> {
 
 pub fn gen_struct_tag() -> impl Strategy<Value = StructTag> {
     (
-        any::<IotaAddress>(),
+        any::<Address>(),
         any::<Identifier>(),
         any::<Identifier>(),
         any::<Vec<TypeTag>>(),

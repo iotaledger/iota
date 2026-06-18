@@ -6,15 +6,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag, TransactionKind,
-    TypeTag,
+    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag,
+    TransactionKind, TypeTag,
 };
 use tap::Pipe;
 
 use crate::{
-    base_types::{
-        ExecutionDigests, IotaAddress, ObjectRef, SequenceNumber, dbg_addr, random_object_ref,
-    },
+    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, dbg_addr, random_object_ref},
     committee::Committee,
     digests::TransactionDigest,
     effects::{
@@ -56,7 +54,7 @@ pub struct TestCheckpointDataBuilder {
     /// A map from sender addresses to gas objects they own.
     /// These are created automatically when a transaction is started.
     /// Users of this builder should not need to worry about them.
-    gas_map: HashMap<IotaAddress, ObjectId>,
+    gas_map: HashMap<Address, ObjectId>,
 
     /// The current checkpoint builder.
     /// It is initialized when the builder is created, and is reset when
@@ -138,7 +136,7 @@ impl TestCheckpointDataBuilder {
 
     /// Start creating a new transaction.
     /// `sender_idx` is a convenient representation of the sender's address.
-    /// A proper IotaAddress will be derived from it.
+    /// A proper Address will be derived from it.
     /// It will also create a gas object for the sender if it doesn't already
     /// exist in the live object map. You do not need to create the gas
     /// object yourself.
@@ -566,7 +564,7 @@ impl TestCheckpointDataBuilder {
         // pipeline.
         let end_of_epoch_tx = TransactionData::new(
             TransactionKind::EndOfEpoch(vec![tx_kind]),
-            IotaAddress::ZERO,
+            Address::ZERO,
             random_object_ref(),
             1,
             1,
@@ -676,7 +674,7 @@ impl TestCheckpointDataBuilder {
     }
 
     /// Derive an address from an index.
-    pub fn derive_address(address_idx: u8) -> IotaAddress {
+    pub fn derive_address(address_idx: u8) -> Address {
         dbg_addr(address_idx)
     }
 

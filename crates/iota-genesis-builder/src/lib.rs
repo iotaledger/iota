@@ -31,13 +31,11 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Command, Event, GenesisObject, Identifier, ObjectId, Owner, StructTag,
+    Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{
-        ExecutionDigests, IotaAddress, ObjectRef, SequenceNumber, TransactionDigest, TxContext,
-    },
+    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, TransactionDigest, TxContext},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -112,7 +110,7 @@ pub struct Builder {
 
 enum GenesisDelegation {
     /// Represents a single delegator address that applies to all validators.
-    OneToAll(IotaAddress),
+    OneToAll(Address),
     /// Represents a map of delegator addresses to validator addresses and
     /// a specified stake and gas allocation.
     ManyToMany(Delegations),
@@ -153,7 +151,7 @@ impl Builder {
 
     /// Set the genesis delegation to be a `OneToAll` kind and set the
     /// delegator address.
-    pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
+    pub fn with_delegator(mut self, delegator: Address) -> Self {
         self.delegation = Some(GenesisDelegation::OneToAll(delegator));
         self
     }
@@ -1023,7 +1021,7 @@ fn create_genesis_context(
     let genesis_transaction_digest = TransactionDigest::new(hash.into());
 
     let tx_context = TxContext::new(
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &genesis_transaction_digest,
         epoch_data,
         0,
@@ -1666,7 +1664,7 @@ pub fn split_timelocks(
     executor: &dyn Executor,
     genesis_ctx: Rc<RefCell<TxContext>>,
     genesis_chain_parameters: &GenesisChainParameters,
-    timelocks_to_split: &[(ObjectRef, u64, IotaAddress)],
+    timelocks_to_split: &[(ObjectRef, u64, Address)],
     metrics: Arc<LimitsMetrics>,
 ) -> anyhow::Result<()> {
     let protocol_config = ProtocolConfig::get_for_version(
@@ -1817,8 +1815,9 @@ mod test {
         local_ip_utils,
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
+    use iota_sdk_types::Address;
     use iota_types::{
-        base_types::{IotaAddress, address_from_iota_pub_key},
+        base_types::address_from_iota_pub_key,
         crypto::{
             AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
             get_key_pair_from_rng,
@@ -1830,8 +1829,8 @@ mod test {
     #[test]
     fn allocation_csv() {
         let schedule = TokenDistributionSchedule::new_for_validators_with_default_allocation([
-            IotaAddress::random(),
-            IotaAddress::random(),
+            Address::random(),
+            Address::random(),
         ]);
         let mut output = Vec::new();
 

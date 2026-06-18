@@ -24,7 +24,9 @@
 //!    its locks, skips re-validation); not dropped. See issue #11649.
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop
-//!    with error. Cheap; performed before expensive checks.
+//!    with error, except a lock held by the same transaction (a deferred tx's
+//!    own prior-round lock), which is exempt. Cheap; performed before expensive
+//!    checks.
 //! 6. `handle_transaction_validation_checks()` — drop with error. Only reached
 //!    when all locks are free.
 //! 7. All passed — acquire locks in the local tracking map, keep transaction.
@@ -209,6 +211,20 @@ pub async fn validate_and_resolve_conflicts(
             if let Some(locked_by) =
                 find_existing_lock(obj_ref, &current_commit_locks, epoch_store)?
             {
+                // A lock held by this same transaction is its own lock from a
+                // prior round: it acquired owned-object locks, was then deferred,
+                // and is reloaded this round. A self-held lock is NOT a conflict
+                // - without this guard, the transaction will be dropped with
+                // `ObjectLockConflict` and never executed. Issue #11649 mirrors
+                // this guard for the already-executed branch in Check #1.
+                //
+                // Note that same-commit duplicates cannot slip through here since
+                // Check #0 already dedups by digest, so a same-digest lock here
+                // is always this transaction's own prior-round lock.
+                if locked_by == digest {
+                    continue;
+                }
+
                 debug!(
                     ?digest,
                     ?obj_ref,
