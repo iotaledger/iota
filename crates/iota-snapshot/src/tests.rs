@@ -28,15 +28,14 @@ use iota_sdk_types::{GasCostSummary, ObjectId};
 use iota_types::{
     base_types::IotaAddress,
     committee::{Committee, EpochId},
-    crypto::{AuthorityKeyPair, get_key_pair_from_rng},
+    crypto::AuthorityKeyPair,
     digests::{ChainIdentifier, TransactionDigest},
-    effects::TransactionEvents,
+    effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
     global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
-    message_envelope::Envelope,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointSummary, ECMHLiveObjectSetDigest, EndOfEpochData,
-        SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, ECMHLiveObjectSetDigest,
+        EndOfEpochData, SignedCheckpointSummary,
     },
     object::Object,
     storage::{
@@ -45,7 +44,6 @@ use iota_types::{
         error::Result as StorageResult,
     },
 };
-use rand::SeedableRng;
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
@@ -107,17 +105,15 @@ impl TestGrpcIndexes {
     }
 }
 
-/// Test-fixture system state. The snapshot writer BCS-encodes this when
-/// translating `EpochInfoV2 → EpochInfoV1Entry` for the on-disk
-/// EPOCH_INFO file, so the round-trip assertion below compares against
-/// `bcs::to_bytes(&TEST_SYSTEM_STATE)` — verifying that the writer's BCS
-/// encoding is deterministic and not corrupted en route to disk.
+/// Test-fixture system state, reused as a row's decoded `system_state` and as
+/// the raw payload in `test_next_epoch_start_system_state_objects`.
+/// Distinctive field values make a writer bug that swaps or zeroes a field
+/// surface as a specific mismatch rather than silently passing.
 fn test_system_state() -> IotaSystemState {
     // Distinctive `epoch` + `protocol_version` so a bug that swaps fields
     // or zeroes them surfaces as a specific mismatch.
     let mut state = IotaSystemState::for_testing(0x1234_5678, 0x9ABC_DEF0);
-    // Set distinctive non-zero values `for_testing` zeroes, so `TryFrom`-derived
-    // fields fail loudly if dropped instead of read from `start_system_state`.
+    // Set distinctive non-zero values `for_testing` zeroes.
     let IotaSystemState::V1(inner) = &mut state else {
         unreachable!("for_testing builds a V1 system state");
     };
@@ -183,33 +179,45 @@ fn fully_populated_checkpoint_summary(epoch: EpochId) -> CertifiedCheckpointSumm
     certify_summary(end_of_epoch_summary(epoch))
 }
 
+/// Placeholder closing-checkpoint contents for the row/entry fixtures. These
+/// fixtures drive the writer/reader round-trip and the on-disk BCS layout,
+/// neither of which inspects the proof bundle — full proof-chain verification
+/// is exercised against real boundaries in `iota-e2e-tests`.
+fn test_checkpoint_contents() -> CheckpointContents {
+    CheckpointContents::new_with_digests_only_for_tests(std::iter::empty())
+}
+
+/// Placeholder epoch-change effects for the row/entry fixtures.
+fn test_end_of_epoch_tx_effects() -> TransactionEffects {
+    TransactionEffects::new_empty_v1_for_testing(TransactionDigest::ZERO)
+}
+
+/// Placeholder raw start-state object bytes for the row/entry fixtures —
+/// a recognizable, distinct payload so a misordered field surfaces.
+fn test_next_epoch_start_system_state_objects() -> Vec<Vec<u8>> {
+    vec![bcs::to_bytes(&test_system_state()).expect("test_system_state must BCS-encode")]
+}
+
 fn fully_populated_epoch_info(epoch: EpochId) -> EpochInfoV2 {
     EpochInfoV2 {
         epoch,
-        protocol_version: 0,
-        start_timestamp_ms: 0,
-        end_timestamp_ms: None,
         start_checkpoint: 0,
-        end_checkpoint: None,
-        reference_gas_price: 0,
+        start_timestamp_ms: 0,
         system_state: test_system_state(),
-        last_checkpoint_summary: Some(fully_populated_checkpoint_summary(epoch)),
-        end_of_epoch_tx_events: Some(TransactionEvents::default()),
+        epoch_close_proof: Some(fully_populated_snapshot_epoch_entry(epoch)),
     }
 }
 
-/// On-disk equivalent of [`fully_populated_epoch_info`]: used by tests that
-/// exercise the on-disk `EpochInfoV1Entry` directly (BCS round-trip of
-/// the `EPOCH_INFO` file body) rather than going through the writer's
-/// `EpochInfoV2 → EpochInfoV1Entry` translation.
+/// The close-of-epoch proof embedded in [`fully_populated_epoch_info`] and
+/// written to the `EPOCH_INFO` file; used by tests that exercise the on-disk
+/// `EpochInfoV1Entry` directly (BCS round-trip of the file body).
 fn fully_populated_snapshot_epoch_entry(epoch: EpochId) -> EpochInfoV1Entry {
     EpochInfoV1Entry {
-        epoch,
-        start_checkpoint: 0,
-        start_system_state: bcs::to_bytes(&test_system_state())
-            .expect("test_system_state must BCS-encode"),
         last_checkpoint_summary: fully_populated_checkpoint_summary(epoch),
+        last_checkpoint_contents: test_checkpoint_contents(),
+        end_of_epoch_tx_effects: test_end_of_epoch_tx_effects(),
         end_of_epoch_tx_events: TransactionEvents::default(),
+        next_epoch_start_system_state_objects: test_next_epoch_start_system_state_objects(),
     }
 }
 
@@ -385,22 +393,17 @@ async fn snapshot_round_trip(
             "expected `entries` of length 1 for snapshot at epoch 0"
         );
         let entry = &decoded_v1.entries[0];
-        // Bit-identical round-trip of `start_system_state`. The writer
-        // BCS-encodes `EpochInfoV2.system_state` into this `Vec<u8>`; the
-        // assertion locks that the bytes on disk equal the deterministic
-        // BCS encoding of `test_system_state()`. A writer bug that
-        // truncated, padded, or re-encoded the field would change these
-        // bytes and fail here, even though the outer BCS round-trip would
-        // still succeed.
-        let expected_system_state_bytes =
-            bcs::to_bytes(&test_system_state()).expect("test_system_state must BCS-encode");
+        // Bit-identical round-trip of the raw start-state object bytes. The
+        // writer copies the proof bundle's `next_epoch_start_system_state_objects`
+        // verbatim; the assertion locks that the bytes on disk equal the
+        // fixture's. A writer bug that truncated, padded, or re-encoded the
+        // field would change these bytes and fail here, even though the outer
+        // BCS round-trip would still succeed.
         assert_eq!(
-            entry.start_system_state, expected_system_state_bytes,
-            "start_system_state did not round-trip bit-identical through the snapshot"
-        );
-        assert_eq!(
-            entry.start_checkpoint, 0,
-            "start_checkpoint did not round-trip"
+            entry.next_epoch_start_system_state_objects,
+            test_next_epoch_start_system_state_objects(),
+            "next_epoch_start_system_state_objects did not round-trip bit-identical \
+             through the snapshot"
         );
     }
 
@@ -437,17 +440,14 @@ async fn snapshot_round_trip(
         "expected one entry per epoch"
     );
     for (i, entry) in epoch_info.entries().iter().enumerate() {
-        assert_eq!(entry.epoch, i as u64);
         assert_eq!(entry.last_checkpoint_summary.epoch(), i as u64);
-        let v2 = EpochInfoV2::try_from(entry.clone()).expect("entry round-trips into EpochInfoV2");
-        assert_eq!(v2.epoch, i as u64);
     }
     Ok(())
 }
 
-/// Writes the EPOCH_INFO file for `[0, snapshot_epoch]`, reads it back, seeds a
-/// real `GrpcIndexesStore`, and asserts every row is fully populated with the
-/// watermark reconciled to `snapshot_epoch` — the restore tool's seed path.
+/// Writes the EPOCH_INFO file for `[0, snapshot_epoch]`, reads it back, and
+/// asserts every entry round-trips well-formed (one per epoch, in order, with a
+/// populated proof bundle) — the writer/reader half of the restore path.
 async fn epoch_info_backfill_round_trip(
     tmp_dir: &std::path::Path,
     snapshot_epoch: EpochId,
@@ -498,68 +498,23 @@ async fn epoch_info_backfill_round_trip(
         "EPOCH_INFO must carry one entry per epoch in [0, {snapshot_epoch}]"
     );
 
-    // 3. BACKFILL: seed the index store via `into_epoch_info_v2_rows`, the same
-    //    conversion the restore tool and background backfill use.
-    let grpc = GrpcIndexesStore::new_without_init(tmp_dir.join(GRPC_INDEXES_DIR));
-    let rows = epoch_info.into_epoch_info_v2_rows()?;
-    grpc.insert_epoch_info(rows)?;
-
-    // 4. ASSERT the derived values (not just `is_some()`) so the conversion is
-    //    exercised.
-    use iota_types::iota_system_state::IotaSystemStateTrait;
-    let system_state = test_system_state();
-    for epoch in 0..=snapshot_epoch {
-        let row = grpc
-            .get_epoch_info(epoch)?
-            .unwrap_or_else(|| panic!("backfilled row for epoch {epoch} is missing"));
-        assert_eq!(row.epoch, epoch);
-        assert_eq!(row.start_checkpoint, 0, "epoch {epoch}: start_checkpoint");
-        let summary = row
-            .last_checkpoint_summary
-            .as_ref()
-            .unwrap_or_else(|| panic!("epoch {epoch}: last_checkpoint_summary is None"));
+    // 3. ASSERT the on-disk entries round-trip well-formed: one per epoch in order,
+    //    each carrying its summary and a populated proof bundle. The chain-verified
+    //    seed into `epochs_v2` (which derives each row's start state from the
+    //    previous entry) needs a real boundary and is exercised in
+    //    `iota-e2e-tests`.
+    for (epoch, entry) in epoch_info.entries().iter().enumerate() {
+        let epoch = epoch as EpochId;
         assert_eq!(
-            summary.epoch(),
+            entry.last_checkpoint_summary.epoch(),
             epoch,
             "epoch {epoch}: round-tripped summary carries the wrong epoch"
         );
-        assert_eq!(
-            row.end_checkpoint,
-            Some(*summary.data().sequence_number()),
-            "epoch {epoch}: end_checkpoint not derived from the summary"
-        );
-        assert_eq!(
-            row.end_timestamp_ms,
-            Some(summary.data().timestamp_ms),
-            "epoch {epoch}: end_timestamp_ms not derived from the summary"
-        );
         assert!(
-            row.end_of_epoch_tx_events.is_some(),
-            "epoch {epoch}: end_of_epoch_tx_events is None"
-        );
-        assert_eq!(
-            row.protocol_version,
-            system_state.protocol_version(),
-            "epoch {epoch}: protocol_version not derived from start_system_state"
-        );
-        assert_eq!(
-            row.reference_gas_price,
-            system_state.reference_gas_price(),
-            "epoch {epoch}: reference_gas_price not derived from start_system_state"
-        );
-        assert_eq!(
-            row.start_timestamp_ms,
-            system_state.epoch_start_timestamp_ms(),
-            "epoch {epoch}: start_timestamp_ms not derived from start_system_state"
+            !entry.next_epoch_start_system_state_objects.is_empty(),
+            "epoch {epoch}: next_epoch_start_system_state_objects is empty"
         );
     }
-    // Contiguous, fully-populated `[0, snapshot_epoch]` ⇒ watermark ==
-    // snapshot_epoch.
-    assert_eq!(
-        grpc.highest_indexed_epoch()?,
-        Some(snapshot_epoch),
-        "EpochIndexed watermark did not reconcile to the snapshot epoch"
-    );
     Ok(())
 }
 
@@ -609,7 +564,7 @@ async fn snapshot_round_trip_populated_zstd() -> Result<(), anyhow::Error> {
     snapshot_round_trip(dir.path(), 1000, FileCompression::Zstd).await
 }
 
-/// EPOCH_INFO write → read → seed `epochs_v2` round-trip across two epochs.
+/// EPOCH_INFO write → read entry round-trip across two epochs.
 #[tokio::test]
 async fn snapshot_epoch_info_backfill_round_trip() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
@@ -620,8 +575,7 @@ async fn snapshot_epoch_info_backfill_round_trip() -> Result<(), anyhow::Error> 
 /// live-state indexes from the same object stream that fills the perpetual
 /// tables: the restored live object set matches the source, address-owned
 /// objects come back owner-indexed, and `finalize_restore` leaves the store
-/// initialized (the `EpochIndexed` watermark from the seeded epoch rows
-/// included).
+/// initialized.
 #[tokio::test]
 async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
@@ -706,17 +660,9 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
         .collect::<Result<_, _>>()?;
     assert_eq!(restored_ids, owned_ids);
 
-    // The remaining restore-tool steps: chain-verify EPOCH_INFO, seed the
-    // epoch rows, and finalize.
-    let epoch_info = snapshot_reader.read_epoch_info().await?;
-    let verified = verify_epoch_info_chain(
-        epoch_info,
-        test_committee_at(0),
-        snapshot_reader.chain_id(),
-        ChainIdentifier::default(),
-    )?;
-    verified.restore_epoch_info(&restored_grpc).await?;
-    assert_eq!(restored_grpc.highest_indexed_epoch()?, Some(0));
+    // Finalize the restored store. The chain-verify + epoch-row seed step
+    // needs a real boundary's proof bundle and is exercised in
+    // `iota-e2e-tests`.
     restored_grpc.finalize_restore(0)?;
     Ok(())
 }
@@ -1125,76 +1071,44 @@ fn epoch_info_v1_bcs_round_trip() {
     }
 }
 
-/// `TryFrom<EpochInfoV1Entry>` fills every `EpochInfoV2` field, deriving
-/// `end_timestamp_ms` (not stored on disk) from the last checkpoint's
-/// timestamp and the system-state fields from `start_system_state`.
-#[test]
-fn epoch_info_v1_entry_converts_to_v2_uniform_end_timestamp() {
-    use iota_types::iota_system_state::IotaSystemStateTrait;
-
-    let entry = fully_populated_snapshot_epoch_entry(3);
-    let summary = entry.last_checkpoint_summary.clone();
-    let v2 = EpochInfoV2::try_from(entry.clone()).expect("conversion succeeds");
-    assert_eq!(v2.epoch, 3);
-    assert_eq!(v2.start_checkpoint, entry.start_checkpoint);
-    assert_eq!(v2.end_checkpoint, Some(*summary.data().sequence_number()));
-    // Uniform reconstruction: end_timestamp_ms == last checkpoint timestamp.
-    assert_eq!(v2.end_timestamp_ms, Some(summary.data().timestamp_ms));
-    assert!(v2.last_checkpoint_summary.is_some());
-    assert!(v2.end_of_epoch_tx_events.is_some());
-    let ss: IotaSystemState = bcs::from_bytes(&entry.start_system_state).unwrap();
-    assert_eq!(v2.protocol_version, ss.protocol_version());
-    assert_eq!(v2.reference_gas_price, ss.reference_gas_price());
-    assert_eq!(v2.start_timestamp_ms, ss.epoch_start_timestamp_ms());
-}
-
-/// An entry whose `epoch` disagrees with its `last_checkpoint_summary.epoch()`
-/// is corrupted and must be rejected.
-#[test]
-fn try_from_rejects_epoch_summary_mismatch() {
-    let mut entry = fully_populated_snapshot_epoch_entry(3);
-    entry.epoch = 4; // summary still carries epoch 3
-    assert!(EpochInfoV2::try_from(entry).is_err());
-}
-
 /// Locks the BCS field order of `EpochInfoV1Entry` against silent
 /// reordering. BCS encodes struct fields in declaration order, so
 /// swapping any two fields would silently change the on-disk EPOCH_INFO
 /// file layout and break every existing snapshot consumer.
 ///
-/// Asserts that `bcs(entry)` equals the concatenation:
-///   `epoch.to_le_bytes() ++ start_checkpoint.to_le_bytes()
-///    ++ uvarint(start_system_state.len()) ++ start_system_state
-///    ++ bcs(last_checkpoint_summary: CertifiedCheckpointSummary)
-///    ++ bcs(end_of_epoch_tx_events: TransactionEvents)`.
-/// This both verifies the relative order of the fields and
-/// detects any encoding-shape change in the inner types.
+/// Asserts that `bcs(entry)` equals the concatenation of the per-field BCS
+/// encodings in declaration order. This both verifies the relative order of
+/// the fields and detects any encoding-shape change in the inner types.
 #[test]
 fn snapshot_epoch_info_field_order_is_locked() {
     let entry = EpochInfoV1Entry {
-        epoch: 0x0102_0304_0506_0708,
-        // Distinct, recognizable u64 — easy to spot in a hex dump if
-        // this assertion ever needs to be debugged.
-        start_checkpoint: 0xDEAD_BEEF_CAFE_F00D,
-        // Distinct payload so a misordered field would be obvious.
-        start_system_state: vec![0xAA, 0xBB, 0xCC, 0xDD],
         last_checkpoint_summary: fully_populated_checkpoint_summary(0),
+        last_checkpoint_contents: test_checkpoint_contents(),
+        end_of_epoch_tx_effects: test_end_of_epoch_tx_effects(),
         end_of_epoch_tx_events: TransactionEvents::default(),
+        // Distinct payload so a misordered field would be obvious.
+        next_epoch_start_system_state_objects: vec![vec![0xAA, 0xBB, 0xCC, 0xDD]],
     };
 
     let entry_bytes = bcs::to_bytes(&entry).expect("entry serialization");
-    let start_system_state_bytes =
-        bcs::to_bytes(&entry.start_system_state).expect("start_system_state serialization");
-    let summary_bytes =
-        bcs::to_bytes(&entry.last_checkpoint_summary).expect("summary serialization");
-    let events_bytes = bcs::to_bytes(&entry.end_of_epoch_tx_events).expect("events serialization");
 
     let mut expected = Vec::with_capacity(entry_bytes.len());
-    expected.extend_from_slice(&entry.epoch.to_le_bytes());
-    expected.extend_from_slice(&entry.start_checkpoint.to_le_bytes());
-    expected.extend_from_slice(&start_system_state_bytes);
-    expected.extend_from_slice(&summary_bytes);
-    expected.extend_from_slice(&events_bytes);
+    expected.extend_from_slice(
+        &bcs::to_bytes(&entry.last_checkpoint_summary).expect("summary serialization"),
+    );
+    expected.extend_from_slice(
+        &bcs::to_bytes(&entry.last_checkpoint_contents).expect("contents serialization"),
+    );
+    expected.extend_from_slice(
+        &bcs::to_bytes(&entry.end_of_epoch_tx_effects).expect("effects serialization"),
+    );
+    expected.extend_from_slice(
+        &bcs::to_bytes(&entry.end_of_epoch_tx_events).expect("events serialization"),
+    );
+    expected.extend_from_slice(
+        &bcs::to_bytes(&entry.next_epoch_start_system_state_objects)
+            .expect("objects serialization"),
+    );
 
     assert_eq!(
         entry_bytes, expected,
@@ -1213,36 +1127,16 @@ fn signed_epoch_info(snapshot_epoch: EpochId) -> EpochInfo {
     })
 }
 
-/// Happy path: a committee-signed EPOCH_INFO verifies against the genesis
-/// committee, yields the committee chain for `[0, snapshot_epoch + 1]`, and
-/// restores into the gRPC epoch index with the watermark advanced.
-#[tokio::test]
-async fn verify_epoch_info_chain_accepts_and_restores() {
-    let verified = verify_epoch_info_chain(
-        signed_epoch_info(2),
-        test_committee_at(0),
-        ChainIdentifier::default(),
-        ChainIdentifier::default(),
-    )
-    .expect("a committee-signed EPOCH_INFO must verify");
-
-    assert_eq!(verified.entries().len(), 3);
-    let committee_epochs: Vec<_> = verified.committees().iter().map(|c| c.epoch).collect();
-    assert_eq!(committee_epochs, vec![0, 1, 2, 3]);
-
-    let tmp_dir = iota_common::tempdir();
-    let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
-    verified.restore_epoch_info(&grpc).await.expect("restore");
-    assert_eq!(grpc.highest_indexed_epoch().unwrap(), Some(2));
-}
-
-/// A wrong-network snapshot is rejected on the chain id, before any
-/// signature work.
+/// A wrong-network snapshot is rejected on the chain id, before any per-entry
+/// work — so this case needs no valid proof bundle. The committee-chain walk,
+/// proof-bundle anchoring, and per-link tamper cases require a real epoch
+/// boundary and are covered in `iota-e2e-tests`.
 #[test]
 fn verify_epoch_info_chain_rejects_wrong_chain_id() {
     let err = verify_epoch_info_chain(
         signed_epoch_info(1),
         test_committee_at(0),
+        test_system_state(),
         ChainIdentifier::default(),
         ChainIdentifier::from(iota_types::digests::CheckpointDigest::new([7; 32])),
     )
@@ -1250,93 +1144,73 @@ fn verify_epoch_info_chain_rejects_wrong_chain_id() {
     assert!(err.to_string().contains("chain_id"), "got: {err}");
 }
 
-/// A trust root other than the signing committee fails at the first entry.
-#[test]
-fn verify_epoch_info_chain_rejects_wrong_genesis_committee() {
-    // `new_simple_test_committee` derives its keys from a fixed seed (it would
-    // return the fixture's own validator set), so generate a genuinely
-    // different one.
-    let mut rng = rand::rngs::StdRng::from_seed([7; 32]);
-    let other_rights: std::collections::BTreeMap<_, _> = (0..4)
-        .map(|_| {
-            let (_, key): (_, AuthorityKeyPair) = get_key_pair_from_rng(&mut rng);
-            (key.public().into(), 2500)
-        })
-        .collect();
-    let other_committee = Committee::new_for_testing_with_normalized_voting_power(0, other_rights);
-
-    let err = verify_epoch_info_chain(
-        signed_epoch_info(1),
-        other_committee,
-        ChainIdentifier::default(),
-        ChainIdentifier::default(),
-    )
-    .expect_err("a different validator set must be rejected");
-    assert!(
-        err.to_string().contains("epoch 0"),
-        "the chain walk must fail at the first entry: {err}"
-    );
-}
-
-/// A summary mutated after certification fails signature verification, even
-/// though it carries an otherwise valid quorum signature.
-#[test]
-fn verify_epoch_info_chain_rejects_tampered_summary() {
-    let mut epoch_info = signed_epoch_info(2);
-    let EpochInfo::V1(info) = &mut epoch_info;
-    let certified = &info.entries[1].last_checkpoint_summary;
-    let mut tampered_summary = certified.data().clone();
-    tampered_summary.timestamp_ms = 42; // not what the committee signed
-    info.entries[1].last_checkpoint_summary =
-        Envelope::new_from_data_and_sig(tampered_summary, certified.auth_sig().clone());
-
-    let err = verify_epoch_info_chain(
-        epoch_info,
-        test_committee_at(0),
-        ChainIdentifier::default(),
-        ChainIdentifier::default(),
-    )
-    .expect_err("a tampered summary must be rejected");
-    assert!(
-        err.to_string().contains("epoch 1"),
-        "the chain walk must fail at the tampered entry: {err}"
-    );
-}
-
-/// An entry that is not a close-of-epoch checkpoint cannot hand a committee
-/// forward and must be rejected.
-#[test]
-fn verify_epoch_info_chain_rejects_missing_end_of_epoch_data() {
-    let mut epoch_info = signed_epoch_info(2);
-    let EpochInfo::V1(info) = &mut epoch_info;
-    let mut summary = end_of_epoch_summary(1);
-    summary.end_of_epoch_data = None;
-    info.entries[1].last_checkpoint_summary = certify_summary(summary);
-
-    let err = verify_epoch_info_chain(
-        epoch_info,
-        test_committee_at(0),
-        ChainIdentifier::default(),
-        ChainIdentifier::default(),
-    )
-    .expect_err("an entry without end_of_epoch_data must be rejected");
-    assert!(err.to_string().contains("end-of-epoch data"), "got: {err}");
-}
-
-/// Entries must be contiguous from epoch 0: a hole breaks the committee
-/// handoff and must be rejected, not skipped over.
+/// Entries must be the contiguous epochs from 0: a first entry that is not
+/// epoch 0 is rejected at the contiguity check, before any per-entry proof
+/// work — so this needs no valid proof bundle.
 #[test]
 fn verify_epoch_info_chain_rejects_non_contiguous_entries() {
-    let mut epoch_info = signed_epoch_info(2);
-    let EpochInfo::V1(info) = &mut epoch_info;
-    info.entries.remove(1);
-
+    let EpochInfo::V1(mut info) = signed_epoch_info(2);
+    info.entries.remove(0); // entries now start at epoch 1, not 0
     let err = verify_epoch_info_chain(
-        epoch_info,
+        EpochInfo::V1(info),
         test_committee_at(0),
+        test_system_state(),
         ChainIdentifier::default(),
         ChainIdentifier::default(),
     )
-    .expect_err("a hole in the entries must be rejected");
-    assert!(err.to_string().contains("declares epoch"), "got: {err}");
+    .expect_err("non-contiguous entries must be rejected");
+    assert!(
+        err.to_string().contains("carries a summary for epoch"),
+        "got: {err}"
+    );
+}
+
+/// `epoch_info_v2_row` derives every non-stored `EpochInfoV2` field: the
+/// `epoch` from the signed summary, the `end_*` from the embedded entry, the
+/// system-state fields from the start system state. The chain-verify path that
+/// feeds it real entries is exercised in `iota-e2e-tests`.
+#[test]
+fn epoch_info_v2_row_derives_fields() {
+    use iota_types::iota_system_state::IotaSystemStateTrait;
+
+    let entry = fully_populated_snapshot_epoch_entry(3);
+    let system_state = test_system_state();
+    let start_checkpoint = 7;
+    let row = crate::epoch_info_v2_row(entry.clone(), system_state.clone(), start_checkpoint);
+
+    assert_eq!(row.epoch, 3, "epoch comes from the entry's signed summary");
+    assert_eq!(row.start_checkpoint, start_checkpoint);
+    // `end_*` derived from the signed last-checkpoint summary.
+    assert_eq!(
+        row.end_checkpoint(),
+        Some(*entry.last_checkpoint_summary.data().sequence_number()),
+    );
+    assert_eq!(
+        row.end_timestamp_ms(),
+        Some(entry.last_checkpoint_summary.data().timestamp_ms),
+    );
+    // System-state fields derived from the start system state.
+    assert_eq!(row.protocol_version(), system_state.protocol_version());
+    assert_eq!(
+        row.reference_gas_price(),
+        system_state.reference_gas_price()
+    );
+    assert_eq!(
+        row.start_timestamp_ms,
+        system_state.epoch_start_timestamp_ms()
+    );
+}
+
+/// An open (not-yet-indexed) row has no `epoch_close_proof`, so it is not
+/// finalized and its `end_*` helpers return `None`. The finalized values are
+/// covered by `epoch_info_v2_row_derives_fields`.
+#[test]
+fn open_row_has_no_end_fields() {
+    let open = EpochInfoV2 {
+        epoch_close_proof: None,
+        ..fully_populated_epoch_info(2)
+    };
+    assert!(!open.is_finalized());
+    assert_eq!(open.end_checkpoint(), None);
+    assert_eq!(open.end_timestamp_ms(), None);
 }

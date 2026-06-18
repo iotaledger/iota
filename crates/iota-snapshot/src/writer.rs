@@ -46,10 +46,10 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::debug;
 
 use crate::{
-    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FILE_MAX_BYTES,
-    FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest,
-    ManifestV2, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
-    compute_sha3_checksum, create_file_metadata,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, FILE_MAX_BYTES, FileCompression, FileMetadata,
+    FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_FILE_MAGIC,
+    OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, compute_sha3_checksum,
+    create_file_metadata,
 };
 
 /// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj
@@ -502,10 +502,9 @@ impl StateSnapshotWriterV1 {
     }
 
     /// Verifies the `Watermark::EpochIndexed` precondition: every epoch
-    /// in `[0, epoch]` must be fully populated (both start-of-epoch and
-    /// end-of-epoch fields committed). Called from [`Self::write_internal`]
-    /// before any disk work so a misconfigured node fails fast instead of
-    /// burning a full DB scan.
+    /// in `[0, epoch]` must be finalized (its close-of-epoch proof present).
+    /// Called from [`Self::write_internal`] before any disk work so a
+    /// misconfigured node fails fast instead of burning a full DB scan.
     /// `None` and `Some(h) where h < epoch` are distinct failure modes
     /// with distinct remediations — keep them as separate messages.
     fn check_epoch_indexed_watermark(&self, epoch: u64) -> Result<()> {
@@ -527,10 +526,10 @@ impl StateSnapshotWriterV1 {
     }
 
     /// Writes the per-snapshot `EPOCH_INFO` file, one entry per epoch in
-    /// `[0, epoch]` from `IndexStoreTables::epoch_info` via
-    /// `GrpcIndexes::get_epoch_info_entry`. Callers must have run
-    /// [`Self::check_epoch_indexed_watermark`] first; this function
-    /// trusts the precondition and panics on any missing field.
+    /// `[0, epoch]`: each row is read via `GrpcIndexes::get_epoch_info` and its
+    /// embedded `epoch_close_proof` taken. Callers must have run
+    /// [`Self::check_epoch_indexed_watermark`] first; this function trusts the
+    /// precondition and panics on any unfinalized row.
     ///
     /// File layout: 4-byte magic | bcs(EpochInfo). Integrity is anchored
     /// by `FileMetadata::sha3_digest` in the MANIFEST — no in-file sha3
@@ -547,9 +546,9 @@ impl StateSnapshotWriterV1 {
         // loop is fine; a range scan would be a micro-optimization.
         for epoch_id in 0..=epoch {
             // The watermark precondition above guarantees every entry in
-            // `[0, epoch]` is present with both end-of-epoch fields set; the
-            // panics below turn any watermark/row inconsistency into a
-            // loud failure rather than a silently truncated snapshot.
+            // `[0, epoch]` is present and finalized; the panics below turn any
+            // watermark/row inconsistency into a loud failure rather than a
+            // silently truncated snapshot.
             // `panic!` is deliberate: this runs inside `spawn_blocking`,
             // so the panic surfaces as `JoinError` and fails only the
             // snapshot task — exactly the desired blast radius.
@@ -562,41 +561,28 @@ impl StateSnapshotWriterV1 {
                          watermark covering it — watermark/row inconsistency"
                     )
                 });
-            let last_checkpoint_summary = epoch_info.last_checkpoint_summary.unwrap_or_else(|| {
+            // The boundary's whole entry is committed in one atomic batch, so a
+            // row the watermark covers must be finalized; a missing entry means
+            // the watermark advanced over an unfinalized row. Panics for the
+            // same reason as above.
+            let entry = epoch_info.epoch_close_proof.unwrap_or_else(|| {
                 panic!(
-                    "epochs_v2[{epoch_id}] is missing `last_checkpoint_summary` \
-                         despite `EpochIndexed` watermark covering it — \
-                         watermark/row inconsistency"
+                    "epochs_v2[{epoch_id}] is not finalized despite `EpochIndexed` \
+                     watermark covering it — the watermark must never cover an \
+                     unfinalized row"
                 )
             });
-            // The close-of-epoch write commits `last_checkpoint_summary`
-            // and `end_of_epoch_tx_events` in the same atomic batch, so if
-            // one is set the other must be too. Without this check, a
-            // future bug that splits the two writes would silently produce
-            // snapshots missing events.
-            let end_of_epoch_tx_events = epoch_info.end_of_epoch_tx_events.unwrap_or_else(|| {
-                panic!(
-                    "epochs_v2[{epoch_id}] is missing `end_of_epoch_tx_events` \
-                     despite `last_checkpoint_summary` being populated — \
-                     end-of-epoch atomicity violation"
-                )
-            });
-            // Turn a silent miswrite (entry stored under the wrong epoch
-            // key) into a loud panic at snapshot time.
-            let entry_epoch = last_checkpoint_summary.epoch();
+            // Turn a silent miswrite (row stored under the wrong epoch key)
+            // into a loud panic at snapshot time.
             assert_eq!(
-                entry_epoch, epoch_id,
-                "epochs_v2[{epoch_id}] is populated with an entry for epoch \
-                 {entry_epoch}; the snapshot would silently misattribute checkpoints",
+                entry.last_checkpoint_summary.epoch(),
+                epoch_id,
+                "epochs_v2[{epoch_id}] is populated with an entry for epoch {}; the \
+                 snapshot would silently misattribute checkpoints",
+                entry.last_checkpoint_summary.epoch(),
             );
 
-            entries.push(EpochInfoV1Entry {
-                epoch: epoch_id,
-                start_checkpoint: epoch_info.start_checkpoint,
-                start_system_state: bcs::to_bytes(&epoch_info.system_state)?,
-                last_checkpoint_summary,
-                end_of_epoch_tx_events,
-            });
+            entries.push(entry);
         }
         let epoch_info = EpochInfo::V1(EpochInfoV1 { entries });
         let serialized = bcs::to_bytes(&epoch_info)?;

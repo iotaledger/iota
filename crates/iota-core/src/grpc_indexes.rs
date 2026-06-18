@@ -24,9 +24,9 @@ use iota_types::{
     move_package::MovePackageExt,
     object::Object,
     storage::{
-        AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, EpochInfoV2, OwnedObjectCursor,
-        OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey,
-        TransactionInfo,
+        AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, EpochInfoV1Entry, EpochInfoV2,
+        OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem,
+        PackageVersionKey, TransactionInfo,
         error::{Error as StorageError, Kind as StorageErrorKind},
     },
 };
@@ -729,62 +729,87 @@ impl IndexStoreTables {
         };
         let new_epoch_id = epoch_info.epoch;
 
-        // Finalize `prev_epoch`'s row with the close-of-epoch fields and
+        // Finalize `prev_epoch`'s row with the close-of-epoch proof bundle and
         // advance `Watermark::EpochIndexed`. Genesis has no previous epoch
         // to finalize; the close-of-epoch write for epoch 0 fires when
         // epoch 1 is seeded, so `EpochIndexed` stays absent until then.
         if new_epoch_id > 0 {
             let prev_epoch = new_epoch_id - 1;
-            // In safe mode the AdvanceEpoch tx is replaced by
-            // `advance_epoch_safe_mode`, which mutates `0x5` but emits no
-            // events. `Some(default())` says "finalized, with no events" —
-            // distinct from the not-yet-finalized `None` lifecycle state.
-            let end_of_epoch_tx_events = Some(end_of_epoch_events.unwrap_or_default());
-            let last_checkpoint_summary = checkpoint.checkpoint_summary.clone();
             // If no row exists for `prev_epoch`, this node didn't see its
             // start (e.g. bootstrapped mid-epoch). Skip the upsert; the
             // row stays absent and the watermark stays behind, so the
             // snapshot writer correctly refuses to publish until an
             // external backfill fills the gap.
             if let Some(mut previous_epoch) = self.epochs_v2.get(&prev_epoch)? {
-                previous_epoch.end_timestamp_ms = Some(epoch_info.start_timestamp_ms);
-                previous_epoch.end_checkpoint = Some(epoch_info.start_checkpoint - 1);
-                previous_epoch.last_checkpoint_summary = Some(last_checkpoint_summary);
-                previous_epoch.end_of_epoch_tx_events = end_of_epoch_tx_events;
+                // The closing checkpoint's last tx is `prev_epoch`'s
+                // epoch-change tx; its effects and the system-state objects it
+                // wrote (object `0x5` and its inner state object) are this
+                // boundary's proof material.
+                let change_epoch_tx = checkpoint.end_of_epoch_transaction().ok_or_else(|| {
+                    StorageError::custom(format!(
+                        "checkpoint {} closes epoch {prev_epoch} but carries no \
+                         epoch-change transaction",
+                        checkpoint.checkpoint_summary.sequence_number,
+                    ))
+                })?;
+                // Serialized to raw bytes, not the decoded view, so they verify
+                // against the effects' written-object digests at restore time
+                // (see `get_iota_system_state_objects` for why only these two).
+                let next_epoch_start_system_state_objects =
+                    iota_types::iota_system_state::get_iota_system_state_objects(
+                        &change_epoch_tx.output_objects.as_slice(),
+                    )
+                    .map_err(|e| {
+                        StorageError::custom(format!(
+                            "extracting next-epoch start-state objects: {e}"
+                        ))
+                    })?
+                    .iter()
+                    .map(bcs::to_bytes)
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| {
+                        StorageError::custom(format!("serializing start-state objects: {e}"))
+                    })?;
+
+                previous_epoch.epoch_close_proof = Some(EpochInfoV1Entry {
+                    last_checkpoint_summary: checkpoint.checkpoint_summary.clone(),
+                    last_checkpoint_contents: checkpoint.checkpoint_contents.clone(),
+                    end_of_epoch_tx_effects: change_epoch_tx.effects.clone(),
+                    // Safe-mode boundaries run `advance_epoch_safe_mode`, which
+                    // mutates `0x5` but emits no events, so the list is empty.
+                    end_of_epoch_tx_events: end_of_epoch_events.unwrap_or_default(),
+                    next_epoch_start_system_state_objects,
+                });
                 batch.insert_batch(&self.epochs_v2, [(prev_epoch, previous_epoch)])?;
                 self.try_advance_epoch_indexed_watermark(prev_epoch, batch)?;
             }
         }
 
-        // seed the new epoch's row.
+        // seed the new epoch's row; its close-of-epoch proof is filled in when
+        // the next epoch's boundary is indexed.
         let new_info = EpochInfoV2 {
             epoch: epoch_info.epoch,
-            protocol_version: epoch_info.protocol_version,
-            start_timestamp_ms: epoch_info.start_timestamp_ms,
-            end_timestamp_ms: epoch_info.end_timestamp_ms,
             start_checkpoint: epoch_info.start_checkpoint,
-            end_checkpoint: epoch_info.end_checkpoint,
-            reference_gas_price: epoch_info.reference_gas_price,
+            start_timestamp_ms: epoch_info.start_timestamp_ms,
             system_state: epoch_info.system_state,
-            last_checkpoint_summary: None,
-            end_of_epoch_tx_events: None,
+            epoch_close_proof: None,
         };
         batch.insert_batch(&self.epochs_v2, [(new_epoch_id, new_info)])?;
 
         Ok(())
     }
 
-    /// Read `Watermark::EpochIndexed`: the highest epoch whose
-    /// `epochs_v2` row has its end-of-epoch fields populated
-    /// (`last_checkpoint_summary` and `end_of_epoch_tx_events`).
-    /// `None` if no epoch has been fully indexed yet.
+    /// Read `Watermark::EpochIndexed`: the highest epoch whose `epochs_v2` row
+    /// is finalized (the full close-of-epoch proof bundle present, see
+    /// `EpochInfoV2::is_finalized`). `None` if no epoch has been fully
+    /// indexed yet.
     fn highest_indexed_epoch(&self) -> Result<Option<EpochId>, TypedStoreError> {
         self.watermark.get(&Watermark::EpochIndexed)
     }
 
     /// Recompute `Watermark::EpochIndexed` = the highest epoch whose contiguous
-    /// prefix `[0, epoch]` is fully populated (both end-of-epoch fields
-    /// `Some`). Only ever raises it.
+    /// prefix `[0, epoch]` is finalized (see `EpochInfoV2::is_finalized`).
+    /// Only ever raises it.
     ///
     /// Unlike `try_advance_epoch_indexed_watermark` (the live +1 step), this
     /// can jump the watermark across a whole seeded prefix, which is what a
@@ -796,10 +821,7 @@ impl IndexStoreTables {
         let mut next = current.map_or(0, |w| w + 1);
         for entry in self.epochs_v2.safe_iter_with_bounds(Some(next), None) {
             let (epoch_id, info) = entry?;
-            if epoch_id != next
-                || info.last_checkpoint_summary.is_none()
-                || info.end_of_epoch_tx_events.is_none()
-            {
+            if epoch_id != next || !info.is_finalized() {
                 break;
             }
             next += 1;
@@ -867,15 +889,10 @@ impl IndexStoreTables {
 
         let epoch_info = EpochInfoV2 {
             epoch: current_epoch,
-            protocol_version: system_state.protocol_version(),
-            start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
-            end_timestamp_ms: None,
             start_checkpoint,
-            end_checkpoint: None,
-            reference_gas_price: system_state.reference_gas_price(),
+            start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
             system_state,
-            last_checkpoint_summary: None,
-            end_of_epoch_tx_events: None,
+            epoch_close_proof: None,
         };
 
         self.epochs_v2.insert(&epoch_info.epoch, &epoch_info)?;
@@ -902,7 +919,7 @@ impl IndexStoreTables {
         if let Some(end_checkpoint) = self
             .epochs_v2
             .get(&previous_epoch)?
-            .and_then(|info| info.end_checkpoint)
+            .and_then(|info| info.end_checkpoint())
         {
             return Ok(Some(end_checkpoint + 1));
         }
@@ -1799,13 +1816,17 @@ fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
     }
 }
 
-// Load a CheckpointData struct without event data
+// Load a CheckpointData struct, including events for any transaction that
+// emitted them (the epoch-change tx's events feed the EPOCH_INFO proof bundle);
+// a pruned events table surfaces as a `Missing` error.
 fn assemble_sparse_checkpoint_data(
     authority_store: &AuthorityStore,
     summary: VerifiedCheckpoint,
     contents: CheckpointContents,
 ) -> Result<CheckpointData, StorageError> {
-    use iota_types::full_checkpoint_content::CheckpointTransaction;
+    use iota_types::{
+        effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
+    };
 
     let transaction_digests = contents
         .iter()
@@ -1832,10 +1853,27 @@ fn assemble_sparse_checkpoint_data(
         let output_objects =
             iota_types::storage::get_transaction_output_objects(authority_store, &fx)?;
 
+        // Load events for any emitting tx. Only the last (epoch-change) tx's
+        // events are consumed downstream, but loading all keeps the assembled
+        // `CheckpointData` self-consistent and costs little. A pruned events
+        // table surfaces as a `Missing` error.
+        let events = if fx.events_digest().is_some() {
+            Some(
+                authority_store
+                    .get_events(fx.transaction_digest())
+                    .map_err(|e| StorageError::custom(format!("loading events: {e}")))?
+                    .ok_or_else(|| {
+                        StorageError::missing("missing events for an emitting transaction")
+                    })?,
+            )
+        } else {
+            None
+        };
+
         let full_transaction = CheckpointTransaction {
             transaction: tx.into(),
             effects: fx,
-            events: None,
+            events,
             input_objects,
             output_objects,
         };
@@ -1857,7 +1895,8 @@ mod tests {
     use iota_sdk_types::GasCostSummary;
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo,
-        effects::TransactionEvents,
+        digests::TransactionDigest,
+        effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
         iota_system_state::IotaSystemState,
         message_envelope::Envelope,
         messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary, EndOfEpochData},
@@ -1918,20 +1957,25 @@ mod tests {
         ))
     }
 
-    /// A fully-populated `EpochInfoV2` row (both end-of-epoch fields `Some`) —
-    /// the only shape `reconcile` counts toward the `EpochIndexed` watermark.
+    /// A finalized `EpochInfoV2` row (its `epoch_close_proof` is `Some`) — the
+    /// only shape `reconcile` counts toward the `EpochIndexed` watermark.
     fn complete_epoch_info(epoch: EpochId) -> EpochInfoV2 {
         EpochInfoV2 {
             epoch,
-            protocol_version: 1,
-            start_timestamp_ms: 0,
-            end_timestamp_ms: Some(0),
             start_checkpoint: 0,
-            end_checkpoint: Some(0),
-            reference_gas_price: 0,
+            start_timestamp_ms: 0,
             system_state: IotaSystemState::for_testing(epoch, 1),
-            last_checkpoint_summary: Some(certified_summary(epoch, 0)),
-            end_of_epoch_tx_events: Some(TransactionEvents::default()),
+            epoch_close_proof: Some(EpochInfoV1Entry {
+                last_checkpoint_summary: certified_summary(epoch, 0),
+                last_checkpoint_contents: CheckpointContents::new_with_digests_only_for_tests(
+                    std::iter::empty(),
+                ),
+                end_of_epoch_tx_effects: TransactionEffects::new_empty_v1_for_testing(
+                    TransactionDigest::ZERO,
+                ),
+                end_of_epoch_tx_events: TransactionEvents::default(),
+                next_epoch_start_system_state_objects: Vec::new(),
+            }),
         }
     }
 

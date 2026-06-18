@@ -561,6 +561,7 @@ impl IotaNode {
                     grpc_indexes_store,
                     remote_store_config,
                     genesis.committee()?,
+                    genesis.iota_system_object(),
                     chain_identifier,
                     &store,
                     &checkpoint_store,
@@ -887,6 +888,7 @@ impl IotaNode {
         grpc_indexes_store: &GrpcIndexesStore,
         remote_store_config: &ObjectStoreConfig,
         genesis_committee: Committee,
+        genesis_system_state: IotaSystemState,
         expected_chain_id: ChainIdentifier,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
@@ -895,11 +897,13 @@ impl IotaNode {
         info!("backfilling gRPC epochs_v2 from snapshot EPOCH_INFO up to epoch {epoch}");
         let (snapshot_chain_id, epoch_info) =
             StateSnapshotReaderV1::read_epoch_info_only(epoch, remote_store_config).await?;
-        // Anchor the bucket's data to this node's trust roots: the chain id
-        // and the committee chain walked from the genesis committee.
+        // Anchor the bucket's data to this node's trust roots: the chain id,
+        // the committee chain walked from the genesis committee, and the
+        // genesis system state (epoch 0's start state, which no entry proves).
         let verified = iota_snapshot::verify_epoch_info_chain(
             epoch_info,
             genesis_committee,
+            genesis_system_state,
             snapshot_chain_id,
             expected_chain_id,
         )?;

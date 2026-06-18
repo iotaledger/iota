@@ -295,23 +295,31 @@ impl IotaSystemState {
     }
 }
 
-pub fn get_iota_system_state_wrapper(
+/// The raw system state wrapper object together with the
+/// `IotaSystemStateWrapper` decoded from its contents.
+fn get_iota_system_state_wrapper_with_object(
     object_store: &dyn ObjectStore,
-) -> Result<IotaSystemStateWrapper, IotaError> {
-    let wrapper = object_store
+) -> Result<(Object, IotaSystemStateWrapper), IotaError> {
+    let wrapper_object = object_store
         .try_get_object(&ObjectId::SYSTEM_STATE)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())
         })?;
-    let move_object = wrapper.data.as_struct_opt().ok_or_else(|| {
+    let move_object = wrapper_object.data.as_struct_opt().ok_or_else(|| {
         IotaError::IotaSystemStateRead(
             "IotaSystemStateWrapper object must be a Move object".to_owned(),
         )
     })?;
-    let result = bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents())
+    let wrapper = bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents())
         .map_err(|err| IotaError::IotaSystemStateRead(err.to_string()))?;
-    Ok(result)
+    Ok((wrapper_object, wrapper))
+}
+
+pub fn get_iota_system_state_wrapper(
+    object_store: &dyn ObjectStore,
+) -> Result<IotaSystemStateWrapper, IotaError> {
+    Ok(get_iota_system_state_wrapper_with_object(object_store)?.1)
 }
 
 pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSystemState, IotaError> {
@@ -386,6 +394,22 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
             wrapper.version
         ))),
     }
+}
+
+/// The two objects `get_iota_system_state` reads to decode the system state:
+/// the raw system state wrapper object and its inner system-state object. These
+/// two fully determine the state, so none of the per-validator objects the
+/// epoch-change tx also writes are needed. Returned as raw `Object`s so a
+/// caller can persist the exact bytes their `ObjectDigest`s commit to.
+pub fn get_iota_system_state_objects(
+    object_store: &dyn ObjectStore,
+) -> Result<[Object; 2], IotaError> {
+    let (wrapper_object, wrapper) = get_iota_system_state_wrapper_with_object(object_store)?;
+    // Same derivation as `get_iota_system_state`, so this can never select a
+    // different inner object than the one that decodes the state.
+    let inner_object =
+        get_dynamic_field_object_from_store(object_store, wrapper.id.id.bytes, &wrapper.version)?;
+    Ok([wrapper_object, inner_object])
 }
 
 /// Given a system state type version, and the ID of the table, along with a
