@@ -142,6 +142,7 @@ async fn main() -> Result<(), IndexerError> {
             network,
             epoch,
             staging_path,
+            genesis_path,
             num_parallel_downloads,
         } => {
             let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
@@ -152,7 +153,14 @@ async fn main() -> Result<(), IndexerError> {
                 reset_database(&mut pool_conn)?;
             }
             let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics.clone());
-            let restore = start(network, epoch, &staging_path, num_parallel_downloads, store);
+            let restore = start(
+                network,
+                epoch,
+                &staging_path,
+                &genesis_path,
+                num_parallel_downloads,
+                store,
+            );
             match cancel.run_until_cancelled(restore).await {
                 Some(result) => result?,
                 None => info!("shutdown signal received, aborting formal snapshot restore"),

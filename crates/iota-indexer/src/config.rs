@@ -307,6 +307,10 @@ pub enum Command {
         /// files.
         #[arg(long)]
         staging_path: PathBuf,
+        /// Path to the genesis blob, required to verify the snapshot against
+        /// the committee chain.
+        #[arg(long)]
+        genesis_path: PathBuf,
         /// Epoch to download. Defaults to the latest available epoch.
         #[arg(long)]
         epoch: Option<u64>,

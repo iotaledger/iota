@@ -8,10 +8,18 @@ use std::{num::NonZeroUsize, path::Path, sync::Arc};
 use anyhow::{anyhow, bail};
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
-use futures::future::AbortHandle;
+use futures::{FutureExt, TryFutureExt, future::AbortHandle};
 use indicatif::MultiProgress;
-use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_config::{
+    genesis::Genesis,
+    node::ArchiveReaderConfig,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+};
 use iota_core::db_checkpoint_handler::SUCCESS_MARKER;
+use iota_data_ingestion_core::{
+    IngestionError,
+    history::{reader::HistoricalReader, verifier::EpochBoundaryVerifier},
+};
 use iota_protocol_config::Chain;
 use iota_snapshot::{
     FileMetadata,
@@ -26,7 +34,10 @@ use iota_storage::{
         util::{MANIFEST_FILENAME, Manifest, exists, get_path},
     },
 };
-use iota_types::global_state_hash::GlobalStateHash;
+use iota_types::{
+    global_state_hash::GlobalStateHash,
+    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
+};
 use itertools::Itertools;
 use tokio::sync::mpsc;
 use tracing::info;
@@ -39,21 +50,37 @@ use crate::{
 const MAINNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.mainnet.iota.cafe";
 const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.iota.cafe";
 
+const MAINNET_HISTORICAL_CHECKPOINTS_ENDPOINT: &str =
+    "https://checkpoints.mainnet.iota.cafe/ingestion/historical";
+const TESTNET_HISTORICAL_CHECKPOINTS_ENDPOINT: &str =
+    "https://checkpoints.testnet.iota.cafe/ingestion/historical";
+
 /// Restores the indexer database from the formal snapshot for the given network
 /// and epoch.
 ///
+/// This guarantees that the formal snapshot is verified, by comparing
+/// the root state hash of the live objects against the verified commitment of
+/// the network at the given epoch through public archives.
+///
 /// # Errors
 ///
-/// Returns an error if the reader cannot be instantiated or the download/insert
-/// pipeline fails.
+/// Returns an error if:
+///
+/// - The reader or verifier cannot be instantiated.
+/// - The persist pipeline fails
+/// - The snapshot fails verification.
 pub async fn start(
     network: Chain,
     epoch: Option<u64>,
     staging_path: &Path,
+    genesis_path: &Path,
     num_parallel_downloads: NonZeroUsize,
     pg_indexer_store: PgIndexerStore,
 ) -> IndexerResult<()> {
-    let mut reader = setup_reader(network, epoch, staging_path, num_parallel_downloads).await?;
+    let (mut reader, epoch) =
+        setup_reader(network, epoch, staging_path, num_parallel_downloads).await?;
+    let verifier =
+        build_epoch_boundary_verifier(network, epoch, genesis_path, num_parallel_downloads).await?;
 
     // It's ok to ignore the handle. Cancellation is effected by dropping the
     // `read_to_db` future below, so we don't need to call `abort` explicitly.
@@ -61,17 +88,65 @@ pub async fn start(
     let (state_hash_tx, state_hash_rx) =
         mpsc::channel::<(GlobalStateHash, u64)>(num_parallel_downloads.get());
 
-    let (restore_result, (_root_state_hash, num_objects)) = tokio::join!(
-        reader.read_to_db(&pg_indexer_store, abort_registration, Some(state_hash_tx)),
-        accumulate_state_hash(state_hash_rx),
-    );
-    restore_result?;
+    let ((), num_objects) = tokio::try_join!(
+        reader
+            .read_to_db(&pg_indexer_store, abort_registration, Some(state_hash_tx))
+            .map_err(IndexerError::from),
+        verify_state_hash(state_hash_rx, verifier),
+    )?;
 
     info!(
-        num_objects,
-        "formal snapshot restore complete (state hash accumulated; persistence stubbed)"
+        epoch,
+        num_objects, "formal snapshot restore complete and verified"
     );
     Ok(())
+}
+
+/// Verifies the root state hash evaluated from the formal snapshot.
+///
+/// This is done by comparing the value against the verified commitment of the
+/// snapshot epoch.
+///
+/// Returns the number of live objects accumulated.
+///
+/// # Errors
+///
+/// Returns an error if:
+///
+/// - Epoch-boundary verification fails.
+/// - The verified checkpoint carries no end-of-epoch commitment.
+/// - The accumulated root state hash does not match that commitment.
+async fn verify_state_hash(
+    state_hash_rx: mpsc::Receiver<(GlobalStateHash, u64)>,
+    verifier: EpochBoundaryVerifier,
+) -> IndexerResult<u64> {
+    let ((root_state_hash, num_objects), verified_checkpoint) = tokio::try_join!(
+        accumulate_state_hash(state_hash_rx).map(Ok::<_, IndexerError>),
+        verifier
+            .verify_target_epoch_boundary()
+            .map_err(IndexerError::from),
+    )?;
+
+    let commitment = verified_checkpoint
+        .end_of_epoch_data
+        .as_ref()
+        .and_then(|end_of_epoch| end_of_epoch.epoch_commitments.last())
+        .ok_or_else(|| {
+            IndexerError::Ingestion(IngestionError::Verification(
+                "verified checkpoint has no end-of-epoch commitment".to_string(),
+            ))
+        })?;
+    let CheckpointCommitment::ECMHLiveObjectSetDigest(verified_digest) = commitment;
+    let local_digest = ECMHLiveObjectSetDigest::from(root_state_hash.digest());
+    if *verified_digest != local_digest {
+        return Err(IndexerError::Ingestion(IngestionError::Verification(
+            format!(
+                "root state hash {local_digest:?} does not match the verified commitment \
+             {verified_digest:?}"
+            ),
+        )));
+    }
+    Ok(num_objects)
 }
 
 /// Evaluates the root state hash of the live object set in this snapshot.
@@ -153,6 +228,8 @@ impl Restore for PgIndexerStore {
 /// 4. Instantiates the reader, which downloads the snapshot's MANIFEST and
 ///    reference files into the staging directory.
 ///
+/// Returns the reader and the resolved epoch.
+///
 /// # Errors
 ///
 /// Returns an error if:
@@ -165,7 +242,7 @@ pub(crate) async fn setup_reader(
     epoch: Option<u64>,
     staging_path: &Path,
     num_parallel_downloads: NonZeroUsize,
-) -> IndexerResult<StateSnapshotReaderV1> {
+) -> IndexerResult<(StateSnapshotReaderV1, u64)> {
     let remote_store = FormalSnapshotStore::new(network)?;
     let local_store_config = local_store_config(staging_path);
 
@@ -196,7 +273,43 @@ pub(crate) async fn setup_reader(
         staging_path = %staging_path.display(),
         "formal snapshot reader ready; MANIFEST and reference files downloaded"
     );
-    Ok(reader)
+    Ok((reader, epoch))
+}
+
+/// Builds an [`EpochBoundaryVerifier`] for the network's public historical
+/// checkpoint store, targeting the given epoch.
+///
+/// # Errors
+///
+/// Returns an error if:
+///
+/// - The network is not `mainnet` or `testnet`.
+/// - The genesis cannot be loaded from `genesis_path`.
+/// - The historical reader cannot be built, or the epoch boundaries cannot be
+///   read from the remote store.
+async fn build_epoch_boundary_verifier(
+    network: Chain,
+    epoch: u64,
+    genesis_path: &Path,
+    download_concurrency: NonZeroUsize,
+) -> IndexerResult<EpochBoundaryVerifier> {
+    let endpoint = match network {
+        Chain::Mainnet => MAINNET_HISTORICAL_CHECKPOINTS_ENDPOINT,
+        Chain::Testnet => TESTNET_HISTORICAL_CHECKPOINTS_ENDPOINT,
+        Chain::Unknown => {
+            return Err(IndexerError::InvalidArgument(
+                "formal snapshot network must be Mainnet or Testnet".into(),
+            ));
+        }
+    };
+    let reader = HistoricalReader::new(ArchiveReaderConfig {
+        remote_store_config: unsigned_http_store_config(endpoint),
+        download_concurrency,
+        use_for_pruning_watermark: false,
+    })?;
+    let genesis = Genesis::load(genesis_path)?;
+    let verifier = EpochBoundaryVerifier::from_genesis(reader, &genesis, epoch).await?;
+    Ok(verifier)
 }
 
 /// Read client for a network's public formal snapshot store.
@@ -222,14 +335,7 @@ impl FormalSnapshotStore {
                 ));
             }
         };
-        let config = ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::S3),
-            aws_endpoint: Some(aws_endpoint.to_string()),
-            aws_virtual_hosted_style_request: true,
-            object_store_connection_limit: 200,
-            no_sign_request: true,
-            ..Default::default()
-        };
+        let config = unsigned_http_store_config(aws_endpoint);
         let store = config.make_http()?;
         Ok(Self { config, store })
     }
@@ -272,6 +378,19 @@ fn local_store_config(staging_path: &Path) -> ObjectStoreConfig {
     ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(staging_path.to_path_buf()),
+        ..Default::default()
+    }
+}
+
+/// Builds the config for an unsigned (anonymous) HTTPS object store served at
+/// the given public endpoint.
+fn unsigned_http_store_config(endpoint: &str) -> ObjectStoreConfig {
+    ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::S3),
+        aws_endpoint: Some(endpoint.to_string()),
+        aws_virtual_hosted_style_request: true,
+        object_store_connection_limit: 200,
+        no_sign_request: true,
         ..Default::default()
     }
 }

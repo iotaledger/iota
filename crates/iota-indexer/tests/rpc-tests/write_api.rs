@@ -1455,16 +1455,9 @@ fn move_view_function_call() {
 
         // Test mixed object, bool and address arguments.
         let fn_name = format!("{}::wat_counter::has_address_arg", object_ref.object_id);
-<<<<<<< HEAD
         let address =
             Address::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
                 .unwrap();
-=======
-        let address = Address::from_str(
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-        )
-        .unwrap();
->>>>>>> 5e9f3cc6f4 (feat(indexer): setup snapshot reader)
         let view_results = client
             .view_function_call(
                 fn_name,
