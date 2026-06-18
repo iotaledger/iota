@@ -30,7 +30,7 @@ use crate::{
         VerifiedTransactions, genesis_blocks,
     },
     commit::{
-        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
+        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef, CommitVote,
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
@@ -535,31 +535,36 @@ impl DagState {
     }
 
     fn rebuild_scoring_subdag_from_store(&mut self) {
-        let Some(last_commit) = self.last_commit.as_ref() else {
+        let Some(last_commit_index) = self.last_commit.as_ref().map(|c| c.index()) else {
             return;
         };
 
         let commit_recovery_start_index = self.last_commit_info_index().saturating_add(1);
 
-        if commit_recovery_start_index > last_commit.index() {
+        if commit_recovery_start_index > last_commit_index {
             return;
         }
 
-        let commits = self
-            .store
-            .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-
-        let mut unscored_subdags = Vec::with_capacity(commits.len());
-        for commit in commits {
-            let pending_subdag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
-            unscored_subdags.push(pending_subdag.base);
-        }
+        let unscored_subdags =
+            self.scan_subdag_bases((commit_recovery_start_index..=last_commit_index).into());
 
         if !unscored_subdags.is_empty() {
             self.scoring_subdag.add_subdags(unscored_subdags);
         }
+    }
+
+    /// Scans committed subdags in `range` from the store and returns their
+    /// `SubDagBase`s (leader + headers), used to replay scoring state on
+    /// restart.
+    pub(crate) fn scan_subdag_bases(&self, range: CommitRange) -> Vec<SubDagBase> {
+        let commits = self
+            .store
+            .scan_commits(range)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+        commits
+            .into_iter()
+            .map(|commit| load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]).base)
+            .collect()
     }
 
     /// Accepts a block header into DagState and keeps it in memory.

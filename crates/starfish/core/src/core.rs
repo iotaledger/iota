@@ -1326,6 +1326,8 @@ impl Core {
                 );
                 dag_state.add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
             }
+            self.leader_schedule
+                .feed_committed_subdags(subdags.iter().map(|s| s.base.clone()));
 
             committed_sub_dags.extend(subdags);
 

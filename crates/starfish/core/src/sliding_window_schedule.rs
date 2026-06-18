@@ -29,11 +29,6 @@
 //! [`SlidingWindowSchedule::add_commit`] to repopulate the window before any
 //! scores are read.
 
-#![cfg_attr(
-    not(test),
-    expect(dead_code, reason = "not yet wired into the leader schedule")
-)]
-
 use std::{collections::VecDeque, sync::Arc};
 
 use crate::{
