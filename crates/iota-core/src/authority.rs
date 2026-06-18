@@ -5693,9 +5693,10 @@ impl AuthorityState {
     ///   5. coin deny list check
     ///
     /// Keep this helper as the single source of truth so the two callers
-    /// cannot drift. Raw inputs are cloned and returned for
-    /// `attest_transaction`'s MoveAuthenticator path;
-    /// `handle_transaction_validation_checks` ignores them.
+    /// cannot drift. Raw inputs are cloned and returned only on the
+    /// `attest_transaction` path (`is_execute_transaction_to_effects`), where
+    /// the MoveAuthenticator path needs them; the clone is skipped for
+    /// `handle_transaction_validation_checks`, which ignores them.
     fn run_validation_checks<'a>(
         &self,
         transaction: &'a VerifiedTransaction,
@@ -5730,9 +5731,19 @@ impl AuthorityState {
         // Step 4: check inputs (validates gas budget covers auth + tx). When
         // `is_execute_transaction_to_effects` is true (attest_transaction), the
         // gas budget is metered for full execution; otherwise (signing) it only
-        // covers authentication. Clone the raw per-authenticator inputs so
-        // attest_transaction can recover the `AuthenticatorFunctionRefForExecution`
-        // for each authenticator.
+        // covers authentication.
+        //
+        // Only the attest_transaction path consumes the raw per-authenticator
+        // inputs from `ValidationOutputs` (to recover each
+        // `AuthenticatorFunctionRefForExecution`);
+        // `handle_transaction_validation_checks` discards them. So only clone
+        // for the output when we actually need it, and move the original into
+        // the input check otherwise.
+        let per_authenticator_inputs_for_output = if is_execute_transaction_to_effects {
+            per_authenticator_inputs.clone()
+        } else {
+            Vec::new()
+        };
         let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
             .check_transaction_inputs_for_validation(
                 protocol_config,
@@ -5741,7 +5752,7 @@ impl AuthorityState {
                 tx_input_objects,
                 &tx_receiving_objects,
                 &move_authenticators,
-                per_authenticator_inputs.clone(),
+                per_authenticator_inputs,
                 is_execute_transaction_to_effects,
             )?;
 
@@ -5763,7 +5774,7 @@ impl AuthorityState {
         )?;
 
         Ok(ValidationOutputs {
-            per_authenticator_inputs,
+            per_authenticator_inputs: per_authenticator_inputs_for_output,
             move_authenticators,
             gas_status,
             tx_checked_input_objects,

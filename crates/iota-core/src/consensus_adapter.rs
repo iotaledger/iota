@@ -578,14 +578,20 @@ impl ConsensusAdapter {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
-            // Soft-bundle batches must be homogeneous — every transaction must be
-            // of the same kind, because submit_and_wait_inner assumes a single
-            // transaction kind across the batch.
-            let first_kind = std::mem::discriminant(&transactions[0].kind);
+            // Soft-bundle batches must be homogeneous and limited to the kinds we
+            // actually bundle: user or certified transactions. submit_and_wait_inner
+            // assumes a single, known transaction kind across the batch, so
+            // reject any other kind defensively rather than letting it pass
+            // silently into consensus. Checking the first element's kind is
+            // sufficient because the homogeneity check guarantees the rest share it.
+            let first = &transactions[0].kind;
+            let first_kind = std::mem::discriminant(first);
             fp_ensure!(
-                transactions
-                    .iter()
-                    .all(|tx| std::mem::discriminant(&tx.kind) == first_kind),
+                (first.is_user_transaction()
+                    || matches!(first, ConsensusTransactionKind::CertifiedTransaction(_)))
+                    && transactions
+                        .iter()
+                        .all(|tx| std::mem::discriminant(&tx.kind) == first_kind),
                 IotaError::InvalidTxKindInSoftBundle
             );
         }
