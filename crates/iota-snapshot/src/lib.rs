@@ -319,7 +319,8 @@ impl EpochInfo {
 /// Chain-verified `EPOCH_INFO`: the `chain_id` matched and every entry was
 /// anchored to its certified `last_checkpoint_summary` — the committee chain
 /// walked from the genesis committee, every byte hash-checked back to that
-/// signed summary. The only constructor is `verify_epoch_info_chain`.
+/// signed summary. The only constructor is `verify_epoch_info_chain`, so holding
+/// one is proof the data is anchored to the operator-provided genesis.
 #[derive(Debug)]
 pub struct VerifiedEpochInfo {
     epoch_info: EpochInfo,
