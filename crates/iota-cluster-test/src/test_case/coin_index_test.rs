@@ -13,10 +13,8 @@ use iota_sdk_transaction_builder::{PTBArgumentList, SharedMut, TransactionBuilde
 use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
-    base_types::ObjectRef,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionData,
+    base_types::ObjectRef, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionData,
 };
 use jsonrpsee::rpc_params;
 use tracing::info;
