@@ -466,7 +466,7 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
 
     // 2. The epoch-change effects are the last tx of the verified contents (by
     //    position, so a same-block tx that also touches `0x5` can't stand in).
-    let expected = entry
+    let expected_execution_digest = entry
         .last_checkpoint_contents
         .end_of_epoch_execution_digests(summary)
         .ok_or_else(|| anyhow::anyhow!("the closing checkpoint has no transactions"))?;
