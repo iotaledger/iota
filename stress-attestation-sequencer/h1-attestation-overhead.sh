@@ -205,6 +205,12 @@ for base in (
     "authority_state_internal_execution_latency",  # pure VM execution
     "transaction_driver_settlement_finality_latency",  # client-side (fullnode)
     "transaction_driver_submit_transaction_latency",   # client-side (fullnode)
+    "post_consensus_validation_latency",        # post-consensus validation pass
+    "execution_queueing_delay_s",               # execution-driver queueing delay
+    "attested_computation_units",               # V2 attestation estimate
+    "actual_computation_units",                  # measured at execution
+    "actual_to_attested_computation_units_ratio",  # attestation accuracy
+    "consensus_handler_scheduled_transactions_per_object_per_commit",  # sched/obj/commit
 ):
     metrics[f"{base}_bucket"] = f"{base}_bucket"
     metrics[f"{base}_count"] = f"{base}_count"
@@ -236,6 +242,31 @@ metrics["consensus_handler_max_congestion_control_object_costs"] = (
 )
 metrics["container_cpu_usage_seconds_total"] = (
     'container_cpu_usage_seconds_total{name=~"validator-.*|fullnode-.*"}'
+)
+# resource usage: per-container memory (cadvisor, scoped) + host CPU (node-exporter).
+metrics["container_memory_rss"] = (
+    'container_memory_rss{name=~"validator-.*|fullnode-.*"}'
+)
+metrics["node_cpu_seconds_total"] = "node_cpu_seconds_total"
+# execution pipeline throughput / backpressure (does attestation starve execution?).
+metrics["execution_driver_executed_transactions"] = "execution_driver_executed_transactions"
+metrics["execution_driver_dispatch_queue"] = "execution_driver_dispatch_queue"
+metrics["execution_cache_backpressure_status"] = "execution_cache_backpressure_status"
+metrics["execution_cache_backpressure_toggles"] = "execution_cache_backpressure_toggles"
+metrics["transaction_manager_num_pending_certificates"] = (
+    "transaction_manager_num_pending_certificates"
+)
+# attestation health (V2): task panics + soft-lock-conflict rejections.
+metrics["validator_attestation_task_panics"] = "validator_attestation_task_panics"
+metrics["validator_service_num_rejected_tx_soft_lock_conflict"] = (
+    "validator_service_num_rejected_tx_soft_lock_conflict"
+)
+# safety / fork detection — must stay 0 for the run to be valid.
+metrics["global_state_hash_inconsistent_state"] = "global_state_hash_inconsistent_state"
+metrics["remote_checkpoint_forks"] = "remote_checkpoint_forks"
+metrics["split_brain_checkpoint_forks"] = "split_brain_checkpoint_forks"
+metrics["total_client_double_spend_attempts_detected"] = (
+    "total_client_double_spend_attempts_detected"
 )
 
 series = {}
