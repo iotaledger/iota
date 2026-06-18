@@ -36,7 +36,6 @@ mod checked {
     };
     use move_core_types::{ident_str, identifier::IdentStr, language_storage::ModuleId};
     use move_trace_format::format::MoveTraceBuilder;
-    use serde::Serialize;
 
     use crate::{
         execution_mode::System,
@@ -158,19 +157,13 @@ mod checked {
             // The Move constructor derives both the package metadata object address
             // and the per-module metadata object addresses from the storage ID.
             let args = vec![
-                to_bcs_argument(&ID::new(storage_id), "package metadata storage ID")?,
-                to_bcs_argument(&ID::new(runtime_id), "package metadata runtime ID")?,
-                to_bcs_argument(&package_version, "package metadata version")?,
-                to_bcs_argument(&constructor_args.modules, "package metadata modules")?,
-                to_bcs_argument(
-                    &constructor_args.auth_functions,
-                    "package metadata authenticator functions",
-                )?,
-                to_bcs_argument(&constructor_args.type_names, "package metadata type names")?,
-                to_bcs_argument(
-                    &constructor_args.view_function_names,
-                    "package metadata view functions",
-                )?,
+                bcs::to_bytes(&ID::new(storage_id)).unwrap(),
+                bcs::to_bytes(&ID::new(runtime_id)).unwrap(),
+                bcs::to_bytes(&package_version).unwrap(),
+                bcs::to_bytes(&constructor_args.modules).unwrap(),
+                bcs::to_bytes(&constructor_args.auth_functions).unwrap(),
+                bcs::to_bytes(&constructor_args.type_names).unwrap(),
+                bcs::to_bytes(&constructor_args.view_function_names).unwrap(),
             ];
             execute_package_metadata_constructor(
                 context,
@@ -375,15 +368,6 @@ mod checked {
         context.linkage_view.reset_linkage();
         context.linkage_view.restore_linkage(saved_linkage)?;
         result
-    }
-
-    fn to_bcs_argument<T: Serialize>(
-        value: &T,
-        description: &'static str,
-    ) -> Result<Vec<u8>, ExecutionError> {
-        bcs::to_bytes(value).map_err(|e| {
-            ExecutionError::invariant_violation(format!("failed to serialize {description}: {e}"))
-        })
     }
 
     fn get_authenticator_first_param_type_tag(

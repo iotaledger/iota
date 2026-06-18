@@ -2942,10 +2942,8 @@ impl ProtocolConfig {
                     cfg.feature_flags.always_advance_dkg_to_resolution = true;
                     // Publish package metadata with the module metadata stored as a
                     // dynamic field.
-                    if cfg.feature_flags.publish_package_metadata {
-                        cfg.feature_flags
-                            .package_metadata_with_dynamic_module_metadata = true;
-                    }
+                    cfg.feature_flags
+                        .package_metadata_with_dynamic_module_metadata = true;
                 }
                 // Use this template when making changes:
                 //
