@@ -1,33 +1,38 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! gRPC-backed store population (`feature = "grpc"`, native only).
+//! gRPC-backed store (`feature = "grpc"`, native only).
 //!
-//! [`GrpcStore`] wraps an [`InMemoryStore`] and a gRPC [`Client`]. Object
-//! fetching is async and confined to this module: callers `prefetch` the
-//! objects a transaction references (and the [`ChainContext`]) up front, then
-//! hand the populated store to a [`LocalVm`](crate::LocalVm). Because the
-//! resulting store is a plain synchronous [`Store`], the executor itself never
-//! does network I/O.
+//! [`GrpcStore`] wraps a gRPC [`Client`] and an in-memory object cache: it
+//! resolves objects on demand during execution and caches them, so only the
+//! objects a run actually touches are fetched.
+//! [`fetch_chain_context`](GrpcStore::fetch_chain_context) runs up front, and
+//! callers may [`prefetch`](GrpcStore::prefetch) to warm the cache, but neither
+//! is required for correctness.
+//!
+//! On-demand fetching blocks the executor thread on async I/O, so
+//! [`LocalVm::execute`](crate::LocalVm::execute) must run inside a
+//! multi-threaded Tokio runtime (e.g. `#[tokio::main]`).
+
+use std::collections::HashSet;
 
 use iota_grpc_client::Client;
 use iota_sdk_types::{ObjectId, Version};
-use iota_types::{
-    object::Object,
-    transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
-};
+use iota_types::{object::Object, transaction::TransactionData};
 
 use crate::{
+    caching::{CachingStore, ObjectFetcher},
     error::{StoreError, VmSdkError},
     executor::ChainContext,
     store::{InMemoryStore, Store},
 };
 
-/// A [`Store`] populated from a remote node over gRPC.
+/// A [`Store`] backed by a remote node over gRPC, resolving objects on demand.
+///
+/// Clones share the same cache and client.
 #[derive(Clone)]
 pub struct GrpcStore {
-    inner: InMemoryStore,
-    client: Client,
+    cache: CachingStore<GrpcFetcher>,
 }
 
 impl GrpcStore {
@@ -35,8 +40,7 @@ impl GrpcStore {
     /// packages already loaded so Move calls resolve.
     pub fn new(client: Client) -> Self {
         Self {
-            inner: InMemoryStore::with_framework(),
-            client,
+            cache: CachingStore::new(GrpcFetcher { client }),
         }
     }
 
@@ -52,10 +56,20 @@ impl GrpcStore {
         Ok(Self::new(client))
     }
 
-    /// Read-only access to the wrapped in-memory store, e.g. to snapshot the
-    /// objects fetched so far.
-    pub fn store(&self) -> &InMemoryStore {
-        &self.inner
+    /// A snapshot clone of the objects cached so far (framework packages plus
+    /// anything fetched on demand or pre-fetched).
+    pub fn store(&self) -> InMemoryStore {
+        self.cache.store()
+    }
+
+    /// The most recent on-demand fetch failure, if any.
+    ///
+    /// A failed cache-miss fetch collapses to "object absent" — surfacing later
+    /// as [`VmSdkError::MissingObject`] — so check this to tell a transient
+    /// transport or decode failure apart from a genuinely missing object.
+    /// Cleared by the next successful fetch.
+    pub fn last_fetch_error(&self) -> Option<String> {
+        self.cache.last_fetch_error()
     }
 
     /// Fetch the chain parameters a [`LocalVm`](crate::LocalVm) needs.
@@ -69,6 +83,8 @@ impl GrpcStore {
     /// decoded.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let epoch = self
+            .cache
+            .fetcher()
             .client
             .get_epoch(None, None)
             .await
@@ -96,63 +112,40 @@ impl GrpcStore {
         })
     }
 
-    /// Fetch every object the transaction references and insert it into the
-    /// store. Owned/immutable objects are fetched at their transaction
-    /// versions; shared objects and packages at the latest version.
+    /// Fetch every object the transaction references and cache them in one
+    /// batched request.
     ///
-    /// This covers the transaction body only. A `MoveAuthenticator`-signed run
-    /// also needs the authenticator's input objects and each account's
-    /// `AuthenticatorFunctionRefV1` field present — run
-    /// [`prefetch_dynamic_fields`](Self::prefetch_dynamic_fields) (or insert
-    /// them manually) before executing such a transaction.
+    /// Optional: the store also resolves these objects on demand during
+    /// execution. Pre-fetching only saves the per-object round-trips the
+    /// executor would otherwise make for the transaction body.
     pub async fn prefetch(&mut self, transaction: &TransactionData) -> Result<(), VmSdkError> {
-        let mut refs: Vec<(ObjectId, Option<Version>)> = Vec::new();
-        let input_object_kinds = transaction
-            .input_objects()
-            .map_err(|e| StoreError::new("collect input objects", e))?;
-        for kind in &input_object_kinds {
-            match kind {
-                InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    refs.push((objref.object_id, Some(objref.version)))
-                }
-                // Shared objects and packages: latest version.
-                InputObjectKind::SharedMoveObject { id, .. } => refs.push((*id, None)),
-                InputObjectKind::MovePackage(id) => refs.push((*id, None)),
-            }
-        }
-        for gas_ref in transaction.gas() {
-            refs.push((gas_ref.object_id, Some(gas_ref.version)));
-        }
-        for objref in transaction.receiving_objects() {
-            refs.push((objref.object_id, Some(objref.version)));
-        }
-        if refs.is_empty() {
-            return Ok(());
-        }
-        self.fetch_and_insert(&refs).await
+        self.cache.prefetch(transaction).await
     }
 
-    /// Recursively fetch the dynamic-field children of every object already in
-    /// the store and insert them too. Move calls that read tables/bags need
-    /// these children present to execute offline — e.g. staking walks the
-    /// validator set stored as a dynamic field inside `IotaSystemState`, and
-    /// `request_add_stake` aborts in `dynamic_field::remove_child_object`
-    /// without them. Call after [`prefetch`](Self::prefetch); children are
-    /// fetched at their latest version, matching how shared objects are loaded.
-    /// Recursion is bounded only by the object graph (a `visited` set breaks
-    /// cycles); intended for local development against trusted nodes.
+    /// Eagerly fetch the dynamic-field children of every object already cached,
+    /// recursively, and insert them too.
+    ///
+    /// Optional: the store resolves dynamic-field children on demand during
+    /// execution, so a run only loads the children it touches (e.g. the slice
+    /// of the validator set staking reads). This walks the *entire*
+    /// dynamic-field graph instead — useful to pre-warm or snapshot it, but it
+    /// over-fetches. Recursion is bounded only by the object graph (a `visited`
+    /// set breaks cycles); intended for local development against trusted
+    /// nodes.
     ///
     /// # Errors
     ///
     /// Returns [`VmSdkError::Store`] if a listing or fetch fails.
     pub async fn prefetch_dynamic_fields(&mut self) -> Result<(), VmSdkError> {
-        let mut visited: std::collections::HashSet<ObjectId> = std::collections::HashSet::new();
-        let mut queue: Vec<ObjectId> = self.inner.iter().map(|(id, _)| *id).collect();
+        let mut visited: HashSet<ObjectId> = HashSet::new();
+        let mut queue: Vec<ObjectId> = self.cache.cached_ids();
         while let Some(parent) = queue.pop() {
             if !visited.insert(parent) {
                 continue;
             }
             let fields = self
+                .cache
+                .fetcher()
                 .client
                 .list_dynamic_fields(parent, None, None, None)
                 .collect(None)
@@ -179,23 +172,56 @@ impl GrpcStore {
             if refs.is_empty() {
                 continue;
             }
-            self.fetch_and_insert(&refs).await?;
+            self.cache.fetch_and_insert(&refs).await?;
             // Recurse into the newly fetched children to find their descendants.
             queue.extend(refs.into_iter().map(|(id, _)| id));
         }
         Ok(())
     }
+}
 
-    async fn fetch_and_insert(
-        &mut self,
+impl Store for GrpcStore {
+    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> Option<Object> {
+        self.cache.get_object(id, version)
+    }
+
+    fn get_child_object(
+        &self,
+        parent: &ObjectId,
+        child: &ObjectId,
+        version_upper_bound: Version,
+    ) -> Option<Object> {
+        self.cache
+            .get_child_object(parent, child, version_upper_bound)
+    }
+
+    fn insert(&mut self, object: Object) {
+        self.cache.insert(object);
+    }
+
+    fn remove(&mut self, id: &ObjectId) {
+        self.cache.remove(id);
+    }
+}
+
+/// gRPC transport for [`CachingStore`].
+#[derive(Clone)]
+struct GrpcFetcher {
+    client: Client,
+}
+
+impl ObjectFetcher for GrpcFetcher {
+    async fn fetch_objects(
+        &self,
         refs: &[(ObjectId, Option<Version>)],
-    ) -> Result<(), VmSdkError> {
+    ) -> Result<Vec<Object>, VmSdkError> {
         let proto_objects = self
             .client
             .get_objects(refs, None)
             .await
             .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
             .into_inner();
+        let mut objects = Vec::with_capacity(proto_objects.len());
         for proto_obj in proto_objects {
             // The proto helper yields the SDK `Object`; round-trip through BCS
             // into the node's `iota_types::object::Object` (identical layout).
@@ -206,32 +232,8 @@ impl GrpcStore {
                 bcs::to_bytes(&sdk_obj).map_err(|e| StoreError::new("re-encode object", e))?;
             let obj: Object =
                 bcs::from_bytes(&bytes).map_err(|e| StoreError::new("decode object", e))?;
-            self.inner.insert(obj);
+            objects.push(obj);
         }
-        Ok(())
-    }
-}
-
-impl Store for GrpcStore {
-    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> Option<Object> {
-        self.inner.get_object(id, version)
-    }
-
-    fn get_child_object(
-        &self,
-        parent: &ObjectId,
-        child: &ObjectId,
-        version_upper_bound: Version,
-    ) -> Option<Object> {
-        self.inner
-            .get_child_object(parent, child, version_upper_bound)
-    }
-
-    fn insert(&mut self, object: Object) {
-        self.inner.insert(object);
-    }
-
-    fn remove(&mut self, id: &ObjectId) {
-        self.inner.remove(id);
+        Ok(objects)
     }
 }

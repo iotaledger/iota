@@ -11,9 +11,6 @@
 //!
 //! Run with:
 //!   cargo run -p iota-vm-sdk --features grpc --example stake_grpc
-//!
-//! [`SENDER`] must own at least one IOTA coin on testnet; replace it with your
-//! own funded address.
 
 use anyhow::{Context, Result};
 use iota_grpc_client::Client;
@@ -21,47 +18,34 @@ use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::Address;
 use iota_vm_sdk::{ExecuteOptions, LocalVm, TransactionData, grpc::GrpcStore};
 
-/// Testnet gRPC endpoint the store fetches from (matches
-/// `Client::new_testnet`).
-const TESTNET_GRPC_URL: &str = "https://grpc.testnet.iota.cafe:443";
-/// Account that pays for gas and provides the stake. Replace with your own
-/// funded testnet address — it must own at least one IOTA coin.
-const SENDER: &str = "0xda1820edf693ee32b5729907b9b2ec8e64980ee8c008c17e89cfb4e5ecd72151";
-/// An active testnet validator to stake with.
-const VALIDATOR: &str = "0x4f9791e5fbbcdf95b7e3c4f12da1f3c0d1c4d8c0d3f2e1a09876543210fedcba";
-/// Amount to stake, in nanos (1 IOTA = 1_000_000_000 nanos).
-const STAKE_AMOUNT: u64 = 1_000_000_000;
-
 #[tokio::main]
 async fn main() -> Result<()> {
-    let sender: Address = SENDER.parse().context("parse sender address")?;
-    let validator: Address = VALIDATOR.parse().context("parse validator address")?;
+    // Account that pays for gas and provides the stake.
+    let sender =
+        Address::from_hex("0xda1820edf693ee32b5729907b9b2ec8e64980ee8c008c17e89cfb4e5ecd72151")?;
+    // An active testnet validator to stake with.
+    let validator =
+        Address::from_hex("0xa276b4c076fff55588255630e9ee35cf0d07e8d80c78991cfd58b43b687b4206")?;
+    // Amount to stake, in nanos (1 IOTA = 1_000_000_000 nanos).
+    let stake_amount: u64 = 1_000_000_000;
 
     // Build the staking transaction with the transaction builder over testnet
     // gRPC. `stake` splits the stake amount off the gas coin, so the sender only
     // needs IOTA coins to pay for gas; `finish` selects them, estimates the gas
     // budget, and returns the transaction unsigned.
     let client = Client::new_testnet().context("connect testnet gRPC client")?;
-    let mut builder = TransactionBuilder::new(sender).with_client(client);
-    builder.stake(STAKE_AMOUNT, validator);
+    let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
+    builder.stake(stake_amount, validator);
     let tx: TransactionData = builder.finish().await.context("resolve staking tx")?;
 
-    // Pull everything the local VM needs over gRPC: the chain context, the
-    // transaction's input objects, and the system-state dynamic fields the
-    // staking call reads.
-    let mut store = GrpcStore::connect(TESTNET_GRPC_URL).context("connect gRPC store")?;
+    // The store resolves every object the VM reads over gRPC on demand —
+    // inputs and the system-state dynamic fields staking walks — so only the
+    // chain context is fetched up front.
+    let store = GrpcStore::new(client);
     let ctx = store
         .fetch_chain_context()
         .await
         .context("fetch chain context")?;
-    store
-        .prefetch(&tx)
-        .await
-        .context("prefetch input objects")?;
-    store
-        .prefetch_dynamic_fields()
-        .await
-        .context("prefetch dynamic fields")?;
 
     // Dry-run locally — no signature, no submission.
     let mut vm = LocalVm::new(ctx, store).context("build LocalVm")?;

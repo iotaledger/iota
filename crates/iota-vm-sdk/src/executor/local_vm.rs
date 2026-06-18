@@ -123,14 +123,13 @@ impl LocalVm {
             let backend = StoreBackend::new(self.store.as_ref());
             prepare_transaction(&env, &backend, tx, opts.mode, 0)?
         };
-        // The plain dev_inspect path does not accept a trace builder (only the
-        // authenticator path does), so no trace is captured here.
-        let trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
         let sim = {
             let backend = StoreBackend::new(self.store.as_ref());
             execute_prepared(&env, &backend, prepared, opts.mode)?
         };
-        let artifacts = env.collect_artifacts(trace_builder);
+        // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
+        // never captures a trace; pass `None`. See `DebugConfig::with_trace`.
+        let artifacts = env.collect_artifacts(None);
         self.finish(sim, opts.mode, SignatureStatus::NotChecked, artifacts)
     }
 
@@ -200,18 +199,21 @@ impl LocalVm {
                 authenticator_gas_budget,
             )?
         };
-        let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
-
-        let (sim, signature_status) = {
+        let (sim, signature_status, trace_builder) = {
             let backend = StoreBackend::new(self.store.as_ref());
             if move_authenticators.is_empty() {
                 // Standard schemes were verified cryptographically above; the
-                // run's outcome cannot retroactively invalidate them.
+                // run's outcome cannot retroactively invalidate them. Runs
+                // through the dev-inspect entry point, so no trace is captured.
                 (
                     execute_prepared(&env, &backend, prepared, opts.mode)?,
                     SignatureStatus::Verified,
+                    None,
                 )
             } else {
+                // Only the authenticator path threads a `MoveTraceBuilder`
+                // through the engine, so a trace is built only here.
+                let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
                 let (sim, verdict) = execute_with_move_authenticators(
                     &env,
                     &backend,
@@ -227,7 +229,7 @@ impl LocalVm {
                     // verification failed:", so carry only the cause here.
                     Err(e) => SignatureStatus::Failed(crate::error::SignatureError::new(e)),
                 };
-                (sim, status)
+                (sim, status, trace_builder)
             }
         };
         let artifacts = env.collect_artifacts(trace_builder);
@@ -259,9 +261,9 @@ impl LocalVm {
     /// Decode a single BCS-encoded value of the given
     /// [`TypeTag`](iota_sdk_types::TypeTag) into an annotated
     /// [`MoveValue`](move_core_types::annotated_value::MoveValue), resolving
-    /// any struct layouts from the packages in the store. Used to turn
-    /// dev-inspect return values and mutable reference outputs (raw
-    /// `(bytes, type)` pairs) into readable values.
+    /// any struct layouts from the packages in the store. Turns raw
+    /// `(bytes, type)` pairs — dev-inspect return values and mutable
+    /// reference outputs — into readable values.
     ///
     /// # Errors
     ///

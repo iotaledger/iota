@@ -3,12 +3,12 @@
 
 //! Typed error surface for the local VM SDK.
 //!
-//! Every fallible entry point returns [`VmSdkError`]. Its variants partition
-//! the failure space by phase, so callers can branch on where a run failed.
-//! The validation and signature-verification phases carry the underlying
-//! [`IotaError`] as a [`std::error::Error::source`] so callers can match on the
-//! concrete cause; the remaining phases wrap a message because their causes
-//! (BCS / layout / VM invariant failures) are not a single matchable type.
+//! Every fallible entry point returns [`VmSdkError`], whose variants partition
+//! the failure space by phase. The validation and signature-verification phases
+//! carry the underlying [`IotaError`] as a [`std::error::Error::source`] for
+//! matching on the concrete cause; the remaining phases wrap a message because
+//! their causes (BCS / layout / VM invariant failures) are not a single
+//! matchable type.
 
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::error::IotaError;
@@ -71,8 +71,8 @@ pub struct ValidationError {
 }
 
 impl ValidationError {
-    /// Wrap the node error from a failed validation check; `context` names the
-    /// check that produced it.
+    /// `context` names the failed check; `source` is the node error it
+    /// produced.
     pub fn new(context: impl Into<String>, source: impl Into<IotaError>) -> Self {
         Self {
             context: context.into(),
