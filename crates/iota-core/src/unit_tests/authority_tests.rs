@@ -7158,7 +7158,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
             vec![],
             gas_object.object_ref(),
             vec![
-                CallArg::Shared(SharedObjectRef::new(
+                CallArg::Shared(SharedObjectReference::new(
                     shared_objects[0].id(),
                     OBJECT_START_VERSION,
                     true,
