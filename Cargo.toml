@@ -444,6 +444,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ce81341ac3fdb7204df112182c68319f26d5896b", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ce81341ac3fdb7204df112182c68319f26d5896b", default-features = false }
 iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ce81341ac3fdb7204df112182c68319f26d5896b", default-features = false }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ce81341ac3fdb7204df112182c68319f26d5896b", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
