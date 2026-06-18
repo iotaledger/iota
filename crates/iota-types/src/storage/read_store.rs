@@ -867,8 +867,7 @@ pub struct EpochInfoV2 {
     pub start_timestamp_ms: u64,
     /// `IotaSystemState` of object `0x5` at this epoch's start.
     pub system_state: IotaSystemState,
-    /// Close-of-epoch entry (the same shape written to the snapshot
-    /// `EPOCH_INFO` file); `None` until this epoch's boundary is indexed. The
+    /// Close-of-epoch entry; `None` until this epoch's boundary is indexed. The
     /// row is finalized exactly when this is `Some`.
     pub epoch_info_entry: Option<EpochInfoV1Entry>,
 }
