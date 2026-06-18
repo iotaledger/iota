@@ -240,6 +240,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_gc_unsuspended_total: IntCounter,
     pub(crate) block_manager_gc_evicted_suspended_transactions_total: IntCounter,
     pub(crate) block_manager_gc_evicted_old_headers_total: IntCounter,
+    pub(crate) dropped_far_future_headers_total: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
@@ -994,6 +995,12 @@ impl NodeMetrics {
             block_manager_gc_evicted_old_headers_total: register_int_counter_with_registry!(
                 "block_manager_gc_evicted_old_headers_total",
                 "Total number of incoming block headers dropped because their round is at or below the GC floor",
+                registry,
+            ).unwrap(),
+            dropped_far_future_headers_total: register_int_counter_vec_with_registry!(
+                "dropped_far_future_headers_total",
+                "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source",
+                &["source"],
                 registry,
             ).unwrap(),
             threshold_clock_round: register_int_gauge_with_registry!(
