@@ -89,6 +89,10 @@ pub enum ExecutionMode {
     DryRun,
     /// Full sign-time checks; on success, effects are applied back to the
     /// store and [`ExecutionResult::committed`] is `true`.
+    ///
+    /// A transaction that aborts commits nothing — not even the gas charge — so
+    /// across multiple runs the store does not reflect a node's post-abort
+    /// state.
     Execute,
 }
 

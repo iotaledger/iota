@@ -36,8 +36,10 @@ pub enum VmSdkError {
         id: ObjectId,
         version: Option<Version>,
     },
-    /// Execution produced a recoverable Move-level error (an abort, a runtime
-    /// limit, etc.). The transaction ran but did not succeed.
+    /// Failed to decode a value or event against its Move type layout (layout
+    /// resolution or BCS deserialization). A Move-level abort is *not* reported
+    /// here — it surfaces on
+    /// [`ExecutionResult::status`](crate::ExecutionResult).
     #[error(transparent)]
     Execution(#[from] ExecutionError),
     /// The Move VM itself faulted in a way that prevented execution (invariant
@@ -88,13 +90,19 @@ impl ValidationError {
 #[error("signature verification failed: {message}")]
 pub struct SignatureError {
     pub message: String,
+    /// The authenticator's typed rejection cause, for matching on the concrete
+    /// `ExecutionErrorKind`.
+    #[source]
+    pub source: Option<iota_types::error::ExecutionError>,
 }
 
 impl SignatureError {
-    /// Build a [`SignatureError`] from the authenticator's rejection message.
-    pub fn new(message: impl std::fmt::Display) -> Self {
+    /// Build a [`SignatureError`] from the authenticator's typed rejection
+    /// cause.
+    pub fn new(source: iota_types::error::ExecutionError) -> Self {
         Self {
-            message: message.to_string(),
+            message: source.to_string(),
+            source: Some(source),
         }
     }
 }
@@ -119,7 +127,7 @@ impl StoreError {
     }
 }
 
-/// A recoverable Move-level execution error.
+/// Failed to decode a value or event against its Move type layout.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 #[error("execution error: {message}")]
@@ -128,7 +136,8 @@ pub struct ExecutionError {
 }
 
 impl ExecutionError {
-    /// Build an [`ExecutionError`] from a Move-level failure message.
+    /// Build an [`ExecutionError`] from a layout-resolution or deserialization
+    /// failure message.
     pub fn new(message: impl std::fmt::Display) -> Self {
         Self {
             message: message.to_string(),

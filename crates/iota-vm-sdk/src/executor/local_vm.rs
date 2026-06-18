@@ -225,8 +225,9 @@ impl LocalVm {
                 )?;
                 let status = match verdict {
                     Ok(()) => SignatureStatus::Verified,
-                    // `SignatureError`'s `Display` already prefixes "signature
-                    // verification failed:", so carry only the cause here.
+                    // Carry the authenticator's typed rejection cause;
+                    // `SignatureError`'s `Display` adds the "signature
+                    // verification failed:" prefix.
                     Err(e) => SignatureStatus::Failed(crate::error::SignatureError::new(e)),
                 };
                 (sim, status, trace_builder)

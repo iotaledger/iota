@@ -23,8 +23,8 @@ use iota_types::{
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
-    Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, SignatureStatus,
-    Store,
+    Chain, ChainContext, DebugConfig, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm,
+    ProfileOutput, ProfileSink, ProtocolVersion, SignatureStatus, Store, VmSdkError,
 };
 use serde::Deserialize;
 
@@ -75,11 +75,10 @@ fn load(name: &str) -> Fixture {
     serde_json::from_str(&raw).expect("parse fixture")
 }
 
-/// Run a fixture's signed transaction in dev-inspect mode and return the
-/// resulting status / signature-status pair. Dev-inspect relaxes gas (the
-/// fixtures carry no real gas payment) while still verifying the
-/// `MoveAuthenticator` inside the VM.
-fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
+/// Run a fixture's signed transaction in the given mode and return the full
+/// result. The fixtures carry no real gas payment, so a mock gas coin is
+/// minted; the `MoveAuthenticator` is verified inside the VM in every mode.
+fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
     let f = load(name);
 
     let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
@@ -99,9 +98,14 @@ fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
 
     let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
 
-    let result = vm
-        .execute_signed(signed, ExecuteOptions::dev_inspect())
-        .expect("execute_signed returns Ok (auth verdict is carried in the result)");
+    vm.execute_signed(signed, opts)
+        .expect("execute_signed returns Ok (auth verdict is carried in the result)")
+}
+
+/// Run a fixture in dev-inspect mode and return the status / signature-status
+/// pair.
+fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
+    let result = run(name, ExecuteOptions::dev_inspect());
     (result.status, result.signature_status)
 }
 
@@ -253,5 +257,79 @@ fn move_authenticator_rejects() {
     assert!(
         matches!(signature_status, SignatureStatus::Failed(_)),
         "expected SignatureStatus::Failed, got {signature_status:?}"
+    );
+}
+
+/// In `DryRun`/`Execute`, the body of a `MoveAuthenticator`-signed transaction
+/// must be metered at the full transaction gas budget, not the much smaller
+/// authenticator budget (`max_auth_gas`). The free-access authenticator accepts
+/// and the `add_field` body costs more than `max_auth_gas`, so the run succeeds
+/// only when the body is given the full budget.
+#[test]
+fn move_authenticator_dry_run_meters_body_at_full_budget() {
+    let result = run(
+        "move_auth_free_access_valid.json",
+        ExecuteOptions::dry_run(),
+    );
+    assert!(
+        result.status.is_success(),
+        "the body must be metered at the full budget in dry-run, got {:?}",
+        result.status
+    );
+    assert!(
+        matches!(result.signature_status, SignatureStatus::Verified),
+        "free-access authenticator must report Verified, got {:?}",
+        result.signature_status
+    );
+}
+
+/// The authenticator path threads a trace builder and a gas profiler through
+/// the engine, so a run with both enabled returns the captured artifacts.
+#[test]
+fn move_authenticator_run_captures_trace_and_profile() {
+    let opts = ExecuteOptions::dev_inspect().with_debug(
+        DebugConfig::default()
+            .with_trace()
+            .with_profile(ProfileSink::Capture),
+    );
+    let result = run("move_auth_free_access_valid.json", opts);
+    let debug = result
+        .debug
+        .expect("debug artifacts present when capture was requested");
+    assert!(
+        debug.trace.is_some(),
+        "authenticator run must capture a trace"
+    );
+    assert!(
+        matches!(debug.profile, Some(ProfileOutput::Json(ref bytes)) if !bytes.is_empty()),
+        "capture sink must yield non-empty profile JSON, got {:?}",
+        debug.profile
+    );
+}
+
+/// A `MoveAuthenticator`-signed transaction against a store missing the objects
+/// it references must surface a clean [`VmSdkError::MissingObject`], not a
+/// panic.
+#[test]
+fn move_authenticator_missing_object_is_reported() {
+    let f = load("move_auth_free_access_valid.json");
+    let tx: TransactionData = bcs::from_bytes(&b64(&f.tx_b64)).expect("decode tx");
+    let sigs: Vec<GenericSignature> = f
+        .signatures
+        .iter()
+        .map(|s| GenericSignature::from_bytes(&b64(s)).expect("decode signature"))
+        .collect();
+    let signed = SenderSignedData::new(tx, sigs);
+
+    // Only the framework is present — none of the fixture's objects.
+    let store = InMemoryStore::with_framework();
+    let mut vm = LocalVm::new(chain_context(&f), store).expect("build LocalVm");
+
+    let err = vm
+        .execute_signed(signed, ExecuteOptions::dev_inspect())
+        .expect_err("a missing referenced object must fail");
+    assert!(
+        matches!(err, VmSdkError::MissingObject { .. }),
+        "expected MissingObject, got {err:?}"
     );
 }

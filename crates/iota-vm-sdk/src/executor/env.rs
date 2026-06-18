@@ -30,15 +30,22 @@ pub(super) struct ExecutionEnv {
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     debug: DebugConfig,
-    capture_profile_dir: Option<std::path::PathBuf>,
+    profile_capture: Option<ProfileCapture>,
+}
+
+/// Where a run's gas profile is captured: a temp dir the profiler writes its
+/// per-invocation JSON into, plus the caller's requested output path for
+/// [`ProfileSink::Path`] (`None` for [`ProfileSink::Capture`]).
+struct ProfileCapture {
+    dir: std::path::PathBuf,
+    target: Option<std::path::PathBuf>,
 }
 
 impl ExecutionEnv {
     pub(super) fn new(vm: &LocalVm, debug: &DebugConfig) -> Result<Self, VmSdkError> {
         // Built per run because `iota_execution::executor` bakes the profiler
         // path in at construction, so it cannot be shared across runs.
-        let (executor, capture_profile_dir) =
-            build_executor_with_profile(&vm.protocol_config, debug)?;
+        let (executor, profile_capture) = build_executor_with_profile(&vm.protocol_config, debug)?;
 
         Ok(Self {
             protocol_config: vm.protocol_config.clone(),
@@ -49,7 +56,7 @@ impl ExecutionEnv {
             limits_metrics: vm.limits_metrics.clone(),
             bytecode_verifier_metrics: vm.bytecode_verifier_metrics.clone(),
             debug: debug.clone(),
-            capture_profile_dir,
+            profile_capture,
         })
     }
 
@@ -66,7 +73,7 @@ impl ExecutionEnv {
         if !self.debug.any_enabled() {
             return None;
         }
-        let profile = collect_profile(&self.debug, self.capture_profile_dir.as_deref());
+        let profile = collect_profile(self.profile_capture.as_ref());
 
         Some(DebugArtifacts {
             profile,
@@ -77,8 +84,8 @@ impl ExecutionEnv {
 
 impl Drop for ExecutionEnv {
     fn drop(&mut self) {
-        if let Some(dir) = self.capture_profile_dir.take() {
-            let _ = std::fs::remove_dir_all(&dir);
+        if let Some(capture) = self.profile_capture.take() {
+            let _ = std::fs::remove_dir_all(&capture.dir);
         }
     }
 }
@@ -96,41 +103,57 @@ pub(super) fn build_executor(
 fn build_executor_with_profile(
     protocol_config: &ProtocolConfig,
     debug: &DebugConfig,
-) -> Result<(Arc<dyn Executor + Send + Sync>, Option<std::path::PathBuf>), VmSdkError> {
-    let (profile_path, capture_dir) = match &debug.profile {
-        Some(ProfileSink::Path(p)) => (Some(p.clone()), None),
-        Some(ProfileSink::Capture) => {
+) -> Result<(Arc<dyn Executor + Send + Sync>, Option<ProfileCapture>), VmSdkError> {
+    // Both sinks point the profiler at a temp dir we own: it writes one
+    // timestamped file per VM invocation there, which `collect_profile` merges.
+    // `ProfileSink::Path` additionally records the caller's target path.
+    let profile_capture = match &debug.profile {
+        Some(sink) => {
             let dir = profile_capture_dir();
             std::fs::create_dir_all(&dir)
                 .map_err(|e| VmError::new(format!("create profile dir: {e}")))?;
-            (Some(dir.join("profile.json")), Some(dir))
+            let target = match sink {
+                ProfileSink::Path(p) => Some(p.clone()),
+                ProfileSink::Capture => None,
+            };
+            Some(ProfileCapture { dir, target })
         }
-        _ => (None, None),
+        None => None,
     };
 
     // See `build_executor` for why the executor is always silent.
+    let profile_path = profile_capture.as_ref().map(|c| c.dir.join("profile.json"));
     let executor =
         iota_execution::executor(protocol_config, true, profile_path).map_err(VmError::new)?;
-    Ok((executor, capture_dir))
+    Ok((executor, profile_capture))
 }
 
-fn collect_profile(
-    debug: &DebugConfig,
-    capture_dir: Option<&std::path::Path>,
-) -> Option<ProfileOutput> {
-    match (&debug.profile, capture_dir) {
-        (Some(ProfileSink::Path(p)), _) => Some(ProfileOutput::Path(p.clone())),
-        (Some(ProfileSink::Capture), Some(dir)) => merge_profile_dir(dir),
-        _ => None,
+fn collect_profile(capture: Option<&ProfileCapture>) -> Option<ProfileOutput> {
+    let capture = capture?;
+    // Merge the profiler's per-invocation files; `None` when nothing was written
+    // (e.g. an unmetered run).
+    let merged = merge_profile_dir(&capture.dir)?;
+    match &capture.target {
+        // `ProfileSink::Path`: write the merged profile to the caller's path.
+        Some(target) => {
+            std::fs::write(target, &merged).ok()?;
+            Some(ProfileOutput::Path(target.clone()))
+        }
+        // `ProfileSink::Capture`: hand back the merged bytes.
+        None => Some(ProfileOutput::Json(merged)),
     }
 }
+
+/// Name prefix for the per-run gas-profile capture directory created in the
+/// system temp dir.
+const PROFILE_CAPTURE_DIR_PREFIX: &str = "iota-vm-sdk-gas-profile-";
 
 fn profile_capture_dir() -> std::path::PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    std::env::temp_dir().join(format!("iota-vm-sdk-gas-profile-{pid}-{n}"))
+    std::env::temp_dir().join(format!("{PROFILE_CAPTURE_DIR_PREFIX}{pid}-{n}"))
 }
 
 /// Merge every Speedscope JSON file the profiler wrote into `dir` into one
@@ -138,7 +161,7 @@ fn profile_capture_dir() -> std::path::PathBuf {
 /// authenticator call plus the PTB body), each with its own frames table, so
 /// the merge concatenates `profiles` and rebuilds a de-duplicated
 /// `shared.frames`.
-fn merge_profile_dir(dir: &std::path::Path) -> Option<ProfileOutput> {
+fn merge_profile_dir(dir: &std::path::Path) -> Option<Vec<u8>> {
     let entries = std::fs::read_dir(dir).ok()?;
     let mut docs: Vec<serde_json::Value> = Vec::new();
     for entry in entries.flatten() {
@@ -156,7 +179,7 @@ fn merge_profile_dir(dir: &std::path::Path) -> Option<ProfileOutput> {
         return None;
     }
     if docs.len() == 1 {
-        return serde_json::to_vec(&docs[0]).ok().map(ProfileOutput::Json);
+        return serde_json::to_vec(&docs[0]).ok();
     }
     let mut merged_frames: Vec<serde_json::Value> = Vec::new();
     let mut merged_profiles: Vec<serde_json::Value> = Vec::new();
@@ -201,5 +224,5 @@ fn merge_profile_dir(dir: &std::path::Path) -> Option<ProfileOutput> {
         "shared": { "frames": merged_frames },
         "profiles": merged_profiles,
     });
-    serde_json::to_vec(&merged).ok().map(ProfileOutput::Json)
+    serde_json::to_vec(&merged).ok()
 }

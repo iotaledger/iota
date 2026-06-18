@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! End-to-end comparison: run a staking transaction through the local
-//! [`LocalVm`] (objects pre-fetched over gRPC into a [`GrpcStore`]) and against
-//! a live [`test_cluster::TestCluster`]'s own dry-run, then assert both agree.
+//! [`LocalVm`] (objects resolved on demand over gRPC from a [`GrpcStore`]) and
+//! against a live [`test_cluster::TestCluster`]'s own dry-run, then assert both
+//! agree.
 
 use std::collections::BTreeSet;
 
@@ -11,7 +12,7 @@ use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk_types::Owner;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{base_types::ObjectRef, effects::TransactionEffectsAPI};
-use iota_vm_sdk::{ExecuteOptions, LocalVm, TypeTag, grpc::GrpcStore};
+use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, TypeTag, grpc::GrpcStore};
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
 
@@ -70,50 +71,21 @@ async fn compare_local_vm_staking_against_test_cluster() {
         "node dry-run staking should succeed"
     );
 
-    // Local VM: pre-fetch every referenced object over gRPC, then dev-inspect
-    // offline against the same Move engine the node uses.
-    let mut store = GrpcStore::connect(test_cluster.grpc_url()).expect("connect gRPC store");
-    let ctx = store
-        .fetch_chain_context()
-        .await
-        .expect("fetch chain context");
-    store.prefetch(&tx_data).await.expect("prefetch objects");
-    // Staking reads the validator set stored as dynamic fields inside the
-    // system state, so the offline store also needs those children.
-    store
-        .prefetch_dynamic_fields()
-        .await
-        .expect("prefetch dynamic fields");
-
-    let mut vm = LocalVm::new(ctx, store).expect("build LocalVm");
-    let result = vm
-        .execute(tx_data.clone(), ExecuteOptions::dev_inspect())
-        .expect("local dev-inspect should succeed");
-    assert!(
-        result.effects.status().is_success(),
-        "local dev-inspect staking should succeed: {:?}",
-        result.effects.status()
-    );
-
-    // Compare the full object references: the `ObjectRef` carries each object's
-    // version and content digest, so both backends must agree on the resulting
-    // contents, not merely on which objects were touched.
+    // Reference object-change sets from the node's dry-run. The `ObjectRef`
+    // carries each object's version and content digest, so the backends must
+    // agree on resulting contents, not merely on which objects were touched.
     //
-    // The gas object is the one principled exception: local dev-inspect and the
-    // node's dry-run meter gas differently, so the gas coin's post-execution
-    // balance — and therefore its digest — can legitimately differ. We compare
-    // it by id and owner only, and exclude it from the full-ref mutated set.
+    // The gas object is the one principled exception. What differs is the gas
+    // *cost*: local dev-inspect runs against a mock gas coin with relaxed
+    // metering, and local gas accounting need not match the node's to the nano,
+    // so the gas coin's post-execution balance — and therefore its content
+    // digest — can legitimately differ even when every other object matches. It
+    // is compared by id and owner only, and excluded from the full-ref mutated
+    // set.
     let node_gas = (
         dry_run.effects.gas_object().object_id(),
         dry_run.effects.gas_object().owner,
     );
-    let (local_gas_ref, local_gas_owner) = result.effects.gas_object();
-    let local_gas = (local_gas_ref.object_id, local_gas_owner);
-    assert_eq!(
-        node_gas, local_gas,
-        "node dry-run and local VM should agree on the gas object id and owner"
-    );
-
     let node_created: BTreeSet<(ObjectRef, Owner)> = dry_run
         .effects
         .created()
@@ -129,32 +101,75 @@ async fn compare_local_vm_staking_against_test_cluster() {
         .collect();
     let node_deleted: BTreeSet<ObjectRef> = dry_run.effects.deleted().iter().copied().collect();
 
-    let local_created: BTreeSet<(ObjectRef, Owner)> =
-        result.effects.created().into_iter().collect();
-    let local_mutated: BTreeSet<(ObjectRef, Owner)> = result
-        .effects
-        .mutated()
-        .into_iter()
-        .filter(|(r, _)| r.object_id != local_gas.0)
-        .collect();
-    let local_deleted: BTreeSet<ObjectRef> = result.effects.deleted().into_iter().collect();
+    // Local VM: every object the run reads — the transaction inputs and the
+    // system-state dynamic fields staking walks — is resolved on demand over
+    // gRPC during execution, against the same Move engine the node uses. Only
+    // the chain context is fetched up front; prefetching is an optional batching
+    // optimisation and is deliberately not used here, so this also exercises the
+    // on-demand resolution path.
+    let store = GrpcStore::connect(test_cluster.grpc_url()).expect("connect gRPC store");
+    let ctx = store
+        .fetch_chain_context()
+        .await
+        .expect("fetch chain context");
 
-    assert_eq!(
-        node_created, local_created,
-        "node dry-run and local VM should create the same objects"
+    let mut vm = LocalVm::new(ctx, store).expect("build LocalVm");
+
+    // The node's object changes must match the local VM in both DevInspect
+    // (relaxed checks, mock gas) and DryRun (full sign-time checks, real gas).
+    let assert_changes_match = |result: &ExecutionResult, mode: &str| {
+        let (local_gas_ref, local_gas_owner) = result.effects.gas_object();
+        assert_eq!(
+            (local_gas_ref.object_id, local_gas_owner),
+            node_gas,
+            "{mode}: gas object id and owner should match the node"
+        );
+        let local_created: BTreeSet<(ObjectRef, Owner)> =
+            result.effects.created().into_iter().collect();
+        let local_mutated: BTreeSet<(ObjectRef, Owner)> = result
+            .effects
+            .mutated()
+            .into_iter()
+            .filter(|(r, _)| r.object_id != node_gas.0)
+            .collect();
+        let local_deleted: BTreeSet<ObjectRef> = result.effects.deleted().into_iter().collect();
+        assert_eq!(
+            node_created, local_created,
+            "{mode}: created objects must match"
+        );
+        assert_eq!(
+            node_mutated, local_mutated,
+            "{mode}: mutated objects must match"
+        );
+        assert_eq!(
+            node_deleted, local_deleted,
+            "{mode}: deleted objects must match"
+        );
+    };
+
+    let dev_inspect = vm
+        .execute(tx_data.clone(), ExecuteOptions::dev_inspect())
+        .expect("local dev-inspect should succeed");
+    assert!(
+        dev_inspect.effects.status().is_success(),
+        "local dev-inspect staking should succeed: {:?}",
+        dev_inspect.effects.status()
     );
-    assert_eq!(
-        node_mutated, local_mutated,
-        "node dry-run and local VM should mutate the same objects"
+    assert_changes_match(&dev_inspect, "dev-inspect");
+
+    let dry_run_local = vm
+        .execute(tx_data.clone(), ExecuteOptions::dry_run())
+        .expect("local dry-run should succeed");
+    assert!(
+        dry_run_local.effects.status().is_success(),
+        "local dry-run staking should succeed: {:?}",
+        dry_run_local.effects.status()
     );
-    assert_eq!(
-        node_deleted, local_deleted,
-        "node dry-run and local VM should delete the same objects"
-    );
+    assert_changes_match(&dry_run_local, "dry-run");
 
     // The staking call emits a `StakingRequestEvent`; use it to exercise the
     // SDK's introspection surface (`decode_events` / `decode_value`).
-    let events = result
+    let events = dev_inspect
         .events
         .as_ref()
         .expect("staking run must emit events");

@@ -14,8 +14,6 @@
 //! [`LocalVm::execute`](crate::LocalVm::execute) must run inside a
 //! multi-threaded Tokio runtime (e.g. `#[tokio::main]`).
 
-use std::collections::HashSet;
-
 use iota_grpc_client::Client;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{object::Object, transaction::TransactionData};
@@ -30,6 +28,11 @@ use crate::{
 /// A [`Store`] backed by a remote node over gRPC, resolving objects on demand.
 ///
 /// Clones share the same cache and client.
+///
+/// # Panics
+///
+/// On-demand object resolution (via the synchronous [`Store`] impl) panics
+/// unless called from within a multi-threaded Tokio runtime.
 #[derive(Clone)]
 pub struct GrpcStore {
     cache: CachingStore<GrpcFetcher>,
@@ -120,63 +123,6 @@ impl GrpcStore {
     /// executor would otherwise make for the transaction body.
     pub async fn prefetch(&mut self, transaction: &TransactionData) -> Result<(), VmSdkError> {
         self.cache.prefetch(transaction).await
-    }
-
-    /// Eagerly fetch the dynamic-field children of every object already cached,
-    /// recursively, and insert them too.
-    ///
-    /// Optional: the store resolves dynamic-field children on demand during
-    /// execution, so a run only loads the children it touches (e.g. the slice
-    /// of the validator set staking reads). This walks the *entire*
-    /// dynamic-field graph instead — useful to pre-warm or snapshot it, but it
-    /// over-fetches. Recursion is bounded only by the object graph (a `visited`
-    /// set breaks cycles); intended for local development against trusted
-    /// nodes.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`VmSdkError::Store`] if a listing or fetch fails.
-    pub async fn prefetch_dynamic_fields(&mut self) -> Result<(), VmSdkError> {
-        let mut visited: HashSet<ObjectId> = HashSet::new();
-        let mut queue: Vec<ObjectId> = self.cache.cached_ids();
-        while let Some(parent) = queue.pop() {
-            if !visited.insert(parent) {
-                continue;
-            }
-            let fields = self
-                .cache
-                .fetcher()
-                .client
-                .list_dynamic_fields(parent, None, None, None)
-                .collect(None)
-                .await
-                .map_err(|e| StoreError::new("list dynamic fields", e))?
-                .into_inner();
-            let mut refs: Vec<(ObjectId, Option<Version>)> = Vec::new();
-            for field in fields {
-                // The field wrapper object is always needed; for dynamic
-                // *object* fields the value lives in a separate child object.
-                if let Some(id) = field.field_id {
-                    let id = id
-                        .object_id()
-                        .map_err(|e| StoreError::new("decode dynamic field id", e))?;
-                    refs.push((id, None));
-                }
-                if let Some(id) = field.child_id {
-                    let id = id
-                        .object_id()
-                        .map_err(|e| StoreError::new("decode dynamic child id", e))?;
-                    refs.push((id, None));
-                }
-            }
-            if refs.is_empty() {
-                continue;
-            }
-            self.cache.fetch_and_insert(&refs).await?;
-            // Recurse into the newly fetched children to find their descendants.
-            queue.extend(refs.into_iter().map(|(id, _)| id));
-        }
-        Ok(())
     }
 }
 

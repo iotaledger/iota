@@ -42,7 +42,7 @@ pub use executor::{
 };
 // --- Re-exports of upstream types in the public API ----------------------
 pub use iota_protocol_config::{Chain, ProtocolVersion};
-pub use iota_sdk_types::{Address as IotaAddress, ObjectId, TypeTag, Version};
+pub use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
 pub use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     move_authenticator::MoveAuthenticator,
