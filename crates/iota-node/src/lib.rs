@@ -1645,11 +1645,12 @@ impl IotaNode {
                         .expect("db error")
                     {
                         pending_consensus_certificates.push((
-                            Schedulable::Transaction(tx),
+                            Schedulable::Transaction(tx.into()),
                             ExecutionEnv::new().with_expected_effects_digest(fx_digest),
                         ));
                     } else {
-                        additional_certs.push((Schedulable::Transaction(tx), ExecutionEnv::new()));
+                        additional_certs
+                            .push((Schedulable::Transaction(tx.into()), ExecutionEnv::new()));
                     }
                 }
                 _ => (),
@@ -2267,7 +2268,7 @@ impl IotaNode {
                 ),
             );
         state
-            .try_execute_immediately(&transaction, ExecutionEnv::new(), epoch_store)
+            .try_execute_immediately(&transaction.into(), ExecutionEnv::new(), epoch_store)
             .unwrap();
     }
 

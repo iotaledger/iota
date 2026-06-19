@@ -281,6 +281,16 @@ mod checked {
         )
     }
 
+    type AuthenticateThenExecuteResult<Mode> = (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Vec<ExecutionTiming>,
+        Result<<Mode as ExecutionMode>::ExecutionResults, ExecutionError>,
+        // Whether the Move authentication phase failed (abort or out-of-gas).
+        bool,
+    );
+
     /// This function produces transaction effects for a transaction that
     /// requires the Move authentication.
     /// It creates a temporary store, gas charger, and transaction context for
@@ -328,13 +338,7 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> (
-        InnerTemporaryStore,
-        IotaGasStatus,
-        TransactionEffects,
-        Vec<ExecutionTiming>,
-        Result<Mode::ExecutionResults, ExecutionError>,
-    ) {
+    ) -> AuthenticateThenExecuteResult<Mode> {
         // Preparation
         // It involves setting up the TemporaryStore, GasCharger, and TxContext, that
         // will be common for both the authentication and transaction execution.
@@ -460,6 +464,11 @@ mod checked {
         let authentication_execution_result =
             report_authentication_error(authentication_execution_result, protocol_config);
 
+        // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986
+        // Capture whether authentication failed before the result is moved into the
+        // body execution.
+        let authentication_failed = authentication_execution_result.is_err();
+
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
         // authenticate function and a result which is either empty or an error.
@@ -467,26 +476,35 @@ mod checked {
         // authentication failure or for a normal execution of the transaction.
 
         // Run the transaction execution and return the effects.
-        execute_transaction_to_effects_inner::<Mode>(
-            temporary_store,
-            gas_charger,
-            tx_ctx,
-            &mutable_inputs,
-            shared_object_refs,
-            transaction_dependencies,
-            contains_deleted_input,
-            cancelled_objects,
-            transaction_kind,
-            transaction_signer,
-            transaction_digest,
-            move_vm,
-            epoch_id,
-            protocol_config,
-            metrics,
-            enable_expensive_checks,
-            certificate_deny_set,
-            trace_builder_opt,
-            Some(authentication_execution_result),
+        let (inner_temp_store, gas_status, effects, timings, execution_result) =
+            execute_transaction_to_effects_inner::<Mode>(
+                temporary_store,
+                gas_charger,
+                tx_ctx,
+                &mutable_inputs,
+                shared_object_refs,
+                transaction_dependencies,
+                contains_deleted_input,
+                cancelled_objects,
+                transaction_kind,
+                transaction_signer,
+                transaction_digest,
+                move_vm,
+                epoch_id,
+                protocol_config,
+                metrics,
+                enable_expensive_checks,
+                certificate_deny_set,
+                trace_builder_opt,
+                Some(authentication_execution_result),
+            );
+        (
+            inner_temp_store,
+            gas_status,
+            effects,
+            timings,
+            execution_result,
+            authentication_failed,
         )
     }
 

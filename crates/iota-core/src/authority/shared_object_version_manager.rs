@@ -26,6 +26,7 @@ use crate::{
         epoch_start_configuration::EpochStartConfigTrait,
     },
     execution_cache::ObjectCacheRead,
+    execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 pub struct SharedObjVerManager {}
@@ -48,7 +49,7 @@ impl AssignedTxAndVersions {
 /// A wrapper around things that can be scheduled for execution by the
 /// assigning of shared object versions.
 #[derive(Clone)]
-pub enum Schedulable<T = VerifiedExecutableTransaction> {
+pub enum Schedulable<T = VerifiedExecutableAttestedTransaction> {
     Transaction(T),
     RandomnessStateUpdate(EpochId, RandomnessRound),
 }
@@ -56,6 +57,12 @@ pub enum Schedulable<T = VerifiedExecutableTransaction> {
 impl From<VerifiedExecutableTransaction> for Schedulable<VerifiedExecutableTransaction> {
     fn from(tx: VerifiedExecutableTransaction) -> Self {
         Schedulable::Transaction(tx)
+    }
+}
+
+impl From<VerifiedExecutableTransaction> for Schedulable<VerifiedExecutableAttestedTransaction> {
+    fn from(tx: VerifiedExecutableTransaction) -> Self {
+        Schedulable::Transaction(tx.into())
     }
 }
 

@@ -211,6 +211,7 @@ impl executor::Executor for Executor {
         TransactionEffects,
         Vec<ExecutionTiming>,
         Result<(), ExecutionError>,
+        bool,
     ) {
         authenticate_then_execute_transaction_to_effects::<execution_mode::Normal>(
             store,

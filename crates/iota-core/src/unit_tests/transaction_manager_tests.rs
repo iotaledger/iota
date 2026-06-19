@@ -32,7 +32,7 @@ use crate::{
     },
     execution_scheduler::{
         ExecutionSchedulerAPI, ExecutionSchedulerWrapper, PendingTransaction,
-        transaction_manager::TransactionManager,
+        transaction_manager::{TransactionManager, VerifiedExecutableAttestedTransaction},
     },
 };
 
@@ -1175,7 +1175,8 @@ async fn transaction_manager_resolves_the_parked_key_from_commit_transaction() {
         &epoch_store,
     );
 
-    let transaction = make_randomness_state_update(&epoch_store, 0);
+    let transaction: VerifiedExecutableAttestedTransaction =
+        make_randomness_state_update(&epoch_store, 0).into();
     let (_, execution_error) = state
         .try_execute_immediately(
             &transaction,

@@ -121,6 +121,8 @@ pub trait Executor {
         TransactionEffects,
         Vec<ExecutionTiming>,
         Result<(), ExecutionError>,
+        // Whether the Move authentication phase failed.
+        bool,
     );
 
     fn authenticate_transaction(

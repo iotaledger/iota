@@ -352,7 +352,8 @@ impl ValidatorService {
                         Schedulable::Transaction(
                             VerifiedExecutableTransaction::new_from_certificate(
                                 certificate.clone(),
-                            ),
+                            )
+                            .into(),
                         ),
                         ExecutionEnv::new(),
                     )

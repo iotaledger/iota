@@ -450,9 +450,9 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
     for cert in executed_shared_certs.iter() {
         let assigned_versions = send_consensus_no_execution(&authorities[3], cert).await;
         certs.push((
-            Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
-                cert.clone(),
-            )),
+            Schedulable::Transaction(
+                VerifiedExecutableTransaction::new_from_certificate(cert.clone()).into(),
+            ),
             ExecutionEnv::new().with_assigned_versions(assigned_versions),
         ));
     }
@@ -467,9 +467,9 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
     for cert in executed_owned_certs.iter().rev() {
         authorities[3].execution_scheduler().enqueue(
             vec![(
-                Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
-                    cert.clone(),
-                )),
+                Schedulable::Transaction(
+                    VerifiedExecutableTransaction::new_from_certificate(cert.clone()).into(),
+                ),
                 ExecutionEnv::new(),
             )],
             &authorities[3].epoch_store_for_testing(),

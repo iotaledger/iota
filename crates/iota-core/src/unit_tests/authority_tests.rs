@@ -95,7 +95,9 @@ use crate::{
     },
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
-    execution_scheduler::ExecutionSchedulerAPI,
+    execution_scheduler::{
+        ExecutionSchedulerAPI, transaction_manager::VerifiedExecutableAttestedTransaction,
+    },
     test_utils::{
         init_state_parameters_from_rng, make_transfer_object_transaction, set_scheduler_env,
     },
@@ -2589,7 +2591,7 @@ async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
     // A certified effects digest that cannot match what this transfer produces.
     let bogus_effects_digest = TransactionEffectsDigest::new([255; 32]);
     let executable =
-        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
+        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction).into();
     let _ = authority_state.try_execute_immediately(
         &executable,
         ExecutionEnv::new().with_expected_effects_digest(bogus_effects_digest),
@@ -2621,7 +2623,7 @@ async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
         &authority_state,
     );
     let executable =
-        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
+        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction).into();
 
     // Execute once for real, then re-run with a mismatching expected digest.
     authority_state
@@ -5047,15 +5049,17 @@ async fn test_execute_randomness_state_update_records_key_to_digest() {
 
     // Round 0 is the only round the on-chain state accepts as the first update.
     let round = RandomnessRound::new(0);
-    let transaction = VerifiedExecutableTransaction::new_system(
-        VerifiedTransaction::new_randomness_state_update(
+    let transaction: VerifiedExecutableAttestedTransaction =
+        VerifiedExecutableTransaction::new_system(
+            VerifiedTransaction::new_randomness_state_update(
+                epoch_store.epoch(),
+                round,
+                vec![0; 32],
+                randomness_obj_version,
+            ),
             epoch_store.epoch(),
-            round,
-            vec![0; 32],
-            randomness_obj_version,
-        ),
-        epoch_store.epoch(),
-    );
+        )
+        .into();
     let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
     assert_eq!(epoch_store.tx_key_to_digest(&key).unwrap(), None);
 
@@ -6685,7 +6689,8 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     let non_congested_tx_count = match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => 5,
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationUnits => 5,
         PerObjectCongestionControlMode::TotalTxCount => 2,
     };
     let gas_objects_commit_1 = create_gas_objects(5 + non_congested_tx_count, sender);
@@ -6698,7 +6703,8 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => {
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationUnits => {
             protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     200_000_000,
@@ -8546,7 +8552,7 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
     // Execution must not consult previously signed effects: it succeeds even
     // though the resulting effects differ from the previously signed digest.
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
+        .try_execute_immediately(&executable.into(), ExecutionEnv::new(), &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
     assert_ne!(effects.digest(), previously_signed_digest);

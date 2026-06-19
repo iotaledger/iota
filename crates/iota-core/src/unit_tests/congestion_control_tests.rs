@@ -1332,9 +1332,9 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
 
     let mut cancelled = Vec::new();
     for schedulable in &executable_transactions {
-        let tx = schedulable
-            .as_tx()
-            .expect("the commit schedules only transactions here");
+        let Schedulable::Transaction(tx) = schedulable else {
+            panic!("the commit schedules only transactions here")
+        };
         let env = ExecutionEnv::new().with_assigned_versions(
             assigned_versions
                 .get(&tx.key())
@@ -1528,9 +1528,10 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
 
     let mut cancellations = 0;
     for schedulable in &executable_transactions {
-        let tx = schedulable
-            .as_tx()
-            .expect("the commit schedules only transactions here");
+        let Schedulable::Transaction(tx) = schedulable else {
+            panic!("the commit schedules only transactions here")
+        };
+
         let env = ExecutionEnv::new().with_assigned_versions(
             assigned_versions
                 .get(&tx.key())
@@ -1674,9 +1675,9 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
 
     let mut cancelled = Vec::new();
     for schedulable in &executable_transactions {
-        let tx = schedulable
-            .as_tx()
-            .expect("the commit schedules only transactions here");
+        let Schedulable::Transaction(tx) = schedulable else {
+            panic!("the commit schedules only transactions here")
+        };
         let env = ExecutionEnv::new().with_assigned_versions(
             assigned_versions
                 .get(&tx.key())

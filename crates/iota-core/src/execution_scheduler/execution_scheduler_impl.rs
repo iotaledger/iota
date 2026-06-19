@@ -29,6 +29,7 @@ use crate::{
     execution_scheduler::{
         ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
         executed_in_current_epoch, overload_tracker::OverloadTracker,
+        transaction_manager::VerifiedExecutableAttestedTransaction,
     },
 };
 
@@ -92,7 +93,7 @@ impl ExecutionScheduler {
 
     async fn schedule_transaction(
         self,
-        tx: VerifiedExecutableTransaction,
+        tx: VerifiedExecutableAttestedTransaction,
         execution_env: ExecutionEnv,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
@@ -181,7 +182,7 @@ impl ExecutionScheduler {
 
     fn send_transaction_for_execution(
         &self,
-        tx: &VerifiedExecutableTransaction,
+        tx: &VerifiedExecutableAttestedTransaction,
         execution_env: ExecutionEnv,
         _enqueue_time: Instant,
     ) {
@@ -208,6 +209,67 @@ impl ExecutionScheduler {
         let _ = self.tx_ready_transactions.send(pending_tx);
         self.metrics.transaction_manager_num_ready.inc();
         self.metrics.execution_driver_dispatch_queue.inc();
+    }
+
+    /// Shared body of both enqueue paths. Takes the attested transaction so
+    /// the consensus path keeps its attestation; `enqueue_transactions`
+    /// converts for callers that only have a plain transaction.
+    fn enqueue_attested(
+        &self,
+        transactions: Vec<(VerifiedExecutableAttestedTransaction, ExecutionEnv)>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        // Filter out transactions from the wrong epoch.
+        let transactions: Vec<_> = transactions
+            .into_iter()
+            .filter_map(|txn| {
+                if txn.0.epoch() == epoch_store.epoch() {
+                    #[cfg(debug_assertions)]
+                    self.assert_not_executed_previous_epochs(&txn.0);
+
+                    Some(txn)
+                } else {
+                    warn!(
+                        "Ignoring enqueued transaction from wrong epoch. Expected={} Transaction={:?}",
+                        epoch_store.epoch(),
+                        txn.0.epoch(),
+                    );
+                    None
+                }
+            })
+            .collect();
+        let digests: Vec<_> = transactions.iter().map(|(txn, _)| *txn.digest()).collect();
+        let executed = self
+            .transaction_cache_read
+            .multi_get_executed_effects_digests(&digests);
+        let mut already_executed_num = 0;
+        let pending = transactions.into_iter().zip(executed).filter_map(
+            |((txn, execution_env), executed)| {
+                if executed.is_none() {
+                    Some((txn, execution_env))
+                } else {
+                    already_executed_num += 1;
+                    None
+                }
+            },
+        );
+
+        for (txn, execution_env) in pending {
+            let scheduler = self.clone();
+            let epoch_store = epoch_store.clone();
+            spawn_monitored_task!(
+                epoch_store.within_alive_epoch(scheduler.schedule_transaction(
+                    txn,
+                    execution_env,
+                    &epoch_store,
+                ))
+            );
+        }
+
+        self.metrics
+            .transaction_manager_num_enqueued_certificates
+            .with_label_values(&["already_executed"])
+            .inc_by(already_executed_num);
     }
 
     /// When we schedule a transaction, it should be impossible for it to have
@@ -269,7 +331,7 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
             }
         }
 
-        self.enqueue_transactions(txns, epoch_store);
+        self.enqueue_attested(txns, epoch_store);
 
         if rest.is_empty() {
             return;
@@ -328,57 +390,11 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
         transactions: Vec<(VerifiedExecutableTransaction, ExecutionEnv)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        // Filter out transactions from the wrong epoch.
-        let transactions: Vec<_> = transactions
+        let transactions = transactions
             .into_iter()
-            .filter_map(|txn| {
-                if txn.0.epoch() == epoch_store.epoch() {
-                    #[cfg(debug_assertions)]
-                    self.assert_not_executed_previous_epochs(&txn.0);
-
-                    Some(txn)
-                } else {
-                    warn!(
-                        "Ignoring enqueued transaction from wrong epoch. Expected={} Transaction={:?}",
-                        epoch_store.epoch(),
-                        txn.0.epoch(),
-                    );
-                    None
-                }
-            })
+            .map(|(txn, env)| (txn.into(), env))
             .collect();
-        let digests: Vec<_> = transactions.iter().map(|(txn, _)| *txn.digest()).collect();
-        let executed = self
-            .transaction_cache_read
-            .multi_get_executed_effects_digests(&digests);
-        let mut already_executed_num = 0;
-        let pending = transactions.into_iter().zip(executed).filter_map(
-            |((txn, execution_env), executed)| {
-                if executed.is_none() {
-                    Some((txn, execution_env))
-                } else {
-                    already_executed_num += 1;
-                    None
-                }
-            },
-        );
-
-        for (txn, execution_env) in pending {
-            let scheduler = self.clone();
-            let epoch_store = epoch_store.clone();
-            spawn_monitored_task!(
-                epoch_store.within_alive_epoch(scheduler.schedule_transaction(
-                    txn,
-                    execution_env,
-                    &epoch_store,
-                ))
-            );
-        }
-
-        self.metrics
-            .transaction_manager_num_enqueued_certificates
-            .with_label_values(&["already_executed"])
-            .inc_by(already_executed_num);
+        self.enqueue_attested(transactions, epoch_store);
     }
 
     fn check_execution_overload(

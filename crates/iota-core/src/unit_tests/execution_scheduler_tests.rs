@@ -806,7 +806,7 @@ async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediatel
     execution_scheduler.enqueue(
         vec![
             (
-                Schedulable::Transaction(transaction.clone()),
+                Schedulable::Transaction(transaction.clone().into()),
                 ExecutionEnv::new(),
             ),
             (
@@ -925,7 +925,7 @@ async fn execution_scheduler_dispatches_gas_object_cancellation_with_its_env() {
     )];
     execution_scheduler.enqueue(
         vec![(
-            Schedulable::Transaction(transaction.clone()),
+            Schedulable::Transaction(transaction.clone().into()),
             ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
         )],
         &epoch_store,

@@ -13,7 +13,7 @@ use iota_types::{
 };
 use prometheus_filtered::IntGauge;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
-use transaction_manager::TransactionManager;
+use transaction_manager::{TransactionManager, VerifiedExecutableAttestedTransaction};
 
 use crate::{
     authority::{
@@ -63,7 +63,7 @@ pub struct PendingTransactionStats {
 #[derive(Debug)]
 pub struct PendingTransaction {
     /// The transaction to be executed.
-    pub transaction: VerifiedExecutableTransaction,
+    pub transaction: VerifiedExecutableAttestedTransaction,
     /// Environment in which the transaction will be executed.
     pub execution_env: ExecutionEnv,
     /// The input objects this transaction is waiting for to become available in

@@ -432,7 +432,8 @@ impl<'a> TestAuthorityBuilder<'a> {
                         VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
                         genesis.epoch(),
                         genesis.checkpoint().sequence_number,
-                    ),
+                    )
+                    .into(),
                     ExecutionEnv::new(),
                     &state.epoch_store_for_testing(),
                 )

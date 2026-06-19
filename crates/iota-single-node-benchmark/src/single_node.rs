@@ -147,7 +147,7 @@ impl SingleValidator {
         );
         let effects = self
             .get_validator()
-            .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
+            .try_execute_immediately(&executable.into(), ExecutionEnv::new(), &self.epoch_store)
             .unwrap()
             .0;
         assert!(effects.status().is_success());
@@ -180,7 +180,7 @@ impl SingleValidator {
                 );
                 self.get_validator()
                     .try_execute_immediately(
-                        &cert,
+                        &cert.into(),
                         ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
                         &self.epoch_store,
                     )

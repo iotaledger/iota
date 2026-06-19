@@ -5,6 +5,7 @@
 use std::{
     cmp::{Reverse, max},
     collections::{BTreeSet, BinaryHeap, HashMap, HashSet, hash_map},
+    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -14,6 +15,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::{ObjectId, SenderSignedTransaction, TransactionDigest, Version};
 use iota_types::{
+    attestation::Attestation,
     committee::EpochId,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -30,8 +32,9 @@ use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
     authority::{
-        AuthorityMetrics, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
-        shared_object_version_manager::Schedulable,
+        AuthorityMetrics, ExecutionEnv,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::{AsTx, Schedulable},
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{
@@ -66,6 +69,66 @@ pub struct TransactionManager {
     // acquire the outer lock for write, to ensure that no other threads can be running while
     // we reconfigure.
     inner: RwLock<RwLock<Inner>>,
+}
+
+/// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
+/// [`Attestation`] (if any). Carrying the full attestation lets downstream code
+/// consult both scheduling metadata and attestor identity / observed object
+/// versions.
+///
+/// This is runtime-only scheduling metadata: it is never serialized or
+/// persisted.
+#[derive(Clone, Debug)]
+pub struct VerifiedExecutableAttestedTransaction {
+    tx: VerifiedExecutableTransaction,
+    /// `None` for unattested transactions (e.g., `UserTransactionV1`).
+    attestation: Option<Attestation>,
+}
+
+impl VerifiedExecutableAttestedTransaction {
+    pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
+        Self { tx, attestation }
+    }
+
+    /// Returns the attached attestation, or `None` if the transaction was
+    /// not attested.
+    pub fn attestation(&self) -> Option<&Attestation> {
+        self.attestation.as_ref()
+    }
+
+    /// Returns the attestor's estimated computation units, or `None` if the
+    /// transaction was not attested.
+    pub fn attested_computation_units(&self) -> Option<u64> {
+        self.attestation.as_ref().map(|a| a.computation_units())
+    }
+
+    /// Consume the wrapper and return its parts.
+    pub fn into_parts(self) -> (VerifiedExecutableTransaction, Option<Attestation>) {
+        (self.tx, self.attestation)
+    }
+}
+
+impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransaction {
+    fn from(tx: VerifiedExecutableTransaction) -> Self {
+        Self {
+            tx,
+            attestation: None,
+        }
+    }
+}
+
+impl Deref for VerifiedExecutableAttestedTransaction {
+    type Target = VerifiedExecutableTransaction;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tx
+    }
+}
+
+impl AsTx for VerifiedExecutableAttestedTransaction {
+    fn as_tx(&self) -> &VerifiedExecutableTransaction {
+        self
+    }
 }
 
 struct CacheInner {
@@ -392,7 +455,7 @@ impl TransactionManager {
 
     fn enqueue_transactions_impl(
         &self,
-        transactions: Vec<(VerifiedExecutableTransaction, ExecutionEnv)>,
+        transactions: Vec<(VerifiedExecutableAttestedTransaction, ExecutionEnv)>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
         let reconfig_lock = self.inner.read();
@@ -940,7 +1003,7 @@ impl ExecutionSchedulerAPI for TransactionManager {
             }
         }
 
-        self.enqueue_transactions(txns, epoch_store);
+        TransactionManager::enqueue_transactions_impl(self, txns, epoch_store);
 
         // Every consensus commit and every owned-only certificate reaches this
         // point, and almost none of them carry a schedulable without a
@@ -1006,6 +1069,10 @@ impl ExecutionSchedulerAPI for TransactionManager {
         transactions: Vec<(VerifiedExecutableTransaction, ExecutionEnv)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
+        let transactions = transactions
+            .into_iter()
+            .map(|(txn, env)| (txn.into(), env))
+            .collect();
         TransactionManager::enqueue_transactions_impl(self, transactions, epoch_store)
     }
 
