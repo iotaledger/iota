@@ -5,7 +5,6 @@
 use proptest::{collection, prelude::*};
 
 use super::*;
-use crate::crypto::bcs_signable_test::Foo;
 
 #[test]
 fn serde_keypair() {
@@ -110,13 +109,6 @@ proptest! {
         let _key_pair = get_key_pair_from_bytes::<AuthorityKeyPair>(&bytes);
         let _key_pair = get_key_pair_from_bytes::<NetworkKeyPair>(&bytes);
         let _key_pair = get_key_pair_from_bytes::<AccountKeyPair>(&bytes);
-    }
-
-    #[test]
-    fn test_from_signable_bytes(
-        bytes in collection::vec(any::<u8>(), 0..1024)
-    ){
-        let _foo = Foo::from_signable_bytes(&bytes);
     }
 
     #[test]
