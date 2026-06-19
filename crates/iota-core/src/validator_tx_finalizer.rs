@@ -404,7 +404,8 @@ mod tests {
             let (effects, _) = self.authority.try_execute_immediately(
                 &VerifiedExecutableTransaction::new_from_certificate(
                     VerifiedCertificate::new_unchecked(request.certificate),
-                ),
+                )
+                .into(),
                 None,
                 &epoch_store,
             )?;

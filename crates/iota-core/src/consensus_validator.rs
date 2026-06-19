@@ -8,6 +8,7 @@ use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_types::{
+    attestation::Attestation,
     base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -56,11 +57,18 @@ impl IotaTxValidator {
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
         let mut authority_cap_batch = Vec::new();
-        let mut user_tx_v1_count: u64 = 0;
+        let mut user_tx_count: u64 = 0;
 
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
+                    if self.epoch_store.protocol_config().enable_pcool_flow() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error:
+                                "CertifiedTransaction not allowed when white-flag flow is enabled"
+                                    .into(),
+                        });
+                    }
                     cert_batch.push(certificate.as_ref());
                 }
                 ConsensusTransactionKind::CheckpointSignature(signature) => {
@@ -109,6 +117,17 @@ impl IotaTxValidator {
                                 .into(),
                         });
                     }
+                    if self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation()
+                    {
+                        return Err(IotaError::UnsupportedFeature {
+                            error:
+                                "UserTransactionV1 not allowed when validator attestation is enabled"
+                                    .into(),
+                        });
+                    }
                     // TODO: Batch signature verification for UserTransactionV1.
                     //  For now verify individually, but this should be batched for performance
                     //  similar to how certificates are batch-verified above.
@@ -118,7 +137,39 @@ impl IotaTxValidator {
                         .tap_err(|e| {
                             warn!("UserTransactionV1 signature verification failed: {}", e)
                         })?;
-                    user_tx_v1_count += 1;
+                    user_tx_count += 1;
+                }
+
+                ConsensusTransactionKind::UserTransactionV2(attested_tx) => {
+                    if !self
+                        .epoch_store
+                        .protocol_config()
+                        .enable_validator_attestation()
+                    {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "UserTransactionV2 not supported at current protocol version"
+                                .into(),
+                        });
+                    }
+
+                    match &attested_tx.attestation {
+                        Attestation::Validator { .. } => {
+                            self.epoch_store
+                                .signature_verifier
+                                .verify_tx(attested_tx.transaction.data())
+                                .tap_err(|e| {
+                                    warn!("UserTransactionV2 signature verification failed: {}", e)
+                                })?;
+                            user_tx_count += 1;
+                        }
+                        Attestation::Explicit { .. } => {
+                            // TODO: verify explicit attestor signature against the trusted
+                            // attestor registry (Phase 2).
+                            return Err(IotaError::UnsupportedFeature {
+                                error: "Explicit attestation not yet supported".into(),
+                            });
+                        }
+                    }
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)
@@ -171,7 +222,7 @@ impl IotaTxValidator {
             .inc_by(authority_cap_count as u64);
         self.metrics
             .user_transaction_signatures_verified
-            .inc_by(user_tx_v1_count);
+            .inc_by(user_tx_count);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -243,7 +294,7 @@ impl IotaTxValidatorMetrics {
             .unwrap(),
             user_transaction_signatures_verified: register_int_counter_with_registry!(
                 "user_transaction_signatures_verified",
-                "Number of UserTransactionV1 signatures verified in consensus validator",
+                "Number of user transaction (V1 and V2) signatures verified in consensus validator",
                 registry
             )
             .unwrap(),
@@ -259,6 +310,7 @@ mod tests {
     use iota_protocol_config::Chain;
     use iota_sdk_types::ObjectId;
     use iota_types::{
+        attestation::{Attestation, AttestationData, AttestedTransaction},
         crypto::Ed25519IotaSignature,
         error::IotaError,
         messages_consensus::{
@@ -268,6 +320,7 @@ mod tests {
         object::Object,
         signature::GenericSignature,
     };
+    use starfish_config::AuthorityIndex;
     use starfish_core::TransactionVerifier as _;
 
     use crate::{
@@ -409,16 +462,29 @@ mod tests {
         ) -> Option<bool> {
             match kind {
                 // Always allowed (no feature flag gating).
-                ConsensusTransactionKind::CertifiedTransaction(_)
-                | ConsensusTransactionKind::CheckpointSignature(_)
+                ConsensusTransactionKind::CheckpointSignature(_)
                 | ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_)
                 | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
                 | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
 
-                // Gated behind `enable_pcool_flow`.
-                ConsensusTransactionKind::UserTransactionV1(_) => Some(config.enable_pcool_flow()),
+                // Rejected once the P-COOL flow is enabled (certificate-less path
+                // replaces them).
+                ConsensusTransactionKind::CertifiedTransaction(_) => {
+                    Some(!config.enable_pcool_flow())
+                }
+
+                // Gated behind `enable_pcool_flow`, and additionally rejected once
+                // `enable_validator_attestation` is on (V2 takes over).
+                ConsensusTransactionKind::UserTransactionV1(_) => {
+                    Some(config.enable_pcool_flow() && !config.enable_validator_attestation())
+                }
+
+                // Gated behind `enable_validator_attestation`.
+                ConsensusTransactionKind::UserTransactionV2(_) => {
+                    Some(config.enable_validator_attestation())
+                }
 
                 // Gated behind `calculate_validator_scores`.
                 ConsensusTransactionKind::MisbehaviorReport(_) => {
@@ -484,6 +550,19 @@ mod tests {
                         equivocations: vec![],
                     },
                 )),
+            ),
+            (
+                "UserTransactionV2",
+                ConsensusTransactionKind::UserTransactionV2(Box::new(AttestedTransaction::new(
+                    signed_tx.clone(),
+                    Attestation::Validator {
+                        payload: AttestationData::V1 {
+                            computation_units: 0,
+                            object_versions: vec![],
+                        },
+                        attestor_index: AuthorityIndex::new_for_test(0),
+                    },
+                ))),
             ),
             (
                 "UserTransactionV1",

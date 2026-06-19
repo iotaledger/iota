@@ -1035,6 +1035,17 @@ impl ConsensusOutputQuarantine {
                         .map(|obj| obj.object_id)
                         .collect::<Vec<_>>(),
                 ),
+                SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                    kind: ConsensusTransactionKind::UserTransactionV2(attested_tx),
+                    ..
+                }) => Some(
+                    attested_tx
+                        .transaction
+                        .shared_input_objects()
+                        .into_iter()
+                        .map(|obj| obj.object_id)
+                        .collect::<Vec<_>>(),
+                ),
                 _ => None,
             })
             .flatten()

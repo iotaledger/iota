@@ -1327,6 +1327,7 @@
                 "enable_move_authentication_for_sponsor": false,
                 "enable_pcool_flow": false,
                 "enable_poseidon": true,
+                "enable_validator_attestation": false,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
                 "metadata_in_module_bytes": false,

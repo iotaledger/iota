@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
+    attestation::AttestedTransaction,
     base_types::{AuthorityName, ConciseableName, ObjectRef, TransactionDigest},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
     digests::{Digest, MisbehaviorReportDigest},
@@ -252,6 +253,9 @@ pub enum ConsensusTransactionKind {
         u64, // generation
         u8,  // percentage
     ),
+    /// Attested user transaction. Carries the transaction together with
+    /// the attested data and the identity of the attestor that produced it.
+    UserTransactionV2(Box<AttestedTransaction>),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -266,7 +270,11 @@ impl ConsensusTransactionKind {
     }
 
     pub fn is_user_transaction(&self) -> bool {
-        matches!(self, ConsensusTransactionKind::UserTransactionV1(_))
+        matches!(
+            self,
+            ConsensusTransactionKind::UserTransactionV1(_)
+                | ConsensusTransactionKind::UserTransactionV2(_)
+        )
     }
 }
 
@@ -554,7 +562,7 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_user_transaction(transaction: Transaction) -> Self {
+    pub fn new_user_transaction_v1(transaction: Transaction) -> Self {
         let mut hasher = DefaultHasher::new();
         let tx_digest = transaction.digest();
         tx_digest.hash(&mut hasher);
@@ -593,6 +601,17 @@ impl ConsensusTransaction {
                 generation,
                 load_shedding_percentage,
             ),
+        }
+    }
+
+    pub fn new_user_transaction_v2(attested_tx: AttestedTransaction) -> Self {
+        let mut hasher = DefaultHasher::new();
+        let tx_digest = attested_tx.transaction.digest();
+        tx_digest.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::UserTransactionV2(Box::new(attested_tx)),
         }
     }
 
@@ -648,6 +667,9 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::OverloadNotificationV1(authority, generation, _) => {
                 ConsensusTransactionKey::OverloadNotificationV1(*authority, *generation)
+            }
+            ConsensusTransactionKind::UserTransactionV2(attested_tx) => {
+                ConsensusTransactionKey::UserTransaction(*attested_tx.digest())
             }
         }
     }
