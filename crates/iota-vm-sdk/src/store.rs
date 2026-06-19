@@ -39,6 +39,11 @@ pub trait Store {
 
     /// Resolve a dynamic-field child object owned by `parent`, returning the
     /// child only if its version is `<= version_upper_bound`.
+    ///
+    /// The networked stores resolve a miss by fetching the child's *latest*
+    /// version and applying this bound as a filter, so a child newer than the
+    /// bound (historical replay against a pinned older `parent`, or a subtree
+    /// under active mutation) reads as absent rather than at an older version.
     fn get_child_object(
         &self,
         parent: &ObjectId,
