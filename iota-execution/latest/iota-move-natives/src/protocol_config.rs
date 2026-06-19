@@ -11,7 +11,7 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
     pop_arg,
-    values::{Struct, Value, Vector},
+    values::{Value, Vector},
 };
 use smallvec::smallvec;
 
