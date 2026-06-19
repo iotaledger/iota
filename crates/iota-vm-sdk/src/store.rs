@@ -7,9 +7,9 @@
 //! `get_object` / `get_child_object` / `insert` / `remove`.
 //!
 //! [`InMemoryStore`] is the default, fully-offline implementation. The
-//! networked stores ([`crate::grpc`] / [`crate::graphql`]) pre-fetch into an
-//! `InMemoryStore` and hand the populated store to the VM, so the trait stays
-//! synchronous everywhere.
+//! networked stores ([`crate::grpc`] / [`crate::graphql`]) front an
+//! `InMemoryStore` cache and resolve cache misses on demand, blocking on the
+//! node, so the trait stays synchronous everywhere.
 
 use std::collections::BTreeMap;
 

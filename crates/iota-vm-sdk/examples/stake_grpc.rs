@@ -28,10 +28,7 @@ async fn main() -> Result<()> {
         Address::from_hex("0xa276b4c076fff55588255630e9ee35cf0d07e8d80c78991cfd58b43b687b4206")?;
     let stake_amount_nanos: u64 = 1_000_000_000;
 
-    // Build the staking transaction with the transaction builder over testnet
-    // gRPC. `stake` splits the stake amount off the gas coin, so the sender only
-    // needs IOTA coins to pay for gas; `finish` selects them, estimates the gas
-    // budget, and returns the transaction unsigned.
+    // Build the staking transaction.
     let client = Client::new_testnet().context("connect testnet gRPC client")?;
     let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
     builder.stake(stake_amount_nanos, validator);

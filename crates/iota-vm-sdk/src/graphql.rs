@@ -6,8 +6,7 @@
 //! [`GraphqlStore`] mirrors [`crate::grpc::GrpcStore`] but fetches objects over
 //! GraphQL: it wraps a GraphQL client and an in-memory object cache, resolving
 //! objects on demand during execution and caching them, so only the objects a
-//! run actually touches are fetched. [`prefetch`](GraphqlStore::prefetch) is an
-//! optional warm-up.
+//! run actually touches are fetched.
 //!
 //! On-demand fetching blocks the executor thread on async I/O, so
 //! [`LocalVm::execute`](crate::LocalVm::execute) must run inside a
@@ -16,7 +15,7 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_sdk_graphql_client::Client;
 use iota_sdk_types::{ObjectId, Version};
-use iota_types::{object::Object, transaction::TransactionData};
+use iota_types::object::Object;
 
 use crate::{
     caching::{CachingStore, ObjectFetcher},
@@ -61,7 +60,7 @@ impl GraphqlStore {
     }
 
     /// A snapshot clone of the objects cached so far (framework packages plus
-    /// anything fetched on demand or pre-fetched).
+    /// anything fetched on demand).
     pub fn store(&self) -> InMemoryStore {
         self.cache.store()
     }
@@ -133,16 +132,6 @@ impl GraphqlStore {
             epoch_timestamp_ms,
             chain: iota_protocol_config::Chain::Unknown,
         })
-    }
-
-    /// Fetch every object the transaction references and cache them in one
-    /// batched request.
-    ///
-    /// Optional: the store also resolves these objects on demand during
-    /// execution. Pre-fetching only saves the per-object round-trips the
-    /// executor would otherwise make for the transaction body.
-    pub async fn prefetch(&mut self, transaction: &TransactionData) -> Result<(), VmSdkError> {
-        self.cache.prefetch(transaction).await
     }
 }
 

@@ -26,7 +26,7 @@ use iota_types::{
     gas::IotaGasStatus,
     layout_resolver::LayoutResolver,
     move_authenticator::MoveAuthenticator,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
@@ -44,6 +44,10 @@ use crate::{
         types::{DecodedEvent, ExecutionMode},
     },
 };
+
+/// Balance of the mock gas coin minted for a gasless transaction; same as the
+/// node's `SIMULATION_GAS_COIN_VALUE`.
+const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * iota_types::gas_coin::NANOS_PER_IOTA;
 
 pub(super) struct PreparedTransaction {
     transaction: TransactionData,
@@ -86,14 +90,17 @@ pub(super) fn prepare_transaction(
         build_input_objects(store, &raw_input_object_kinds)?;
     let receiving_objects = build_receiving_objects(store, &receiving_object_refs)?;
 
-    // Mint a one-shot mock gas coin if the transaction carries no gas payment.
-    // Fund it with the protocol's max gas budget — the most any valid budget
-    // can be, so the balance check (`gas_balance >= gas_budget`) always passes.
+    // Mint a one-shot mock gas coin if the transaction carries no gas payment,
+    // the same coin the node mints in this case.
     let mock_gas_id = if transaction.gas().is_empty() {
         let mock_gas_object = Object::new_move(
-            MoveObject::new_gas_coin(1.into(), ObjectId::MAX, env.protocol_config.max_tx_gas()),
+            MoveObject::new_gas_coin(
+                OBJECT_START_VERSION,
+                ObjectId::MAX,
+                SIMULATION_GAS_COIN_VALUE,
+            ),
             Owner::Address(transaction.gas_data().owner),
-            TransactionDigest::ZERO,
+            TransactionDigest::GENESIS_MARKER,
         );
         let mock_gas_object_ref = mock_gas_object.object_ref();
         transaction.gas_data_mut().objects = vec![mock_gas_object_ref];

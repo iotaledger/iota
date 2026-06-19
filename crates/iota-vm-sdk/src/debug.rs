@@ -13,8 +13,7 @@ use move_trace_format::format::MoveTrace;
 
 /// Configuration for a single debug-enabled run.
 ///
-/// The [`Default`] disables all capture. Construct via [`Default`] and the
-/// `with_*` builders.
+/// The [`Default`] disables all capture.
 #[derive(Debug, Default, Clone)]
 #[non_exhaustive]
 pub struct DebugConfig {

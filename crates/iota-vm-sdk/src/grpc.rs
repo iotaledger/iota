@@ -6,9 +6,8 @@
 //! [`GrpcStore`] wraps a gRPC [`Client`] and an in-memory object cache: it
 //! resolves objects on demand during execution and caches them, so only the
 //! objects a run actually touches are fetched.
-//! [`fetch_chain_context`](GrpcStore::fetch_chain_context) runs up front, and
-//! callers may [`prefetch`](GrpcStore::prefetch) to warm the cache, but neither
-//! is required for correctness.
+//! [`fetch_chain_context`](GrpcStore::fetch_chain_context) runs up front to get
+//! the chain parameters a run needs.
 //!
 //! On-demand fetching blocks the executor thread on async I/O, so
 //! [`LocalVm::execute`](crate::LocalVm::execute) must run inside a
@@ -16,7 +15,7 @@
 
 use iota_grpc_client::Client;
 use iota_sdk_types::{ObjectId, Version};
-use iota_types::{object::Object, transaction::TransactionData};
+use iota_types::object::Object;
 
 use crate::{
     caching::{CachingStore, ObjectFetcher},
@@ -60,7 +59,7 @@ impl GrpcStore {
     }
 
     /// A snapshot clone of the objects cached so far (framework packages plus
-    /// anything fetched on demand or pre-fetched).
+    /// anything fetched on demand).
     pub fn store(&self) -> InMemoryStore {
         self.cache.store()
     }
@@ -113,16 +112,6 @@ impl GrpcStore {
             epoch_timestamp_ms,
             chain: iota_protocol_config::Chain::Unknown,
         })
-    }
-
-    /// Fetch every object the transaction references and cache them in one
-    /// batched request.
-    ///
-    /// Optional: the store also resolves these objects on demand during
-    /// execution. Pre-fetching only saves the per-object round-trips the
-    /// executor would otherwise make for the transaction body.
-    pub async fn prefetch(&mut self, transaction: &TransactionData) -> Result<(), VmSdkError> {
-        self.cache.prefetch(transaction).await
     }
 }
 
