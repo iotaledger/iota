@@ -23,6 +23,8 @@ as a signature failure.
 Object references are resolved against the versions the store holds, so a
 simulation keeps working with objects fetched at "latest" — but a stale
 version or digest that a node would reject at signing time is not detected.
+Networked stores fetch dynamic-field children at "latest" too, so historical
+replay against a pinned older version may report such a child as missing.
 
 ## Features
 

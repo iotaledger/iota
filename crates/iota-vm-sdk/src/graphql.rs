@@ -27,7 +27,9 @@ use crate::{
 /// A [`Store`] backed by a remote node over GraphQL, resolving objects on
 /// demand.
 ///
-/// Clones share the same cache and client.
+/// Clones share the same cache and client. Objects resolve at their latest
+/// version; see [`Store::get_child_object`] for the dynamic-field version-bound
+/// caveat.
 ///
 /// # Panics
 ///

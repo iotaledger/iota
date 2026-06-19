@@ -191,9 +191,7 @@ fn move_authenticator_accepts_but_aborting_body_stays_verified() {
 /// sender's. Here the sender uses the accepting free-access authenticator while
 /// the sponsor uses the rejecting bogus-ed25519 one (both fixtures are reused
 /// as the two signers of one sponsored transaction). The sponsor's rejection
-/// must surface as `SignatureStatus::Failed`. Before the sponsor authenticator
-/// was wired up, only the sender's ran and this was wrongly reported
-/// `Verified`.
+/// must surface as `SignatureStatus::Failed`.
 #[test]
 fn sponsor_move_authenticator_is_executed_and_can_reject() {
     let sender_fx = load("move_auth_free_access_valid.json"); // sender: accepts

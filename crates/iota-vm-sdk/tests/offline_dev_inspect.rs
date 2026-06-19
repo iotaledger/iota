@@ -9,7 +9,7 @@
 //! untouched (`committed == false`).
 
 use base64::{Engine, engine::general_purpose::STANDARD};
-use iota_types::transaction::TransactionData;
+use iota_types::transaction::{TransactionData, TransactionDataAPI};
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionMode, InMemoryStore, LocalVm, ObjectId,
     ProtocolVersion, SignatureStatus, StructTag, TypeTag,
@@ -69,6 +69,28 @@ fn dev_inspect_runs_offline_and_leaves_store_unchanged() {
     assert!(
         store_after.is_empty(),
         "mock gas coin must not be persisted into the store"
+    );
+}
+
+/// Dev-inspect meters at `max_tx_gas`, not the transaction's declared budget,
+/// so a zero-budget transaction (gas not yet settled — the common dev-inspect
+/// case) still runs, matching the node. Metering at the budget would abort this
+/// with `InsufficientGas`.
+#[test]
+fn dev_inspect_succeeds_with_zero_gas_budget() {
+    let tx_bytes = STANDARD.decode(BLAKE2B_TX_B64).expect("base64 decode");
+    let mut tx: TransactionData = bcs::from_bytes(&tx_bytes).expect("decode tx");
+    tx.gas_data_mut().budget = 0;
+
+    let mut vm =
+        LocalVm::new(chain_context(), InMemoryStore::with_framework()).expect("build LocalVm");
+    let result = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect("zero-budget dev-inspect must not error");
+    assert!(
+        result.status.is_success(),
+        "zero-budget dev-inspect must succeed, got {:?}",
+        result.status
     );
 }
 
