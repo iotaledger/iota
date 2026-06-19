@@ -62,7 +62,7 @@ use iota_types::{
     committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
+    messages_checkpoint::ECMHLiveObjectSetDigest,
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
         TransactionInfoRequest, TransactionStatus,
@@ -938,26 +938,23 @@ pub async fn download_formal_snapshot(
                 digest commitment. If restoring from mainnet, `--epoch` must be > 20, \
                 and for testnet, `--epoch` must be > 12.",
             );
-        match commitment {
-            CheckpointCommitment::ECMHLiveObjectSetDigest(consensus_digest) => {
-                let local_digest: ECMHLiveObjectSetDigest = root_global_state_hash.digest().into();
-                assert_eq!(
-                    *consensus_digest, local_digest,
-                    "End of epoch {} root state digest {} does not match \
-                    local root state hash {} computed from snapshot data",
-                    epoch, consensus_digest.digest, local_digest.digest,
-                );
-                let progress_bar = m.add(
-                    ProgressBar::new(1).with_style(
-                        ProgressStyle::with_template(
-                            "[{elapsed_precise}] {wide_bar} Verifying snapshot contents against root state hash ({msg})",
-                        )
-                        .unwrap(),
-                    ),
-                );
-                progress_bar.finish_with_message("Verification complete");
-            }
-        };
+        let consensus_digest: ECMHLiveObjectSetDigest = commitment.clone().into();
+        let local_digest: ECMHLiveObjectSetDigest = root_global_state_hash.digest().into();
+        assert_eq!(
+            consensus_digest, local_digest,
+            "End of epoch {} root state digest {} does not match \
+            local root state hash {} computed from snapshot data",
+            epoch, consensus_digest.digest, local_digest.digest,
+        );
+        let progress_bar = m.add(
+            ProgressBar::new(1).with_style(
+                ProgressStyle::with_template(
+                    "[{elapsed_precise}] {wide_bar} Verifying snapshot contents against root state hash ({msg})",
+                )
+                .unwrap(),
+            ),
+        );
+        progress_bar.finish_with_message("Verification complete");
     } else {
         m.println(
             "WARNING: Skipping snapshot verification! \

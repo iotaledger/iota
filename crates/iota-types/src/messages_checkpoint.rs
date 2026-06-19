@@ -89,11 +89,22 @@ pub struct CheckpointResponse {
 
 // The constituent parts of checkpoints, signed and certified
 
+pub use iota_sdk_types::checkpoint::CheckpointCommitment;
+
 /// The Sha256 digest of an EllipticCurveMultisetHash committing to the live
 /// object set.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ECMHLiveObjectSetDigest {
     pub digest: Digest,
+}
+
+impl ECMHLiveObjectSetDigest {
+    /// Wrap this digest in the [`CheckpointCommitment`] variant that carries it.
+    pub fn into_commitment(self) -> CheckpointCommitment {
+        CheckpointCommitment::EcmhLiveObjectSet {
+            digest: iota_sdk_types::Digest::new(self.digest.into_inner()),
+        }
+    }
 }
 
 impl From<fastcrypto::hash::Digest<32>> for ECMHLiveObjectSetDigest {
@@ -104,21 +115,17 @@ impl From<fastcrypto::hash::Digest<32>> for ECMHLiveObjectSetDigest {
     }
 }
 
-impl Default for ECMHLiveObjectSetDigest {
-    fn default() -> Self {
-        GlobalStateHash::default().digest().into()
+impl From<CheckpointCommitment> for ECMHLiveObjectSetDigest {
+    fn from(commitment: CheckpointCommitment) -> Self {
+        Self {
+            digest: Digest::new(commitment.as_ecmh_live_object_set_digest().into_inner()),
+        }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum CheckpointCommitment {
-    ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest),
-    // Other commitment types (e.g. merkle roots) go here.
-}
-
-impl From<ECMHLiveObjectSetDigest> for CheckpointCommitment {
-    fn from(d: ECMHLiveObjectSetDigest) -> Self {
-        Self::ECMHLiveObjectSetDigest(d)
+impl Default for ECMHLiveObjectSetDigest {
+    fn default() -> Self {
+        GlobalStateHash::default().digest().into()
     }
 }
 

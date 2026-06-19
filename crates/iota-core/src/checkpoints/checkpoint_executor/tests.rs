@@ -456,7 +456,7 @@ async fn sync_end_of_epoch_checkpoint(
         Some(EndOfEpochData {
             next_epoch_committee: new_committee.committee().voting_rights.clone(),
             next_epoch_protocol_version: ProtocolVersion::MIN,
-            epoch_commitments: vec![ECMHLiveObjectSetDigest::default().into()],
+            epoch_commitments: vec![ECMHLiveObjectSetDigest::default().into_commitment()],
             // Do not simulate supply changes in tests.
             // We would need to build this checkpoint after the below execution of advance_epoch to
             // obtain this number from the SystemEpochInfoEvent.

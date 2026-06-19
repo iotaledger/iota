@@ -19,7 +19,7 @@ use iota_storage::{
         find_missing_epochs_dirs, path_to_filesystem, put, run_manifest_update_loop,
     },
 };
-use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
+use iota_types::messages_checkpoint::ECMHLiveObjectSetDigest;
 use object_store::DynObjectStore;
 use prometheus::{
     IntCounter, IntGauge, Registry, register_int_counter_with_registry,
@@ -148,10 +148,11 @@ impl StateSnapshotUploader {
                     .get_epoch_state_commitments(*epoch)
                     .expect("Expected last checkpoint of epoch to have end of epoch data")
                     .expect("Expected end of epoch data to be present");
-                let ECMHLiveObjectSetDigest(state_hash_commitment) = commitments
+                let state_hash_commitment: ECMHLiveObjectSetDigest = commitments
                     .last()
                     .expect("Expected at least one commitment")
-                    .clone();
+                    .clone()
+                    .into();
                 state_snapshot_writer
                     .write(*epoch, db, state_hash_commitment)
                     .await?;

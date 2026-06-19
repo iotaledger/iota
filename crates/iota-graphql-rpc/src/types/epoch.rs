@@ -191,8 +191,7 @@ impl Epoch {
         })?;
 
         let digest = commitments.into_iter().next().map(|commitment| {
-            let EpochCommitment::ECMHLiveObjectSetDigest(digest) = commitment;
-            Base58::encode(digest.digest.into_inner())
+            Base58::encode(commitment.as_ecmh_live_object_set_digest().into_inner())
         });
 
         Ok(digest)
