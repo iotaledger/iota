@@ -154,8 +154,8 @@ pub struct Parameters {
 
     /// Port for the DAG visualizer gRPC server (localhost only).
     /// When set, starts a debugging server for real-time DAG visualization.
+    /// Only has an effect when the `dag-visualizer` feature is compiled in.
     /// Disabled by default (None).
-    #[cfg(feature = "dag-visualizer")]
     #[serde(default)]
     pub dag_visualizer_port: Option<u16>,
 }
@@ -369,7 +369,6 @@ impl Default for Parameters {
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
             enable_starfish_speed_adaptive_acknowledgments:
                 Parameters::default_enable_starfish_speed_adaptive_acknowledgments(),
-            #[cfg(feature = "dag-visualizer")]
             dag_visualizer_port: None,
         }
     }
