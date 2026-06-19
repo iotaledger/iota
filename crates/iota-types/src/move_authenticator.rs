@@ -268,41 +268,6 @@ mod tests {
     //     MoveAuthenticator::new_v1(vec![], vec![], object_to_authenticate)
     // }
 
-    // #[test]
-    // fn round_trip() {
-    //     let auth = make_simple_authenticator();
-    //     let bytes = auth.to_bytes();
-    //     let decoded =
-    // MoveAuthenticator::from_bytes(&bytes).expect("round-trip should
-    // succeed");     assert_eq!(auth, decoded);
-    // }
-
-    // #[test]
-    // fn as_ref_starts_with_flag_byte() {
-    //     let auth = make_simple_authenticator();
-    //     let bytes = auth.to_bytes();
-    //     assert_eq!(bytes[0], SignatureScheme::MoveAuthenticator.flag());
-    // }
-
-    // #[test]
-    // fn from_bytes_rejects_wrong_flag() {
-    //     let auth = make_simple_authenticator();
-    //     let mut bytes = auth.to_bytes();
-    //     bytes[0] = SignatureScheme::ED25519.flag();
-    //     assert!(MoveAuthenticator::from_bytes(&bytes).is_err());
-    // }
-
-    // #[test]
-    // fn from_bytes_rejects_empty_input() {
-    //     assert!(MoveAuthenticator::from_bytes(&[]).is_err());
-    // }
-
-    // #[test]
-    // fn from_bytes_rejects_flag_only() {
-    //     let flag = SignatureScheme::MoveAuthenticator.flag();
-    //     assert!(MoveAuthenticator::from_bytes(&[flag]).is_err());
-    // }
-
     // // ---- Signable / SignableBytes round-trip tests ----
 
     // use crate::crypto::{Signable, SignableBytes};
