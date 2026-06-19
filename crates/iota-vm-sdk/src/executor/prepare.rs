@@ -201,6 +201,9 @@ pub(super) fn prepare_transaction(
             &env.bytecode_verifier_metrics,
             &verifier_signing_config,
             0,
+            // Authenticator and body run together to effects; with a `0`
+            // authentication budget this flag does not change metering.
+            true,
         )
         .map_err(|e| ValidationError::new("transaction input check", e))?;
         (gas_status, checked_input_objects)
@@ -374,7 +377,7 @@ pub(super) fn execute_with_move_authenticators(
         })
         .collect::<Vec<_>>();
 
-    let (inner_temp_store, _, effects, execution_result) = env
+    let (inner_temp_store, _, effects, execution_result, _) = env
         .executor
         .authenticate_then_execute_transaction_to_effects(
             store,
@@ -566,9 +569,12 @@ fn run_coin_deny_list_check(
 ) -> Result<(), VmSdkError> {
     iota_types::deny_list_v1::check_coin_deny_list_v1(
         sender,
-        tx_input_objects,
+        tx_input_objects.inner(),
         receiving_objects,
-        &per_authenticator_input_objects.to_vec(),
+        &per_authenticator_input_objects
+            .iter()
+            .map(|c| c.inner())
+            .collect(),
         store.as_object_store(),
         // `None`: read the latest deny-list value. This offline check has no
         // cross-validator determinism requirement.

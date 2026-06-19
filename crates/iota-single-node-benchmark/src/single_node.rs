@@ -127,7 +127,7 @@ impl SingleValidator {
         );
         let effects = self
             .get_validator()
-            .try_execute_immediately(&executable, None, &self.epoch_store)
+            .try_execute_immediately(&executable.into(), None, &self.epoch_store)
             .unwrap()
             .0;
         assert!(effects.status().is_success());
@@ -158,7 +158,7 @@ impl SingleValidator {
                     VerifiedCertificate::new_unchecked(cert),
                 );
                 self.get_validator()
-                    .try_execute_immediately(&cert, None, &self.epoch_store)
+                    .try_execute_immediately(&cert.into(), None, &self.epoch_store)
                     .unwrap()
                     .0
             }

@@ -107,8 +107,7 @@ impl TransactionInputLoader {
             });
         }
 
-        let receiving_results =
-            self.read_receiving_objects_for_signing(receiving_objects, epoch_id)?;
+        let receiving_results = self.read_receiving_objects(receiving_objects, epoch_id)?;
 
         Ok((
             input_results
@@ -264,9 +263,10 @@ impl TransactionInputLoader {
     }
 }
 
-// private methods
 impl TransactionInputLoader {
-    fn read_receiving_objects_for_signing(
+    /// Load the `ReceivingObjects` for a transaction. Used both at signing time
+    /// (by [`Self::read_objects_for_signing`]) and at execution time.
+    pub(crate) fn read_receiving_objects(
         &self,
         receiving_objects: &[ObjectReference],
         epoch_id: EpochId,

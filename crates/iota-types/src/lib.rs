@@ -35,6 +35,7 @@ use crate::{
 pub mod error;
 
 pub mod account_abstraction;
+pub mod attestation;
 pub mod auth_context;
 pub mod balance;
 pub mod base_types;
