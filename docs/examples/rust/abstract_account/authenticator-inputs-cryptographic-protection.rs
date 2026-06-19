@@ -368,7 +368,6 @@ pub async fn create_test_transaction(
     let tx_digest = tx_data.digest();
 
     // Create a transaction
-
     let blacklist_call_arg = CallArg::Shared(SharedObjectRef::new(
         blacklist_ref.object_id,
         blacklist_ref.version,
