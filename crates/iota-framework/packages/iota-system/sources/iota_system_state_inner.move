@@ -752,6 +752,7 @@ public(package) fun advance_epoch(
     computation_charge.join(safe_mode_computation_charges);
     computation_charge_burned =
         computation_charge_burned + self.safe_mode_computation_charges_burned;
+    self.safe_mode_computation_charges_burned = 0;
     storage_rebate_amount = storage_rebate_amount + self.safe_mode_storage_rebates;
     self.safe_mode_storage_rebates = 0;
     non_refundable_storage_fee_amount =
