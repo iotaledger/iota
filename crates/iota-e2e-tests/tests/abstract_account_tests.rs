@@ -28,7 +28,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveLocation, ObjectId, Owner,
-    ProgrammableTransaction, TypeTag, crypto::Intent,
+    ProgrammableTransaction, SharedObjectReference, TypeTag, crypto::Intent,
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
@@ -1944,11 +1944,10 @@ impl TestEnvironment {
         ));
 
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::new_shared(
+            MoveAuthenticatorV1::with_shared_account_object(
                 vec![self_call_arg],
                 vec![],
-                aa_sponsor_ref.object_id,
-                aa_sponsor_ref.version,
+                SharedObjectRef::new(aa_sponsor_ref.object_id, aa_sponsor_ref.version, false),
             )
             .into(),
         ))
@@ -2244,11 +2243,10 @@ impl TestEnvironment {
         aa_obj_ref: ObjectRef,
     ) -> anyhow::Result<GenericSignature> {
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::new_shared(
+            MoveAuthenticatorV1::with_shared_account_object(
                 vec![],
                 vec![],
-                aa_obj_ref.object_id,
-                aa_obj_ref.version,
+                SharedObjectRef::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
             )
             .into(),
         ))
@@ -2313,11 +2311,10 @@ impl TestEnvironment {
             .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticatorV1::new_shared(
+            MoveAuthenticatorV1::with_shared_account_object(
                 vec![signature_call_arg],
                 vec![],
-                aa_obj_ref.object_id,
-                aa_obj_ref.version,
+                SharedObjectReference::new(aa_obj_ref.object_id, aa_obj_ref.version, false),
             )
             .into(),
         ))

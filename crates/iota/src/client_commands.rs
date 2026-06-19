@@ -51,7 +51,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -3898,8 +3898,12 @@ async fn create_move_authenticator_signature(
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
     Ok(GenericSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_shared(call_args, type_args, address, initial_shared_version)
-            .into(),
+        MoveAuthenticatorV1::with_shared_account_object(
+            call_args,
+            type_args,
+            SharedObjectReference::new(address.into(), initial_shared_version, false),
+        )
+        .into(),
     ))
 }
 

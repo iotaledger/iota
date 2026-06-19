@@ -1416,17 +1416,21 @@ impl IotaTestAdapter {
             CallArg::ImmutableOrOwned(obj_ref) => Ok((
                 obj_ref.object_id,
                 GenericSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_immutable(auth_inputs, vec![], *obj_ref).into(),
+                    MoveAuthenticatorV1::with_immutable_account_object(
+                        auth_inputs,
+                        vec![],
+                        *obj_ref,
+                    )
+                    .into(),
                 ),
             )),
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
                 GenericSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_shared(
+                    MoveAuthenticatorV1::with_shared_account_object(
                         auth_inputs,
                         vec![],
-                        shared.object_id,
-                        shared.initial_shared_version,
+                        shared.clone(),
                     )
                     .into(),
                 ),

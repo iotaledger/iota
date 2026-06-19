@@ -226,7 +226,7 @@ pub fn make_sponsored_regular_sig_tx() -> (Transaction, Address, Address) {
 
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
-    use iota_sdk_types::{Address, Digest};
+    use iota_sdk_types::{Address, Digest, SharedObjectReference};
 
     pub use crate::move_authenticator::{MoveAuthenticator, MoveAuthenticatorV1};
     use crate::{
@@ -252,12 +252,12 @@ mod move_authenticator {
     /// TODO: if it is necessary, AA accounts need to be supported properly in
     /// the `AuthorityState` used for testing.
     pub fn make_move_authenticator_sig(address: Address) -> (GenericSignature, MoveAuthenticator) {
-        let authenticator = MoveAuthenticator::from(MoveAuthenticatorV1::new_shared(
-            vec![],
-            vec![],
-            address,
-            OBJECT_START_VERSION,
-        ));
+        let authenticator =
+            MoveAuthenticator::from(MoveAuthenticatorV1::with_shared_account_object(
+                vec![],
+                vec![],
+                SharedObjectReference::new(address.into(), OBJECT_START_VERSION, false),
+            ));
         let sig = GenericSignature::MoveAuthenticator(authenticator.clone());
         (sig, authenticator)
     }

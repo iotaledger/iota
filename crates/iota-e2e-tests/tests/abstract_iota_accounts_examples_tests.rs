@@ -36,8 +36,8 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
-    crypto::Intent,
+    Address, Argument, Identifier, ObjectId, Owner, ProgrammableTransaction, SharedObjectReference,
+    TypeTag, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -2352,11 +2352,10 @@ fn make_move_authenticator(
     extra_args: Vec<CallArg>,
 ) -> anyhow::Result<GenericSignature> {
     Ok(GenericSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_shared(
+        MoveAuthenticatorV1::with_shared_account_object(
             extra_args,
             vec![],
-            account_ref.object_id,
-            account_ref.version,
+            SharedObjectReference::new(account_ref.object_id, account_ref.version, false),
         )
         .into(),
     ))
