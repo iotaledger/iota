@@ -47,12 +47,6 @@ impl MoveAuthenticator {
         }
     }
 
-    /// Constructs a `MoveAuthenticator` from a deserialized
-    /// [`MoveAuthenticatorInner`].
-    pub(crate) fn from_inner(inner: MoveAuthenticatorInner) -> Self {
-        Self { inner }
-    }
-
     /// Computes the digest of the MoveAuthenticator.
     pub fn digest(&self) -> MoveAuthenticatorDigest {
         MoveAuthenticatorDigest::new(default_hash(self))
@@ -480,9 +474,9 @@ mod tests {
         assert!(MoveAuthenticator::from_bytes(&[flag]).is_err());
     }
 
-    // ---- Signable / SignableBytes round-trip tests ----
+    // ---- Signable (write) format tests ----
 
-    use crate::crypto::{Signable, SignableBytes};
+    use crate::crypto::Signable;
 
     /// Helper: produce the signable bytes for a MoveAuthenticator (the
     /// `"MoveAuthenticator::" ++ BCS(inner)` format).
@@ -490,15 +484,6 @@ mod tests {
         let mut buf = Vec::new();
         auth.write(&mut buf);
         buf
-    }
-
-    #[test]
-    fn signable_round_trip() {
-        let auth = make_simple_authenticator();
-        let bytes = signable_bytes(&auth);
-        let decoded = MoveAuthenticator::from_signable_bytes(&bytes)
-            .expect("round-trip via signable bytes should succeed");
-        assert_eq!(auth, decoded);
     }
 
     #[test]
@@ -520,33 +505,6 @@ mod tests {
         let payload = &bytes[tag_len..];
         let expected_bcs = bcs::to_bytes(&auth.inner).expect("BCS serialization should not fail");
         assert_eq!(payload, expected_bcs.as_slice());
-    }
-
-    #[test]
-    fn from_signable_bytes_rejects_empty() {
-        assert!(MoveAuthenticator::from_signable_bytes(&[]).is_err());
-    }
-
-    #[test]
-    fn from_signable_bytes_rejects_short_input() {
-        // Shorter than the name tag — should fail, not panic.
-        assert!(MoveAuthenticator::from_signable_bytes(b"Move").is_err());
-    }
-
-    #[test]
-    fn from_signable_bytes_rejects_tag_only() {
-        // Exact tag with no BCS payload.
-        assert!(MoveAuthenticator::from_signable_bytes(b"MoveAuthenticator::").is_err());
-    }
-
-    #[test]
-    fn from_signable_bytes_rejects_corrupt_payload() {
-        let auth = make_simple_authenticator();
-        let mut bytes = signable_bytes(&auth);
-        // Truncate the BCS payload so it is incomplete.
-        let tag_len = "MoveAuthenticator::".len();
-        bytes.truncate(tag_len + 1);
-        assert!(MoveAuthenticator::from_signable_bytes(&bytes).is_err());
     }
 
     #[test]
