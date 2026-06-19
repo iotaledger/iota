@@ -99,7 +99,8 @@ pub struct ECMHLiveObjectSetDigest {
 }
 
 impl ECMHLiveObjectSetDigest {
-    /// Wrap this digest in the [`CheckpointCommitment`] variant that carries it.
+    /// Wrap this digest in the [`CheckpointCommitment`] variant that carries
+    /// it.
     pub fn into_commitment(self) -> CheckpointCommitment {
         CheckpointCommitment::EcmhLiveObjectSet {
             digest: iota_sdk_types::Digest::new(self.digest.into_inner()),
