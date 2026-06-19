@@ -179,6 +179,9 @@ pub enum IndexerError {
 
     #[error(transparent)]
     IdentifierParse(#[from] iota_sdk_types::move_core::TypeParseError),
+
+    #[error("failed to restore from formal snapshot: {0}")]
+    Restore(String),
 }
 
 pub type IndexerResult<T> = Result<T, IndexerError>;

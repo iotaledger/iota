@@ -12,31 +12,32 @@ use futures::{FutureExt, TryFutureExt, future::AbortHandle};
 use indicatif::MultiProgress;
 use iota_config::{
     genesis::Genesis,
-    node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
-use iota_core::db_checkpoint_handler::SUCCESS_MARKER;
-use iota_data_ingestion_core::{
-    IngestionError,
-    history::{reader::HistoricalReader, verifier::EpochBoundaryVerifier},
+use iota_core::{
+    authority::authority_store_tables::LiveObject as SnapshotObject,
+    db_checkpoint_handler::SUCCESS_MARKER,
 };
+use iota_data_ingestion_core::IngestionError;
 use iota_protocol_config::Chain;
 use iota_snapshot::{
-    FileMetadata,
+    EpochInfo, FileMetadata,
     reader::{LiveObjectIter, StateSnapshotReaderV1},
     restore::Restore,
+    verify_epoch_info_chain,
 };
 use iota_storage::{
     SHA3_BYTES,
     object_store::{
         ObjectStoreGetExt,
         http::HttpDownloaderBuilder,
-        util::{MANIFEST_FILENAME, Manifest, exists, get_path},
+        util::{MANIFEST_FILENAME, RootManifest, exists, get_path},
     },
 };
 use iota_types::{
+    digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
+    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest, VerifiedCheckpoint},
 };
 use itertools::Itertools;
 use tokio::sync::mpsc;
@@ -50,23 +51,18 @@ use crate::{
 const MAINNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.mainnet.iota.cafe";
 const TESTNET_FORMAL_SNAPSHOT_ENDPOINT: &str = "https://formal-snapshot.testnet.iota.cafe";
 
-const MAINNET_HISTORICAL_CHECKPOINTS_ENDPOINT: &str =
-    "https://checkpoints.mainnet.iota.cafe/ingestion/historical";
-const TESTNET_HISTORICAL_CHECKPOINTS_ENDPOINT: &str =
-    "https://checkpoints.testnet.iota.cafe/ingestion/historical";
-
 /// Restores the indexer database from the formal snapshot for the given network
 /// and epoch.
 ///
 /// This guarantees that the formal snapshot is verified, by comparing
 /// the root state hash of the live objects against the verified commitment of
-/// the network at the given epoch through public archives.
+/// the network at the given epoch.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 ///
-/// - The reader or verifier cannot be instantiated.
+/// - The reader cannot be instantiated.
 /// - The persist pipeline fails
 /// - The snapshot fails verification.
 pub async fn start(
@@ -79,8 +75,12 @@ pub async fn start(
 ) -> IndexerResult<()> {
     let (mut reader, epoch) =
         setup_reader(network, epoch, staging_path, num_parallel_downloads).await?;
-    let verifier =
-        build_epoch_boundary_verifier(network, epoch, genesis_path, num_parallel_downloads).await?;
+    let epoch_info = reader
+        .read_epoch_info()
+        .await
+        .map_err(|e| IndexerError::Restore(format!("failed to read epoch info: {e}")))?;
+    let snapshot_chain_id = reader.chain_id();
+    let genesis = Genesis::load(genesis_path)?;
 
     // It's ok to ignore the handle. Cancellation is effected by dropping the
     // `read_to_db` future below, so we don't need to call `abort` explicitly.
@@ -92,7 +92,7 @@ pub async fn start(
         reader
             .read_to_db(&pg_indexer_store, abort_registration, Some(state_hash_tx))
             .map_err(IndexerError::from),
-        verify_state_hash(state_hash_rx, verifier),
+        verify_state_hash(state_hash_rx, epoch_info, genesis, snapshot_chain_id),
     )?;
 
     info!(
@@ -100,6 +100,35 @@ pub async fn start(
         num_objects, "formal snapshot restore complete and verified"
     );
     Ok(())
+}
+
+async fn verify_last_checkpoint(
+    epoch_info: EpochInfo,
+    genesis: Genesis,
+    snapshot_chain_id: ChainIdentifier,
+) -> IndexerResult<VerifiedCheckpoint> {
+    let genesis_committee = genesis.committee().expect("genesis committee");
+    let genesis_system_state = genesis.iota_system_object();
+    let genesis_chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
+    let verified_epoch_info = tokio::task::spawn_blocking(move || {
+        verify_epoch_info_chain(
+            epoch_info,
+            genesis_committee,
+            genesis_system_state,
+            snapshot_chain_id,
+            genesis_chain_id,
+        )
+    })
+    .await?
+    .map_err(|e| IndexerError::Restore(format!("snapshot verification failed: {e}")))?;
+    Ok(VerifiedCheckpoint::new_unchecked(
+        verified_epoch_info
+            .entries()
+            .last()
+            .expect("there should be an entry for the associated epoch")
+            .last_checkpoint_summary
+            .clone(),
+    ))
 }
 
 /// Verifies the root state hash evaluated from the formal snapshot.
@@ -113,18 +142,18 @@ pub async fn start(
 ///
 /// Returns an error if:
 ///
-/// - Epoch-boundary verification fails.
+/// - State hash verification fails.
 /// - The verified checkpoint carries no end-of-epoch commitment.
 /// - The accumulated root state hash does not match that commitment.
 async fn verify_state_hash(
     state_hash_rx: mpsc::Receiver<(GlobalStateHash, u64)>,
-    verifier: EpochBoundaryVerifier,
+    epoch_info: EpochInfo,
+    genesis: Genesis,
+    snapshot_chain_id: ChainIdentifier,
 ) -> IndexerResult<u64> {
     let ((root_state_hash, num_objects), verified_checkpoint) = tokio::try_join!(
         accumulate_state_hash(state_hash_rx).map(Ok::<_, IndexerError>),
-        verifier
-            .verify_target_epoch_boundary()
-            .map_err(IndexerError::from),
+        verify_last_checkpoint(epoch_info, genesis, snapshot_chain_id)
     )?;
 
     let commitment = verified_checkpoint
@@ -149,7 +178,8 @@ async fn verify_state_hash(
     Ok(num_objects)
 }
 
-/// Evaluates the root state hash of the live object set in this snapshot.
+/// Evaluates the root state hash of the live object set stored in a formal
+/// snapshot.
 ///
 /// This is done by accumulating the partial state hashes received during a
 /// restore.
@@ -176,12 +206,19 @@ impl Restore for PgIndexerStore {
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> anyhow::Result<()> {
         let mut hasher = Sha3_256::default();
-        let partition = LiveObjectIter::new(&file_metadata, bytes)?
-            .filter_map(|snapshot_object| snapshot_object.to_normal())
-            .scan(&mut hasher, |hasher, object| {
+        let partition = LiveObjectIter::new(&file_metadata, bytes)?.scan(
+            &mut hasher,
+            |hasher,
+             SnapshotObject {
+                 object,
+                 previous_transaction_checkpoint,
+             }| {
                 hasher.update(object.object_ref().digest.inner());
-                Some(LiveObject::new(0, object))
-            });
+                let checkpoint_sequence_number =
+                    previous_transaction_checkpoint.unwrap_or_default();
+                Some(LiveObject::new(checkpoint_sequence_number, object))
+            },
+        );
         let chunks = chunk!(partition, self.config.parallel_objects_chunk_size);
         let sha3_digest = hasher.finalize().digest;
         if *expected_checksum != sha3_digest {
@@ -276,42 +313,6 @@ pub(crate) async fn setup_reader(
     Ok((reader, epoch))
 }
 
-/// Builds an [`EpochBoundaryVerifier`] for the network's public historical
-/// checkpoint store, targeting the given epoch.
-///
-/// # Errors
-///
-/// Returns an error if:
-///
-/// - The network is not `mainnet` or `testnet`.
-/// - The genesis cannot be loaded from `genesis_path`.
-/// - The historical reader cannot be built, or the epoch boundaries cannot be
-///   read from the remote store.
-async fn build_epoch_boundary_verifier(
-    network: Chain,
-    epoch: u64,
-    genesis_path: &Path,
-    download_concurrency: NonZeroUsize,
-) -> IndexerResult<EpochBoundaryVerifier> {
-    let endpoint = match network {
-        Chain::Mainnet => MAINNET_HISTORICAL_CHECKPOINTS_ENDPOINT,
-        Chain::Testnet => TESTNET_HISTORICAL_CHECKPOINTS_ENDPOINT,
-        Chain::Unknown => {
-            return Err(IndexerError::InvalidArgument(
-                "formal snapshot network must be Mainnet or Testnet".into(),
-            ));
-        }
-    };
-    let reader = HistoricalReader::new(ArchiveReaderConfig {
-        remote_store_config: unsigned_http_store_config(endpoint),
-        download_concurrency,
-        use_for_pruning_watermark: false,
-    })?;
-    let genesis = Genesis::load(genesis_path)?;
-    let verifier = EpochBoundaryVerifier::from_genesis(reader, &genesis, epoch).await?;
-    Ok(verifier)
-}
-
 /// Read client for a network's public formal snapshot store.
 struct FormalSnapshotStore {
     config: ObjectStoreConfig,
@@ -344,8 +345,7 @@ impl FormalSnapshotStore {
     /// store, according to the root MANIFEST.
     async fn latest_available_epoch(&self) -> Result<u64, anyhow::Error> {
         let manifest_contents = self.store.get_bytes(&get_path(MANIFEST_FILENAME)).await?;
-        let root_manifest: Manifest = serde_json::from_slice(&manifest_contents)
-            .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {}", err))?;
+        let root_manifest = RootManifest::from_bytes(&manifest_contents)?;
         root_manifest
             .available_epochs
             .iter()
@@ -358,6 +358,7 @@ impl FormalSnapshotStore {
     /// completed.
     async fn verify_completed_snapshot(&self, epoch: u64) -> Result<(), anyhow::Error> {
         let success_marker = format!("epoch_{epoch}/{SUCCESS_MARKER}");
+        // TODO: sort out failure modes of exists
         if exists(&self.store, &get_path(success_marker.as_str())).await {
             Ok(())
         } else {
