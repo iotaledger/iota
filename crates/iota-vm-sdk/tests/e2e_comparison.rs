@@ -163,7 +163,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
     assert_changes_match(&dry_run_local, "dry-run");
 
     // The staking call emits a `StakingRequestEvent`; use it to exercise the
-    // SDK's introspection surface (`decode_events` / `decode_value`).
+    // SDK's inspection surface (`decode_events` / `decode_value`).
     let events = dev_inspect
         .events
         .as_ref()

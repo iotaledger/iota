@@ -15,7 +15,7 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_sdk_graphql_client::Client;
 use iota_sdk_types::{ObjectId, Version};
-use iota_types::object::Object;
+use iota_types::{digests::ChainIdentifier, object::Object};
 
 use crate::{
     caching::{CachingStore, ObjectFetcher},
@@ -77,12 +77,13 @@ impl GraphqlStore {
 
     /// Fetch the chain parameters a [`LocalVm`](crate::LocalVm) needs.
     ///
-    /// Reports [`Chain::Unknown`](crate::Chain) — the chain identity is not
-    /// resolved here; this only affects chain-specific protocol behaviour.
+    /// The [`Chain`](crate::Chain) is resolved from the node's chain identifier
+    /// so chain-gated protocol features match the real chain; an unrecognised
+    /// identifier maps to [`Chain::Unknown`](crate::Chain).
     ///
     /// # Errors
     ///
-    /// Returns [`VmSdkError::Store`] if the query fails or epoch fields are
+    /// Returns [`VmSdkError::Store`] if a query fails or epoch fields are
     /// missing.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let query = r#"{
@@ -125,12 +126,22 @@ impl GraphqlStore {
             .pointer("/protocolConfigs/protocolVersion")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| StoreError::new("GraphQL epoch", "missing protocolVersion"))?;
+        let chain_id = self
+            .cache
+            .fetcher()
+            .client
+            .chain_id()
+            .await
+            .map_err(|e| StoreError::new("fetch chain identifier", e))?;
+        let chain = ChainIdentifier::from_chain_short_id(&chain_id)
+            .map(|id| id.chain())
+            .unwrap_or(iota_protocol_config::Chain::Unknown);
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),
             reference_gas_price,
             epoch_id,
             epoch_timestamp_ms,
-            chain: iota_protocol_config::Chain::Unknown,
+            chain,
         })
     }
 }
