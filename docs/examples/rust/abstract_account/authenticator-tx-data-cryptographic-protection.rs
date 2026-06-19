@@ -15,7 +15,9 @@ use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
 };
-use iota_sdk_ext::types::{Address, Argument, Identifier, ObjectId, Owner, TransactionKind, TypeTag};
+use iota_sdk_ext::types::{
+    Address, Argument, Identifier, ObjectId, Owner, TransactionKind, TypeTag,
+};
 use iota_types::{
     base_types::ObjectRef,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
