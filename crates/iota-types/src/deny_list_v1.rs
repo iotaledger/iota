@@ -20,7 +20,7 @@ use crate::{
     id::{ID, UID},
     object::Object,
     storage::{DenyListResult, ObjectStore},
-    transaction::{CheckedInputObjects, ReceivingObjects},
+    transaction::{InputObjects, ReceivingObjects},
 };
 
 pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
@@ -99,9 +99,9 @@ impl MoveTypeTagTrait for GlobalPauseKey {
 #[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1(
     address: Address,
-    tx_input_objects: &CheckedInputObjects,
+    tx_input_objects: &InputObjects,
     tx_receiving_objects: &ReceivingObjects,
-    per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
+    per_authenticator_input_objects: &Vec<&InputObjects>,
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
 ) -> UserInputResult {
@@ -284,17 +284,16 @@ where
 /// that it's not a regulated coin.
 #[instrument(level = "trace", skip_all)]
 fn input_object_coin_types_for_denylist_check(
-    tx_input_objects: &CheckedInputObjects,
+    tx_input_objects: &InputObjects,
     tx_receiving_objects: &ReceivingObjects,
-    per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
+    per_authenticator_input_objects: &Vec<&InputObjects>,
 ) -> BTreeSet<String> {
     let all_objects =
         tx_input_objects
-            .inner()
             .iter_objects()
             .chain(tx_receiving_objects.iter_objects())
             .chain(per_authenticator_input_objects.iter().flat_map(
-                |authenticator_input_objects| authenticator_input_objects.inner().iter_objects(),
+                |authenticator_input_objects| authenticator_input_objects.iter_objects(),
             ));
     all_objects
         .filter_map(|obj| {
