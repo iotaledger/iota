@@ -2925,9 +2925,6 @@ impl ProtocolConfig {
                             .pre_consensus_sponsor_only_move_authentication = true;
                     }
                 }
-                // Extend the protocol_config framework module with `get_attr<T>`, a
-                // generic native that lets Move code read any numeric or boolean
-                // protocol parameter by name (returning Option<T>).
                 29 => {
                     // Keep advancing the random beacon DKG state machine on every commit
                     // while it is still pending so DKG resolves from persisted state
