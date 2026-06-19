@@ -295,9 +295,12 @@ pub struct AuthorityMetrics {
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
 
     pub(crate) authority_overload_status: IntGauge,
-    pub(crate) authority_load_shedding_percentage: IntGauge,
     /// Percentage of transactions shed due to consensus queue length.
     pub(crate) consensus_queue_load_shedding_percentage: IntGauge,
+    /// This authority's locally computed load shedding percentage, taken as the
+    /// max of its latency/rate-based, transaction-manager-queue-based, and
+    /// writeback-cache-backpressure signals.
+    pub(crate) local_post_consensus_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
@@ -315,7 +318,20 @@ pub struct AuthorityMetrics {
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
+    /// Number of user transactions dropped during a consensus commit because
+    /// post-consensus conflict/lock validation rejected them. Distinct from
+    /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
+    /// Number of user transactions dropped during a consensus commit by
+    /// post-consensus load shedding, i.e. probabilistically rejected at the
+    /// quorum `consensus_handler_load_shedding_percentage` rate.
+    pub consensus_handler_load_shedding_dropped_transactions: IntCounter,
+    /// Stake-weighted quorum (2f+1) load shedding percentage enforced on user
+    /// transactions in the most recent consensus commit. This is the cluster
+    /// value actually applied post-consensus, as opposed to this authority's
+    /// own `authority_load_shedding_percentage`. 0 when the white-flag flow is
+    /// disabled.
+    pub consensus_handler_load_shedding_percentage: IntGauge,
     pub consensus_handler_max_object_costs: IntGaugeVec,
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
@@ -553,14 +569,14 @@ impl AuthorityMetrics {
                 "Whether authority is current experiencing overload and enters load shedding mode.",
                 registry)
                 .unwrap(),
-            authority_load_shedding_percentage: register_int_gauge_with_registry!(
+            local_post_consensus_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
-                "The percentage of transactions is shed when the authority is in load shedding mode.",
+                "This authority's locally computed load shedding percentage. In the white-flag flow this is the value broadcast to peers, not necessarily the rate enforced (see consensus_handler_load_shedding_percentage).",
                 registry)
                 .unwrap(),
             consensus_queue_load_shedding_percentage: register_int_gauge_with_registry!(
                 "consensus_queue_load_shedding_percentage",
-                "Percentage of transactions shed due to consensus queue length.",
+                "Percentage of transactions shed due to consensus queue length. Separate admission-control signal, not an input to authority_load_shedding_percentage.",
                 registry)
                 .unwrap(),
             transaction_manager_object_cache_misses: register_int_counter_with_registry!(
@@ -735,6 +751,16 @@ impl AuthorityMetrics {
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
                 "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                registry,
+            ).unwrap(),
+            consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
+                "consensus_handler_load_shedding_dropped_transactions",
+                "Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage",
+                registry,
+            ).unwrap(),
+            consensus_handler_load_shedding_percentage: register_int_gauge_with_registry!(
+                "consensus_handler_load_shedding_percentage",
+                "Stake-weighted quorum (2f+1) load shedding percentage enforced on user transactions in the most recent consensus commit. 0 when the white-flag flow is disabled.",
                 registry,
             ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(
@@ -1303,7 +1329,7 @@ impl AuthorityState {
 
         let load_shedding_percentage = self
             .overload_info
-            .load_shedding_percentage
+            .local_load_shedding_percentage
             .load(Ordering::Relaxed);
         overload_monitor_accept_tx(load_shedding_percentage, tx_data.digest())
     }
