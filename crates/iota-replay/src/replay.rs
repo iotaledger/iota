@@ -863,25 +863,29 @@ impl LocalExec {
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
 
-            executor.authenticate_then_execute_transaction_to_effects(
-                &self,
-                protocol_config,
-                metrics.clone(),
-                expensive_checks,
-                &certificate_deny_set,
-                &tx_info.executed_epoch,
-                tx_info.epoch_start_timestamp,
-                gas_data,
-                gas_status,
-                move_authenticators,
-                CheckedInputObjects::new_for_replay(input_objects.clone()),
-                transaction_kind.clone(),
-                tx_info.sender,
-                *tx_digest,
-                bcs::to_bytes(tx_info.sender_signed_data.transaction_data())
-                    .expect("TransactionData serialization cannot fail"),
-                &mut None,
-            )
+            // The authentication-failed flag is only used by the validator attestor's
+            // admission decision; replay must reproduce effects regardless, so drop it.
+            let (inner_store, gas_status, effects, result, _authentication_failed) = executor
+                .authenticate_then_execute_transaction_to_effects(
+                    &self,
+                    protocol_config,
+                    metrics.clone(),
+                    expensive_checks,
+                    &certificate_deny_set,
+                    &tx_info.executed_epoch,
+                    tx_info.epoch_start_timestamp,
+                    gas_data,
+                    gas_status,
+                    move_authenticators,
+                    CheckedInputObjects::new_for_replay(input_objects.clone()),
+                    transaction_kind.clone(),
+                    tx_info.sender,
+                    *tx_digest,
+                    bcs::to_bytes(tx_info.sender_signed_data.transaction_data())
+                        .expect("TransactionData serialization cannot fail"),
+                    &mut None,
+                );
+            (inner_store, gas_status, effects, result)
         };
 
         if let Err(err) = self.pretty_print_for_tracing(
@@ -1158,25 +1162,29 @@ impl LocalExec {
                 .collect::<Vec<_>>();
 
             let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
-            executor.authenticate_then_execute_transaction_to_effects(
-                &store,
-                &protocol_config,
-                Arc::new(LimitsMetrics::new(&Registry::new())),
-                true,
-                &HashSet::new(),
-                &executed_epoch,
-                epoch_start_timestamp,
-                gas_data,
-                gas_status,
-                move_authenticators,
-                union_checked_input_objects,
-                kind,
-                signer,
-                *executable.digest(),
-                bcs::to_bytes(sender_signed_data.transaction_data())
-                    .expect("TransactionData serialization cannot fail"),
-                &mut None,
-            )
+            // The authentication-failed flag is only used by the validator attestor's
+            // admission decision; replay must reproduce effects regardless, so drop it.
+            let (inner_store, gas_status, effects, exec_res, _authentication_failed) = executor
+                .authenticate_then_execute_transaction_to_effects(
+                    &store,
+                    &protocol_config,
+                    Arc::new(LimitsMetrics::new(&Registry::new())),
+                    true,
+                    &HashSet::new(),
+                    &executed_epoch,
+                    epoch_start_timestamp,
+                    gas_data,
+                    gas_status,
+                    move_authenticators,
+                    union_checked_input_objects,
+                    kind,
+                    signer,
+                    *executable.digest(),
+                    bcs::to_bytes(sender_signed_data.transaction_data())
+                        .expect("TransactionData serialization cannot fail"),
+                    &mut None,
+                );
+            (inner_store, gas_status, effects, exec_res)
         };
 
         let effects =

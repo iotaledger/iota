@@ -137,9 +137,155 @@ async fn test_aa_tx_accepted_via_v2_attestation_path() -> Result<(), anyhow::Err
     Ok(())
 }
 
+/// An AA transaction whose Move authentication fails (here: a wrong ed25519
+/// signature) must be DROPPED by the attestor — never attested, so it can never
+/// be sequenced or charged.
+#[sim_test]
+async fn test_aa_tx_with_failed_authentication_is_dropped() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let _env = enable_attestation_env();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb()?;
+    let tx_data = test_env.craft_tx_from_pt(pt, aa_gas, aa_sender).await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Attach a Move authenticator that signs a tampered digest, so the in-VM
+    // ed25519 verification in `authenticate_ed25519` aborts: the authentication
+    // phase fails.
+    let signatures = vec![test_env.create_bad_move_authenticator_for_ed25519(&tx_digest)?];
+    let aa_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+
+    match test_env.submit_tx_v2(aa_tx).await {
+        Ok(results) => {
+            assert!(!results.is_empty(), "expected at least one status update");
+            let (_, status) = &results[0];
+            assert!(
+                matches!(status, TxStatusUpdate::Rejected { .. }),
+                "auth-failing AA tx must be rejected by the attestor, got: {status:?}"
+            );
+        }
+        // A validator/transport-level error is also an acceptable outcome: the
+        // transaction was not attested or accepted.
+        Err(e) => {
+            tracing::info!("auth-failing AA tx submission errored as expected: {e:?}");
+        }
+    }
+
+    Ok(())
+}
+
+/// An AA transaction whose Move authentication SUCCEEDS but whose transaction
+/// body aborts must still be attested (status `Submitted`/`Executed`).
+#[sim_test]
+async fn test_aa_tx_with_body_abort_is_attested() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let _env = enable_attestation_env();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_double_add_ptb()?;
+    let tx_data = test_env.craft_tx_from_pt(pt, aa_gas, aa_sender).await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Correct signature: the authentication phase succeeds; only the body aborts.
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let aa_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+
+    let results = test_env.submit_tx_v2(aa_tx).await?;
+    assert!(!results.is_empty(), "expected at least one status update");
+    let (_, status) = &results[0];
+    assert!(
+        matches!(
+            status,
+            TxStatusUpdate::Submitted | TxStatusUpdate::Executed { .. }
+        ),
+        "AA tx with successful auth but a body abort must still be attested, got: {status:?}"
+    );
+
+    Ok(())
+}
+
+/// A normal (non-abstract-account) transaction whose body aborts must be
+/// attested too. Here a normal owner-signed tx calls `add_field` on the shared
+/// AA object; `ensure_tx_sender_is_account` aborts because the sender is the
+/// owner, not the account.
+#[sim_test]
+async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let _env = enable_attestation_env();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+
+    // Build a normal transaction (no Move authenticator) signed by the owner.
+    let pt = test_env.craft_aa_simple_ptb()?;
+    let tx_data = test_env
+        .test_cluster
+        .test_transaction_builder()
+        .await
+        .programmable(pt)
+        .build();
+    let normal_tx = test_env.test_cluster.wallet.sign_transaction(&tx_data);
+
+    let results = test_env.submit_tx_v2(normal_tx).await?;
+    assert!(!results.is_empty(), "expected at least one status update");
+    let (_, status) = &results[0];
+    assert!(
+        matches!(
+            status,
+            TxStatusUpdate::Submitted | TxStatusUpdate::Executed { .. }
+        ),
+        "normal tx with a body abort must still be attested, got: {status:?}"
+    );
+
+    Ok(())
+}
+
 // --------------------------------------------------
 // --- Protocol config env override RAII guard ------
 // --------------------------------------------------
+
+/// Enable white-flag flow and validator attestation for every node. Must be
+/// called BEFORE `TestClusterBuilder::build()` spawns node threads.
+fn enable_attestation_env() -> ProtocolEnvOverride {
+    ProtocolEnvOverride::new(&[
+        ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_WHITE_FLAG_FLOW",
+            "true",
+        ),
+        (
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_VALIDATOR_ATTESTATION",
+            "true",
+        ),
+    ])
+}
 
 /// Sets process-wide environment variables on construction, restores them (by
 /// removing them) on drop.  Must be constructed **before**
@@ -348,6 +494,38 @@ impl TestEnvironment {
         Ok(builder.finish())
     }
 
+    /// A PTB that adds the same dynamic field key twice, so the second
+    /// `add_field` aborts in the transaction body (the auth phase, if present,
+    /// is unaffected).
+    fn craft_aa_double_add_ptb(&self) -> anyhow::Result<ProgrammableTransaction> {
+        let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
+            anyhow::bail!("Abstract account not set up yet");
+        };
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let aa_arg = builder.obj(CallArg::Shared(SharedObjectRef {
+            object_id: aa_ref.object_id,
+            initial_shared_version: aa_ref.version,
+            mutable: true,
+        }))?;
+        let type_args = vec![
+            iota_types::base_types::TypeTag::U8,
+            iota_types::base_types::TypeTag::U8,
+        ];
+        for value in [2_u8, 3_u8] {
+            // Same key (1u8) both times; the second `dynamic_field::add` aborts.
+            let key = builder.pure(1_u8)?;
+            let val = builder.pure(value)?;
+            builder.programmable_move_call(
+                aa_package_id,
+                Identifier::from_static(AA_MODULE_NAME),
+                Identifier::from_static("add_field"),
+                type_args.clone(),
+                vec![aa_arg, key, val],
+            );
+        }
+        Ok(builder.finish())
+    }
+
     async fn craft_tx_from_pt(
         &self,
         pt: ProgrammableTransaction,
@@ -393,6 +571,18 @@ impl TestEnvironment {
         Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_v1(vec![signature_call_arg], vec![], self_call_arg),
         ))
+    }
+
+    /// Like [`Self::create_move_authenticator_for_ed25519`], but signs a
+    /// *tampered* digest so the in-VM ed25519 verification fails — the
+    /// authentication phase aborts.
+    fn create_bad_move_authenticator_for_ed25519(
+        &self,
+        tx_digest: &[u8; 32],
+    ) -> anyhow::Result<GenericSignature> {
+        let mut tampered = *tx_digest;
+        tampered[0] ^= 0xff;
+        self.create_move_authenticator_for_ed25519(&tampered)
     }
 
     /// Submit a transaction via the V2 gRPC path on the first available

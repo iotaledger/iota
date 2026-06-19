@@ -1028,7 +1028,7 @@ impl AuthorityState {
 
         // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
         // source of truth for the input versions the attestor observed.
-        let (inner_temp_store, effects) = if move_authenticators.is_empty() {
+        let (inner_temp_store, effects, authentication_failed) = if move_authenticators.is_empty() {
             // No Move authentication, execute directly.
             let (inner_temp_store, _, effects, _) =
                 epoch_store.executor().execute_transaction_to_effects(
@@ -1047,7 +1047,8 @@ impl AuthorityState {
                     tx_digest,
                     &mut None,
                 );
-            (inner_temp_store, effects)
+            // This branch has no Move authentication, so it can never fail auth.
+            (inner_temp_store, effects, false)
         } else {
             // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
             // run auth + execution in one pass.
@@ -1083,7 +1084,7 @@ impl AuthorityState {
                 })
                 .collect::<Vec<_>>();
 
-            let (inner_temp_store, _, effects, _) = epoch_store
+            let (inner_temp_store, _, effects, _, authentication_failed) = epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
                     backing_store.as_ref(),
@@ -1103,15 +1104,17 @@ impl AuthorityState {
                     tx_data_bytes,
                     &mut None,
                 );
-            (inner_temp_store, effects)
+            (inner_temp_store, effects, authentication_failed)
         };
 
-        // Refuse to attest a transaction whose dry-run did not succeed. This
-        // covers a failed Move authentication as well as any other execution
-        // failure.
-        if let ExecutionStatus::Failure { error, command } = effects.status() {
+        // Refuse to attest a transaction when its Move authentication did not succeed.
+        // Any other failure (out-of-gas or a Move abort in the transaction body) is the
+        // issuer's responsibility and is still attested, sequenced and charged as a
+        // failed transaction under the normal flow.
+        if authentication_failed {
             return Err(IotaError::Execution(format!(
-                "refusing to attest transaction with failing dry-run: {error:?} (command {command:?})"
+                "refusing to attest transaction with failed Move authentication: {:?}",
+                effects.status()
             )));
         }
 
@@ -1964,7 +1967,13 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
-            epoch_store
+            let (
+                inner_temp_store,
+                gas_status,
+                effects,
+                execution_error_opt,
+                _authentication_failed,
+            ) = epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
                     backing_store,
@@ -1985,7 +1994,8 @@ impl AuthorityState {
                     tx_digest,
                     tx_data_bytes,
                     &mut None,
-                )
+                );
+            (inner_temp_store, gas_status, effects, execution_error_opt)
         };
 
         fail_point_if!("cp_execution_nondeterminism", || {
