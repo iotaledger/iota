@@ -1427,12 +1427,8 @@ impl IotaTestAdapter {
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
                 GenericSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::with_shared_account_object(
-                        auth_inputs,
-                        vec![],
-                        shared.clone(),
-                    )
-                    .into(),
+                    MoveAuthenticatorV1::with_shared_account_object(auth_inputs, vec![], *shared)
+                        .into(),
                 ),
             )),
             CallArg::Pure(_) | CallArg::Receiving(_) => Err(anyhow::anyhow!(

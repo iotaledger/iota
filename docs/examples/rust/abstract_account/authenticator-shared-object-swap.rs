@@ -417,11 +417,10 @@ pub async fn create_test_transaction(
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
     let signature = GenericSignature::MoveAuthenticator(
-        MoveAuthenticatorV1::new_shared(
+        MoveAuthenticatorV1::with_shared_account_object(
             vec![signature_call_arg, blacklist_call_arg],
             vec![],
-            account_ref.object_id,
-            account_ref.version,
+            SharedObjectRef::new(account_ref.object_id, account_ref.version, false),
         )
         .into(),
     );
@@ -446,7 +445,7 @@ pub fn swap_blacklist_in_transaction(
 
             match move_authenticator.object_to_authenticate() {
                 CallArg::ImmutableOrOwned(immutable) => GenericSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_immutable(
+                    MoveAuthenticatorV1::with_immutable_account_object(
                         vec![signature_call_arg, new_blacklist_ref_call_arg],
                         vec![],
                         *immutable,
@@ -454,11 +453,10 @@ pub fn swap_blacklist_in_transaction(
                     .into(),
                 ),
                 CallArg::Shared(shared) => GenericSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_shared(
+                    MoveAuthenticatorV1::with_shared_account_object(
                         vec![signature_call_arg, new_blacklist_ref_call_arg],
                         vec![],
-                        shared.object_id,
-                        shared.initial_shared_version,
+                        *shared,
                     )
                     .into(),
                 ),
