@@ -40,6 +40,19 @@ Needs:
 
 - Node.js + npm (to install `@iota/iota-sdk` and bundle the page with esbuild).
 
+- a C compiler that targets wasm32, to build the C dependencies (e.g. `blst`,
+  pulled in transitively via `fastcrypto`). The Linux/CI toolchains and most
+  rustup-managed setups already have one. On macOS the system `clang` cannot
+  target wasm32, so install LLVM and point `cc` at it:
+
+  ```sh
+  brew install llvm
+  # in ~/.cargo/config.toml (machine-wide, not committed):
+  #   [env]
+  #   CC_wasm32_unknown_unknown = "/opt/homebrew/opt/llvm/bin/clang"
+  #   AR_wasm32_unknown_unknown = "/opt/homebrew/opt/llvm/bin/llvm-ar"
+  ```
+
 Then one command builds the wasm, bundles the app, and serves it:
 
 ```sh
