@@ -25,6 +25,7 @@ use crate::{
     execution_scheduler::{
         ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
         overload_tracker::OverloadTracker,
+        transaction_manager::VerifiedExecutableAttestedTransaction,
     },
 };
 
@@ -88,7 +89,7 @@ impl ExecutionScheduler {
 
     async fn schedule_transaction(
         self,
-        tx: VerifiedExecutableTransaction,
+        tx: VerifiedExecutableAttestedTransaction,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
@@ -190,7 +191,7 @@ impl ExecutionScheduler {
 
     fn send_transaction_for_execution(
         &self,
-        tx: &VerifiedExecutableTransaction,
+        tx: &VerifiedExecutableAttestedTransaction,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         _enqueue_time: Instant,
     ) {
@@ -224,7 +225,7 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
     fn enqueue_impl(
         &self,
         transactions: Vec<(
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             Option<TransactionEffectsDigest>,
         )>,
         epoch_store: &Arc<AuthorityPerEpochStore>,

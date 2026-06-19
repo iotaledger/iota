@@ -16,7 +16,6 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
-    executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionAPI, TransactionEnvelope, VerifiedCertificate},
@@ -34,7 +33,9 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
         transaction_deferral::DeferralKey,
     },
-    execution_scheduler::ExecutionSchedulerAPI,
+    execution_scheduler::{
+        ExecutionSchedulerAPI, transaction_manager::VerifiedExecutableAttestedTransaction,
+    },
     move_call,
 };
 
@@ -252,21 +253,21 @@ impl GasPriceFeedbackTester {
     async fn send_certificates_to_consensus_for_scheduling(
         &self,
         certificates: &[VerifiedCertificate],
-    ) -> Vec<VerifiedExecutableTransaction> {
+    ) -> Vec<VerifiedExecutableAttestedTransaction> {
         send_batch_consensus_no_execution(&self.authority_state, certificates, false).await
     }
 
     /// Enqueue scheduled transactions and execute them to effects.
     async fn enqueue_and_execute_scheduled_transactions(
         &self,
-        transactions: Vec<VerifiedExecutableTransaction>,
+        transactions: Vec<VerifiedExecutableAttestedTransaction>,
     ) -> Vec<TransactionEffects> {
         let transaction_digests = transactions
             .iter()
             .map(|tx| *tx.digest())
             .collect::<Vec<_>>();
 
-        self.authority_state.execution_scheduler().enqueue(
+        self.authority_state.execution_scheduler().enqueue_attested(
             transactions,
             &self.authority_state.epoch_store_for_testing(),
         );

@@ -119,6 +119,8 @@ pub trait Executor {
         IotaGasStatus,
         TransactionEffects,
         Result<(), ExecutionError>,
+        // Whether the Move authentication phase failed.
+        bool,
     );
 
     fn authenticate_transaction(

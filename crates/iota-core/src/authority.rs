@@ -63,6 +63,7 @@ use iota_types::{
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
+    attestation::Attestation,
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -163,7 +164,10 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
-    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
+    execution_scheduler::{
+        ExecutionSchedulerAPI, ExecutionSchedulerWrapper,
+        transaction_manager::VerifiedExecutableAttestedTransaction,
+    },
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::GrpcIndexesStore,
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
@@ -761,7 +765,7 @@ impl AuthorityMetrics {
             ).unwrap(),
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
-                "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                "Number of UserTransactionV1/V2 transactions dropped by post-consensus validation",
                 registry,
             ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
@@ -911,6 +915,16 @@ pub struct AuthorityState {
 /// The authority state encapsulates all state, drives execution, and ensures
 /// safety.
 ///
+/// Outputs of the shared transaction validation pipeline used by both
+/// `handle_transaction_validation_checks` and `attest_transaction`.
+struct ValidationOutputs<'a> {
+    per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+    move_authenticators: Vec<&'a MoveAuthenticator>,
+    gas_status: IotaGasStatus,
+    tx_checked_input_objects: CheckedInputObjects,
+    per_authenticator_checked_inputs: Vec<(CheckedInputObjects, AuthenticatorFunctionRef)>,
+}
+
 /// Note the authority operations can be accessed through a read ref (&) and do
 /// not require &mut. Internally a database is synchronized through a mutex
 /// lock.
@@ -992,75 +1006,20 @@ impl AuthorityState {
         epoch_gated_coin_deny_list: bool,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
-        let reference_gas_price = epoch_store.reference_gas_price();
-
-        let epoch = epoch_store.epoch();
-
         let tx = transaction.data().transaction();
 
-        // Note: the deny checks may do redundant package loads but:
-        // - they only load packages when there is an active package deny map
-        // - the loads are cached anyway
-        iota_transaction_checks::deny::check_transaction_for_validation(
-            tx,
-            transaction.signatures(),
-            &transaction.input_objects()?,
-            &tx.receiving_objects(),
+        let ValidationOutputs {
+            move_authenticators,
+            gas_status,
+            tx_checked_input_objects,
+            per_authenticator_checked_inputs,
+            per_authenticator_inputs: _,
+        } = self.run_validation_checks(
+            transaction,
+            epoch_store,
             deny_config,
-            self.get_backing_package_store().as_ref(),
-        )?;
-
-        // Load all transaction-related input objects including ones for every
-        // `MoveAuthenticator`. Loading all objects eagerly means that any invalid
-        // reference — missing object, wrong version, inaccessible object — causes a
-        // pre-consensus rejection.
-        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            self.read_objects_for_validation(transaction, epoch)?;
-
-        let move_authenticators = transaction.move_authenticators();
-
-        // Check the inputs for signing.
-        // If there are `MoveAuthenticator` signatures, their input objects and the
-        // account objects are also checked and must be provided.
-        // It is also checked if there is enough gas to execute the transaction and its
-        // authenticators.
-        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
-            .check_transaction_inputs_for_validation(
-                protocol_config,
-                reference_gas_price,
-                tx,
-                tx_input_objects,
-                &tx_receiving_objects,
-                &move_authenticators,
-                per_authenticator_inputs,
-            )?;
-
-        // Get the input objects for the authenticators, if there are
-        // `MoveAuthenticator`s.
-        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
-            .iter()
-            .map(|i| &i.0)
-            .collect();
-
-        // Move authenticators cannot use owned objects, so their inputs never
-        // acquire owned-object locks.
-        debug_assert!(
-            per_authenticator_checked_input_objects
-                .iter()
-                .all(|objects| objects.inner().filter_owned_objects().is_empty()),
-            "Move authenticator input objects must not contain owned objects"
-        );
-
-        // Check if any of the sender, the transaction input objects, the receiving
-        // objects and the authenticator input objects are in the coin deny
-        // list, which would prevent the transaction from being signed.
-        check_coin_deny_list_v1(
-            tx.sender(),
-            &tx_checked_input_objects,
-            &tx_receiving_objects,
-            &per_authenticator_checked_input_objects,
-            &self.get_object_store(),
-            epoch_gated_coin_deny_list.then_some(epoch),
+            false,
+            epoch_gated_coin_deny_list,
         )?;
 
         let (kind, signer, gas_data) = tx.execution_parts();
@@ -1169,6 +1128,228 @@ impl AuthorityState {
         }
 
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
+    }
+
+    /// Dry-runs a verified transaction and returns `AttestationData` together
+    /// with the owned objects validated during execution, ready to be wrapped
+    /// in a validator attestation and attached to the transaction before
+    /// submitting it to consensus.
+    ///
+    /// Shares the validation pipeline with
+    /// `handle_transaction_validation_checks`
+    /// via [`Self::run_validation_checks`] (deny checks, input object loading,
+    /// input checks, coin deny list), and then replaces the
+    /// `authenticate_transaction` call with
+    /// `authenticate_then_execute_transaction_to_effects` so that Move
+    /// authentication and transaction execution run together and produce full
+    /// `TransactionEffects` including the accurate `computation_cost`.
+    pub(crate) fn attest_transaction(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+    ) -> IotaResult<(
+        iota_types::attestation::AttestationData,
+        Vec<ObjectReference>,
+    )> {
+        use iota_types::attestation::AttestationData;
+
+        let protocol_config = epoch_store.protocol_config();
+        let tx = transaction.data().transaction();
+
+        let ValidationOutputs {
+            per_authenticator_inputs,
+            move_authenticators,
+            gas_status,
+            tx_checked_input_objects,
+            per_authenticator_checked_inputs,
+        } = self.run_validation_checks(transaction, epoch_store, deny_config, true, true)?;
+
+        let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
+
+        let epoch_id = epoch_store.epoch_start_config().epoch_data().epoch_id();
+        let epoch_start_timestamp = epoch_store
+            .epoch_start_config()
+            .epoch_data()
+            .epoch_start_timestamp();
+        let backing_store = self.get_backing_store();
+        let (kind, signer, gas_data) = tx.execution_parts();
+        let tx_digest = *transaction.digest();
+
+        // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
+        // source of truth for the input versions the attestor observed.
+        let (inner_temp_store, effects, authentication_failed) = if move_authenticators.is_empty() {
+            // No Move authentication, execute directly.
+            let (inner_temp_store, _, effects, _) =
+                epoch_store.executor().execute_transaction_to_effects(
+                    backing_store.as_ref(),
+                    protocol_config,
+                    self.metrics.limits_metrics.clone(),
+                    false, // expensive_checks
+                    self.config.certificate_deny_config.certificate_deny_set(),
+                    &epoch_id,
+                    epoch_start_timestamp,
+                    tx_checked_input_objects,
+                    gas_data,
+                    gas_status,
+                    kind,
+                    signer,
+                    tx_digest,
+                    &mut None,
+                );
+            // This branch has no Move authentication, so it can never fail auth.
+            (inner_temp_store, effects, false)
+        } else {
+            // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
+            // run auth + execution in one pass.
+
+            let funcs_for_exec = move_authenticators
+                .iter()
+                .zip(per_authenticator_inputs)
+                .map(|(ma, (_, account_object))| {
+                    let (id, seq, digest) = ma.object_to_authenticate_components()?;
+                    let signer_addr = ma.address();
+                    self.check_move_account_for_validation(
+                        id,
+                        seq,
+                        digest,
+                        account_object,
+                        &signer_addr,
+                    )
+                })
+                .collect::<IotaResult<Vec<_>>>()?;
+
+            // Union the checked transaction + authenticator input objects for
+            // execution. Borrow the checked inputs here before they are consumed
+            // by `authenticators_for_exec` below.
+            let checked_for_union: Vec<&CheckedInputObjects> =
+                std::iter::once(&tx_checked_input_objects)
+                    .chain(per_authenticator_checked_inputs.iter().map(|(c, _)| c))
+                    .collect();
+            let auth_and_tx_checked =
+                iota_transaction_checks::aggregate_authenticator_input_objects(&checked_for_union)?;
+
+            let authenticators_for_exec = move_authenticators
+                .into_iter()
+                .zip(funcs_for_exec)
+                .zip(per_authenticator_checked_inputs)
+                .map(|((ma, func_ref), (checked_inputs, _))| {
+                    (ma.to_owned(), func_ref, checked_inputs)
+                })
+                .collect::<Vec<_>>();
+
+            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                    authenticators_for_exec
+                        .iter()
+                        .find(|t| t.0.address() == address)
+                        .map(|t| t.1.authenticator_function_ref.clone())
+                });
+
+            let (sender_auth_digest, sponsor_auth_digest) =
+                transaction.data().compute_auth_digests()?;
+
+            // Serialize the TransactionData for the auth context before decomposing.
+            let tx_data_bytes =
+                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_data_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
+            let (inner_temp_store, _, effects, _, authentication_failed) = epoch_store
+                .executor()
+                .authenticate_then_execute_transaction_to_effects(
+                    backing_store.as_ref(),
+                    protocol_config,
+                    self.metrics.limits_metrics.clone(),
+                    false, // expensive_checks
+                    self.config.certificate_deny_config.certificate_deny_set(),
+                    &epoch_id,
+                    epoch_start_timestamp,
+                    gas_data,
+                    gas_status,
+                    authenticators_for_exec,
+                    auth_and_tx_checked,
+                    kind,
+                    signer,
+                    tx_digest,
+                    auth_context_data,
+                    &mut None,
+                );
+            (inner_temp_store, effects, authentication_failed)
+        };
+
+        // Refuse to attest a transaction when its Move authentication did not succeed.
+        // Any other failure (out-of-gas or a Move abort in the transaction body) is the
+        // issuer's responsibility and is still attested, sequenced and charged as a
+        // failed transaction under the normal flow.
+        if authentication_failed {
+            return Err(IotaError::Execution(format!(
+                "refusing to attest transaction with failed Move authentication: {:?}",
+                effects.status()
+            )));
+        }
+
+        // Step 7: build AttestationData.
+        // `gas_cost_summary().computation_cost` is in NANOS; convert to gas
+        // units (`computation_units = computation_cost / gas_price`) so the
+        // attestation is independent of the gas price the user chose.
+        let computation_units = effects
+            .gas_cost_summary()
+            .computation_cost
+            .checked_div(tx.gas_price())
+            .unwrap_or(0);
+
+        // `object_versions` is the evidence base for malicious-attestor detection. We
+        // pull `input_objects` (resolved tx + authenticator inputs) and
+        // `loaded_runtime_objects` (dynamic fields / children) from the
+        // execution's temporary store. Both record the pre-execution read version, and
+        // the two maps are disjoint by `ObjectId`.
+
+        // We then drop owned, gas, and receiving objects (pinned by
+        // `TransactionData`) and immutable objects / packages (frozen).
+        let tx_pinned_ids: HashSet<ObjectId> = tx
+            .input_objects()?
+            .into_iter()
+            .filter_map(|kind| match kind {
+                InputObjectKind::ImmOrOwnedMoveObject(oref) => Some(oref.object_id),
+                InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
+            })
+            .chain(tx.gas().iter().map(|oref| oref.object_id))
+            .chain(
+                tx.receiving_objects()
+                    .into_iter()
+                    .map(|oref| oref.object_id),
+            )
+            .collect();
+
+        let object_versions: Vec<ObjectReference> = inner_temp_store
+            .input_objects
+            .values()
+            .filter(|obj| !obj.is_immutable())
+            .map(|obj| obj.object_ref())
+            .chain(
+                inner_temp_store
+                    .loaded_runtime_objects
+                    .iter()
+                    .filter(|(_, meta)| !matches!(meta.owner, Owner::Immutable))
+                    .map(|(id, meta)| ObjectReference::new(*id, meta.version, meta.digest)),
+            )
+            .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
+            .collect();
+
+        Ok((
+            AttestationData::V1 {
+                computation_units,
+                object_versions,
+            },
+            owned_objects,
+        ))
     }
 
     /// This is a private method and should be kept that way. It doesn't check
@@ -1461,7 +1642,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn try_execute_immediately(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
@@ -1540,11 +1721,10 @@ impl AuthorityState {
         certificate: &VerifiedCertificate,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
-        let (effects, execution_error_opt) = self.try_execute_immediately(
-            &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
-            None,
-            &epoch_store,
-        )?;
+        let executable: VerifiedExecutableAttestedTransaction =
+            VerifiedExecutableTransaction::new_from_certificate(certificate.clone()).into();
+        let (effects, execution_error_opt) =
+            self.try_execute_immediately(&executable, None, &epoch_store)?;
         let signed_effects = self.sign_effects(effects, &epoch_store)?;
         Ok((signed_effects, execution_error_opt))
     }
@@ -1613,7 +1793,7 @@ impl AuthorityState {
     pub(crate) fn process_transaction(
         &self,
         tx_guard: TxGuard,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -1872,7 +2052,7 @@ impl AuthorityState {
     fn execute_transaction(
         &self,
         _execution_guard: &ExecutionLockReadGuard<'_>,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1903,6 +2083,20 @@ impl AuthorityState {
         // checks.
         let tx = transaction.data().transaction();
         tx.validity_check(protocol_config)?;
+
+        // The user signature of an attested (`UserTransactionV2`) transaction is
+        // verified pre-consensus in the block verifier
+        // (`IotaTxValidator::validate_transactions`), exactly as for
+        // `UserTransactionV1`, and is not re-checked here.
+        //
+        // Explicit attestations are rejected pre-consensus (block verifier) and
+        // at post-consensus (Check #3), so one reaching here is a protocol-level
+        // bug.
+        if let Some(Attestation::Explicit { .. }) = transaction.attestation() {
+            return Err(IotaError::UnsupportedFeature {
+                error: "Explicit attestation reached execute_transaction".into(),
+            });
+        }
 
         let (kind, signer, gas_data) = tx.execution_parts();
 
@@ -2066,7 +2260,13 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            epoch_store
+            let (
+                inner_temp_store,
+                gas_status,
+                effects,
+                execution_error_opt,
+                _authentication_failed,
+            ) = epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
                     backing_store,
@@ -2087,7 +2287,8 @@ impl AuthorityState {
                     tx_digest,
                     auth_context_data,
                     &mut None,
-                )
+                );
+            (inner_temp_store, gas_status, effects, execution_error_opt)
         };
 
         fail_point_if!("cp_execution_nondeterminism", || {
@@ -2117,10 +2318,11 @@ impl AuthorityState {
     )> {
         let lock = RwLock::new(epoch_store.epoch());
         let execution_guard = lock.try_read().unwrap();
+        let attested: VerifiedExecutableAttestedTransaction = transaction.clone().into();
 
         self.execute_transaction(
             &execution_guard,
-            transaction,
+            &attested,
             input_objects,
             vec![],
             epoch_store,
@@ -2286,6 +2488,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
                 authenticator_gas_budget,
+                false,
             )?
         } else {
             // Execution smashes the gas coins and reserves the whole budget from them
@@ -5480,9 +5683,10 @@ impl AuthorityState {
         let (input_objects, _) =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
+        let attested_tx: VerifiedExecutableAttestedTransaction = executable_tx.clone().into();
         let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
             &execution_guard,
-            &executable_tx,
+            &attested_tx,
             input_objects,
             vec![],
             epoch_store,
@@ -5774,6 +5978,166 @@ impl AuthorityState {
     }
 
     #[allow(clippy::type_complexity)]
+    /// Shared validation pipeline for `handle_transaction_validation_checks`
+    /// and `attest_transaction`. Runs, in order:
+    ///   1. transaction deny checks
+    ///   2. input object loading (transaction + per-authenticator + account)
+    ///   3. `MoveAuthenticator` collection
+    ///   4. input checks (gas budget covers transaction + authenticators)
+    ///   5. coin deny list check
+    ///
+    /// Keep this helper as the single source of truth so the two callers
+    /// cannot drift. Raw inputs are cloned and returned only on the
+    /// `attest_transaction` path (`is_execute_transaction_to_effects`), where
+    /// the MoveAuthenticator path needs them; the clone is skipped for
+    /// `handle_transaction_validation_checks`, which ignores them.
+    ///
+    /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
+    /// `false` reads the latest value, so denials apply immediately - for
+    /// validator-local admission (signing); `true` reads the value settled
+    /// before the current epoch, which is deterministic across validators
+    /// regardless of each validator's execution progress - required
+    /// post-consensus, where the verdict decides whether the transaction
+    /// stays in the committed set.
+    fn run_validation_checks<'a>(
+        &self,
+        transaction: &'a VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+        is_execute_transaction_to_effects: bool,
+        epoch_gated_coin_deny_list: bool,
+    ) -> IotaResult<ValidationOutputs<'a>> {
+        let protocol_config = epoch_store.protocol_config();
+        let reference_gas_price = epoch_store.reference_gas_price();
+        let epoch = epoch_store.epoch();
+        let tx = transaction.data().transaction();
+
+        // Step 1: deny checks.
+        // Note: the deny checks may do redundant package loads but:
+        // - they only load packages when there is an active package deny map
+        // - the loads are cached anyway
+        iota_transaction_checks::deny::check_transaction_for_validation(
+            tx,
+            transaction.signatures(),
+            &transaction.input_objects()?,
+            &tx.receiving_objects(),
+            deny_config,
+            self.get_backing_package_store().as_ref(),
+        )?;
+
+        // Step 2: load all input objects (including authenticator + account).
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
+            self.read_objects_for_validation(transaction, epoch)?;
+
+        // Step 3: get Move authenticators.
+        let move_authenticators = transaction.move_authenticators();
+
+        // Step 4: check inputs (validates gas budget covers auth + tx). When
+        // `is_execute_transaction_to_effects` is true (attest_transaction), the
+        // gas budget is metered for full execution; otherwise (signing) it only
+        // covers authentication.
+        //
+        // Only the attest_transaction path consumes the raw per-authenticator
+        // inputs from `ValidationOutputs` (to recover each
+        // `AuthenticatorFunctionRefForExecution`);
+        // `handle_transaction_validation_checks` discards them. So only clone
+        // for the output when we actually need it, and move the original into
+        // the input check otherwise.
+        let per_authenticator_inputs_for_output = if is_execute_transaction_to_effects {
+            per_authenticator_inputs.clone()
+        } else {
+            Vec::new()
+        };
+        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
+            .check_transaction_inputs_for_validation(
+                protocol_config,
+                reference_gas_price,
+                tx,
+                tx_input_objects,
+                &tx_receiving_objects,
+                &move_authenticators,
+                per_authenticator_inputs,
+                is_execute_transaction_to_effects,
+            )?;
+
+        // Step 5: coin deny list. Pass raw `&InputObjects` (the deny-list
+        // check only reads coin types and does not need the
+        // `CheckedInputObjects` type-state — which is still enforced fresh
+        // at `check_certificate_input` in `execute_transaction`).
+        let per_authenticator_input_objects: Vec<&InputObjects> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| i.0.inner())
+            .collect();
+        check_coin_deny_list_v1(
+            tx.sender(),
+            tx_checked_input_objects.inner(),
+            &tx_receiving_objects,
+            &per_authenticator_input_objects,
+            &self.get_object_store(),
+            epoch_gated_coin_deny_list.then_some(epoch),
+        )?;
+
+        Ok(ValidationOutputs {
+            per_authenticator_inputs: per_authenticator_inputs_for_output,
+            move_authenticators,
+            gas_status,
+            tx_checked_input_objects,
+            per_authenticator_checked_inputs,
+        })
+    }
+
+    /// Re-runs the sender-side coin deny-list check for an attested
+    /// (`UserTransactionV2`) transaction in the post-consensus phase.
+    ///
+    /// An honest attestor performs this check at attestation time, but the deny
+    /// list is a Move object whose state may change between attestation and
+    /// execution. Running the check at execution time would crash the
+    /// validator, so we run it during post-consensus validation where the
+    /// transaction can still be dropped.
+    pub(crate) fn check_coin_deny_list_for_attested_tx(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch: EpochId,
+    ) -> IotaResult<()> {
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
+            self.read_objects_for_validation(transaction, epoch)?;
+        let per_authenticator_input_objects: Vec<&InputObjects> =
+            per_authenticator_inputs.iter().map(|(io, _)| io).collect();
+        check_coin_deny_list_v1(
+            transaction.data().transaction().sender(),
+            &tx_input_objects,
+            &tx_receiving_objects,
+            &per_authenticator_input_objects,
+            &self.get_object_store(),
+            Some(epoch),
+        )?;
+        Ok(())
+    }
+
+    /// Re-runs the `TransactionDenyConfig` deny checks (disabled features,
+    /// denied signers, denied input/receiving objects, denied package
+    /// dependencies) for an attested (`UserTransactionV2`) transaction in the
+    /// post-consensus phase.
+    ///
+    /// NOTE: the deny config is sourced from each validator's own `NodeConfig`,
+    /// so this check is not deterministic across validators.
+    pub(crate) fn check_transaction_deny_list_for_attested_tx(
+        &self,
+        transaction: &VerifiedTransaction,
+    ) -> IotaResult<()> {
+        let tx = transaction.data().transaction();
+        iota_transaction_checks::deny::check_transaction_for_validation(
+            tx,
+            transaction.signatures(),
+            &transaction.input_objects()?,
+            &tx.receiving_objects(),
+            &self.config.transaction_deny_config,
+            self.get_backing_package_store().as_ref(),
+        )?;
+        Ok(())
+    }
+
+    #[allow(clippy::type_complexity)]
     fn read_objects_for_validation(
         &self,
         transaction: &VerifiedTransaction,
@@ -5811,6 +6175,7 @@ impl AuthorityState {
         tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &Vec<&MoveAuthenticator>,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<(
         IotaGasStatus,
         CheckedInputObjects,
@@ -5881,6 +6246,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
                 authenticator_gas_budget,
+                is_execute_transaction_to_effects,
             )?;
 
         Ok((

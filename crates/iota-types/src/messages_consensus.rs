@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
+    attestation::AttestedTransaction,
     base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
@@ -307,6 +308,9 @@ pub enum ConsensusTransactionKind {
     /// authenticated as the consensus block author and must match
     /// `TransactionDenyRuleProposal::authority`.
     TransactionDenyRuleProposal(TransactionDenyRuleProposal),
+    /// Attested user transaction. Carries the transaction together with
+    /// the attested data and the identity of the attestor that produced it.
+    UserTransactionV2(Box<AttestedTransaction>),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -326,6 +330,7 @@ impl ConsensusTransactionKind {
         match self {
             Self::CertifiedTransaction(c) => Some(certified(c)),
             Self::UserTransactionV1(t) => Some(raw(t)),
+            Self::UserTransactionV2(a) => Some(raw(&a.transaction)),
             Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
             | Self::CapabilityNotificationV1(_)
@@ -352,12 +357,13 @@ impl ConsensusTransactionKind {
         self.map_cert_or_raw_user_tx(|c| *c.digest(), |t| *t.digest())
     }
 
-    /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
-    /// submitted directly to consensus, or `None` for any other kind. Certified
-    /// user transactions are not included here.
+    /// Returns the raw, uncertified user transaction (`UserTransactionV1` or
+    /// `UserTransactionV2`) submitted directly to consensus, or `None` for any
+    /// other kind. Certified user transactions are not included here.
     pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
         match self {
             Self::UserTransactionV1(tx) => Some(tx),
+            Self::UserTransactionV2(a) => Some(&a.transaction),
             Self::CertifiedTransaction(_)
             | Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
@@ -374,8 +380,8 @@ impl ConsensusTransactionKind {
     }
 
     /// Returns `true` only for a raw, uncertified user transaction
-    /// (`UserTransactionV1`) submitted directly to consensus. Certified user
-    /// transactions are not included here.
+    /// (`UserTransactionV1` or `UserTransactionV2`) submitted directly
+    /// to consensus. Certified user transactions are not included here.
     pub fn is_user_transaction(&self) -> bool {
         self.as_user_transaction().is_some()
     }
@@ -386,6 +392,7 @@ impl ConsensusTransactionKind {
         match self {
             Self::RandomnessDkgMessage(_, _) | Self::RandomnessDkgConfirmation(_, _) => true,
             Self::UserTransactionV1(_)
+            | Self::UserTransactionV2(_)
             | Self::CertifiedTransaction(_)
             | Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
@@ -741,7 +748,7 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_user_transaction(transaction: TransactionEnvelope) -> Self {
+    pub fn new_user_transaction_v1(transaction: TransactionEnvelope) -> Self {
         let mut hasher = DefaultHasher::new();
         let tx_digest = transaction.digest();
         tx_digest.hash(&mut hasher);
@@ -790,6 +797,17 @@ impl ConsensusTransaction {
         Self {
             tracking_id,
             kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
+        }
+    }
+
+    pub fn new_user_transaction_v2(attested_tx: AttestedTransaction) -> Self {
+        let mut hasher = DefaultHasher::new();
+        let tx_digest = attested_tx.transaction.digest();
+        tx_digest.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::UserTransactionV2(Box::new(attested_tx)),
         }
     }
 
@@ -851,6 +869,9 @@ impl ConsensusTransaction {
                     proposal.authority,
                     proposal.generation,
                 )
+            }
+            ConsensusTransactionKind::UserTransactionV2(attested_tx) => {
+                ConsensusTransactionKey::UserTransaction(*attested_tx.digest())
             }
         }
     }

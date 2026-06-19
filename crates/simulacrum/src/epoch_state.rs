@@ -162,6 +162,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             verifier_signing_config,
             authenticator_gas_budget,
+            false,
         )?;
 
         let transaction = transaction.data().transaction();
@@ -261,6 +262,7 @@ impl EpochState {
                 &self.bytecode_verifier_metrics,
                 verifier_signing_config,
                 authenticator_gas_budget,
+                false,
             )?
         } else {
             // Execution smashes the gas coins and reserves the whole budget from them

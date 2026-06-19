@@ -14,7 +14,7 @@ use iota_types::{
 };
 use prometheus_filtered::IntGauge;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
-use transaction_manager::TransactionManager;
+use transaction_manager::{TransactionManager, VerifiedExecutableAttestedTransaction};
 
 use crate::{
     authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -43,7 +43,7 @@ pub(crate) struct PendingTransactionStats {
 #[derive(Debug)]
 pub(crate) struct PendingTransaction {
     /// The transaction to be executed.
-    pub(crate) transaction: VerifiedExecutableTransaction,
+    pub(crate) transaction: VerifiedExecutableAttestedTransaction,
     /// When executing from checkpoint, the certified effects digest is
     /// provided, so that forks can be detected prior to committing the
     /// transaction.
@@ -69,7 +69,7 @@ pub(crate) trait ExecutionSchedulerAPI {
     fn enqueue_impl(
         &self,
         transactions: Vec<(
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             Option<TransactionEffectsDigest>,
         )>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -78,6 +78,20 @@ pub(crate) trait ExecutionSchedulerAPI {
     fn enqueue(
         &self,
         transactions: Vec<VerifiedExecutableTransaction>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        let transactions = transactions
+            .into_iter()
+            .map(|txn| (txn.into(), None))
+            .collect();
+        self.enqueue_impl(transactions, epoch_store)
+    }
+
+    /// Like [`Self::enqueue`], but preserves the pre-consensus attestation for
+    /// transactions that arrived as `UserTransactionV2`.
+    fn enqueue_attested(
+        &self,
+        transactions: Vec<VerifiedExecutableAttestedTransaction>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
         let transactions = transactions.into_iter().map(|txn| (txn, None)).collect();
@@ -91,7 +105,7 @@ pub(crate) trait ExecutionSchedulerAPI {
     ) {
         let transactions = transactions
             .into_iter()
-            .map(|(txn, fx)| (txn, Some(fx)))
+            .map(|(txn, fx)| (txn.into(), Some(fx)))
             .collect();
         self.enqueue_impl(transactions, epoch_store)
     }
