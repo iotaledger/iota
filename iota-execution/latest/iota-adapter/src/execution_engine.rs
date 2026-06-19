@@ -449,6 +449,7 @@ mod checked {
             },
         );
 
+        // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986 
         // Capture whether authentication failed before the result is moved into the
         // body execution.
         let authentication_failed = authentication_execution_result.is_err();
