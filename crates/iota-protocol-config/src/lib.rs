@@ -627,6 +627,13 @@ struct FeatureFlags {
     // (swap-in) pool; when false, the fixed stake cut by rank is used.
     #[serde(skip_serializing_if = "is_false")]
     consensus_enable_absolute_score_leader_schedule: bool,
+
+    // If true, the block-proposing validator attests each received user transaction
+    // before sending it to consensus. The attestor certifies that Move authentication
+    // passed and the attestation carries a computation cost estimate for
+    // shared-object scheduling.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_validator_attestation: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -659,8 +666,9 @@ impl ConsensusTransactionOrdering {
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
-    TotalGasBudget, // Use txn gas budget as execution cost.
-    TotalTxCount,   // Use total txn count as execution cost.
+    TotalGasBudget,        // Use txn gas budget as execution cost.
+    TotalTxCount,          // Use total txn count as execution cost.
+    TotalComputationUnits, // Use attested computation units as execution cost.
 }
 
 impl PerObjectCongestionControlMode {
@@ -1611,6 +1619,12 @@ impl ProtocolConfig {
     }
 
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
+        // TODO(attestation): Once `enable_validator_attestation` is set in a version
+        // arm, set `per_object_congestion_control_mode = TotalComputationUnits`
+        // there too and revert this to a plain getter.
+        if self.enable_validator_attestation() {
+            return PerObjectCongestionControlMode::TotalComputationUnits;
+        }
         self.feature_flags.per_object_congestion_control_mode
     }
 
@@ -2058,6 +2072,15 @@ impl ProtocolConfig {
         assert!(
             res != Some(0),
             "max_concurrent_execution_workers must be positive when set"
+        );
+        res
+    }
+
+    pub fn enable_validator_attestation(&self) -> bool {
+        let res = self.feature_flags.enable_validator_attestation;
+        assert!(
+            !res || self.enable_pcool_flow(),
+            "enable_validator_attestation requires enable_pcool_flow to be set"
         );
         res
     }
@@ -3651,6 +3674,10 @@ impl ProtocolConfig {
     pub fn set_consensus_enable_absolute_score_leader_schedule_for_testing(&mut self, val: bool) {
         self.feature_flags
             .consensus_enable_absolute_score_leader_schedule = val;
+    }
+
+    pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_validator_attestation = val;
     }
 }
 

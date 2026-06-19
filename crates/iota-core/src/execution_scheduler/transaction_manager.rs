@@ -5,6 +5,7 @@
 use std::{
     cmp::{Reverse, max},
     collections::{BTreeSet, BinaryHeap, HashMap, HashSet, hash_map},
+    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -16,6 +17,7 @@ use iota_sdk_types::{
     ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, Version,
 };
 use iota_types::{
+    attestation::Attestation,
     committee::EpochId,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -62,6 +64,60 @@ pub struct TransactionManager {
     // acquire the outer lock for write, to ensure that no other threads can be running while
     // we reconfigure.
     inner: RwLock<RwLock<Inner>>,
+}
+
+/// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
+/// [`Attestation`] (if any). Carrying the full attestation lets downstream code
+/// consult both scheduling metadata and attestor identity / observed object
+/// versions.
+///
+/// This is runtime-only scheduling metadata: it is never serialized or
+/// persisted.
+#[derive(Clone, Debug)]
+pub struct VerifiedExecutableAttestedTransaction {
+    tx: VerifiedExecutableTransaction,
+    /// `None` for unattested transactions (e.g., `UserTransactionV1`).
+    attestation: Option<Attestation>,
+}
+
+impl VerifiedExecutableAttestedTransaction {
+    pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
+        Self { tx, attestation }
+    }
+
+    /// Returns the attached attestation, or `None` if the transaction was
+    /// not attested.
+    pub fn attestation(&self) -> Option<&Attestation> {
+        self.attestation.as_ref()
+    }
+
+    /// Returns the attestor's estimated computation units, or `None` if the
+    /// transaction was not attested.
+    pub fn attested_computation_units(&self) -> Option<u64> {
+        self.attestation.as_ref().map(|a| a.computation_units())
+    }
+
+    /// Consume the wrapper and return its parts.
+    pub fn into_parts(self) -> (VerifiedExecutableTransaction, Option<Attestation>) {
+        (self.tx, self.attestation)
+    }
+}
+
+impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransaction {
+    fn from(tx: VerifiedExecutableTransaction) -> Self {
+        Self {
+            tx,
+            attestation: None,
+        }
+    }
+}
+
+impl Deref for VerifiedExecutableAttestedTransaction {
+    type Target = VerifiedExecutableTransaction;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tx
+    }
 }
 
 struct CacheInner {
@@ -340,7 +396,7 @@ impl TransactionManager {
     fn enqueue_impl(
         &self,
         transactions: Vec<(
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             Option<TransactionEffectsDigest>,
         )>,
         epoch_store: &AuthorityPerEpochStore,
@@ -876,7 +932,7 @@ impl ExecutionSchedulerAPI for TransactionManager {
     fn enqueue_impl(
         &self,
         transactions: Vec<(
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             Option<TransactionEffectsDigest>,
         )>,
         epoch_store: &Arc<AuthorityPerEpochStore>,

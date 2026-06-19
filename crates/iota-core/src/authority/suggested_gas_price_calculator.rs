@@ -4,16 +4,16 @@
 use std::collections::{BTreeMap, HashMap};
 
 use iota_sdk_types::ObjectId;
-use iota_types::{
-    executable_transaction::VerifiedExecutableTransaction,
-    transaction::{SenderSignedTransactionAPI, TransactionAPI},
-};
+use iota_types::transaction::{SenderSignedTransactionAPI, TransactionAPI};
 use tracing::instrument;
 
 use super::shared_object_congestion_tracker::ExecutionTime;
-use crate::authority::{
-    authority_per_epoch_store::CongestionControlParameters,
-    shared_object_congestion_tracker::BumpObjectExecutionSlotsResult,
+use crate::{
+    authority::{
+        authority_per_epoch_store::CongestionControlParameters,
+        shared_object_congestion_tracker::BumpObjectExecutionSlotsResult,
+    },
+    execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 /// Holds shared object congestion info for a single scheduled shared-object
@@ -202,7 +202,7 @@ impl SuggestedGasPriceCalculator {
     #[instrument(level = "trace", skip_all)]
     pub(super) fn calculate_suggested_gas_price(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
     ) -> u64 {
         if let Some(congestion_limit_per_commit) = self.get_effective_congestion_limit_per_commit()
         {
@@ -296,7 +296,7 @@ impl SuggestedGasPriceCalculator {
     /// imaginary start time computed in `calculate_suggested_gas_price`.
     fn find_object_clearing_gas_price(
         &self,
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         start_time_of_shed_tx: ExecutionTime,
     ) -> Option<u64> {
         transaction
@@ -413,7 +413,8 @@ pub mod suggested_gas_price_calculator_test_utils {
         for (object_id, duration, gas_price) in init_values {
             match congestion_control_parameters.per_object_congestion_control_mode_for_test() {
                 PerObjectCongestionControlMode::None => {}
-                PerObjectCongestionControlMode::TotalGasBudget => {
+                PerObjectCongestionControlMode::TotalGasBudget
+                | PerObjectCongestionControlMode::TotalComputationUnits => {
                     let transaction =
                         build_transaction(&[(*object_id, true)], *duration, *gas_price);
 
@@ -467,22 +468,23 @@ mod tests {
 
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
     use iota_sdk_types::ObjectId;
-    use iota_types::{
-        executable_transaction::VerifiedExecutableTransaction,
-        transaction::SenderSignedTransactionAPI,
-    };
+    use iota_types::transaction::SenderSignedTransactionAPI;
     use rstest::rstest;
 
     use super::SuggestedGasPriceCalculator;
-    use crate::authority::{
-        authority_per_epoch_store::CongestionControlParameters,
-        shared_object_congestion_tracker::{
-            BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
-            SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
+    use crate::{
+        authority::{
+            authority_per_epoch_store::CongestionControlParameters,
+            shared_object_congestion_tracker::{
+                BumpObjectExecutionSlotsResult, ExecutionTime, SequencingResult,
+                SharedObjectCongestionTracker, shared_object_test_utils::build_transaction,
+            },
+            suggested_gas_price_calculator::{
+                PerCommitCongestionInfo, PerObjectCongestionInfo,
+                ScheduledTransactionCongestionInfo,
+            },
         },
-        suggested_gas_price_calculator::{
-            PerCommitCongestionInfo, PerObjectCongestionInfo, ScheduledTransactionCongestionInfo,
-        },
+        execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
     };
 
     const REFERENCE_GAS_PRICE: u64 = 1_000;
@@ -537,7 +539,7 @@ mod tests {
     fn build_and_try_sequencing_transaction(
         tx: &Transaction,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-    ) -> (VerifiedExecutableTransaction, SequencingResult) {
+    ) -> (VerifiedExecutableAttestedTransaction, SequencingResult) {
         let transaction = build_transaction(&tx.input_shared_objects, tx.gas_budget, tx.gas_price);
         let shared_input_objects = transaction.shared_input_objects();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
@@ -556,7 +558,7 @@ mod tests {
     /// `shared_object_congestion_tracker` and `suggested_gas_price_calculator`
     /// for a `transaction` scheduled at `execution_start_time`.
     fn update_data_for_scheduled_transaction(
-        transaction: &VerifiedExecutableTransaction,
+        transaction: &VerifiedExecutableAttestedTransaction,
         execution_start_time: ExecutionTime,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
@@ -2381,7 +2383,8 @@ mod tests {
         let max_execution_duration_per_commit = match per_object_congestion_control_mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalTxCount => 0,
-            PerObjectCongestionControlMode::TotalGasBudget => 2_999_999,
+            PerObjectCongestionControlMode::TotalGasBudget
+            | PerObjectCongestionControlMode::TotalComputationUnits => 2_999_999,
         };
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             per_object_congestion_control_mode,
@@ -2465,7 +2468,8 @@ mod tests {
             match per_object_congestion_control_mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => (1, 2),
-                PerObjectCongestionControlMode::TotalGasBudget => (1_000_000, 2_000_000),
+                PerObjectCongestionControlMode::TotalGasBudget
+                | PerObjectCongestionControlMode::TotalComputationUnits => (1_000_000, 2_000_000),
             };
         let congestion_control_parameters = CongestionControlParameters::new_for_test(
             per_object_congestion_control_mode,

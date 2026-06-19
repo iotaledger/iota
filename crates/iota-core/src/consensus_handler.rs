@@ -44,7 +44,10 @@ use crate::{
     },
     epoch_start_consensus_committee::get_consensus_committee,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
-    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
+    execution_scheduler::{
+        ExecutionSchedulerAPI, ExecutionSchedulerWrapper,
+        transaction_manager::VerifiedExecutableAttestedTransaction,
+    },
     scoring_decision::update_low_scoring_authorities,
 };
 
@@ -472,7 +475,7 @@ fn publish_scoring_gauges(
 }
 
 struct AsyncTransactionScheduler {
-    sender: tokio::sync::mpsc::Sender<Vec<VerifiedExecutableTransaction>>,
+    sender: tokio::sync::mpsc::Sender<Vec<VerifiedExecutableAttestedTransaction>>,
 }
 
 impl AsyncTransactionScheduler {
@@ -485,19 +488,19 @@ impl AsyncTransactionScheduler {
         Self { sender }
     }
 
-    pub async fn schedule(&self, transactions: Vec<VerifiedExecutableTransaction>) {
+    pub async fn schedule(&self, transactions: Vec<VerifiedExecutableAttestedTransaction>) {
         tracing::trace_span!("transaction_scheduler_enqueue");
         self.sender.send(transactions).await.ok();
     }
 
     pub async fn run(
-        mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableTransaction>>,
+        mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableAttestedTransaction>>,
         execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
         while let Some(transactions) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
-            execution_scheduler.enqueue(transactions, &epoch_store);
+            execution_scheduler.enqueue_attested(transactions, &epoch_store);
         }
     }
 }
@@ -607,9 +610,16 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         }
         ConsensusTransactionKind::UserTransactionV1(transaction) => {
             if transaction.contains_shared_object() {
-                "shared_user_transaction"
+                "shared_user_transaction_v1"
             } else {
-                "owned_user_transaction"
+                "owned_user_transaction_v1"
+            }
+        }
+        ConsensusTransactionKind::UserTransactionV2(a) => {
+            if a.transaction.contains_shared_object() {
+                "shared_user_transaction_v2"
+            } else {
+                "owned_user_transaction_v2"
             }
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
@@ -731,10 +741,11 @@ impl SequencedConsensusTransactionKind {
     }
 
     /// Returns the digest for transactions that get executed -- user-originated
-    /// (`CertifiedTransaction` and `UserTransactionV1`) and system transactions
-    /// -- and `None` for internal consensus messages (checkpoint signatures,
-    /// capability notifications, randomness DKG, etc.). Used to build
-    /// checkpoint roots and to schedule transactions for execution.
+    /// (`CertifiedTransaction`, `UserTransactionV1`, and `UserTransactionV2`)
+    /// and system transactions -- and `None` for internal consensus messages
+    /// (checkpoint signatures, capability notifications, randomness DKG, etc.).
+    /// Used to build checkpoint roots and to schedule transactions for
+    /// execution.
     pub fn executable_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
             SequencedConsensusTransactionKind::External(ext) => ext.kind.transaction_digest(),
@@ -743,10 +754,11 @@ impl SequencedConsensusTransactionKind {
     }
 
     /// Returns the digest only for user-originated transaction kinds
-    /// (`CertifiedTransaction` and `UserTransactionV1`). Used by post-consensus
-    /// load shedding to guarantee that no internal consensus messages
-    /// (checkpoint signatures, capability notifications, randomness DKG, etc.)
-    /// and system transactions are eligible to be dropped.
+    /// (`CertifiedTransaction`, `UserTransactionV1`, and `UserTransactionV2`).
+    /// Used by post-consensus load shedding to guarantee that no internal
+    /// consensus messages (checkpoint signatures, capability notifications,
+    /// randomness DKG, etc.) and system transactions are eligible to be
+    /// dropped.
     pub fn user_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
             SequencedConsensusTransactionKind::External(ext) => ext.kind.transaction_digest(),
@@ -790,9 +802,10 @@ impl SequencedConsensusTransaction {
     }
 
     /// Returns `true` if this is a user-originated transaction
-    /// (`CertifiedTransaction` or `UserTransactionV1`) that uses randomness.
-    /// Non-user kinds (internal consensus messages, system transactions) are
-    /// always `false`, since only user transactions can request randomness.
+    /// (`CertifiedTransaction`, `UserTransactionV1`, or `UserTransactionV2`)
+    /// that uses randomness. Non-user kinds (internal consensus messages,
+    /// system transactions) are always `false`, since only user transactions
+    /// can request randomness.
     pub fn is_user_tx_with_randomness(&self) -> bool {
         match &self.transaction {
             SequencedConsensusTransactionKind::External(ext) => {
@@ -804,9 +817,10 @@ impl SequencedConsensusTransaction {
     }
 
     /// Returns the transaction data if this is a user-originated
-    /// (`CertifiedTransaction` or `UserTransactionV1`) or system transaction
-    /// that touches at least one shared object, and `None` otherwise (internal
-    /// consensus messages, or a transaction with only owned objects).
+    /// (`CertifiedTransaction`, `UserTransactionV1`, or `UserTransactionV2`)
+    /// or system transaction that touches at least one shared object, and
+    /// `None` otherwise (internal consensus messages, or a transaction with
+    /// only owned objects).
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedTransaction> {
         match &self.transaction {
             SequencedConsensusTransactionKind::External(ext) => ext
@@ -820,8 +834,8 @@ impl SequencedConsensusTransaction {
     }
 
     /// Returns `true` only for a raw, uncertified user transaction
-    /// (`UserTransactionV1`). Certified user transactions and system
-    /// transactions are not included.
+    /// (`UserTransactionV1` or `UserTransactionV2`). Certified user
+    /// transactions and system transactions are not included.
     pub fn is_user_transaction(&self) -> bool {
         match &self.transaction {
             // Classification of user-transaction kinds lives on the enum helper,

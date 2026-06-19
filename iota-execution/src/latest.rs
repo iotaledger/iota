@@ -208,6 +208,7 @@ impl executor::Executor for Executor {
         IotaGasStatus,
         TransactionEffects,
         Result<(), ExecutionError>,
+        bool,
     ) {
         authenticate_then_execute_transaction_to_effects::<execution_mode::Normal>(
             store,

@@ -201,7 +201,7 @@ pub fn make_consensus_adapter_for_test(
             if self.execute {
                 self.state
                     .execution_scheduler()
-                    .enqueue(transactions, epoch_store);
+                    .enqueue_attested(transactions, epoch_store);
             }
 
             assert!(

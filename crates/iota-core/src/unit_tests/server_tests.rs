@@ -752,7 +752,7 @@ async fn test_v2_submit_tx_refuses_contradicting_previously_signed() {
         1,
     );
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable.into(), None, &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
 
@@ -1365,7 +1365,7 @@ async fn test_v2_get_tx_status_refuses_contradicting_previously_signed() {
         1,
     );
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable.into(), None, &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
 
@@ -1474,7 +1474,7 @@ async fn test_v2_get_tx_status_allows_matching_previously_signed() {
         1,
     );
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable.into(), None, &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
     authority_state

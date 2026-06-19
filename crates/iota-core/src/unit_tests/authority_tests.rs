@@ -2513,7 +2513,7 @@ async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
     // A certified effects digest that cannot match what this transfer produces.
     let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
     let executable =
-        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
+        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction).into();
     let _ = authority_state.try_execute_immediately(
         &executable,
         Some(bogus_effects_digest),
@@ -2545,7 +2545,7 @@ async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
         &authority_state,
     );
     let executable =
-        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
+        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction).into();
 
     // Execute once for real, then re-run with a mismatching expected digest.
     authority_state
@@ -6539,7 +6539,8 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     let non_congested_tx_count = match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => 5,
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationUnits => 5,
         PerObjectCongestionControlMode::TotalTxCount => 2,
     };
     let gas_objects_commit_1 = create_gas_objects(5 + non_congested_tx_count, sender);
@@ -6552,7 +6553,8 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     match mode {
         PerObjectCongestionControlMode::None => unreachable!(),
-        PerObjectCongestionControlMode::TotalGasBudget => {
+        PerObjectCongestionControlMode::TotalGasBudget
+        | PerObjectCongestionControlMode::TotalComputationUnits => {
             protocol_config
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     200_000_000,
@@ -7223,7 +7225,7 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // here we enqueue directly to keep the test focused on the seam.
     authority
         .execution_scheduler()
-        .enqueue(executable_txs, &epoch_store);
+        .enqueue_attested(executable_txs, &epoch_store);
 
     // The winner's owned input is available, so it must become ready and execute.
     // Observe execution black-box, with no dependency on the scheduler internals:
@@ -8336,7 +8338,7 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
     // Execution must not consult previously signed effects: it succeeds even
     // though the resulting effects differ from the previously signed digest.
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable.into(), None, &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
     assert_ne!(effects.digest(), previously_signed_digest);
