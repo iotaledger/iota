@@ -97,7 +97,10 @@ fn execute_commits_writes_to_store() {
     assert_eq!(created.len(), 1, "transfer_iota creates exactly one coin");
     let new_coin_id = created[0].0.object_id;
     assert!(
-        vm.store_mut().get_object(&new_coin_id, None).is_some(),
+        vm.store_mut()
+            .get_object(&new_coin_id, None)
+            .expect("store lookup")
+            .is_some(),
         "created coin must be committed to the store"
     );
 
@@ -105,6 +108,7 @@ fn execute_commits_writes_to_store() {
     let gas_after = vm
         .store_mut()
         .get_object(&gas_id, None)
+        .expect("store lookup")
         .expect("gas coin must remain in the store");
     assert!(
         gas_after.version() > gas_version_before,
@@ -171,7 +175,10 @@ fn execute_commits_deletions_to_store() {
         "merged coin must appear in effects.deleted()"
     );
     assert!(
-        vm.store_mut().get_object(&merged_id, None).is_none(),
+        vm.store_mut()
+            .get_object(&merged_id, None)
+            .expect("store lookup")
+            .is_none(),
         "deleted coin must be removed from the store"
     );
 }
@@ -204,13 +211,17 @@ fn dev_inspect_and_dry_run_leave_store_unchanged() {
         let created: Vec<_> = result.effects.created();
         for (objref, _owner) in &created {
             assert!(
-                vm.store_mut().get_object(&objref.object_id, None).is_none(),
+                vm.store_mut()
+                    .get_object(&objref.object_id, None)
+                    .expect("store lookup")
+                    .is_none(),
                 "{mode:?}: created object must NOT be committed"
             );
         }
         let gas_after = vm
             .store_mut()
             .get_object(&gas_id, None)
+            .expect("store lookup")
             .expect("gas coin still present");
         assert_eq!(
             gas_after.version(),

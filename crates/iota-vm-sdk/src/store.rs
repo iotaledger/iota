@@ -18,13 +18,15 @@ use iota_sdk_types::{ObjectId, Version};
 use iota_types::{
     base_types::{SequenceNumber, VersionNumber},
     committee::EpochId,
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject,
         error::Error as StorageError,
     },
 };
+
+use crate::error::StoreError;
 
 /// A synchronous object store the local VM reads from and (on
 /// [`ExecutionMode::Execute`](crate::ExecutionMode::Execute)) writes back to.
@@ -34,8 +36,13 @@ use iota_types::{
 pub trait Store {
     /// Look up an object by ID. When `version` is `Some`, return the object
     /// only if it is at exactly that version; when `None`, return whatever
-    /// version is held.
-    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> Option<Object>;
+    /// version is held. `Ok(None)` means the object is absent; an `Err` means
+    /// the lookup itself failed (e.g. a networked store's fetch).
+    fn get_object(
+        &self,
+        id: &ObjectId,
+        version: Option<Version>,
+    ) -> Result<Option<Object>, StoreError>;
 
     /// Resolve a dynamic-field child object owned by `parent`, returning the
     /// child only if its version is `<= version_upper_bound`.
@@ -49,7 +56,7 @@ pub trait Store {
         parent: &ObjectId,
         child: &ObjectId,
         version_upper_bound: Version,
-    ) -> Option<Object>;
+    ) -> Result<Option<Object>, StoreError>;
 
     /// Insert (or overwrite) an object.
     fn insert(&mut self, object: Object);
@@ -106,12 +113,18 @@ impl InMemoryStore {
 }
 
 impl Store for InMemoryStore {
-    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> Option<Object> {
-        let obj = self.objects.get(id)?;
-        match version {
+    fn get_object(
+        &self,
+        id: &ObjectId,
+        version: Option<Version>,
+    ) -> Result<Option<Object>, StoreError> {
+        let Some(obj) = self.objects.get(id) else {
+            return Ok(None);
+        };
+        Ok(match version {
             Some(v) if obj.version() != v => None,
             _ => Some(obj.clone()),
-        }
+        })
     }
 
     fn get_child_object(
@@ -119,14 +132,15 @@ impl Store for InMemoryStore {
         parent: &ObjectId,
         child: &ObjectId,
         version_upper_bound: Version,
-    ) -> Option<Object> {
+    ) -> Result<Option<Object>, StoreError> {
         // Match the node's resolver: an object only counts as a child of
         // `parent` if `parent` actually owns it.
-        self.objects
+        Ok(self
+            .objects
             .get(child)
             .filter(|o| o.version() <= version_upper_bound)
             .filter(|o| o.owner == iota_sdk_types::Owner::Object(*parent))
-            .cloned()
+            .cloned())
     }
 
     fn insert(&mut self, object: Object) {
@@ -157,7 +171,9 @@ impl<'a> StoreBackend<'a> {
 
 impl ObjectStore for StoreBackend<'_> {
     fn try_get_object(&self, object_id: &ObjectId) -> Result<Option<Object>, StorageError> {
-        Ok(self.inner.get_object(object_id, None))
+        self.inner
+            .get_object(object_id, None)
+            .map_err(StorageError::custom)
     }
 
     fn try_get_object_by_key(
@@ -165,7 +181,9 @@ impl ObjectStore for StoreBackend<'_> {
         object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, StorageError> {
-        Ok(self.inner.get_object(object_id, Some(version)))
+        self.inner
+            .get_object(object_id, Some(version))
+            .map_err(StorageError::custom)
     }
 }
 
@@ -174,6 +192,7 @@ impl BackingPackageStore for StoreBackend<'_> {
         Ok(self
             .inner
             .get_object(package_id, None)
+            .map_err(|e| IotaError::Storage(e.to_string()))?
             .map(PackageObject::new))
     }
 }
@@ -185,9 +204,9 @@ impl ChildObjectResolver for StoreBackend<'_> {
         child: &ObjectId,
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self
-            .inner
-            .get_child_object(parent, child, child_version_upper_bound))
+        self.inner
+            .get_child_object(parent, child, child_version_upper_bound)
+            .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
     fn get_object_received_at_version(
@@ -197,9 +216,9 @@ impl ChildObjectResolver for StoreBackend<'_> {
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
-        Ok(self
-            .inner
-            .get_object(receiving_object_id, Some(receive_object_at_version)))
+        self.inner
+            .get_object(receiving_object_id, Some(receive_object_at_version))
+            .map_err(|e| IotaError::Storage(e.to_string()))
     }
 }
 
@@ -229,11 +248,26 @@ mod tests {
         store.insert(child);
 
         let high = SequenceNumber::from(10);
-        assert!(store.get_child_object(&parent, &child_id, high).is_some());
+        assert!(
+            store
+                .get_child_object(&parent, &child_id, high)
+                .unwrap()
+                .is_some()
+        );
         // A different parent must not be able to read the child.
-        assert!(store.get_child_object(&stranger, &child_id, high).is_none());
+        assert!(
+            store
+                .get_child_object(&stranger, &child_id, high)
+                .unwrap()
+                .is_none()
+        );
         // A version bound below the child's version hides it.
         let low = SequenceNumber::from(2);
-        assert!(store.get_child_object(&parent, &child_id, low).is_none());
+        assert!(
+            store
+                .get_child_object(&parent, &child_id, low)
+                .unwrap()
+                .is_none()
+        );
     }
 }

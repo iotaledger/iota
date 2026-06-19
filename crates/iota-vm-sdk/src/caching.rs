@@ -24,7 +24,7 @@ use iota_types::object::Object;
 use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::{
-    error::VmSdkError,
+    error::StoreError,
     store::{InMemoryStore, Store},
 };
 
@@ -37,7 +37,7 @@ pub(crate) trait ObjectFetcher {
     fn fetch_objects(
         &self,
         refs: &[(ObjectId, Option<Version>)],
-    ) -> impl Future<Output = Result<Vec<Object>, VmSdkError>>;
+    ) -> impl Future<Output = Result<Vec<Object>, StoreError>>;
 }
 
 /// An [`InMemoryStore`] cache fronting an [`ObjectFetcher`], resolving misses
@@ -45,7 +45,6 @@ pub(crate) trait ObjectFetcher {
 pub(crate) struct CachingStore<F> {
     inner: Arc<Mutex<InMemoryStore>>,
     fetcher: F,
-    last_fetch_error: Arc<Mutex<Option<String>>>,
 }
 
 impl<F: Clone> Clone for CachingStore<F> {
@@ -53,7 +52,6 @@ impl<F: Clone> Clone for CachingStore<F> {
         Self {
             inner: self.inner.clone(),
             fetcher: self.fetcher.clone(),
-            last_fetch_error: self.last_fetch_error.clone(),
         }
     }
 }
@@ -65,7 +63,6 @@ impl<F: ObjectFetcher> CachingStore<F> {
         Self {
             inner: Arc::new(Mutex::new(InMemoryStore::with_framework())),
             fetcher,
-            last_fetch_error: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -80,53 +77,31 @@ impl<F: ObjectFetcher> CachingStore<F> {
         self.inner.lock().expect("store lock poisoned").clone()
     }
 
-    /// The most recent on-demand fetch failure, if any.
-    ///
-    /// The synchronous [`Store`] surface cannot return an error from a cache
-    /// miss, so a failed on-demand fetch collapses to "object absent" and later
-    /// surfaces as [`VmSdkError::MissingObject`]. When a run fails that way,
-    /// check this to tell a transient transport or decode failure apart from a
-    /// genuinely missing object. Set by a failing on-demand fetch and cleared
-    /// by the next successful one; shared across clones.
-    pub(crate) fn last_fetch_error(&self) -> Option<String> {
-        self.last_fetch_error
-            .lock()
-            .expect("error lock poisoned")
-            .clone()
-    }
-
-    /// Fetch `refs` synchronously from within the executor by blocking on the
-    /// fetcher. A fetch error collapses to an empty result, leaving the object
-    /// absent so the VM treats it as missing, but is stashed in
-    /// [`last_fetch_error`](Self::last_fetch_error) first. Must run inside a
-    /// multi-threaded Tokio runtime.
-    fn fetch_blocking(&self, refs: &[(ObjectId, Option<Version>)]) -> Vec<Object> {
-        match block_in_place(|| Handle::current().block_on(self.fetcher.fetch_objects(refs))) {
-            Ok(objects) => {
-                // A successful fetch clears any stale error from an earlier one,
-                // so a later genuine miss is not misread as a transport failure.
-                *self.last_fetch_error.lock().expect("error lock poisoned") = None;
-                objects
-            }
-            Err(e) => {
-                *self.last_fetch_error.lock().expect("error lock poisoned") = Some(e.to_string());
-                Vec::new()
-            }
-        }
+    /// Fetch `refs` by blocking on the fetcher from within the executor. Must
+    /// run inside a multi-threaded Tokio runtime.
+    fn fetch_blocking(
+        &self,
+        refs: &[(ObjectId, Option<Version>)],
+    ) -> Result<Vec<Object>, StoreError> {
+        block_in_place(|| Handle::current().block_on(self.fetcher.fetch_objects(refs)))
     }
 }
 
 impl<F: ObjectFetcher> Store for CachingStore<F> {
-    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> Option<Object> {
+    fn get_object(
+        &self,
+        id: &ObjectId,
+        version: Option<Version>,
+    ) -> Result<Option<Object>, StoreError> {
         // Scope the read lock so it is released before the blocking fetch
         // re-acquires it (a std `Mutex` is not reentrant).
         {
             let inner = self.inner.lock().expect("store lock poisoned");
-            if let Some(obj) = inner.get_object(id, version) {
-                return Some(obj);
+            if let Some(obj) = inner.get_object(id, version)? {
+                return Ok(Some(obj));
             }
         }
-        let fetched = self.fetch_blocking(&[(*id, version)]);
+        let fetched = self.fetch_blocking(&[(*id, version)])?;
         let mut inner = self.inner.lock().expect("store lock poisoned");
         for obj in fetched {
             inner.insert(obj);
@@ -139,16 +114,16 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
         parent: &ObjectId,
         child: &ObjectId,
         version_upper_bound: Version,
-    ) -> Option<Object> {
+    ) -> Result<Option<Object>, StoreError> {
         {
             let inner = self.inner.lock().expect("store lock poisoned");
-            if let Some(obj) = inner.get_child_object(parent, child, version_upper_bound) {
-                return Some(obj);
+            if let Some(obj) = inner.get_child_object(parent, child, version_upper_bound)? {
+                return Ok(Some(obj));
             }
         }
         // Fetch the child at its latest version; the upper-bound check is
         // re-applied below once it is cached.
-        let fetched = self.fetch_blocking(&[(*child, None)]);
+        let fetched = self.fetch_blocking(&[(*child, None)])?;
         let mut inner = self.inner.lock().expect("store lock poisoned");
         for obj in fetched {
             inner.insert(obj);

@@ -38,7 +38,7 @@ use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout, MoveV
 use move_trace_format::format::MoveTraceBuilder;
 
 use crate::{
-    error::{ExecutionError, ValidationError, VmError, VmSdkError},
+    error::{ExecutionError, StoreError, ValidationError, VmError, VmSdkError},
     executor::{
         env::ExecutionEnv,
         types::{DecodedEvent, ExecutionMode},
@@ -72,13 +72,13 @@ pub(super) fn prepare_transaction(
         .gas()
         .iter()
         .map(|gas_ref| {
-            store
+            let obj = store
                 .as_object_store()
-                .get_object(&gas_ref.object_id)
-                .map(|obj| obj.object_ref())
-                .unwrap_or(*gas_ref)
+                .try_get_object(&gas_ref.object_id)
+                .map_err(|e| StoreError::new("load gas object", e))?;
+            Ok(obj.map(|o| o.object_ref()).unwrap_or(*gas_ref))
         })
-        .collect();
+        .collect::<Result<_, VmSdkError>>()?;
     transaction.gas_data_mut().objects = updated_gas;
 
     let raw_input_object_kinds = transaction
@@ -131,16 +131,15 @@ pub(super) fn prepare_transaction(
             receiving_objects,
         )
         .map_err(|e| ValidationError::new("dev-inspect input check", e))?;
-        // The plain dev-inspect path runs through the engine's dev-inspect entry
-        // point and, like the node, meters at `max_tx_gas` so an unset or low
-        // budget doesn't spuriously abort with `InsufficientGas`. The
-        // `MoveAuthenticator` path (authenticator budget set) instead runs
-        // checked execution, which smashes the budget off the gas coin's
-        // balance, so it must meter at the transaction's own budget.
-        let dev_inspect_gas_budget = if authenticator_gas_budget > 0 {
-            transaction.gas_budget()
-        } else {
+        // A gasless transaction is funded with a large mock coin, so meter at
+        // `max_tx_gas` (like the node) — a dev-inspect run before a budget is
+        // settled isn't limited by the tx's budget. With a real gas coin, meter
+        // at the transaction's budget so the amount smashed off the coin during
+        // execution stays within its balance.
+        let dev_inspect_gas_budget = if mock_gas_id.is_some() {
             env.protocol_config.max_tx_gas()
+        } else {
+            transaction.gas_budget()
         };
         let gas_status = IotaGasStatus::new(
             dev_inspect_gas_budget,
@@ -440,7 +439,8 @@ fn resolve_authenticator_function_ref(
 
     let field_obj = store
         .as_object_store()
-        .get_object(&field_id)
+        .try_get_object(&field_id)
+        .map_err(|e| StoreError::new("load authenticator field", e))?
         .ok_or(VmSdkError::missing_object(field_id, None))?;
 
     let field_move_object = field_obj.data.as_struct_opt().ok_or_else(|| {
@@ -470,7 +470,8 @@ fn build_input_objects(
     for kind in input_object_kinds {
         let obj = store
             .as_object_store()
-            .get_object(&kind.object_id())
+            .try_get_object(&kind.object_id())
+            .map_err(|e| StoreError::new("load input object", e))?
             .ok_or(VmSdkError::missing_object(kind.object_id(), kind.version()))?;
 
         let updated_kind = match kind {
@@ -503,7 +504,8 @@ fn build_receiving_objects(
     for objref in receiving_object_refs {
         let obj = store
             .as_object_store()
-            .get_object(&objref.object_id)
+            .try_get_object(&objref.object_id)
+            .map_err(|e| StoreError::new("load receiving object", e))?
             .ok_or(VmSdkError::missing_object(
                 objref.object_id,
                 Some(objref.version),

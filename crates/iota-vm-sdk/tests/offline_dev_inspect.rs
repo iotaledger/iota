@@ -64,6 +64,7 @@ fn dev_inspect_runs_offline_and_leaves_store_unchanged() {
     let store_after: Vec<_> = vm
         .store_mut()
         .get_object(&result.mock_gas_id.expect("mock gas id"), None)
+        .expect("store lookup")
         .into_iter()
         .collect();
     assert!(
