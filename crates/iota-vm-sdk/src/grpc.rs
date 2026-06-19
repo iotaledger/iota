@@ -66,16 +66,6 @@ impl GrpcStore {
         self.cache.store()
     }
 
-    /// The most recent on-demand fetch failure, if any.
-    ///
-    /// A failed cache-miss fetch collapses to "object absent" — surfacing later
-    /// as [`VmSdkError::MissingObject`] — so check this to tell a transient
-    /// transport or decode failure apart from a genuinely missing object.
-    /// Cleared by the next successful fetch.
-    pub fn last_fetch_error(&self) -> Option<String> {
-        self.cache.last_fetch_error()
-    }
-
     /// Fetch the chain parameters a [`LocalVm`](crate::LocalVm) needs.
     ///
     /// The [`Chain`](crate::Chain) is resolved from the node's service info so
@@ -132,7 +122,11 @@ impl GrpcStore {
 }
 
 impl Store for GrpcStore {
-    fn get_object(&self, id: &ObjectId, version: Option<Version>) -> Option<Object> {
+    fn get_object(
+        &self,
+        id: &ObjectId,
+        version: Option<Version>,
+    ) -> Result<Option<Object>, StoreError> {
         self.cache.get_object(id, version)
     }
 
@@ -141,7 +135,7 @@ impl Store for GrpcStore {
         parent: &ObjectId,
         child: &ObjectId,
         version_upper_bound: Version,
-    ) -> Option<Object> {
+    ) -> Result<Option<Object>, StoreError> {
         self.cache
             .get_child_object(parent, child, version_upper_bound)
     }
@@ -161,17 +155,31 @@ struct GrpcFetcher {
     client: Client,
 }
 
+/// gRPC status code for a not-found resource (`google.rpc.Code::NOT_FOUND`).
+const GRPC_CODE_NOT_FOUND: i32 = 5;
+
 impl ObjectFetcher for GrpcFetcher {
     async fn fetch_objects(
         &self,
         refs: &[(ObjectId, Option<Version>)],
-    ) -> Result<Vec<Object>, VmSdkError> {
-        let proto_objects = self
-            .client
-            .get_objects(refs, None)
-            .await
-            .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
-            .into_inner();
+    ) -> Result<Vec<Object>, StoreError> {
+        let proto_objects = match self.client.get_objects(refs, None).await {
+            Ok(resp) => resp.into_inner(),
+            // A missing object is reported by the node as a `NOT_FOUND` server
+            // error. The `Store` contract treats absence as `Ok(None)` (the
+            // VM's child-object resolver relies on this — a dynamic field that
+            // does not exist must read as absent, not fault), so a single-object
+            // request that comes back not-found yields no objects rather than an
+            // error. A batched request can't say which ref was missing, so its
+            // error still propagates; the on-demand resolution path only ever
+            // fetches one object at a time.
+            Err(iota_grpc_client::api::Error::Server(status))
+                if refs.len() == 1 && status.code == GRPC_CODE_NOT_FOUND =>
+            {
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(StoreError::new("fetch objects via gRPC", e)),
+        };
         let mut objects = Vec::with_capacity(proto_objects.len());
         for proto_obj in proto_objects {
             // The proto helper yields the SDK `Object`; round-trip through BCS
