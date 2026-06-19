@@ -35,8 +35,9 @@ public(package) native fun is_feature_enabled(feature_flag_name: vector<u8>): bo
 
 /// Returns the value of a protocol config parameter.
 ///
-/// Returns `none` if the parameter is not defined in the current protocol
-/// version, or if `T` does not match the parameter's actual type.
+/// Aborts if the parameter is not defined in the current protocol version,
+/// if `T` does not match the parameter's actual type, or if `param_name` is
+/// not valid UTF-8 — all three are programming errors.
 ///
 /// Restricted to internal use within the iota-framework package.
 ///
@@ -48,6 +49,6 @@ public(package) native fun is_feature_enabled(feature_flag_name: vector<u8>): bo
 ///
 /// # Example (framework use only)
 /// ```move
-/// let max_args: Option<u32> = protocol_config::get_attr<u32>(b"max_arguments");
+/// let max_args: u32 = protocol_config::get_attr<u32>(b"max_arguments");
 /// ```
-public(package) native fun get_attr<T: copy + drop + store>(param_name: vector<u8>): Option<T>;
+public(package) native fun get_attr<T: copy + drop + store>(param_name: vector<u8>): T;

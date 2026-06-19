@@ -11,7 +11,7 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
     pop_arg,
-    values::{Struct, Value, Vector},
+    values::{Value, Vector},
 };
 use smallvec::smallvec;
 
@@ -70,31 +70,28 @@ pub fn is_feature_enabled(
     ))
 }
 
-// Constructs a Move `Option<T>::none` value.
-fn option_none(type_param: &Type) -> PartialVMResult<Value> {
-    Ok(Value::struct_(Struct::pack(vec![Vector::empty(
-        type_param,
-    )?])))
-}
-
-// Constructs a Move `Option<T>::some(value)` value.
-fn option_some(value: Value, type_param: &Type) -> PartialVMResult<Value> {
-    Ok(Value::struct_(Struct::pack(vec![Vector::pack(
-        type_param,
-        vec![value],
-    )?])))
-}
+/// Abort code returned when the parameter name is not valid UTF-8.
+const E_INVALID_UTF8_PARAM_NAME: u64 = 0;
+/// Abort code returned when the parameter is absent in the current protocol version.
+const E_PARAM_NOT_FOUND: u64 = 1;
+/// Abort code returned when the requested Move type does not match the actual
+/// parameter type stored in the protocol config.
+const E_TYPE_MISMATCH: u64 = 2;
 
 /// ****************************************************************************
 /// ********************* native fun get_attr
 ///
 /// Implementation of the Move native function
 /// `protocol_config::get_attr<T: copy + drop + store>(param_name: vector<u8>):
-/// Option<T>`
+/// T`
 ///
-/// Returns the value of a protocol config parameter, or `none` if the parameter
-/// is not defined at the current protocol version or `T` does not match the
-/// parameter's actual type.
+/// Returns the parameter value directly.
+///
+/// Aborts with `E_INVALID_UTF8_PARAM_NAME` if `param_name` is not valid UTF-8,
+/// with `E_PARAM_NOT_FOUND` if the parameter is absent in the current protocol
+/// version, and with `E_TYPE_MISMATCH` if `T` does not match the parameter's
+/// actual type — all three are programming errors that must not occur at
+/// runtime.
 ///
 /// Gas cost: 0 (zero cost for framework-internal use)
 /// ****************************************************************************
@@ -110,41 +107,37 @@ pub fn get_attr(
     let ty = &ty_args[0];
     let param_name_bytes = pop_arg!(args, Vector).to_vec_u8()?;
 
-    let output = match String::from_utf8(param_name_bytes) {
-        Ok(param_name) => {
-            let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
-
-            match (ty, protocol_config.lookup_attr(param_name)) {
-                (Type::U64, Some(ProtocolConfigValue::u64(value))) => {
-                    option_some(Value::u64(value), ty)?
-                }
-                (Type::U32, Some(ProtocolConfigValue::u32(value))) => {
-                    option_some(Value::u32(value), ty)?
-                }
-                (Type::U16, Some(ProtocolConfigValue::u16(value))) => {
-                    option_some(Value::u16(value), ty)?
-                }
-                (Type::Bool, Some(ProtocolConfigValue::bool(value))) => {
-                    option_some(Value::bool(value), ty)?
-                }
-
-                // The parameter is absent in the current protocol version.
-                (_, None) => option_none(ty)?,
-
-                // The requested Move type does not match the actual parameter type.
-                _ => {
-                    debug_assert!(
-                        false,
-                        "get_attr: type mismatch for protocol config parameter"
-                    );
-                    option_none(ty)?
-                }
-            }
+    let param_name = match String::from_utf8(param_name_bytes) {
+        Ok(name) => name,
+        Err(_) => {
+            debug_assert!(false, "get_attr: invalid UTF-8 parameter name");
+            return Ok(NativeResult::err(
+                context.gas_used(),
+                E_INVALID_UTF8_PARAM_NAME,
+            ));
         }
-
-        // Invalid UTF-8 parameter names are treated as missing.
-        Err(_) => option_none(ty)?,
     };
 
-    Ok(NativeResult::ok(context.gas_used(), smallvec![output]))
+    let protocol_config = get_extension!(context, ObjectRuntime)?.protocol_config;
+
+    let value = match (ty, protocol_config.lookup_attr(param_name)) {
+        (Type::U64, Some(ProtocolConfigValue::u64(v))) => Value::u64(v),
+        (Type::U32, Some(ProtocolConfigValue::u32(v))) => Value::u32(v),
+        (Type::U16, Some(ProtocolConfigValue::u16(v))) => Value::u16(v),
+        (Type::Bool, Some(ProtocolConfigValue::bool(v))) => Value::bool(v),
+
+        // The parameter is absent in the current protocol version.
+        (_, None) => {
+            debug_assert!(false, "get_attr: parameter not found in protocol config");
+            return Ok(NativeResult::err(context.gas_used(), E_PARAM_NOT_FOUND));
+        }
+
+        // The requested Move type does not match the actual parameter type.
+        _ => {
+            debug_assert!(false, "get_attr: type mismatch for protocol config parameter");
+            return Ok(NativeResult::err(context.gas_used(), E_TYPE_MISMATCH));
+        }
+    };
+
+    Ok(NativeResult::ok(context.gas_used(), smallvec![value]))
 }
