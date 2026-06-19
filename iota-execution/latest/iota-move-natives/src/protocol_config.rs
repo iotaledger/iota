@@ -72,7 +72,8 @@ pub fn is_feature_enabled(
 
 /// Abort code returned when the parameter name is not valid UTF-8.
 const E_INVALID_UTF8_PARAM_NAME: u64 = 0;
-/// Abort code returned when the parameter is absent in the current protocol version.
+/// Abort code returned when the parameter is absent in the current protocol
+/// version.
 const E_PARAM_NOT_FOUND: u64 = 1;
 /// Abort code returned when the requested Move type does not match the actual
 /// parameter type stored in the protocol config.
@@ -134,7 +135,10 @@ pub fn get_attr(
 
         // The requested Move type does not match the actual parameter type.
         _ => {
-            debug_assert!(false, "get_attr: type mismatch for protocol config parameter");
+            debug_assert!(
+                false,
+                "get_attr: type mismatch for protocol config parameter"
+            );
             return Ok(NativeResult::err(context.gas_used(), E_TYPE_MISMATCH));
         }
     };
