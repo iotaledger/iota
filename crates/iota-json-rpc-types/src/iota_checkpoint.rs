@@ -249,14 +249,25 @@ impl<'de> DeserializeAs<'de, CheckpointCommitment> for CheckpointCommitmentSchem
 impl From<CheckpointCommitmentSchema> for CheckpointCommitment {
     fn from(iota_commitment: CheckpointCommitmentSchema) -> Self {
         match iota_commitment {
-            CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest) => digest.into_commitment(),
+            CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(digest) => {
+                CheckpointCommitment::EcmhLiveObjectSet {
+                    digest: digest.digest,
+                }
+            }
         }
     }
 }
 
 impl From<CheckpointCommitment> for CheckpointCommitmentSchema {
     fn from(commitment: CheckpointCommitment) -> Self {
-        CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(commitment.into())
+        match commitment {
+            CheckpointCommitment::EcmhLiveObjectSet { digest } => {
+                CheckpointCommitmentSchema::ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest {
+                    digest,
+                })
+            }
+            _ => unimplemented!("a new CheckpointCommitment variant was added and must be handled"),
+        }
     }
 }
 

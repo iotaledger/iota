@@ -98,28 +98,10 @@ pub struct ECMHLiveObjectSetDigest {
     pub digest: Digest,
 }
 
-impl ECMHLiveObjectSetDigest {
-    /// Wrap this digest in the [`CheckpointCommitment`] variant that carries
-    /// it.
-    pub fn into_commitment(self) -> CheckpointCommitment {
-        CheckpointCommitment::EcmhLiveObjectSet {
-            digest: iota_sdk_types::Digest::new(self.digest.into_inner()),
-        }
-    }
-}
-
 impl From<fastcrypto::hash::Digest<32>> for ECMHLiveObjectSetDigest {
     fn from(digest: fastcrypto::hash::Digest<32>) -> Self {
         Self {
             digest: Digest::new(digest.digest),
-        }
-    }
-}
-
-impl From<CheckpointCommitment> for ECMHLiveObjectSetDigest {
-    fn from(commitment: CheckpointCommitment) -> Self {
-        Self {
-            digest: Digest::new(commitment.as_ecmh_live_object_set_digest().into_inner()),
         }
     }
 }

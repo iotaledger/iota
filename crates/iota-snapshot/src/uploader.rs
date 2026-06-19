@@ -12,6 +12,7 @@ use iota_core::{
     checkpoints::CheckpointStore,
     db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
 };
+use iota_sdk_types::CheckpointCommitment;
 use iota_storage::{
     FileCompression,
     object_store::util::{
@@ -148,13 +149,16 @@ impl StateSnapshotUploader {
                     .get_epoch_state_commitments(*epoch)
                     .expect("Expected last checkpoint of epoch to have end of epoch data")
                     .expect("Expected end of epoch data to be present");
-                let state_hash_commitment: ECMHLiveObjectSetDigest = commitments
+                let CheckpointCommitment::EcmhLiveObjectSet { digest } = *commitments
                     .last()
                     .expect("Expected at least one commitment")
-                    .clone()
-                    .into();
+                else {
+                    unimplemented!(
+                        "A new CheckpointCommitment variant was added and must be handled"
+                    )
+                };
                 state_snapshot_writer
-                    .write(*epoch, db, state_hash_commitment)
+                    .write(*epoch, db, ECMHLiveObjectSetDigest { digest })
                     .await?;
                 info!("State snapshot creation successful for epoch: {}", *epoch);
                 // Records the on-chain start timestamp of this epoch (= timestamp of the
