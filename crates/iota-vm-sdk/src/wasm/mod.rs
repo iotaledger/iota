@@ -51,12 +51,13 @@ fn err_to_js(e: VmSdkError) -> JsError {
     // compiling (and degrading to "Unknown") if a variant is added later.
     #[allow(unreachable_patterns)]
     let tag = match &e {
-        VmSdkError::Decode(_) => "Decode",
         VmSdkError::Validation(_) => "Validation",
         VmSdkError::SignatureVerification(_) => "SignatureVerification",
+        VmSdkError::Store(_) => "Store",
         VmSdkError::MissingObject { .. } => "MissingObject",
         VmSdkError::Execution(_) => "Execution",
         VmSdkError::Vm(_) => "Vm",
+        VmSdkError::UnsupportedProtocolVersion { .. } => "UnsupportedProtocolVersion",
         _ => "Unknown",
     };
     JsError::new(&format!("{tag}: {e}"))
