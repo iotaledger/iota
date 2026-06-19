@@ -5,7 +5,6 @@
 //! and surface a JS-friendly result.
 
 use base64::Engine;
-use fastcrypto::traits::ToFromBytes;
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_types::Owner;
 use iota_types::{
@@ -120,10 +119,10 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
             .into_iter()
             .map(|dec| match dec {
                 Ok(d) => EventOut {
-                    package_id: d.package_id.to_string(),
-                    module: d.module.to_string(),
-                    name: d.name.to_string(),
-                    type_tag: d.type_tag.to_string(),
+                    package_id: d.event.package_id.to_string(),
+                    module: d.event.module.to_string(),
+                    name: d.event.type_.name().to_string(),
+                    type_tag: d.event.type_.to_string(),
                     value: serde_json::to_value(&d.value).ok(),
                     decode_error: None,
                 },

@@ -23,8 +23,8 @@ graphql = [
   "dep:tokio",
 ]
 wasm-bindgen = [
+  "dep:base64",
   "dep:console_error_panic_hook",
-  "dep:fastcrypto",
   "dep:js-sys",
   "dep:serde",
   "dep:serde-wasm-bindgen",
@@ -63,7 +63,6 @@ prometheus.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = { version = "0.1", optional = true }
-fastcrypto = { workspace = true, optional = true }
 getrandom.workspace = true
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 js-sys = { version = "0.3", optional = true }
