@@ -75,17 +75,15 @@ async fn compare_local_vm_staking_against_test_cluster() {
     // carries each object's version and content digest, so the backends must
     // agree on resulting contents, not merely on which objects were touched.
     //
-    // The gas object is the one principled exception. What differs is the gas
-    // *cost*: local dev-inspect runs against a mock gas coin with relaxed
-    // metering, and local gas accounting need not match the node's to the nano,
-    // so the gas coin's post-execution balance — and therefore its content
-    // digest — can legitimately differ even when every other object matches. It
-    // is compared by id and owner only, and excluded from the full-ref mutated
-    // set.
-    let node_gas = (
-        dry_run.effects.gas_object().object_id(),
-        dry_run.effects.gas_object().owner,
-    );
+    // The transaction carries a real gas coin, so both backends meter gas the
+    // same way and the gas object must match in full — id, owner, version, and
+    // content digest (its post-execution balance). It is compared by its own
+    // assertion below and kept out of the mutated set so it is not checked
+    // twice.
+    let node_gas: (ObjectRef, Owner) = {
+        let gas = dry_run.effects.gas_object();
+        (gas.reference, gas.owner)
+    };
     let node_created: BTreeSet<(ObjectRef, Owner)> = dry_run
         .effects
         .created()
@@ -96,7 +94,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
         .effects
         .mutated()
         .iter()
-        .filter(|o| o.object_id() != node_gas.0)
+        .filter(|o| o.object_id() != node_gas.0.object_id)
         .map(|o| (o.reference, o.owner))
         .collect();
     let node_deleted: BTreeSet<ObjectRef> = dry_run.effects.deleted().iter().copied().collect();
@@ -104,9 +102,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
     // Local VM: every object the run reads — the transaction inputs and the
     // system-state dynamic fields staking walks — is resolved on demand over
     // gRPC during execution, against the same Move engine the node uses. Only
-    // the chain context is fetched up front; prefetching is an optional batching
-    // optimisation and is deliberately not used here, so this also exercises the
-    // on-demand resolution path.
+    // the chain context is fetched up front.
     let store = GrpcStore::connect(test_cluster.grpc_url()).expect("connect gRPC store");
     let ctx = store
         .fetch_chain_context()
@@ -118,11 +114,10 @@ async fn compare_local_vm_staking_against_test_cluster() {
     // The node's object changes must match the local VM in both DevInspect
     // (relaxed checks, mock gas) and DryRun (full sign-time checks, real gas).
     let assert_changes_match = |result: &ExecutionResult, mode: &str| {
-        let (local_gas_ref, local_gas_owner) = result.effects.gas_object();
+        let local_gas = result.effects.gas_object();
         assert_eq!(
-            (local_gas_ref.object_id, local_gas_owner),
-            node_gas,
-            "{mode}: gas object id and owner should match the node"
+            local_gas, node_gas,
+            "{mode}: gas object must match the node in full (ref and owner)"
         );
         let local_created: BTreeSet<(ObjectRef, Owner)> =
             result.effects.created().into_iter().collect();
@@ -130,7 +125,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
             .effects
             .mutated()
             .into_iter()
-            .filter(|(r, _)| r.object_id != node_gas.0)
+            .filter(|(r, _)| r.object_id != node_gas.0.object_id)
             .collect();
         let local_deleted: BTreeSet<ObjectRef> = result.effects.deleted().into_iter().collect();
         assert_eq!(

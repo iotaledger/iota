@@ -5,8 +5,8 @@ node uses — locally, with no network connection.
 
 It is built around a three-part surface:
 
-- **Store** — hold the objects a run needs (`InMemoryStore`, or pre-fetch from a
-  node via the optional `grpc` / `graphql` stores).
+- **Store** — hold the objects a run needs (`InMemoryStore`, or resolve them on
+  demand from a node via the optional `grpc` / `graphql` stores).
 - **Execute** — run a transaction through `LocalVm` in one of three modes:
   dev-inspect, dry-run, or execute (which commits effects back to the store).
 - **Introspect** — read the effects, events, gas, and signature status of a run,
@@ -28,5 +28,5 @@ version or digest that a node would reject at signing time is not detected.
 
 All features are off by default:
 
-- `grpc` — pre-fetch objects from a node over gRPC.
-- `graphql` — pre-fetch objects from an indexer over GraphQL.
+- `grpc` — resolve objects on demand from a node over gRPC.
+- `graphql` — resolve objects on demand from an indexer over GraphQL.

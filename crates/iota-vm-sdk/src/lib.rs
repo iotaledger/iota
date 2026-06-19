@@ -15,8 +15,8 @@
 //!
 //! Both are off by default; enable one to pull in its networked store.
 //!
-//! - `grpc` — a [`GrpcStore`](grpc::GrpcStore) that pre-fetches objects from a
-//!   node via gRPC into an [`InMemoryStore`].
+//! - `grpc` — a [`GrpcStore`](grpc::GrpcStore) that resolves objects on demand
+//!   from a node via gRPC, caching them in an [`InMemoryStore`].
 //! - `graphql` — a [`GraphqlStore`](graphql::GraphqlStore) over GraphQL.
 
 mod debug;

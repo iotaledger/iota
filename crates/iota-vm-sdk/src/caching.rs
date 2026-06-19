@@ -5,9 +5,9 @@
 //!
 //! [`GrpcStore`](crate::grpc::GrpcStore) and
 //! [`GraphqlStore`](crate::graphql::GraphqlStore) differ only in how they fetch
-//! objects from a node; the cache, the on-demand [`Store`] resolution, and the
-//! prefetch bookkeeping are identical and live here. A backend implements
-//! [`ObjectFetcher`] and wraps it in a [`CachingStore`].
+//! objects from a node; the cache and the on-demand [`Store`] resolution are
+//! identical and live here. A backend implements [`ObjectFetcher`] and wraps it
+//! in a [`CachingStore`].
 //!
 //! The [`Store`] trait is synchronous, but the Move VM resolves objects on
 //! demand mid-execution, so a cache miss blocks on the fetcher via
@@ -20,14 +20,11 @@ use std::{
 };
 
 use iota_sdk_types::{ObjectId, Version};
-use iota_types::{
-    object::Object,
-    transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
-};
+use iota_types::object::Object;
 use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::{
-    error::{StoreError, VmSdkError},
+    error::VmSdkError,
     store::{InMemoryStore, Store},
 };
 
@@ -78,7 +75,7 @@ impl<F: ObjectFetcher> CachingStore<F> {
     }
 
     /// A snapshot clone of the objects cached so far (framework packages plus
-    /// anything fetched on demand or pre-fetched).
+    /// anything fetched on demand).
     pub(crate) fn store(&self) -> InMemoryStore {
         self.inner.lock().expect("store lock poisoned").clone()
     }
@@ -96,49 +93,6 @@ impl<F: ObjectFetcher> CachingStore<F> {
             .lock()
             .expect("error lock poisoned")
             .clone()
-    }
-
-    /// Fetch every object the transaction references and cache them in one
-    /// batched request. Owned/immutable objects are fetched at their
-    /// transaction versions; shared objects and packages at the latest version.
-    pub(crate) async fn prefetch(&self, transaction: &TransactionData) -> Result<(), VmSdkError> {
-        let mut refs: Vec<(ObjectId, Option<Version>)> = Vec::new();
-        let input_object_kinds = transaction
-            .input_objects()
-            .map_err(|e| StoreError::new("collect input objects", e))?;
-        for kind in &input_object_kinds {
-            match kind {
-                InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    refs.push((objref.object_id, Some(objref.version)))
-                }
-                // Shared objects and packages: latest version.
-                InputObjectKind::SharedMoveObject { id, .. } => refs.push((*id, None)),
-                InputObjectKind::MovePackage(id) => refs.push((*id, None)),
-            }
-        }
-        for gas_ref in transaction.gas() {
-            refs.push((gas_ref.object_id, Some(gas_ref.version)));
-        }
-        for objref in transaction.receiving_objects() {
-            refs.push((objref.object_id, Some(objref.version)));
-        }
-        if refs.is_empty() {
-            return Ok(());
-        }
-        self.fetch_and_insert(&refs).await
-    }
-
-    /// Fetch `refs` and insert them into the cache.
-    pub(crate) async fn fetch_and_insert(
-        &self,
-        refs: &[(ObjectId, Option<Version>)],
-    ) -> Result<(), VmSdkError> {
-        let objects = self.fetcher.fetch_objects(refs).await?;
-        let mut inner = self.inner.lock().expect("store lock poisoned");
-        for obj in objects {
-            inner.insert(obj);
-        }
-        Ok(())
     }
 
     /// Fetch `refs` synchronously from within the executor by blocking on the
