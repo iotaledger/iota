@@ -170,6 +170,7 @@ pub struct ValidatorComponents {
     /// Handle for the soft-lock expiry sweep task. The task self-terminates
     /// via a `Weak` reference; this handle exists purely for ownership clarity.
     soft_lock_sweep_handle: JoinHandle<()>,
+    overload_notifier_handle: Option<JoinHandle<()>>,
     consensus_manager: ConsensusManager,
     consensus_store_pruner: ConsensusStorePruner,
     consensus_adapter: Arc<ConsensusAdapter>,
@@ -291,6 +292,51 @@ impl IotaNode {
             ServerVersion::new("iota-node", "unknown"),
         )
         .await
+    }
+
+    /// Starts a background task that polls the authority's load shedding
+    /// percentage and broadcasts changes to other validators via consensus.
+    /// Returns the task handle if the feature flag is enabled, or `None`
+    /// otherwise.
+    fn start_overload_notifier(
+        config: &NodeConfig,
+        state: Arc<AuthorityState>,
+        epoch_store: Arc<AuthorityPerEpochStore>,
+        consensus_adapter: Arc<ConsensusAdapter>,
+    ) -> Option<JoinHandle<()>> {
+        if !epoch_store.protocol_config().enable_pcool_flow() {
+            return None;
+        }
+
+        let poll_interval = config.authority_overload_config.overload_monitor_interval;
+        let authority_name = state.name;
+
+        Some(spawn_monitored_task!(async move {
+            // Seed from the percentage this authority last broadcasted
+            let mut last_notified_percentage: u32 = epoch_store
+                .load_overload_notification(&authority_name)
+                .unwrap_or(0) as u32;
+            loop {
+                tokio::time::sleep(poll_interval).await;
+                let current = state
+                    .overload_info
+                    .local_load_shedding_percentage
+                    .load(std::sync::atomic::Ordering::Relaxed);
+                if current != last_notified_percentage {
+                    last_notified_percentage = current;
+                    let transaction = ConsensusTransaction::new_overload_notification_v1(
+                        authority_name,
+                        current as u8,
+                    );
+                    if let Err(e) = consensus_adapter.submit(transaction, None, &epoch_store) {
+                        tracing::warn!(
+                            "Failed to submit overload notification to consensus: {:?}",
+                            e
+                        );
+                    }
+                }
+            }
+        }))
     }
 
     pub async fn start_async(
@@ -1379,11 +1425,19 @@ impl IotaNode {
         info!("Spawning checkpoint service");
         let checkpoint_service_tasks = checkpoint_service.spawn(consensus_replay_waiter).await;
 
+        let overload_notifier_handle = Self::start_overload_notifier(
+            config,
+            state.clone(),
+            epoch_store.clone(),
+            consensus_adapter.clone(),
+        );
+
         Ok(ValidatorComponents {
             validator_server_handle,
             validator_overload_monitor_handle,
             consensus_queue_overload_monitor_handle,
             soft_lock_sweep_handle,
+            overload_notifier_handle,
             consensus_manager,
             consensus_store_pruner,
             consensus_adapter,
@@ -1877,6 +1931,7 @@ impl IotaNode {
                 validator_overload_monitor_handle,
                 consensus_queue_overload_monitor_handle,
                 soft_lock_sweep_handle,
+                overload_notifier_handle,
                 consensus_manager,
                 consensus_store_pruner,
                 consensus_adapter,
@@ -1888,6 +1943,11 @@ impl IotaNode {
             }) = validator_components_lock_guard.take()
             {
                 info!("Reconfiguring the validator.");
+                // Cancel the old overload notifier task so a new one can be
+                // started for the next epoch.
+                if let Some(handle) = overload_notifier_handle {
+                    handle.abort();
+                }
                 // Cancel the old checkpoint service tasks.
                 // Waiting for checkpoint builder to finish gracefully is not possible, because
                 // it may wait on transactions while consensus on peers have

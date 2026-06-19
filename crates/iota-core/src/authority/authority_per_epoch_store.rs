@@ -40,7 +40,7 @@ use iota_types::{
         AuthorityName, CommitRound, ConciseableName, EpochId, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
-    committee::{Committee, CommitteeTrait},
+    committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
@@ -129,6 +129,7 @@ use crate::{
     execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
+    overload_monitor::should_reject_tx,
     post_consensus_tx_reorder::PostConsensusTxReorder,
     post_consensus_validation,
     signature_verifier::*,
@@ -860,6 +861,13 @@ pub struct AuthorityEpochTables {
     /// Record of the capabilities advertised by each authority.
     authority_capabilities_v1: DBMap<AuthorityName, AuthorityCapabilitiesV1>,
 
+    /// Record of the latest load shedding percentage from each authority,
+    /// received via OverloadNotificationV1 consensus transactions. Keyed by
+    /// AuthorityName, value is the most recently reported percentage
+    /// (0-100). Overwrites on each new notification from the same
+    /// authority.
+    authority_overload_notifications: DBMap<AuthorityName, u8>,
+
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
     override_protocol_upgrade_buffer_stake: DBMap<u64, u64>,
@@ -1194,6 +1202,15 @@ impl AuthorityPerEpochStore {
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
+        // Seed the quarantine's in-memory overload-notification cache from the
+        // persisted table. This is the only point we iterate the table; all
+        // subsequent reads are served from memory.
+        let cached_overload_notifications: HashMap<AuthorityName, u8> = tables
+            .authority_overload_notifications
+            .safe_iter()
+            .collect::<Result<HashMap<AuthorityName, u8>, _>>()
+            .expect("AuthorityEpochTables should contain valid overload notifications");
+
         let committee_size = committee.num_members();
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
         let misbehavior_monitor = MisbehaviorMonitor::new(name, report_version, committee_size);
@@ -1222,6 +1239,7 @@ impl AuthorityPerEpochStore {
             consensus_output_cache,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
+                cached_overload_notifications,
                 metrics.clone(),
             )),
             parent_path: parent_path.to_path_buf(),
@@ -2839,6 +2857,76 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Loads the current overload notifications keyed by authority. Served from
+    /// the consensus quarantine's in-memory cache of the persisted
+    /// `authority_overload_notifications` table, with every queued
+    /// (processed-but-not-yet-flushed) `ConsensusCommitOutput`'s notifications
+    /// overlaid on top.
+    pub(crate) fn load_overload_notifications(&self) -> IotaResult<HashMap<AuthorityName, u8>> {
+        Ok(self
+            .consensus_quarantine
+            .read()
+            .current_overload_notifications())
+    }
+
+    /// Returns the load shedding percentage `authority` last broadcasted or 0
+    /// if it has not sent a notification this epoch.
+    pub fn load_overload_notification(&self, authority: &AuthorityName) -> IotaResult<u8> {
+        Ok(self
+            .load_overload_notifications()?
+            .get(authority)
+            .copied()
+            .unwrap_or(0))
+    }
+
+    /// Computes the stake-weighted 2f+1 percentile of load shedding percentages
+    /// received via OverloadNotificationV1 consensus transactions. Authorities
+    /// that have not sent a notification are assumed to have a percentage of 0.
+    pub fn get_quorum_load_shedding_percentage(&self) -> IotaResult<u8> {
+        let notifications = self.load_overload_notifications()?;
+        Ok(self.compute_quorum_load_shedding_percentage(&notifications))
+    }
+
+    /// Computes the stake-weighted 2f+1 percentile from an in-memory
+    /// notifications map. Used both by `get_quorum_load_shedding_percentage`
+    /// and by the consensus commit pre-pass that overlays in-batch
+    /// `OverloadNotificationV1` entries on top of the persisted state.
+    pub(crate) fn compute_quorum_load_shedding_percentage(
+        &self,
+        notifications: &HashMap<AuthorityName, u8>,
+    ) -> u8 {
+        let committee = self.committee();
+
+        // Build a vec of (percentage, stake) for every committee member.
+        // Default to 0% for authorities that haven't reported.
+        let mut weighted_values: Vec<(u8, StakeUnit)> = committee
+            .members()
+            .map(|(authority, stake)| {
+                let percentage = notifications.get(authority).copied().unwrap_or(0);
+                (percentage, *stake)
+            })
+            .collect();
+
+        // Sort ascending by percentage.
+        weighted_values.sort_by_key(|(percentage, _)| *percentage);
+
+        // Walk from lowest to highest, accumulating stake. The value where
+        // cumulative stake first reaches the quorum threshold (2f+1) is the result.
+        let quorum_threshold = committee.quorum_threshold();
+        let mut accumulated_stake: StakeUnit = 0;
+
+        for (percentage, stake) in weighted_values {
+            accumulated_stake += stake;
+            if accumulated_stake >= quorum_threshold {
+                return percentage;
+            }
+        }
+
+        // Unreachable with a valid committee (total stake >= quorum threshold),
+        // but return 0 as a safe fallback.
+        0
+    }
+
     pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
         self.consensus_quarantine
             .read()
@@ -2891,6 +2979,21 @@ impl AuthorityPerEpochStore {
             .write()
             .push_consensus_output(output, self)
             .expect("push_consensus_output should not fail");
+    }
+
+    /// Advances the quarantine's in-memory overload-notification cache, as the
+    /// commit flush loop does for a real commit. Tests that write the
+    /// `authority_overload_notifications` table directly (bypassing the flush
+    /// loop) must call this to keep the cache consistent with the table.
+    #[cfg(test)]
+    pub(crate) fn apply_overload_notification_to_cache_for_test(
+        &self,
+        authority: AuthorityName,
+        percentage: u8,
+    ) {
+        self.consensus_quarantine
+            .write()
+            .apply_cached_overload_notification_for_test(authority, percentage);
     }
 
     fn process_user_signatures<'a>(
@@ -3164,6 +3267,26 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
+                ..
+            }) => {
+                if &transaction.sender_authority() != authority {
+                    warn!(
+                        "OverloadNotificationV1 authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+                if *percentage > 100 {
+                    warn!(
+                        "OverloadNotificationV1 from {:?} has invalid percentage {}",
+                        authority.concise(),
+                        percentage
+                    );
+                    return None;
+                }
+            }
             SequencedConsensusTransactionKind::System(_) => {}
         }
         Some(VerifiedSequencedConsensusTransaction(transaction))
@@ -3210,16 +3333,102 @@ impl AuthorityPerEpochStore {
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
         let enable_pcool = self.protocol_config.enable_pcool_flow();
+
+        // Post-consensus load shedding: compute the drop percentage once before
+        // the loop so user transactions can be dropped inline during categorization.
+        // `OverloadNotificationV1` transactions from this commit are layered on
+        // top of the persisted notifications now to ensure immediate response to new
+        // notifications which are not yet registered in persistent storage rather than
+        // the previous round's values. The recorder call inside
+        // `process_consensus_transactions` is gated by
+        // `should_accept_consensus_certs`; this overlay mirrors that gate so
+        // the overlaid set matches the set that will be flushed.
+        let drop_percentage = if enable_pcool {
+            let mut notifications = self.load_overload_notifications()?;
+            if self
+                .get_reconfig_state_read_lock_guard()
+                .should_accept_consensus_certs()
+            {
+                for tx in &verified_transactions {
+                    if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                        kind:
+                            ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
+                        ..
+                    }) = &tx.0.transaction
+                    {
+                        notifications.insert(*authority, *percentage);
+                    }
+                }
+            }
+            self.compute_quorum_load_shedding_percentage(&notifications) as u32
+        } else {
+            0
+        };
+        authority_metrics
+            .consensus_handler_load_shedding_percentage
+            .set(drop_percentage as i64);
+        let drop_seed = consensus_commit_info.round;
+
+        // Transactions dropped by post-consensus load shedding in this commit.
+        // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
+        // the submitter's `await_consensus_or_checkpoint` wait is woken and its
+        // consensus-submission semaphore slot is released.
+        let mut load_shedding_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
+            // In the white-flag flow, randomness transactions are separated
+            // later in the flow to preserve ordering in conflict resolution, so
+            // should be included with the regular transactions here.
             } else if !enable_pcool && tx.0.is_user_tx_with_randomness() {
+                // Only user-originated transactions are eligible for load shedding
+                if drop_percentage > 0 {
+                    if let Some(digest) = tx.0.transaction.user_transaction_digest() {
+                        if should_reject_tx(drop_percentage, digest, drop_seed) {
+                            authority_metrics
+                                .consensus_handler_load_shedding_dropped_transactions
+                                .inc();
+                            // The retry-after hint matches the pre-consensus
+                            // load-shedding window in `overload_monitor.rs`.
+                            load_shedding_dropped.push((
+                                digest,
+                                IotaError::ValidatorOverloadedRetryAfter {
+                                    retry_after_secs: 30,
+                                },
+                            ));
+                            continue;
+                        }
+                    }
+                }
                 current_commit_sequenced_randomness_transactions.push(tx);
             } else {
+                // Only user-originated transactions are eligible for load shedding
+                if drop_percentage > 0 {
+                    if let Some(digest) = tx.0.transaction.user_transaction_digest() {
+                        if should_reject_tx(drop_percentage, digest, drop_seed) {
+                            authority_metrics
+                                .consensus_handler_load_shedding_dropped_transactions
+                                .inc();
+                            // The retry-after hint matches the pre-consensus
+                            // load-shedding window in `overload_monitor.rs`.
+                            load_shedding_dropped.push((
+                                digest,
+                                IotaError::ValidatorOverloadedRetryAfter {
+                                    retry_after_secs: 30,
+                                },
+                            ));
+                            continue;
+                        }
+                    }
+                }
                 current_commit_sequenced_consensus_transactions.push(tx);
             }
+        }
+        if !load_shedding_dropped.is_empty() {
+            self.dropped_tx_status_cache
+                .insert_and_notify(&load_shedding_dropped);
         }
 
         let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
@@ -4633,6 +4842,28 @@ impl AuthorityPerEpochStore {
                     suggested_gas_price_calculator,
                     authority_metrics,
                 )
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
+                ..
+            }) => {
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received OverloadNotificationV1 from {:?} with percentage {}",
+                        authority.concise(),
+                        percentage
+                    );
+                    output.record_overload_notification(*authority, *percentage);
+                } else {
+                    debug!(
+                        "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusTransactionResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))
