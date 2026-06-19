@@ -14,8 +14,8 @@
 //! multi-threaded Tokio runtime (e.g. `#[tokio::main]`).
 
 use iota_grpc_client::Client;
-use iota_sdk_types::{ObjectId, Version};
-use iota_types::object::Object;
+use iota_sdk_types::{Digest, ObjectId, Version};
+use iota_types::{digests::ChainIdentifier, object::Object};
 
 use crate::{
     caching::{CachingStore, ObjectFetcher},
@@ -76,13 +76,14 @@ impl GrpcStore {
 
     /// Fetch the chain parameters a [`LocalVm`](crate::LocalVm) needs.
     ///
-    /// Reports [`Chain::Unknown`](crate::Chain) — the chain identity is not
-    /// resolved here; this only affects chain-specific protocol behaviour.
+    /// The [`Chain`](crate::Chain) is resolved from the node's service info so
+    /// chain-gated protocol features match the real chain; an unrecognised
+    /// chain identifier maps to [`Chain::Unknown`](crate::Chain).
     ///
     /// # Errors
     ///
-    /// Returns [`VmSdkError::Store`] if the epoch RPC fails or can't be
-    /// decoded.
+    /// Returns [`VmSdkError::Store`] if the epoch or service-info RPC fails or
+    /// can't be decoded.
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let epoch = self
             .cache
@@ -105,12 +106,25 @@ impl GrpcStore {
             .protocol_config()
             .and_then(|pc| pc.version())
             .map_err(|e| StoreError::new("protocol version", e))?;
+        let chain = self
+            .cache
+            .fetcher()
+            .client
+            .get_service_info(None)
+            .await
+            .map_err(|e| StoreError::new("fetch service info", e))?
+            .body()
+            .chain_id
+            .as_ref()
+            .and_then(|d| Digest::try_from(d).ok())
+            .map(|digest| ChainIdentifier::from(digest).chain())
+            .unwrap_or(iota_protocol_config::Chain::Unknown);
         Ok(ChainContext {
             protocol_version: iota_protocol_config::ProtocolVersion::new(protocol_version),
             reference_gas_price,
             epoch_id,
             epoch_timestamp_ms,
-            chain: iota_protocol_config::Chain::Unknown,
+            chain,
         })
     }
 }

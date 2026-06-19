@@ -9,7 +9,7 @@
 //! 1. **Store** — an object store ([`Store`] trait, [`InMemoryStore`]).
 //! 2. **Execute** — the [`LocalVm`] executor running in one of three
 //!    [`ExecutionMode`]s.
-//! 3. **Introspect** — the [`ExecutionResult`] / [`DecodedEvent`] outputs.
+//! 3. **Inspect** — the [`ExecutionResult`] / [`DecodedEvent`] outputs.
 //!
 //! # Features
 //!

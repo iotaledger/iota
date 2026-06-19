@@ -9,7 +9,7 @@ It is built around a three-part surface:
   demand from a node via the optional `grpc` / `graphql` stores).
 - **Execute** — run a transaction through `LocalVm` in one of three modes:
   dev-inspect, dry-run, or execute (which commits effects back to the store).
-- **Introspect** — read the effects, events, gas, and signature status of a run,
+- **Inspect** — read the effects, events, gas, and signature status of a run,
   plus optional gas-profile and instruction-trace debug artifacts.
 
 Typical uses: simulating a transaction before signing, estimating gas,
