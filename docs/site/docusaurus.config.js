@@ -321,7 +321,7 @@ const config = {
             },
             {
               from: '/about-iota/iota-wallet/how-to/integrate-ledger',
-              to: '/users/iota-wallet/how-to/import/ledger'
+              to: '/users/iota-wallet/how-to/import/ledger',
             },
             {
               from: '/developer/iota-notarization/getting-started',
@@ -342,6 +342,10 @@ const config = {
             {
               from: '/developer/iota-notarization/how-tos/real-world',
               to: '/developer/iota-notarization/single-notarization/real-world-examples',
+            },
+            {
+              from: '/operator/extensions/indexer-functions',
+              to: '/operator/extended-data-services/iota-indexer',
             },
           ];
           let paths = [];
