@@ -4,11 +4,13 @@
 use std::sync::Arc;
 
 use futures::{StreamExt, future::Either, stream};
+use iota_metrics::spawn_monitored_task;
 use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
 use iota_types::{
+    attestation::{Attestation, AttestedTransaction},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
@@ -23,6 +25,15 @@ use iota_types::{
     transaction::Transaction,
 };
 use tokio_stream::wrappers::ReceiverStream;
+
+use crate::{
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority_server::{
+        StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
+        soft_lock::PreConsensusSoftLocks,
+    },
+    consensus_adapter::ConsensusAdapter,
+};
 
 /// Maximum number of transactions allowed in a single `submit_tx` request.
 /// Sized so that per-item traffic tallies from a single max-batch request
@@ -47,17 +58,6 @@ const MAX_CONCURRENT_SUBMIT_TASKS: usize = 16;
 /// A single streamed item in a V2 RPC response. The `Weight` is the per-item
 /// spam-policy contribution decided by the producing code path.
 type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic::Status>;
-
-use iota_metrics::spawn_monitored_task;
-
-use crate::{
-    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
-    authority_server::{
-        StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
-        soft_lock::PreConsensusSoftLocks,
-    },
-    consensus_adapter::ConsensusAdapter,
-};
 
 impl ValidatorService {
     async fn submit_tx_impl(
@@ -219,17 +219,56 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
-        // Content validation: deny checks + owned object version validation.
-        let owned_objects = match state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
-            .await
-        {
-            Ok(objs) => objs,
-            Err(e) => {
-                let weight = normalize(&e);
-                return (TxStatusUpdate::Rejected { error: e }, weight);
-            }
-        };
+        // Produce owned objects and — when validator attestation is enabled —
+        // the attestation payload. The attestation path runs deny checks,
+        // object loading, input validation, coin deny list, and a full dry-run
+        // in a single call, so it replaces `handle_transaction_validation_checks`
+        // entirely. The legacy path calls the validation-only function.
+        let (attestation_data, owned_objects, verified_tx) =
+            if epoch_store.protocol_config().enable_validator_attestation() {
+                let state_for_attest = state.clone();
+                let epoch_store_for_attest = epoch_store.clone();
+                let join_result = tokio::task::spawn_blocking(move || {
+                    let result =
+                        state_for_attest.attest_transaction(&verified_tx, &epoch_store_for_attest);
+                    (result, verified_tx)
+                })
+                .await;
+                let (result, verified_tx) = match join_result {
+                    Ok(pair) => pair,
+                    Err(join_err) => {
+                        // A panic inside `attest_transaction` (e.g., an
+                        // arithmetic panic in Move VM dry-run) surfaces here
+                        // as a `JoinError`. Convert to a rejection rather
+                        // than re-panicking on the per-tx task.
+                        tracing::error!(?tx_digest, "attest_transaction task failed: {join_err}");
+                        let err = IotaError::GenericAuthority {
+                            error: format!("attest_transaction task failed: {join_err}"),
+                        };
+                        let weight = normalize(&err);
+                        return (TxStatusUpdate::Rejected { error: err }, weight);
+                    }
+                };
+                match result {
+                    Ok((data, objs)) => (Some(data), objs, verified_tx),
+                    Err(e) => {
+                        let weight = normalize(&e);
+                        return (TxStatusUpdate::Rejected { error: e }, weight);
+                    }
+                }
+            } else {
+                match state
+                    .handle_transaction_validation_checks(&verified_tx, epoch_store)
+                    .await
+                {
+                    Ok(objs) => (None, objs, verified_tx),
+                    Err(e) => {
+                        let weight = normalize(&e);
+                        return (TxStatusUpdate::Rejected { error: e }, weight);
+                    }
+                }
+            };
+
         if let Err(e) = state
             .get_cache_writer()
             .validate_owned_object_versions(&owned_objects)
@@ -270,12 +309,31 @@ impl ValidatorService {
             .soft_lock_table_size
             .set(soft_locks.lock_count() as i64);
 
+        // Build the consensus transaction.
+        let consensus_tx = if let Some(attestation_data) = attestation_data {
+            // submit_single_tx runs on a validator, so it must be present in its
+            // own committee. Treat absence as a fatal bug, not a user error.
+            let attestor_index = epoch_store
+                .committee()
+                .authority_index(&state.name)
+                .map(|i| starfish_config::AuthorityIndex::from(i as u8))
+                .expect("validator must be present in its own consensus committee");
+
+            ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
+                verified_tx.into_inner(),
+                Attestation::Validator {
+                    payload: attestation_data,
+                    attestor_index,
+                },
+            ))
+        } else {
+            ConsensusTransaction::new_user_transaction_v1(verified_tx.into_inner())
+        };
+
         // Submit to consensus.
-        if let Err(e) = consensus_adapter.submit(
-            ConsensusTransaction::new_user_transaction(verified_tx.into_inner()),
-            Some(&reconfiguration_lock),
-            epoch_store,
-        ) {
+        if let Err(e) =
+            consensus_adapter.submit(consensus_tx, Some(&reconfiguration_lock), epoch_store)
+        {
             let weight = normalize(&e);
             // Release soft locks so the transaction can be retried.
             tracing::debug!(
@@ -653,3 +711,7 @@ impl ValidatorV2 for ValidatorService {
         self.post_handle_unary(ip, self.health_check_impl(req))
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/validator_v2_tests.rs"]
+mod validator_v2_tests;

@@ -2358,7 +2358,7 @@ impl IotaNode {
                 ),
             );
         state
-            .try_execute_immediately(&transaction, None, epoch_store)
+            .try_execute_immediately(&transaction.into(), None, epoch_store)
             .unwrap();
     }
 

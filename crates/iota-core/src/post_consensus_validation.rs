@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Post-consensus validation and owned-object conflict resolution for
-//! `UserTransactionV1` transactions.
+//! `UserTransactionV1` and `UserTransactionV2` transactions.
 //!
 //! This module merges two formerly separate pipeline stages into a single pass:
 //!
 //! 1. **Semantic validation** — deduplication, already-executed check,
-//!    structural validity, and deny checks (deny lists, gas, ownership, coin
-//!    deny list, Move authenticator).
+//!    structural validity, attestor verification, and deny checks (deny lists,
+//!    gas, ownership, coin deny list, Move authenticator).
 //! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check
 //!    and lock acquisition.
 //!
@@ -18,20 +18,29 @@
 //!
 //! # Per-transaction order within the loop
 //!
-//! 1. Non-`UserTransactionV1` — pass through unchanged.
-//! 2. Dedup by `ConsensusTransactionKey` — silent drop.
-//! 3. Already executed — **retained** as a committee-agreed winner (registers
-//!    its locks, skips re-validation); not dropped. See issue #11649.
-//! 4. `validity_check()` — drop with error.
-//! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop
-//!    with error, except a lock held by the same transaction (a deferred tx's
-//!    own prior-round lock), which is exempt. Cheap; performed before expensive
-//!    checks.
-//! 6. `handle_transaction_validation_checks()` — drop with error. Only reached
-//!    when all locks are free.
-//! 7. All passed — acquire locks in the local tracking map, keep transaction.
-//!
-//! Non-`UserTransactionV1` transactions pass through unchanged.
+//! - Non-user transaction — pass through unchanged.
+//! - Check #0: Dedup by `ConsensusTransactionKey` — silent drop.
+//! - Check #1: Already executed — **retained** as a committee-agreed winner
+//!   (registers its locks, skips re-validation); not dropped. See issue #11649.
+//! - Check #2: `validity_check()` — drop with error.
+//! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
+//!   the claimed attestor matches the block author and that the attested
+//!   computation units fall within the valid range (cost floor and ceiling).
+//!   Drop with error on mismatch, out-of-range cost, or unsupported attestation
+//!   variant.
+//! - Check #4: Extract owned input objects (needed for lock conflict
+//!   detection).
+//! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
+//!   — drop with error, except a lock held by the same transaction (a deferred
+//!   tx's own prior-round lock), which is exempt. Cheap; performed before
+//!   expensive checks.
+//! - Check #6: `handle_transaction_validation_checks()` for
+//!   `UserTransactionV1`, or the deny-list and coin deny-list re-checks for
+//!   attested `UserTransactionV2`
+//!   (`check_transaction_deny_list_for_attested_tx()` then
+//!   `check_coin_deny_list_for_attested_tx()`). Drop with error. Only reached
+//!   when all locks are free.
+//! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -41,10 +50,11 @@ use std::{
 use iota_common::fatal;
 use iota_sdk_types::ObjectReference;
 use iota_types::{
+    attestation::Attestation,
     base_types::TransactionDigest,
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
-    transaction::{InputObjectKind, VerifiedTransaction},
+    transaction::{InputObjectKind, TransactionDataAPI, VerifiedTransaction},
 };
 use tracing::{debug, warn};
 
@@ -59,19 +69,21 @@ use crate::{
     },
 };
 
-/// Validates `UserTransactionV1` transactions and resolves owned-object
+/// Validates `UserTransactionV1/V2` transactions and resolves owned-object
 /// conflicts in a single pass.
 ///
-/// For each `UserTransactionV1` in consensus order:
-/// - Runs deduplication, structural validity, lock conflict check, and deny
-///   checks (deny list, gas, ownership, coin deny list, Move authenticator).
+/// For each `UserTransactionV1` or `UserTransactionV2` in consensus order:
+/// - Runs deduplication, already-executed check, structural validity, attestor
+///   verification (V2 only), lock conflict check, and deny checks (deny list,
+///   gas, ownership, coin deny list, Move authenticator).
 /// - If all checks pass, acquires owned-object locks in a local tracking map.
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it
 ///   registers its owned-object locks and skips re-validation. See issue
 ///   #11649.
 ///
-/// Non-`UserTransactionV1` transactions pass through unchanged.
+/// Non-`UserTransactionV1`/`UserTransactionV2` transactions pass through
+/// unchanged.
 ///
 /// # Arguments
 ///
@@ -88,9 +100,9 @@ use crate::{
 ///   included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the
 ///   consensus quarantine so subsequent commits can see them.
-/// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup
-///   (both kept and dropped). Used by the caller to release pre-consensus soft
-///   locks.
+/// - `all_user_tx_digests` — Every `UserTransactionV1`/`UserTransactionV2`
+///   digest that passed dedup (both kept and dropped). Used by the caller to
+///   release pre-consensus soft locks.
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -107,27 +119,31 @@ pub async fn validate_and_resolve_conflicts(
     let mut current_commit_locks: HashMap<ObjectReference, LockDetails> = HashMap::new();
     // Index-parallel keep flags: true = keep, false = remove.
     let mut keep = vec![true; transactions.len()];
-    // All UserTransactionV1 digests seen in this commit (both kept and dropped),
+    // All UserTransactionV1/V2 digests seen in this commit (both kept and dropped),
     // used by the caller to release pre-consensus soft locks.
     let mut all_user_tx_digests = Vec::with_capacity(transactions.len());
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
-        // The same UserTransactionV1 may appear in DAG blocks from multiple
-        // validators within the same consensus commit. Only the first occurrence
-        // is kept. Silent drop — not added to `dropped`.
+        // The same UserTransactionV1 or UserTransactionV2 may appear in DAG
+        // blocks from multiple validators within the same consensus commit.
+        // Only the first occurrence is kept. Silent drop — not added to `dropped`.
         if !seen_keys.insert(tx.0.key()) {
             keep[i] = false;
             continue;
         }
 
-        // Only validate UserTransactionV1; pass everything else through
+        // Only validate UserTransactionV1/V2; pass everything else through
         // unchanged.
-        let transaction = match &tx.0.transaction {
+        let (transaction, attestation) = match &tx.0.transaction {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::UserTransactionV1(t),
                 ..
-            }) => t,
+            }) => (t.as_ref(), None),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV2(a),
+                ..
+            }) => (&a.transaction, Some(&a.attestation)),
             _ => continue,
         };
 
@@ -177,15 +193,71 @@ pub async fn validate_and_resolve_conflicts(
         if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             warn!(
                 ?digest,
+                kind = if attestation.is_some() { "UserTransactionV2" } else { "UserTransactionV1" },
                 error = ?e,
-                "UserTransactionV1 failed validity_check post-consensus, dropping"
+                "user transaction failed validity_check post-consensus, dropping"
             );
             dropped.push((digest, e));
             keep[i] = false;
             continue;
         }
 
-        // Check #3: Extract owned input objects for lock conflict detection.
+        // Check #3: Attestor verification (UserTransactionV2 only).
+        // The block signature transitively authenticates the attestation;
+        // verify the claimed attestor matches the actual block author and that
+        // the payload is not malformed.
+        if let Some(attestation) = attestation {
+            let block_author =
+                starfish_config::AuthorityIndex::from(tx.0.certificate_author_index as u8);
+            let protocol_config = epoch_store.protocol_config();
+            let min_attested_units = protocol_config
+                .base_tx_cost_fixed()
+                .min(protocol_config.gas_rounding_step());
+            let attested_units = attestation.computation_units();
+            let tx_data = transaction.data().transaction_data();
+            let max_attested_units = tx_data
+                .gas_budget()
+                .checked_div(tx_data.gas_price())
+                .unwrap_or(u64::MAX);
+            let error = match attestation {
+                Attestation::Validator { attestor_index, .. } => {
+                    if *attestor_index != block_author {
+                        Some(IotaError::AttestationAuthorMismatch {
+                            expected: *attestor_index,
+                            actual: block_author,
+                        })
+                    } else if attested_units < min_attested_units {
+                        Some(IotaError::AttestationUnitsBelowMinimum {
+                            actual: attested_units,
+                            minimum: min_attested_units,
+                        })
+                    } else if attested_units > max_attested_units {
+                        Some(IotaError::AttestationUnitsAboveBudget {
+                            actual: attested_units,
+                            maximum: max_attested_units,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                // Reject Explicit variant as not yet implemented.
+                Attestation::Explicit { .. } => Some(IotaError::UnsupportedFeature {
+                    error: "Explicit attestation not yet supported".into(),
+                }),
+            };
+            if let Some(e) = error {
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed attestation verification, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
+        }
+
+        // Check #4: Extract owned input objects for lock conflict detection.
         let owned_inputs = match extract_owned_input_objects(tx) {
             Ok(inputs) => inputs,
             Err(e) => {
@@ -200,14 +272,14 @@ pub async fn validate_and_resolve_conflicts(
             }
         };
 
-        // Check #4: Three-tier lock conflict check.
+        // Check #5: Three-tier lock conflict check.
         // Cheap (HashMap + quarantine + DB lookups); performed before the
         // expensive deny checks so conflicting transactions are filtered first.
         //
         // Locks are keyed by full ObjectReference (id + version + digest), not just
         // ObjectID. Two transactions referencing the same object at different
         // versions will NOT conflict here — version freshness is validated
-        // later in Check #5 (deny checks load objects from DB and verify
+        // later in Check #6 (deny checks load objects from DB and verify
         // that the transaction's input refs match the current state).
         //
         // Tier 1: Local HashMap (current commit).
@@ -251,35 +323,104 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #5: Deny list, gas, ownership, coin deny list, Move
+        // Check #6: Deny list, gas, ownership, coin deny list, Move
         // authenticator. Only reached if all locks are free — skips the
         // expensive object loading for transactions that would be dropped
         // by the lock conflict check.
         //
-        // Safe to skip signature re-verification: the consensus block verifier
-        // (`IotaTxValidator::validate_transactions`) already called
-        // `verify_tx()` on every `UserTransactionV1` before accepting the
-        // block. Re-verifying here would not add safety — if a quorum
-        // committed a bad signature it indicates a protocol-level failure
-        // (2f+1 Byzantine/buggy validators), not something we can recover from
-        // by rejecting the transaction post-consensus. Doing so would also risk
-        // diverging from other honest validators.
-        let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
-        if let Err(e) = authority_state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
-            .await
-        {
-            if e.is_storage_or_epoch_error() {
-                return Err(e);
+        // `UserTransactionV1` runs the full
+        // `handle_transaction_validation_checks` (which includes the
+        // `TransactionDenyConfig` deny-list check). For `UserTransactionV2`
+        // (attested transactions) two checks are re-run individually — the
+        // deny-list check and the coin deny-list check (see below). The rest
+        // of `handle_transaction_validation_checks` is skipped for V2 because
+        // it is either re-applied during execution or is not safety-critical
+        // to run post-consensus:
+        //   - Receiving-object validity: the Move runtime fails the `receive()` call
+        //     when the ref doesn't match current state.
+        //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
+        //     published package; the signing-time variant only adds a stricter meter as
+        //     a DoS gate.
+        //   - Gas, ownership, `MoveAuthenticator` execution: re-applied in the
+        //     execution pipeline (`check_certificate_input` and
+        //     `authenticate_then_execute_transaction_to_effects`).
+        //
+        // The user signature is verified pre-consensus in the block verifier
+        // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
+        // and `UserTransactionV2`, and is not re-checked here.
+        //
+        // Deny-list check (`TransactionDenyConfig`: sender/object/package deny
+        // lists, feature kill-switches): this is a LOCAL check, sourced from
+        // each validator's `NodeConfig`. TODO: source the deny config from
+        // consensus-agreed state instead of the local `NodeConfig`.
+        //
+        // Coin deny list v1 MUST be re-checked here for attested
+        // transactions: the attestor's view may be stale if a deny-list
+        // update tx was sequenced between attestation and consensus, and
+        // running this check at execution time would crash the validator.
+        if attestation.is_none() {
+            let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
+            if let Err(e) = authority_state
+                .handle_transaction_validation_checks(&verified_tx, epoch_store)
+                .await
+            {
+                if e.is_storage_or_epoch_error() {
+                    return Err(e);
+                }
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV1 failed post-consensus deny checks, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
             }
-            warn!(
-                ?digest,
-                error = ?e,
-                "UserTransactionV1 failed post-consensus deny checks, dropping"
-            );
-            dropped.push((digest, e));
-            keep[i] = false;
-            continue;
+        } else {
+            let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
+            // Deny-list check (placeholder using the local deny config — see
+            // the `TransactionDenyConfig` note in the Check #6 doc above).
+            if let Err(e) =
+                authority_state.check_transaction_deny_list_for_attested_tx(&verified_tx)
+            {
+                if e.is_storage_or_epoch_error() {
+                    return Err(e);
+                }
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed post-consensus deny-list check, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
+            if let Err(e) = authority_state
+                .check_coin_deny_list_for_attested_tx(&verified_tx, epoch_store.epoch())
+            {
+                if e.is_storage_or_epoch_error() {
+                    return Err(e);
+                }
+                // The helper performs two distinct steps; surface which one
+                // failed so triage doesn't mistake a stale-attestation input
+                // for an actual deny-list violation.
+                let reason = match &e {
+                    IotaError::UserInput {
+                        error:
+                            UserInputError::CoinTypeGlobalPause { .. }
+                            | UserInputError::AddressDeniedForCoin { .. },
+                    } => "coin deny-list re-check",
+                    _ => "input load (likely stale attestation)",
+                };
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed post-consensus {reason}, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
         }
 
         // All checks passed — acquire owned-object locks in local tracking.
@@ -341,8 +482,8 @@ fn find_existing_lock(
     epoch_store.tables()?.get_locked_transaction(obj_ref)
 }
 
-/// Extracts owned input object references from a `UserTransactionV1`
-/// consensus transaction.
+/// Extracts owned input object references from a `UserTransactionV1` or
+/// `UserTransactionV2` consensus transaction.
 ///
 /// Returns only `ImmOrOwnedMoveObject` inputs (excludes shared objects and
 /// packages) — these are the objects that need lock conflict detection.
@@ -354,9 +495,15 @@ fn extract_owned_input_objects(
             kind: ConsensusTransactionKind::UserTransactionV1(transaction),
             ..
         }) => transaction.data(),
+        SequencedConsensusTransactionKind::External(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV2(a),
+            ..
+        }) => a.transaction.data(),
         _ => {
             return Err(IotaError::GenericAuthority {
-                error: "Expected UserTransactionV1 in extract_owned_input_objects".to_string(),
+                error:
+                    "Expected UserTransactionV1 or UserTransactionV2 in extract_owned_input_objects"
+                        .to_string(),
             });
         }
     };

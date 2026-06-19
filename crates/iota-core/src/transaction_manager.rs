@@ -5,6 +5,7 @@
 use std::{
     cmp::{Reverse, max},
     collections::{BTreeSet, BinaryHeap, HashMap, HashSet, hash_map},
+    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -14,6 +15,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::ObjectId;
 use iota_types::{
+    attestation::Attestation,
     base_types::{SequenceNumber, TransactionDigest},
     committee::EpochId,
     digests::TransactionEffectsDigest,
@@ -83,6 +85,60 @@ pub struct PendingTransactionStats {
     pub ready_time: Option<Instant>,
 }
 
+/// Wraps a [`VerifiedExecutableTransaction`] with its pre-consensus
+/// [`Attestation`] (if any). Carrying the full attestation lets downstream code
+/// consult both scheduling metadata and attestor identity / observed object
+/// versions.
+///
+/// This is runtime-only scheduling metadata: it is never serialized or
+/// persisted.
+#[derive(Clone, Debug)]
+pub struct VerifiedExecutableAttestedTransaction {
+    tx: VerifiedExecutableTransaction,
+    /// `None` for unattested transactions (e.g., `UserTransactionV1`).
+    attestation: Option<Attestation>,
+}
+
+impl VerifiedExecutableAttestedTransaction {
+    pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
+        Self { tx, attestation }
+    }
+
+    /// Returns the attached attestation, or `None` if the transaction was
+    /// not attested.
+    pub fn attestation(&self) -> Option<&Attestation> {
+        self.attestation.as_ref()
+    }
+
+    /// Returns the attestor's estimated computation units, or `None` if the
+    /// transaction was not attested.
+    pub fn attested_computation_units(&self) -> Option<u64> {
+        self.attestation.as_ref().map(|a| a.computation_units())
+    }
+
+    /// Consume the wrapper and return its parts.
+    pub fn into_parts(self) -> (VerifiedExecutableTransaction, Option<Attestation>) {
+        (self.tx, self.attestation)
+    }
+}
+
+impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransaction {
+    fn from(tx: VerifiedExecutableTransaction) -> Self {
+        Self {
+            tx,
+            attestation: None,
+        }
+    }
+}
+
+impl Deref for VerifiedExecutableAttestedTransaction {
+    type Target = VerifiedExecutableTransaction;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tx
+    }
+}
+
 /// A transaction that is waiting in the `TransactionManager` for its input
 /// objects to become available before it can be sent to the execution driver.
 ///
@@ -96,11 +152,16 @@ pub struct PendingTransactionStats {
 /// since this is a fully internal type.
 #[derive(Clone, Debug)]
 pub struct PendingTransaction {
-    /// The transaction to be executed.
-    pub transaction: VerifiedExecutableTransaction,
+    /// Certified transaction to be executed, paired with its pre-consensus
+    /// attestation when sequenced as `UserTransactionV2`. The attestation is
+    /// `None` for non-consensus paths (replay, change-epoch, finalizer) and
+    /// for `UserTransactionV1`. Available at execution time for future
+    /// consumers (comparison metrics, attestor reward/penalty accounting at
+    /// checkpoint time).
+    pub transaction: VerifiedExecutableAttestedTransaction,
 
     /// When executing from checkpoint, the certified effects digest is
-    /// provided so that forks can be detected prior to committing the
+    /// provided, so that forks can be detected prior to committing the
     /// transaction.
     pub expected_effects_digest: Option<TransactionEffectsDigest>,
 
@@ -409,8 +470,23 @@ impl TransactionManager {
         transactions: Vec<VerifiedExecutableTransaction>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
-        let transactions = transactions.into_iter().map(|tx| (tx, None)).collect();
+        let transactions = transactions
+            .into_iter()
+            .map(|tx| (tx.into(), None))
+            .collect();
         self.enqueue_impl(transactions, epoch_store)
+    }
+
+    /// Like [`Self::enqueue`], but preserves the pre-consensus attestation for
+    /// transactions that arrived as `UserTransactionV2`.
+    #[instrument("transaction_manager_enqueue_attested", level = "trace", skip_all)]
+    pub(crate) fn enqueue_attested(
+        &self,
+        certs: Vec<VerifiedExecutableAttestedTransaction>,
+        epoch_store: &AuthorityPerEpochStore,
+    ) {
+        let certs = certs.into_iter().map(|attested| (attested, None)).collect();
+        self.enqueue_impl(certs, epoch_store)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -421,7 +497,7 @@ impl TransactionManager {
     ) {
         let transactions = transactions
             .into_iter()
-            .map(|(tx, fx)| (tx, Some(fx)))
+            .map(|(tx, fx)| (tx.into(), Some(fx)))
             .collect();
         self.enqueue_impl(transactions, epoch_store)
     }
@@ -429,7 +505,7 @@ impl TransactionManager {
     fn enqueue_impl(
         &self,
         transactions: Vec<(
-            VerifiedExecutableTransaction,
+            VerifiedExecutableAttestedTransaction,
             Option<TransactionEffectsDigest>,
         )>,
         epoch_store: &AuthorityPerEpochStore,

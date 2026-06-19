@@ -82,6 +82,7 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
         authentication_gas_budget: u64,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
@@ -90,7 +91,7 @@ mod checked {
             &input_objects,
             &[],
             authentication_gas_budget,
-            false,
+            is_execute_transaction_to_effects,
         )?;
         check_receiving_objects(&input_objects, receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -239,17 +240,8 @@ mod checked {
         Ok(aggregated_authenticator_input_objects)
     }
 
-    /// A function to check the `MoveAuthenticator` inputs for execution and
-    /// then for certificate execution.
-    /// To be used instead of check_certificate_input when there is a Move
-    /// authenticator present.
-    ///
-    /// Checks that there is enough gas to pay for the authenticator and
-    /// transaction execution in the transaction inputs. And that the
-    /// authenticator inputs meet the requirements.
-    /// It returns the gas status, the checked authenticator input objects, and
-    /// the union of the checked authenticator input objects and transaction
-    /// input objects.
+    /// Checks certificate and Move-authenticator inputs, returning an
+    /// execution-mode gas status plus the checked input objects.
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_and_move_authenticator_input(
         cert: &VerifiedExecutableTransaction,
@@ -259,13 +251,14 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
-        // Check Move authenticator inputs first
+        let transaction = cert.data().transaction_data();
+
+        // Check Move authenticator inputs first.
         per_authenticator_input_objects
             .iter()
             .try_for_each(check_move_authenticator_objects)?;
 
-        // Check certificate inputs next
-        let transaction = cert.data().transaction_data();
+        // Check transaction inputs next.
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
@@ -273,7 +266,7 @@ mod checked {
             &tx_input_objects,
             &[],
             authenticator_gas_budget,
-            true,
+            true, // execution mode — full transaction_gas_budget
         )?;
 
         let per_authenticator_checked_input_objects = per_authenticator_input_objects
@@ -281,7 +274,7 @@ mod checked {
             .map(|objects| objects.into_checked())
             .collect::<Vec<_>>();
 
-        // Create a checked union of input objects
+        // Create a checked union of input objects.
         let mut input_objects_union = tx_input_objects.into_checked();
         for objects in per_authenticator_checked_input_objects.iter() {
             input_objects_union = checked_input_objects_union(input_objects_union, objects)?;

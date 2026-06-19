@@ -143,6 +143,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             verifier_signing_config,
             authenticator_gas_budget,
+            false,
         )?;
 
         let transaction_data = transaction.data().transaction_data();
@@ -235,6 +236,7 @@ impl EpochState {
                 &self.bytecode_verifier_metrics,
                 verifier_signing_config,
                 authenticator_gas_budget,
+                false,
             )?
         } else {
             let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
