@@ -27,13 +27,13 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::types::{
-    Argument, ExecutionError, Identifier, MoveLocation, ObjectId, Owner, ProgrammableTransaction,
-    TypeTag, crypto::Intent,
+    Address, Argument, ExecutionError, Identifier, MoveLocation, ObjectId, Owner,
+    ProgrammableTransaction, TypeTag, crypto::Intent,
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::{PublicKey, SignatureScheme},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
@@ -255,7 +255,7 @@ async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
         effects.status()
     );
     // The AA account address is the same as the delayed object ID
-    let aa_sender: IotaAddress = delayed_aa_ref.object_id.into();
+    let aa_sender: Address = delayed_aa_ref.object_id.into();
 
     // Fund the AA account with gas
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -290,7 +290,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = aa_ref.object_id.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Fund AA
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -492,7 +492,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.object_id.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -600,7 +600,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.object_id.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -648,7 +648,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
 
     // Step 2: create a TX2 which uses the conflict Coin owned by the AA account as
     // input
-    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, Address::ZERO)?;
     let tx2_data = test_env
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
@@ -723,7 +723,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.object_id.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -778,7 +778,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     );
 
     // Step 3: create a TX2 which uses the conflict Coin owned by the AA as gas
-    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, Address::ZERO)?;
     let tx2_data = test_env
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
@@ -854,7 +854,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.object_id.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -932,7 +932,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     );
 
     // Step 4: create a TX2 which uses the conflict Coin owned by the AA as gas
-    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, IotaAddress::ZERO)?;
+    let pt2 = test_env.craft_object_transfer(conflict_coin_ref, Address::ZERO)?;
     let tx2_data = test_env
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
@@ -962,11 +962,11 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
 
     // Create a second AA that will act as the sponsor.
     let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     // Fund the sponsor AA so it can provide gas.
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -1007,7 +1007,7 @@ async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponso
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let sponsor_aa_ref = test_env.aa_ref.unwrap();
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     // The sender is a regular IOTA account from the keystore.
     let sender = test_env
@@ -1066,13 +1066,13 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
 
     // Create a second AA that will act as the sponsor.
     let sponsor_aa_ref = test_env
         .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER)
         .await?;
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     // Fund the sponsor AA so it can provide gas.
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -1121,11 +1121,11 @@ async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_spons
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
 
     // Create a second AA that will act as the sponsor.
     let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     // Fund the sponsor AA so it can provide gas.
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -1184,7 +1184,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let sponsor_aa_ref = test_env.aa_ref.unwrap();
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     // The sender is a regular IOTA account from the keystore.
     let sender = test_env
@@ -1256,11 +1256,11 @@ async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
 
     // Create a second AA that will act as the sponsor.
     let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     // Create a third AA that is unrelated to this transaction.
     let unrelated_aa_ref = test_env.create_extra_abstract_account().await?;
@@ -1310,11 +1310,11 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
 
     // Create a second AA that will act as the sponsor.
     let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     // Fund the sponsor AA so it can provide gas.
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -1371,12 +1371,12 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
 
     let sponsor_aa_ref = test_env
         .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
     let sponsor_gas = test_env
@@ -1461,12 +1461,12 @@ async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = sender_aa_ref.object_id.into();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
 
     let sponsor_aa_ref = test_env
         .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
-    let sponsor_addr: IotaAddress = sponsor_aa_ref.object_id.into();
+    let sponsor_addr: Address = sponsor_aa_ref.object_id.into();
 
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
     let sponsor_gas = test_env
@@ -1511,7 +1511,7 @@ async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_onl
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = aa_ref.object_id.into();
+    let aa_sender: Address = aa_ref.object_id.into();
 
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
     let aa_gas = test_env
@@ -1549,7 +1549,7 @@ async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_onl
 /// Test environment for Abstract Account tests
 struct TestEnvironment {
     test_cluster: TestCluster,
-    owner: Option<IotaAddress>,
+    owner: Option<Address>,
     authenticate_fn_name: Option<String>,
     aa_package_id: Option<ObjectId>,
     aa_package_metadata_ref: Option<ObjectRef>,
@@ -1985,7 +1985,7 @@ impl TestEnvironment {
     fn craft_object_transfer(
         &self,
         object_ref: ObjectRef,
-        recipient: IotaAddress,
+        recipient: Address,
     ) -> anyhow::Result<ProgrammableTransaction> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -2059,8 +2059,8 @@ impl TestEnvironment {
         &self,
         pt: ProgrammableTransaction,
         gas_coin: ObjectRef,
-        sender: IotaAddress,
-        sponsor: Option<IotaAddress>,
+        sender: Address,
+        sponsor: Option<Address>,
     ) -> anyhow::Result<TransactionData> {
         let gas_price = self.test_cluster.get_reference_gas_price().await;
 
@@ -2077,7 +2077,7 @@ impl TestEnvironment {
 
     async fn craft_create_abstract_account(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         authenticate_fn_name: &str,
         aa_package_id: ObjectId,
         aa_package_metadata_ref: ObjectRef,
@@ -2210,7 +2210,7 @@ impl TestEnvironment {
     /// Create an Abstract Account on the ledger with the specified parameters.
     async fn create_abstract_account_with(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         authenticate_fn_name: &str,
         aa_package_id: ObjectId,
         aa_package_metadata_ref: ObjectRef,

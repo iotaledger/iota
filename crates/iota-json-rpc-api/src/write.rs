@@ -8,12 +8,11 @@ use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
     ExecuteTransactionRequestType, IotaMoveViewCallResults, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag,
-    iota_primitives::{
-        Base64 as Base64Schema, IotaAddress as IotaAddressSchema, TypeTag as TypeTagSchema,
-    },
+    iota_primitives::{Address as AddressSchema, Base64 as Base64Schema, TypeTag as TypeTagSchema},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::{base_types::IotaAddress, iota_serde::BigInt};
+use iota_sdk_ext::types::Address;
+use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides methods for executing and testing transactions.
@@ -67,8 +66,8 @@ pub trait WriteApi {
     #[method(name = "devInspectTransactionBlock")]
     async fn dev_inspect_transaction_block(
         &self,
-        #[schemars(with = "IotaAddressSchema")]
-        sender_address: IotaAddress,
+        #[schemars(with = "AddressSchema")]
+        sender_address: Address,
         /// BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)
         #[schemars(with = "Base64Schema")]
         tx_bytes: Base64,

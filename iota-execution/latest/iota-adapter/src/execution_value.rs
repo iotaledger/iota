@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::types::{CommandArgumentError, ObjectId, Owner};
+use iota_sdk_ext::types::{Address, CommandArgumentError, ObjectId, Owner};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     storage::{BackingPackageStore, ChildObjectResolver, StorageView},
@@ -301,7 +301,7 @@ impl TryFromValue for ObjectValue {
     }
 }
 
-impl TryFromValue for IotaAddress {
+impl TryFromValue for Address {
     fn try_from_value(value: Value) -> Result<Self, CommandArgumentError> {
         try_from_value_prim(&value, Type::Address)
     }

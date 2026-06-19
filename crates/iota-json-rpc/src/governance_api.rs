@@ -18,10 +18,9 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::{
     MoveTypeTagTrait,
-    base_types::IotaAddress,
     committee::EpochId,
     dynamic_field::{DynamicFieldInfo, get_dynamic_field_from_store},
     error::{IotaError, UserInputError},
@@ -48,7 +47,7 @@ use crate::{
     logger::FutureWithTracing as _,
 };
 
-type ValidatorTable = (IotaAddress, ObjectId, ObjectId, u64, bool);
+type ValidatorTable = (Address, ObjectId, ObjectId, u64, bool);
 
 #[derive(Clone)]
 pub struct GovernanceReadApi {
@@ -61,7 +60,7 @@ impl GovernanceReadApi {
         Self { state, metrics }
     }
 
-    async fn get_staked_iota(&self, owner: IotaAddress) -> Result<Vec<StakedIota>, Error> {
+    async fn get_staked_iota(&self, owner: Address) -> Result<Vec<StakedIota>, Error> {
         let state = self.state.clone();
         let result =
             spawn_monitored_task!(async move { state.get_staked_iota(owner).await }).await??;
@@ -77,7 +76,7 @@ impl GovernanceReadApi {
 
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Result<Vec<TimelockedStakedIota>, Error> {
         let state = self.state.clone();
         let result =
@@ -120,7 +119,7 @@ impl GovernanceReadApi {
         self.get_delegated_stakes(stakes).await
     }
 
-    async fn get_stakes(&self, owner: IotaAddress) -> Result<Vec<DelegatedStake>, Error> {
+    async fn get_stakes(&self, owner: Address) -> Result<Vec<DelegatedStake>, Error> {
         let timer = self.metrics.get_stake_iota_latency.start_timer();
         let stakes = self.get_staked_iota(owner).await?;
         if stakes.is_empty() {
@@ -166,7 +165,7 @@ impl GovernanceReadApi {
 
     async fn get_timelocked_stakes(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Result<Vec<DelegatedTimelockedStake>, Error> {
         let timer = self.metrics.get_stake_iota_latency.start_timer();
         let stakes = self.get_timelocked_staked_iota(owner).await?;
@@ -378,7 +377,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     #[instrument(skip(self, owner), fields(owner = %owner))]
-    async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>> {
+    async fn get_stakes(&self, owner: Address) -> RpcResult<Vec<DelegatedStake>> {
         self.get_stakes(owner).trace().await
     }
 
@@ -395,7 +394,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_timelocked_stakes(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcResult<Vec<DelegatedTimelockedStake>> {
         self.get_timelocked_stakes(owner).trace().await
     }
@@ -739,12 +738,12 @@ fn candidate_validators_exchange_rate(
     )?;
 
     // From validator_candidates_id table get validator info using as key its
-    // IotaAddress
+    // Address
     let tables = validator_summary_from_system_state(
         state,
         system_state_summary.validator_candidates_id,
         system_state_summary.validator_candidates_size,
-        |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+        |df| bcs::from_bytes::<Address>(&df.bcs_name).map_err(Into::into),
         Some(system_state_summary.protocol_version),
     )?;
 
@@ -793,8 +792,8 @@ fn candidate_validators_exchange_rate(
 ///     system_state_summary.validator_candidates_id,
 ///     // Number of preactive validators
 ///     system_state_summary.validator_candidates_size,
-///     // Extract the `IotaAddress` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
-///     |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+///     // Extract the `Address` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
+///     |df| bcs::from_bytes::<Address>(&df.bcs_name).map_err(Into::into),
 /// ).unwrap();
 /// ```
 fn validator_summary_from_system_state<K, F>(
@@ -830,7 +829,7 @@ where
 
 #[derive(Clone, Debug)]
 pub struct ValidatorExchangeRates {
-    pub address: IotaAddress,
+    pub address: Address,
     pub pool_id: ObjectId,
     pub active: bool,
     pub rates: Vec<(EpochId, PoolTokenExchangeRate)>,
@@ -910,7 +909,7 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random();
+                let address = Address::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
@@ -942,7 +941,7 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random();
+                let address = Address::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,

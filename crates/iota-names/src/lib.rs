@@ -10,8 +10,7 @@ pub mod registry;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_sdk_ext::types::{Identifier, ObjectId, StructTag};
-use iota_types::base_types::IotaAddress;
+use iota_sdk_ext::types::{Address, Identifier, ObjectId, StructTag};
 use serde::{Deserialize, Serialize};
 
 use self::name::Name;
@@ -43,7 +42,7 @@ pub trait IotaNamesNft {
     const MODULE: Identifier;
     const TYPE_NAME: Identifier;
 
-    fn type_(package_id: IotaAddress) -> StructTag {
+    fn type_(package_id: Address) -> StructTag {
         StructTag::new(package_id, Self::MODULE, Self::TYPE_NAME, vec![])
     }
 

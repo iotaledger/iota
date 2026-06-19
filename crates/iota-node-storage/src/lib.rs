@@ -13,9 +13,9 @@
 //! - `iota-grpc-server` can consume them without depending on `iota-core`
 //! - `simulacrum` and other test harnesses can implement them freely
 
-use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag};
 use iota_types::{
-    base_types::{EpochId, IotaAddress},
+    base_types::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
@@ -86,7 +86,7 @@ pub trait GrpcIndexes: Send + Sync {
     /// The `cursor` bound is **inclusive**.
     fn account_owned_objects_info_iter(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<&OwnedObjectCursor>,
         object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>>;

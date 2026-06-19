@@ -10,10 +10,10 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
@@ -32,7 +32,7 @@ use crate::{
 
 pub struct BenchmarkContext {
     validator: SingleValidator,
-    user_accounts: BTreeMap<IotaAddress, Account>,
+    user_accounts: BTreeMap<Address, Account>,
     admin_account: Account,
     benchmark_component: Component,
 }
@@ -99,7 +99,7 @@ impl BenchmarkContext {
         &mut self,
         move_package: ObjectId,
         num_dynamic_fields: u64,
-    ) -> HashMap<IotaAddress, ObjectRef> {
+    ) -> HashMap<Address, ObjectRef> {
         let mut root_objects = HashMap::new();
 
         if num_dynamic_fields == 0 {

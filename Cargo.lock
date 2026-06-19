@@ -2040,9 +2040,9 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "byte-slice-cast"
-version = "1.2.3"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7575182f7272186991736b70173b0ea045398f984bf5ebbb3804736ce1330c9d"
+checksum = "c3ac9f8b63eca6fd385229b3675f6cc0dc5c8a5c8a54a59d4f52ffd670d87b0c"
 
 [[package]]
 name = "bytecount"
@@ -3421,9 +3421,9 @@ dependencies = [
 
 [[package]]
 name = "diesel"
-version = "2.3.9"
+version = "2.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9940fb8467a0a06312218ed384185cb8536aa10d8ec017d0ce7fad2c1bd882d5"
+checksum = "29fe29a87fb84c631ffb3ba21798c4b1f3a964701ba78f0dce4bf8668562ec88"
 dependencies = [
  "bitflags 2.10.0",
  "byteorder",
@@ -5164,7 +5164,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba6a270039626615617f3f36d15fc827041df3b78c439da2cadfa47455a77f2f"
 dependencies = [
- "parity-scale-codec 3.7.5",
+ "parity-scale-codec 3.7.4",
 ]
 
 [[package]]
@@ -5173,7 +5173,7 @@ version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d40b9d5e17727407e55028eafc22b2dc68781786e6d7eb8a21103f5058e3a14"
 dependencies = [
- "parity-scale-codec 3.7.5",
+ "parity-scale-codec 3.7.4",
 ]
 
 [[package]]
@@ -6756,6 +6756,7 @@ dependencies = [
  "iota-metrics",
  "iota-protocol-config",
  "iota-sdk 1.26.0-alpha",
+ "iota-sdk 3.0.0-alpha.1",
  "iota-simulator",
  "iota-swarm",
  "iota-swarm-config",
@@ -7430,7 +7431,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk"
 version = "3.0.0-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b24fbed6856580569d4fd374ed2aae0f07a461f1#b24fbed6856580569d4fd374ed2aae0f07a461f1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=36bffd625e1b1d38307eb9e49bd2cb7dd988bb11#36bffd625e1b1d38307eb9e49bd2cb7dd988bb11"
 dependencies = [
  "iota-sdk-crypto",
  "iota-sdk-graphql-client",
@@ -7444,7 +7445,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b24fbed6856580569d4fd374ed2aae0f07a461f1#b24fbed6856580569d4fd374ed2aae0f07a461f1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=36bffd625e1b1d38307eb9e49bd2cb7dd988bb11#36bffd625e1b1d38307eb9e49bd2cb7dd988bb11"
 dependencies = [
  "bech32 0.11.1",
  "bip32",
@@ -7467,7 +7468,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b24fbed6856580569d4fd374ed2aae0f07a461f1#b24fbed6856580569d4fd374ed2aae0f07a461f1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=36bffd625e1b1d38307eb9e49bd2cb7dd988bb11#36bffd625e1b1d38307eb9e49bd2cb7dd988bb11"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7496,7 +7497,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b24fbed6856580569d4fd374ed2aae0f07a461f1#b24fbed6856580569d4fd374ed2aae0f07a461f1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=36bffd625e1b1d38307eb9e49bd2cb7dd988bb11#36bffd625e1b1d38307eb9e49bd2cb7dd988bb11"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7504,7 +7505,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b24fbed6856580569d4fd374ed2aae0f07a461f1#b24fbed6856580569d4fd374ed2aae0f07a461f1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=36bffd625e1b1d38307eb9e49bd2cb7dd988bb11#36bffd625e1b1d38307eb9e49bd2cb7dd988bb11"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -7523,7 +7524,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b24fbed6856580569d4fd374ed2aae0f07a461f1#b24fbed6856580569d4fd374ed2aae0f07a461f1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=36bffd625e1b1d38307eb9e49bd2cb7dd988bb11#36bffd625e1b1d38307eb9e49bd2cb7dd988bb11"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -7539,7 +7540,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b24fbed6856580569d4fd374ed2aae0f07a461f1#b24fbed6856580569d4fd374ed2aae0f07a461f1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=36bffd625e1b1d38307eb9e49bd2cb7dd988bb11#36bffd625e1b1d38307eb9e49bd2cb7dd988bb11"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7558,7 +7559,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b24fbed6856580569d4fd374ed2aae0f07a461f1#b24fbed6856580569d4fd374ed2aae0f07a461f1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=36bffd625e1b1d38307eb9e49bd2cb7dd988bb11#36bffd625e1b1d38307eb9e49bd2cb7dd988bb11"
 dependencies = [
  "base64ct",
  "bcs",
@@ -10004,7 +10005,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -10554,16 +10555,16 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "3.7.5"
+version = "3.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "799781ae679d79a948e13d4824a40970bfa500058d245760dd857301059810fa"
+checksum = "c9fde3d0718baf5bc92f577d652001da0f8d54cd03a7974e118d04fc888dc23d"
 dependencies = [
  "arrayvec",
  "bitvec 1.0.1",
  "byte-slice-cast",
  "const_format",
  "impl-trait-for-tuples",
- "parity-scale-codec-derive 3.7.5",
+ "parity-scale-codec-derive 3.7.4",
  "rustversion",
  "serde",
 ]
@@ -10582,9 +10583,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "3.7.5"
+version = "3.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34b4653168b563151153c9e4c08ebed57fb8262bebfa79711552fa983c623e7a"
+checksum = "581c837bb6b9541ce7faa9377c20616e4fb7650f6b0f68bc93c827ee504fb7b3"
 dependencies = [
  "proc-macro-crate 3.2.0",
  "proc-macro2",
@@ -11561,7 +11562,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.5.7",
+ "socket2 0.6.3",
  "thiserror 2.0.18",
  "tokio",
  "tracing",

@@ -5,12 +5,11 @@
 pub use iota_sdk_ext::types::crypto::PasskeyAuthenticator;
 use iota_sdk_ext::{
     crypto::{Verifier, passkey::PasskeyVerifier},
-    types::crypto::IntentMessage,
+    types::{Address, crypto::IntentMessage},
 };
 use serde::Serialize;
 
 use crate::{
-    base_types::IotaAddress,
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
 };
@@ -24,7 +23,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where

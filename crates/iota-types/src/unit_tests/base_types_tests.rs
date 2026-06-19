@@ -32,7 +32,7 @@ use crate::{
 
 #[test]
 fn test_bcs_enum() {
-    let address = Owner::Address(IotaAddress::random());
+    let address = Owner::Address(Address::random());
     let shared = Owner::Shared(1.into());
 
     let address_ser = bcs::to_bytes(&address).unwrap();
@@ -244,44 +244,44 @@ fn test_object_id_zero_padding() {
     let obj_id_4: ObjectId = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
     let obj_id_5: ObjectId = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
     let obj_id_6: ObjectId = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_1.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_2.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_3.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_4.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_5.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_6.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_1.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_2.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_3.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_4.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_5.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_6.as_bytes());
 }
 
 #[test]
 fn test_address_display() {
-    let id = IotaAddress::from_str(SAMPLE_ADDRESS).unwrap();
+    let id = Address::from_str(SAMPLE_ADDRESS).unwrap();
     assert_eq!(format!("{id}"), SAMPLE_ADDRESS);
 }
 
 #[test]
 fn test_address_serde_not_human_readable() {
-    let address = IotaAddress::random();
+    let address = Address::random();
     let serialized = bincode::serialize(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
     // bincode use 8 bytes for BYTES len and bcs use 1 byte
     assert_eq!(serialized, bcs_serialized);
     assert_eq!(address.as_bytes(), &serialized[..]);
-    let deserialized: IotaAddress = bincode::deserialize(&serialized).unwrap();
+    let deserialized: Address = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, address);
 }
 
 #[test]
 fn test_address_serde_human_readable() {
-    let address = IotaAddress::random();
+    let address = Address::random();
     let serialized = serde_json::to_string(&address).unwrap();
     assert_eq!(format!("\"{address}\""), serialized);
-    let deserialized: IotaAddress = serde_json::from_str(&serialized).unwrap();
+    let deserialized: Address = serde_json::from_str(&serialized).unwrap();
     assert_eq!(deserialized, address);
 }
 
 #[test]
 fn test_address_serde_with_expected_value() {
-    let address = IotaAddress::from_bytes(SAMPLE_ADDRESS_VEC).unwrap();
+    let address = Address::from_bytes(SAMPLE_ADDRESS_VEC).unwrap();
     let json_serialized = serde_json::to_string(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
 
@@ -350,7 +350,7 @@ fn test_object_id_from_empty_string() {
 
 #[test]
 fn test_move_object_size_for_gas_metering() {
-    let object = Object::with_id_owner_for_testing(ObjectId::random(), IotaAddress::random());
+    let object = Object::with_id_owner_for_testing(ObjectId::random(), Address::random());
     let size = object.object_size_for_gas_metering();
     let serialized = bcs::to_bytes(&object).unwrap();
     // If the following assertion breaks, it's likely you have changed MoveObject's
@@ -387,7 +387,7 @@ const SAMPLE_ADDRESS_VEC: [u8; 32] = [
 ];
 
 // Derive a sample address and public key tuple from KeyPair bytes.
-fn derive_sample_address() -> (IotaAddress, AccountKeyPair) {
+fn derive_sample_address() -> (Address, AccountKeyPair) {
     let (address, pub_key) = get_key_pair_from_bytes(&[
         10, 112, 5, 142, 174, 127, 187, 146, 251, 68, 22, 191, 128, 68, 84, 13, 102, 71, 77, 57,
         92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214, 189, 215, 127, 86, 129, 189, 1, 4,

@@ -4,13 +4,13 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_ext::types::{MoveObjectType, ObjectId};
+use iota_sdk_ext::types::{Address, MoveObjectType, ObjectId};
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, IotaAddress, ObjectType, SequenceNumber},
+    base_types::{EpochId, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
@@ -852,7 +852,7 @@ pub struct EpochInfo {
 
 #[derive(Clone)]
 pub struct AccountOwnedObjectInfo {
-    pub owner: IotaAddress,
+    pub owner: Address,
     pub object_id: ObjectId,
     pub version: SequenceNumber,
     pub type_: MoveObjectType,

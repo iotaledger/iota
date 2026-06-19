@@ -11,9 +11,9 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
-use iota_sdk_ext::types::{ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, Owner, StructTag, TypeTag};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
@@ -391,7 +391,7 @@ pub fn take_from_address_by_id(
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
     let id = pop_id(&mut args)?;
-    let account = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
+    let account = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     pop_arg!(args, StructRef);
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
@@ -424,7 +424,7 @@ pub fn ids_for_address(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
-    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
+    let account: Address = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -449,7 +449,7 @@ pub fn most_recent_id_for_address(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
-    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
+    let account: Address = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -471,7 +471,7 @@ pub fn was_taken_from_address(
 ) -> PartialVMResult<NativeResult> {
     assert!(ty_args.is_empty());
     let id = pop_id(&mut args)?;
-    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
+    let account: Address = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;

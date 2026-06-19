@@ -5,12 +5,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
-use iota_sdk_ext::types::ObjectId;
-use iota_types::{
-    base_types::{IotaAddress, TxContext},
-    committee::EpochId,
-    digests::TransactionDigest,
-};
+use iota_sdk_ext::types::{Address, ObjectId};
+use iota_types::{base_types::TxContext, committee::EpochId, digests::TransactionDigest};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, runtime_value::MoveTypeLayout, vm_status::StatusCode,
@@ -53,7 +49,7 @@ impl TransactionContext {
         }
     }
 
-    pub fn sender(&self) -> IotaAddress {
+    pub fn sender(&self) -> Address {
         self.tx_context.borrow().sender()
     }
 
@@ -95,7 +91,7 @@ impl TransactionContext {
             .borrow_field(0)
     }
 
-    pub fn sponsor(&self) -> Option<IotaAddress> {
+    pub fn sponsor(&self) -> Option<Address> {
         self.tx_context.borrow().sponsor()
     }
 

@@ -31,11 +31,11 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
-use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag};
 use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
-    base_types::{IotaAddress, SequenceNumber, VersionNumber},
+    base_types::{SequenceNumber, VersionNumber},
     coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,
@@ -942,7 +942,7 @@ impl IndexerReader {
 
     pub async fn get_owned_objects_in_blocking_task(
         &self,
-        address: IotaAddress,
+        address: Address,
         filter: Option<IotaObjectDataFilter>,
         cursor: Option<ObjectId>,
         limit: usize,
@@ -953,7 +953,7 @@ impl IndexerReader {
 
     fn get_owned_objects_impl(
         &self,
-        address: IotaAddress,
+        address: Address,
         filter: Option<IotaObjectDataFilter>,
         cursor: Option<ObjectId>,
         limit: usize,
@@ -1208,7 +1208,7 @@ impl IndexerReader {
     /// using the fallback storage if the database is pruned.
     async fn query_transactions_by_affected_addresses_with_fallback(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
@@ -1323,22 +1323,12 @@ impl IndexerReader {
                 .await;
         };
 
-        // All transaction-related tables that could be used by any filter
-        let tx_tables = [
-            CommitterTables::Transactions,
-            CommitterTables::TxCallsFun,
-            CommitterTables::TxCallsMod,
-            CommitterTables::TxCallsPkg,
-            CommitterTables::TxInputObjects,
-            CommitterTables::TxChangedObjects,
-            CommitterTables::TxWrappedOrDeletedObjects,
-            CommitterTables::TxSenders,
-            CommitterTables::TxRecipients,
-            CommitterTables::TxKinds,
-        ];
+        // scope the watermark and the cursor pruning check to only the tables this
+        // filter reads.
+        let tx_tables = self.tx_tables_for_filter(filter.as_ref())?;
         let min_available_tx = self
             .watermark_cache
-            .get_lowest_available_tx_for_tables(&tx_tables)
+            .get_lowest_available_tx_for_tables(tx_tables)
             .unwrap_or(0);
 
         let cursor_tx_seq = if let Some(cursor) = cursor {
@@ -1346,7 +1336,7 @@ impl IndexerReader {
                 .db()
                 .resolve_cursor_tx_digest_to_seq_num(cursor)
                 .await?;
-            self.ensure_data_not_pruned_for_tx(tx_seq, &tx_tables)?;
+            self.ensure_data_not_pruned_for_tx(tx_seq, tx_tables)?;
             Some(tx_seq)
         } else {
             None
@@ -1571,6 +1561,88 @@ impl IndexerReader {
             Some(is_descending),
         )
         .await
+    }
+
+    /// Returns the minimal set of tables read by [`TransactionFilterKind`],
+    /// used to scope both the `min_available_tx` watermark and the cursor
+    /// pruning check.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the filter is not supported.
+    fn tx_tables_for_filter(
+        &self,
+        filter: Option<&TransactionFilterKind>,
+    ) -> IndexerResult<&'static [CommitterTables]> {
+        use CommitterTables::*;
+
+        let Some(filter) = filter else {
+            return Ok(&[Transactions]);
+        };
+        let tables: &'static [CommitterTables] = match filter {
+            TransactionFilterKind::V1(TransactionFilter::MoveFunction {
+                module, function, ..
+            })
+            | TransactionFilterKind::V2(TransactionFilterV2::MoveFunction {
+                module,
+                function,
+                ..
+            }) => match (module, function) {
+                (Some(_), Some(_)) => &[TxCallsFun, TxDigests],
+                (Some(_), None) => &[TxCallsMod, TxDigests],
+                (None, Some(_)) => {
+                    return Err(IndexerError::InvalidArgument(
+                        "Function cannot be present without Module.".into(),
+                    ));
+                }
+                (None, None) => &[TxCallsPkg, TxDigests],
+            },
+            TransactionFilterKind::V1(TransactionFilter::InputObject(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::InputObject(_)) => {
+                &[TxInputObjects, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::ChangedObject(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(_)) => {
+                &[TxChangedObjects, TxDigests]
+            }
+            TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(_)) => {
+                &[TxWrappedOrDeletedObjects, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::FromAddress(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::FromAddress(_)) => {
+                &[TxSenders, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::ToAddress(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::ToAddress(_)) => {
+                &[TxRecipients, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { .. })
+            | TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { .. }) => {
+                &[TxSenders, TxRecipients, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::TransactionKind(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(_))
+            | TransactionFilterKind::V1(TransactionFilter::TransactionKindIn(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::TransactionKindIn(_)) => {
+                &[TxKinds, TxDigests]
+            }
+            // Served by dedicated fallback paths
+            TransactionFilterKind::V1(TransactionFilter::Checkpoint(_))
+            | TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_)) => {
+                &[Transactions, PrunerCpWatermark, TxDigests]
+            }
+            TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { .. })
+            | TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. }) => {
+                &[TxSenders, TxRecipients, TxDigests]
+            }
+            // Unsupported V2-only filters error out in the query match.
+            TransactionFilterKind::V2(_) => {
+                return Err(IndexerError::InvalidArgument(
+                    "transaction filter is not supported".into(),
+                ));
+            }
+        };
+        Ok(tables)
     }
 
     async fn multi_get_transaction_block_response_in_blocking_task_impl(
@@ -2214,7 +2286,7 @@ impl IndexerReader {
 
     pub async fn get_owned_coins_in_blocking_task(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: Option<String>,
         cursor: ObjectId,
         limit: usize,
@@ -2225,7 +2297,7 @@ impl IndexerReader {
 
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
         cursor: ObjectId,
@@ -2255,7 +2327,7 @@ impl IndexerReader {
 
     pub async fn get_coin_balances_in_blocking_task(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -2265,7 +2337,7 @@ impl IndexerReader {
 
     fn get_coin_balances(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -2620,7 +2692,7 @@ impl iota_types::storage::ObjectStore for IndexerReader {
 impl DataReader for IndexerReader {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         object_type: StructTag,
         cursor: Option<ObjectId>,
         limit: Option<usize>,
@@ -3288,7 +3360,7 @@ impl<'a> DBReader<'a> {
     ///   absent from `tx_digests` AND the database is not pruned).
     async fn query_transactions_by_affected_addresses(
         &self,
-        addr: IotaAddress,
+        addr: Address,
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,

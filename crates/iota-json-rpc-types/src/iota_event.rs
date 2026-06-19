@@ -6,9 +6,9 @@ use std::{fmt, fmt::Display, str::FromStr};
 
 use fastcrypto::encoding::{Base58, Base64};
 use iota_metrics::monitored_scope;
-use iota_sdk_ext::types::{Event, Identifier, ObjectId, StructTag};
+use iota_sdk_ext::types::{Address, Event, Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
+    base_types::TransactionDigest,
     error::IotaResult,
     event::{EventEnvelope, EventID},
     object::bounded_visitor::BoundedVisitor,
@@ -24,8 +24,8 @@ use tabled::settings::Style as TableStyle;
 use crate::{
     Page,
     iota_primitives::{
-        Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
-        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
+        Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
+        Identifier as IdentifierSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
     },
     type_and_fields_from_move_event_data,
 };
@@ -85,9 +85,9 @@ pub struct IotaEvent {
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
     /// Sender's IOTA address.
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub sender: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub sender: Address,
     /// Move event type.
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
@@ -295,7 +295,7 @@ impl IotaEvent {
             },
             package_id: ObjectId::random(),
             transaction_module: Identifier::from_str("random_for_testing").unwrap(),
-            sender: IotaAddress::random(),
+            sender: Address::random(),
             type_: StructTag::from_str("0x6666::random_for_testing::RandomForTesting").unwrap(),
             parsed_json: json!({}),
             bcs: BcsEvent::new(vec![]),
@@ -336,9 +336,9 @@ fn try_into_byte(v: &Value) -> Option<u8> {
 pub enum EventFilter {
     /// Query by sender address.
     Sender(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Return events emitted by the given transaction.
     Transaction(

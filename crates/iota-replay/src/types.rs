@@ -7,9 +7,9 @@ use std::fmt::Debug;
 use iota_json_rpc_types::{IotaEvent, IotaObjectResponseError, IotaTransactionBlockEffects};
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::error::Error as IotaRpcError;
-use iota_sdk_ext::types::{ObjectId, TransactionKind};
+use iota_sdk_ext::types::{Address, ObjectId, TransactionKind};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{ObjectRef, SequenceNumber, VersionNumber},
     digests::{ObjectDigest, TransactionDigest},
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
@@ -45,14 +45,14 @@ pub(crate) const EPOCH_CHANGE_STRUCT_TAGS: [&str; 2] = [
 pub struct OnChainTransactionInfo {
     pub tx_digest: TransactionDigest,
     pub sender_signed_data: SenderSignedData,
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub input_objects: Vec<InputObjectKind>,
     pub kind: TransactionKind,
     pub modified_at_versions: Vec<(ObjectId, SequenceNumber)>,
     pub shared_object_refs: Vec<ObjectRef>,
     pub gas: Vec<ObjectRef>,
     #[serde(default)]
-    pub gas_owner: Option<IotaAddress>,
+    pub gas_owner: Option<Address>,
     pub gas_budget: u64,
     pub gas_price: u64,
     pub executed_epoch: u64,

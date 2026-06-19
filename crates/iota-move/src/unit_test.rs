@@ -13,12 +13,10 @@ use iota_move_natives::{
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_ext::types::Address;
 use iota_types::{
-    auth_context::AuthContext,
-    base_types::{IotaAddress, TxContext},
-    digests::TransactionDigest,
-    gas_model::tables::initial_cost_schedule_for_unit_tests,
-    in_memory_storage::InMemoryStorage,
+    auth_context::AuthContext, base_types::TxContext, digests::TransactionDigest,
+    gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
     metrics::LimitsMetrics,
 };
 use move_cli::base::{
@@ -148,7 +146,7 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
     )));
     ext.add(TransactionContext::new_for_testing(Rc::new(RefCell::new(
         TxContext::new_from_components(
-            &IotaAddress::ZERO,
+            &Address::ZERO,
             &TransactionDigest::default(),
             &0,
             0,

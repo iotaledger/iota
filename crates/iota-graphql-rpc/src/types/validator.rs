@@ -13,8 +13,8 @@ use futures::TryFutureExt;
 use iota_indexer::apis::GovernanceReadApi;
 use iota_json_rpc::governance_api::mean_apy_from_exchange_rates;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_ext::types::Address as NativeAddress;
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
     iota_system_state::{
         PoolTokenExchangeRate,
@@ -60,17 +60,15 @@ pub(crate) struct Validator {
 /// It automatically filters the exchange rate table to only include data for
 /// the epochs that are less than or equal to the requested epoch.
 impl Loader<u64> for Db {
-    type Value = BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
+    type Value = BTreeMap<NativeAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
 
     type Error = Error;
 
     async fn load(
         &self,
         keys: &[u64],
-    ) -> Result<
-        HashMap<u64, BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>,
-        Error,
-    > {
+    ) -> Result<HashMap<u64, BTreeMap<NativeAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>, Error>
+    {
         let latest_iota_system_state = self
             .inner
             .spawn_blocking(move |this| this.get_latest_iota_system_state())

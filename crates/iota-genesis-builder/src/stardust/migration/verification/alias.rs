@@ -4,11 +4,10 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, ensure};
-use iota_sdk_ext::types::{ObjectId, Owner, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::output as stardust;
 use iota_types::{
     balance::Balance,
-    base_types::IotaAddress,
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     stardust::output::{
@@ -108,7 +107,7 @@ pub(super) fn verify_alias_output(
     let expected_state_controller = output
         .state_controller_address()
         .to_string()
-        .parse::<IotaAddress>()?;
+        .parse::<Address>()?;
     ensure!(
         created_alias.legacy_state_controller == expected_state_controller,
         "legacy state controller mismatch: found {}, expected {}",

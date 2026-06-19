@@ -45,8 +45,8 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_ext::types::{
-    EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, Owner, RandomnessRound, StructTag,
-    TransactionExpiration, TransactionKind, TypeTag,
+    Address, EndOfEpochTransactionKind, Event, ExecutionStatus, ObjectId, Owner, RandomnessRound,
+    StructTag, TransactionExpiration, TransactionKind, TypeTag,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -68,8 +68,8 @@ use iota_types::{
     },
     auth_context::AuthContextData,
     base_types::{
-        AuthorityName, ConciseableName, IotaAddress, ObjectInfo, ObjectRef, ObjectType,
-        SequenceNumber, VersionNumber,
+        AuthorityName, ConciseableName, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
+        VersionNumber,
     },
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
@@ -2349,11 +2349,11 @@ impl AuthorityState {
     #[instrument("dev_inspect_tx", level = "trace", skip_all)]
     pub async fn dev_inspect_transaction_block(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
-        gas_sponsor: Option<IotaAddress>,
+        gas_sponsor: Option<Address>,
         gas_objects: Option<Vec<ObjectRef>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
@@ -4026,7 +4026,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_owner_objects(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<ObjectId>,
         limit: usize,
@@ -4042,7 +4042,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_owned_coins_iterator_with_cursor(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: (String, ObjectId),
         limit: usize,
@@ -4058,7 +4058,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_owner_objects_iterator(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
@@ -4072,11 +4072,7 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn get_move_objects<T>(
-        &self,
-        owner: IotaAddress,
-        tag: StructTag,
-    ) -> IotaResult<Vec<T>>
+    pub async fn get_move_objects<T>(&self, owner: Address, tag: StructTag) -> IotaResult<Vec<T>>
     where
         T: DeserializeOwned,
     {
@@ -5534,7 +5530,7 @@ impl AuthorityState {
         auth_account_object_seq_number: Option<SequenceNumber>,
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
-        signer: &IotaAddress,
+        signer: &Address,
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         let account_object = match account_object.object {
             ObjectReadResultKind::Object(object) => Ok(object),
@@ -5555,7 +5551,7 @@ impl AuthorityState {
             }
         }?;
 
-        let account_object_addr = IotaAddress::from(auth_account_object_id);
+        let account_object_addr = Address::from(auth_account_object_id);
 
         fp_ensure!(
             signer == &account_object_addr,

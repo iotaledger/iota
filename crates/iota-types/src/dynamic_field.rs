@@ -8,7 +8,7 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_ext::types::{StructTag, TypeTag, crypto::HashingIntentScope};
+use iota_sdk_ext::types::{Address, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -16,7 +16,7 @@ use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
     MoveTypeTagTrait, ObjectId, SequenceNumber,
-    base_types::{IotaAddress, ObjectDigest},
+    base_types::ObjectDigest,
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     id::UID,
@@ -247,9 +247,9 @@ pub fn derive_dynamic_field_id<T>(
     key_bytes: &[u8],
 ) -> Result<ObjectId, bcs::Error>
 where
-    T: Into<IotaAddress>,
+    T: Into<Address>,
 {
-    let parent: IotaAddress = parent.into();
+    let parent: Address = parent.into();
     let k_tag_bytes = bcs::to_bytes(key_type_tag)?;
     tracing::trace!(
         "Deriving dynamic field ID for parent={:?}, key={:?}, key_type_tag={:?}",

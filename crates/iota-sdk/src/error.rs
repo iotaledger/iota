@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::base_types::{IotaAddress, TransactionDigest};
+use iota_sdk_ext::types::Address;
+use iota_types::base_types::TransactionDigest;
 use thiserror::Error;
 
 pub use crate::json_rpc_error::Error as JsonRpcError;
@@ -29,7 +30,7 @@ pub enum Error {
         server_version: String,
     },
     #[error("Insufficient funds for address [{address}], requested amount: {amount}")]
-    InsufficientFunds { address: IotaAddress, amount: u128 },
+    InsufficientFunds { address: Address, amount: u128 },
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error("Invalid Header key-value pair: {0}")]

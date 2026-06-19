@@ -15,11 +15,10 @@ use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
-    base_types::IotaAddress,
     coin::TreasuryCap,
     coin_manager::CoinManager,
     effects::TransactionEffectsAPI,
@@ -92,7 +91,7 @@ impl CoinReadApiServer for CoinReadApi {
     #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: Option<String>,
         // exclusive cursor if `Some`, otherwise start from the beginning
         cursor: Option<ObjectId>,
@@ -121,7 +120,7 @@ impl CoinReadApiServer for CoinReadApi {
     #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_all_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // exclusive cursor if `Some`, otherwise start from the beginning
         cursor: Option<ObjectId>,
         limit: Option<usize>,
@@ -165,11 +164,7 @@ impl CoinReadApiServer for CoinReadApi {
     }
 
     #[instrument(skip(self, owner), fields(owner = %owner))]
-    async fn get_balance(
-        &self,
-        owner: IotaAddress,
-        coin_type: Option<String>,
-    ) -> RpcResult<Balance> {
+    async fn get_balance(&self, owner: Address, coin_type: Option<String>) -> RpcResult<Balance> {
         async move {
             let coin_type_tag = parse_to_type_tag(coin_type)?;
             let balance = self
@@ -190,7 +185,7 @@ impl CoinReadApiServer for CoinReadApi {
     }
 
     #[instrument(skip(self, owner), fields(owner = %owner))]
-    async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
+    async fn get_all_balances(&self, owner: Address) -> RpcResult<Vec<Balance>> {
         async move {
             let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
                 debug!(%owner, "Failed to get all balance with error: {e}");
@@ -452,12 +447,12 @@ pub trait CoinReadInternal {
     async fn get_object(&self, object_id: &ObjectId) -> RpcInterimResult<Option<Object>>;
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> RpcInterimResult<TotalBalance>;
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcInterimResult<Arc<HashMap<TypeTag, TotalBalance>>>;
     async fn find_package_object(
         &self,
@@ -466,7 +461,7 @@ pub trait CoinReadInternal {
     ) -> RpcInterimResult<Object>;
     async fn get_coins_iterator(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: Option<usize>,
         one_coin_type_only: bool,
@@ -506,7 +501,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> RpcInterimResult<TotalBalance> {
         Ok(self.state.get_balance(owner, coin_type).await?)
@@ -514,7 +509,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcInterimResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         Ok(self.state.get_all_balance(owner).await?)
     }
@@ -533,7 +528,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_coins_iterator(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: Option<usize>,
         one_coin_type_only: bool,
@@ -577,7 +572,7 @@ mod tests {
     };
     use iota_types::{
         balance::Supply,
-        base_types::{IotaAddress, SequenceNumber},
+        base_types::SequenceNumber,
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest},
         effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
@@ -660,8 +655,8 @@ mod tests {
         }
     }
 
-    fn get_test_owner() -> IotaAddress {
-        IotaAddress::STD
+    fn get_test_owner() -> Address {
+        Address::STD
     }
 
     fn get_test_package_id() -> ObjectId {

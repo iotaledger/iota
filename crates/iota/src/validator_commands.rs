@@ -32,11 +32,11 @@ use iota_keys::{
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_ext::types::{
-    Identifier, ObjectId, Owner, TypeTag,
+    Address, Identifier, ObjectId, Owner, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
@@ -106,7 +106,7 @@ pub enum IotaValidatorCommand {
     /// Display metadata about the validator.
     DisplayMetadata {
         #[arg(name = "validator-address")]
-        validator_address: Option<IotaAddress>,
+        validator_address: Option<Address>,
     },
     /// Update the validator metadata.
     UpdateMetadata {
@@ -126,7 +126,7 @@ pub enum IotaValidatorCommand {
         operation_cap_id: Option<ObjectId>,
         /// The IOTA Address of the validator is being reported or un-reported
         #[arg(name = "reportee-address")]
-        reportee_address: IotaAddress,
+        reportee_address: Address,
         /// If true, undo an existing report.
         #[arg(name = "undo-report", long)]
         undo_report: Option<bool>,
@@ -141,7 +141,7 @@ pub enum IotaValidatorCommand {
     SerializePayloadForPoP {
         /// Authority account address encoded in hex with 0x prefix.
         #[arg(name = "account-address", long)]
-        account_address: IotaAddress,
+        account_address: Address,
         /// Authority public key encoded in hex.
         #[arg(name = "authority-public-key", long)]
         authority_public_key: AuthorityPublicKeyBytes,
@@ -237,7 +237,7 @@ impl IotaValidatorCommand {
                 let network_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(network_key_file_name)?;
 
-                let account_address = IotaAddress::from(&account_key.public());
+                let account_address = Address::from(&account_key.public());
 
                 let pop = generate_proof_of_possession(&authority_keypair, account_address);
                 let validator_info = GenesisValidatorInfo {
@@ -502,7 +502,7 @@ async fn get_cap_object_ref(
 
 async fn report_validator(
     context: &mut WalletContext,
-    reportee_address: IotaAddress,
+    reportee_address: Address,
     operation_cap_id: Option<ObjectId>,
     undo_report: bool,
     gas_budget: u64,
@@ -568,7 +568,7 @@ async fn get_validator_summary_from_cap_id(
 
 async fn construct_unsigned_0x5_txn(
     context: &mut WalletContext,
-    sender: IotaAddress,
+    sender: Address,
     function: &'static str,
     call_args: Vec<CallArg>,
     gas_budget: u64,
@@ -697,7 +697,7 @@ pub enum ValidatorStatus {
 
 pub async fn get_validator_summary(
     client: &IotaClient,
-    validator_address: IotaAddress,
+    validator_address: Address,
 ) -> anyhow::Result<Option<(ValidatorStatus, IotaValidatorSummary)>> {
     let iota_system_state = client
         .governance_api()
@@ -824,7 +824,7 @@ async fn get_validator_summary_from_validator_wrapper(
         .expect("missing bcs")
         .try_into_move()
         .expect("invalid move type")
-        .deserialize::<Field<IotaAddress, Validator>>()?;
+        .deserialize::<Field<Address, Validator>>()?;
 
     let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
         *validator.value.inner.id.object_id(),
@@ -849,7 +849,7 @@ async fn get_validator_summary_from_validator_wrapper(
 
 async fn display_metadata(
     client: &IotaClient,
-    validator_address: IotaAddress,
+    validator_address: Address,
     json: bool,
 ) -> anyhow::Result<String> {
     Ok(
@@ -878,7 +878,7 @@ async fn display_metadata(
 }
 
 async fn get_pending_candidate_summary(
-    validator_address: IotaAddress,
+    validator_address: Address,
     iota_client: &IotaClient,
     pending_active_validators_id: ObjectId,
 ) -> anyhow::Result<Option<ValidatorV1>> {
@@ -1098,7 +1098,7 @@ async fn can_validator_mutate_all_data(context: &mut WalletContext) -> Result<()
 }
 
 async fn get_gas_obj_ref(
-    iota_address: IotaAddress,
+    iota_address: Address,
     iota_client: &IotaClient,
     minimal_gas_balance: u64,
 ) -> anyhow::Result<ObjectRef> {

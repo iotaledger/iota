@@ -7,8 +7,7 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_ext::types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_ext::types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tracing::warn;
@@ -42,13 +41,13 @@ pub struct IndexerConfig {
 pub struct IotaNamesOptions {
     #[arg(default_value_t = IotaNamesConfig::default().package_address)]
     #[arg(long = "iota-names-package-address")]
-    pub package_address: IotaAddress,
+    pub package_address: Address,
     #[arg(default_value_t = IotaNamesConfig::default().object_id)]
     #[arg(long = "iota-names-object-id")]
     pub object_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().payments_package_address)]
     #[arg(long = "iota-names-payments-package-address")]
-    pub payments_package_address: IotaAddress,
+    pub payments_package_address: Address,
     #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
     #[arg(long = "iota-names-registry-id")]
     pub registry_id: ObjectId,

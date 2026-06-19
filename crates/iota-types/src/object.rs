@@ -11,7 +11,8 @@ use std::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::types::{
-    MoveObjectType, ObjectData, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+    Address, MoveObjectType, ObjectData, ObjectId, Owner, StructTag, TypeTag,
+    move_package::MovePackage,
 };
 pub use iota_sdk_ext::types::{MoveStruct as MoveObject, Object as ObjectInner};
 use move_binary_format::CompiledModule;
@@ -22,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::deterministic_random_account_key,
     error::{
@@ -616,7 +617,7 @@ impl Object {
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     }
 
-    pub fn with_id_owner_gas_for_testing(id: ObjectId, owner: IotaAddress, gas: u64) -> Self {
+    pub fn with_id_owner_gas_for_testing(id: ObjectId, owner: Address, gas: u64) -> Self {
         let data = ObjectData::Struct(
             MoveObject::new(
                 StructTag::new_gas_coin().into(),
@@ -688,7 +689,7 @@ impl Object {
         .into()
     }
 
-    pub fn with_id_owner_for_testing(id: ObjectId, owner: IotaAddress) -> Self {
+    pub fn with_id_owner_for_testing(id: ObjectId, owner: Address) -> Self {
         // For testing, we provide sufficient gas by default.
         Self::with_id_owner_gas_for_testing(id, owner, GAS_VALUE_FOR_TESTING)
     }
@@ -715,13 +716,13 @@ impl Object {
         .into()
     }
 
-    pub fn with_owner_for_testing(owner: IotaAddress) -> Self {
+    pub fn with_owner_for_testing(owner: Address) -> Self {
         Self::with_id_owner_for_testing(ObjectId::random(), owner)
     }
 
     /// Generate a new gas coin worth `value` with a random object ID and owner
     /// For testing purposes only
-    pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: IotaAddress) -> Self {
+    pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: Address) -> Self {
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), value);
         Object::new_move(
             obj,
@@ -891,10 +892,10 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_ext::types::{ObjectId, Owner};
+    use iota_sdk_ext::types::{Address, ObjectId, Owner};
 
     use crate::{
-        base_types::{IotaAddress, TransactionDigest},
+        base_types::TransactionDigest,
         gas_coin::GasCoin,
         object::{MoveObjectExt, OBJECT_START_VERSION, Object},
     };
@@ -905,11 +906,7 @@ mod tests {
     fn test_object_digest_and_serialized_format() {
         let g =
             GasCoin::new_for_testing_with_id(ObjectId::ZERO, 123).to_object(OBJECT_START_VERSION);
-        let o = Object::new_move(
-            g,
-            Owner::Address(IotaAddress::ZERO),
-            TransactionDigest::ZERO,
-        );
+        let o = Object::new_move(g, Owner::Address(Address::ZERO), TransactionDigest::ZERO);
         let bytes = bcs::to_bytes(&o).unwrap();
 
         assert_eq!(

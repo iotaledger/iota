@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_ext::types::Digest;
+use iota_sdk_ext::types::{Address, Digest};
 
 use super::{
     EffectsObjectChange, EpochId, ExecutionStatus, GasCostSummary, IDOperation, InputSharedObject,
@@ -12,7 +12,6 @@ use super::{
     UnchangedSharedKind, UnchangedSharedObject, Version,
 };
 use crate::{
-    IotaAddress,
     digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffectsAPI, TransactionEffectsAPIForTesting},
     execution::SharedInput,
@@ -303,7 +302,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         } else {
             (
                 ObjectRef::new(ObjectId::ZERO, Version::default(), Digest::MIN),
-                Owner::Address(IotaAddress::ZERO),
+                Owner::Address(Address::ZERO),
             )
         }
     }
@@ -402,11 +401,11 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
             input_state: ObjectIn::Data {
                 version,
                 digest,
-                owner: Owner::Address(IotaAddress::ZERO),
+                owner: Owner::Address(Address::ZERO),
             },
             output_state: ObjectOut::ObjectWrite {
                 digest,
-                owner: Owner::Address(IotaAddress::ZERO),
+                owner: Owner::Address(Address::ZERO),
             },
             id_operation: IDOperation::None,
         })
@@ -419,7 +418,7 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
             input_state: ObjectIn::Data {
                 version,
                 digest,
-                owner: Owner::Address(IotaAddress::ZERO),
+                owner: Owner::Address(Address::ZERO),
             },
             output_state: ObjectOut::Missing,
             id_operation: IDOperation::Deleted,

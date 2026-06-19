@@ -3,13 +3,13 @@
 
 use anyhow::{Result, anyhow};
 use iota_protocol_config::ProtocolConfigValue::u64;
-use iota_sdk_ext::types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, TypeTag};
 use iota_stardust_types::block::output::{
     AliasId, FoundryOutput, Output, SimpleTokenScheme, feature::Irc30Metadata,
 };
 use iota_types::{
-    balance::Balance, base_types::IotaAddress, coin::CoinMetadata, coin_manager::CoinManager,
-    object::Object, stardust::coin_type::CoinType,
+    balance::Balance, coin::CoinMetadata, coin_manager::CoinManager, object::Object,
+    stardust::coin_type::CoinType,
 };
 use primitive_types::U256;
 use url::Url;
@@ -154,7 +154,7 @@ fn foundry_with_simple_metadata() -> Result<()> {
     let native_token_coin = native_token_coin_object
         .as_coin_maybe()
         .expect("should be a native token coin object");
-    assert_eq!(native_token_coin_object.owner, IotaAddress::ZERO);
+    assert_eq!(native_token_coin_object.owner, Address::ZERO);
     assert_eq!(native_token_coin.balance, Balance::new(100_000));
 
     // Check the coin metadata object.
@@ -242,7 +242,7 @@ fn foundry_with_special_metadata() -> Result<()> {
     let native_token_coin = native_token_coin_object
         .as_coin_maybe()
         .expect("should be a native token coin object");
-    assert_eq!(native_token_coin_object.owner, IotaAddress::ZERO);
+    assert_eq!(native_token_coin_object.owner, Address::ZERO);
     assert_eq!(native_token_coin.balance, Balance::new(u64::MAX - 1));
 
     // Check the coin metadata object.
@@ -309,7 +309,7 @@ fn coin_ownership() -> Result<()> {
     );
 
     // Check the owner of the native token coin object.
-    assert_eq!(native_token_coin_object.owner, IotaAddress::ZERO);
+    assert_eq!(native_token_coin_object.owner, Address::ZERO);
 
     // Check the owner of the coin manager object.
     assert!(coin_manager_object.is_shared());

@@ -6,10 +6,10 @@ use std::collections::{HashMap, HashSet};
 use iota_sdk_ext::{
     grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField},
     grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
-    types::{Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction},
+    types::{Address, Digest, ExecutionStatus, ObjectId, SignedTransaction, Transaction},
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
-use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
+use iota_types::effects::TransactionEffectsAPI;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 // --- Shared example package names used by filter tests ---
@@ -83,8 +83,8 @@ pub fn object_id_from_hex(hex: &str) -> ProtoObjectId {
     )
 }
 
-/// Helper to create a proto `Address` from an `IotaAddress`.
-pub fn address_proto(addr: IotaAddress) -> ProtoAddress {
+/// Helper to create a proto `Address` from an [`Address`].
+pub fn address_proto(addr: Address) -> ProtoAddress {
     ProtoAddress::default().with_address(addr.into_bytes().to_vec())
 }
 
@@ -94,7 +94,7 @@ pub fn address_proto(addr: IotaAddress) -> ProtoAddress {
 /// The `sender` signs and executes the publish transaction on `cluster`.
 pub async fn publish_example_package(
     cluster: &TestCluster,
-    sender: IotaAddress,
+    sender: Address,
     package_name: &'static str,
 ) -> ObjectId {
     let tx = cluster
@@ -116,7 +116,7 @@ pub async fn publish_example_package(
 }
 
 /// Get the first wallet address from a test cluster.
-pub fn first_sender(cluster: &TestCluster) -> IotaAddress {
+pub fn first_sender(cluster: &TestCluster) -> Address {
     cluster.wallet.get_addresses().first().copied().unwrap()
 }
 
@@ -127,7 +127,7 @@ pub fn is_success(status: &ExecutionStatus) -> bool {
 
 /// Create a signed transaction for testing (IOTA transfer to random recipient).
 pub async fn create_signed_transaction(test_cluster: &TestCluster) -> SignedTransaction {
-    let recipient = IotaAddress::random();
+    let recipient = Address::random();
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(100)).await;
     tx.try_into().expect("SDK type conversion failed")
 }

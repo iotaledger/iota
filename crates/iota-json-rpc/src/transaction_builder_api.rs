@@ -15,9 +15,9 @@ use iota_json_rpc_types::{
     TransactionBlockBytes,
 };
 use iota_open_rpc::Module;
-use iota_sdk_ext::types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
-use iota_types::{base_types::IotaAddress, iota_serde::BigInt};
+use iota_types::iota_serde::BigInt;
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{IotaRpcModule, authority_state::StateRead};
@@ -47,7 +47,7 @@ impl AuthorityStateDataReader {
 impl DataReader for AuthorityStateDataReader {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         object_type: StructTag,
         cursor: Option<ObjectId>,
         limit: Option<usize>,
@@ -102,11 +102,11 @@ impl DataReader for AuthorityStateDataReader {
 impl TransactionBuilderServer for TransactionBuilderApi {
     async fn transfer_object(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         object_id: ObjectId,
         gas: Option<ObjectId>,
         gas_budget: BigInt<u64>,
-        recipient: IotaAddress,
+        recipient: Address,
     ) -> RpcResult<TransactionBlockBytes> {
         let data = self
             .0
@@ -118,10 +118,10 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn transfer_iota(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         iota_object_id: ObjectId,
         gas_budget: BigInt<u64>,
-        recipient: IotaAddress,
+        recipient: Address,
         amount: Option<BigInt<u64>>,
     ) -> RpcResult<TransactionBlockBytes> {
         let data = self
@@ -140,9 +140,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn pay(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         input_coins: Vec<ObjectId>,
-        recipients: Vec<IotaAddress>,
+        recipients: Vec<Address>,
         amounts: Vec<BigInt<u64>>,
         gas: Option<ObjectId>,
         gas_budget: BigInt<u64>,
@@ -164,9 +164,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn pay_iota(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         input_coins: Vec<ObjectId>,
-        recipients: Vec<IotaAddress>,
+        recipients: Vec<Address>,
         amounts: Vec<BigInt<u64>>,
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes> {
@@ -186,9 +186,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn pay_all_iota(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         input_coins: Vec<ObjectId>,
-        recipient: IotaAddress,
+        recipient: Address,
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes> {
         let data = self
@@ -201,7 +201,7 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn publish(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         compiled_modules: Vec<Base64>,
         dependencies: Vec<ObjectId>,
         gas: Option<ObjectId>,
@@ -222,7 +222,7 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn split_coin(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         coin_object_id: ObjectId,
         split_amounts: Vec<BigInt<u64>>,
         gas: Option<ObjectId>,
@@ -239,7 +239,7 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn split_coin_equal(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         coin_object_id: ObjectId,
         split_count: BigInt<u64>,
         gas: Option<ObjectId>,
@@ -255,7 +255,7 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn merge_coin(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         primary_coin: ObjectId,
         coin_to_merge: ObjectId,
         gas: Option<ObjectId>,
@@ -271,7 +271,7 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn move_call(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         package_object_id: ObjectId,
         module: String,
         function: String,
@@ -302,7 +302,7 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn batch_transaction(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         params: Vec<RPCTransactionRequestParams>,
         gas: Option<ObjectId>,
         gas_budget: BigInt<u64>,
@@ -319,10 +319,10 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn request_add_stake(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         coins: Vec<ObjectId>,
         amount: Option<BigInt<u64>>,
-        validator: IotaAddress,
+        validator: Address,
         gas: Option<ObjectId>,
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes> {
@@ -338,7 +338,7 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn request_withdraw_stake(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         staked_iota: ObjectId,
         gas: Option<ObjectId>,
         gas_budget: BigInt<u64>,
@@ -354,9 +354,9 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn request_add_timelocked_stake(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         locked_balance: ObjectId,
-        validator: IotaAddress,
+        validator: Address,
         gas: ObjectId,
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes> {
@@ -371,7 +371,7 @@ impl TransactionBuilderServer for TransactionBuilderApi {
 
     async fn request_withdraw_timelocked_stake(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         timelocked_staked_iota: ObjectId,
         gas: ObjectId,
         gas_budget: BigInt<u64>,

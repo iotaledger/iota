@@ -3,19 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_sdk_ext::grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
-    v1::{
-        bcs::BcsData,
-        signatures::{UserSignature, UserSignatures},
-        transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
-        transaction_execution_service::{
-            ExecuteTransactionItem, ExecuteTransactionsRequest, ExecuteTransactionsResponse,
-            execute_transaction_result,
-            transaction_execution_service_client::TransactionExecutionServiceClient,
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
+        v1::{
+            bcs::BcsData,
+            signatures::{UserSignature, UserSignatures},
+            transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
+            transaction_execution_service::{
+                ExecuteTransactionItem, ExecuteTransactionsRequest, ExecuteTransactionsResponse,
+                execute_transaction_result,
+                transaction_execution_service_client::TransactionExecutionServiceClient,
+            },
         },
     },
+    types::Address,
 };
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
@@ -72,7 +75,7 @@ async fn execute_transaction_readmask_scenarios() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     // Read mask paths are relative to ExecutedTransaction
@@ -176,7 +179,7 @@ async fn execute_transaction_invalid_signatures() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     let txn =
@@ -267,7 +270,7 @@ async fn execute_transaction_batch() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     // Create two valid transactions
@@ -323,7 +326,7 @@ async fn execute_transaction_batch_partial_failure() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     // First item: valid transaction
@@ -408,7 +411,7 @@ async fn execute_transaction_with_checkpoint_inclusion() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     let txn =
@@ -464,7 +467,7 @@ async fn execute_transaction_without_checkpoint_timeout_has_no_checkpoint() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     let txn =
@@ -507,7 +510,7 @@ async fn execute_transaction_batch_with_checkpoint_inclusion() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     // Create two valid transactions

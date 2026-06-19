@@ -16,12 +16,12 @@ use iota_sdk::{
 use iota_sdk_ext::{
     crypto::Signer as SdkSigner,
     types::{
-        Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
+        Address, Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
         crypto::{Intent, IntentMessage, SimpleSignature},
     },
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
@@ -36,14 +36,14 @@ use iota_types::{
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
-    sender: IotaAddress,
+    sender: Address,
     gas_object: ObjectRef,
     gas_price: u64,
     gas_budget: Option<u64>,
 }
 
 impl TestTransactionBuilder {
-    pub fn new(sender: IotaAddress, gas_object: ObjectRef, gas_price: u64) -> Self {
+    pub fn new(sender: Address, gas_object: ObjectRef, gas_price: u64) -> Self {
         Self {
             test_data: TestTransactionData::Empty,
             sender,
@@ -53,7 +53,7 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn sender(&self) -> IotaAddress {
+    pub fn sender(&self) -> Address {
         self.sender
     }
 
@@ -175,7 +175,7 @@ impl TestTransactionBuilder {
         )
     }
 
-    pub fn call_staking(self, stake_coin: ObjectRef, validator: IotaAddress) -> Self {
+    pub fn call_staking(self, stake_coin: ObjectRef, validator: Address) -> Self {
         self.move_call(
             ObjectId::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
@@ -250,12 +250,12 @@ impl TestTransactionBuilder {
         )
     }
 
-    pub fn transfer(mut self, object: ObjectRef, recipient: IotaAddress) -> Self {
+    pub fn transfer(mut self, object: ObjectRef, recipient: Address) -> Self {
         self.test_data = TestTransactionData::Transfer(TransferData { object, recipient });
         self
     }
 
-    pub fn transfer_iota(mut self, amount: Option<u64>, recipient: IotaAddress) -> Self {
+    pub fn transfer_iota(mut self, amount: Option<u64>, recipient: Address) -> Self {
         self.test_data = TestTransactionData::TransferIota(TransferIotaData { amount, recipient });
         self
     }
@@ -436,12 +436,12 @@ pub enum PublishData {
 
 struct TransferData {
     object: ObjectRef,
-    recipient: IotaAddress,
+    recipient: Address,
 }
 
 struct TransferIotaData {
     amount: Option<u64>,
-    recipient: IotaAddress,
+    recipient: Address,
 }
 
 struct SplitCoinData {
@@ -491,7 +491,7 @@ pub async fn batch_make_transfer_transactions(
 
 pub async fn make_transfer_iota_transaction(
     context: &WalletContext,
-    recipient: Option<IotaAddress>,
+    recipient: Option<Address>,
     amount: Option<u64>,
 ) -> Transaction {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
@@ -505,7 +505,7 @@ pub async fn make_transfer_iota_transaction(
 
 pub async fn make_staking_transaction(
     context: &WalletContext,
-    validator_address: IotaAddress,
+    validator_address: Address,
 ) -> Transaction {
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;
@@ -599,7 +599,7 @@ pub async fn publish_basics_package_and_make_counter(
 /// Must be called after calling `publish_basics_package_and_make_counter`.
 pub async fn increment_counter(
     context: &WalletContext,
-    sender: IotaAddress,
+    sender: Address,
     gas_object_id: Option<ObjectId>,
     package_id: ObjectId,
     counter_id: ObjectId,
@@ -670,7 +670,7 @@ pub async fn publish_example_package(
     context: &WalletContext,
     example_subpath: &'static str,
     sender_key_pair: &AccountKeyPair,
-    sender: IotaAddress,
+    sender: Address,
     gas: ObjectRef,
 ) -> (ObjectId, TransactionDigest) {
     let gas_price = context.get_reference_gas_price().await.unwrap();
@@ -709,7 +709,7 @@ pub async fn publish_nfts_package(
 pub async fn publish_simple_warrior_package(
     context: &WalletContext,
     sender_key_pair: &AccountKeyPair,
-    sender: IotaAddress,
+    sender: Address,
     gas: ObjectRef,
 ) -> (ObjectId, TransactionDigest) {
     publish_example_package(context, "simple_warrior", sender_key_pair, sender, gas).await
@@ -721,7 +721,7 @@ pub async fn publish_simple_warrior_package(
 pub async fn create_nft(
     context: &WalletContext,
     package_id: ObjectId,
-) -> (IotaAddress, ObjectId, TransactionDigest) {
+) -> (Address, ObjectId, TransactionDigest) {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
 
@@ -748,7 +748,7 @@ pub async fn create_nft(
 /// Executes a transaction to delete the given NFT.
 pub async fn delete_nft(
     context: &WalletContext,
-    sender: IotaAddress,
+    sender: Address,
     package_id: ObjectId,
     nft_to_delete: ObjectRef,
 ) -> IotaTransactionBlockResponse {

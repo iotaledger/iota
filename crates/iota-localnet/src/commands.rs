@@ -34,6 +34,7 @@ use iota_indexer::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
+use iota_sdk_ext::types::Address;
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
     genesis_config::GenesisConfig,
@@ -41,10 +42,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::{
-    base_types::{IotaAddress, address_from_iota_pub_key},
-    crypto::IotaKeyPair,
-};
+use iota_types::{base_types::address_from_iota_pub_key, crypto::IotaKeyPair};
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -248,7 +246,7 @@ pub enum LocalnetCommand {
         #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<IotaAddress>,
+        delegator: Option<Address>,
     },
     /// Bootstrap and initialize a new IOTA network
     Genesis {
@@ -299,7 +297,7 @@ pub enum LocalnetCommand {
         #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<IotaAddress>,
+        delegator: Option<Address>,
         /// Set `admin-interface-address` config. This flag
         /// accepts also a port, a host, or both (e.g., 0.0.0.0:1337).
         /// When providing a specific value, please use the = sign between the
@@ -408,7 +406,7 @@ async fn start(
     committee_size: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<IotaAddress>,
+    delegator: Option<Address>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -797,7 +795,7 @@ async fn start(
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-            let address: IotaAddress = address_from_iota_pub_key(kp.public());
+            let address: Address = address_from_iota_pub_key(kp.public());
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
@@ -860,7 +858,7 @@ async fn genesis(
     num_additional_gas_accounts: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<IotaAddress>,
+    delegator: Option<Address>,
     admin_interface_address: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {

@@ -13,9 +13,8 @@ use iota_sdk_ext::{
             state_service::{ListOwnedObjectsRequest, ListOwnedObjectsResponse},
         },
     },
-    types::StructTag,
+    types::{Address, StructTag},
 };
-use iota_types::base_types::IotaAddress;
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +34,7 @@ const MAX_PAGE_SIZE: u32 = 1000;
 
 #[derive(Serialize, Deserialize)]
 struct PageToken {
-    owner: IotaAddress,
+    owner: Address,
     object_type: Option<StructTag>,
     cursor: OwnedObjectCursor,
 }

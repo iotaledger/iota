@@ -4,10 +4,10 @@
 use iota_macros::sim_test;
 use iota_sdk_ext::{
     grpc_client::{Error, ReadMask, read_mask_fields::TransactionField},
-    types::UserSignature,
+    types::{Address, UserSignature},
 };
 use iota_test_transaction_builder::make_transfer_iota_transaction;
-use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
+use iota_types::effects::TransactionEffectsAPI;
 
 use super::super::utils::{create_signed_transaction, is_success, setup_grpc_test};
 
@@ -56,7 +56,7 @@ async fn execute_transaction_transfer() {
 #[sim_test]
 async fn execute_transaction_transfer_outputs() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
-    let recipient = IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     let tx =

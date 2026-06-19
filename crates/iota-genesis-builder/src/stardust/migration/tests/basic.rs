@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_stardust_types::block::{
     TransactionId,
     address::{AliasAddress, Ed25519Address},
@@ -18,10 +18,7 @@ use iota_stardust_types::block::{
         },
     },
 };
-use iota_types::{
-    base_types::IotaAddress,
-    stardust::{coin_type::CoinType, output::BASIC_OUTPUT_MODULE_NAME},
-};
+use iota_types::stardust::{coin_type::CoinType, output::BASIC_OUTPUT_MODULE_NAME};
 
 use crate::stardust::{
     migration::{
@@ -378,7 +375,7 @@ fn basic_migration_with_timelock_unlocked() {
         1_000_000,
         [(header, stardust_basic.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &BASIC_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
@@ -412,7 +409,7 @@ fn basic_migration_with_timelock_still_locked() {
         1_000_000,
         [(header, stardust_basic.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &BASIC_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
@@ -550,7 +547,7 @@ fn basic_migration_with_storage_deposit_return_unlock_condition() {
         1_000_000,
         [(header, stardust_basic.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &BASIC_OUTPUT_MODULE_NAME,
         // Epoch start time is not important for this test.
         0,
@@ -579,7 +576,7 @@ fn basic_migration_with_incorrect_total_supply() {
         total_supply,
         [(header, stardust_basic.into())],
         // Sender is not important for this test.
-        &IotaAddress::ZERO,
+        &Address::ZERO,
         &BASIC_OUTPUT_MODULE_NAME,
         // Epoch start time is not important for this test.
         0,

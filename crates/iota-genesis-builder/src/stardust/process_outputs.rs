@@ -8,9 +8,10 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use fastcrypto::{encoding::Hex, hash::HashFunction};
+use iota_sdk_ext::types::Address;
 use iota_stardust_types::block::{
     TransactionId,
-    address::{Address, Ed25519Address},
+    address::{Address as StardustAddress, Ed25519Address},
     output::{
         AliasOutputBuilder, BasicOutput, BasicOutputBuilder, FoundryOutputBuilder,
         NftOutputBuilder, OUTPUT_INDEX_MAX, Output, OutputId,
@@ -18,9 +19,7 @@ use iota_stardust_types::block::{
         unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
     },
 };
-use iota_types::{
-    base_types::IotaAddress, crypto::DefaultHash, timelock::timelock::VESTED_REWARD_ID_PREFIX,
-};
+use iota_types::{crypto::DefaultHash, timelock::timelock::VESTED_REWARD_ID_PREFIX};
 use tracing::debug;
 
 use super::types::{
@@ -465,7 +464,7 @@ struct UnlockedVestingIterator<I> {
     /// Iterator over `(OutputHeader, Output)` pairs.
     outputs: I,
     /// Stores aggregated balances for eligible addresses.
-    unlocked_address_balances: BTreeMap<Address, OutputHeaderWithBalance>,
+    unlocked_address_balances: BTreeMap<StardustAddress, OutputHeaderWithBalance>,
     /// Timestamp used to evaluate timelock conditions.
     snapshot_timestamp_s: u32,
     /// Output picked to be merged
@@ -631,7 +630,7 @@ fn get_address_if_vesting_output(
     header: &OutputHeader,
     output: &Output,
     snapshot_timestamp_s: u32,
-) -> Option<Address> {
+) -> Option<StardustAddress> {
     if !output.is_basic() || !is_vested_reward(header.output_id(), output.as_basic()) {
         // if the output is not basic and a vested reward then skip
         return None;
@@ -654,7 +653,7 @@ fn get_address_if_vesting_output(
 /// the original `basic_output` has some remainder amount, then return it
 /// (without swapping its address unlock condition).
 fn swap_split_operation<'a>(
-    destinations: impl Iterator<Item = (&'a mut IotaAddress, &'a mut u64)>,
+    destinations: impl Iterator<Item = (&'a mut Address, &'a mut u64)>,
     basic_output: &BasicOutput,
 ) -> (Option<Output>, Vec<Output>) {
     let mut original_output_opt = None;

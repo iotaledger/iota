@@ -9,10 +9,10 @@ use std::{
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
-use iota_sdk_ext::types::Owner;
+use iota_sdk_ext::types::{Address, Owner};
 use iota_types::{
-    base_types::IotaAddress, effects::TransactionEffectsExt,
-    full_checkpoint_content::CheckpointData, transaction::TransactionDataAPI,
+    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
+    transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -171,7 +171,7 @@ impl Worker for KvWorker {
                                         _ => None,
                                     },
                                 ))
-                                .collect::<HashSet<IotaAddress>>();
+                                .collect::<HashSet<Address>>();
 
                             affected
                                 .into_iter()

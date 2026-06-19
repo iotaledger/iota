@@ -11,7 +11,7 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_ext::types::{
-    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
+    Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
     Identifier, TransactionKind,
     crypto::{Intent, IntentScope},
 };
@@ -260,9 +260,9 @@ async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKi
 
 pub fn init_transfer_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    sender: IotaAddress,
+    sender: Address,
     secret: &AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     object_ref: ObjectRef,
     gas_object_ref: ObjectRef,
     gas_budget: u64,
@@ -282,7 +282,7 @@ pub fn init_transfer_transaction(
 
 pub fn init_move_call_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    sender: IotaAddress,
+    sender: Address,
     secret: &AccountKeyPair,
     gas_object_ref: ObjectRef,
     gas_budget: u64,
@@ -1422,9 +1422,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
 fn sender_signed_data_serialized_intent() {
     let mut txn = SenderSignedData::new(
         TransactionData::new_transfer(
-            IotaAddress::ZERO,
+            Address::ZERO,
             random_object_ref(),
-            IotaAddress::ZERO,
+            Address::ZERO,
             random_object_ref(),
             0,
             0,

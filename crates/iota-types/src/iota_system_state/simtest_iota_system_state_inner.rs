@@ -4,12 +4,12 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_network_stack::Multiaddr;
+use iota_sdk_ext::types::Address;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Balance,
-    base_types::IotaAddress,
     collection_types::{Bag, Table},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
@@ -76,7 +76,7 @@ impl SimTestValidatorV1 {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestValidatorMetadataV1 {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     pub authority_pubkey_bytes: Vec<u8>,
     pub network_pubkey_bytes: Vec<u8>,
     pub protocol_pubkey_bytes: Vec<u8>,
@@ -88,7 +88,7 @@ pub struct SimTestValidatorMetadataV1 {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct VerifiedSimTestValidatorMetadataV1 {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     pub authority_pubkey: AuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,

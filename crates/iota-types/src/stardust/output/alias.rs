@@ -1,14 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::types::{Identifier, ObjectData, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, Identifier, ObjectData, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{
-    balance::Balance, base_types::IotaAddress, collection_types::Bag, error::IotaError, id::UID,
-    object::Object,
-};
+use crate::{balance::Balance, collection_types::Bag, error::IotaError, id::UID, object::Object};
 
 pub const ALIAS_MODULE_NAME: Identifier = Identifier::from_static("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("alias_output");
@@ -25,19 +22,19 @@ pub struct Alias {
     pub id: UID,
 
     /// The last State Controller address assigned before the migration.
-    pub legacy_state_controller: IotaAddress,
+    pub legacy_state_controller: Address,
     /// A counter increased by 1 every time the alias was state transitioned.
     pub state_index: u32,
     /// State metadata that can be used to store additional information.
     pub state_metadata: Option<Vec<u8>>,
 
     /// The sender feature.
-    pub sender: Option<IotaAddress>,
+    pub sender: Option<Address>,
     /// The metadata feature.
     pub metadata: Option<Vec<u8>>,
 
     /// The immutable issuer feature.
-    pub immutable_issuer: Option<IotaAddress>,
+    pub immutable_issuer: Option<Address>,
     /// The immutable metadata feature.
     pub immutable_metadata: Option<Vec<u8>>,
 }
@@ -47,7 +44,7 @@ impl Alias {
     /// [`Alias`] in its move package.
     pub fn tag() -> StructTag {
         StructTag::new(
-            IotaAddress::STARDUST,
+            Address::STARDUST,
             ALIAS_MODULE_NAME,
             ALIAS_STRUCT_NAME,
             Vec::new(),
@@ -74,7 +71,7 @@ impl AliasOutput {
     /// [`AliasOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag::new(
-            IotaAddress::STARDUST,
+            Address::STARDUST,
             ALIAS_OUTPUT_MODULE_NAME,
             ALIAS_OUTPUT_STRUCT_NAME,
             vec![type_param],
@@ -89,7 +86,7 @@ impl AliasOutput {
     }
 
     pub fn is_alias_output(s: &StructTag) -> bool {
-        s.address() == IotaAddress::STARDUST
+        s.address() == Address::STARDUST
             && s.module() == &ALIAS_OUTPUT_MODULE_NAME
             && s.name() == &ALIAS_OUTPUT_STRUCT_NAME
     }

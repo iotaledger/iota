@@ -3,8 +3,8 @@
 
 use std::str::FromStr;
 
-use iota_sdk_ext::types::{ObjectId, StructTag, TypeTag};
-use iota_types::{base_types::IotaAddress, supported_protocol_versions::Chain};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag};
+use iota_types::supported_protocol_versions::Chain;
 use serde::{Deserialize, Serialize};
 
 use crate::Name;
@@ -13,11 +13,11 @@ use crate::Name;
 #[serde(rename_all = "kebab-case")]
 pub struct IotaNamesConfig {
     /// Address of the `iota_names` package.
-    pub package_address: IotaAddress,
+    pub package_address: Address,
     /// ID of the `IotaNames` object.
     pub object_id: ObjectId,
     /// Address of the `payments` package.
-    pub payments_package_address: IotaAddress,
+    pub payments_package_address: Address,
     /// ID of the registry table.
     pub registry_id: ObjectId,
     /// ID of the reverse registry table.
@@ -32,9 +32,9 @@ impl Default for IotaNamesConfig {
 
 impl IotaNamesConfig {
     pub fn new(
-        package_address: IotaAddress,
+        package_address: Address,
         object_id: ObjectId,
-        payments_package_address: IotaAddress,
+        payments_package_address: Address,
         registry_id: ObjectId,
         reverse_registry_id: ObjectId,
     ) -> Self {
@@ -77,7 +77,7 @@ impl IotaNamesConfig {
         .unwrap()
     }
 
-    pub fn reverse_record_field_id(&self, address: &IotaAddress) -> ObjectId {
+    pub fn reverse_record_field_id(&self, address: &Address) -> ObjectId {
         iota_types::dynamic_field::derive_dynamic_field_id(
             self.reverse_registry_id,
             &TypeTag::Address,
@@ -99,9 +99,9 @@ impl IotaNamesConfig {
         const REVERSE_REGISTRY_ID: &str =
             "0x18fa62ab8b0ab95ae61088082bd5db796863016fda8f3205b1ea7d13b1792317";
 
-        let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
+        let package_address = Address::from_str(PACKAGE_ADDRESS).unwrap();
         let object_id = ObjectId::from_str(OBJECT_ID).unwrap();
-        let payments_package_address = IotaAddress::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
+        let payments_package_address = Address::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
         let registry_id = ObjectId::from_str(REGISTRY_ID).unwrap();
         let reverse_registry_id = ObjectId::from_str(REVERSE_REGISTRY_ID).unwrap();
 
@@ -127,9 +127,9 @@ impl IotaNamesConfig {
         const REVERSE_REGISTRY_ID: &str =
             "0x3550bcacb793ef8b776264665e7c99fa3d897695ed664656aac693cf9cf9b76b";
 
-        let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
+        let package_address = Address::from_str(PACKAGE_ADDRESS).unwrap();
         let object_id = ObjectId::from_str(OBJECT_ID).unwrap();
-        let payments_package_address = IotaAddress::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
+        let payments_package_address = Address::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
         let registry_id = ObjectId::from_str(REGISTRY_ID).unwrap();
         let reverse_registry_id = ObjectId::from_str(REVERSE_REGISTRY_ID).unwrap();
 
@@ -155,9 +155,9 @@ impl IotaNamesConfig {
         const REVERSE_REGISTRY_ID: &str =
             "0xad03947f9e0648b7cb85f8c8325ee95c58898cda5d21925184ed1e5f70a75cfb";
 
-        let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
+        let package_address = Address::from_str(PACKAGE_ADDRESS).unwrap();
         let object_id = ObjectId::from_str(OBJECT_ID).unwrap();
-        let payments_package_address = IotaAddress::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
+        let payments_package_address = Address::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
         let registry_id = ObjectId::from_str(REGISTRY_ID).unwrap();
         let reverse_registry_id = ObjectId::from_str(REVERSE_REGISTRY_ID).unwrap();
 

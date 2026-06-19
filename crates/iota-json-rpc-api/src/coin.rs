@@ -4,11 +4,10 @@
 
 use iota_json_rpc_types::{
     Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, Page,
-    iota_primitives::{IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema},
+    iota_primitives::{Address as AddressSchema, ObjectId as ObjectIdSchema},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_ext::types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_ext::types::{Address, ObjectId};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides access to coin-related data such as coins owned by an address,
@@ -23,8 +22,8 @@ pub trait CoinReadApi {
     async fn get_coins(
         &self,
         /// the owner's IOTA address
-        #[schemars(with = "IotaAddressSchema")]
-        owner: IotaAddress,
+        #[schemars(with = "AddressSchema")]
+        owner: Address,
         /// optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::iota::IOTA if not specified.
         coin_type: Option<String>,
         /// optional paging cursor
@@ -41,8 +40,8 @@ pub trait CoinReadApi {
     async fn get_all_coins(
         &self,
         /// the owner's IOTA address
-        #[schemars(with = "IotaAddressSchema")]
-        owner: IotaAddress,
+        #[schemars(with = "AddressSchema")]
+        owner: Address,
         /// optional paging cursor
         #[schemars(with = "Option<ObjectIdSchema>")]
         cursor: Option<ObjectId>,
@@ -56,8 +55,8 @@ pub trait CoinReadApi {
     async fn get_balance(
         &self,
         /// the owner's IOTA address
-        #[schemars(with = "IotaAddressSchema")]
-        owner: IotaAddress,
+        #[schemars(with = "AddressSchema")]
+        owner: Address,
         /// optional type names for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::iota::IOTA if not specified.
         coin_type: Option<String>,
     ) -> RpcResult<Balance>;
@@ -68,8 +67,8 @@ pub trait CoinReadApi {
     async fn get_all_balances(
         &self,
         /// the owner's IOTA address
-        #[schemars(with = "IotaAddressSchema")]
-        owner: IotaAddress,
+        #[schemars(with = "AddressSchema")]
+        owner: Address,
     ) -> RpcResult<Vec<Balance>>;
 
     /// Return metadata (e.g., symbol, decimals) for a coin.

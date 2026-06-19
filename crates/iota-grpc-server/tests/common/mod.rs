@@ -13,7 +13,7 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_ext::types::{ObjectId, StructTag};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag};
 use iota_types::{
     base_types::SequenceNumber,
     crypto::AuthorityStrongQuorumSignInfo,
@@ -391,7 +391,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn account_owned_objects_info_iter(
         &self,
-        owner: iota_types::base_types::IotaAddress,
+        owner: Address,
         cursor: Option<&iota_types::storage::OwnedObjectCursor>,
         object_type: Option<StructTag>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>>

@@ -67,10 +67,11 @@ mod sim_only_tests {
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
     use iota_sdk_ext::types::{
-        Command, Identifier, MoveCall, ObjectId, Owner, ProgrammableTransaction, TransactionKind,
+        Address, Command, Identifier, MoveCall, ObjectId, Owner, ProgrammableTransaction,
+        TransactionKind,
     };
     use iota_types::{
-        base_types::{ConciseableName, IotaAddress, ObjectRef, SequenceNumber},
+        base_types::{ConciseableName, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
@@ -345,9 +346,9 @@ mod sim_only_tests {
         // Instances of the type that existed before and new instances are able to take
         // advantage of the newly introduced ability
         wrap_obj(&cluster, to_wrap0).await;
-        transfer_obj(&cluster, IotaAddress::ZERO, to_transfer0).await;
+        transfer_obj(&cluster, Address::ZERO, to_transfer0).await;
         wrap_obj(&cluster, to_wrap1).await;
-        transfer_obj(&cluster, IotaAddress::ZERO, to_transfer1).await;
+        transfer_obj(&cluster, Address::ZERO, to_transfer1).await;
     }
 
     #[sim_test]
@@ -526,11 +527,7 @@ mod sim_only_tests {
         .unwrap()
     }
 
-    async fn transfer_obj(
-        cluster: &TestCluster,
-        recipient: IotaAddress,
-        obj: ObjectRef,
-    ) -> ObjectRef {
+    async fn transfer_obj(cluster: &TestCluster, recipient: Address, obj: ObjectRef) -> ObjectRef {
         execute(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder.transfer_object(recipient, obj).unwrap();

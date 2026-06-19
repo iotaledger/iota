@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use async_graphql::InputObject;
-use iota_types::base_types::IotaAddress as NativeIotaAddress;
+use iota_sdk_ext::types::Address as NativeAddress;
 
 use crate::types::{
     digest::Digest, intersect, iota_address::IotaAddress,
@@ -149,7 +149,7 @@ impl TransactionBlockFilter {
                 (self.kind, self.sent_address),
                 (Some(kind), Some(sender))
                     if (kind == TransactionBlockKindInput::SystemTx)
-                        != (sender == IotaAddress::from(NativeIotaAddress::ZERO))
+                        != (sender == IotaAddress::from(NativeAddress::ZERO))
             )
     }
 }

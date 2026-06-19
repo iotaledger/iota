@@ -19,12 +19,12 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_ext::types::{
-        Argument, CommandArgumentError, Event, Identifier, ObjectData, ObjectId, Owner, StructTag,
-        TypeTag, move_package::MovePackage,
+        Address, Argument, CommandArgumentError, Event, Identifier, ObjectData, ObjectId, Owner,
+        StructTag, TypeTag, move_package::MovePackage,
     };
     use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, TxContext},
+        base_types::TxContext,
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution::{ExecutionResults, ExecutionResultsV1},
@@ -646,7 +646,7 @@ mod checked {
         pub fn transfer_object(
             &mut self,
             obj: ObjectValue,
-            addr: IotaAddress,
+            addr: Address,
         ) -> Result<(), ExecutionError> {
             self.additional_transfers.push((Owner::Address(addr), obj));
             Ok(())

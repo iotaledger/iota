@@ -4,10 +4,10 @@
 
 use std::sync::Arc;
 
-use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, dbg_addr},
+    base_types::{ObjectRef, dbg_addr},
     crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
@@ -211,7 +211,7 @@ async fn test_regulated_coin_v1_types() {
 
 struct TestEnv {
     authority: Arc<AuthorityState>,
-    sender: IotaAddress,
+    sender: Address,
     keypair: AccountKeyPair,
     gas_object_id: ObjectId,
     publish_effects: TransactionEffects,

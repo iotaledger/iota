@@ -15,7 +15,7 @@ use iota_sdk_ext::{
             state_service::{GetCoinInfoRequest, GetCoinInfoResponse},
         },
     },
-    types::Owner,
+    types::{Address, Owner},
 };
 
 use crate::{error::RpcError, types::GrpcReader, validation::object_id_proto};
@@ -91,9 +91,7 @@ pub(crate) fn get_coin_info(
             // to mint, so supply is fixed.
             let supply_state = match &object.owner {
                 Owner::Immutable => SupplyState::Fixed,
-                Owner::Address(addr) if *addr == iota_types::base_types::IotaAddress::ZERO => {
-                    SupplyState::Fixed
-                }
+                Owner::Address(addr) if *addr == Address::ZERO => SupplyState::Fixed,
                 _ => SupplyState::Unknown,
             };
 

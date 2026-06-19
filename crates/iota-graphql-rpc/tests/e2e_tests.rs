@@ -18,9 +18,8 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_ext::types::ObjectId;
+    use iota_sdk_ext::types::{Address, ObjectId};
     use iota_types::{
-        base_types::IotaAddress,
         digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
         transaction::{CallArg, Transaction, TransactionDataAPI},
@@ -255,7 +254,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IotaAddress::FRAMEWORK.to_canonical_string(true)
+            Address::FRAMEWORK.to_canonical_string(true)
         );
         assert_eq!(
             data.get("obj2")
@@ -264,7 +263,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IotaAddress::STARDUST.to_canonical_string(true)
+            Address::STARDUST.to_canonical_string(true)
         );
 
         let bad_variables = vec![

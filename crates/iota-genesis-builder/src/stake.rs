@@ -7,10 +7,8 @@ use iota_config::genesis::{
     Delegations, TokenAllocation, TokenDistributionSchedule, TokenDistributionScheduleBuilder,
     ValidatorAllocation,
 };
-use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    object::Object,
-};
+use iota_sdk_ext::types::Address;
+use iota_types::{base_types::ObjectRef, object::Object};
 
 use crate::stardust::{
     migration::{ExpirationTimestamp, MigrationObjects},
@@ -22,7 +20,7 @@ pub struct GenesisStake {
     token_allocation: Vec<TokenAllocation>,
     gas_coins_to_destroy: Vec<ObjectRef>,
     timelocks_to_destroy: Vec<ObjectRef>,
-    timelocks_to_split: Vec<(ObjectRef, u64, IotaAddress)>,
+    timelocks_to_split: Vec<(ObjectRef, u64, Address)>,
 }
 
 impl GenesisStake {
@@ -43,7 +41,7 @@ impl GenesisStake {
     /// Take the inner timelock objects that must be split.
     ///
     /// This follows the semantics of [`std::mem::take`].
-    pub fn take_timelocks_to_split(&mut self) -> Vec<(ObjectRef, u64, IotaAddress)> {
+    pub fn take_timelocks_to_split(&mut self) -> Vec<(ObjectRef, u64, Address)> {
         std::mem::take(&mut self.timelocks_to_split)
     }
 
@@ -143,9 +141,9 @@ impl GenesisStake {
 
     fn create_token_allocation(
         &mut self,
-        recipient_address: IotaAddress,
+        recipient_address: Address,
         amount_nanos: u64,
-        staked_with_validator: Option<IotaAddress>,
+        staked_with_validator: Option<Address>,
         staked_with_timelock_expiration: Option<u64>,
     ) {
         self.token_allocation.push(TokenAllocation {
@@ -165,7 +163,7 @@ impl GenesisStake {
     pub fn delegate_genesis_stake<'obj>(
         &mut self,
         validators_allocations: &[ValidatorAllocation],
-        delegator: IotaAddress,
+        delegator: Address,
         timelocks_pool: &mut impl Iterator<Item = (&'obj Object, ExpirationTimestamp)>,
         gas_coins_pool: &mut impl Iterator<Item = (&'obj Object, ExpirationTimestamp)>,
     ) -> anyhow::Result<()> {

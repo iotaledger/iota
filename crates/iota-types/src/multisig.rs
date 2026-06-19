@@ -9,12 +9,11 @@ pub use iota_sdk_ext::types::crypto::{
 };
 use iota_sdk_ext::{
     crypto::{Verifier, multisig::MultisigVerifier},
-    types::crypto::IntentMessage,
+    types::{Address, crypto::IntentMessage},
 };
 use serde::Serialize;
 
 use crate::{
-    base_types::IotaAddress,
     error::IotaError,
     signature::{AuthenticatorTrait, VerifyParams},
 };
@@ -27,7 +26,7 @@ impl AuthenticatorTrait for MultiSig {
     fn verify_claims<T>(
         &self,
         intent_message: &IntentMessage<T>,
-        multisig_address: IotaAddress,
+        multisig_address: Address,
         verify_params: &VerifyParams,
     ) -> Result<(), IotaError>
     where

@@ -31,6 +31,7 @@ iota-graphql-rpc = { workspace = true, optional = true }
 iota-indexer = { workspace = true, optional = true }
 iota-keys.workspace = true
 iota-sdk.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true

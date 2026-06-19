@@ -17,14 +17,14 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_ext::types::{
-        Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError,
+        Address, Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError,
         ProgrammableTransaction, StructTag, TypeTag, move_package::MovePackage,
     };
     use iota_types::{
         auth_context,
         base_types::{
-            IotaAddress, MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
-            RESOLVED_UTF8_STR, TxContext, TxContextKind,
+            MoveLegacyTxContext, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
+            TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -250,7 +250,7 @@ mod checked {
                     .enumerate()
                     .map(|(idx, arg)| context.by_value_arg(CommandKind::TransferObjects, idx, arg))
                     .collect::<Result<_, _>>()?;
-                let addr: IotaAddress =
+                let addr: Address =
                     context.by_value_arg(CommandKind::TransferObjects, objs.len(), addr_arg)?;
                 for obj in objs {
                     obj.ensure_public_transfer_eligible()?;
@@ -1458,15 +1458,14 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let module_addr = module_id.address();
         let module_name = module_id.name();
-        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes() && module_name == EVENT_MODULE
-        {
+        if module_addr.as_ref() == Address::FRAMEWORK.as_bytes() && module_name == EVENT_MODULE {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
-        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+        if module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
             && module_name == TRANSFER_MODULE
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
@@ -1480,7 +1479,7 @@ mod checked {
             ));
         }
 
-        if module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+        if module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
             && module_name == ACCOUNT_MODULE
             && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
         {
@@ -1773,7 +1772,7 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+        let is_tx_context_type = module_addr.as_ref() == Address::FRAMEWORK.as_bytes()
             && module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
             && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
         Ok(if is_tx_context_type {
@@ -2050,7 +2049,7 @@ mod checked {
                     Ok(())
                 }
                 PrimitiveArgumentLayout::Address => {
-                    IotaAddress::deserialize(deserializer)?;
+                    Address::deserialize(deserializer)?;
                     Ok(())
                 }
             }

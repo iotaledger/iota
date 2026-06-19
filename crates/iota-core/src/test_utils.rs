@@ -6,13 +6,12 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_ext::types::{
-    Identifier, ObjectId,
+    Address, Identifier, ObjectId,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
     base_types::{
-        AuthorityName, ExecutionDigests, IotaAddress, ObjectRef, TransactionDigest,
-        random_object_ref,
+        AuthorityName, ExecutionDigests, ObjectRef, TransactionDigest, random_object_ref,
     },
     committee::Committee,
     crypto::{
@@ -167,9 +166,9 @@ pub fn create_fake_cert_and_effect_digest<'a>(
 
 pub fn make_transfer_iota_transaction(
     gas_object: ObjectRef,
-    recipient: IotaAddress,
+    recipient: Address,
     amount: Option<u64>,
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
     gas_price: u64,
 ) -> Transaction {
@@ -187,9 +186,9 @@ pub fn make_transfer_iota_transaction(
 pub fn make_pay_iota_transaction(
     gas_object: ObjectRef,
     coins: Vec<ObjectRef>,
-    recipients: Vec<IotaAddress>,
+    recipients: Vec<Address>,
     amounts: Vec<u64>,
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
     gas_price: u64,
     gas_budget: u64,
@@ -204,9 +203,9 @@ pub fn make_pay_iota_transaction(
 pub fn make_transfer_object_transaction(
     object_ref: ObjectRef,
     gas_object: ObjectRef,
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     gas_price: u64,
 ) -> Transaction {
     let data = TransactionData::new_transfer(
@@ -221,9 +220,9 @@ pub fn make_transfer_object_transaction(
 }
 
 pub fn make_transfer_object_move_transaction(
-    src: IotaAddress,
+    src: Address,
     keypair: &AccountKeyPair,
-    dest: IotaAddress,
+    dest: Address,
     object_ref: ObjectRef,
     framework_obj_id: ObjectId,
     gas_object_ref: ObjectRef,
@@ -254,8 +253,8 @@ pub fn make_transfer_object_move_transaction(
 
 /// Make a dummy tx that uses random object refs.
 pub fn make_dummy_tx(
-    receiver: IotaAddress,
-    sender: IotaAddress,
+    receiver: Address,
+    sender: Address,
     sender_sec: &AccountKeyPair,
 ) -> Transaction {
     Transaction::from_data_and_signer(

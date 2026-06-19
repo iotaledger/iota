@@ -8,9 +8,9 @@ use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult},
@@ -129,7 +129,7 @@ pub enum Key {
     TransactionToCheckpoint(TransactionDigest),
     ObjectKey(ObjectKey),
     EventsByTransactionDigest(TransactionDigest),
-    TransactionDigestsByAddress(IotaAddress),
+    TransactionDigestsByAddress(Address),
 }
 
 impl Key {
@@ -204,7 +204,7 @@ impl Key {
                 TransactionDigest::from_bytes(decoded_key.as_slice())?,
             )),
             ItemType::TransactionDigestsByAddress => Ok(Key::TransactionDigestsByAddress(
-                IotaAddress::from_bytes(decoded_key.as_slice())?,
+                Address::from_bytes(decoded_key.as_slice())?,
             )),
         }
     }

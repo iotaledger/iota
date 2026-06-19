@@ -11,10 +11,12 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{ExecutionStatus, ObjectData, ObjectId, Owner, gas::GasCostSummary};
+use iota_sdk_ext::types::{
+    Address, ExecutionStatus, ObjectData, ObjectId, Owner, gas::GasCostSummary,
+};
 use iota_types::{
     auth_context::AuthContext,
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
+    base_types::{ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
@@ -585,7 +587,7 @@ impl TemporaryStore<'_> {
     // sponsor, or a shared object input
     pub fn check_ownership_invariants(
         &self,
-        sender: &IotaAddress,
+        sender: &Address,
         gas_charger: &mut GasCharger,
         mutable_inputs: &HashSet<ObjectId>,
         is_epoch_change: bool,

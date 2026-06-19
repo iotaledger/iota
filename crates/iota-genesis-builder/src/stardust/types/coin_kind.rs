@@ -50,10 +50,10 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_ext::types::{ObjectId, Owner};
+    use iota_sdk_ext::types::{Address, ObjectId, Owner};
     use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, TxContext},
+        base_types::TxContext,
         id::UID,
         object::Object,
         stardust::{
@@ -81,7 +81,7 @@ mod tests {
             expiration: Default::default(),
         };
         output.to_genesis_object(
-            IotaAddress::ZERO,
+            Address::ZERO,
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
@@ -112,7 +112,7 @@ mod tests {
             native_tokens: Default::default(),
         };
         output.to_genesis_object(
-            Owner::Address(IotaAddress::ZERO),
+            Owner::Address(Address::ZERO),
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
@@ -149,7 +149,7 @@ mod tests {
             sender: Default::default(),
         };
         output.to_genesis_object(
-            IotaAddress::ZERO,
+            Address::ZERO,
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),
@@ -180,7 +180,7 @@ mod tests {
         let timelock = TimeLock::new(id, balance, expiration_timestamp_ms, label);
         Ok(to_genesis_object(
             timelock,
-            IotaAddress::ZERO,
+            Address::ZERO,
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),

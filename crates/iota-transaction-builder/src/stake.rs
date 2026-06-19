@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Ok, anyhow, bail, ensure};
-use iota_sdk_ext::types::{Command, Identifier, ObjectId};
+use iota_sdk_ext::types::{Address, Command, Identifier, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectType},
+    base_types::ObjectType,
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     timelock::timelocked_staking::{
@@ -20,10 +20,10 @@ impl TransactionBuilder {
     /// Add stake to a validator's staking pool using multiple IOTA coins.
     pub async fn request_add_stake(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         mut coins: Vec<ObjectId>,
         amount: impl Into<Option<u64>>,
-        validator: IotaAddress,
+        validator: Address,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -85,7 +85,7 @@ impl TransactionBuilder {
     /// Withdraw stake from a validator's staking pool.
     pub async fn request_withdraw_stake(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         staked_iota: ObjectId,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
@@ -114,9 +114,9 @@ impl TransactionBuilder {
     /// Add stake to a validator's staking pool using a timelocked IOTA coin.
     pub async fn request_add_timelocked_stake(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         locked_balance: ObjectId,
-        validator: IotaAddress,
+        validator: Address,
         gas: ObjectId,
         gas_budget: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -163,7 +163,7 @@ impl TransactionBuilder {
     /// Withdraw timelocked stake from a validator's staking pool.
     pub async fn request_withdraw_timelocked_stake(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         timelocked_staked_iota: ObjectId,
         gas: ObjectId,
         gas_budget: u64,

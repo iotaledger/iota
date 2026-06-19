@@ -15,13 +15,13 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{ProgrammableTransaction, TransactionKind};
+use iota_sdk_ext::types::{Address, ProgrammableTransaction, TransactionKind};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
     },
     auth_context::AuthContextData,
-    base_types::{IotaAddress, TxContext},
+    base_types::TxContext,
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -85,7 +85,7 @@ impl executor::Executor for Executor {
         gas_data: GasData,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -126,7 +126,7 @@ impl executor::Executor for Executor {
         gas_data: GasData,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         skip_all_checks: bool,
     ) -> (
@@ -197,7 +197,7 @@ impl executor::Executor for Executor {
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         // Tracing
@@ -250,7 +250,7 @@ impl executor::Executor for Executor {
         aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
-        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_signer: Address,
         authenticated_transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         // Tracing

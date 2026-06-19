@@ -6,8 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use iota_sdk_ext::types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_ext::types::{Address, ObjectId};
 
 use crate::{
     client::{Client, Connection},
@@ -86,7 +85,7 @@ impl Command {
                 // shared
                 {
                     assert!(!multi_sig);
-                    let opponent = IotaAddress::from_str(&opponent)
+                    let opponent = Address::from_str(&opponent)
                         .with_context(|| format!("Invalid opponent address {opponent}"))?;
 
                     client.new_shared_game(opponent).await.with_context(|| {

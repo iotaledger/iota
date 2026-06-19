@@ -26,11 +26,11 @@ use iota_sdk_ext::{
         Client as GrpcClient, ReadMask,
         read_mask_fields::{EpochField, SimulateExecutedTransactionField, SimulateField},
     },
-    types::{ObjectId, TransactionExpiration, TransactionKind},
+    types::{Address, ObjectId, TransactionExpiration, TransactionKind},
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
@@ -193,7 +193,7 @@ impl WriteApi {
 
     async fn dev_inspect_transaction_block_impl(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         additional_args: Option<DevInspectArgs>,
@@ -377,7 +377,7 @@ impl WriteApiServer for WriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         _epoch: Option<BigInt<u64>>,
@@ -414,7 +414,7 @@ impl WriteApiServer for WriteApi {
             module,
             function,
         } = function_name.as_str().parse().map_err(IndexerError::from)?;
-        let sender = IotaAddress::ZERO;
+        let sender = Address::ZERO;
         let tx_kind = self
             .transaction_builder
             .move_view_call_tx_kind(
@@ -459,7 +459,7 @@ impl WriteApiServer for OptimisticWriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         epoch: Option<BigInt<u64>>,

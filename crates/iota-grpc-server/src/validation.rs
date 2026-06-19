@@ -7,12 +7,11 @@ use iota_sdk_ext::{
         google::rpc::bad_request::FieldViolation,
         v1::{
             error_reason::ErrorReason,
-            types::{Address, ObjectId as ProtoObjectId},
+            types::{Address as GrpcAddress, ObjectId as ProtoObjectId},
         },
     },
-    types::ObjectId,
+    types::{Address, ObjectId},
 };
-use iota_types::base_types::IotaAddress;
 use prost_types::FieldMask;
 
 use crate::error::RpcError;
@@ -89,11 +88,11 @@ pub(crate) fn encode_page_token<T: serde::Serialize>(token: &T) -> Vec<u8> {
 }
 
 /// Validate and extract a required `Address` proto field as an internal
-/// `IotaAddress`.
+/// [`Address`].
 pub(crate) fn require_address(
-    field: &Option<Address>,
+    field: &Option<GrpcAddress>,
     field_name: &str,
-) -> Result<IotaAddress, RpcError> {
+) -> Result<Address, RpcError> {
     field
         .as_ref()
         .ok_or_else(|| {

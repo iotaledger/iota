@@ -12,9 +12,9 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_ext::types::{ObjectId, Owner, StructTag};
+use iota_sdk_ext::types::{Address, ObjectId, Owner, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
@@ -59,7 +59,7 @@ type Set<K> = IndexSet<K>;
 pub(crate) struct TestInventories {
     pub(crate) objects: BTreeMap<ObjectId, Value>,
     // address inventories. Most recent objects are at the back of the set
-    pub(crate) address_inventories: BTreeMap<IotaAddress, BTreeMap<Type, Set<ObjectId>>>,
+    pub(crate) address_inventories: BTreeMap<Address, BTreeMap<Type, Set<ObjectId>>>,
     // global inventories.Most recent objects are at the back of the set
     pub(crate) shared_inventory: BTreeMap<Type, Set<ObjectId>>,
     pub(crate) immutable_inventory: BTreeMap<Type, Set<ObjectId>>,

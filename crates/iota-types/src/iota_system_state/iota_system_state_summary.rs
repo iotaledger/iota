@@ -5,13 +5,13 @@
 use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
-    base_types::{AuthorityName, IotaAddress},
+    base_types::AuthorityName,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::NetworkPublicKey,
     dynamic_field::get_dynamic_field_from_store,
@@ -165,9 +165,9 @@ pub struct IotaSystemStateSummaryV1 {
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
-    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    pub at_risk_validators: Vec<(Address, u64)>,
     /// A map storing the records of validator reporting each other.
-    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+    pub validator_report_records: Vec<(Address, Vec<Address>)>,
 }
 
 /// This is a flattened summary of the
@@ -309,9 +309,9 @@ pub struct IotaSystemStateSummaryV2 {
     /// Map storing the number of epochs for which each validator has been below
     /// the low stake threshold.
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
-    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    pub at_risk_validators: Vec<(Address, u64)>,
     /// A map storing the records of validator reporting each other.
-    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+    pub validator_report_records: Vec<(Address, Vec<Address>)>,
 }
 
 /// Access common fields of the inner variants wrapped by
@@ -489,11 +489,11 @@ impl IotaSystemStateSummary {
         *state_summary_get!(self, validator_candidates_size)
     }
 
-    pub fn at_risk_validators(&self) -> &[(IotaAddress, u64)] {
+    pub fn at_risk_validators(&self) -> &[(Address, u64)] {
         state_summary_get!(self, at_risk_validators)
     }
 
-    pub fn validator_report_records(&self) -> &[(IotaAddress, Vec<IotaAddress>)] {
+    pub fn validator_report_records(&self) -> &[(Address, Vec<Address>)] {
         state_summary_get!(self, validator_report_records)
     }
 
@@ -793,7 +793,7 @@ impl TryFrom<IotaSystemStateSummary> for IotaSystemStateSummaryV2 {
 #[serde(rename_all = "camelCase")]
 pub struct IotaValidatorSummary {
     // Metadata
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     #[serde_as(as = "Base64")]
     pub authority_pubkey_bytes: Vec<u8>,
     #[serde_as(as = "Base64")]
@@ -934,7 +934,7 @@ impl Default for IotaSystemStateSummary {
 impl Default for IotaValidatorSummary {
     fn default() -> Self {
         Self {
-            iota_address: IotaAddress::ZERO,
+            iota_address: Address::ZERO,
             authority_pubkey_bytes: vec![],
             network_pubkey_bytes: vec![],
             protocol_pubkey_bytes: vec![],
@@ -1034,7 +1034,7 @@ where
         return Ok(inactive);
     }
     // Finally look up the candidates pool.
-    let candidate_address: IotaAddress = get_dynamic_field_from_store(
+    let candidate_address: Address = get_dynamic_field_from_store(
         &object_store,
         system_state_summary.staking_pool_mappings_id,
         &ID::new(pool_id),
@@ -1089,7 +1089,7 @@ where
         return Ok(inactive);
     }
     // Finally look up the candidates pool.
-    let candidate_address: IotaAddress = get_dynamic_field_from_store(
+    let candidate_address: Address = get_dynamic_field_from_store(
         &object_store,
         system_state_summary.staking_pool_mappings_id,
         &ID::new(pool_id),

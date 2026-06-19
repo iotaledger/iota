@@ -9,9 +9,9 @@ use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_ext::types::{ObjectId, Owner, TypeTag, crypto::Intent};
+use iota_sdk_ext::types::{Address, ObjectId, Owner, TypeTag, crypto::Intent};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     crypto::Signature,
     move_authenticator::MoveAuthenticator,
     signature::GenericSignature,
@@ -22,7 +22,7 @@ use serde::Serialize;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignData {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     // Base64 encoded string of serialized transaction data.
     pub raw_tx_data: String,
     // Intent struct used, see [struct Intent] for field definitions.
@@ -70,7 +70,7 @@ impl fmt::Display for ExternalKeySource {
 pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
     tx_data: &TransactionData,
-    signer_address: &IotaAddress,
+    signer_address: &Address,
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
 ) -> Result<GenericSignature> {
     let iota_client = context.get_client().await?;
@@ -150,7 +150,7 @@ pub(crate) async fn sign_transaction(
 
 pub(crate) fn sign_secure<T>(
     keystore: &impl AccountKeystore,
-    address: &IotaAddress,
+    address: &Address,
     msg: &T,
     intent: Intent,
 ) -> Result<Signature>
@@ -195,7 +195,7 @@ where
 
 pub(crate) async fn get_shared_object_version(
     iota_client: &iota_sdk::IotaClient,
-    signer_address: &IotaAddress,
+    signer_address: &Address,
 ) -> Result<SequenceNumber> {
     let object_response = iota_client
         .read_api()

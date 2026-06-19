@@ -13,8 +13,9 @@ use iota_bigtable::{
         row_range::{EndKey, StartKey},
     },
 };
+use iota_sdk_ext::types::Address;
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
+    base_types::TransactionDigest,
     digests::CheckpointDigest,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
@@ -104,7 +105,7 @@ impl KeyValueStoreWriter for BigTableClient {
 
     async fn save_transactions_by_address<I>(&mut self, entries: I) -> Result<(), Self::Error>
     where
-        I: IntoIterator<Item = (IotaAddress, u64, TransactionDigest)> + Send,
+        I: IntoIterator<Item = (Address, u64, TransactionDigest)> + Send,
         I::IntoIter: Send,
     {
         let rows = entries
@@ -224,7 +225,7 @@ impl KeyValueStoreReader for BigTableClient {
 
     async fn get_transaction_digests_by_address(
         &mut self,
-        address: IotaAddress,
+        address: Address,
         cursor: impl Into<Option<TransactionSequenceNumber>> + Send,
         limit: impl TryInto<NonZeroUsize> + Send,
         order: TransactionsOrder,
@@ -431,7 +432,7 @@ impl From<ReverseSequenceNumber> for u64 {
 }
 
 /// The length of an address-to-transaction row key, in bytes.
-pub const ADDRESS_TX_KEY_LEN: usize = IotaAddress::LENGTH + ReverseSequenceNumber::LENGTH;
+pub const ADDRESS_TX_KEY_LEN: usize = Address::LENGTH + ReverseSequenceNumber::LENGTH;
 
 /// Encodes a row key for the address-to-transaction index.
 ///
@@ -443,12 +444,12 @@ pub const ADDRESS_TX_KEY_LEN: usize = IotaAddress::LENGTH + ReverseSequenceNumbe
 ///
 /// See [`decode_transaction_by_address_key`] for the inverse operation.
 pub fn encode_transaction_by_address_key(
-    address: &IotaAddress,
+    address: &Address,
     sequence_number: ReverseSequenceNumber,
 ) -> [u8; ADDRESS_TX_KEY_LEN] {
     let mut key = [0u8; ADDRESS_TX_KEY_LEN];
-    key[..IotaAddress::LENGTH].copy_from_slice(address.as_ref());
-    key[IotaAddress::LENGTH..].copy_from_slice(&sequence_number.to_be_bytes());
+    key[..Address::LENGTH].copy_from_slice(address.as_ref());
+    key[Address::LENGTH..].copy_from_slice(&sequence_number.to_be_bytes());
     key
 }
 
@@ -458,11 +459,11 @@ pub fn encode_transaction_by_address_key(
 /// extracts the address and restores the reversed sequence number.
 pub fn decode_transaction_by_address_key(
     key: &[u8],
-) -> Result<(IotaAddress, ReverseSequenceNumber), anyhow::Error> {
+) -> Result<(Address, ReverseSequenceNumber), anyhow::Error> {
     anyhow::ensure!(key.len() == ADDRESS_TX_KEY_LEN, "invalid key length");
-    let address = IotaAddress::from_bytes(&key[..IotaAddress::LENGTH])?;
+    let address = Address::from_bytes(&key[..Address::LENGTH])?;
     let reversed_tx_sequence =
-        ReverseSequenceNumber::from_be_bytes(key[IotaAddress::LENGTH..].try_into()?);
+        ReverseSequenceNumber::from_be_bytes(key[Address::LENGTH..].try_into()?);
     Ok((address, reversed_tx_sequence))
 }
 
@@ -497,16 +498,16 @@ mod tests {
 
     #[test]
     fn transaction_by_address_key_encode() {
-        let address = IotaAddress::random();
+        let address = Address::random();
         let transaction_sequence_number = ReverseSequenceNumber::from(42);
         let key = encode_transaction_by_address_key(&address, transaction_sequence_number);
-        assert_eq!(key[..IotaAddress::LENGTH], address.into_bytes());
-        assert_eq!(key[IotaAddress::LENGTH..], (u64::MAX - 42).to_be_bytes());
+        assert_eq!(key[..Address::LENGTH], address.into_bytes());
+        assert_eq!(key[Address::LENGTH..], (u64::MAX - 42).to_be_bytes());
     }
 
     #[test]
     fn transaction_by_address_key_decode() {
-        let address = IotaAddress::random();
+        let address = Address::random();
         let transaction_sequence_number = ReverseSequenceNumber::from(42);
         let key = encode_transaction_by_address_key(&address, transaction_sequence_number);
         let (decoded_address, decoded_sequence_number) =

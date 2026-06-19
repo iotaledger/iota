@@ -1,11 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::types::{Identifier, ObjectData, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, Identifier, ObjectData, ObjectId, Owner, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectRef, TransactionDigest},
+    base_types::{ObjectRef, TransactionDigest},
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
     object::Object,
@@ -41,7 +41,7 @@ pub struct AuthenticatorFunctionRefV1 {
 impl AuthenticatorFunctionRefV1 {
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag::new(
-            IotaAddress::FRAMEWORK,
+            Address::FRAMEWORK,
             AUTHENTICATOR_FUNCTION_MODULE_NAME,
             AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME,
             vec![TypeTag::Struct(Box::new(type_param))],
@@ -55,7 +55,7 @@ impl AuthenticatorFunctionRefV1 {
     }
 
     pub fn is_authenticator_function_ref_v1(tag: &StructTag) -> bool {
-        tag.address() == IotaAddress::FRAMEWORK
+        tag.address() == Address::FRAMEWORK
             && tag.module() == &AUTHENTICATOR_FUNCTION_MODULE_NAME
             && tag.name() == &AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME
     }
@@ -114,9 +114,9 @@ impl AuthenticatorFunctionRefForExecution {
 /// Extracts the sender's and sponsor's [`AuthenticatorFunctionRef`] by calling
 /// `find_ref` for `sender` and, when the gas owner differs, for `gas_owner`.
 pub fn extract_auth_fun_refs(
-    sender: IotaAddress,
-    gas_owner: IotaAddress,
-    find_ref: impl Fn(IotaAddress) -> Option<AuthenticatorFunctionRef>,
+    sender: Address,
+    gas_owner: Address,
+    find_ref: impl Fn(Address) -> Option<AuthenticatorFunctionRef>,
 ) -> (
     Option<AuthenticatorFunctionRef>,
     Option<AuthenticatorFunctionRef>,

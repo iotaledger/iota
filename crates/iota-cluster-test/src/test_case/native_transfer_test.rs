@@ -4,11 +4,8 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
-use iota_sdk_ext::types::{ObjectId, Owner};
-use iota_types::{
-    base_types::IotaAddress,
-    crypto::{AccountKeyPair, get_key_pair},
-};
+use iota_sdk_ext::types::{Address, ObjectId, Owner};
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 use jsonrpsee::rpc_params;
 use tracing::info;
 
@@ -76,8 +73,8 @@ impl NativeTransferTest {
     async fn examine_response(
         ctx: &TestContext,
         response: &mut IotaTransactionBlockResponse,
-        signer: IotaAddress,
-        recipient: IotaAddress,
+        signer: Address,
+        recipient: Address,
         obj_to_transfer_id: ObjectId,
     ) {
         let balance_changes = &mut response.balance_changes.as_mut().unwrap();

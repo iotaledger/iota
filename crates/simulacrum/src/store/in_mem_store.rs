@@ -8,11 +8,9 @@ use std::{
 };
 
 use iota_config::genesis;
-use iota_sdk_ext::types::{ObjectId, Owner};
+use iota_sdk_ext::types::{Address, ObjectId, Owner};
 use iota_types::{
-    base_types::{
-        AuthorityName, IotaAddress, ObjectRef, SequenceNumber, address_from_iota_pub_key,
-    },
+    base_types::{AuthorityName, ObjectRef, SequenceNumber, address_from_iota_pub_key},
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
     digests::TransactionDigest,
@@ -167,7 +165,7 @@ impl InMemoryStore {
         self.historical_system_states.insert(epoch, system_state);
     }
 
-    pub fn owned_objects(&self, owner: IotaAddress) -> impl Iterator<Item = &Object> {
+    pub fn owned_objects(&self, owner: Address) -> impl Iterator<Item = &Object> {
         self.live_objects
             .iter()
             .flat_map(|(id, version)| self.get_object_at_version(id, *version))
@@ -515,7 +513,7 @@ impl ReadStore for InMemoryStore {
 #[derive(Debug)]
 pub struct KeyStore {
     validator_keys: BTreeMap<AuthorityName, AuthorityKeyPair>,
-    account_keys: BTreeMap<IotaAddress, AccountKeyPair>,
+    account_keys: BTreeMap<Address, AccountKeyPair>,
 }
 
 impl Clone for KeyStore {
@@ -568,7 +566,7 @@ impl KeyStore {
         self.validator_keys.get(name)
     }
 
-    pub fn accounts(&self) -> impl Iterator<Item = (&IotaAddress, &AccountKeyPair)> {
+    pub fn accounts(&self) -> impl Iterator<Item = (&Address, &AccountKeyPair)> {
         self.account_keys.iter()
     }
 }
@@ -605,7 +603,7 @@ impl SimulatorStore for InMemoryStore {
         self.get_system_state_by_epoch(epoch)
     }
 
-    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
+    fn owned_objects(&self, owner: Address) -> Box<dyn Iterator<Item = Object> + '_> {
         Box::new(self.owned_objects(owner).cloned())
     }
 

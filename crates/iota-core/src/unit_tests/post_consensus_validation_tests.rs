@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_ext::types::{ObjectId, Owner};
+use iota_sdk_ext::types::{Address, ObjectId, Owner};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     error::{IotaError, UserInputError},
@@ -78,7 +78,7 @@ async fn test_valid_user_transaction_passes() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     let object_id = ObjectId::random();
@@ -156,7 +156,7 @@ async fn test_duplicate_transaction_deduplicated() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     let object_id = ObjectId::random();
@@ -210,7 +210,7 @@ async fn test_mixed_batch_filtering() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     let obj1_id = ObjectId::random();
@@ -1113,7 +1113,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     let object_id = ObjectId::random();
@@ -1209,7 +1209,7 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
 
     // One owned object spent by both transactions, plus a distinct gas object each
@@ -1309,7 +1309,9 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
 // two places (via `find_existing_lock`):
 //   * Check #1 (already-executed branch): same digest = OK; different digest =
 //     `fatal!`.
-//   * Check #4 (conflict drop): any hit = drop with `ObjectLockConflict`.
+//   * Check #4 (conflict drop): a hit from a different digest = drop with
+//     `ObjectLockConflict`; a hit from the same digest (a deferred tx's own
+//     prior-round lock) is exempt and the tx is retained.
 //
 // The earlier tests cover Tier 1 (`current_commit_locks` HashMap within the
 // same commit). The tests below close the matrix by seeding Tier 2 (consensus
@@ -1329,9 +1331,9 @@ enum LockTier {
 struct LockTierSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     object_ref: iota_types::base_types::ObjectRef,
     gas_ref: iota_types::base_types::ObjectRef,
     rgp: u64,
@@ -1344,7 +1346,7 @@ async fn setup_lock_tier() -> LockTierSetup {
         config
     });
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = get_key_pair::<AccountKeyPair>().0;
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1541,6 +1543,65 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
             .try_is_tx_already_executed(&tx_digest)
             .unwrap()
     );
+}
+
+/// Body for the deferred-transaction self-lock case: a transaction that already
+/// holds its OWN lock in the given tier (from a prior consensus round in which
+/// it acquired owned-object locks and was then deferred for shared-object
+/// congestion) must NOT be dropped when it is reloaded and re-validated.
+/// Without the self-exemption in Check #4 it would conflict with its own lock,
+/// drop as `ObjectLockConflict`, and never execute.
+///
+/// Unlike the already-executed case (Check #1), the transaction is NOT executed
+/// here, so it flows through the full validation pass (Check #2-#5) and must
+/// survive end-to-end and re-acquire its locks.
+///
+/// Dedup by digest already runs upstream in Check #0, so a same-digest lock
+/// seen in Check #4 can only be this transaction's own prior-round lock (a
+/// deferred tx), never a same-commit duplicate.
+async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
+    let setup = setup_lock_tier().await;
+
+    let tx = setup.make_tx();
+    let tx_digest = *tx.digest();
+
+    // Seed the tx's own lock into the tier, as round r would before deferral.
+    setup.seed_lock(tier, &tx);
+
+    let mut transactions = vec![make_user_tx_v1_verified(tx)];
+    let (dropped, locks) = post_consensus_validation::validate_and_resolve_conflicts(
+        &setup.authority,
+        &setup.epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        dropped.is_empty(),
+        "deferred tx must not self-conflict on its own prior-round lock"
+    );
+    assert_eq!(transactions.len(), 1, "deferred tx must be retained");
+    assert_eq!(
+        locks.get(&setup.object_ref),
+        Some(&tx_digest),
+        "deferred tx must re-acquire its own object lock"
+    );
+    assert_eq!(
+        locks.get(&setup.gas_ref),
+        Some(&tx_digest),
+        "deferred tx must re-acquire its own gas lock"
+    );
+}
+
+#[tokio::test]
+async fn tier2_quarantine_self_lock_retains_deferred_tx() {
+    run_self_lock_retains_deferred_tx(LockTier::Quarantine).await;
+}
+
+#[tokio::test]
+async fn tier3_persistent_self_lock_retains_deferred_tx() {
+    run_self_lock_retains_deferred_tx(LockTier::Persistent).await;
 }
 
 #[tokio::test]

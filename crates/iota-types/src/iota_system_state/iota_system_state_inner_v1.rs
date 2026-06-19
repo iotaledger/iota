@@ -5,7 +5,7 @@
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,6 @@ use crate::iota_system_state::epoch_start_iota_system_state::{
 };
 use crate::{
     balance::Balance,
-    base_types::IotaAddress,
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
@@ -79,7 +78,7 @@ pub struct SystemParametersV1 {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorMetadataV1 {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     pub authority_pubkey_bytes: Vec<u8>,
     pub network_pubkey_bytes: Vec<u8>,
     pub protocol_pubkey_bytes: Vec<u8>,
@@ -103,7 +102,7 @@ pub struct ValidatorMetadataV1 {
 
 #[derive(derive_more::Debug, Clone, Eq, PartialEq)]
 pub struct VerifiedValidatorMetadataV1 {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     pub authority_pubkey: AuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,
@@ -447,7 +446,7 @@ pub struct ValidatorSetV1 {
     pub staking_pool_mappings: Table,
     pub inactive_validators: Table,
     pub validator_candidates: Table,
-    pub at_risk_validators: VecMap<IotaAddress, u64>,
+    pub at_risk_validators: VecMap<Address, u64>,
     pub extra_fields: Bag,
 }
 
@@ -470,7 +469,7 @@ pub struct IotaSystemStateV1 {
     pub parameters: SystemParametersV1,
     pub iota_system_admin_cap: IotaSystemAdminCap,
     pub reference_gas_price: u64,
-    pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
+    pub validator_report_records: VecMap<Address, VecSet<Address>>,
     pub safe_mode: bool,
     pub safe_mode_storage_charges: Balance,
     pub safe_mode_computation_rewards: Balance,
@@ -703,5 +702,5 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct UnverifiedValidatorOperationCap {
     pub id: ObjectId,
-    pub authorizer_validator_address: IotaAddress,
+    pub authorizer_validator_address: Address,
 }

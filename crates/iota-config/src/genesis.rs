@@ -14,9 +14,8 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
 };
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::{
-    base_types::IotaAddress,
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
@@ -451,11 +450,11 @@ impl TokenDistributionSchedule {
         }
     }
 
-    pub fn check_minimum_stake_for_validators<I: IntoIterator<Item = IotaAddress>>(
+    pub fn check_minimum_stake_for_validators<I: IntoIterator<Item = Address>>(
         &self,
         validators: I,
     ) -> Result<()> {
-        let mut validators: HashMap<IotaAddress, u64> =
+        let mut validators: HashMap<Address, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
 
         // Check that all allocations are for valid validators, while summing up all
@@ -482,7 +481,7 @@ impl TokenDistributionSchedule {
         Ok(())
     }
 
-    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = IotaAddress>>(
+    pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = Address>>(
         validators: I,
     ) -> Self {
         let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
@@ -520,7 +519,7 @@ impl TokenDistributionSchedule {
 
         let pre_minted_supply = allocations.pop().unwrap();
         assert_eq!(
-            IotaAddress::ZERO,
+            Address::ZERO,
             pre_minted_supply.recipient_address,
             "final allocation must be for the pre-minted supply amount",
         );
@@ -546,7 +545,7 @@ impl TokenDistributionSchedule {
         }
 
         writer.serialize(TokenAllocation {
-            recipient_address: IotaAddress::ZERO,
+            recipient_address: Address::ZERO,
             amount_nanos: self.pre_minted_supply,
             staked_with_validator: None,
             staked_with_timelock_expiration: None,
@@ -564,7 +563,7 @@ pub struct TokenAllocation {
     /// `staked_with_validator` during genesis, but it's the `recipient_address`
     /// which will receive the associated StakedIota (or TimelockedStakedIota)
     /// object.
-    pub recipient_address: IotaAddress,
+    pub recipient_address: Address,
     /// Indicates an amount of nanos that is:
     /// - minted for the `recipient_address` and staked to a validator, only in
     ///   the case `staked_with_validator` is Some
@@ -574,7 +573,7 @@ pub struct TokenAllocation {
 
     /// Indicates if this allocation should be staked at genesis and with which
     /// validator
-    pub staked_with_validator: Option<IotaAddress>,
+    pub staked_with_validator: Option<Address>,
     /// Indicates if this allocation should be staked with timelock at genesis
     /// and contains its timelock_expiration
     pub staked_with_timelock_expiration: Option<u64>,
@@ -599,7 +598,7 @@ impl TokenDistributionScheduleBuilder {
         self.pre_minted_supply = pre_minted_supply;
     }
 
-    pub fn default_allocation_for_validators<I: IntoIterator<Item = IotaAddress>>(
+    pub fn default_allocation_for_validators<I: IntoIterator<Item = Address>>(
         &mut self,
         validators: I,
     ) {
@@ -635,7 +634,7 @@ impl TokenDistributionScheduleBuilder {
 #[serde(rename_all = "kebab-case")]
 pub struct ValidatorAllocation {
     /// The validator address receiving the stake and/or gas payment
-    pub validator: IotaAddress,
+    pub validator: Address,
     /// The amount of nanos to stake to the validator
     pub amount_nanos_to_stake: u64,
     /// The amount of nanos to transfer as gas payment to the validator
@@ -649,7 +648,7 @@ pub struct ValidatorAllocation {
 #[serde(rename_all = "kebab-case")]
 pub struct Delegation {
     /// The address from which to take the nanos for staking/gas
-    pub delegator: IotaAddress,
+    pub delegator: Address,
     /// The allocation to a validator receiving a stake and/or a gas payment
     #[serde(flatten)]
     pub validator_allocation: ValidatorAllocation,
@@ -664,13 +663,13 @@ pub struct Delegation {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Delegations {
-    pub allocations: BTreeMap<IotaAddress, Vec<ValidatorAllocation>>,
+    pub allocations: BTreeMap<Address, Vec<ValidatorAllocation>>,
 }
 
 impl Delegations {
     pub fn new_for_validators_with_default_allocation(
-        validators: impl IntoIterator<Item = IotaAddress>,
-        delegator: IotaAddress,
+        validators: impl IntoIterator<Item = Address>,
+        delegator: Address,
     ) -> Self {
         let validator_allocations = validators
             .into_iter()

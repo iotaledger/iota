@@ -6,8 +6,8 @@ use std::num::NonZeroUsize;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use iota_sdk_ext::types::Address;
 use iota_types::{
-    base_types::IotaAddress,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -66,7 +66,7 @@ pub trait KeyValueStoreReader {
     /// [`TransactionsOrder`].
     async fn get_transaction_digests_by_address(
         &mut self,
-        address: IotaAddress,
+        address: Address,
         cursor: impl Into<Option<TransactionSequenceNumber>> + Send,
         limit: impl TryInto<NonZeroUsize> + Send,
         order: TransactionsOrder,
@@ -118,14 +118,14 @@ pub trait KeyValueStoreWriter {
         transactions: &[TransactionData],
     ) -> Result<(), Self::Error>;
 
-    /// Persists a mapping of `(` [`IotaAddress`], `transaction_sequence_number`
+    /// Persists a mapping of `(` [`Address`], `transaction_sequence_number`
     /// `)` to `TransactionDigest` for every affected address.
     ///
     /// An address is considered "affected" if it appears as the sender, a
     /// recipient, or the gas payer.
     async fn save_transactions_by_address<I>(&mut self, entries: I) -> Result<(), Self::Error>
     where
-        I: IntoIterator<Item = (IotaAddress, u64, TransactionDigest)> + Send,
+        I: IntoIterator<Item = (Address, u64, TransactionDigest)> + Send,
         I::IntoIter: Send;
 
     /// Persists a checkpoint to the store.

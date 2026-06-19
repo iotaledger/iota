@@ -21,10 +21,9 @@
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
 
-use iota_sdk_ext::types::Identifier;
+use iota_sdk_ext::types::{Address, Identifier};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::IotaAddress,
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
 };
@@ -190,7 +189,7 @@ fn verify_init_single_param(
              single field of type bool",
             module.self_id(),
             INIT_FN_NAME,
-            IotaAddress::FRAMEWORK,
+            Address::FRAMEWORK,
             Identifier::TX_CONTEXT_MODULE,
             Identifier::TX_CONTEXT,
             module.self_id(),

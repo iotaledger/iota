@@ -10,10 +10,10 @@ use futures::{
     TryStreamExt,
     stream::{self, StreamExt},
 };
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
+    base_types::SequenceNumber,
     digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     messages_checkpoint::{
@@ -161,7 +161,7 @@ pub(crate) trait PaginatedKeyValueStoreClient {
     /// The `cursor` semantics remain exclusive regardless of scan direction.
     async fn transaction_digests_by_address(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionSequenceNumber>,
         limit: usize,
         oldest_first: bool,
@@ -731,7 +731,7 @@ impl PaginatedKeyValueStoreClient for HttpRestKVClient {
     #[instrument(level = "trace", skip_all)]
     async fn transaction_digests_by_address(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionSequenceNumber>,
         limit: usize,
         oldest_first: bool,

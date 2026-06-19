@@ -7,10 +7,9 @@ use std::result::Result;
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_sdk_ext::types::{
-    Argument, Identifier, ObjectId, Owner, TransactionKind, move_package::MovePackage,
+    Address, Argument, Identifier, ObjectId, Owner, TransactionKind, move_package::MovePackage,
 };
 use iota_types::{
-    base_types::IotaAddress,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SharedObjectRef, TransactionData, TransactionDataAPI},
 };
@@ -22,7 +21,7 @@ impl TransactionBuilder {
     /// [`iota_sdk_ext::types::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
     ) -> Result<TransactionKind, anyhow::Error> {
@@ -38,7 +37,7 @@ impl TransactionBuilder {
     /// Publish a new move package.
     pub async fn publish(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         compiled_modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
         gas: impl Into<Option<ObjectId>>,
@@ -128,7 +127,7 @@ impl TransactionBuilder {
     /// Upgrade an existing move package.
     pub async fn upgrade(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         package_id: ObjectId,
         compiled_modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,

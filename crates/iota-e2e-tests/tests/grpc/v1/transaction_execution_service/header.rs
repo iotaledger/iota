@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_sdk_ext::grpc_types::{
-    headers,
-    v1::{
-        bcs::BcsData,
-        transaction::Transaction as ProtoTransaction,
-        transaction_execution_service::{
-            ExecuteTransactionsRequest, SimulateTransactionItem, SimulateTransactionsRequest,
+use iota_sdk_ext::{
+    grpc_types::{
+        headers,
+        v1::{
+            bcs::BcsData,
+            transaction::Transaction as ProtoTransaction,
+            transaction_execution_service::{
+                ExecuteTransactionsRequest, SimulateTransactionItem, SimulateTransactionsRequest,
+            },
         },
     },
+    types::Address,
 };
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::transaction::{TransactionData, TransactionDataAPI};
@@ -28,7 +31,7 @@ async fn test_response_headers() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
     let amount = 9;
 
     // Test execute_transactions

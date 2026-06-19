@@ -9,9 +9,9 @@ use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_ext::types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_ext::types::{Address, ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
@@ -48,7 +48,7 @@ pub const TEST_ONLY_GAS_UNIT: u64 = 10_000;
 struct TestSetup {
     setup_authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
-    sender: IotaAddress,
+    sender: Address,
     sender_key: AccountKeyPair,
     package: ObjectRef,
     gas_object_id: ObjectId,
@@ -212,7 +212,7 @@ impl TestSetup {
 async fn commit_and_execute_transaction(
     authority_state: &AuthorityState,
     package: &ObjectRef,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
     shared_objects: &[(ObjectId, SequenceNumber)],

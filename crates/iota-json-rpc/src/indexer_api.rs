@@ -26,10 +26,9 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
-use iota_sdk_ext::types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::IotaAddress,
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     error::UserInputError,
@@ -204,7 +203,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     #[instrument(skip(self, address), fields(address = %address))]
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         query: Option<IotaObjectResponseQuery>,
         cursor: Option<ObjectId>,
         limit: Option<usize>,
@@ -568,7 +567,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     }
 
     #[instrument(skip(self, address), fields(address = %address))]
-    async fn iota_names_reverse_lookup(&self, address: IotaAddress) -> RpcResult<Option<String>> {
+    async fn iota_names_reverse_lookup(&self, address: Address) -> RpcResult<Option<String>> {
         let reverse_record_id = self.iota_names_config.reverse_record_field_id(&address);
 
         let Some(field_reverse_record_object) = self
@@ -581,7 +580,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         };
 
         let name = field_reverse_record_object
-            .to_rust::<Field<IotaAddress, Name>>()
+            .to_rust::<Field<Address, Name>>()
             .map_err(|e| Error::Unexpected(format!("malformed Object {reverse_record_id}: {e}")))?
             .value;
 
@@ -600,7 +599,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     #[instrument(skip(self, address), fields(address = %address))]
     async fn iota_names_find_all_registration_nfts(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,

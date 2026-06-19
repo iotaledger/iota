@@ -26,10 +26,11 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_macros::sim_test;
 use iota_sdk::IotaClient;
-use iota_sdk_ext::types::{Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_ext::types::{
+    Address, Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent,
+};
 use iota_types::{
     balance::Balance,
-    base_types::IotaAddress,
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -79,7 +80,7 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
-        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
+        .with_delegator(Address::from_str(DELEGATOR).unwrap())
         .build()
         .await;
 
@@ -124,7 +125,7 @@ async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
-        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
+        .with_delegator(Address::from_str(DELEGATOR).unwrap())
         .build()
         .await;
 
@@ -401,7 +402,7 @@ async fn address_unlock_condition(
 pub async fn fund_address(
     iota_client: &IotaClient,
     keystore: &mut FileBasedKeystore,
-    recipient: IotaAddress,
+    recipient: Address,
 ) -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor.
     let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;

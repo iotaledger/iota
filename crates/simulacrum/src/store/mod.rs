@@ -5,9 +5,9 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -68,7 +68,7 @@ pub trait SimulatorStore:
         epoch: EpochId,
     ) -> Option<&iota_types::iota_system_state::IotaSystemState>;
 
-    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_>;
+    fn owned_objects(&self, owner: Address) -> Box<dyn Iterator<Item = Object> + '_>;
 
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint);
 

@@ -6,11 +6,8 @@ use std::{fmt::Debug, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, bail};
 use iota_core::jsonrpc_index::IndexStoreTables;
-use iota_sdk_ext::types::{Identifier, ObjectId};
-use iota_types::{
-    base_types::{IotaAddress, TxSequenceNumber},
-    digests::TransactionDigest,
-};
+use iota_sdk_ext::types::{Address, Identifier, ObjectId};
+use iota_types::{base_types::TxSequenceNumber, digests::TransactionDigest};
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
@@ -236,14 +233,14 @@ where
     Ok(entries)
 }
 
-fn from_addr_seq(s: &str) -> Result<(IotaAddress, TxSequenceNumber), anyhow::Error> {
+fn from_addr_seq(s: &str) -> Result<(Address, TxSequenceNumber), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         bail!("Invalid address, sequence number pair");
     }
-    let address = IotaAddress::from_str(tokens[0].trim())?;
+    let address = Address::from_str(tokens[0].trim())?;
     let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
 
     Ok((address, sequence_number))
@@ -279,14 +276,14 @@ fn from_id_module_function_txseq(
     Ok((pid, module.to_string(), func.to_string(), seq))
 }
 
-fn from_addr_oid(s: &str) -> Result<(IotaAddress, ObjectId), anyhow::Error> {
+fn from_addr_oid(s: &str) -> Result<(Address, ObjectId), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         bail!("Invalid address, object id pair");
     }
-    let addr = IotaAddress::from_str(tokens[0].trim())?;
+    let addr = Address::from_str(tokens[0].trim())?;
     let oid = ObjectId::from_str(tokens[1].trim())?;
 
     Ok((addr, oid))
@@ -343,7 +340,7 @@ fn from_event_id(s: &str) -> Result<(TxSequenceNumber, usize), anyhow::Error> {
 
 fn from_address_and_event_id(
     s: &str,
-) -> Result<(IotaAddress, (TxSequenceNumber, usize)), anyhow::Error> {
+) -> Result<(Address, (TxSequenceNumber, usize)), anyhow::Error> {
     // Example: "0x1 1234 5"
     let tokens = s.split(' ').collect::<Vec<&str>>();
     if tokens.len() != 3 {
@@ -351,6 +348,6 @@ fn from_address_and_event_id(
     }
     let tx_seq = TxSequenceNumber::from_str(tokens[1])?;
     let event_seq = usize::from_str(tokens[2])?;
-    let address = IotaAddress::from_str(tokens[0].trim())?;
+    let address = Address::from_str(tokens[0].trim())?;
     Ok((address, (tx_seq, event_seq)))
 }

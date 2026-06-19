@@ -839,9 +839,9 @@ mod tests {
     use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
-    use iota_sdk_ext::types::ObjectId;
+    use iota_sdk_ext::types::{Address, ObjectId};
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, random_object_ref},
+        base_types::{AuthorityName, random_object_ref},
         committee::Committee,
         crypto::{AccountKeyPair, get_key_pair},
         messages_consensus::{
@@ -1063,7 +1063,7 @@ mod tests {
         );
 
         // AND build one block per UserTransactionV1 transaction
-        let (recipient, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+        let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
 
@@ -1265,9 +1265,9 @@ mod tests {
         let (committee, keypairs) = Committee::new_simple_test_committee();
         let data = SenderSignedData::new(
             TransactionData::new_transfer(
-                IotaAddress::ZERO,
+                Address::ZERO,
                 random_object_ref(),
-                IotaAddress::ZERO,
+                Address::ZERO,
                 random_object_ref(),
                 1000 * gas_price,
                 gas_price,

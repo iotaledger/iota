@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -41,7 +41,7 @@ use iota_json_rpc_types::{
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -557,7 +557,7 @@ pub async fn start_simulacrum_grpc_with_read_write_indexer(
 
 pub async fn publish_test_move_package(
     client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     account_keypair: &IotaKeyPair,
     test_package_name: &str,
 ) -> Result<(ObjectRef, IotaTransactionBlockResponse), anyhow::Error> {

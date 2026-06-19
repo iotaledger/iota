@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 
-use crate::{base_types::IotaAddress, dynamic_field};
+use crate::dynamic_field;
 
 pub const DERIVED_OBJECT_MODULE_NAME: Identifier = Identifier::from_static("derived_object");
 pub const DERIVED_OBJECT_STRUCT_NAME: Identifier = Identifier::from_static("DerivedObjectKey");
@@ -19,13 +19,13 @@ pub fn derive_object_id<T>(
     key_bytes: &[u8],
 ) -> Result<ObjectId, bcs::Error>
 where
-    T: Into<IotaAddress>,
+    T: Into<Address>,
 {
     let parent_address = parent.into();
 
     // Wrap `T` into `DerivedObjectKey<T>` type (to preserve on-chain namespacing)
     let wrapper_type_tag = TypeTag::Struct(Box::new(StructTag::new(
-        IotaAddress::FRAMEWORK,
+        Address::FRAMEWORK,
         DERIVED_OBJECT_MODULE_NAME,
         DERIVED_OBJECT_STRUCT_NAME,
         vec![key_type_tag.clone()],
@@ -84,7 +84,7 @@ mod tests {
         let id = derive_object_id(
             ObjectId::from_str("0x2").unwrap(),
             &TypeTag::Struct(Box::new(StructTag::new(
-                IotaAddress::FRAMEWORK,
+                Address::FRAMEWORK,
                 Identifier::from_static("derived_object_tests"),
                 Identifier::from_static("DemoStruct"),
                 vec![],
@@ -110,7 +110,7 @@ mod tests {
         let id = derive_object_id(
             ObjectId::from_str("0x2").unwrap(),
             &TypeTag::Struct(Box::new(StructTag::new(
-                IotaAddress::FRAMEWORK,
+                Address::FRAMEWORK,
                 Identifier::from_static("derived_object_tests"),
                 Identifier::from_static("GenericStruct"),
                 vec![TypeTag::U64],

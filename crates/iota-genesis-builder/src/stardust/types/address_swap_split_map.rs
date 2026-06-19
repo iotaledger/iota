@@ -4,11 +4,11 @@
 use std::{collections::HashMap, fs::File};
 
 use iota_config::genesis::csv_reader_with_comments;
-use iota_stardust_types::block::address::Address;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_ext::types::Address;
+use iota_stardust_types::block::address::Address as StardustAddress;
 
-type OriginAddress = Address;
-type Destination = (IotaAddress, u64, u64);
+type OriginAddress = StardustAddress;
+type Destination = (Address, u64, u64);
 
 #[derive(Clone, Debug, Default)]
 pub struct AddressSwapSplitDestinations {
@@ -19,7 +19,7 @@ impl AddressSwapSplitDestinations {
     /// Iterate over mutable destinations filtered by `tokens_target > 0`.
     pub fn iter_by_tokens_target_mut_filtered(
         &mut self,
-    ) -> impl Iterator<Item = (&mut IotaAddress, &mut u64)> {
+    ) -> impl Iterator<Item = (&mut Address, &mut u64)> {
         self.destinations
             .iter_mut()
             .filter_map(|(destination, tokens_target, _)| {
@@ -35,7 +35,7 @@ impl AddressSwapSplitDestinations {
     /// > 0`.
     pub fn iter_by_tokens_timelocked_target_mut_filtered(
         &mut self,
-    ) -> impl Iterator<Item = (&mut IotaAddress, &mut u64)> {
+    ) -> impl Iterator<Item = (&mut Address, &mut u64)> {
         self.destinations
             .iter_mut()
             .filter_map(|(destination, _, tokens_timelocked_target)| {
@@ -84,9 +84,7 @@ impl AddressSwapSplitMap {
     /// Check whether the map has all targets set to 0. Return the first
     /// occurrence of an entry where one or both the two targets are greater
     /// than zero. If none is found, then return None.
-    pub fn validate_successful_swap_split(
-        &self,
-    ) -> Option<(&OriginAddress, &IotaAddress, u64, u64)> {
+    pub fn validate_successful_swap_split(&self) -> Option<(&OriginAddress, &Address, u64, u64)> {
         for (origin, destinations) in self.map.iter() {
             for (destination, tokens_target, tokens_timelocked_target) in destinations {
                 if *tokens_target > 0 || *tokens_timelocked_target > 0 {

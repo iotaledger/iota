@@ -4,9 +4,8 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::{
-    base_types::IotaAddress,
     dynamic_field::derive_dynamic_field_id,
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
@@ -150,7 +149,7 @@ pub fn hash_type_and_key(
     let Some(k_bytes) = k.simple_serialize(&k_layout) else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
-    let Ok(id) = derive_dynamic_field_id(IotaAddress::new(parent.into_bytes()), &k_tag, &k_bytes)
+    let Ok(id) = derive_dynamic_field_id(Address::new(parent.into_bytes()), &k_tag, &k_bytes)
     else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };

@@ -10,9 +10,9 @@ use iota_package_resolver::{
 };
 use iota_sdk_ext::{
     grpc_client::{Client, ReadMask, read_mask_fields::ObjectField},
-    types::ObjectId,
+    types::{Address, ObjectId},
 };
-use iota_types::{base_types::IotaAddress, object::Object};
+use iota_types::object::Object;
 use thiserror::Error;
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
@@ -88,7 +88,7 @@ impl LocalDBPackageStore {
         Ok(())
     }
 
-    pub async fn get(&self, id: IotaAddress) -> iota_package_resolver::Result<Object> {
+    pub async fn get(&self, id: Address) -> iota_package_resolver::Result<Object> {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
@@ -126,7 +126,7 @@ impl LocalDBPackageStore {
 
 #[async_trait]
 impl PackageStore for LocalDBPackageStore {
-    async fn fetch(&self, id: IotaAddress) -> iota_package_resolver::Result<Arc<Package>> {
+    async fn fetch(&self, id: Address) -> iota_package_resolver::Result<Arc<Package>> {
         let object = self.get(id).await?;
         Ok(Arc::new(Package::read_from_object(&object)?))
     }
