@@ -6,7 +6,7 @@ workload submits pairs of conflicting txs that spend the same gas coin;
 white-flag must accept exactly one of each pair.
 
 **Two repos:** `iota` (node + private network + audit) and `network-benchmark`
-(the `stress` binary with the double-spend workload — it is *not* in
+(the `stress` binary with the double-spend workload — it is _not_ in
 `iota/crates/iota-benchmark`).
 
 Substitute your own checkout locations for `<path-to-iota-repo>` and

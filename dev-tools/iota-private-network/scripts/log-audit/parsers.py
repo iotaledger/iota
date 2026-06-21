@@ -208,6 +208,14 @@ def parse_fullnode_log(
     Hot path uses pure string ops (find/substring) rather than regex; regex
     only fires on the rare lines that match a terminal-event substring.
 
+    Assumption: every line of interest carries the `drive_transaction{tx_digest=
+    Some(Digest("..."))}` span — the digest is extracted from it first and the
+    line is skipped outright if absent. This holds because the terminal-failure
+    and effects-return logs are emitted inside that span, but it means a failure
+    or execution line that ever loses the span would be silently dropped (the
+    coverage check guards only against *zero* fullnode submissions, not a
+    partial miss).
+
     progress_cb(line_no, n_submissions, n_failures, n_executed) is called every
     `progress_every` lines for monitoring long runs.
     """

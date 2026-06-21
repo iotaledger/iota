@@ -6,9 +6,9 @@ Usage:
 
 Auto-discovers files in <logs_dir> by name:
     validator-*.log         → validator parser
-    fullnode-*.log          → fullnode parser (skipped unless --include-fullnode
-                              or the dir contains no stress-benchmark.log)
-    stress-benchmark.log    → stress parser
+    fullnode-*.log          → fullnode parser (skipped unless --include-fullnode;
+                              large, and only feeds the optional fullnode checks)
+    stress*.log             → stress parser
 
 Exit codes:
     0 = PASS         — checks ran on real signal and found no safety violation
@@ -341,6 +341,11 @@ def main() -> int:
         print("OVERALL: FAIL — anomalies detail below")
     else:
         print("OVERALL: PASS — no double-spend leaked")
+        print(
+            "         (proves: exactly one winner per contested input and no "
+            "loser executed; does NOT cover a two-winners / no-loser leak — "
+            "see check [A])"
+        )
 
     print()
 
