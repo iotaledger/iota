@@ -17,9 +17,7 @@ from parsers import (
     FnEffectsExecuted,
     FnFinalFailure,
     FnSubmissionSeen,
-    LoserPersistent,
-    LoserQuarantined,
-    LoserSameCommit,
+    LoserDropped,
     StressGaveUp,
     WinnerLockAcquired,
 )
@@ -48,6 +46,91 @@ class CheckResult:
         return any(a.severity == "WARN" for a in self.anomalies)
 
 
+# ---------- Coverage: the parser actually extracted the safety signal ------
+
+def check_coverage(
+    events: Iterable,
+    num_validator_logs: int,
+    num_stress_logs: int,
+    num_double_spend_attempts: int,
+    fullnode_enabled: bool,
+    num_fn_submissions: int,
+) -> CheckResult:
+    """Guard against a vacuous PASS. Every other check derives its FAILs from
+    the *presence* of loser / Executed events; if the parser matched none of
+    them (e.g. the node's log format drifted from the regexes), those checks
+    pass over empty input and the audit would otherwise certify "no
+    double-spend leaked" while having verified nothing.
+
+    This check FAILs when a signal that MUST be present for the double-spend
+    workload is empty, so an empty/stale parse becomes a loud INCONCLUSIVE
+    instead of a silent PASS. A FAIL here means "cannot certify", which the
+    caller maps to a distinct exit code from a genuine safety violation.
+    """
+    n_winners = n_losers = n_executed = 0
+    for ev in events:
+        if isinstance(ev, WinnerLockAcquired):
+            n_winners += 1
+        elif isinstance(ev, LoserDropped):
+            n_losers += 1
+        elif isinstance(ev, Executed):
+            n_executed += 1
+
+    anomalies: List[Anomaly] = []
+    if num_validator_logs > 0:
+        for label, count in (
+            ("winner (passed post-consensus validation)", n_winners),
+            ("loser (conflicts with existing owned-object lock)", n_losers),
+            ("executed (process_transaction succeeded)", n_executed),
+        ):
+            if count == 0:
+                anomalies.append(
+                    Anomaly(
+                        severity="FAIL",
+                        message=(
+                            f"parsed 0 '{label}' events from "
+                            f"{num_validator_logs} validator log(s) — the node "
+                            f"log format may have changed or the workload "
+                            f"exercised no conflicts; cannot certify safety"
+                        ),
+                        evidence={"event": label, "count": count},
+                    )
+                )
+
+    if num_stress_logs > 0 and num_double_spend_attempts == 0:
+        anomalies.append(
+            Anomaly(
+                severity="FAIL",
+                message=(
+                    f"parsed 0 double-spend submission events from "
+                    f"{num_stress_logs} stress log(s) — cannot certify the "
+                    f"workload actually contested any gas coins"
+                ),
+                evidence={"double_spend_attempts": 0},
+            )
+        )
+
+    if fullnode_enabled and num_fn_submissions == 0:
+        anomalies.append(
+            Anomaly(
+                severity="WARN",
+                message=(
+                    "fullnode parsing enabled but 0 submissions observed — "
+                    "fullnode checks (E) ran on empty input (is the fullnode "
+                    "RUST_LOG missing iota_core=debug?)"
+                ),
+                evidence={"fn_submissions": 0},
+            )
+        )
+
+    return CheckResult(
+        name="0",
+        description="Parser coverage (signal present)",
+        items_checked=n_winners + n_losers + n_executed,
+        anomalies=anomalies,
+    )
+
+
 # ---------- A: Per-input single winner ------------------------------------
 
 def check_single_winner_per_input(events: Iterable) -> CheckResult:
@@ -57,6 +140,11 @@ def check_single_winner_per_input(events: Iterable) -> CheckResult:
     More than one distinct `locked_by` for the same input means different
     transactions were accepted as the winner for the same gas object version —
     a true double-spend safety violation.
+
+    Note: this is keyed on loser evidence (a loser names the tx that out-locked
+    it). It cannot detect a double-spend that produces two *winners* and no
+    loser, because the winner log carries only the tx digest, not the object
+    ref — that case would need the node to log the acquired object ref.
     """
     input_to_winners: dict = defaultdict(set)
     input_validators: dict = defaultdict(set)
@@ -64,7 +152,7 @@ def check_single_winner_per_input(events: Iterable) -> CheckResult:
 
     n_losers_with_winner = 0
     for ev in events:
-        if isinstance(ev, (LoserQuarantined, LoserPersistent)):
+        if isinstance(ev, LoserDropped):
             key = (ev.obj_id, ev.obj_version)
             input_to_winners[key].add(ev.locked_by)
             input_validators[key].add(ev.validator)
@@ -106,20 +194,15 @@ def check_cross_validator_agreement(events: Iterable) -> CheckResult:
     same verdict (winner or loser). Disagreement implies non-deterministic
     conflict resolution.
     """
-    # digest -> validator -> verdict ("winner" | "loser-same" | "loser-quar" | "loser-pers")
+    # digest -> validator -> verdict ("winner" | "loser")
     verdicts: dict = defaultdict(dict)
     locked_by_seen: dict = defaultdict(lambda: defaultdict(set))
 
     for ev in events:
         if isinstance(ev, WinnerLockAcquired):
             verdicts[ev.digest][ev.validator] = "winner"
-        elif isinstance(ev, LoserSameCommit):
-            verdicts[ev.digest][ev.validator] = "loser-same"
-        elif isinstance(ev, LoserQuarantined):
-            verdicts[ev.digest][ev.validator] = "loser-quar"
-            locked_by_seen[ev.digest][ev.validator].add(ev.locked_by)
-        elif isinstance(ev, LoserPersistent):
-            verdicts[ev.digest][ev.validator] = "loser-pers"
+        elif isinstance(ev, LoserDropped):
+            verdicts[ev.digest][ev.validator] = "loser"
             locked_by_seen[ev.digest][ev.validator].add(ev.locked_by)
 
     anomalies: List[Anomaly] = []
@@ -181,35 +264,30 @@ def check_losers_never_executed(events: Iterable) -> CheckResult:
 
     The complementary direction (every winner executes) is intentionally not
     checked — non-conflict-validated transactions (genesis, system) also
-    emit `process_certificate succeeded`, so a missing winner is normal.
+    emit `process_transaction succeeded`, so a missing winner is normal.
     """
-    losers: dict = {}  # (validator, digest) -> "loser-same"|"loser-quar"|"loser-pers"
+    losers: dict = {}  # (validator, digest) -> True
     exec_fx: dict = {}  # (validator, digest) -> fx_digest
 
     for ev in events:
-        if isinstance(ev, LoserSameCommit):
-            losers[(ev.validator, ev.digest)] = "loser-same"
-        elif isinstance(ev, LoserQuarantined):
-            losers[(ev.validator, ev.digest)] = "loser-quar"
-        elif isinstance(ev, LoserPersistent):
-            losers[(ev.validator, ev.digest)] = "loser-pers"
+        if isinstance(ev, LoserDropped):
+            losers[(ev.validator, ev.digest)] = True
         elif isinstance(ev, Executed):
             exec_fx[(ev.validator, ev.digest)] = ev.fx_digest
 
     anomalies: List[Anomaly] = []
-    for vd, verdict in losers.items():
+    for vd in losers:
         if vd in exec_fx:
             anomalies.append(
                 Anomaly(
                     severity="FAIL",
                     message=(
-                        f"Tx {vd[1]} rejected ({verdict}) on {vd[0]} but "
+                        f"Tx {vd[1]} rejected as loser on {vd[0]} but "
                         f"ALSO executed on {vd[0]} — double-spend leaked"
                     ),
                     evidence={
                         "validator": vd[0],
                         "digest": vd[1],
-                        "verdict": verdict,
                         "fx_digest": exec_fx[vd],
                     },
                 )
@@ -227,9 +305,13 @@ def check_losers_never_executed(events: Iterable) -> CheckResult:
 
 def check_batch_counts(events: Iterable) -> CheckResult:
     """For each validator, the total `num_dropped` across BatchSummary lines
-    must equal the count of individual Loser events. A mismatch suggests the
-    parser is missing some loser variants or the validator emitted a summary
-    without per-line evidence.
+    should be >= the count of individual LoserDropped events. `num_dropped`
+    counts ALL post-consensus drops (owned-object lock conflicts plus
+    validity-check, deny-check and input-extraction failures), whereas
+    LoserDropped counts only the lock conflicts, so a small positive
+    `dropped - losers` gap is expected. A negative gap (more loser lines than
+    drops) or a large positive gap suggests the parser is missing loser lines.
+    This is diagnostic only (WARN); it never fails the audit.
 
     We do NOT compare winners vs `num_retained`: the summary log only fires
     when `num_dropped > 0`, so its retained field only covers contentious
@@ -239,7 +321,7 @@ def check_batch_counts(events: Iterable) -> CheckResult:
     per_v_sum_dropped = defaultdict(int)
 
     for ev in events:
-        if isinstance(ev, (LoserSameCommit, LoserQuarantined, LoserPersistent)):
+        if isinstance(ev, LoserDropped):
             per_v_loser[ev.validator] += 1
         elif isinstance(ev, BatchSummary):
             per_v_sum_dropped[ev.validator] += ev.num_dropped
@@ -297,7 +379,7 @@ def check_stress_consistency(
     for ev in validator_events:
         if isinstance(ev, WinnerLockAcquired):
             winners_any.add(ev.digest)
-        elif isinstance(ev, (LoserSameCommit, LoserQuarantined, LoserPersistent)):
+        elif isinstance(ev, LoserDropped):
             losers_any.add(ev.digest)
 
     anomalies: List[Anomaly] = []
@@ -448,7 +530,7 @@ def check_double_spend_pairs(
     for ev in validator_events:
         if isinstance(ev, WinnerLockAcquired):
             winners_any.add(ev.digest)
-        elif isinstance(ev, (LoserSameCommit, LoserQuarantined, LoserPersistent)):
+        elif isinstance(ev, LoserDropped):
             losers_any.add(ev.digest)
         elif isinstance(ev, Executed):
             executed_any.add(ev.digest)

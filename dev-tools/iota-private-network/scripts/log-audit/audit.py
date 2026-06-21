@@ -10,7 +10,12 @@ Auto-discovers files in <logs_dir> by name:
                               or the dir contains no stress-benchmark.log)
     stress-benchmark.log    → stress parser
 
-Exit code 0 = all FAIL checks passed, non-zero = at least one safety violation.
+Exit codes:
+    0 = PASS         — checks ran on real signal and found no safety violation
+    1 = FAIL         — a safety violation (e.g. a loser that also executed)
+    2 = INCONCLUSIVE — coverage check failed: the parser matched none of a
+                       signal that must be present, so nothing was verified
+                       (commonly the node log format drifted from the parsers)
 """
 
 from __future__ import annotations
@@ -213,6 +218,8 @@ def main() -> int:
         t0 = time.time()
         n_attempts = 0
         n_ds_submits = 0
+        n_gave_up = 0
+        n_expected = 0
         name = os.path.basename(path)
 
         with Watchdog(args.watchdog, label=name) as wd:
@@ -230,19 +237,21 @@ def main() -> int:
                 if isinstance(ev, parsers.StressAttempt):
                     n_attempts += 1
                 elif isinstance(ev, parsers.StressGaveUp):
-                    stress_gave_up += 1
+                    n_gave_up += 1
                 elif isinstance(ev, parsers.StressExpectedFailure):
-                    stress_expected_failures += 1
+                    n_expected += 1
                 elif isinstance(ev, parsers.DoubleSpendAttempt):
                     double_spend_attempts.append(ev)
                     n_ds_submits += 1
 
+        stress_gave_up += n_gave_up
+        stress_expected_failures += n_expected
         elapsed = time.time() - t0
         print(
             f"  {name}: "
             f"attempts={_human(n_attempts)} "
-            f"gave_up={stress_gave_up} "
-            f"expected_failures={stress_expected_failures} "
+            f"gave_up={n_gave_up} "
+            f"expected_failures={n_expected} "
             f"double_spend_submits={_human(n_ds_submits)} "
             f"in {elapsed:.1f}s"
         )
@@ -251,6 +260,15 @@ def main() -> int:
 
     # ---- Run checks ------------------------------------------------------
     results: List[checks.CheckResult] = []
+    coverage = checks.check_coverage(
+        validator_events,
+        num_validator_logs=len(validator_paths),
+        num_stress_logs=len(stress_paths),
+        num_double_spend_attempts=len(double_spend_attempts),
+        fullnode_enabled=bool(args.include_fullnode and fullnode_paths),
+        num_fn_submissions=len(fn_submissions),
+    )
+    results.append(coverage)
     results.append(checks.check_single_winner_per_input(validator_events))
     results.append(checks.check_cross_validator_agreement(validator_events))
     results.append(checks.check_losers_never_executed(validator_events))
@@ -274,13 +292,11 @@ def main() -> int:
     # ---- Render summary --------------------------------------------------
     print("Check results")
     print("-------------")
-    overall_fail = False
     for r in results:
         n_fail = sum(1 for a in r.anomalies if a.severity == "FAIL")
         n_warn = sum(1 for a in r.anomalies if a.severity == "WARN")
         if n_fail:
             status = "FAIL"
-            overall_fail = True
         elif n_warn:
             status = "WARN"
         else:
@@ -291,8 +307,25 @@ def main() -> int:
             f"{n_fail} fail / {n_warn} warn)"
         )
 
+    # The coverage check (name "0") failing means the parser extracted none of
+    # a signal that must be present — we verified nothing, so we must NOT report
+    # PASS. Distinguish that (INCONCLUSIVE, exit 2) from a genuine safety
+    # violation in A/B/C/E (FAIL, exit 1).
+    coverage_failed = not coverage.passed
+    safety_fail = any(
+        a.severity == "FAIL"
+        for r in results
+        if r is not coverage
+        for a in r.anomalies
+    )
+
     print()
-    if overall_fail:
+    if coverage_failed:
+        print(
+            "OVERALL: INCONCLUSIVE — parser coverage check FAILED; cannot "
+            "certify safety (see check [0] below)"
+        )
+    elif safety_fail:
         print("OVERALL: FAIL — anomalies detail below")
     else:
         print("OVERALL: PASS — no double-spend leaked")
@@ -330,7 +363,14 @@ def main() -> int:
             "fn_final_failures": len(fn_final_failures),
             "fn_executed": len(fn_executed),
             "double_spend_submits": len(double_spend_attempts),
-            "overall_pass": not overall_fail,
+            "overall_status": (
+                "INCONCLUSIVE"
+                if coverage_failed
+                else "FAIL"
+                if safety_fail
+                else "PASS"
+            ),
+            "overall_pass": not (coverage_failed or safety_fail),
             "checks": [
                 {
                     "name": r.name,
@@ -346,7 +386,9 @@ def main() -> int:
             json.dump(json_doc, f, indent=2, default=str)
         print(f"\nwrote {args.json_out}")
 
-    return 1 if overall_fail else 0
+    if coverage_failed:
+        return 2
+    return 1 if safety_fail else 0
 
 
 if __name__ == "__main__":

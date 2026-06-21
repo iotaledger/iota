@@ -17,15 +17,14 @@ from typing import Iterator, Optional
 WinnerLockAcquired = namedtuple(
     "WinnerLockAcquired", "validator digest num_inputs ts"
 )
-LoserSameCommit = namedtuple(
-    "LoserSameCommit", "validator digest obj_id obj_version obj_digest ts"
-)
-LoserQuarantined = namedtuple(
-    "LoserQuarantined",
-    "validator digest obj_id obj_version obj_digest locked_by ts",
-)
-LoserPersistent = namedtuple(
-    "LoserPersistent",
+# A transaction dropped post-consensus because one of its owned inputs was
+# already locked by an earlier transaction. The node resolves all three lock
+# tiers (same-commit / consensus-quarantine / persistent DB) through a single
+# `find_existing_lock` path and emits one unified line, so the audit models the
+# loser with a single event type. `locked_by` is the digest of the winning tx
+# that holds the lock on `(obj_id, obj_version)`.
+LoserDropped = namedtuple(
+    "LoserDropped",
     "validator digest obj_id obj_version obj_digest locked_by ts",
 )
 BatchSummary = namedtuple(
@@ -54,28 +53,16 @@ DoubleSpendAttempt = namedtuple(
 
 # ---------- Common patterns -----------------------------------------------
 
-# Each line starts with: <docker_ts> <app_ts> ...
-_TS_RE = re.compile(r"^(\S+)\s+(\S+)\s+")
+# Each line starts with the app's RFC3339 timestamp as the first token.
+_TS_RE = re.compile(r"^(\S+)\s+")
 
 # Validator-side regexes
 _RE_WINNER = re.compile(
     r'Transaction passed post-consensus validation, acquired all object locks '
     r'digest=Digest\("([^"]+)"\) num_owned_inputs=(\d+)'
 )
-_RE_LOSER_SAME = re.compile(
-    r'Transaction conflicts with earlier tx in same commit, dropping '
-    r'digest=Digest\("([^"]+)"\) obj_ref=ObjectReference \{ '
-    r'object_id: ObjectId\("([^"]+)"\), version: Version\((\d+)\), '
-    r'digest: Digest\("([^"]+)"\) \}'
-)
-_RE_LOSER_QUAR = re.compile(
-    r'Transaction conflicts with quarantined lock, dropping '
-    r'digest=Digest\("([^"]+)"\) obj_ref=ObjectReference \{ '
-    r'object_id: ObjectId\("([^"]+)"\), version: Version\((\d+)\), '
-    r'digest: Digest\("([^"]+)"\) \} locked_by=Digest\("([^"]+)"\)'
-)
-_RE_LOSER_PERS = re.compile(
-    r'Transaction conflicts with persistent lock, dropping '
+_RE_LOSER = re.compile(
+    r'Transaction conflicts with existing owned-object lock, dropping '
     r'digest=Digest\("([^"]+)"\) obj_ref=ObjectReference \{ '
     r'object_id: ObjectId\("([^"]+)"\), version: Version\((\d+)\), '
     r'digest: Digest\("([^"]+)"\) \} locked_by=Digest\("([^"]+)"\)'
@@ -85,7 +72,7 @@ _RE_BATCH = re.compile(
     r'num_dropped=(\d+) num_retained=(\d+)'
 )
 _RE_EXEC = re.compile(
-    r'process_certificate succeeded tx_digest=Digest\("([^"]+)"\) '
+    r'process_transaction succeeded tx_digest=Digest\("([^"]+)"\) '
     r'fx_digest=Digest\("([^"]+)"\)'
 )
 
@@ -124,19 +111,19 @@ _RE_DOUBLE_SPEND_SUBMIT = re.compile(
 
 def _app_ts(line: str) -> Optional[str]:
     m = _TS_RE.match(line)
-    return m.group(2) if m else None
+    return m.group(1) if m else None
 
 
 def _app_ts_fast(line: str) -> Optional[str]:
     """Pure-string variant of _app_ts — avoids regex overhead in hot paths.
-    Returns the second whitespace-separated token (the app timestamp)."""
+    Returns the first whitespace-separated token (the app's RFC3339 timestamp).
+    Logs collected via `docker logs` without `-t` begin directly with the app
+    timestamp; with `-t` the leading docker timestamp is itself valid, so the
+    first token is correct either way."""
     space1 = line.find(" ")
     if space1 == -1:
         return None
-    space2 = line.find(" ", space1 + 1)
-    if space2 == -1:
-        return None
-    return line[space1 + 1:space2]
+    return line[:space1]
 
 
 # ---------- Validator parser ----------------------------------------------
@@ -155,7 +142,7 @@ def parse_validator_log(
             # Cheap pre-filter — vast majority of lines drop out here.
             if (
                 "post_consensus_validation" not in line
-                and "process_certificate succeeded" not in line
+                and "process_transaction succeeded" not in line
             ):
                 continue
 
@@ -171,37 +158,10 @@ def parse_validator_log(
                     )
                 continue
 
-            if "conflicts with earlier tx in same commit" in line:
-                m = _RE_LOSER_SAME.search(line)
+            if "conflicts with existing owned-object lock" in line:
+                m = _RE_LOSER.search(line)
                 if m:
-                    yield LoserSameCommit(
-                        validator,
-                        m.group(1),
-                        m.group(2),
-                        int(m.group(3)),
-                        m.group(4),
-                        ts,
-                    )
-                continue
-
-            if "conflicts with quarantined lock" in line:
-                m = _RE_LOSER_QUAR.search(line)
-                if m:
-                    yield LoserQuarantined(
-                        validator,
-                        m.group(1),
-                        m.group(2),
-                        int(m.group(3)),
-                        m.group(4),
-                        m.group(5),
-                        ts,
-                    )
-                continue
-
-            if "conflicts with persistent lock" in line:
-                m = _RE_LOSER_PERS.search(line)
-                if m:
-                    yield LoserPersistent(
+                    yield LoserDropped(
                         validator,
                         m.group(1),
                         m.group(2),
@@ -220,7 +180,7 @@ def parse_validator_log(
                     )
                 continue
 
-            if "process_certificate succeeded" in line:
+            if "process_transaction succeeded" in line:
                 m = _RE_EXEC.search(line)
                 if m:
                     yield Executed(validator, m.group(1), m.group(2), ts)
@@ -253,6 +213,7 @@ def parse_fullnode_log(
     """
     seen_digests: set = set()
     n_sub = n_fail = n_exec = 0
+    line_no = 0  # bound for the final progress tick even if the file is empty
 
     with open(path, "r", errors="replace") as f:
         for line_no, line in enumerate(f, 1):
@@ -283,12 +244,16 @@ def parse_fullnode_log(
 
             # Terminal failure — only the top-level drive_transaction INFO log.
             # Cheap substring gate first; regex only on candidates.
+            # "Retrying ..." marks the retriable per-attempt log (not terminal):
+            # the tx may still go on to win, so counting it as a final failure
+            # produces spurious cross-validator disagreement (see Check E).
             if "User transaction" in line and (
                 "failed to finalize" in line or "timed out" in line
             ):
                 if (
                     "submit_transaction" not in line
                     and "drive_transaction_once" not in line
+                    and "Retrying" not in line
                 ):
                     fm = _RE_FN_FINAL_FAIL.search(line)
                     reason = fm.group(1).strip() if fm else line.strip()

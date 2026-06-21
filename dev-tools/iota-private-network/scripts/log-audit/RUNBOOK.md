@@ -66,10 +66,11 @@ Dashboards at <http://localhost:3000/dashboards>.
 On the private network's Docker network so it reaches `fullnode-1` by hostname:
 
 ```bash
+export PRIVNET=<path-to-iota-repo>/dev-tools/iota-private-network
 docker run -d --name stress-benchmark \
   --network iota-private-network_iota-network \
-  -v "<path-to-iota-repo>/dev-tools/iota-private-network/configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro" \
-  -v "<path-to-iota-repo>/dev-tools/iota-private-network/configs/genesis/benchmark.keystore:/opt/iota/config/iota.keystore:ro" \
+  -v "$PRIVNET/configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro" \
+  -v "$PRIVNET/configs/genesis/benchmark.keystore:/opt/iota/config/iota.keystore:ro" \
   iotaledger/stress /usr/local/bin/stress \
     --local false \
     --fullnode-rpc-addresses http://fullnode-1:9000 \
@@ -114,11 +115,15 @@ cd <path-to-iota-repo>/dev-tools/iota-private-network/scripts/log-audit
 python3 audit.py /tmp/ds-logs --include-fullnode --json /tmp/ds-audit.json
 ```
 
-Exit code 0 = all checks passed; non-zero = a safety violation. Checks: single
-winner per contested input, cross-validator agreement, losers never executed,
-dropped counts reconcile, double-spend pair tracking (and fullnode consistency
-with `--include-fullnode`). `OVERALL: PASS` means no double-spend leaked; on
-`FAIL` the per-check detail and JSON list the offending digests/object refs.
+Exit codes: `0` = PASS (no double-spend leaked), `1` = FAIL (safety violation),
+`2` = INCONCLUSIVE (coverage check `[0]` failed — the parser matched none of a
+signal that must be present, usually because the node log format drifted from
+the parser regexes; nothing was verified, so treat it as not-yet-audited rather
+than safe). Checks: parser coverage, single winner per contested input,
+cross-validator agreement, losers never executed, dropped counts reconcile,
+double-spend pair tracking (and fullnode consistency with `--include-fullnode`).
+`OVERALL: PASS` means no double-spend leaked; on `FAIL` the per-check detail and
+JSON list the offending digests/object refs.
 
 ## Cleanup
 
