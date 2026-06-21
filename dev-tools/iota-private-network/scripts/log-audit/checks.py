@@ -46,6 +46,25 @@ class CheckResult:
         return any(a.severity == "WARN" for a in self.anomalies)
 
 
+# Substrings that identify a transaction rejected BEFORE consensus (at
+# submission), so it never reached the post-consensus owned-object contest and
+# legitimately produces no winner/loser line. Surfaced client-side in the
+# stress log's error and node-side in the fullnode's terminal-failure reason.
+_PRE_CONSENSUS_REJECTION_MARKERS = (
+    "rejected as invalid by more than 1/3 of validator stake during submission",
+    "is not available for consumption, current version",
+)
+
+
+def is_pre_consensus_rejection(reason: str) -> bool:
+    """True if `reason` is a pre-consensus (submission-time) rejection — a tx
+    that never entered a consensus commit, so its absence from validator
+    post-consensus logs is expected, not a completeness gap."""
+    if not reason:
+        return False
+    return any(m in reason for m in _PRE_CONSENSUS_REJECTION_MARKERS)
+
+
 # ---------- Coverage: the parser actually extracted the safety signal ------
 
 def check_coverage(
@@ -498,6 +517,7 @@ def check_stress_consistency(
 def check_double_spend_pairs(
     double_spend_attempts: Iterable,
     validator_events: Iterable,
+    pre_consensus_rejected: set = frozenset(),
 ) -> CheckResult:
     """Cross-reference the double-spend workload's pre-submission log against
     validator verdicts.
@@ -509,11 +529,21 @@ def check_double_spend_pairs(
     reports how many submitted digests were observed by at least one validator
     and how the validator quorum split them between winner / loser / executed.
 
+    A submitted digest that no validator observed is only a concern if it
+    cannot be explained: the workload submits faster than the contested coin
+    advances, so many attempts reference an already-consumed gas version and
+    are rejected pre-consensus (stale object) before reaching the
+    owned-object contest. `pre_consensus_rejected` carries the digests known
+    (from the stress error and/or fullnode terminal failure) to have been
+    rejected at submission; those are accounted for as benign and only the
+    unexplained remainder is flagged.
+
     Anomaly classes:
-      - WARN: a pair has digests that no validator ever observed
-              (completeness gap — submissions never reached post-consensus).
+      - WARN: a pair has missing digests NOT explained by a pre-consensus
+              rejection (a genuine completeness gap).
       - WARN: a pair has zero winners despite having multiple attempts
               (the contest never produced a winning tx on any validator).
+      - INFO: total missing digests accounted for as pre-consensus rejections.
     """
     # pair_id -> list of attempts (preserve order for diagnostics)
     by_pair: dict = defaultdict(list)
@@ -538,6 +568,8 @@ def check_double_spend_pairs(
     seen_on_validator = winners_any | losers_any
 
     anomalies: List[Anomaly] = []
+    total_missing = 0
+    total_accounted = 0
     for pair_id in sorted(by_pair):
         attempts = by_pair[pair_id]
         unique_digests = {a.digest for a in attempts}
@@ -546,11 +578,15 @@ def check_double_spend_pairs(
         losers = unique_digests & losers_any
         executed = unique_digests & executed_any
         missing = unique_digests - seen_on_validator
+        accounted = missing & pre_consensus_rejected
+        unexplained = missing - pre_consensus_rejected
+        total_missing += len(missing)
+        total_accounted += len(accounted)
 
-        if missing:
+        if unexplained:
             # Show a small sample with their (gas_object, gas_version) so the
             # user can find the matching lines in the stress log.
-            sample = sorted(missing)[:6]
+            sample = sorted(unexplained)[:6]
             sample_detail = [
                 {
                     "tx_digest": d,
@@ -563,15 +599,19 @@ def check_double_spend_pairs(
                 Anomaly(
                     severity="WARN",
                     message=(
-                        f"pair {pair_id}: {len(missing)}/{len(unique_digests)} "
-                        f"submitted digests never observed on any validator"
+                        f"pair {pair_id}: {len(unexplained)}/"
+                        f"{len(unique_digests)} submitted digests never "
+                        f"observed on any validator and not explained by a "
+                        f"pre-consensus rejection"
                     ),
                     evidence={
                         "pair_id": pair_id,
                         "gas_objects": sorted(gas_objects),
                         "submitted_unique": len(unique_digests),
                         "missing_count": len(missing),
-                        "missing_sample": sample_detail,
+                        "accounted_pre_consensus": len(accounted),
+                        "unexplained_count": len(unexplained),
+                        "unexplained_sample": sample_detail,
                     },
                 )
             )
@@ -594,6 +634,22 @@ def check_double_spend_pairs(
                     },
                 )
             )
+
+    if total_accounted:
+        anomalies.append(
+            Anomaly(
+                severity="INFO",
+                message=(
+                    f"{total_accounted}/{total_missing} digests missing from "
+                    f"validator post-consensus logs accounted for as "
+                    f"pre-consensus rejections (stale gas object) — benign"
+                ),
+                evidence={
+                    "accounted_pre_consensus": total_accounted,
+                    "total_missing": total_missing,
+                },
+            )
+        )
 
     return CheckResult(
         name="F",

@@ -214,6 +214,9 @@ def main() -> int:
     stress_gave_up = 0
     stress_expected_failures = 0
     double_spend_attempts: list = []
+    # Digests the stress client saw rejected at submission (pre-consensus), so
+    # their absence from validator post-consensus logs is expected (Check F).
+    pre_consensus_rejected: set = set()
     for path in stress_paths:
         t0 = time.time()
         n_attempts = 0
@@ -236,6 +239,8 @@ def main() -> int:
             for ev in parsers.parse_stress_log(path, progress_cb=_s_progress):
                 if isinstance(ev, parsers.StressAttempt):
                     n_attempts += 1
+                    if checks.is_pre_consensus_rejection(ev.err):
+                        pre_consensus_rejected.add(ev.digest)
                 elif isinstance(ev, parsers.StressGaveUp):
                     n_gave_up += 1
                 elif isinstance(ev, parsers.StressExpectedFailure):
@@ -283,9 +288,16 @@ def main() -> int:
             )
         )
     if double_spend_attempts:
+        # The fullnode's terminal-failure reason is a second source of
+        # pre-consensus rejections (e.g. stale input object) when available.
+        for digest, reason in fn_final_failures.items():
+            if checks.is_pre_consensus_rejection(reason):
+                pre_consensus_rejected.add(digest)
         results.append(
             checks.check_double_spend_pairs(
-                double_spend_attempts, validator_events
+                double_spend_attempts,
+                validator_events,
+                pre_consensus_rejected,
             )
         )
 
