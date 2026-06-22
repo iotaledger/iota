@@ -2,18 +2,20 @@
 
 This was tested using MacOS 14.3.1, Docker Compose: v2.13.0.
 
-This compose brings up 3 validators and 1 fullnode.
+This compose brings up 3 validators, 1 fullnode, and 1 stress (load gen) client.
 
 Steps for running:
 
-1. run compose
+1. build the `stress:testing` image
+
+   The `stress` tool now lives in the [`iotaledger/network-benchmark`](https://github.com/iotaledger/network-benchmark) repo. Build its image from a checkout of that repo and tag it `stress:testing` so the `stress` service in this compose can pick it up.
+
+2. run compose
 
 ```
 (optional) `rm -r /tmp/iota`
 docker compose up
 ```
-
-For load generation against this network, use the `stress` tool from the [`iotaledger/network-benchmark`](https://github.com/iotaledger/network-benchmark) repo.
 
 **additional info**
 The version of `iota` which is used to generate the genesis outputs must be on the same protocol version as the fullnode/validators (eg: `iotaledger/iota-node:mainnet-v1.19.1`)
