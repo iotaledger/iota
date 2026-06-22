@@ -667,10 +667,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 pub(crate) fn check_shard_version_matches_flags(shard: &ShardWithProof) -> ConsensusResult<()> {
     match shard {
         ShardWithProof::V2(_) => Ok(()),
-        ShardWithProof::V1(_) => Err(ConsensusError::WrongShardVersionForFlags {
-            actual: "V1",
-            fast_commit_sync: true,
-        }),
+        ShardWithProof::V1(_) => Err(ConsensusError::WrongShardVersionForFlags { actual: "V1" }),
     }
 }
 
@@ -4153,10 +4150,7 @@ mod tests {
         let result = check_shard_version_matches_flags(&shard_v1);
         assert!(matches!(
             result,
-            Err(ConsensusError::WrongShardVersionForFlags {
-                actual: "V1",
-                fast_commit_sync: true,
-            })
+            Err(ConsensusError::WrongShardVersionForFlags { actual: "V1" })
         ));
 
         // V2 — accepted (positive control).

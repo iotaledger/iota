@@ -246,7 +246,6 @@ pub(crate) fn check_commit_version_matches_flags(
         };
         return Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
-            fast_commit_sync: true,
             starfish_speed,
         });
     }
@@ -861,14 +860,12 @@ mod tests {
         let result = run_verify(commit, starfish_speed_on);
         let Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
-            fast_commit_sync,
             starfish_speed,
         }) = result
         else {
             panic!("expected WrongCommitVersionForFlags, got {result:?}");
         };
         assert_eq!(actual, expected_variant);
-        assert!(fast_commit_sync);
         assert_eq!(starfish_speed, starfish_speed_on);
     }
 

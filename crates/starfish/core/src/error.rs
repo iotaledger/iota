@@ -369,20 +369,14 @@ pub(crate) enum ConsensusError {
     #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
     MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
 
-    #[error(
-        "ShardWithProof variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync})"
-    )]
-    WrongShardVersionForFlags {
-        actual: &'static str,
-        fast_commit_sync: bool,
-    },
+    #[error("ShardWithProof variant {actual} is not the expected V2")]
+    WrongShardVersionForFlags { actual: &'static str },
 
     #[error(
-        "Commit variant {actual} does not match protocol flags (consensus_fast_commit_sync={fast_commit_sync}, consensus_starfish_speed={starfish_speed})"
+        "Commit variant {actual} does not match protocol flags (consensus_starfish_speed={starfish_speed})"
     )]
     WrongCommitVersionForFlags {
         actual: &'static str,
-        fast_commit_sync: bool,
         starfish_speed: bool,
     },
 
