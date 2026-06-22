@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // an event is emitted during authentication
@@ -28,7 +28,7 @@ public fun authenticate_with_event(
     });
 }
 
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_with_event" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,5) --inputs "authenticate" "authenticate_with_event" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 
 //# view-object 4,2
 

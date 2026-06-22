@@ -1096,9 +1096,6 @@ allocate_tokens
 activate_validators
 	fun
 	0x3::genesis
-DerivedObjectKey
-	public struct
-	0x2::derived_object
 secp256k1_ecrecover
 	public fun
 	0x2::ecdsa_k1
@@ -1435,7 +1432,115 @@ get_entry_by_idx_mut
 remove_entry_by_idx
 	public fun
 	0x2::vec_map
+Receiving
+	public struct
+	0x2::transfer
+transfer
+	public fun
+	0x2::transfer
+public_transfer
+	public fun
+	0x2::transfer
+freeze_object
+	public fun
+	0x2::transfer
+public_freeze_object
+	public fun
+	0x2::transfer
+share_object
+	public fun
+	0x2::transfer
+public_share_object
+	public fun
+	0x2::transfer
+receive
+	public fun
+	0x2::transfer
+public_receive
+	public fun
+	0x2::transfer
+receiving_object_id
+	public fun
+	0x2::transfer
+freeze_object_impl
+	public(package) fun
+	0x2::transfer
+share_object_impl
+	public(package) fun
+	0x2::transfer
+transfer_impl
+	public(package) fun
+	0x2::transfer
+receive_impl
+	fun
+	0x2::transfer
+DerivedObjectKey
+	public struct
+	0x2::derived_object
+derive_address
+	public fun
+	0x2::derived_object
+ModuleMetadata
+	public struct
+	0x2::module_metadata
+ModuleMetadataKey
+	public struct
+	0x2::module_metadata
+ViewFunctionMetadataV1FieldName
+	public struct
+	0x2::module_metadata
+borrow_view_functions_metadata_v1
+	public fun
+	0x2::module_metadata
+contains_view_functions_metadata_v1
+	public fun
+	0x2::module_metadata
+is_view_function_v1
+	public fun
+	0x2::module_metadata
+length
+	public fun
+	0x2::module_metadata
+is_empty
+	public fun
+	0x2::module_metadata
+new
+	public(package) fun
+	0x2::module_metadata
+add_view_function_metadata_v1
+	public(package) fun
+	0x2::module_metadata
+add
+	public(package) fun
+	0x2::module_metadata
+borrow_mut
+	public(package) fun
+	0x2::module_metadata
+remove
+	public(package) fun
+	0x2::module_metadata
+borrow
+	public(package) fun
+	0x2::module_metadata
+contains
+	public(package) fun
+	0x2::module_metadata
+contains_with_type
+	public(package) fun
+	0x2::module_metadata
 PackageMetadataKey
+	public struct
+	0x2::package_metadata
+PackageMetadataVersionFieldName
+	public struct
+	0x2::package_metadata
+ModuleMetadataV1FieldName
+	public struct
+	0x2::package_metadata
+ModulesMetadataFieldName
+	public struct
+	0x2::package_metadata
+ModuleName
 	public struct
 	0x2::package_metadata
 PackageMetadataV1
@@ -1456,6 +1561,42 @@ runtime_id
 package_version
 	public fun
 	0x2::package_metadata
+module_metadata
+	public fun
+	0x2::package_metadata
+module_authenticator_function_metadata_v1
+	public fun
+	0x2::package_metadata
+authenticator_function_metadata_v1
+	public fun
+	0x2::package_metadata
+try_get_authenticator_function_metadata_v1
+	public fun
+	0x2::package_metadata
+account_type
+	public fun
+	0x2::package_metadata
+function_name
+	public fun
+	0x2::package_metadata
+has_package_metadata_version_field
+	public fun
+	0x2::package_metadata
+borrow_package_metadata_version_field
+	public fun
+	0x2::package_metadata
+borrow_modules_metadata
+	public fun
+	0x2::package_metadata
+create_package_metadata_v1_with_dynamic_metadata
+	fun
+	0x2::package_metadata
+build_package_metadata_v1_with_dynamic_metadata
+	fun
+	0x2::package_metadata
+create_modules_metadata
+	fun
+	0x2::package_metadata
 try_get_modules_metadata_v1
 	public fun
 	0x2::package_metadata
@@ -1466,9 +1607,6 @@ try_get_authenticator_metadata_v1
 	public fun
 	0x2::package_metadata
 authenticator_metadata_v1
-	public fun
-	0x2::package_metadata
-account_type
 	public fun
 	0x2::package_metadata
 AuthenticatorFunctionRefV1
@@ -2293,48 +2431,6 @@ put_back
 destroy
 	public fun
 	0x2::borrow
-Receiving
-	public struct
-	0x2::transfer
-transfer
-	public fun
-	0x2::transfer
-public_transfer
-	public fun
-	0x2::transfer
-freeze_object
-	public fun
-	0x2::transfer
-public_freeze_object
-	public fun
-	0x2::transfer
-share_object
-	public fun
-	0x2::transfer
-public_share_object
-	public fun
-	0x2::transfer
-receive
-	public fun
-	0x2::transfer
-public_receive
-	public fun
-	0x2::transfer
-receiving_object_id
-	public fun
-	0x2::transfer
-freeze_object_impl
-	public(package) fun
-	0x2::transfer
-share_object_impl
-	public(package) fun
-	0x2::transfer
-transfer_impl
-	public(package) fun
-	0x2::transfer
-receive_impl
-	fun
-	0x2::transfer
 Clock
 	public struct
 	0x2::clock
