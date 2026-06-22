@@ -29,7 +29,10 @@ mod error;
 mod executor;
 mod store;
 
-#[cfg(all(any(feature = "grpc", feature = "graphql"), not(target_arch = "wasm32")))]
+#[cfg(all(
+    any(feature = "grpc", feature = "graphql"),
+    not(target_arch = "wasm32")
+))]
 mod caching;
 
 #[cfg(all(feature = "grpc", not(target_arch = "wasm32")))]
