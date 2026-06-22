@@ -1728,7 +1728,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV1, SerializedTransactionsV2, TransactionFetchMode,
+            SerializedTransactionsV2, TransactionFetchMode,
         },
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -1801,14 +1801,8 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_peer(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+    async fn test_handle_subscribed_block_bundle_wrong_peer() {
+        let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1901,14 +1895,8 @@ mod tests {
     /// it cannot grow shard/transaction state.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_drops_far_future(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+    async fn test_handle_subscribed_block_bundle_drops_far_future() {
+        let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1993,14 +1981,8 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment() {
+        let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -2117,15 +2099,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_bad_headers(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_handle_subscribed_block_bundle_with_bad_headers() {
         let committee_size = 4;
-        let (mut context, _keys) = Context::new_for_test(committee_size);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let (context, _keys) = Context::new_for_test(committee_size);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -2539,17 +2515,11 @@ mod tests {
     }
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_additional_headers(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_handle_subscribed_block_bundle_with_additional_headers() {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2709,17 +2679,11 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribe_bundle_without_additional_headers(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_handle_subscribe_bundle_without_additional_headers() {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2893,19 +2857,13 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_handle_subscribe_block_bundles_request(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_handle_subscribe_block_bundles_request() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
         let rounds = 10;
         let validators = 4;
         let to_whom_authority = AuthorityIndex::new_for_test(1);
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3547,15 +3505,11 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_commits(#[values(false, true)] consensus_fast_commit_sync: bool) {
+    async fn test_handle_fetch_commits() {
         // GIVEN
         let rounds = 15;
         let validators = 4;
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3768,23 +3722,20 @@ mod tests {
         );
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_transactions(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_handle_fetch_transactions() {
         // GIVEN
         let rounds = 10;
         let validators = 4;
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+            .set_consensus_fast_commit_sync_for_testing(true);
         let context = Context {
             parameters: Parameters {
                 max_transactions_per_transaction_sync_fetch: 20,
                 max_transactions_per_commit_sync_fetch: 10,
-                enable_fast_commit_syncer: consensus_fast_commit_sync,
+                enable_fast_commit_syncer: true,
                 ..context.parameters
             },
             ..context
@@ -3891,26 +3842,18 @@ mod tests {
 
         let mut block_refs_to_request_first_batch: Vec<GenericTransactionRef> = (1..=rounds)
             .flat_map(|round| {
-                all_block_headers[round as usize].iter().map(|bh| {
-                    if consensus_fast_commit_sync {
-                        GenericTransactionRef::TransactionRef(bh.transaction_ref())
-                    } else {
-                        GenericTransactionRef::from(bh.reference())
-                    }
-                })
+                all_block_headers[round as usize]
+                    .iter()
+                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
             })
             .collect();
 
         let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1
             ..=2 * rounds)
             .flat_map(|round| {
-                all_block_headers[round as usize].iter().map(|bh| {
-                    if consensus_fast_commit_sync {
-                        GenericTransactionRef::TransactionRef(bh.transaction_ref())
-                    } else {
-                        GenericTransactionRef::from(bh.reference())
-                    }
-                })
+                all_block_headers[round as usize]
+                    .iter()
+                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
             })
             .collect();
 
@@ -3939,55 +3882,28 @@ mod tests {
 
         // Check the correctness of the received transactions
         for (i, serialized_transactions_bytes) in serialized_transactions.iter().enumerate() {
-            if consensus_fast_commit_sync {
-                // Deserialize V2 format with TransactionRef
-                let deserialized: SerializedTransactionsV2 =
-                    bcs::from_bytes(serialized_transactions_bytes)
-                        .expect("deserialization should succeed");
-                let transaction_ref = deserialized.transaction_ref;
+            let deserialized: SerializedTransactionsV2 =
+                bcs::from_bytes(serialized_transactions_bytes)
+                    .expect("deserialization should succeed");
+            let transaction_ref = deserialized.transaction_ref;
 
-                // Verify it matches the expected ref
-                assert_eq!(
-                    GenericTransactionRef::TransactionRef(transaction_ref),
-                    block_refs_to_request_first_batch[i]
-                );
+            // Verify it matches the expected ref
+            assert_eq!(
+                GenericTransactionRef::TransactionRef(transaction_ref),
+                block_refs_to_request_first_batch[i]
+            );
 
-                let serialized_transactions = deserialized.serialized_transactions;
-                // Verify the transaction commitment matches
-                assert_eq!(
-                    transaction_ref.transactions_commitment,
-                    TransactionsCommitment::compute_transactions_commitment(
-                        &serialized_transactions,
-                        &context,
-                        &mut encoder
-                    )
-                    .unwrap()
-                );
-            } else {
-                // Deserialize V1 format with BlockRef
-                let deserialized: SerializedTransactionsV1 =
-                    bcs::from_bytes(serialized_transactions_bytes)
-                        .expect("deserialization should succeed");
-                let block_ref = deserialized.block_ref;
-                assert_eq!(
-                    GenericTransactionRef::from(block_ref),
-                    block_refs_to_request_first_batch[i]
-                );
-                let serialized_transactions = deserialized.serialized_transactions;
-                let block_header = all_block_headers[block_ref.round as usize]
-                    .iter()
-                    .find(|header| header.reference() == block_ref)
-                    .expect("We expect to find the header with such block_ref");
-                assert_eq!(
-                    block_header.transactions_commitment(),
-                    TransactionsCommitment::compute_transactions_commitment(
-                        &serialized_transactions,
-                        &context,
-                        &mut encoder
-                    )
-                    .unwrap()
-                );
-            }
+            let serialized_transactions = deserialized.serialized_transactions;
+            // Verify the transaction commitment matches
+            assert_eq!(
+                transaction_ref.transactions_commitment,
+                TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    &context,
+                    &mut encoder
+                )
+                .unwrap()
+            );
         }
 
         block_refs_to_request_second_batch.truncate(
@@ -4118,14 +4034,11 @@ mod tests {
         // Also write all block headers to the store so below-GC refs can be found
         let all_headers: Vec<VerifiedBlockHeader> = dag_builder.block_headers(1..=rounds);
         store
-            .write(
-                WriteBatch {
-                    block_headers: all_headers,
-                    fast_commit_sync_flag: Some(false),
-                    ..WriteBatch::default()
-                },
-                context.clone(),
-            )
+            .write(WriteBatch {
+                block_headers: all_headers,
+                fast_commit_sync_flag: Some(false),
+                ..WriteBatch::default()
+            })
             .expect("Failed to write block headers to store");
 
         // Set last_solid_subdag_base so gc_round_for_last_solid_commit() is ~10.
@@ -4225,20 +4138,19 @@ mod tests {
     #[test]
     fn check_shard_version_matches_flags_when_fast_commit_sync_enabled() {
         use super::check_shard_version_matches_flags;
-        use crate::{block_header::ShardWithProof, error::ConsensusError};
-        let mut config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
-        config.set_consensus_fast_commit_sync_for_testing(true);
+        use crate::{
+            block_header::{ShardWithProof, ShardWithProofV1},
+            error::ConsensusError,
+        };
 
-        // V1 reaching a flag-ON receiver — the case the wire-format dispatch
-        // does not catch on its own.
-        let shard_v1 = ShardWithProof::new(
-            vec![],
-            vec![],
-            BlockRef::default(),
-            TransactionsCommitment::default(),
-            false,
-        );
-        let result = check_shard_version_matches_flags(&shard_v1, &config);
+        // A legacy V1 shard reaching the receiver is rejected.
+        let shard_v1 = ShardWithProof::V1(ShardWithProofV1 {
+            shard: vec![],
+            transaction_commitment: TransactionsCommitment::default(),
+            proof: vec![],
+            block_ref: BlockRef::default(),
+        });
+        let result = check_shard_version_matches_flags(&shard_v1);
         assert!(matches!(
             result,
             Err(ConsensusError::WrongShardVersionForFlags {
@@ -4247,14 +4159,13 @@ mod tests {
             })
         ));
 
-        // V2 with flag ON — accepted (positive control).
+        // V2 — accepted (positive control).
         let shard_v2 = ShardWithProof::new(
             vec![],
             vec![],
             BlockRef::default(),
             TransactionsCommitment::default(),
-            true,
         );
-        check_shard_version_matches_flags(&shard_v2, &config).unwrap();
+        check_shard_version_matches_flags(&shard_v2).unwrap();
     }
 }

@@ -1609,17 +1609,15 @@ mod tests {
         assert_eq!(block_manager.last_gc_floor_applied, first_floor);
     }
 
-    /// With the `consensus_block_restrictions` flag off, the sweep is fully
-    /// disabled: no eviction, no floor advance, no filtering of low-round
-    /// ancestors.
+    /// Accepting a header advances the applied gc floor to the commit's gc
+    /// floor: the sweep runs on every accept, so a header whose only missing
+    /// ancestor is below that floor is accepted (not suspended) and the floor
+    /// is recorded as applied.
     #[tokio::test]
-    async fn gc_eviction_disabled_when_flag_off() {
+    async fn gc_eviction_advances_applied_floor_on_accept() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(false);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1630,20 +1628,19 @@ mod tests {
 
         let mut block_manager = BlockManager::new(context, dag_state.clone());
 
-        // A header with a missing ancestor far below the would-be gc_floor
-        // should still be suspended (legacy behavior).
         let gc_floor = dag_state.read().gc_round_for_last_commit();
         assert!(gc_floor > 0);
         let old_ancestor = block_ref(gc_floor.saturating_sub(10), 0);
         let h = header(gc_floor + 50, 1, vec![old_ancestor]);
 
-        let (accepted, missing) = block_manager.try_accept_block_headers(vec![h], DataSource::Test);
+        let (accepted, missing) =
+            block_manager.try_accept_block_headers(vec![h.clone()], DataSource::Test);
+        assert_eq!(accepted, vec![h]);
         assert!(
-            accepted.is_empty(),
-            "header should be suspended when flag off"
+            missing.is_empty(),
+            "old ancestor below gc_floor should not be reported as missing"
         );
-        assert_eq!(missing, BTreeSet::from([old_ancestor]));
-        assert_eq!(block_manager.last_gc_floor_applied, 0);
+        assert_eq!(block_manager.last_gc_floor_applied, gc_floor);
     }
 
     /// A header suspended at an earlier (lower) gc_floor must not be promoted

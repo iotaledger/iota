@@ -1934,7 +1934,6 @@ mod test {
     use futures::{StreamExt, stream::FuturesUnordered};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use iota_protocol_config::ProtocolConfig;
-    use rstest::rstest;
     use serial_test::serial;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::time::sleep;
@@ -1956,17 +1955,10 @@ mod test {
 
     /// Recover Core and continue proposing from the last round which forms a
     /// quorum.
-    #[rstest]
     #[tokio::test]
-    async fn test_core_recover_from_store_for_full_round(
-        #[values(true, false)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_core_recover_from_store_for_full_round() {
         telemetry_subscribers::init_for_testing();
-        let (mut context, mut key_pairs) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -1983,17 +1975,11 @@ mod test {
         // able to commit transactions up to round 2.
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
-                let generic_ref = if consensus_fast_commit_sync {
-                    // When consensus_fast_commit_sync is enabled, create TransactionRef variant
-                    GenericTransactionRef::TransactionRef(TransactionRef {
-                        round: block.round(),
-                        author: block.author(),
-                        transactions_commitment: block.transactions_commitment(),
-                    })
-                } else {
-                    // When disabled, use BlockRef variant
-                    GenericTransactionRef::from(block.reference())
-                };
+                let generic_ref = GenericTransactionRef::TransactionRef(TransactionRef {
+                    round: block.round(),
+                    author: block.author(),
+                    transactions_commitment: block.transactions_commitment(),
+                });
                 let subscription =
                     transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
@@ -2006,7 +1992,6 @@ mod test {
                 WriteBatch::default()
                     .block_headers(dag_builder.block_headers(1..=num_rounds))
                     .transactions(dag_builder.transactions(1..=num_rounds)),
-                context.clone(),
             )
             .expect("We should expect a successful storing of headers");
 
@@ -2137,7 +2122,6 @@ mod test {
                 WriteBatch::default()
                     .block_headers(block_headers)
                     .transactions(block_transactions),
-                context.clone(),
             )
             .expect("Storage error");
 
@@ -2477,25 +2461,17 @@ mod test {
     /// Validates `min_ancestor_round`, the helper driving
     /// `ancestors_to_propose`'s drop-too-old filter.
     ///
-    /// Three properties are checked:
+    /// Two properties are checked:
     ///   1. `saturating_sub` clamps small `clock_round`s to `0`, so the
     ///      strict-`<` filter in `ancestors_to_propose` self-disables there and
     ///      genesis/quorum-round ancestors can never be accidentally dropped.
     ///   2. Well above `gc_depth`, the helper returns `clock_round - gc_depth`
     ///      (matching `Context::min_ref_round` and the verifier's bound).
-    ///   3. When the `consensus_fast_commit_sync` protocol flag is off the
-    ///      helper returns `GENESIS_ROUND = 0` unconditionally — the filter
-    ///      becomes a no-op, preserving backwards compatibility on networks
-    ///      without the flag.
     #[tokio::test]
     async fn test_min_ancestor_round() {
         telemetry_subscribers::init_for_testing();
         let (context, _) = Context::new_for_test(4);
         let gc_depth = context.protocol_config.gc_depth();
-        assert!(
-            context.protocol_config.consensus_fast_commit_sync(),
-            "test assumes consensus_fast_commit_sync is enabled at max version"
-        );
 
         let fixture = CoreTextFixture::new(
             context.clone(),
@@ -2524,27 +2500,6 @@ mod test {
                 "min_ancestor_round({clock_round}) should be clock_round - gc_depth (gc_depth={gc_depth})",
             );
         }
-
-        // (3) Flag off → no-op. Build a fresh fixture with the flag disabled
-        // and confirm the helper returns GENESIS_ROUND for a round well
-        // above gc_depth (where otherwise the bound would be non-zero).
-        let mut context_off = context;
-        context_off
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(false);
-        let fixture_off = CoreTextFixture::new(
-            context_off,
-            vec![1; 4],
-            AuthorityIndex::new_for_test(0),
-            false,
-            false,
-        )
-        .await;
-        assert_eq!(
-            fixture_off.core.min_ancestor_round(1000),
-            GENESIS_ROUND,
-            "flag-off should return GENESIS_ROUND regardless of clock_round"
-        );
     }
 
     #[tokio::test]
@@ -2963,21 +2918,10 @@ mod test {
         }
     }
 
-    #[rstest]
-    #[case(true, true)]
-    #[case(true, false)]
-    #[case(false, false)]
     #[tokio::test]
     #[serial]
-    async fn test_sequenced_transactions_no_headers(
-        #[case] commit_only_for_traversed_headers: bool,
-        #[case] consensus_fast_commit_sync: bool,
-    ) {
-        test_sequenced_transactions_no_headers_impl(
-            commit_only_for_traversed_headers,
-            consensus_fast_commit_sync,
-        )
-        .await;
+    async fn test_sequenced_transactions_no_headers() {
+        test_sequenced_transactions_no_headers_impl(true, true).await;
     }
 
     #[tokio::test]
@@ -3005,6 +2949,9 @@ mod test {
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
                 commit_only_for_traversed_headers,
             );
+        // Enforce the protocol-config invariant before exercising the pipeline:
+        // fast commit sync requires committing only for traversed headers.
+        assert!(context.protocol_config.consensus_fast_commit_sync());
         let own_index = AuthorityIndex::new_for_test(0);
         let core_fixture_own = CoreTextFixture::new(
             context.clone(),
@@ -3168,13 +3115,7 @@ mod test {
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
             .filter(|tx| {
-                let generic_ref = if consensus_fast_commit_sync {
-                    GenericTransactionRef::TransactionRef(tx.transaction_ref())
-                } else {
-                    GenericTransactionRef::BlockRef(
-                        tx.block_ref().expect("block_ref should be set in test"),
-                    )
-                };
+                let generic_ref = GenericTransactionRef::TransactionRef(tx.transaction_ref());
                 missing_transactions.contains_key(&generic_ref)
             })
             .collect();
@@ -3640,17 +3581,10 @@ mod test {
         *receiver.borrow_and_update()
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_commit_and_notify_for_block_status(
-        #[values(true, false)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_commit_and_notify_for_block_status() {
         telemetry_subscribers::init_for_testing();
-        let (mut context, mut key_pairs) = Context::new_for_test(4);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let (context, mut key_pairs) = Context::new_for_test(4);
 
         let context = Arc::new(context);
 
@@ -3668,17 +3602,11 @@ mod test {
         // able to commit transactions up to round 4.
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
-                let generic_ref = if consensus_fast_commit_sync {
-                    // When consensus_fast_commit_sync is enabled, create TransactionRef variant
-                    GenericTransactionRef::TransactionRef(TransactionRef {
-                        round: block.round(),
-                        author: block.author(),
-                        transactions_commitment: block.transactions_commitment(),
-                    })
-                } else {
-                    // When disabled, use BlockRef variant
-                    GenericTransactionRef::from(block.reference())
-                };
+                let generic_ref = GenericTransactionRef::TransactionRef(TransactionRef {
+                    round: block.round(),
+                    author: block.author(),
+                    transactions_commitment: block.transactions_commitment(),
+                });
                 let subscription =
                     transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
@@ -3687,18 +3615,12 @@ mod test {
 
         // write headers in store
         store
-            .write(
-                WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)),
-                context.clone(),
-            )
+            .write(WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)))
             .expect("We should expect a successful storing of headers");
 
         // write transactions in store
         store
-            .write(
-                WriteBatch::default().transactions(dag_builder.transactions(1..=8)),
-                context.clone(),
-            )
+            .write(WriteBatch::default().transactions(dag_builder.transactions(1..=8)))
             .expect("We should expect a successful storing of transactions");
 
         // create dag state after all blocks have been written to store

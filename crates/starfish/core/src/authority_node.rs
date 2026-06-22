@@ -529,18 +529,15 @@ pub(crate) mod tests {
         transaction::NoopTransactionVerifier,
     };
 
-    #[rstest]
     #[tokio::test]
-    async fn test_authority_start_and_stop(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_authority_start_and_stop() {
         let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
         let registry = Registry::new();
 
         let temp_dir = TempDir::new().unwrap();
         let parameters = Parameters {
             db_path: temp_dir.keep(),
-            enable_fast_commit_syncer: consensus_fast_commit_sync,
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -552,8 +549,7 @@ pub(crate) mod tests {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
 
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let authority = ConsensusAuthority::start(
             0,
@@ -582,18 +578,14 @@ pub(crate) mod tests {
     /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee(
-        #[values(4, 6)] num_of_authorities: usize,
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_restart_authority_committee(#[values(4, 6)] num_of_authorities: usize) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
         let (committee, keypairs) =
             local_committee_and_keys(0, vec![1; num_of_authorities].to_vec());
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs = (0..num_of_authorities)
             .map(|_| TempDir::new().unwrap())
@@ -612,7 +604,6 @@ pub(crate) mod tests {
                 keypairs.clone(),
                 boot_counters[index],
                 protocol_config.clone(),
-                consensus_fast_commit_sync,
             )
             .await;
             boot_counters[index] += 1;
@@ -707,7 +698,6 @@ pub(crate) mod tests {
             keypairs.clone(),
             boot_counters[stopped_authority_index],
             protocol_config.clone(),
-            consensus_fast_commit_sync,
         )
         .await;
         boot_counters[stopped_authority_index] += 1;
@@ -793,16 +783,12 @@ pub(crate) mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_small_committee(
-        #[values(1, 2, 3)] num_authorities: usize,
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_small_committee(#[values(1, 2, 3)] num_authorities: usize) {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; num_authorities]);
-        let mut protocol_config: ProtocolConfig = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let protocol_config: ProtocolConfig = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs = (0..num_authorities)
             .map(|_| TempDir::new().unwrap())
@@ -820,7 +806,6 @@ pub(crate) mod tests {
                 keypairs.clone(),
                 boot_counters[index],
                 protocol_config.clone(),
-                consensus_fast_commit_sync,
             )
             .await;
             boot_counters[index] += 1;
@@ -883,7 +868,6 @@ pub(crate) mod tests {
             keypairs.clone(),
             boot_counters[index],
             protocol_config.clone(),
-            consensus_fast_commit_sync,
         )
         .await;
         boot_counters[index] += 1;
@@ -899,11 +883,8 @@ pub(crate) mod tests {
 
     /// This test checks that an authority can recover from amnesia
     /// successfully.
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_amnesia_recovery_success(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_amnesia_recovery_success() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -915,8 +896,7 @@ pub(crate) mod tests {
         let mut temp_dirs = BTreeMap::new();
         let mut boot_counters = [0; NUM_OF_AUTHORITIES];
 
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         for (index, _authority_info) in committee.authorities() {
             let dir = TempDir::new().unwrap();
@@ -927,7 +907,6 @@ pub(crate) mod tests {
                 keypairs.clone(),
                 boot_counters[index],
                 protocol_config.clone(),
-                consensus_fast_commit_sync,
             )
             .await;
             assert!(
@@ -999,7 +978,6 @@ pub(crate) mod tests {
             keypairs.clone(),
             boot_counters[index_1],
             protocol_config.clone(),
-            consensus_fast_commit_sync,
         )
         .await;
         assert!(
@@ -1039,7 +1017,6 @@ pub(crate) mod tests {
             keypairs,
             boot_counters[index_2],
             protocol_config.clone(),
-            consensus_fast_commit_sync,
         )
         .await;
         assert!(
@@ -1083,7 +1060,6 @@ pub(crate) mod tests {
         keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
         boot_counter: u64,
         protocol_config: ProtocolConfig,
-        consensus_fast_commit_sync: bool,
     ) -> (
         ConsensusAuthority,
         UnboundedReceiver<CommittedSubDag>,
@@ -1098,7 +1074,7 @@ pub(crate) mod tests {
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
-            enable_fast_commit_syncer: consensus_fast_commit_sync,
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};

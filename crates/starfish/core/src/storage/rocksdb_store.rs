@@ -32,7 +32,10 @@ use crate::{
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlockHeader by refs.
     block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-    /// Stores Transactions by block refs
+    /// Legacy column family for transactions keyed by block ref. No longer
+    /// written (transactions are stored in `transactions_by_tx_refs`); retained
+    /// so existing databases still open and pre-existing entries remain
+    /// readable via the `GenericTransactionRef::BlockRef` path.
     transactions: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
     /// Stores Transactions by transaction refs
     transactions_by_tx_refs: DBMap<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,

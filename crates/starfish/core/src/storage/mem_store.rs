@@ -5,7 +5,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     ops::Bound::Included,
-    sync::Arc,
 };
 
 use bytes::Bytes;
@@ -22,7 +21,6 @@ use crate::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
         TrustedCommit,
     },
-    context::Context,
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorCounts,
     storage::rocksdb_store::check_ref_consistency,

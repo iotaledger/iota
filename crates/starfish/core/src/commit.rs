@@ -1293,7 +1293,6 @@ mod tests {
                 WriteBatch::default()
                     .block_headers(first_round_headers)
                     .transactions(first_round_transactions),
-                context.clone(),
             )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
@@ -1316,7 +1315,6 @@ mod tests {
                         WriteBatch::default()
                             .block_headers(vec![block.verified_block_header.clone()])
                             .transactions(vec![block.verified_transactions.clone()]),
-                        context.clone(),
                     )
                     .unwrap();
                 new_ancestors.push(block.reference());
@@ -1393,10 +1391,7 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(
-                WriteBatch::default().block_headers(first_round_headers),
-                context.clone(),
-            )
+            .write(WriteBatch::default().block_headers(first_round_headers))
             .unwrap();
         blocks.append(&mut first_round_references.clone());
 
@@ -1414,10 +1409,7 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(
-                        WriteBatch::default().block_headers(vec![block.clone()]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().block_headers(vec![block.clone()]))
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());
