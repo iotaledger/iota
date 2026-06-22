@@ -200,7 +200,7 @@ impl IndexerReader {
     ///
     /// In case the IndexerReader fails to retrieve data, the fallback reader
     /// will be used to retrieve the data.
-    pub(crate) fn with_fallback_reader(&mut self, fallback: HistoricalFallbackReader) {
+    pub fn with_fallback_reader(&mut self, fallback: HistoricalFallbackReader) {
         self.fallback = Some(fallback);
     }
 
