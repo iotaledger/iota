@@ -151,11 +151,6 @@ impl BlockManager {
     /// Cheap when the floor has not advanced since the last call: a single
     /// read-locked field access on `DagState` and a comparison.
     fn maybe_evict_below_gc_floor(&mut self) -> Vec<VerifiedBlockHeader> {
-        // Gated on `consensus_block_restrictions`. Off the flag, BlockManager
-        // retains its original "fetch every missing ancestor forever" behavior.
-        if !self.context.protocol_config.consensus_block_restrictions() {
-            return vec![];
-        }
         let gc_floor = self.dag_state.read().gc_round_for_last_commit();
         if gc_floor <= self.last_gc_floor_applied {
             return vec![];
@@ -357,17 +352,11 @@ impl BlockManager {
         }
 
         if let Some(blocks) = blocks {
-            // Mirrors the gate in `filter_out_already_processed_and_sort`: when
-            // the `consensus_block_restrictions` flag is on, a block at or below the GC
-            // floor cannot be sequenced and its header is dropped on arrival.
-            // Suspending its transactions would leave them stranded until the
-            // floor advanced again, allowing the map to grow between sweeps.
-            let gc_filter_round: Option<Round> =
-                if self.context.protocol_config.consensus_block_restrictions() {
-                    Some(self.last_gc_floor_applied)
-                } else {
-                    None
-                };
+            // Mirrors the drop in `filter_out_already_processed_and_sort`: a block
+            // at or below the GC floor cannot be sequenced and its header is dropped
+            // on arrival. Suspending its transactions would leave them stranded
+            // until the floor advanced again, letting the map grow between sweeps.
+            let gc_filter_round = self.last_gc_floor_applied;
             let mut accepted_transactions_from_blocks = vec![];
             for block in blocks {
                 if block_refs_to_be_accepted.contains(&block.reference())
@@ -375,7 +364,7 @@ impl BlockManager {
                 {
                     accepted_transactions_from_blocks.push(block.verified_transactions);
                 } else if block.verified_transactions.has_transactions()
-                    && gc_filter_round.is_none_or(|f| block.round() > f)
+                    && block.round() > gc_filter_round
                 {
                     // optimization to avoid suspending 0 set verified transactions.
                     self.suspended_transactions
@@ -543,23 +532,16 @@ impl BlockManager {
         incoming_headers: Vec<VerifiedBlockHeader>,
         present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
     ) -> BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>> {
-        // Off the `consensus_block_restrictions` flag, every absent ancestor is treated
-        // as missing (legacy behavior). With the flag on, ancestors at or below
-        // the GC floor cannot affect any not-yet-sequenced block and are
-        // skipped.
-        let gc_filter_round: Option<Round> =
-            if self.context.protocol_config.consensus_block_restrictions() {
-                Some(self.last_gc_floor_applied)
-            } else {
-                None
-            };
+        // Ancestors at or below the GC floor cannot affect any not-yet-sequenced
+        // block and are skipped.
+        let gc_filter_round = self.last_gc_floor_applied;
         let mut missing_ancestors = BTreeMap::new();
         for incoming_header in incoming_headers {
             let ancestors: &[BlockRef] = incoming_header.ancestors();
             let mut missing_ancestors_set = BTreeSet::new();
             for ancestor in ancestors {
                 let found = present_header_and_ancestor_refs_in_dag_state.contains(ancestor);
-                let below_gc = gc_filter_round.is_some_and(|f| ancestor.round <= f);
+                let below_gc = ancestor.round <= gc_filter_round;
                 if !found && !below_gc {
                     missing_ancestors_set.insert(*ancestor);
                 }
@@ -576,19 +558,13 @@ impl BlockManager {
         present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
         source: DataSource,
     ) -> Vec<VerifiedBlockHeader> {
-        let gc_filter_round: Option<Round> =
-            if self.context.protocol_config.consensus_block_restrictions() {
-                Some(self.last_gc_floor_applied)
-            } else {
-                None
-            };
+        let gc_filter_round = self.last_gc_floor_applied;
         let mut filtered = block_headers
             .into_iter()
             .filter_map(|block_header| {
-                // With the `consensus_block_restrictions` flag on, drop incoming headers whose
-                // own round is at or below the GC floor; nothing they carry can
-                // be sequenced anymore.
-                if gc_filter_round.is_some_and(|f| block_header.round() <= f) {
+                // Drop incoming headers whose own round is at or below the GC
+                // floor; nothing they carry can be sequenced anymore.
+                if block_header.round() <= gc_filter_round {
                     self.context
                         .metrics
                         .node_metrics

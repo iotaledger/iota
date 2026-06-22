@@ -1476,28 +1476,26 @@ impl Core {
             return false;
         }
 
-        // Under `consensus_block_restrictions`, skip if the candidate round
-        // does not exceed an approximation of the quorum commit round. Blocks
-        // at or below it cannot improve the commit rule.
-        if self.context.protocol_config.consensus_block_restrictions() {
-            let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
-            let approx_quorum_round =
-                local_commit_round + quorum_commit_index.saturating_sub(local_commit_index);
-            if clock_round <= approx_quorum_round {
-                return self.skip_proposal(
-                    clock_round,
-                    SkipProposalReason::BehindQuorumCommitRound {
-                        approx_quorum: approx_quorum_round,
-                    },
-                );
-            }
-
-            // We are about to propose: refresh DagState's known quorum commit
-            // index so the eviction of `pending_commit_votes` is bounded.
-            self.dag_state
-                .write()
-                .set_last_known_quorum_commit_index(quorum_commit_index);
+        // Skip if the candidate round does not exceed an approximation of the
+        // quorum commit round. Blocks at or below it cannot improve the commit
+        // rule.
+        let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+        let approx_quorum_round =
+            local_commit_round + quorum_commit_index.saturating_sub(local_commit_index);
+        if clock_round <= approx_quorum_round {
+            return self.skip_proposal(
+                clock_round,
+                SkipProposalReason::BehindQuorumCommitRound {
+                    approx_quorum: approx_quorum_round,
+                },
+            );
         }
+
+        // We are about to propose: refresh DagState's known quorum commit
+        // index so the eviction of `pending_commit_votes` is bounded.
+        self.dag_state
+            .write()
+            .set_last_known_quorum_commit_index(quorum_commit_index);
 
         true
     }

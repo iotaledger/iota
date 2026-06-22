@@ -104,8 +104,8 @@ pub(crate) enum Commit {
 }
 
 impl Commit {
-    /// Create a new commit. The variant (V1, V2, or V3) is determined by the
-    /// consensus_fast_commit_sync and consensus_starfish_speed protocol flags.
+    /// Create a new commit. The variant (V2 or V3) is determined by the
+    /// consensus_starfish_speed protocol flag.
     pub(crate) fn new(
         context: &Arc<Context>,
         index: CommitIndex,
@@ -141,15 +141,15 @@ impl Commit {
                 reputation_scores_desc,
                 is_optimistic,
             })
-        } else if context.protocol_config.consensus_fast_commit_sync() {
-            debug!("Creating CommitV2 as consensus_fast_commit_sync is enabled");
+        } else {
+            debug!("Creating CommitV2");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions
                 .into_iter()
                 .map(|gen_ref| match gen_ref {
                     GenericTransactionRef::TransactionRef(tr) => tr,
                     GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef when consensus_fast_commit_sync is enabled")
+                        panic!("Expected TransactionRef")
                     }
                 })
                 .collect();
@@ -162,26 +162,6 @@ impl Commit {
                 block_headers: blocks,
                 committed_transactions: transaction_refs,
                 reputation_scores_desc,
-            })
-        } else {
-            debug!("Creating CommitV1 as consensus_fast_commit_sync is disabled");
-            // Extract BlockRefs from GenericTransactionRef
-            let block_refs: Vec<BlockRef> = committed_transactions
-                .into_iter()
-                .map(|gen_ref| match gen_ref {
-                    GenericTransactionRef::BlockRef(br) => br,
-                    GenericTransactionRef::TransactionRef(_) => {
-                        panic!("Expected BlockRef when consensus_fast_commit_sync is disabled")
-                    }
-                })
-                .collect();
-            Commit::V1(CommitV1 {
-                index,
-                previous_digest,
-                timestamp_ms,
-                leader,
-                blocks,
-                committed_transactions: block_refs,
             })
         }
     }
@@ -1356,12 +1336,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
-        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
-            &context,
-            store.as_ref(),
-            &first_round_references,
-        );
+        // Convert BlockRefs to GenericTransactionRefs.
+        let generic_committed_transactions =
+            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             &context,
@@ -1459,12 +1436,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
-        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
-            &context,
-            store.as_ref(),
-            &first_round_references,
-        );
+        // Convert BlockRefs to GenericTransactionRefs.
+        let generic_committed_transactions =
+            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             &context,

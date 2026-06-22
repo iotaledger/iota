@@ -169,28 +169,25 @@ impl BlockVerifier for SignedBlockVerifier {
                 quorum: committee.quorum_threshold(),
             });
         }
-        let block_restrictions = self.context.protocol_config.consensus_block_restrictions();
-        if block_restrictions {
-            let max_acknowledgments = self
-                .context
-                .protocol_config
-                .max_acknowledgments_per_block(committee.size());
-            if block.acknowledgments().len() > max_acknowledgments {
-                return Err(ConsensusError::TooManyAcknowledgments {
-                    count: block.acknowledgments().len(),
-                    max: max_acknowledgments,
-                });
-            }
-            let max_commit_votes = self
-                .context
-                .protocol_config
-                .max_commit_votes_per_block(committee.size());
-            if block.commit_votes().len() > max_commit_votes {
-                return Err(ConsensusError::TooManyCommitVotes {
-                    count: block.commit_votes().len(),
-                    max: max_commit_votes,
-                });
-            }
+        let max_acknowledgments = self
+            .context
+            .protocol_config
+            .max_acknowledgments_per_block(committee.size());
+        if block.acknowledgments().len() > max_acknowledgments {
+            return Err(ConsensusError::TooManyAcknowledgments {
+                count: block.acknowledgments().len(),
+                max: max_acknowledgments,
+            });
+        }
+        let max_commit_votes = self
+            .context
+            .protocol_config
+            .max_commit_votes_per_block(committee.size());
+        if block.commit_votes().len() > max_commit_votes {
+            return Err(ConsensusError::TooManyCommitVotes {
+                count: block.commit_votes().len(),
+                max: max_commit_votes,
+            });
         }
         let gc_depth = self.context.protocol_config.gc_depth();
         let min_ref_round = self.context.min_ref_round(block.round());
@@ -199,25 +196,21 @@ impl BlockVerifier for SignedBlockVerifier {
                 &[acknowledgment.author],
                 committee,
             )?;
-            if block_restrictions {
-                if acknowledgment.round >= block.round() {
-                    return Err(ConsensusError::InvalidAcknowledgmentRound {
-                        acknowledgment: acknowledgment.round,
-                        block: block.round(),
-                    });
-                }
-                if acknowledgment.round < min_ref_round {
-                    return Err(ConsensusError::AcknowledgmentRoundTooOld {
-                        acknowledgment: acknowledgment.round,
-                        block: block.round(),
-                        gc_depth,
-                    });
-                }
+            if acknowledgment.round >= block.round() {
+                return Err(ConsensusError::InvalidAcknowledgmentRound {
+                    acknowledgment: acknowledgment.round,
+                    block: block.round(),
+                });
+            }
+            if acknowledgment.round < min_ref_round {
+                return Err(ConsensusError::AcknowledgmentRoundTooOld {
+                    acknowledgment: acknowledgment.round,
+                    block: block.round(),
+                    gc_depth,
+                });
             }
         }
 
-        let check_ancestor_lower_bound =
-            block_restrictions && self.context.protocol_config.consensus_fast_commit_sync();
         let mut seen_ancestors = vec![false; committee.size()];
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
@@ -240,7 +233,7 @@ impl BlockVerifier for SignedBlockVerifier {
             // Skip the gc_depth lower bound for the author's own ancestor
             // (i == 0): the proposer always includes its last proposed block
             // regardless of gap so a recovered node can catch up.
-            if check_ancestor_lower_bound && i > 0 && ancestor.round < min_ref_round {
+            if i > 0 && ancestor.round < min_ref_round {
                 return Err(ConsensusError::AncestorRoundTooOld {
                     ancestor: ancestor.round,
                     block: block.round(),

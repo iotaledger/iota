@@ -2264,11 +2264,7 @@ impl DagState {
     /// Drops queued commit votes whose index is at or below the network's
     /// quorum commit index minus `gc_depth`. Those votes carry no new
     /// information for peers and only bloat the in-memory tracker.
-    /// No-op when `consensus_block_restrictions` is off.
     pub(crate) fn evict_pending_commit_votes(&mut self) {
-        if !self.context.protocol_config.consensus_block_restrictions() {
-            return;
-        }
         let gc_threshold = self
             .last_known_quorum_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth());
