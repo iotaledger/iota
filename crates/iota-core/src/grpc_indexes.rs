@@ -32,7 +32,10 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    rocks::{DBMap, MetricConf},
+    rocks::{
+        DBMap, DBMapTableConfigMap, MetricConf, bulk_ingestion_options,
+        bulk_ingestion_write_options,
+    },
     traits::Map,
 };
 
@@ -398,12 +401,13 @@ impl IndexStoreTables {
     fn open_with_options<P: Into<PathBuf>>(
         path: P,
         options: typed_store::rocksdb::Options,
+        table_options: Option<DBMapTableConfigMap>,
     ) -> Self {
         IndexStoreTables::open_tables_read_write(
             path.into(),
             MetricConf::new("grpc-index"),
             Some(options),
-            None,
+            table_options,
         )
     }
 
@@ -430,6 +434,7 @@ impl IndexStoreTables {
         &mut self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
+        batch_size_limit: usize,
     ) -> Result<(), StorageError> {
         info!("Initializing gRPC indexes");
 
@@ -465,6 +470,7 @@ impl IndexStoreTables {
         let make_live_object_indexer = GrpcParLiveObjectSetIndexer {
             tables: self,
             coin_index: &coin_index,
+            batch_size_limit,
         };
 
         crate::par_index_live_object_set::par_index_live_object_set(
@@ -513,7 +519,9 @@ impl IndexStoreTables {
             self.index_epoch(&checkpoint_data, &mut batch)?;
             self.index_transactions(&checkpoint_data, &mut batch)?;
 
-            batch.write().map_err(StorageError::from)
+            batch
+                .write_opt(&bulk_ingestion_write_options())
+                .map_err(StorageError::from)
         })?;
 
         info!(
@@ -943,22 +951,43 @@ impl GrpcIndexesStore {
             // If the index tables are uninitialized or on an older version then we need to
             // populate them
             if tables.needs_to_do_initialization(checkpoint_store) {
+                let batch_size_limit;
                 let mut tables = {
                     drop(tables);
                     typed_store::rocks::safe_drop_db(path.clone(), Duration::from_secs(30))
                         .await
                         .expect("unable to destroy old gRPC index db");
 
-                    // Open the empty DB with `unordered_write`s enabled in order to get a ~3x
-                    // speedup when indexing
-                    let mut options = typed_store::rocksdb::Options::default();
-                    options.set_unordered_write(true);
-                    IndexStoreTables::open_with_options(&path, options)
+                    // Open the empty DB with tuned bulk ingestion options to
+                    // speed up the initial indexing. The DB is reopened with default options
+                    // afterwards.
+                    let bulk_options = bulk_ingestion_options();
+                    batch_size_limit = bulk_options.batch_size_limit;
+
+                    // Apply the per-column-family bulk options to every table.
+                    let mut table_config = BTreeMap::new();
+                    for table_name in IndexStoreTables::describe_tables().into_keys() {
+                        table_config.insert(table_name, bulk_options.column_family_options.clone());
+                    }
+
+                    IndexStoreTables::open_with_options(
+                        &path,
+                        bulk_options.db_options,
+                        Some(DBMapTableConfigMap::new(table_config)),
+                    )
                 };
 
                 tables
-                    .init(&authority_store, checkpoint_store)
+                    .init(&authority_store, checkpoint_store, batch_size_limit)
                     .expect("unable to initialize gRPC index");
+
+                // Flush all data to disk before dropping tables. This is critical because
+                // WAL is disabled for the bulk writes during initialization. We only need
+                // to flush one table because all tables share the same underlying database.
+                tables
+                    .meta
+                    .flush()
+                    .expect("failed to flush gRPC index tables to disk");
 
                 let weak_db = Arc::downgrade(&tables.meta.db);
                 drop(tables);
@@ -975,7 +1004,22 @@ impl GrpcIndexesStore {
                 }
 
                 // Reopen the DB with default options (eg without `unordered_write`s enabled)
-                IndexStoreTables::open(&path)
+                let reopened_tables = IndexStoreTables::open(&path);
+
+                // Sanity check: verify the database version was persisted correctly, i.e.
+                // the WAL-disabled bulk writes were flushed before the reopen.
+                let stored_version = reopened_tables
+                    .meta
+                    .get(&())
+                    .expect("failed to read metadata from reopened database")
+                    .expect("metadata not found in reopened database");
+                assert_eq!(
+                    stored_version.version, CURRENT_DB_VERSION,
+                    "database version mismatch after flush and reopen: expected {}, found {}",
+                    CURRENT_DB_VERSION, stored_version.version
+                );
+
+                reopened_tables
             } else {
                 tables
             }
@@ -1271,12 +1315,14 @@ fn try_create_package_version_info(
 struct GrpcParLiveObjectSetIndexer<'a> {
     tables: &'a IndexStoreTables,
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
+    batch_size_limit: usize,
 }
 
 struct GrpcLiveObjectIndexer<'a> {
     tables: &'a IndexStoreTables,
     batch: typed_store::rocks::DBBatch,
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
+    batch_size_limit: usize,
 }
 
 impl<'a> ParMakeLiveObjectIndexer for GrpcParLiveObjectSetIndexer<'a> {
@@ -1287,6 +1333,7 @@ impl<'a> ParMakeLiveObjectIndexer for GrpcParLiveObjectSetIndexer<'a> {
             tables: self.tables,
             batch: self.tables.owner.batch(),
             coin_index: self.coin_index,
+            batch_size_limit: self.batch_size_limit,
         }
     }
 }
@@ -1335,17 +1382,18 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
             );
         }
 
-        // If the batch size grows to greater that 128MB then write out to the DB so
-        // that the data we need to hold in memory doesn't grown unbounded.
-        if self.batch.size_in_bytes() >= 1 << 27 {
-            std::mem::replace(&mut self.batch, self.tables.owner.batch()).write()?;
+        // If the batch size grows beyond the limit then write out to the DB so
+        // that the data we need to hold in memory doesn't grow unbounded.
+        if self.batch.size_in_bytes() >= self.batch_size_limit {
+            std::mem::replace(&mut self.batch, self.tables.owner.batch())
+                .write_opt(&bulk_ingestion_write_options())?;
         }
 
         Ok(())
     }
 
     fn finish(self) -> Result<(), StorageError> {
-        self.batch.write()?;
+        self.batch.write_opt(&bulk_ingestion_write_options())?;
         Ok(())
     }
 }
