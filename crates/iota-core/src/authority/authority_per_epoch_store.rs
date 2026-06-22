@@ -65,7 +65,8 @@ use iota_types::{
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKey, VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
+        TransactionKey, TxValidityCheckContext, VerifiedCertificate, VerifiedSignedTransaction,
+        VerifiedTransaction,
     },
 };
 use itertools::izip;
@@ -1424,6 +1425,13 @@ impl AuthorityPerEpochStore {
 
     pub fn epoch(&self) -> EpochId {
         self.committee.epoch
+    }
+
+    pub fn tx_validity_check_context(&self) -> TxValidityCheckContext<'_> {
+        TxValidityCheckContext {
+            config: &self.protocol_config,
+            epoch: self.epoch(),
+        }
     }
 
     pub fn get_state_hash_for_checkpoint(

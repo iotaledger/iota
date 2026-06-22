@@ -698,7 +698,7 @@ where
         // inputs or `MoveAuthenticator`
         request
             .transaction
-            .validity_check(epoch_store.protocol_config(), epoch_store.epoch())
+            .validity_check(&epoch_store.tx_validity_check_context())
             .map_err(QuorumDriverError::InvalidTransaction)?;
         let transaction = epoch_store
             .verify_transaction(request.transaction.clone())
