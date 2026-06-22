@@ -188,6 +188,19 @@ impl ConsensusAuthority {
 
         let fast_sync_ongoing = dag_state.read().fast_sync_ongoing();
 
+        // A node that was mid-fast-sync (fast_sync_ongoing persisted) cannot recover
+        // without the fast commit syncer: DagState recovery is skipped expecting the
+        // syncer to reinitialize, the core thread stays in fast-sync mode awaiting
+        // subdags that never arrive, and eviction keeps using the fast-sync strategy
+        // because nothing clears the flag. Refuse to start rather than hang in this
+        // unrecoverable partial state.
+        assert!(
+            !fast_sync_ongoing || context.parameters.enable_fast_commit_syncer,
+            "Consensus DB has fast_sync_ongoing set but enable_fast_commit_syncer is disabled: \
+             no fast commit syncer will run to finish recovery. Re-enable \
+             enable_fast_commit_syncer, or delete this epoch's consensus DB, before restarting."
+        );
+
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
         let core = Core::new(

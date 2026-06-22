@@ -1093,7 +1093,7 @@ mod tests {
         let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
 
         // Create a DAG with 2 rounds
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder.layers(1..=2).build();
 
         let round_1_headers = dag_builder
