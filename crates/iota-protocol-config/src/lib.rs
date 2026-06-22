@@ -166,6 +166,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable consensus block restrictions on all networks:
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -533,6 +535,11 @@ struct FeatureFlags {
     // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
+
+    // If true, package metadata can be published with ModuleMetadata as a dynamic
+    // field.
+    #[serde(skip_serializing_if = "is_false")]
+    package_metadata_with_dynamic_module_metadata: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1790,6 +1797,17 @@ impl ProtocolConfig {
     pub fn enable_pcool_flow(&self) -> bool {
         self.feature_flags.enable_pcool_flow
     }
+
+    pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
+        let res = self
+            .feature_flags
+            .package_metadata_with_dynamic_module_metadata;
+        assert!(
+            !res || self.publish_package_metadata(),
+            "package_metadata_with_dynamic_module_metadata requires publish_package_metadata to be enabled"
+        );
+        res
+    }
 }
 
 #[cfg(not(msim))]
@@ -2941,6 +2959,12 @@ impl ProtocolConfig {
                     // header size by committee size and garbage-collect the block
                     // manager.
                     cfg.feature_flags.consensus_block_restrictions = true;
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -3191,6 +3215,11 @@ impl ProtocolConfig {
 
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .package_metadata_with_dynamic_module_metadata = val;
     }
 }
 

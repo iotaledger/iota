@@ -506,7 +506,7 @@ pub fn is_view_function_from_fn_info(
 ) -> bool {
     let fn_name = name.to_string();
     let mod_handle = module.self_handle();
-    let mod_addr = IotaAddress::from(
+    let mod_addr = Address::from(
         module
             .address_identifier_at(mod_handle.address)
             .into_bytes(),
