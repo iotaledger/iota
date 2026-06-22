@@ -154,7 +154,7 @@ impl StateSnapshotUploader {
                     .expect("Expected at least one commitment")
                 else {
                     unimplemented!(
-                        "A new CheckpointCommitment variant was added and must be handled"
+                        "a new CheckpointCommitment variant was added and must be handled"
                     )
                 };
                 state_snapshot_writer
