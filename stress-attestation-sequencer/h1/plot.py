@@ -30,6 +30,7 @@ Usage:
 
 Figures are written next to the data, in results/<LABEL>/plots/.
 """
+
 import argparse
 import glob
 import json
@@ -59,7 +60,232 @@ SKIP_PANELS = {
     # finalized TPS (transactions_included_in_checkpoint) already captures network
     # throughput; the execution-driver rate tracks it 1:1, so don't plot both.
     "execution rate (executed transactions)",
+    # attestation task panics should always be 0 — not worth a curve; aggregate.py
+    # surfaces the count in summary.md (and flags it if it ever goes non-zero).
+    "attestation task panics (per validator)",
+    # H1 doesn't plot sequencing & congestion detail — EXCEPT cancelled txs/sec,
+    # which is shown as a subplot on tps.png (see COMPOSITE_FIGURES).
+    "scheduled transactions per object per commit — p50",
+    "scheduled transactions per object per commit — p95",
+    "transaction deferral rounds — p50",
+    "transaction deferral rounds — p95",
+    "transaction deferral rounds — p99",
+    "deferred txs / sec",
+    "congested txs / sec",
+    "max scheduled object cost per commit — regular",
+    "max scheduled object cost per commit — randomness",
 }
+
+# Per-panel display overrides, keyed by dashboard panel title. Any of "file"
+# (output basename, no extension), "title" (figure title), "ylabel" may be set;
+# omitted keys fall back to the dashboard-derived defaults.
+PANEL_OVERRIDES = {
+    # finalized TPS + cancelled are combined into tps.png (see COMPOSITE_FIGURES).
+    "finalized TPS (included in checkpoint)": {
+        "title": "Finalized TPS — rate(transactions_included_in_checkpoint)",
+        "ylabel": "txs/s",
+    },
+    "cancelled txs / sec": {
+        "title": "Cancelled txs / sec — rate(consensus_handler_cancelled_transactions)",
+        "ylabel": "txs/s",
+    },
+    "validation dropped txs / sec": {
+        "title": "Post-consensus drops — rate(consensus_handler_validation_dropped_transactions)",
+        "ylabel": "txs/s",
+    },
+    # receipt->executed includes per-validator queueing, which can differ across
+    # validators — so collapse by MAX (the worst/slowest node) rather than pooling
+    # the network distribution. One curve per version instead of 8. (Only meaningful
+    # for DIRECT=false, where multiple validators stamp receipt times; under pinning
+    # only validator-1 reports, so max == that one validator.)
+    "receipt → executed — p50": {
+        "host_reduce": "max",
+        "title": "From receipt to execution latency — p50",
+    },
+    "receipt → executed — p95": {
+        "host_reduce": "max",
+        "title": "From receipt to execution latency — p95",
+    },
+    "receipt → executed — p99": {
+        "host_reduce": "max",
+        "title": "From receipt to execution latency — p99",
+    },
+    # drop the redundant "_latency" in the filename (row already says "latency_").
+    "post-consensus validation latency — p50": {
+        "file": "latency_post_consensus_validation_p50",
+        "title": "Post-consensus validation latency — p50",
+    },
+    "post-consensus validation latency — p95": {
+        "file": "latency_post_consensus_validation_p95",
+        "title": "Post-consensus validation latency — p95",
+    },
+    "internal execution latency p95": {
+        "title": "Internal execution latency — p95",
+    },
+    "submit transaction latency (client, via fullnode)": {
+        "title": "Submit transaction latency (client, via fullnode)",
+    },
+    "settlement finality latency (client, via fullnode)": {
+        "title": "Settlement finality latency (client, via fullnode)",
+    },
+    "attestation latency p50 (pre-consensus dry-run)": {
+        "title": "Attestation latency — p50 (pre-consensus dry-run)",
+    },
+    "attestation latency p95 (pre-consensus dry-run)": {
+        "title": "Attestation latency — p95 (pre-consensus dry-run)",
+    },
+    "attestation latency p99 (pre-consensus dry-run)": {
+        "title": "Attestation latency — p99 (pre-consensus dry-run)",
+    },
+    # attestation is V2-only (V1 is a flat-zero line — drop it); show the busiest
+    # validator (max), same treatment as receipt->executed.
+    "attestations / sec": {
+        "versions": ["V2"],
+        "host_reduce": "max",
+        "title": "Attestations / sec",
+    },
+    "execution dispatch queue": {
+        "title": "Execution dispatch queue (execution_driver_dispatch_queue)",
+        "ylabel": "count",
+    },
+    "pending transactions (waiting for inputs)": {
+        "title": "Pending transactions (transaction_manager_num_pending_certificates)",
+        "ylabel": "txs",
+    },
+    "execution queueing delay p95": {
+        "title": "Execution queueing delay — p95 (execution_queueing_delay_s)",
+    },
+    "attested vs actual computation units (CUs, p50)": {
+        "title": "Attested vs actual computation units — p50",
+        "ylabel": "CUs",
+        "color_by": "target",  # attested vs actual in different colors
+    },
+    "execution backpressure active (0/1)": {
+        "title": "Execution backpressure active 0/1 (execution_cache_backpressure_status)",
+        "ylabel": "0/1",
+    },
+    "backpressure toggles / sec": {
+        "title": "Backpressure toggles / sec — rate(execution_cache_backpressure_toggles)",
+    },
+    "soft-lock rejections / sec": {
+        "title": "Soft-lock rejections / sec — rate(validator_service_num_rejected_tx_soft_lock_conflict)",
+        "ylabel": "txs/s",
+    },
+    "host CPU (busy cores, whole machine)": {
+        # whole-machine busy cores = SUM of per-core non-idle rates.
+        "title": "Whole-machine CPU — busy cores (node_cpu_seconds_total)",
+        "ylabel": "cores",
+        "host_reduce": "sum",
+    },
+    "per-validator CPU (busy cores, cadvisor)": {
+        # MAX over validators (busiest) — robust to dead-container series that
+        # the kept TSDB carries across runs (they'd dilute a mean).
+        "title": "Per-validator CPU — busy cores (container_cpu_usage_seconds_total)",
+        "ylabel": "cores",
+        "host_reduce": "max",
+    },
+    "per-validator memory RSS (cadvisor)": {
+        "title": "Per-validator memory RSS (container_memory_rss)",
+        "ylabel": "bytes",
+        "host_reduce": "max",
+    },
+}
+
+VER_STYLE = {"V1": {"color": "#1f77b4"}, "V2": {"color": "#d62728"}}
+
+# Composite figures: stack several dashboard panels into ONE figure (subplots,
+# shared x-axis), written as <file>.png. Member panels are NOT also rendered
+# individually. Order in `panels` sets top→bottom row order.
+COMPOSITE_FIGURES = [
+    {
+        "file": "tps",
+        "panels": [
+            "finalized TPS (included in checkpoint)",
+            "cancelled txs / sec",
+            "validation dropped txs / sec",
+        ],
+    },
+    {
+        "file": "latency_receipt_executed",
+        "panels": [
+            "receipt → executed — p50",
+            "receipt → executed — p95",
+            "receipt → executed — p99",
+        ],
+    },
+    {
+        "file": "latency_post_consensus_validation",
+        "panels": [
+            "post-consensus validation latency — p50",
+            "post-consensus validation latency — p95",
+        ],
+    },
+    {
+        "file": "latency_client",
+        "panels": [
+            "submit transaction latency (client, via fullnode)",
+            "settlement finality latency (client, via fullnode)",
+        ],
+    },
+    {
+        "file": "latency_attestation",
+        "rows": [
+            # row 1: the three attestation-latency pcts overlaid on one axes.
+            {
+                "overlay": [
+                    "attestation latency p50 (pre-consensus dry-run)",
+                    "attestation latency p95 (pre-consensus dry-run)",
+                    "attestation latency p99 (pre-consensus dry-run)",
+                ],
+                "title": "Attestation latency (pre-consensus dry-run)",
+                "ylabel": "s",
+            },
+            # row 2: internal (post-consensus VM) execution latency for contrast.
+            {"panel": "internal execution latency p95"},
+        ],
+    },
+    {
+        "file": "queues",
+        "panels": [
+            "execution dispatch queue",
+            "pending transactions (waiting for inputs)",
+            "execution queueing delay p95",
+        ],
+    },
+    {
+        "file": "health",
+        "panels": [
+            "execution backpressure active (0/1)",
+            "backpressure toggles / sec",
+            "soft-lock rejections / sec",
+        ],
+    },
+    {
+        "file": "cpu_mem",
+        "panels": [
+            "host CPU (busy cores, whole machine)",
+            "per-validator CPU (busy cores, cadvisor)",
+            "per-validator memory RSS (cadvisor)",
+        ],
+    },
+    {
+        # `rows`: each row is its own subplot. A row is either {"overlay": [titles]}
+        # (curves overlaid on one axes) or {"panel": title} (a single panel).
+        "file": "attestation_accuracy",
+        "rows": [
+            {
+                "overlay": [
+                    "actual / attested CUs — p50 (1.0 = perfect)",
+                    "actual / attested CUs — p95 (1.0 = perfect)",
+                ],
+                "title": "Actual / attested CUs (1.0 = perfect)",
+                "ylabel": "ratio",
+            },
+            {"panel": "attested vs actual computation units (CUs, p50)"},
+            {"panel": "attestations / sec"},
+        ],
+    },
+]
 
 
 # ---------------------------------------------------------------------------
@@ -73,10 +299,14 @@ SKIP_PANELS = {
 # ---------------------------------------------------------------------------
 def parse_expr(expr):
     q = re.search(r"histogram_quantile\(\s*([\d.]+)", expr)
-    metric_m = re.search(r"([a-z_][a-z0-9_]+)\s*\{", expr) or re.search(r"([a-z_][a-z0-9_]+)\s*\[", expr)
+    metric_m = re.search(r"([a-z_][a-z0-9_]+)\s*\{", expr) or re.search(
+        r"([a-z_][a-z0-9_]+)\s*\[", expr
+    )
     metric = metric_m.group(1) if metric_m else None
     block = re.search(r"\{([^}]*)\}", expr)
-    filters = re.findall(r'(\w+)\s*(=~|!~|=|!=)\s*"([^"]*)"', block.group(1)) if block else []
+    filters = (
+        re.findall(r'(\w+)\s*(=~|!~|=|!=)\s*"([^"]*)"', block.group(1)) if block else []
+    )
     return {
         "expr": expr,
         "q": float(q.group(1)) if q else None,
@@ -145,18 +375,28 @@ def interp_on_grid(ts, v, grid):
 
 def quantile_from_buckets(le_rates, q):
     """le_rates: dict le->rate(count). Standard Prometheus histogram_quantile."""
-    items = sorted(((np.inf if le == "+Inf" else float(le)), r) for le, r in le_rates.items())
+    items = sorted(
+        ((np.inf if le == "+Inf" else float(le)), r) for le, r in le_rates.items()
+    )
     if not items:
         return np.nan
     total = items[-1][1]  # +Inf bucket = total
-    if total <= 0:
+    if not (
+        total > 0
+    ):  # catches NaN (e.g. rate undefined early in the window) and <= 0
         return np.nan
     target = q * total
     prev_le, prev_c = 0.0, 0.0
     for le, c in items:
         if c >= target:
             if le == np.inf:
-                return prev_le if prev_le > 0 else items[-2][0] if len(items) > 1 else np.nan
+                return (
+                    prev_le
+                    if prev_le > 0
+                    else items[-2][0]
+                    if len(items) > 1
+                    else np.nan
+                )
             if c == prev_c:
                 return le
             return prev_le + (le - prev_le) * ((target - prev_c) / (c - prev_c))
@@ -164,27 +404,64 @@ def quantile_from_buckets(le_rates, q):
     return items[-1][0]
 
 
-def eval_target(spec, run, grid, window, host_stat):
+def _reduce_op(name):
+    """Return a fn collapsing a (hosts, grid) matrix to (grid,) by the named op."""
+    fn = {"max": np.nanmax, "median": np.nanmedian, "sum": np.nansum}.get(
+        name, np.nanmean
+    )
+    return lambda M: fn(M, axis=0)
+
+
+def eval_target(spec, run, grid, window, host_stat, host_reduce=None):
     """Compute ONE network-level series for this target over `grid` (relative s).
 
     Every honest validator does the SAME post-consensus work, so a metric's
     per-validator series are ~identical replicas. We collapse them to one network
     value by `host_stat` (mean/median ACROSS validators) — NOT a sum, which would
     multiply a replicated counter by the validator count (the 4x inflation bug).
-    Histograms instead pool their `le` buckets across validators, which is the
-    correct way to form the network-wide distribution (union of samples)."""
+    Histograms instead pool their `le` buckets across validators, the correct way
+    to form the network-wide distribution (union of samples).
+
+    `host_reduce` (max/mean/median) overrides the validator collapse for a panel:
+    for histograms it computes the quantile PER validator then reduces (e.g. max =
+    the worst/slowest node) instead of pooling; for counters/gauges it picks the op."""
     series = run["series"].get(spec["metric"])
     if not isinstance(series, list):
         return np.full(len(grid), np.nan)
     start = run["start_epoch"]
-    matched = [s for s in series if match(s["metric"], spec["filters"]) and s.get("values")]
+    matched = [
+        s for s in series if match(s["metric"], spec["filters"]) and s.get("values")
+    ]
     if not matched:
         return np.full(len(grid), np.nan)
-    reduce_hosts = ((lambda M: np.nanmedian(M, axis=0)) if host_stat == "median"
-                    else (lambda M: np.nanmean(M, axis=0)))
+    reduce_hosts = _reduce_op(host_reduce or host_stat)
 
     if spec["q"] is not None:
-        # pool buckets across hosts per `le` (union of samples), rate, then quantile.
+        if host_reduce:
+            # per-validator quantile (own buckets), then reduce across validators.
+            per_host = {}
+            for s in matched:
+                le = s["metric"].get("le")
+                if le is None:
+                    continue
+                ts, v = to_arrays(s["values"])
+                per_host.setdefault(s["metric"].get("host", "?"), {})[le] = (
+                    windowed_rate(ts - start, v, grid, window)
+                )
+            curves = []
+            for le_rates in per_host.values():
+                out = np.full(len(grid), np.nan)
+                for i in range(len(grid)):
+                    out[i] = quantile_from_buckets(
+                        {le: a[i] for le, a in le_rates.items()}, spec["q"]
+                    )
+                curves.append(out)
+            return (
+                reduce_hosts(np.vstack(curves))
+                if curves
+                else np.full(len(grid), np.nan)
+            )
+        # default: pool buckets across hosts per `le` (union of samples), rate, then quantile.
         per_le = {}
         for s in matched:
             le = s["metric"].get("le")
@@ -197,18 +474,31 @@ def eval_target(spec, run, grid, window, host_stat):
         le_stack = {le: np.nansum(np.vstack(rs), axis=0) for le, rs in per_le.items()}
         out = np.full(len(grid), np.nan)
         for i in range(len(grid)):
-            out[i] = quantile_from_buckets({le: arr[i] for le, arr in le_stack.items()}, spec["q"])
+            out[i] = quantile_from_buckets(
+                {le: arr[i] for le, arr in le_stack.items()}, spec["q"]
+            )
         return out
 
     if spec["is_rate"]:
         # per-host windowed rate, then mean/median across the (replica) hosts.
-        rates = [windowed_rate(to_arrays(s["values"])[0] - start, to_arrays(s["values"])[1], grid, window)
-                 for s in matched]
+        rates = [
+            windowed_rate(
+                to_arrays(s["values"])[0] - start,
+                to_arrays(s["values"])[1],
+                grid,
+                window,
+            )
+            for s in matched
+        ]
         return reduce_hosts(np.vstack(rates))
 
     # gauge: per-host value on grid, then mean/median across hosts.
-    stacks = [interp_on_grid(to_arrays(s["values"])[0] - start, to_arrays(s["values"])[1], grid)
-              for s in matched]
+    stacks = [
+        interp_on_grid(
+            to_arrays(s["values"])[0] - start, to_arrays(s["values"])[1], grid
+        )
+        for s in matched
+    ]
     return reduce_hosts(np.vstack(stacks))
 
 
@@ -224,20 +514,22 @@ def panels_from_dashboard(path):
         unit = (p.get("fieldConfig", {}).get("defaults", {}) or {}).get("unit", "")
         targets = [t["expr"] for t in p.get("targets", []) if t.get("expr")]
         if targets:
-            out.append({"row": cur, "title": p["title"], "unit": unit, "exprs": targets})
+            out.append(
+                {"row": cur, "title": p["title"], "unit": unit, "exprs": targets}
+            )
     return out
 
 
 def target_tag(spec, multi):
+    """Legend label for one target of a multi-target panel. Uses the metric's
+    first token (e.g. attested/actual) + pXX, so targets that differ only in
+    metric (attested vs actual, same q) or only in q (same metric) both stay
+    distinguishable."""
     if not multi:
         return ""
-    bits = []
+    bits = [spec["metric"].replace("_bucket", "").split("_")[0]]
     if spec["q"] is not None:
         bits.append(f"p{int(round(spec['q'] * 100))}")
-    m = spec["metric"].replace("_bucket", "")
-    # shorten common metric names for the legend
-    short = m.split("_")[-2] + "_" + m.split("_")[-1] if m.count("_") >= 1 else m
-    bits.append(short)
     return " ".join(bits)
 
 
@@ -262,21 +554,170 @@ def band_bounds(M, center, band):
     return None, None
 
 
+def draw_panel(ax, panel, g, grid, args):
+    """Render one dashboard panel (V1 vs V2, mean/median + band) onto `ax`."""
+    ov = PANEL_OVERRIDES.get(panel["title"], {})
+    host_reduce = ov.get("host_reduce")
+    versions = ov.get("versions") or (
+        "V1",
+        "V2",
+    )  # e.g. ["V2"] for attestation-only panels
+    color_by = ov.get("color_by")  # "target" -> color per target (not per version)
+    specs = [parse_expr(e) for e in panel["exprs"]]
+    multi = len(specs) > 1
+    plotted = False
+    for ver in versions:
+        runs = g[ver]
+        if not runs:
+            continue
+        for ti, spec in enumerate(specs):
+            per_run = [
+                eval_target(spec, r, grid, args.rate_window, args.stat, host_reduce)
+                for r in runs
+            ]
+            if not per_run or all(np.all(np.isnan(x)) for x in per_run):
+                continue
+            center, M = aggregate_runs(per_run, args.stat)
+            if np.all(np.isnan(center)):
+                continue
+            tag = target_tag(spec, multi)
+            leg = (
+                f"{ver}"
+                + (f" {tag}" if tag else "")
+                + (f" (n={len(runs)})" if not multi else "")
+            )
+            if color_by == "target":
+                # one color per target; version (if >1) shown via linestyle.
+                style = {"color": OVERLAY_PALETTE[ti % len(OVERLAY_PALETTE)]}
+                if len(versions) > 1:
+                    style["linestyle"] = "-" if ver == "V2" else "--"
+            else:
+                style = dict(VER_STYLE[ver])
+                if multi and spec["q"] is not None:
+                    style["alpha"] = 0.4 + 0.6 * spec["q"]  # higher q -> darker
+            (line,) = ax.plot(grid, center, label=leg, linewidth=1.8, **style)
+            if args.band != "none" and len(runs) > 1:
+                lo, hi = band_bounds(M, center, args.band)
+                if lo is not None:
+                    ax.fill_between(
+                        grid, lo, hi, color=line.get_color(), alpha=0.15, linewidth=0
+                    )
+            plotted = True
+
+    title = ov.get("title", f"{panel['row']} — {panel['title']}")
+    if host_reduce == "max":  # "worst/busiest node" — sum/mean are plain aggregates
+        title += " (max across validators)"
+    ax.set_title(title, fontsize=10)
+    ax.set_ylabel(ov.get("ylabel", panel["unit"] or ""))
+    ax.grid(True, alpha=0.25)
+    if plotted:
+        ax.legend(fontsize=7, ncol=2)
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "no data",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            color="gray",
+        )
+    return plotted
+
+
+# distinct colors for overlaid single-target panels (per percentile), chosen to
+# not collide with the V1/V2 blue/red used elsewhere.
+OVERLAY_PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#9467bd", "#8c564b"]
+
+
+def draw_overlay(ax, member_panels, g, grid, args, comp):
+    """Overlay several single-target panels as one curve each on ONE axes,
+    colored per panel (per percentile). V2 solid, V1 dashed (if present)."""
+    plotted = False
+    for ci, panel in enumerate(member_panels):
+        ov = PANEL_OVERRIDES.get(panel["title"], {})
+        host_reduce = ov.get("host_reduce")
+        spec = parse_expr(panel["exprs"][0])  # overlay assumes single-target panels
+        base = (
+            f"p{int(round(spec['q'] * 100))}"
+            if spec["q"] is not None
+            else panel["title"]
+        )
+        color = OVERLAY_PALETTE[ci % len(OVERLAY_PALETTE)]
+        for ver, ls in (("V2", "-"), ("V1", "--")):
+            runs = g[ver]
+            if not runs:
+                continue
+            per_run = [
+                eval_target(spec, r, grid, args.rate_window, args.stat, host_reduce)
+                for r in runs
+            ]
+            if not per_run or all(np.all(np.isnan(x)) for x in per_run):
+                continue
+            center, M = aggregate_runs(per_run, args.stat)
+            if np.all(np.isnan(center)):
+                continue
+            leg = base if ver == "V2" else f"{base} (V1)"
+            ax.plot(grid, center, label=leg, linewidth=1.8, color=color, linestyle=ls)
+            if args.band != "none" and len(runs) > 1:
+                lo, hi = band_bounds(M, center, args.band)
+                if lo is not None:
+                    ax.fill_between(grid, lo, hi, color=color, alpha=0.12, linewidth=0)
+            plotted = True
+
+    ax.set_title(comp.get("title") or comp.get("file", ""), fontsize=10)
+    ax.set_ylabel(
+        comp.get("ylabel") or (member_panels[0]["unit"] if member_panels else "")
+    )
+    ax.grid(True, alpha=0.25)
+    if plotted:
+        ax.legend(fontsize=8)
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "no data",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            color="gray",
+        )
+    return plotted
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", default=os.path.join(here, "results"),
-                    help="results dir holding <LABEL>/ experiment folders")
-    ap.add_argument("--dashboard", default=os.path.join(
-        here, "..", "..", "dev-tools", "grafana-local", "dashboards",
-        "attestation-sequencer-stress.json"))
-    ap.add_argument("--label", default=None,
-                    help="plot only this experiment label (default: all under --root)")
+    ap.add_argument(
+        "--root",
+        default=os.path.join(here, "results"),
+        help="results dir holding <LABEL>/ experiment folders",
+    )
+    ap.add_argument(
+        "--dashboard",
+        default=os.path.join(
+            here,
+            "..",
+            "..",
+            "dev-tools",
+            "grafana-local",
+            "dashboards",
+            "attestation-sequencer-stress.json",
+        ),
+    )
+    ap.add_argument(
+        "--label",
+        default=None,
+        help="plot only this experiment label (default: all under --root)",
+    )
     ap.add_argument("--stat", choices=["mean", "median"], default="median")
     ap.add_argument("--band", choices=["iqr", "std", "none"], default="iqr")
     ap.add_argument("--rate-window", type=int, default=10, help="rate() window (s)")
-    ap.add_argument("--all", action="store_true",
-                    help="render every panel (default: skip Tier-3 sanity gates)")
+    ap.add_argument(
+        "--all",
+        action="store_true",
+        help="render every panel (default: skip Tier-3 sanity gates)",
+    )
     args = ap.parse_args()
 
     panels = panels_from_dashboard(args.dashboard)
@@ -284,9 +725,15 @@ def main():
     # Each results/<LABEL>/ is one experiment (one config, guaranteed by run.sh's
     # config gate). Its iter-NNN/ subdirs are the iterations to pool. The directory
     # IS the group — no config-signature inference, no archive.
-    labels = ([args.label] if args.label
-              else sorted(os.path.basename(d) for d in glob.glob(os.path.join(args.root, "*"))
-                          if os.path.isdir(d)))
+    labels = (
+        [args.label]
+        if args.label
+        else sorted(
+            os.path.basename(d)
+            for d in glob.glob(os.path.join(args.root, "*"))
+            if os.path.isdir(d)
+        )
+    )
     groups = {}
     for label in labels:
         ld = os.path.join(args.root, label)
@@ -294,66 +741,97 @@ def main():
         v2 = sorted(glob.glob(os.path.join(ld, "iter-*", "run-b-v2-timeseries.json")))
         if not v1 and not v2:
             continue
-        groups[label] = {"V1": [json.load(open(f)) for f in v1],
-                         "V2": [json.load(open(f)) for f in v2]}
+        groups[label] = {
+            "V1": [json.load(open(f)) for f in v1],
+            "V2": [json.load(open(f)) for f in v2],
+        }
     if not groups:
-        print(f"no <LABEL>/iter-*/run-*-timeseries.json under {args.root}", file=sys.stderr)
+        print(
+            f"no <LABEL>/iter-*/run-*-timeseries.json under {args.root}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    VER_STYLE = {"V1": dict(color="#1f77b4"), "V2": dict(color="#d62728")}
+    by_title = {p["title"]: p for p in panels}
+    # Every panel title owned by a composite (flat `panels`, or `rows` of
+    # {"panel":…} / {"overlay":[…]}) — excluded from individual rendering.
+    composite_titles = set()
+    for c in COMPOSITE_FIGURES:
+        composite_titles.update(c.get("panels", []))
+        for row in c.get("rows", []):
+            if row.get("panel"):
+                composite_titles.add(row["panel"])
+            composite_titles.update(row.get("overlay", []))
+    XLABEL = "time since run start (s)"
 
     for label, g in groups.items():
         # Figures live alongside the data: results/<LABEL>/plots/.
         outdir = os.path.join(args.root, label, "plots")
         os.makedirs(outdir, exist_ok=True)
+        # One grid per label: span the longest run window in the group.
+        win = max((r["end_epoch"] - r["start_epoch"]) for r in g["V1"] + g["V2"])
+        grid = np.arange(0, win + 1, 1.0)
 
+        # Individual panels — skip Tier-3 gates and any panel owned by a composite.
         for panel in panels:
             if not args.all and panel["title"] in SKIP_PANELS:
                 continue
-            specs = [parse_expr(e) for e in panel["exprs"]]
-            multi = len(specs) > 1
-            # window length: use the max run window in this group so the grid spans it
-            allruns = g["V1"] + g["V2"]
-            win = max((r["end_epoch"] - r["start_epoch"]) for r in allruns)
-            grid = np.arange(0, win + 1, 1.0)
-
+            if panel["title"] in composite_titles:
+                continue
             fig, ax = plt.subplots(figsize=(9, 4.5))
-            plotted = False
-            for ver in ("V1", "V2"):
-                runs = g[ver]
-                if not runs:
-                    continue
-                for spec in specs:
-                    per_run = [eval_target(spec, r, grid, args.rate_window, args.stat) for r in runs]
-                    if not per_run or all(np.all(np.isnan(x)) for x in per_run):
-                        continue
-                    center, M = aggregate_runs(per_run, args.stat)
-                    if np.all(np.isnan(center)):
-                        continue
-                    tag = target_tag(spec, multi)
-                    leg = f"{ver}" + (f" {tag}" if tag else "") + (f" (n={len(runs)})" if not multi else "")
-                    style = dict(VER_STYLE[ver])
-                    if multi and spec["q"] is not None:
-                        style["alpha"] = 0.4 + 0.6 * spec["q"]  # higher q -> darker
-                    (line,) = ax.plot(grid, center, label=leg, linewidth=1.8, **style)
-                    if args.band != "none" and len(runs) > 1:
-                        lo, hi = band_bounds(M, center, args.band)
-                        if lo is not None:
-                            ax.fill_between(grid, lo, hi, color=line.get_color(), alpha=0.15, linewidth=0)
-                    plotted = True
-
-            ax.set_title(f"{panel['row']} — {panel['title']}", fontsize=10)
-            ax.set_xlabel("time since run start (s)")
-            ax.set_ylabel(panel["unit"] or "")
-            ax.grid(True, alpha=0.25)
-            if not plotted:
-                ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes,
-                        color="gray")
-            else:
-                ax.legend(fontsize=7, ncol=2)
+            draw_panel(ax, panel, g, grid, args)
+            ax.set_xlabel(XLABEL)
             fig.tight_layout()
-            fn = re.sub(r"[^a-z0-9]+", "_", f"{panel['row']}__{panel['title']}".lower()).strip("_") + ".png"
-            fig.savefig(os.path.join(outdir, fn), dpi=110)
+            ov = PANEL_OVERRIDES.get(panel["title"], {})
+            fn = ov.get("file") or re.sub(
+                r"[^a-z0-9]+", "_", f"{panel['row']}__{panel['title']}".lower()
+            ).strip("_")
+            fig.savefig(os.path.join(outdir, fn + ".png"), dpi=110)
+            plt.close(fig)
+
+        # Composite figures — combine several panels into one figure.
+        for comp in COMPOSITE_FIGURES:
+            if comp.get("rows"):
+                # mixed multi-subplot: each row is one panel or an overlay of several.
+                rows = comp["rows"]
+                fig, axes = plt.subplots(
+                    len(rows), 1, sharex=True, figsize=(9, 3.4 * len(rows))
+                )
+                if len(rows) == 1:
+                    axes = [axes]
+                for ax, row in zip(axes, rows):
+                    if row.get("overlay"):
+                        rps = [by_title[t] for t in row["overlay"] if t in by_title]
+                        draw_overlay(ax, rps, g, grid, args, row)
+                    elif row.get("panel") in by_title:
+                        draw_panel(ax, by_title[row["panel"]], g, grid, args)
+                axes[-1].set_xlabel(XLABEL)
+                fig.tight_layout(h_pad=2.5)
+                fig.savefig(os.path.join(outdir, comp["file"] + ".png"), dpi=110)
+                plt.close(fig)
+                continue
+
+            ps = [by_title[t] for t in comp["panels"] if t in by_title]
+            if not ps:
+                continue
+            if comp.get("overlay"):
+                # one axes, all member panels overlaid as colored curves.
+                fig, ax = plt.subplots(figsize=(9, 4.5))
+                draw_overlay(ax, ps, g, grid, args, comp)
+                ax.set_xlabel(XLABEL)
+                fig.tight_layout()
+            else:
+                # stacked subplots, one panel per row.
+                fig, axes = plt.subplots(
+                    len(ps), 1, sharex=True, figsize=(9, 3.4 * len(ps))
+                )
+                if len(ps) == 1:
+                    axes = [axes]
+                for ax, panel in zip(axes, ps):
+                    draw_panel(ax, panel, g, grid, args)
+                axes[-1].set_xlabel(XLABEL)
+                fig.tight_layout(h_pad=2.5)  # extra vertical space between subplots
+            fig.savefig(os.path.join(outdir, comp["file"] + ".png"), dpi=110)
             plt.close(fig)
 
 

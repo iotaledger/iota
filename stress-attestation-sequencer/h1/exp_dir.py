@@ -13,6 +13,7 @@ that every iteration under one LABEL shares the SAME config:
 On success prints the iteration dir name (iter-NNN) to stdout; run.sh uses it as
 RESULTS_DIR = EXP_DIR/<iter-NNN>.
 """
+
 import glob
 import json
 import os
@@ -35,13 +36,18 @@ if os.path.exists(config_path):
         die(f"ERROR: cannot read {config_path}: {e}")
     if existing != config:
         keys = sorted(set(existing) | set(config))
-        diff = [f"  {k}: stored={existing.get(k, '<none>')!r}  now={config.get(k, '<none>')!r}"
-                for k in keys if existing.get(k) != config.get(k)]
-        die("ERROR: config mismatch for this LABEL — refusing to mix configs in one\n"
+        diff = [
+            f"  {k}: stored={existing.get(k, '<none>')!r}  now={config.get(k, '<none>')!r}"
+            for k in keys
+            if existing.get(k) != config.get(k)
+        ]
+        die(
+            "ERROR: config mismatch for this LABEL — refusing to mix configs in one\n"
             f"experiment pool.\n  config file: {config_path}\n"
             + "\n".join(diff)
             + "\n\nUse a NEW LABEL for a different config, or delete the dir to reset:\n"
-            f"  rm -rf {EXP_DIR}")
+            f"  rm -rf {EXP_DIR}"
+        )
 else:
     os.makedirs(EXP_DIR, exist_ok=True)
     with open(config_path, "w") as f:

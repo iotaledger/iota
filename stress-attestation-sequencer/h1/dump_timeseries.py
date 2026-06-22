@@ -19,6 +19,7 @@ Standalone use (e.g. re-scrape a past window without re-running the experiment):
   PROM=http://localhost:9090 CFG_workload=owned \
     python3 dump_timeseries.py mylabel 1781770000 1781770030 1 /tmp/out.json
 """
+
 import json
 import os
 import sys
@@ -35,15 +36,15 @@ config = {k[4:]: v for k, v in os.environ.items() if k.startswith("CFG_")}
 # (validators + fullnodes) to bound cardinality.
 metrics = {}
 for base in (
-    "validator_attestation_latency",            # pre-consensus dry-run (V2)
+    "validator_attestation_latency",  # pre-consensus dry-run (V2)
     "validator_transaction_execution_latency",  # validator-internal pipeline
     "authority_state_internal_execution_latency",  # pure VM execution
     "transaction_driver_settlement_finality_latency",  # client-side (fullnode)
-    "transaction_driver_submit_transaction_latency",   # client-side (fullnode)
-    "post_consensus_validation_latency",        # post-consensus validation pass
-    "execution_queueing_delay_s",               # execution-driver queueing delay
-    "attested_computation_units",               # V2 attestation estimate
-    "actual_computation_units",                  # measured at execution
+    "transaction_driver_submit_transaction_latency",  # client-side (fullnode)
+    "post_consensus_validation_latency",  # post-consensus validation pass
+    "execution_queueing_delay_s",  # execution-driver queueing delay
+    "attested_computation_units",  # V2 attestation estimate
+    "actual_computation_units",  # measured at execution
     "actual_to_attested_computation_units_ratio",  # attestation accuracy
     "consensus_handler_scheduled_transactions_per_object_per_commit",  # sched/obj/commit
 ):
@@ -61,9 +62,15 @@ metrics["transactions_included_in_checkpoint"] = "transactions_included_in_check
 metrics["validator_attestations_total"] = "validator_attestations_total"
 # congestion-control counters (deferred ⊇ congested; cancelled = deferred past
 # the round limit). Cumulative — compute rate() offline.
-metrics["consensus_handler_deferred_transactions"] = "consensus_handler_deferred_transactions"
-metrics["consensus_handler_congested_transactions"] = "consensus_handler_congested_transactions"
-metrics["consensus_handler_cancelled_transactions"] = "consensus_handler_cancelled_transactions"
+metrics["consensus_handler_deferred_transactions"] = (
+    "consensus_handler_deferred_transactions"
+)
+metrics["consensus_handler_congested_transactions"] = (
+    "consensus_handler_congested_transactions"
+)
+metrics["consensus_handler_cancelled_transactions"] = (
+    "consensus_handler_cancelled_transactions"
+)
 # txns dropped by post-consensus validation (dedup / already-executed / validity
 # / attestation / lock-conflict). A deferred tx that self-conflicts on its own
 # prior-round lock surfaces here instead of being re-scheduled, so this rate
@@ -84,7 +91,9 @@ metrics["container_memory_rss"] = (
 )
 metrics["node_cpu_seconds_total"] = "node_cpu_seconds_total"
 # execution pipeline throughput / backpressure (does attestation starve execution?).
-metrics["execution_driver_executed_transactions"] = "execution_driver_executed_transactions"
+metrics["execution_driver_executed_transactions"] = (
+    "execution_driver_executed_transactions"
+)
 metrics["execution_driver_dispatch_queue"] = "execution_driver_dispatch_queue"
 metrics["execution_cache_backpressure_status"] = "execution_cache_backpressure_status"
 metrics["execution_cache_backpressure_toggles"] = "execution_cache_backpressure_toggles"
@@ -132,8 +141,11 @@ def trim_after_last_reset(values):
 
 series = {}
 for name, q in metrics.items():
-    url = prom + "/api/v1/query_range?" + urllib.parse.urlencode(
-        {"query": q, "start": start, "end": end, "step": step})
+    url = (
+        prom
+        + "/api/v1/query_range?"
+        + urllib.parse.urlencode({"query": q, "start": start, "end": end, "step": step})
+    )
     try:
         with urllib.request.urlopen(url, timeout=60) as r:
             result = json.load(r).get("data", {}).get("result", [])
@@ -146,5 +158,15 @@ for name, q in metrics.items():
         series[name] = {"error": str(e)}
 
 with open(out, "w") as f:
-    json.dump({"label": label, "start_epoch": int(start), "end_epoch": int(end),
-               "step_seconds": int(step), "config": config, "series": series}, f, indent=2)
+    json.dump(
+        {
+            "label": label,
+            "start_epoch": int(start),
+            "end_epoch": int(end),
+            "step_seconds": int(step),
+            "config": config,
+            "series": series,
+        },
+        f,
+        indent=2,
+    )

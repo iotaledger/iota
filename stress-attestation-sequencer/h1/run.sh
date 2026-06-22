@@ -10,8 +10,8 @@
 #   3. Run A — V1 attestation OFF (control), TotalTxCount
 #   4. Run B — V2 attestation ON, same load (network reset between A and B —
 #                 cleanup + re-bootstrap of a fresh genesis, so Run B cold-starts
-#                 like Run A; the Prometheus TSDB is PRESERVED so all runs coexist
-#                 in Grafana; Run A's JSON is saved before the reset)
+#                 like Run A; the Prometheus TSDB is WIPED before each run, so no
+#                 series carry over; Run A's JSON is saved before the reset)
 #   5. capture    save each run's window as a raw timeseries JSON + node logs,
 #                 then stop the network.
 # After all ITERS iterations: aggregate.py pools results/<LABEL>/ into summary.md,
@@ -76,7 +76,7 @@ GENESIS_DIR="$REPO_ROOT/dev-tools/iota-private-network/configs/genesis"
 rel() { case "$1" in "$REPO_ROOT"/*) printf './%s' "${1#"$REPO_ROOT"/}" ;; *) printf '%s' "$1" ;; esac }
 
 N="${N:-4}"
-RUN_DURATION="${RUN_DURATION:-30s}"
+RUN_DURATION="${RUN_DURATION:-60s}"
 TARGET_QPS="${TARGET_QPS:-2000}"
 NUM_WORKERS="${NUM_WORKERS:-24}"
 NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"      # tokio threads driving the client (raise for higher qps)
@@ -203,6 +203,17 @@ wait_for_fullnode() {
   exit 1
 }
 
+# We do NOT watch Grafana for these runs, so the Prometheus TSDB is WIPED before
+# each run instead of preserved. This keeps the volume from growing across the
+# (configs x ITERS x 2) runs and removes cross-run counter carryforward at the
+# source: a fresh TSDB has no prior (higher) values to bleed into the start of a
+# new run's window, so each run-*.json is clean even without the reset-aware trim
+# in dump_timeseries (kept there only as a belt-and-suspenders safety net).
+wipe_monitoring() {
+  (cd "$REPO_ROOT/dev-tools/grafana-local" && docker compose down -v --remove-orphans) \
+    >/dev/null 2>&1 || true
+}
+
 # Reset the network between runs so Run B's startup path is IDENTICAL to the
 # initial setup before Run A — that full symmetry is what keeps the pre-spam
 # warmup the same. We tear EVERYTHING down (incl. the monitoring stack) and
@@ -218,15 +229,10 @@ reset_network() {
   echo "${YELLOW}Tearing everything down and re-bootstrapping a fresh genesis for Run B...${RESET}"
   echo "  - cleanup   -> $(rel "$RESULTS_DIR/cleanup.log")"
   echo "  - bootstrap -> $(rel "$RESULTS_DIR/bootstrap.log")"
-  # NOTE: cleanup.sh brings the monitoring stack down WITHOUT -v, so the
-  # Prometheus data volume PERSISTS on purpose — Run A and Run B both stay
-  # visible in one Grafana view. The cost: Run B reuses the same validator-N
-  # series labels and its fresh processes reset the cumulative counters, so
-  # Prometheus carries Run A's last (higher) value into the START of Run B's
-  # scrape window (a reset within the window). dump_timeseries strips that
-  # carryforward (reset-aware) so the per-run JSON stays correct. Do NOT add
-  # `down -v` here unless you also stop needing the combined A+B Grafana view.
   sudo "$TOOLS_DIR/cleanup.sh" >>"$RESULTS_DIR/cleanup.log" 2>&1 || true
+  # Wipe the Prometheus volume so Run B starts on a fresh TSDB (no carryforward
+  # of Run A's counters); start.sh brings a clean monitoring stack back up.
+  wipe_monitoring
   sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N" >>"$RESULTS_DIR/bootstrap.log" 2>&1
 }
 
@@ -281,7 +287,6 @@ run_stress() {
   # baseline and the validators are stable after (re)start.
   echo "${YELLOW}Letting the network settle ${PRE_SPAM_WAIT_S}s before the spam...${RESET}"
   sleep "$PRE_SPAM_WAIT_S"
-  echo "${BLUE} Stress-test is running...${RESET}"
   echo
   # The stress client logs thousands of (retried, benign) transport errors to
   # stderr; send stderr to a per-run log so the console stays clean. The final
@@ -298,6 +303,7 @@ run_stress() {
       WORKLOAD="$WORKLOAD" \
       "$TOOLS_DIR/run-stress-docker.sh" 2>"$stress_log"
   else
+    echo "${BLUE}Running stress via ${STRESS_BIN} executable...${RESET}"
     (cd "$REPO_ROOT" && "$STRESS_BIN" \
       --local false \
       --fullnode-rpc-addresses http://127.0.0.1:9000 \
@@ -331,17 +337,12 @@ run_one_iteration() {
 
   banner "== H1 [1/5] cleanup (in case something is running) =="
   # cleanup/bootstrap are verbose (docker compose + genesis tooling); send their
-  # output to cleanup.log / bootstrap.log to keep the console readable.
-  # cleanup.sh brings the network AND the monitoring stack down WITHOUT -v (same
-  # as reset_network does between Run A and Run B), so the Prometheus TSDB is
-  # PRESERVED. We deliberately do NOT `down -v` here: keeping the volume lets this
-  # invocation's runs — and those of PREVIOUS invocations — accumulate in one
-  # Grafana view, so you can compare many runs over time. Each run reuses the same
-  # validator-N series labels, so older (higher) counter values carry forward into
-  # the start of a new run's window; dump_timeseries strips that (reset-aware), so
-  # every per-run JSON stays correct. To start clean, wipe manually beforehand:
-  #   (cd dev-tools/grafana-local && docker compose down -v).
+  # output to cleanup.log / bootstrap.log to keep the console readable. After the
+  # teardown we also wipe the Prometheus volume so Run A starts on a fresh TSDB —
+  # no series carry over from a previous run/iteration/invocation (we don't watch
+  # Grafana, so there's nothing to preserve and the volume never grows unbounded).
   sudo "$TOOLS_DIR/cleanup.sh" >>"$RESULTS_DIR/cleanup.log" 2>&1 || true
+  wipe_monitoring
   echo "cleanup output -> $(rel "$RESULTS_DIR/cleanup.log")"
 
   banner "== H1 [2/5] bootstrap (-b, $N validators) =="
@@ -356,10 +357,8 @@ run_one_iteration() {
   run_stress "Run A — V1 (attestation off)" "$RESULTS_DIR/run-a-v1-timeseries.json"
 
   # Run A is scraped; let the network run a moment so the post-run tail is
-  # captured, then fully reset (incl. Prometheus) and re-bootstrap a fresh genesis
-  # for Run B, idling so the runs are cleanly separated (targets go DOWN in the
-  # gap). Run A's metrics are already saved to run-a-v1-timeseries.json, so
-  # dropping Prometheus here is fine.
+  # captured, then fully reset and re-bootstrap a fresh genesis for Run B, idling
+  # so the runs are cleanly separated. Run A's metrics are already saved.
   echo "${YELLOW}Letting the network run ${PRE_STOP_WAIT_S}s after the scrape before resetting...${RESET}"
   sleep "$PRE_STOP_WAIT_S"
   reset_network
@@ -370,8 +369,7 @@ run_one_iteration() {
 
   banner "== H1 [4/5] Run B — V2 (attestation ON) =="
   # start.sh boots the validators from the freshly re-bootstrapped genesis with an
-  # empty data dir and brings up a fresh monitoring stack (reset_network tore the
-  # old one down), so Run B cold-starts exactly like Run A — only attestation
+  # empty data dir, so Run B cold-starts exactly like Run A — only attestation
   # differs. Run A's metrics live in run-a-v1-timeseries.json (already saved).
   MODE=TotalTxCount \
     MAX_DEFERRAL_ROUNDS="$MAX_DEFERRAL_ROUNDS" MAX_ACCUMULATED_TXN_COST="$MAX_ACCUMULATED_TXN_COST" \

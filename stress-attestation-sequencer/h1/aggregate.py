@@ -10,6 +10,7 @@ Usage: h1-aggregate.py <results_dir> [out.md]
   Scans <results_dir>/*/run-a-v1-timeseries.json   (V1, attestation OFF)
     and <results_dir>/*/run-b-v2-timeseries.json   (V2, attestation ON)
 """
+
 import glob
 import json
 import math
@@ -19,10 +20,29 @@ import sys
 # (raw histogram base name, display label)
 LATENCY_METRICS = [
     ("validator_attestation_latency", "validator_attestation_latency (s)"),
-    ("transaction_driver_settlement_finality_latency", "settlement_finality_latency (s)"),
+    (
+        "transaction_driver_settlement_finality_latency",
+        "settlement_finality_latency (s)",
+    ),
     ("transaction_driver_submit_transaction_latency", "submit_transaction_latency (s)"),
-    ("validator_transaction_execution_latency", "validator_transaction_execution_latency (s)"),
-    ("authority_state_internal_execution_latency", "internal_execution_latency — real VM (s)"),
+    (
+        "validator_transaction_execution_latency",
+        "validator_transaction_execution_latency (s)",
+    ),
+    (
+        "authority_state_internal_execution_latency",
+        "internal_execution_latency — real VM (s)",
+    ),
+]
+
+# Safety counters that MUST stay 0. Not plotted; the health section of summary.md
+# lists only the non-zero ones (with a warning). (metric, display label)
+SAFETY_COUNTERS = [
+    ("validator_attestation_task_panics", "attestation task panics"),
+    ("split_brain_checkpoint_forks", "split-brain checkpoint forks"),
+    ("remote_checkpoint_forks", "remote checkpoint forks"),
+    ("global_state_hash_inconsistent_state", "inconsistent state hash"),
+    ("total_client_double_spend_attempts_detected", "double-spend attempts detected"),
 ]
 
 
@@ -33,6 +53,20 @@ def delta(values):
     first, last = float(values[0][1]), float(values[-1][1])
     d = last - first
     return d if d >= 0 else last  # counter reset within the window: fall back to last
+
+
+def series_max(series_per_run, metric):
+    """Max value of a metric across all series and runs — a robust 'ever non-zero'
+    test for safety counters (counters: final count; gauges: transient flip to 1)."""
+    m = 0.0
+    for s in series_per_run:
+        for x in s.get(metric, []):
+            for _, v in x.get("values", []):
+                try:
+                    m = max(m, float(v))
+                except (TypeError, ValueError):
+                    pass
+    return m
 
 
 def pooled_buckets(series_per_run, base):
@@ -96,12 +130,18 @@ def aggregate(runs):
     out = {}
     for base, _ in LATENCY_METRICS:
         bk = pooled_buckets(series_per_run, base)
-        out[base] = {p: hquantile(qv, bk) for p, qv in (("p50", 0.5), ("p95", 0.95), ("p99", 0.99))}
+        out[base] = {
+            p: hquantile(qv, bk)
+            for p, qv in (("p50", 0.5), ("p95", 0.95), ("p99", 0.99))
+        }
     tps_per_run, cpu_per_run = [], []
     for r in runs:
         win = max(1, int(r.get("end_epoch", 0)) - int(r.get("start_epoch", 0)))
         s = r.get("series", {})
-        tps_rates = [delta(x.get("values", [])) / win for x in s.get("transactions_included_in_checkpoint", [])]
+        tps_rates = [
+            delta(x.get("values", [])) / win
+            for x in s.get("transactions_included_in_checkpoint", [])
+        ]
         tps_per_run.append(max(tps_rates) if tps_rates else None)
         cpu_rates = [
             delta(x.get("values", [])) / win
@@ -111,6 +151,8 @@ def aggregate(runs):
         cpu_per_run.append(mean(cpu_rates))
     out["_tps"] = mean(tps_per_run)
     out["_cpu"] = mean(cpu_per_run)
+    # Safety counters (must stay 0): max value seen across validators and runs.
+    out["_safety"] = {m: series_max(series_per_run, m) for m, _ in SAFETY_COUNTERS}
     return out
 
 
@@ -165,7 +207,11 @@ def main():
         L.append("")
 
     for pct in ("p50", "p95", "p99"):
-        L += [f"## {pct}\n", "| metric | V1 | V2 | V2−V1 |", "| --- | --- | --- | --- |"]
+        L += [
+            f"## {pct}\n",
+            "| metric | V1 | V2 | V2−V1 |",
+            "| --- | --- | --- | --- |",
+        ]
         for base, name in LATENCY_METRICS:
             va, vb = a.get(base, {}).get(pct), b.get(base, {}).get(pct)
             L.append(f"| {name} | {fmt(va)} | {fmt(vb)} | {dlt(va, vb)} |")
@@ -177,6 +223,29 @@ def main():
         f"| finalized TPS | {fmt(a['_tps'])} | {fmt(b['_tps'])} | {dlt(a['_tps'], b['_tps'])} |",
         f"| per-validator CPU (busy cores) | {fmt(a['_cpu'])} | {fmt(b['_cpu'])} | {dlt(a['_cpu'], b['_cpu'])} |",
     ]
+    # Health: safety counters that must be 0 (not plotted). Only the NON-ZERO ones
+    # are listed; if all are zero, a single all-clear line is shown.
+    nonzero = [
+        (label, a["_safety"][m], b["_safety"][m])
+        for m, label in SAFETY_COUNTERS
+        if (a["_safety"][m] or 0) > 0 or (b["_safety"][m] or 0) > 0
+    ]
+    L += ["", "## health\n"]
+    if nonzero:
+        L += [
+            "> [!WARNING]",
+            "> Safety counters are NON-ZERO — a fork / inconsistency / attestor panic /",
+            "> double-spend occurred. Investigate node-logs/_crashes.txt for the run(s).",
+            "",
+            "| safety counter | V1 | V2 |",
+            "| --- | --- | --- |",
+        ]
+        L += [f"| {label} | {fmt(va)} | {fmt(vb)} |" for label, va, vb in nonzero]
+    else:
+        L.append(
+            "All safety counters are zero (attestor panics, checkpoint forks, "
+            "inconsistent state, double-spend). ✓"
+        )
     with open(out, "w") as f:
         f.write("\n".join(L) + "\n")
 
