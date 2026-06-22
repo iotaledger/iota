@@ -61,7 +61,7 @@ pub type OutputObjects = Vec<Object>;
 /// when the indexer is unable to fetch data from the database, which is
 /// especially useful when pruning is enabled.
 #[derive(Clone)]
-pub(crate) struct HistoricalFallbackReader {
+pub struct HistoricalFallbackReader {
     /// Client responsible for fetching data from the historical fallback
     /// storage through REST API interface.
     client: HttpRestKVClient,
