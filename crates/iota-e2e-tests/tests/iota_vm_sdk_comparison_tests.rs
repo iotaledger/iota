@@ -1,10 +1,17 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! End-to-end comparison: run a staking transaction through the local
-//! [`LocalVm`] (objects resolved on demand over gRPC from a [`GrpcStore`]) and
-//! against a live [`test_cluster::TestCluster`]'s own dry-run, then assert both
-//! agree.
+//! End-to-end comparison between the `iota-vm-sdk` local VM and a live node.
+//!
+//! Runs a staking transaction through the local [`LocalVm`] (objects resolved
+//! on demand over gRPC from a [`GrpcStore`]) and against a live
+//! [`test_cluster::TestCluster`]'s own dry-run, then asserts both agree. This
+//! lives in `iota-e2e-tests` rather than alongside the SDK because it needs a
+//! full cluster; the SDK's own suite stays offline and cluster-free.
+
+// The SDK's `GrpcStore` needs a multi-threaded Tokio runtime, which the `msim`
+// simulator does not provide, so this test only runs under a real runtime.
+#![cfg(not(msim))]
 
 use std::collections::BTreeSet;
 

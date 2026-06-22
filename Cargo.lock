@@ -5939,6 +5939,7 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-tool",
  "iota-types",
+ "iota-vm-sdk",
  "jsonrpsee",
  "move-binary-format",
  "move-command-line-common",
@@ -8163,7 +8164,7 @@ dependencies = [
 
 [[package]]
 name = "iota-vm-sdk"
-version = "1.26.0-alpha"
+version = "1.27.0-alpha"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -8172,13 +8173,11 @@ dependencies = [
  "iota-config",
  "iota-execution",
  "iota-framework",
- "iota-json-rpc-types",
  "iota-protocol-config",
  "iota-sdk-graphql-client",
  "iota-sdk-grpc-client",
  "iota-sdk-transaction-builder",
  "iota-sdk-types",
- "iota-test-transaction-builder",
  "iota-transaction-checks",
  "iota-types",
  "move-binary-format",
@@ -8188,7 +8187,6 @@ dependencies = [
  "prometheus",
  "serde",
  "serde_json",
- "test-cluster",
  "thiserror 1.0.64",
  "tokio",
 ]
