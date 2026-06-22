@@ -11,8 +11,9 @@ use iota_sdk_types::{
     StructTag, TypeTag,
 };
 use iota_types::{
-    base_types::{ObjectType, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},
+    effects::ObjectOut,
     error::{ExecutionErrorKind, IotaError},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -2982,20 +2983,20 @@ pub async fn build_and_publish_test_package(
 ///
 /// A publish or upgrade can create more than one immutable object: packages
 /// carrying view or authenticator metadata also get a frozen `PackageMetadata`
-/// object. The package is therefore identified by type rather than by being the
-/// first immutable created object.
-pub fn created_package_ref(authority: &AuthorityState, effects: &TransactionEffects) -> ObjectRef {
-    let store = authority.get_object_store();
+/// object. The package is therefore identified through its `PackageWrite`
+/// change in the effects.
+pub fn created_package_ref(effects: &TransactionEffects) -> ObjectRef {
     effects
-        .created()
-        .into_iter()
-        .find_map(|(oref, _)| {
-            let is_package = store
-                .get_object(&oref.object_id)
-                .is_some_and(|obj| ObjectType::from(&obj).is_package());
-            is_package.then_some(oref)
+        .as_v1()
+        .changed_objects
+        .iter()
+        .find_map(|change| match &change.output_state {
+            ObjectOut::PackageWrite { version, digest } => {
+                Some(ObjectRef::new(change.object_id, *version, *digest))
+            }
+            _ => None,
         })
-        .expect("transaction did not create a package object")
+        .expect("transaction did not write a package object")
 }
 
 pub async fn build_and_publish_test_package_with_upgrade_cap(
@@ -3027,7 +3028,7 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
         effects.status()
     );
 
-    let package = created_package_ref(authority, &effects);
+    let package = created_package_ref(&effects);
     let upgrade_cap = effects
         .created()
         .into_iter()

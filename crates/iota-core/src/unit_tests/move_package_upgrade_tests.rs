@@ -219,7 +219,7 @@ impl UpgradeStateRunner {
         let effects = self.run(pt).await;
         assert!(effects.status().is_success(), "{:#?}", effects.status());
 
-        let package = created_package_ref(&self.authority_state, &effects);
+        let package = created_package_ref(&effects);
 
         let cap = effects
             .created()
@@ -259,7 +259,7 @@ impl UpgradeStateRunner {
 
         let effects = self.run(pt).await;
         if effects.status().is_success() {
-            self.package = created_package_ref(&self.authority_state, &effects);
+            self.package = created_package_ref(&effects);
         }
 
         effects
