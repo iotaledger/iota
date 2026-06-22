@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // simple authentication using an immutable abstract account
@@ -15,7 +15,7 @@ use simple_abstract_account::abstract_account::AbstractAccount;
 #[authenticator]
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
-//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create_immutable --account-type simple_abstract_account::abstract_account::AbstractAccount
+//# init-abstract-account --sender A --package-metadata object(3,5) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create_immutable --account-type simple_abstract_account::abstract_account::AbstractAccount
 
 //# view-object 4,2
 

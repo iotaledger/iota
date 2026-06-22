@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains the transactional test runner instantiation for the
@@ -207,6 +207,7 @@ impl AdapterInitConfig {
             epochs_to_keep,
             data_ingestion_path,
             grpc_api_url,
+            package_metadata_with_dynamic_module_metadata,
         } = iota_args;
 
         let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
@@ -250,6 +251,12 @@ impl AdapterInitConfig {
             None
         };
 
+        if let Some(enable) = package_metadata_with_dynamic_module_metadata {
+            if enable {
+                protocol_config.set_publish_package_metadata_for_testing(true);
+            }
+            protocol_config.set_package_metadata_with_dynamic_module_metadata_for_testing(enable);
+        }
         Self {
             additional_mapping: map,
             account_names: accounts,
