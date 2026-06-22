@@ -34,6 +34,7 @@ use crate::{
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
+    move_authenticator::MoveAuthenticatorExt,
     object::Object,
     parse_iota_struct_tag,
     signature::GenericSignature,

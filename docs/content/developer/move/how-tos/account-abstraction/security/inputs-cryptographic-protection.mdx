@@ -53,12 +53,12 @@ The helper that combines these inputs into the message hash used for signature v
 
 Without proper input protection, an attacker could swap the blacklist:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L410-L444
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L408-L453
 ```
 
 Or swap the raw value parameter:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L446-L476
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L456-L497
 ```
 
 However, because the secure implementation cryptographically binds all inputs, these attacks will fail during signature verification.

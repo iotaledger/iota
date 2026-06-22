@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId, crypto::IntentMessage};
+use iota_sdk_types::{Address, ObjectId, TypeTag, crypto::IntentMessage};
 pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 use serde::Serialize;
 
@@ -23,6 +23,20 @@ mod move_authenticator_ext {
 }
 
 pub trait MoveAuthenticatorExt: Sized + move_authenticator_ext::Sealed {
+    /// Returns the address of the object being authenticated, which acts as the
+    /// sender of the transaction.
+    fn address(&self) -> Address;
+
+    /// Returns the input objects or primitive values passed to the authenticate
+    /// function.
+    fn call_args(&self) -> &[CallArg];
+
+    /// Returns the type arguments for the Move authenticate function.
+    fn type_args(&self) -> &[TypeTag];
+
+    /// Returns the object that is being authenticated (the account/sender).
+    fn object_to_authenticate(&self) -> &CallArg;
+
     fn object_to_authenticate_components(
         &self,
     ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)>;
@@ -37,6 +51,42 @@ pub trait MoveAuthenticatorExt: Sized + move_authenticator_ext::Sealed {
 }
 
 impl MoveAuthenticatorExt for MoveAuthenticator {
+    fn address(&self) -> Address {
+        match self {
+            Self::V1(v1) => v1.address(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
+        }
+    }
+
+    fn call_args(&self) -> &[CallArg] {
+        match self {
+            Self::V1(v1) => v1.call_args(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
+        }
+    }
+
+    fn type_args(&self) -> &[TypeTag] {
+        match self {
+            Self::V1(v1) => v1.type_args(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
+        }
+    }
+
+    fn object_to_authenticate(&self) -> &CallArg {
+        match self {
+            Self::V1(v1) => v1.object_to_authenticate(),
+            _ => unimplemented!(
+                "a new MoveAuthenticator enum variant was added and needs to be handled"
+            ),
+        }
+    }
+
     fn object_to_authenticate_components(
         &self,
     ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {
@@ -86,6 +136,24 @@ impl MoveAuthenticatorExt for MoveAuthenticator {
 }
 
 impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
+    // Forward to the inherent accessors of the same name; inherent methods take
+    // priority in resolution, so these are not recursive.
+    fn address(&self) -> Address {
+        self.address()
+    }
+
+    fn call_args(&self) -> &[CallArg] {
+        self.call_args()
+    }
+
+    fn type_args(&self) -> &[TypeTag] {
+        self.type_args()
+    }
+
+    fn object_to_authenticate(&self) -> &CallArg {
+        self.object_to_authenticate()
+    }
+
     fn object_to_authenticate_components(
         &self,
     ) -> UserInputResult<(ObjectId, Option<SequenceNumber>, Option<ObjectDigest>)> {

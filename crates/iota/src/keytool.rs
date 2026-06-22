@@ -47,6 +47,7 @@ use iota_types::{
         get_authority_key_pair,
     },
     error::IotaResult,
+    move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
