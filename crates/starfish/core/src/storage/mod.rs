@@ -17,7 +17,7 @@ use starfish_config::AuthorityIndex;
 use crate::{
     CommitIndex,
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
-    commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
+    commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
     misbehavior_store::MisbehaviorCounts,
@@ -156,8 +156,15 @@ pub(crate) trait Store: Send + Sync {
     /// Reads all commits from start (inclusive) until end (inclusive).
     fn scan_commits(&self, range: CommitRange) -> ConsensusResult<Vec<TrustedCommit>>;
 
-    /// Reads all blocks voting on a particular commit.
-    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>>;
+    /// Reads all blocks voting on a particular commit, identified by both
+    /// index and digest. Votes for other digests at the same index (possible
+    /// with Byzantine voters, since vote digests are not validated against
+    /// stored commits) are excluded.
+    fn read_commit_votes(
+        &self,
+        commit_index: CommitIndex,
+        commit_digest: CommitDigest,
+    ) -> ConsensusResult<Vec<BlockRef>>;
 
     /// Finds the highest commit index that has at least one vote, up to (and
     /// including) the given index. Returns None if no votes exist for any
@@ -251,17 +258,7 @@ impl WriteBatch {
 /// Simulation-test-only helper that deletes all transactions from the consensus
 /// RocksDB store while preserving other data.
 #[cfg(msim)]
-pub fn delete_all_transactions_from_store(
-    db_path: &std::path::Path,
-    authority_index: starfish_config::AuthorityIndex,
-    committee: starfish_config::Committee,
-    protocol_config: iota_protocol_config::ProtocolConfig,
-) -> Result<(), String> {
-    rocksdb_store::RocksDBStore::delete_all_transactions_from_store(
-        db_path,
-        authority_index,
-        committee,
-        protocol_config,
-    )
-    .map_err(|e| format!("failed to delete transactions: {}", e))
+pub fn delete_all_transactions_from_store(db_path: &std::path::Path) -> Result<(), String> {
+    rocksdb_store::RocksDBStore::delete_all_transactions_from_store(db_path)
+        .map_err(|e| format!("failed to delete transactions: {e}"))
 }

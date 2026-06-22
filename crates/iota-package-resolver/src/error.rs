@@ -4,8 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::TypeTag;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::{Address, TypeTag};
 use move_binary_format::errors::VMError;
 use thiserror::Error;
 
@@ -24,34 +23,34 @@ pub enum Error {
     Deserialize(VMError),
 
     #[error("Package has no modules: {0}")]
-    EmptyPackage(IotaAddress),
+    EmptyPackage(Address),
 
     #[error("Function not found: {0}::{1}::{2}")]
-    FunctionNotFound(IotaAddress, String, String),
+    FunctionNotFound(Address, String, String),
 
     #[error("Conflicting types for input {0}: {1} and {2}")]
     InputTypeConflict(u16, TypeTag, TypeTag),
 
     #[error("Linkage not found for package: {0}")]
-    LinkageNotFound(IotaAddress),
+    LinkageNotFound(Address),
 
     #[error("Module not found: {0}::{1}")]
-    ModuleNotFound(IotaAddress, String),
+    ModuleNotFound(Address, String),
 
     #[error("No origin package found for {0}::{1}::{2}")]
-    NoTypeOrigin(IotaAddress, String, String),
+    NoTypeOrigin(Address, String, String),
 
     #[error("Not a package: {0}")]
-    NotAPackage(IotaAddress),
+    NotAPackage(Address),
 
     #[error("Not an identifier: '{0}'")]
     NotAnIdentifier(String),
 
     #[error("Package not found: {0}")]
-    PackageNotFound(IotaAddress),
+    PackageNotFound(Address),
 
     #[error("Datatype not found: {0}::{1}::{2}")]
-    DatatypeNotFound(IotaAddress, String, String),
+    DatatypeNotFound(Address, String, String),
 
     #[error("More than {0} struct definitions required to resolve type")]
     TooManyTypeNodes(usize, usize),

@@ -4,8 +4,8 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_sdk_types::{ObjectId, Owner, StructTag};
-use iota_types::base_types::{IotaAddress, ObjectDigest, ObjectRef, SequenceNumber};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
+use iota_types::base_types::{ObjectDigest, ObjectRef, SequenceNumber};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -13,7 +13,7 @@ use serde_with::serde_as;
 use crate::{
     iota_owner::OwnerSchema,
     iota_primitives::{
-        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
+        Address as AddressSchema, Base58 as Base58Schema, ObjectId as ObjectIdSchema,
         SequenceNumberString as SequenceNumberStringSchema, StructTag as StructTagSchema,
     },
 };
@@ -41,9 +41,9 @@ pub enum ObjectChange {
     /// Transfer objects to new address / wrap in another object
     #[serde(rename_all = "camelCase")]
     Transferred {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
         #[schemars(with = "OwnerSchema")]
         #[serde_as(as = "OwnerSchema")]
         recipient: Owner,
@@ -63,9 +63,9 @@ pub enum ObjectChange {
     /// Object mutated.
     #[serde(rename_all = "camelCase")]
     Mutated {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
         #[schemars(with = "OwnerSchema")]
         #[serde_as(as = "OwnerSchema")]
         owner: Owner,
@@ -88,9 +88,9 @@ pub enum ObjectChange {
     /// Delete object
     #[serde(rename_all = "camelCase")]
     Deleted {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
@@ -104,9 +104,9 @@ pub enum ObjectChange {
     /// Wrapped object
     #[serde(rename_all = "camelCase")]
     Wrapped {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
         object_type: StructTag,
@@ -120,9 +120,9 @@ pub enum ObjectChange {
     /// Unwrapped object
     #[serde(rename_all = "camelCase")]
     Unwrapped {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
         #[schemars(with = "OwnerSchema")]
         #[serde_as(as = "OwnerSchema")]
         owner: Owner,
@@ -142,9 +142,9 @@ pub enum ObjectChange {
     /// New object creation
     #[serde(rename_all = "camelCase")]
     Created {
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        sender: IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        sender: Address,
         #[schemars(with = "OwnerSchema")]
         #[serde_as(as = "OwnerSchema")]
         owner: Owner,

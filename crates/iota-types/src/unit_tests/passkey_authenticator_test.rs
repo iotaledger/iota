@@ -8,11 +8,10 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
     rsa::{Base64UrlUnpadded, Encoding as _},
-    traits::ToFromBytes,
 };
 use iota_sdk_types::{
-    ObjectId,
-    crypto::{Intent, IntentMessage},
+    Address, ObjectId,
+    crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -30,13 +29,11 @@ use passkey_types::{
 };
 use url::Url;
 
-use super::to_signing_message;
 use crate::{
-    base_types::{IotaAddress, dbg_addr},
-    crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
-    error::IotaError,
+    base_types::dbg_addr,
+    crypto::{DefaultHash, PublicKey, SignatureScheme},
     object::Object,
-    passkey_authenticator::{PasskeyAuthenticator, RawPasskeyAuthenticator},
+    passkey_authenticator::PasskeyAuthenticator,
     signature::GenericSignature,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
@@ -76,7 +73,7 @@ pub struct PasskeyResponse<T> {
     authenticator_data: Vec<u8>,
     client_data_json: String,
     intent_msg: IntentMessage<T>,
-    sender: IotaAddress,
+    sender: Address,
 }
 
 /// Create a new passkey credential, derives its address
@@ -113,7 +110,7 @@ async fn create_credential_and_sign_test_tx(
     let pk = PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator, &pk_bytes).unwrap();
 
     // Derives its iota address and make a test transaction with it as sender.
-    let sender = IotaAddress::from(&pk);
+    let sender = Address::from(&pk);
     let recipient = dbg_addr(2);
     let object_id = ObjectId::ZERO;
     let object = Object::immutable_with_id_for_testing(object_id);
@@ -122,7 +119,7 @@ async fn create_credential_and_sign_test_tx(
         recipient,
         sender,
         None,
-        object.compute_object_reference(),
+        object.object_ref(),
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
@@ -130,7 +127,7 @@ async fn create_credential_and_sign_test_tx(
 
     // Compute the challenge as blake2b_hash(intent_msg(tx)). This is the challenge
     // for the passkey to sign.
-    let passkey_digest = to_signing_message(&intent_msg);
+    let passkey_digest = intent_msg.signing_digest();
 
     // Send the challenge to the passkey to sign with the rp_id.
     let credential_request = CredentialRequestOptions {
@@ -212,12 +209,12 @@ async fn test_passkey_serde() {
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
-    let raw = RawPasskeyAuthenticator {
-        user_signature: Signature::from_bytes(&response.user_sig_bytes).unwrap(),
-        authenticator_data: response.authenticator_data,
-        client_data_json: response.client_data_json,
-    };
-    let passkey: PasskeyAuthenticator = raw.try_into().unwrap();
+    let passkey = PasskeyAuthenticator::new(
+        response.authenticator_data,
+        response.client_data_json,
+        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+    )
+    .unwrap();
     let serialized = bcs::to_bytes(&passkey).unwrap();
 
     // deser back to passkey authenticator is the same
@@ -228,7 +225,7 @@ async fn test_passkey_serde() {
     let signature = GenericSignature::PasskeyAuthenticator(passkey);
     let serialized_str = serde_json::to_string(&signature).unwrap();
     let deserialized: GenericSignature = serde_json::from_str(&serialized_str).unwrap();
-    assert_eq!(deserialized.as_ref(), signature.as_ref());
+    assert_eq!(deserialized.to_bytes(), signature.to_bytes());
 }
 
 #[tokio::test]
@@ -238,10 +235,10 @@ async fn test_passkey_authenticator() {
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
     let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );
@@ -256,54 +253,55 @@ async fn test_passkey_fails_invalid_json() {
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let client_data_json_missing_type = r#"{"challenge":"9-fH7nX8Nb1JvUynz77mv1kXOkGkg1msZb2qhvZssGI","origin":"http://localhost:5173","crossOrigin":false}"#;
-    let raw = RawPasskeyAuthenticator {
-        authenticator_data: response.authenticator_data.clone(),
-        client_data_json: client_data_json_missing_type.to_string(),
-        user_signature: Signature::from_bytes(&response.user_sig_bytes).unwrap(),
-    };
-    let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
-    let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid client data json".to_string()
-        }
-    );
+    let err = PasskeyAuthenticator::new(
+        response.authenticator_data.clone(),
+        client_data_json_missing_type.to_string(),
+        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains("missing field"));
+
     const CORRECT_LEN: usize = DefaultHash::OUTPUT_SIZE;
     let client_data_json_too_short = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
         Base64UrlUnpadded::encode_string(&[0; CORRECT_LEN - 1])
     );
-    let raw = RawPasskeyAuthenticator {
-        authenticator_data: response.authenticator_data.clone(),
-        client_data_json: client_data_json_too_short,
-        user_signature: Signature::from_bytes(&response.user_sig_bytes).unwrap(),
-    };
-    let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
-    assert!(res.is_err());
+    let res = PasskeyAuthenticator::new(
+        response.authenticator_data.clone(),
+        client_data_json_too_short,
+        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+    );
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("invalid challenge length")
+    );
 
     let client_data_json_too_long = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
         Base64UrlUnpadded::encode_string(&[0; CORRECT_LEN + 1])
     );
-    let raw_2 = RawPasskeyAuthenticator {
-        authenticator_data: response.authenticator_data.clone(),
-        client_data_json: client_data_json_too_long,
-        user_signature: Signature::from_bytes(&response.user_sig_bytes).unwrap(),
-    };
-    let res_2: Result<PasskeyAuthenticator, IotaError> = raw_2.try_into();
-    assert!(res_2.is_err());
+    let res_2 = PasskeyAuthenticator::new(
+        response.authenticator_data.clone(),
+        client_data_json_too_long,
+        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+    );
+    assert!(
+        res_2
+            .unwrap_err()
+            .to_string()
+            .contains("invalid challenge length")
+    );
 
     let client_data_json_correct = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
         Base64UrlUnpadded::encode_string(&[0; CORRECT_LEN])
     );
-    let raw_3 = RawPasskeyAuthenticator {
-        authenticator_data: response.authenticator_data,
-        client_data_json: client_data_json_correct,
-        user_signature: Signature::from_bytes(&response.user_sig_bytes).unwrap(),
-    };
-    let res_3: Result<PasskeyAuthenticator, IotaError> = raw_3.try_into();
+    let res_3 = PasskeyAuthenticator::new(
+        response.authenticator_data,
+        client_data_json_correct,
+        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+    );
     assert!(res_3.is_ok());
 }
 
@@ -313,18 +311,15 @@ async fn test_passkey_fails_invalid_challenge() {
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let fake_client_data_json = r#"{"type":"webauthn.get","challenge":"wrong_base64_encoding","origin":"http://localhost:5173","crossOrigin":false}"#;
-    let raw = RawPasskeyAuthenticator {
-        authenticator_data: response.authenticator_data,
-        client_data_json: fake_client_data_json.to_string(),
-        user_signature: Signature::from_bytes(&response.user_sig_bytes).unwrap(),
-    };
-    let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
-    let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid encoded challenge".to_string()
-        }
+    let passkey = PasskeyAuthenticator::new(
+        response.authenticator_data,
+        fake_client_data_json.to_string(),
+        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+    );
+    let err = passkey.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("unable to decode base64urlunpadded challenge")
     );
 }
 
@@ -334,26 +329,20 @@ async fn test_passkey_fails_wrong_client_data_type() {
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let fake_client_data_json = r#"{"type":"webauthn.create","challenge":"9-fH7nX8Nb1JvUynz77mv1kXOkGkg1msZb2qhvZssGI","origin":"http://localhost:5173","crossOrigin":false}"#;
-    let raw = RawPasskeyAuthenticator {
-        authenticator_data: response.authenticator_data,
-        client_data_json: fake_client_data_json.to_string(),
-        user_signature: Signature::from_bytes(&response.user_sig_bytes).unwrap(),
-    };
-    let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
-    let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid client data type".to_string()
-        }
+    let passkey = PasskeyAuthenticator::new(
+        response.authenticator_data,
+        fake_client_data_json.to_string(),
+        SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
     );
+    let err = passkey.unwrap_err();
+    assert!(err.to_string().contains("unknown variant"));
 }
 
 #[tokio::test]
 async fn test_real_passkey_output() {
     // response from a real passkey authenticator created in iCloud, from typescript client: https://passkey-example.vercel.app/ (repo: https://github.com/MystenLabs/passkey-example)
     let address =
-        IotaAddress::from_str("0x9c0c00e929f08431583dad0e9409b5afb20cdbae0043fa5577f2577dbe88a0db")
+        Address::from_str("0x9c0c00e929f08431583dad0e9409b5afb20cdbae0043fa5577f2577dbe88a0db")
             .unwrap();
     let sig = GenericSignature::from_bytes(&Base64::decode("BiUL6eJ3+l0jTWmL4buH5lE8Vxe1+ge6xSU0oczBPpmt+h0AAAAAkwF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJ5TzEtb3VBczFBRUsyOWd0X1dJTGM4ZndDdlFjMkhEQmEwX2dTU3RpU1FzIiwib3JpZ2luIjoiaHR0cHM6Ly9wYXNza2V5LWV4YW1wbGUudmVyY2VsLmFwcCIsImNyb3NzT3JpZ2luIjpmYWxzZX1iAu0JsgVDVgBZQJhsl9MUZmUfUkNTh1qCg0zNWFrXfTx3NKuakm8Wqaa3qnfo+s9K2KvfYp8jT8BazhK7bi9YSmsCATpOyeWH387SdhY7+172wODmilJnXx5QcaUnR+3QlEM=").unwrap()).unwrap();
     let tx_data: TransactionData = bcs::from_bytes(&Base64::decode("AAAAAJwMAOkp8IQxWD2tDpQJta+yDNuuAEP6VXfyV32+iKDbARrKzR59iiRcEIbBEBlB283cnWUBeUeKCiMa3UKM6NURNRHQFAAAAAAgVLos3IwH9g4OHDSWiKyUZCvixybPtnDQIeML1f+ErGOcDADpKfCEMVg9rQ6UCbWvsgzbrgBD+lV38ld9voig2+gDAAAAAAAAgIQeAAAAAAAA").unwrap()).unwrap();
@@ -363,4 +352,33 @@ async fn test_real_passkey_output() {
         &Default::default(),
     );
     assert!(res.is_ok());
+}
+
+/// A well-formed challenge (correct length) that does not match the
+/// transaction's signing digest constructs successfully but is rejected at
+/// verification.
+#[tokio::test]
+async fn test_passkey_wrong_challenge_fails_verification() {
+    let origin = Url::parse("https://www.iota.org").unwrap();
+    let request = make_credential_creation_option(&origin);
+    let response = create_credential_and_sign_test_tx(&origin, request).await;
+
+    let wrong_challenge_json = format!(
+        r#"{{"type":"webauthn.get","challenge":"{}","origin":"http://localhost:5173","crossOrigin":false}}"#,
+        Base64UrlUnpadded::encode_string(&[0u8; DefaultHash::OUTPUT_SIZE])
+    );
+    let sig = GenericSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(
+            response.authenticator_data,
+            wrong_challenge_json,
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
+        )
+        .unwrap(),
+    );
+    let res = sig.verify_authenticator(&response.intent_msg, response.sender, &Default::default());
+    let err = res.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("passkey challenge does not match expected message")
+    );
 }

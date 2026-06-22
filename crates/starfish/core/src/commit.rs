@@ -62,11 +62,12 @@ pub(crate) type WaveNumber = u32;
 pub(crate) enum Commit {
     V1(CommitV1),
     V2(CommitV2),
+    V3(CommitV3),
 }
 
 impl Commit {
-    /// Create a new commit. The variant (V1 or V2) is determined by the
-    /// consensus_fast_commit_sync protocol flag.
+    /// Create a new commit. The variant (V1, V2, or V3) is determined by the
+    /// consensus_fast_commit_sync and consensus_starfish_speed protocol flags.
     pub(crate) fn new(
         context: &Arc<Context>,
         index: CommitIndex,
@@ -76,8 +77,33 @@ impl Commit {
         blocks: Vec<BlockRef>,
         committed_transactions: Vec<GenericTransactionRef>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+        is_optimistic: bool,
     ) -> Self {
-        if context.protocol_config.consensus_fast_commit_sync() {
+        if context.protocol_config.consensus_starfish_speed() {
+            debug!("Creating CommitV3 as consensus_starfish_speed is enabled");
+            // consensus_starfish_speed implies consensus_fast_commit_sync (asserted in
+            // protocol config), so all committed transactions are TransactionRefs.
+            let transaction_refs: Vec<TransactionRef> = committed_transactions
+                .into_iter()
+                .map(|gen_ref| match gen_ref {
+                    GenericTransactionRef::TransactionRef(tr) => tr,
+                    GenericTransactionRef::BlockRef(_) => {
+                        panic!("Expected TransactionRef when consensus_starfish_speed is enabled")
+                    }
+                })
+                .collect();
+
+            Commit::V3(CommitV3 {
+                index,
+                previous_digest,
+                timestamp_ms,
+                leader,
+                block_headers: blocks,
+                committed_transactions: transaction_refs,
+                reputation_scores_desc,
+                is_optimistic,
+            })
+        } else if context.protocol_config.consensus_fast_commit_sync() {
             debug!("Creating CommitV2 as consensus_fast_commit_sync is enabled");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions
@@ -139,6 +165,7 @@ pub(crate) trait CommitAPI {
     fn block_headers(&self) -> &[BlockRef];
     fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)];
+    fn is_optimistic(&self) -> bool;
 }
 
 /// Specifies one consensus commit.
@@ -200,6 +227,10 @@ impl CommitAPI for CommitV1 {
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
         // CommitV1 does not have reputation scores
         &[]
+    }
+
+    fn is_optimistic(&self) -> bool {
+        false
     }
 }
 
@@ -266,6 +297,82 @@ impl CommitAPI for CommitV2 {
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
         &self.reputation_scores_desc
     }
+
+    fn is_optimistic(&self) -> bool {
+        false
+    }
+}
+
+/// Specifies one consensus commit.
+/// It is stored on disk, so it does not contain blocks which are stored
+/// individually.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+pub(crate) struct CommitV3 {
+    /// Index of the commit.
+    /// First commit after genesis has an index of 1, then every next commit has
+    /// an index incremented by 1.
+    index: CommitIndex,
+    /// Digest of the previous commit.
+    /// Set to CommitDigest::MIN for the first commit after genesis.
+    previous_digest: CommitDigest,
+    /// Timestamp of the commit, max of the timestamp of the leader block and
+    /// previous Commit timestamp.
+    timestamp_ms: BlockTimestampMs,
+    /// A reference to the commit leader.
+    leader: BlockRef,
+    /// Refs to committed headers, in the commit order.
+    block_headers: Vec<BlockRef>,
+    /// Refs to transactions in blocks for which quorum of acknowledgments has
+    /// been collected in this and past commits.
+    committed_transactions: Vec<TransactionRef>,
+    /// Optional scores that are provided as part of the consensus output to
+    /// IOTA that can then be used by IOTA for future transaction submission to
+    /// consensus.
+    reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+    /// True if the leader was committed via the StarfishSpeed Optimistic
+    /// metastate.
+    is_optimistic: bool,
+}
+
+impl CommitAPI for CommitV3 {
+    fn round(&self) -> Round {
+        self.leader.round
+    }
+
+    fn index(&self) -> CommitIndex {
+        self.index
+    }
+
+    fn previous_digest(&self) -> CommitDigest {
+        self.previous_digest
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.timestamp_ms
+    }
+
+    fn leader(&self) -> BlockRef {
+        self.leader
+    }
+
+    fn block_headers(&self) -> &[BlockRef] {
+        &self.block_headers
+    }
+
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
+        self.committed_transactions
+            .iter()
+            .map(|t| GenericTransactionRef::TransactionRef(*t))
+            .collect()
+    }
+
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
+        &self.reputation_scores_desc
+    }
+
+    fn is_optimistic(&self) -> bool {
+        self.is_optimistic
+    }
 }
 
 /// A commit is trusted when it is produced locally or certified by a quorum of
@@ -311,6 +418,7 @@ impl TrustedCommit {
             blocks,
             committed_transactions,
             vec![],
+            false,
         );
         let serialized = commit.serialize().unwrap();
         Self::new_trusted(commit, serialized)
@@ -809,14 +917,29 @@ fn format_block_digests(blocks: &[BlockRef]) -> String {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Decision {
+    /// Direct rule produced the final status.
     Direct,
+    /// Direct rule produced `Commit(Pending)`; indirect rule later examined
+    /// an anchor's path and upgraded the metastate to Optimistic/Standard.
+    Upgraded,
+    /// Direct rule left the slot Undecided; indirect rule produced the
+    /// final status.
     Indirect,
 }
 
 /// The status of a leader slot from the direct and indirect commit rules.
+///
+/// `Commit(_, Some(Optimistic), strong_voters)` carries the r+1 authorities
+/// whose strong votes attest data availability for the leader and its
+/// acknowledgments; the linearizer feeds them to the per-ref ack tracker.
+/// Empty for every other case.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LeaderStatus {
-    Commit(VerifiedBlockHeader),
+    Commit(
+        VerifiedBlockHeader,
+        Option<CommitMetastate>,
+        Vec<AuthorityIndex>,
+    ),
     Skip(Slot),
     Undecided(Slot),
 }
@@ -824,23 +947,35 @@ pub(crate) enum LeaderStatus {
 impl LeaderStatus {
     pub(crate) fn round(&self) -> Round {
         match self {
-            Self::Commit(block) => block.round(),
+            Self::Commit(block, _, _) => block.round(),
             Self::Skip(leader) => leader.round,
             Self::Undecided(leader) => leader.round,
         }
     }
 
-    pub(crate) fn is_decided(&self) -> bool {
+    /// Slot of the leader this status refers to.
+    pub(crate) fn slot(&self) -> Slot {
         match self {
-            Self::Commit(_) => true,
-            Self::Skip(_) => true,
+            Self::Commit(block, _, _) => block.reference().into(),
+            Self::Skip(leader) | Self::Undecided(leader) => *leader,
+        }
+    }
+
+    /// True when sequencing can proceed past this leader. `Commit(Pending)`
+    /// and `Undecided` are non-final.
+    pub(crate) fn is_final(&self) -> bool {
+        match self {
+            Self::Commit(_, Some(CommitMetastate::Pending), _) => false,
+            Self::Commit(..) | Self::Skip(_) => true,
             Self::Undecided(_) => false,
         }
     }
 
     pub(crate) fn into_decided_leader(self) -> Option<DecidedLeader> {
         match self {
-            Self::Commit(block) => Some(DecidedLeader::Commit(block)),
+            Self::Commit(block, metastate, strong_voters) => {
+                Some(DecidedLeader::Commit(block, metastate, strong_voters))
+            }
             Self::Skip(slot) => Some(DecidedLeader::Skip(slot)),
             Self::Undecided(..) => None,
         }
@@ -850,7 +985,10 @@ impl LeaderStatus {
 impl Display for LeaderStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, None, _) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, Some(metastate), _) => {
+                write!(f, "Commit({},{metastate})", block.reference())
+            }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
             Self::Undecided(slot) => write!(f, "Undecided({slot})"),
         }
@@ -860,7 +998,11 @@ impl Display for LeaderStatus {
 /// Decision of each leader slot.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum DecidedLeader {
-    Commit(VerifiedBlockHeader),
+    Commit(
+        VerifiedBlockHeader,
+        Option<CommitMetastate>,
+        Vec<AuthorityIndex>,
+    ),
     Skip(Slot),
 }
 
@@ -868,16 +1010,24 @@ impl DecidedLeader {
     // Slot where the leader is decided.
     pub(crate) fn slot(&self) -> Slot {
         match self {
-            Self::Commit(block) => block.reference().into(),
+            Self::Commit(block, _, _) => block.reference().into(),
             Self::Skip(slot) => *slot,
         }
     }
 
-    // Converts to committed block if the decision is to commit. Returns None
-    // otherwise.
-    pub(crate) fn into_committed_block(self) -> Option<VerifiedBlockHeader> {
+    // Converts a Commit decision into the committed block, metastate, and
+    // strong-voter authority set. Returns None for Skip.
+    pub(crate) fn into_committed_block(
+        self,
+    ) -> Option<(
+        VerifiedBlockHeader,
+        Option<CommitMetastate>,
+        Vec<AuthorityIndex>,
+    )> {
         match self {
-            Self::Commit(block) => Some(block),
+            Self::Commit(block, metastate, strong_voters) => {
+                Some((block, metastate, strong_voters))
+            }
             Self::Skip(_) => None,
         }
     }
@@ -885,7 +1035,7 @@ impl DecidedLeader {
     #[cfg(test)]
     pub(crate) fn round(&self) -> Round {
         match self {
-            Self::Commit(block) => block.round(),
+            Self::Commit(block, _, _) => block.round(),
             Self::Skip(leader) => leader.round,
         }
     }
@@ -893,7 +1043,7 @@ impl DecidedLeader {
     #[cfg(test)]
     pub(crate) fn authority(&self) -> AuthorityIndex {
         match self {
-            Self::Commit(block) => block.author(),
+            Self::Commit(block, _, _) => block.author(),
             Self::Skip(leader) => leader.authority,
         }
     }
@@ -902,10 +1052,51 @@ impl DecidedLeader {
 impl Display for DecidedLeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, None, _) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, Some(metastate), _) => {
+                write!(f, "Commit({},{metastate})", block.reference())
+            }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
         }
     }
+}
+
+/// Refined commit state for StarfishSpeed leaders, determined at commit time
+/// from the strong-vote evidence at rounds r+1 (voting) and r+2 (certifying).
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub(crate) enum CommitMetastate {
+    /// Strong-vote quorum at r+1 AND StrongQC quorum at r+2.
+    /// Sequence histDA(L) + leader acknowledgment blocks.
+    Optimistic,
+    /// Strong-blame quorum observed at r+1 (no StrongQC quorum possible).
+    /// Sequence histDA(L) only (same as base Starfish).
+    Standard,
+    /// Neither a strong-vote nor a strong-blame quorum observed.
+    /// Metastate is resolved later (by the indirect rule).
+    Pending,
+}
+
+impl Display for CommitMetastate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Optimistic => write!(f, "optimistic"),
+            Self::Standard => write!(f, "standard"),
+            Self::Pending => write!(f, "pending"),
+        }
+    }
+}
+
+/// Test helper: pair each leader with `None` metastate and an empty
+/// strong-voter set.
+#[cfg(test)]
+pub(crate) fn with_no_metastate(
+    blocks: Vec<VerifiedBlockHeader>,
+) -> Vec<(
+    VerifiedBlockHeader,
+    Option<CommitMetastate>,
+    Vec<AuthorityIndex>,
+)> {
+    blocks.into_iter().map(|b| (b, None, Vec::new())).collect()
 }
 
 /// Per-commit properties that can be regenerated from past values, and do not

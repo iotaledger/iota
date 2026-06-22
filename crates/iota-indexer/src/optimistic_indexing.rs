@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, time::Duration};
 
 use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
-use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
+use fastcrypto::{encoding::Base64, error::FastCryptoError};
 use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_sdk_types::ObjectId;

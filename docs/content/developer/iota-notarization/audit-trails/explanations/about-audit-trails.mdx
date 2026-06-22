@@ -1,0 +1,225 @@
+---
+title: The Audit Trail Object
+description: An explanation of the IOTA Audit Trail Move object, its data structures, records, locking system, and lifecycle.
+tags:
+ - explanation
+ - notarization
+ - audit-trails
+---
+
+# The Audit Trail Object
+
+The core of IOTA Audit Trails is the `AuditTrail` **shared** Move object — an on-chain ledger that stores a sequential, tamper-proof log of records. Unlike owned objects (such as a [Notarization](../../single-notarization/explanations/about-notarization.mdx)) that are controlled by a single address, an Audit Trail is a shared object that multiple authorized parties can write to, governed by [Role-Based Access Control](./role-based-access-control.mdx).
+
+IOTA Audit Trails is composed of two primary packages:
+- **Audit Trails Move Package**: The on-chain smart contracts that define the behavior, structure, and access control of audit trails.
+- **Audit Trails Client Packages (Rust crate / WASM bindings)**: Client-side packages that provide developers with convenient functions to create, manage, and query audit trails on the network.
+
+---
+
+## The `AuditTrail` Struct
+
+The `AuditTrail` struct is a shared generic Move object that holds the complete trail state: records, metadata, access control, tags, and locking configuration.
+The generic argument `D` specifies the type of data stored in each record.
+
+```Move
+public struct AuditTrail<D: store + copy> has key {
+    id: UID,
+    creator: address,
+    created_at: u64,
+    sequence_number: u64,
+    records: LinkedTable<u64, Record<D>>,
+    tags: TagRegistry,
+    locking_config: LockingConfig,
+    roles: RoleMap<Permission, RoleTags>,
+    immutable_metadata: Option<ImmutableMetadata>,
+    updatable_metadata: Option<String>,
+    version: u64,
+}
+```
+
+### Key Fields
+
+- **`creator`**: The address that created the trail. This address automatically receives an Admin Capability upon creation.
+- **`sequence_number`**: A monotonically increasing counter. Each new record receives the current value, which is then incremented. Sequence numbers are never reused — even after a record is deleted, its sequence number is permanently consumed.
+- **`records`**: A `LinkedTable` mapping sequence numbers to `Record` objects, maintaining insertion order for efficient traversal.
+- **`tags`**: A `TagRegistry` that defines which tags can be attached to records. Tags must be registered before use and track their usage count across records and roles.
+- **`locking_config`**: A `LockingConfig` that controls when records can be deleted, when the trail itself can be deleted, and when new records can be added.
+- **`roles`**: A `RoleMap` that stores all role definitions, permission sets, and the revoked capabilities denylist. See [Role-Based Access Control](./role-based-access-control.mdx) for details.
+- **`immutable_metadata`**: An optional name and description set at creation time. Cannot be changed after creation.
+- **`updatable_metadata`**: An optional string that can be modified by holders of the `UpdateMetadata` permission at any time.
+- **`version`**: The package version, used for schema migrations when the smart contract is upgraded.
+
+---
+
+## Records
+
+Each entry in the trail is a `Record` — a struct that captures the data, its context, and its position in the sequence.
+
+```Move
+public struct Record<D: store + copy> has store {
+    data: D,
+    metadata: Option<String>,
+    tag: Option<String>,
+    sequence_number: u64,
+    added_by: address,
+    added_at: u64,
+    correction: RecordCorrection,
+}
+```
+
+### Record Fields
+
+- **`data`**: The payload being recorded. The generic type `D` allows storage of different data forms. The built-in `Data` enum supports two variants:
+  - `Data::Bytes(vector<u8>)` — raw binary data (e.g., a document hash)
+  - `Data::Text(String)` — human-readable text (e.g., a JSON event description)
+- **`metadata`**: An optional string providing additional context for this specific record (e.g., `"event:shipment_created;location:warehouse-a"`).
+- **`tag`**: An optional string label categorizing the record. The tag must be registered in the trail's `TagRegistry` before it can be used, and the writer's role must include the tag in its `RoleTags` allowlist.
+- **`sequence_number`**: The record's position in the trail. Assigned automatically and never reused.
+- **`added_by`**: The address of the transaction sender who added the record.
+- **`added_at`**: The on-chain clock timestamp (in milliseconds) when the record was added.
+- **`correction`**: A `RecordCorrection` struct that tracks bidirectional correction relationships between records.
+
+### Record Corrections
+
+Records support a correction mechanism that creates traceable links between original and corrected entries:
+
+```Move
+public struct RecordCorrection has store, copy, drop {
+    replaces: VecSet<u64>,
+    is_replaced_by: Option<u64>,
+}
+```
+
+- **`replaces`**: The set of sequence numbers that this record corrects. A correction record can replace one or more earlier records.
+- **`is_replaced_by`**: If this record has been superseded, this field contains the sequence number of the replacement.
+
+This bidirectional linking ensures that:
+- Given a correction record, you can find the originals it replaces.
+- Given an original record, you can find the correction that supersedes it.
+- The full correction chain is navigable in both directions, providing a complete audit history even when data is revised.
+
+---
+
+## Locking System
+
+Audit Trails provides a configurable locking system that protects records and the trail itself from unauthorized or premature modification.
+
+```Move
+public struct LockingConfig has drop, store {
+    delete_record_window: LockingWindow,
+    delete_trail_lock: TimeLock,
+    write_lock: TimeLock,
+}
+```
+
+### Record Deletion Window
+
+The `delete_record_window` controls when individual records can be deleted. It supports three modes:
+
+| Mode | Behavior |
+|------|----------|
+| `None` | No restriction — any record can be deleted at any time (subject to permissions). |
+| `TimeBased { seconds }` | A record is locked for the specified number of seconds after its `added_at` timestamp. Once the window expires, the record can be deleted. |
+| `CountBased { count }` | The most recent `count` records are locked. As new records are added, older records become eligible for deletion. |
+
+These modes are mutually exclusive. The time-based mode is useful for compliance requirements (e.g., "records must be retained for 90 days"), while the count-based mode is useful for rolling-window scenarios (e.g., "always keep the last 1000 records"). A count-based window requires `count > 0`; to disable the deletion lock entirely, use `None` rather than `CountBased { count: 0 }` (a zero count is rejected).
+
+### Trail Deletion Lock
+
+The `delete_trail_lock` is a `TimeLock` that prevents the entire trail from being destroyed until the lock expires. The trail can only be deleted when it contains no records and the deletion lock has expired.
+
+### Write Lock
+
+The `write_lock` is a `TimeLock` that prevents new records from being added to the trail. This is useful for freezing a trail during an audit period or after a compliance deadline.
+
+### TimeLock Variants
+
+Both the trail deletion lock and the write lock use the `TimeLock` enum:
+
+| Variant                 | Behavior                                                                                                                                       |
+|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `None`                  | No lock applied.                                                                                                                               |
+| `UnlockAt(timestamp)`   | Locked until the specified Unix timestamp (in seconds).                                                                                        |
+| `UnlockAtMs(timestamp)` | Same as UnlockAt but using Unix timestamp in milliseconds.                                                                                     |
+| `UntilDestroyed`        | Locked permanently until the trail is destroyed. Not permitted for `delete_trail_lock` (as that would make the storage deposit irrecoverable). |
+| `Infinite`              | A lock that never unlocks (permanent lock)                                                                                                     |
+
+### Batch Deletion
+
+In addition to individual record deletion, the trail supports batch deletion via `delete_records_batch`. This operation
+deletes up to a specified number of records from the front of the trail and **also respects the locking window** — records
+that are still locked (or whose tag the caller's capability does not permit) are silently skipped rather than deleted.
+The set of locked records is determined and fixed when the transaction begins. It requires the `DeleteAllRecords`
+permission — a separate, more powerful permission than `DeleteRecord` — and returns the sequence numbers actually deleted,
+which may be fewer than requested. This is designed for cleanup workflows where an administrator needs to purge old, unlocked records in bulk.
+
+---
+
+## Trail Metadata
+
+Audit Trails supports two tiers of metadata:
+
+### Immutable Metadata
+
+Set once at creation time, immutable metadata provides a permanent identity for the trail:
+
+```Move
+public struct ImmutableMetadata has store, copy, drop {
+    name: String,
+    description: Option<String>,
+}
+```
+
+- **`name`**: A human-readable name for the trail (e.g., `"Product Shipment Audit Trail"`).
+- **`description`**: An optional longer description of the trail's purpose.
+
+### Updatable Metadata
+
+An optional string that can be modified at any time by a holder of the `UpdateMetadata` permission. This is useful for storing status information, external references, or operational notes that may change over the trail's lifetime.
+
+---
+
+## Tag System
+
+Tags provide a categorization layer for records and enable fine-grained access control beyond simple permission checks. For a full explanation of how tags interact with roles, see [Record Tags and RoleTags](./role-based-access-control.mdx#record-tags-and-roletags).
+
+The key concepts:
+- A **Tag Registry** on the trail defines the set of valid tags. Tags must be registered before they can be used on records.
+- Each tag tracks its **usage count** — the number of records and roles that reference it. A tag cannot be removed while it is in use.
+- Roles can carry a **RoleTags allowlist** that restricts which tagged records the role's capability holders can operate on.
+
+---
+
+## Trail Lifecycle
+
+### 1. Creation
+
+A trail is created by calling `create()` with optional configuration: immutable metadata, updatable metadata, locking configuration, an initial record, and a set of record tags. The creator's address automatically receives an **Admin Capability** — an on-chain object granting full administrative control.
+
+### 2. Active Operation
+
+During its active phase, the trail accumulates records:
+- **Add records**: Authorized users append events with data, optional metadata, and optional tags.
+- **Correct records (Not MVP)**: New records can be created that reference (and supersede) earlier entries.
+- **Delete records**: Individual records can be removed if permitted by the locking configuration, or in bulk via batch deletion.
+- **Manage access**: The admin can create roles, issue capabilities, revoke access, and update permissions.
+- **Configure locking**: Locking policies can be adjusted as requirements evolve.
+- **Manage tags**: New tags can be added to the registry, and unused tags can be removed.
+
+### 3. Destruction
+
+To destroy a trail:
+1. All records must be deleted first (individually or in batches).
+2. The `delete_trail_lock` must have expired.
+3. A capability with the `DeleteAuditTrail` permission must be presented.
+
+Once destroyed, the trail's storage deposit is refunded to the owner. The Admin Capability and any remaining capabilities become unusable.
+
+---
+
+## Events
+
+Audit Trails emit on-chain events for the operations that change a trail's state — creating and deleting trails, adding and removing records, and managing roles and capabilities. This enables off-chain systems to monitor and react to trail activity, such as building dashboards, feeding indexers, or keeping an off-chain capability registry in sync.
+
+See [Audit Trails Events](./events.mdx) for the complete list, each event's payload, and the operation that triggers it.

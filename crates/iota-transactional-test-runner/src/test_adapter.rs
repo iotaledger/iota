@@ -32,35 +32,32 @@ use iota_json_rpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Argument, Command, ExecutionStatus, Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Command, Event, ExecutionStatus, Identifier, ObjectData, ObjectId,
+    ProgrammableTransaction, RandomnessRound, TransactionKind, TypeTag, gas::GasCostSummary,
+    move_package::MovePackage,
+};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{IOTA_ADDRESS_LENGTH, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
-    crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
+    crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    event::Event,
-    gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
     move_authenticator::MoveAuthenticator,
-    move_package::{
-        IotaAttribute, MovePackage, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
-    },
-    object::{self, GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
+    move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
+    object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     storage::{ObjectStore, ReadStore},
-    transaction::{
-        CallArg, ProgrammableTransaction, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind, VerifiedTransaction,
-    },
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
         to_sender_signed_transaction_with_optional_sponsor,
@@ -270,7 +267,7 @@ impl AdapterInitConfig {
 
 #[derive(Debug)]
 struct TestAccount {
-    address: IotaAddress,
+    address: Address,
     key_pair: Option<AccountKeyPair>,
     gas: ObjectId,
 }
@@ -734,7 +731,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             IotaSubcommand::ViewObject(ViewObjectCommand { id: fake_id }) => {
                 let obj = get_obj!(fake_id);
                 Ok(Some(match &obj.data {
-                    object::Data::Struct(move_obj) => {
+                    ObjectData::Struct(move_obj) => {
                         let layout = move_obj.get_layout(&&*self).unwrap();
                         let move_struct =
                             BoundedVisitor::deserialize_struct(move_obj.contents(), &layout)
@@ -747,7 +744,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             move_struct
                         ))
                     }
-                    object::Data::Package(package) => {
+                    ObjectData::Package(package) => {
                         let num_modules = package.serialized_module_map().len();
                         let modules = package
                             .serialized_module_map()
@@ -1661,7 +1658,7 @@ impl IotaTestAdapter {
         sender: Option<String>,
         txn_data: impl FnOnce(
             // sender
-            IotaAddress,
+            Address,
             // gas
             Vec<ObjectRef>,
         ) -> TransactionData,
@@ -1687,11 +1684,7 @@ impl IotaTestAdapter {
 
         payments
             .into_iter()
-            .map(|payment| {
-                self.get_object(&payment, None)
-                    .unwrap()
-                    .compute_object_reference()
-            })
+            .map(|payment| self.get_object(&payment, None).unwrap().object_ref())
             .collect()
     }
 
@@ -1703,9 +1696,9 @@ impl IotaTestAdapter {
         aa_sig: Option<GenericSignature>,
         txn_data: impl FnOnce(
             // sender
-            IotaAddress,
+            Address,
             // sponsor
-            IotaAddress,
+            Address,
             // gas
             Vec<ObjectRef>,
         ) -> TransactionData,
@@ -1912,7 +1905,7 @@ impl IotaTestAdapter {
 
     async fn dev_inspect(
         &mut self,
-        sender: IotaAddress,
+        sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> anyhow::Result<TxnSummary> {
@@ -2009,8 +2002,8 @@ impl IotaTestAdapter {
     // sorting between objects of the same type
     fn get_object_sorting_key(&self, id: &ObjectId) -> String {
         match &self.get_object(id, None).unwrap().data {
-            object::Data::Struct(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
-            object::Data::Package(pkg) => pkg
+            ObjectData::Struct(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
+            ObjectData::Package(pkg) => pkg
                 .serialized_module_map()
                 .keys()
                 .map(|s| s.as_str())
@@ -2270,7 +2263,7 @@ impl IotaTestAdapter {
                 object
                     .struct_tag()
                     .filter(|tag| {
-                        tag.address() == IotaAddress::from(*package_addr)
+                        tag.address() == Address::from(*package_addr)
                             && tag.module().as_str() == module_name
                             && tag.name().as_str() == account_type
                     })
@@ -2283,14 +2276,12 @@ impl IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                object
-                    .as_coin_maybe()
-                    .map(|_| object.compute_object_reference())
+                object.as_coin_maybe().map(|_| object.object_ref())
             })
             .expect("Abstract account creation must have a gas coin");
 
         let abstract_account = TestAccount {
-            address: IotaAddress::from(created_abstract_account_id),
+            address: Address::from(created_abstract_account_id),
             key_pair: None,
             gas: created_abstract_account_coin.object_id,
         };
@@ -2448,26 +2439,26 @@ impl Default for AdapterInitConfig {
 
 static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| {
     let mut map = move_stdlib::move_stdlib_named_addresses();
-    assert!(map.get("std").unwrap().as_ref() == IotaAddress::STD.as_bytes());
+    assert!(map.get("std").unwrap().as_ref() == Address::STD.as_bytes());
     // TODO fix IOTA framework constants
     map.insert(
         "iota".to_string(),
         NumericalAddress::new(
-            IotaAddress::FRAMEWORK.into_bytes(),
+            Address::FRAMEWORK.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
         "iota_system".to_string(),
         NumericalAddress::new(
-            IotaAddress::SYSTEM.into_bytes(),
+            Address::SYSTEM.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
         "stardust".to_string(),
         NumericalAddress::new(
-            IotaAddress::STARDUST.into_bytes(),
+            Address::STARDUST.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
@@ -2661,7 +2652,7 @@ async fn init_sim_executor(
     let (mut validator_addr, mut validator_key, mut key_copy) = (None, None, None);
     if custom_validator_account {
         // Make a validator account with a gas object
-        let (a, b): (IotaAddress, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
+        let (a, b): (Address, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
 
         key_copy = Some(
             Ed25519KeyPair::from_bytes(b.as_bytes())

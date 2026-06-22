@@ -15,12 +15,13 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, ProgrammableTransaction, TransactionKind};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
     },
     auth_context::AuthContextData,
-    base_types::{IotaAddress, TxContext},
+    base_types::TxContext,
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -32,7 +33,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction, TransactionKind},
+    transaction::{CheckedInputObjects, GasData},
 };
 use iota_verifier_latest::meter::IotaVerifierMeter;
 use move_binary_format::CompiledModule;
@@ -84,7 +85,7 @@ impl executor::Executor for Executor {
         gas_data: GasData,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -125,7 +126,7 @@ impl executor::Executor for Executor {
         gas_data: GasData,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         skip_all_checks: bool,
     ) -> (
@@ -196,7 +197,7 @@ impl executor::Executor for Executor {
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         // Tracing
@@ -249,7 +250,7 @@ impl executor::Executor for Executor {
         aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
-        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_signer: Address,
         authenticated_transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         // Tracing

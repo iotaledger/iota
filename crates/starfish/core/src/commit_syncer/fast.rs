@@ -945,7 +945,10 @@ mod tests {
         for (index, _) in committee.authorities() {
             let parameters = Parameters {
                 db_path: temp_dirs[index.value()].path().to_path_buf(),
-                dag_state_cached_rounds: 5,
+                // Retain enough recent rounds to serve voting-block headers to
+                // lagging peers during catch-up; stabilizes the A/B convergence
+                // asserted below.
+                dag_state_cached_rounds: COMMIT_GAP_THRESHOLD / 2,
                 commit_sync_parallel_fetches: 2,
                 commit_sync_batch_size: 10,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,

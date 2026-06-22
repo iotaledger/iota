@@ -4,7 +4,8 @@
 
 use std::sync::Arc;
 
-use iota_types::{committee::EpochId, crypto::RandomnessRound};
+use iota_sdk_types::RandomnessRound;
+use iota_types::committee::EpochId;
 use prometheus::{
     Histogram, IntGauge, Registry, register_histogram_with_registry,
     register_int_gauge_with_registry,

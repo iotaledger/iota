@@ -3,50 +3,67 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, convert::TryInto, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryInto,
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 
 use bcs;
 use fastcrypto::traits::KeyPair;
 use futures::{StreamExt, stream::FuturesUnordered};
+use iota_config::genesis::Genesis;
+use iota_framework::BuiltInFramework;
 use iota_json_rpc_types::{
-    IotaArgument, IotaExecutionResult, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
-    IotaTypeTag,
+    DevInspectResults, DryRunTransactionBlockResponse, IotaArgument, IotaExecutionResult,
+    IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTypeTag,
 };
 use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Argument, CancelledTransaction, Command, ConsensusDeterminedVersionAssignments, ExecutionError,
-    ExecutionStatus, Identifier, Owner, StructTag, TypeTag, VersionAssignment,
+    Address, Argument, CancelledTransaction, Command, ConsensusDeterminedVersionAssignments,
+    EpochId, ExecutionError, ExecutionStatus, GasPayment, Identifier, MoveStruct, ObjectData,
+    ObjectId, ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, StructTag,
+    TransactionKind, TypeTag, Version, VersionAssignment,
 };
 use iota_types::{
-    base_types::{
-        AuthorityName, IotaAddress, TxContext, dbg_addr, dbg_object_id, random_object_ref,
-    },
+    base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
+    committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, Signature, get_key_pair,
         random_committee_key_pairs_of_size,
     },
-    digests::Digest,
-    dynamic_field::DynamicFieldType,
-    effects::TransactionEffects,
+    digests::{Digest, ObjectDigest, TransactionDigest},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
-    error::UserInputError,
+    error::{IotaError, IotaResult, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
     gas_coin::GasCoin,
-    iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::AuthorityCapabilitiesV1,
-    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION},
+    iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
+    messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
+    messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
+    object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
-    supported_protocol_versions::SupportedProtocolVersions,
+    supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        VerifiedCertificate, VerifiedTransaction,
+    },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use move_binary_format::{
     CompiledModule,
     file_format::{self, AddressIdentifierIndex, IdentifierIndex, ModuleHandle},
 };
+use move_core_types::account_address::AccountAddress;
 use rand::{
     Rng, SeedableRng,
     distributions::{Distribution, Uniform},
@@ -55,16 +72,21 @@ use rand::{
 };
 use serde_json::json;
 
-use super::*;
 pub use crate::authority::authority_test_utils::*;
 use crate::{
     authority::{
+        AuthorityState, AuthorityStore, SIMULATION_GAS_COIN_VALUE,
+        authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
         authority_store_tables::AuthorityPerpetualTables,
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
-        test_authority_builder::TestAuthorityBuilder, transaction_deferral::DeferralKey,
+        test_authority_builder::TestAuthorityBuilder,
+        transaction_deferral::DeferralKey,
     },
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    authority_client::{NetworkAuthorityClient, validator::ValidatorAPI},
     authority_server::AuthorityServer,
+    checkpoints::CheckpointServiceNoop,
+    consensus_handler::SequencedConsensusTransaction,
+    execution_cache::ExecutionCacheCommit,
     test_utils::init_state_parameters_from_rng,
     transaction_input_loader::TransactionInputLoader,
 };
@@ -100,9 +122,9 @@ impl TestCallArg {
         let object = state.get_object(&object_id).await.unwrap();
         match &object.owner {
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
-                CallArg::ImmutableOrOwned(object.compute_object_reference())
+                CallArg::ImmutableOrOwned(object.object_ref())
             }
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectReference::new(
                 object_id,
                 *initial_shared_version,
                 true,
@@ -115,7 +137,7 @@ impl TestCallArg {
 // TODO break this up into a cleaner set of components. It does a bit too much
 // currently
 async fn construct_shared_object_transaction_with_sequence_number(
-    initial_shared_version_override: Option<SequenceNumber>,
+    initial_shared_version_override: Option<Version>,
 ) -> (
     Arc<AuthorityState>,
     Arc<AuthorityState>,
@@ -168,7 +190,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
     fullnode.insert_genesis_object(shared_object.clone()).await;
     let rgp = validator.reference_gas_price_for_testing().unwrap();
     let gas_object = validator.get_object(&gas_object_id).await;
-    let gas_object_ref = gas_object.unwrap().compute_object_reference();
+    let gas_object_ref = gas_object.unwrap().object_ref();
     let data = TransactionData::new_move_call(
         sender,
         package.object_id,
@@ -179,7 +201,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
         gas_object_ref,
         // args
         vec![
-            CallArg::Shared(SharedObjectRef::new(
+            CallArg::Shared(SharedObjectReference::new(
                 shared_object_id,
                 initial_shared_version,
                 true,
@@ -774,8 +796,8 @@ async fn test_dev_inspect_gas_coin_argument() {
     let epoch_store = validator.epoch_store_for_testing();
     let protocol_config = epoch_store.protocol_config();
 
-    let sender = IotaAddress::random();
-    let recipient = IotaAddress::random();
+    let sender = Address::random();
+    let recipient = Address::random();
     let amount = 500;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -823,8 +845,8 @@ async fn test_dev_inspect_gas_price() {
     let (_, fullnode, _object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
 
-    let sender = IotaAddress::random();
-    let recipient = IotaAddress::random();
+    let sender = Address::random();
+    let recipient = Address::random();
     let amount = 500;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -968,7 +990,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     let (validator, object_basics) = publish_object_basics(validator).await;
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     validator.insert_genesis_object(gas_object.clone()).await;
     fullnode.insert_genesis_object(gas_object).await;
     // create the parent
@@ -1092,10 +1114,10 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
     let gas_object = Object::with_id_owner_version_for_testing(
         gas_object_id,
-        SequenceNumber::MAX_VALID_EXCL - 1,
+        Version::MAX_VALID_EXCL - 1,
         Owner::Address(sender),
     );
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     validator.insert_genesis_object(gas_object.clone()).await;
     fullnode.insert_genesis_object(gas_object).await;
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
@@ -1148,8 +1170,8 @@ async fn test_handle_transfer_transaction_bad_signature() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -1161,13 +1183,11 @@ async fn test_handle_transfer_transaction_bad_signature() {
 
     let client = NetworkAuthorityClient::connect(
         server_handle.address(),
-        Some(
-            authority_state
-                .config
-                .network_key_pair()
-                .public()
-                .to_owned(),
-        ),
+        authority_state
+            .config
+            .network_key_pair()
+            .public()
+            .to_owned(),
     )
     .await
     .unwrap();
@@ -1195,7 +1215,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     assert!(
         authority_state
             .get_transaction_lock(
-                &object.compute_object_reference(),
+                &object.object_ref(),
                 &authority_state.epoch_store_for_testing()
             )
             .await
@@ -1206,7 +1226,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     assert!(
         authority_state
             .get_transaction_lock(
-                &object.compute_object_reference(),
+                &object.object_ref(),
                 &authority_state.epoch_store_for_testing()
             )
             .await
@@ -1222,8 +1242,8 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
     let gas_object_id = ObjectId::random();
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids_and_versions(vec![
-        (sender, object_id, SequenceNumber::MAX_VALID_EXCL),
-        (sender, gas_object_id, SequenceNumber::default()),
+        (sender, object_id, Version::MAX_VALID_EXCL),
+        (sender, gas_object_id, Version::default()),
     ])
     .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1235,8 +1255,8 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -1253,10 +1273,8 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
 #[tokio::test]
 async fn test_handle_shared_object_with_max_sequence_number() {
     let (authority, _fullnode, transaction, _, _) =
-        construct_shared_object_transaction_with_sequence_number(Some(
-            SequenceNumber::MAX_VALID_EXCL,
-        ))
-        .await;
+        construct_shared_object_transaction_with_sequence_number(Some(Version::MAX_VALID_EXCL))
+            .await;
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     // Submit the transaction and assemble a certificate.
     let response = authority
@@ -1288,8 +1306,8 @@ async fn test_handle_transfer_transaction_unknown_sender() {
         unknown_address,
         &unknown_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -1305,7 +1323,7 @@ async fn test_handle_transfer_transaction_unknown_sender() {
     assert!(
         authority_state
             .get_transaction_lock(
-                &object.compute_object_reference(),
+                &object.object_ref(),
                 &authority_state.epoch_store_for_testing()
             )
             .await
@@ -1316,7 +1334,7 @@ async fn test_handle_transfer_transaction_unknown_sender() {
     assert!(
         authority_state
             .get_transaction_lock(
-                &object.compute_object_reference(),
+                &object.object_ref(),
                 &authority_state.epoch_store_for_testing()
             )
             .await
@@ -1342,7 +1360,7 @@ async fn test_handle_transfer_transaction_ok() {
 
     let before_object_version = object.version();
     let after_object_version =
-        SequenceNumber::lamport_increment([object.version(), gas_object.version()]).unwrap();
+        Version::lamport_increment([object.version(), gas_object.version()]).unwrap();
 
     assert!(before_object_version < after_object_version);
 
@@ -1351,8 +1369,8 @@ async fn test_handle_transfer_transaction_ok() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -1361,7 +1379,7 @@ async fn test_handle_transfer_transaction_ok() {
     assert!(
         authority_state
             .get_transaction_lock(
-                &ObjectRef::new(object_id, before_object_version, object.digest()),
+                &ObjectReference::new(object_id, before_object_version, object.digest()),
                 &authority_state.epoch_store_for_testing()
             )
             .await
@@ -1371,7 +1389,7 @@ async fn test_handle_transfer_transaction_ok() {
     assert!(
         authority_state
             .get_transaction_lock(
-                &ObjectRef::new(object_id, after_object_version, object.digest()),
+                &ObjectReference::new(object_id, after_object_version, object.digest()),
                 &authority_state.epoch_store_for_testing()
             )
             .await
@@ -1385,7 +1403,7 @@ async fn test_handle_transfer_transaction_ok() {
 
     let pending_confirmation = authority_state
         .get_transaction_lock(
-            &object.compute_object_reference(),
+            &object.object_ref(),
             &authority_state.epoch_store_for_testing(),
         )
         .await
@@ -1400,7 +1418,7 @@ async fn test_handle_transfer_transaction_ok() {
     // Check the final state of the locks
     let Some(envelope) = authority_state
         .get_transaction_lock(
-            &ObjectRef::new(object_id, before_object_version, object.digest()),
+            &ObjectReference::new(object_id, before_object_version, object.digest()),
             &authority_state.epoch_store_for_testing(),
         )
         .await
@@ -1433,7 +1451,7 @@ async fn test_handle_sponsored_transaction() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .transfer_object(recipient, object.compute_object_reference())
+            .transfer_object(recipient, object.object_ref())
             .unwrap();
         builder.finish()
     };
@@ -1442,8 +1460,8 @@ async fn test_handle_sponsored_transaction() {
     let data = TransactionData::new_with_gas_data(
         tx_kind.clone(),
         sender,
-        GasData {
-            objects: vec![gas_object.compute_object_reference()],
+        GasPayment {
+            objects: vec![gas_object.object_ref()],
             owner: sponsor,
             price: rgp,
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
@@ -1462,8 +1480,8 @@ async fn test_handle_sponsored_transaction() {
     let data = TransactionData::new_with_gas_data(
         tx_kind.clone(),
         sender,
-        GasData {
-            objects: vec![gas_object.compute_object_reference()],
+        GasPayment {
+            objects: vec![gas_object.object_ref()],
             owner: sender, // <-- wrong
             price: rgp,
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
@@ -1491,8 +1509,8 @@ async fn test_handle_sponsored_transaction() {
     let data = TransactionData::new_with_gas_data(
         tx_kind.clone(),
         sender,
-        GasData {
-            objects: vec![gas_object.compute_object_reference()],
+        GasPayment {
+            objects: vec![gas_object.object_ref()],
             owner: wrong_owner, // <-- wrong
             price: rgp,
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
@@ -1520,8 +1538,8 @@ async fn test_handle_sponsored_transaction() {
     let data = TransactionData::new_with_gas_data(
         tx_kind,
         sender,
-        GasData {
-            objects: vec![gas_object.compute_object_reference()],
+        GasPayment {
+            objects: vec![gas_object.object_ref()],
             owner: third_party,
             price: rgp,
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
@@ -1565,7 +1583,7 @@ async fn test_transfer_package() {
         &sender_key,
         recipient,
         package_object_ref,
-        gas_object.compute_object_reference(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -1597,8 +1615,8 @@ async fn test_immutable_gas() {
         sender,
         &sender_key,
         recipient,
-        mut_object.compute_object_reference(),
-        imm_object.compute_object_reference(),
+        mut_object.object_ref(),
+        imm_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -1630,7 +1648,7 @@ async fn test_objected_owned_gas() {
         recipient,
         sender,
         None,
-        child_object.compute_object_reference(),
+        child_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -1668,7 +1686,7 @@ async fn test_publish_dependent_module_ok() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
-    let gas_payment_object_ref = gas_payment_object.compute_object_reference();
+    let gas_payment_object_ref = gas_payment_object.object_ref();
     // create a genesis state that contains the gas object and genesis modules
     let genesis_module = match BuiltInFramework::genesis_objects()
         .next()
@@ -1676,7 +1694,7 @@ async fn test_publish_dependent_module_ok() {
         .into_inner()
         .data
     {
-        Data::Package(m) => CompiledModule::deserialize_with_defaults(
+        ObjectData::Package(m) => CompiledModule::deserialize_with_defaults(
             m.serialized_module_map().values().next().unwrap(),
         )
         .unwrap(),
@@ -1745,7 +1763,7 @@ async fn test_publish_module_no_dependencies_ok() {
     let gas_balance = protocol_config.max_tx_gas();
     let gas_payment_object =
         Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, gas_balance);
-    let gas_payment_object_ref = gas_payment_object.compute_object_reference();
+    let gas_payment_object_ref = gas_payment_object.object_ref();
     authority.insert_genesis_object(gas_payment_object).await;
 
     let module = file_format::empty_module();
@@ -1789,7 +1807,7 @@ async fn test_publish_non_existing_dependent_module() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
-    let gas_payment_object_ref = gas_payment_object.compute_object_reference();
+    let gas_payment_object_ref = gas_payment_object.object_ref();
     // create a genesis state that contains the gas object and genesis modules
     let genesis_module = match BuiltInFramework::genesis_objects()
         .next()
@@ -1797,7 +1815,7 @@ async fn test_publish_non_existing_dependent_module() {
         .into_inner()
         .data
     {
-        Data::Package(m) => CompiledModule::deserialize_with_defaults(
+        ObjectData::Package(m) => CompiledModule::deserialize_with_defaults(
             m.serialized_module_map().values().next().unwrap(),
         )
         .unwrap(),
@@ -1866,7 +1884,7 @@ async fn test_package_size_limit() {
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object =
         Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, u64::MAX);
-    let gas_payment_object_ref = gas_payment_object.compute_object_reference();
+    let gas_payment_object_ref = gas_payment_object.object_ref();
     let mut package = Vec::new();
     let mut modules_size = 0;
     // create a package larger than the max size; serialized modules is the largest
@@ -1964,8 +1982,8 @@ async fn test_conflicting_transactions() {
         sender,
         &sender_key,
         recipient1,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -1975,8 +1993,8 @@ async fn test_conflicting_transactions() {
         sender,
         &sender_key,
         recipient2,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -2042,10 +2060,7 @@ async fn test_conflicting_transactions() {
             .database_for_testing()
             .reset_locks_and_live_markers_for_test(
                 &[*tx1.digest(), *tx2.digest()],
-                &[
-                    gas_object.compute_object_reference(),
-                    object.compute_object_reference(),
-                ],
+                &[gas_object.object_ref(), object.object_ref()],
                 &authority_state.epoch_store_for_testing(),
             );
     }
@@ -2069,8 +2084,8 @@ async fn test_handle_transfer_transaction_double_spend() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -2101,7 +2116,7 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
         recipient,
         sender,
         Some(GAS_VALUE_FOR_TESTING),
-        object.compute_object_reference(),
+        object.object_ref(),
         rgp * 2000,
         rgp,
     );
@@ -2129,7 +2144,7 @@ async fn test_missing_package() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let non_existent_package = ObjectId::MAX;
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     let data = TransactionData::new_move_call(
         sender,
         non_existent_package,
@@ -2167,15 +2182,15 @@ async fn test_type_argument_dependencies() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas1 = {
         let o = authority_state.get_object(&gas1).await.unwrap();
-        o.compute_object_reference()
+        o.object_ref()
     };
     let gas2 = {
         let o = authority_state.get_object(&gas2).await.unwrap();
-        o.compute_object_reference()
+        o.object_ref()
     };
     let gas3 = {
         let o = authority_state.get_object(&gas3).await.unwrap();
-        o.compute_object_reference()
+        o.object_ref()
     };
     // primitive type tag succeeds
     let data = TransactionData::new_move_call(
@@ -2268,12 +2283,12 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
         address,
         &key,
         address,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         &authority_state,
     );
     let effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2294,21 +2309,21 @@ async fn test_handle_confirmation_transaction_ok() {
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let next_sequence_number =
-        SequenceNumber::lamport_increment([object.version(), gas_object.version()]).unwrap();
+        Version::lamport_increment([object.version(), gas_object.version()]).unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         &authority_state,
     );
 
     let old_account = authority_state.get_object(&object_id).await.unwrap();
 
     let signed_effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction.clone(),
             &authority_state.epoch_store_for_testing(),
         )
@@ -2325,7 +2340,7 @@ async fn test_handle_confirmation_transaction_ok() {
     assert!(
         authority_state
             .get_transaction_lock(
-                &ObjectRef::new(object_id, 1.into(), old_account.digest()),
+                &ObjectReference::new(object_id, 1.into(), old_account.digest()),
                 &authority_state.epoch_store_for_testing()
             )
             .await
@@ -2334,7 +2349,7 @@ async fn test_handle_confirmation_transaction_ok() {
     assert!(
         authority_state
             .get_transaction_lock(
-                &ObjectRef::new(object_id, 2.into(), new_account.digest()),
+                &ObjectReference::new(object_id, 2.into(), new_account.digest()),
                 &authority_state.epoch_store_for_testing()
             )
             .await
@@ -2358,13 +2373,13 @@ async fn test_handle_confirmation_transaction_idempotent() {
         sender,
         &sender_key,
         recipient,
-        object.compute_object_reference(),
-        gas_object.compute_object_reference(),
+        object.object_ref(),
+        gas_object.object_ref(),
         &authority_state,
     );
 
     let effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2373,7 +2388,7 @@ async fn test_handle_confirmation_transaction_idempotent() {
     assert_eq!(effects.status(), &ExecutionStatus::Success);
 
     let signed_effects2 = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2414,7 +2429,7 @@ async fn test_move_call_mutable_object_not_mutated() {
     .unwrap();
     assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let ObjectRef {
+    let ObjectReference {
         object_id: new_object_id1,
         version: seq1,
         ..
@@ -2431,7 +2446,7 @@ async fn test_move_call_mutable_object_not_mutated() {
     .unwrap();
     assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let ObjectRef {
+    let ObjectReference {
         object_id: new_object_id2,
         version: seq2,
         ..
@@ -2443,7 +2458,7 @@ async fn test_move_call_mutable_object_not_mutated() {
         .unwrap()
         .version();
 
-    let next_object_version = SequenceNumber::lamport_increment([gas_version, seq1, seq2]).unwrap();
+    let next_object_version = Version::lamport_increment([gas_version, seq1, seq2]).unwrap();
 
     let effects = call_move(
         &authority_state,
@@ -2512,16 +2527,16 @@ async fn test_move_call_insufficient_gas() {
             .get_object(&object_id)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         authority_state
             .get_object(&gas_object_id1)
             .await
             .unwrap()
-            .compute_object_reference(),
+            .object_ref(),
         &authority_state,
     );
     let effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2534,16 +2549,16 @@ async fn test_move_call_insufficient_gas() {
         .get_object(&object_id)
         .await
         .unwrap()
-        .compute_object_reference();
+        .object_ref();
 
     let gas_ref = authority_state
         .get_object(&gas_object_id2)
         .await
         .unwrap()
-        .compute_object_reference();
+        .object_ref();
 
     let next_object_version =
-        SequenceNumber::lamport_increment([obj_ref.version, gas_ref.version]).unwrap();
+        Version::lamport_increment([obj_ref.version, gas_ref.version]).unwrap();
 
     let gas_used = if gas_used > kind_of_rebate_to_remove {
         if gas_used - kind_of_rebate_to_remove < 2000 {
@@ -2591,7 +2606,7 @@ async fn test_move_call_delete() {
     .unwrap();
     assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let ObjectRef {
+    let ObjectReference {
         object_id: new_object_id1,
         ..
     } = effects.created()[0].0;
@@ -2607,7 +2622,7 @@ async fn test_move_call_delete() {
     .unwrap();
     assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let ObjectRef {
+    let ObjectReference {
         object_id: new_object_id2,
         ..
     } = effects.created()[0].0;
@@ -2678,7 +2693,7 @@ async fn test_get_latest_parent_entry() {
     )
     .await
     .unwrap();
-    let ObjectRef {
+    let ObjectReference {
         object_id: new_object_id1,
         version: seq1,
         ..
@@ -2693,14 +2708,14 @@ async fn test_get_latest_parent_entry() {
     )
     .await
     .unwrap();
-    let ObjectRef {
+    let ObjectReference {
         object_id: new_object_id2,
         version: seq2,
         ..
     } = effects.created()[0].0;
 
     let update_version =
-        SequenceNumber::lamport_increment([seq1, seq2, effects.gas_object().0.version]).unwrap();
+        Version::lamport_increment([seq1, seq2, effects.gas_object().0.version]).unwrap();
 
     let effects = call_move(
         &authority_state,
@@ -2728,8 +2743,7 @@ async fn test_get_latest_parent_entry() {
     assert_eq!(obj_ref.version, update_version);
 
     let delete_version =
-        SequenceNumber::lamport_increment([obj_ref.version, effects.gas_object().0.version])
-            .unwrap();
+        Version::lamport_increment([obj_ref.version, effects.gas_object().0.version]).unwrap();
 
     let _effects = call_move(
         &authority_state,
@@ -2867,9 +2881,9 @@ async fn test_idempotent_reversed_confirmation() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
 
     let object = Object::with_owner_for_testing(sender);
-    let object_ref = object.compute_object_reference();
+    let object_ref = object.object_ref();
     let gas_object = Object::with_owner_for_testing(sender);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     let authority_state = init_state_with_objects([object, gas_object]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
 
@@ -2882,7 +2896,7 @@ async fn test_idempotent_reversed_confirmation() {
         &authority_state,
     );
     let result1 = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority_state.epoch_store_for_testing(),
         )
@@ -2912,7 +2926,7 @@ async fn test_invalid_mutable_clock_parameter() {
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx_data = TransactionData::new_move_call(
@@ -2961,14 +2975,14 @@ async fn test_invalid_randomness_parameter() {
     let init_random_version =
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
             .unwrap();
-    let random_mut = CallArg::Shared(SharedObjectRef::new(
+    let random_mut = CallArg::Shared(SharedObjectReference::new(
         ObjectId::RANDOMNESS_STATE,
         init_random_version,
         true,
     ));
 
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let tx_data = TransactionData::new_move_call(
@@ -3021,8 +3035,8 @@ async fn test_invalid_object_ownership() {
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let gas_ref = gas_object.compute_object_reference();
-    let invalid_ownership_object_ref = invalid_ownership_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
+    let invalid_ownership_object_ref = invalid_ownership_object.object_ref();
 
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
@@ -3060,7 +3074,7 @@ async fn test_valid_immutable_clock_parameter() {
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx_data = TransactionData::new_move_call(
@@ -3095,7 +3109,7 @@ async fn test_genesis_iota_system_state_object() {
         .get_object(&ObjectId::SYSTEM_STATE)
         .await
         .unwrap();
-    assert_eq!(wrapper.version(), SequenceNumber::from(1));
+    assert_eq!(wrapper.version(), Version::from(1));
     let move_object = wrapper.data.as_struct_opt().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
@@ -3127,7 +3141,7 @@ async fn test_transfer_iota_no_amount() {
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = epoch_store.reference_gas_price();
 
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
     let tx_data = TransactionData::new_transfer_iota(
         recipient,
         sender,
@@ -3147,7 +3161,7 @@ async fn test_transfer_iota_no_amount() {
 
     let certificate = init_certified_transaction(transaction.into(), &authority_state);
     let effects = authority_state
-        .execute_certificate(&certificate, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
     // Check that the transaction was successful, and the gas object is the only
@@ -3177,7 +3191,7 @@ async fn test_transfer_iota_with_amount() {
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
     let tx_data = TransactionData::new_transfer_iota(
         recipient,
         sender,
@@ -3189,7 +3203,7 @@ async fn test_transfer_iota_with_amount() {
     let transaction = to_sender_signed_transaction(tx_data, &sender_key);
     let certificate = init_certified_transaction(transaction, &authority_state);
     let effects = authority_state
-        .execute_certificate(&certificate, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
     // Check that the transaction was successful, the gas object remains in the
@@ -3222,7 +3236,7 @@ async fn test_store_revert_transfer_iota() {
     let (recipient, _sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
@@ -3230,7 +3244,7 @@ async fn test_store_revert_transfer_iota() {
         recipient,
         sender,
         None,
-        gas_object.compute_object_reference(),
+        gas_object.object_ref(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
@@ -3239,7 +3253,7 @@ async fn test_store_revert_transfer_iota() {
     let certificate = init_certified_transaction(transaction, &authority_state);
     let tx_digest = *certificate.digest();
     authority_state
-        .execute_certificate(&certificate, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
 
@@ -3321,7 +3335,7 @@ async fn test_store_revert_wrap_move_call() {
     let wrap_digest = *wrap_cert.digest();
 
     let wrap_effects = authority_state
-        .execute_certificate(&wrap_cert, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&wrap_cert, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
 
@@ -3420,7 +3434,7 @@ async fn test_store_revert_unwrap_move_call() {
     let unwrap_digest = *unwrap_cert.digest();
 
     let unwrap_effects = authority_state
-        .execute_certificate(&unwrap_cert, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&unwrap_cert, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
 
@@ -3469,9 +3483,7 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_)
 }
 
-async fn create_and_retrieve_df_info(
-    function: &Identifier,
-) -> (IotaAddress, Vec<DynamicFieldInfo>) {
+async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -3700,7 +3712,7 @@ async fn test_store_revert_add_ofield() {
     let add_digest = *add_cert.digest();
 
     let add_effects = authority_state
-        .execute_certificate(&add_cert, &authority_state.epoch_store_for_testing())
+        .wait_for_certificate_execution(&add_cert, &authority_state.epoch_store_for_testing())
         .await
         .unwrap();
 
@@ -3826,7 +3838,7 @@ async fn test_store_revert_remove_ofield() {
     let remove_ofield_digest = *remove_ofield_cert.digest();
 
     let remove_effects = authority_state
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &remove_ofield_cert,
             &authority_state.epoch_store_for_testing(),
         )
@@ -3888,12 +3900,12 @@ async fn test_iter_live_object_set() {
         sender,
         &sender_key,
         receiver,
-        obj.compute_object_reference(),
-        gas_obj.compute_object_reference(),
+        obj.object_ref(),
+        gas_obj.object_ref(),
         &authority,
     );
     authority
-        .execute_certificate(
+        .wait_for_certificate_execution(
             &certified_transfer_transaction,
             &authority.epoch_store_for_testing(),
         )
@@ -4035,8 +4047,8 @@ async fn test_iter_live_object_set() {
         &starting_live_set,
         &[
             (package.object_id, package.version),
-            (gas, SequenceNumber::from_u64(8)),
-            (obj_id, SequenceNumber::from_u64(2)),
+            (gas, Version::from_u64(8)),
+            (obj_id, Version::from_u64(2)),
             (upgrade_cap.object_id, upgrade_cap.version),
         ],
     );
@@ -4048,7 +4060,7 @@ async fn test_iter_live_object_set() {
 fn check_live_set(
     authority: &AuthorityState,
     ignore: &HashSet<ObjectId>,
-    expected_live_set: &[(ObjectId, SequenceNumber)],
+    expected_live_set: &[(ObjectId, Version)],
 ) {
     let mut expected: Vec<_> = expected_live_set.into();
     expected.sort();
@@ -4069,7 +4081,7 @@ fn check_live_set(
 }
 
 #[cfg(test)]
-pub fn find_by_id(fx: &[(ObjectRef, Owner)], id: ObjectId) -> Option<ObjectRef> {
+pub fn find_by_id(fx: &[(ObjectReference, Owner)], id: ObjectId) -> Option<ObjectReference> {
     fx.iter()
         .find_map(|(o, _)| (o.object_id == id).then_some(*o))
 }
@@ -4077,7 +4089,7 @@ pub fn find_by_id(fx: &[(ObjectRef, Owner)], id: ObjectId) -> Option<ObjectRef> 
 #[cfg(test)]
 pub async fn init_state_with_objects_and_object_basics<I: IntoIterator<Item = Object>>(
     objects: I,
-) -> (Arc<AuthorityState>, ObjectRef) {
+) -> (Arc<AuthorityState>, ObjectReference) {
     let state = TestAuthorityBuilder::new().build().await;
     for obj in objects {
         state.insert_genesis_object(obj).await;
@@ -4086,11 +4098,9 @@ pub async fn init_state_with_objects_and_object_basics<I: IntoIterator<Item = Ob
 }
 
 #[cfg(test)]
-pub async fn init_state_with_ids_and_object_basics<
-    I: IntoIterator<Item = (IotaAddress, ObjectId)>,
->(
+pub async fn init_state_with_ids_and_object_basics<I: IntoIterator<Item = (Address, ObjectId)>>(
     objects: I,
-) -> (Arc<AuthorityState>, ObjectRef) {
+) -> (Arc<AuthorityState>, ObjectReference) {
     let state = TestAuthorityBuilder::new().build().await;
     for (address, object_id) in objects {
         let obj = Object::with_id_owner_for_testing(object_id, address);
@@ -4099,7 +4109,9 @@ pub async fn init_state_with_ids_and_object_basics<
     publish_object_basics(state).await
 }
 
-pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<AuthorityState>, ObjectRef) {
+pub async fn publish_object_basics(
+    state: Arc<AuthorityState>,
+) -> (Arc<AuthorityState>, ObjectReference) {
     use iota_move_build::BuildConfig;
 
     // add object_basics package object to genesis, since lots of test use it
@@ -4118,17 +4130,19 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();
-    let pkg_ref = pkg.compute_object_reference();
+    let pkg_ref = pkg.object_ref();
     state.insert_genesis_object(pkg).await;
     (state, pkg_ref)
 }
 
 #[cfg(test)]
 pub async fn init_state_with_ids_and_object_basics_with_fullnode<
-    I: IntoIterator<Item = (IotaAddress, ObjectId)>,
+    I: IntoIterator<Item = (Address, ObjectId)>,
 >(
     objects: I,
-) -> (Arc<AuthorityState>, Arc<AuthorityState>, ObjectRef) {
+) -> (Arc<AuthorityState>, Arc<AuthorityState>, ObjectReference) {
+    use std::path::PathBuf;
+
     use iota_move_build::BuildConfig;
 
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
@@ -4154,7 +4168,7 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();
-    let pkg_ref = pkg.compute_object_reference();
+    let pkg_ref = pkg.object_ref();
     validator.insert_genesis_object(pkg.clone()).await;
     fullnode.insert_genesis_object(pkg).await;
     (validator, fullnode, pkg_ref)
@@ -4163,7 +4177,7 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
 pub async fn call_move(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     package: &ObjectId,
     module: &'_ str,
@@ -4191,7 +4205,7 @@ pub async fn call_move_(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     package: &ObjectId,
     module: &'_ str,
@@ -4201,7 +4215,7 @@ pub async fn call_move_(
     with_shared: bool, // Move call includes shared objects
 ) -> IotaResult<TransactionEffects> {
     let gas_object = authority.get_object(gas_object_id).await;
-    let gas_object_ref = gas_object.unwrap().compute_object_reference();
+    let gas_object_ref = gas_object.unwrap().object_ref();
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut args = vec![];
     for arg in test_args.into_iter() {
@@ -4234,7 +4248,7 @@ pub async fn call_move_(
 pub async fn execute_programmable_transaction(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     gas_unit: u64,
@@ -4256,7 +4270,7 @@ pub async fn execute_programmable_transaction(
 pub async fn execute_programmable_transaction_with_shared(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     gas_unit: u64,
@@ -4278,14 +4292,14 @@ pub async fn execute_programmable_transaction_with_shared(
 pub async fn build_programmable_transaction(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     gas_unit: u64,
 ) -> IotaResult<Transaction> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_object = authority.get_object(gas_object_id).await;
-    let gas_object_ref = gas_object.unwrap().compute_object_reference();
+    let gas_object_ref = gas_object.unwrap().object_ref();
     let data =
         TransactionData::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
 
@@ -4296,7 +4310,7 @@ async fn execute_programmable_transaction_(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     with_shared: bool, // Move call includes shared objects
@@ -4304,7 +4318,7 @@ async fn execute_programmable_transaction_(
 ) -> IotaResult<TransactionEffects> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_object = authority.get_object(gas_object_id).await;
-    let gas_object_ref = gas_object.unwrap().compute_object_reference();
+    let gas_object_ref = gas_object.unwrap().object_ref();
     let data =
         TransactionData::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
 
@@ -4321,7 +4335,7 @@ async fn call_move_with_gas_coins(
     fullnode: Option<&AuthorityState>,
     gas_object_ids: &[ObjectId],
     gas_budget: u64,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     package: &ObjectId,
     module: &'_ str,
@@ -4333,7 +4347,7 @@ async fn call_move_with_gas_coins(
     let mut gas_object_refs = vec![];
     for obj_id in gas_object_ids {
         let gas_object = authority.get_object(obj_id).await;
-        let gas_ref = gas_object.unwrap().compute_object_reference();
+        let gas_ref = gas_object.unwrap().object_ref();
         gas_object_refs.push(gas_ref);
     }
     let mut builder = ProgrammableTransactionBuilder::new();
@@ -4369,7 +4383,7 @@ pub async fn create_move_object(
     package_id: &ObjectId,
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
 ) -> IotaResult<TransactionEffects> {
     call_move(
@@ -4394,7 +4408,7 @@ async fn create_move_object_with_gas_coins(
     authority: &AuthorityState,
     gas_object_ids: &[ObjectId],
     gas_budget: u64,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
 ) -> IotaResult<TransactionEffects> {
     call_move_with_gas_coins(
@@ -4422,7 +4436,7 @@ pub async fn wrap_object(
     authority: &AuthorityState,
     object_id: &ObjectId,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
 ) -> IotaResult<TransactionEffects> {
     call_move(
@@ -4445,7 +4459,7 @@ pub async fn add_ofield(
     outer_object_id: &ObjectId,
     inner_object_id: &ObjectId,
     gas_object_id: &ObjectId,
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
 ) -> IotaResult<TransactionEffects> {
     call_move(
@@ -4467,7 +4481,7 @@ pub async fn add_ofield(
 
 pub async fn call_dev_inspect(
     authority: &AuthorityState,
-    sender: &IotaAddress,
+    sender: &Address,
     package: &ObjectId,
     module: &str,
     function: &str,
@@ -4502,11 +4516,11 @@ pub async fn call_dev_inspect(
 /// this may be fine.
 #[cfg(test)]
 async fn make_test_transaction(
-    sender: &IotaAddress,
+    sender: &Address,
     sender_key: &AccountKeyPair,
     owned_objects: &[Object],
-    shared_objects: &[(ObjectId, SequenceNumber, bool)],
-    gas_object_ref: &ObjectRef,
+    shared_objects: &[(ObjectId, Version, bool)],
+    gas_object_ref: &ObjectReference,
     authorities: &[&AuthorityState],
     arg_value: u64,
     gas_price: Option<u64>,
@@ -4533,7 +4547,7 @@ async fn make_test_transaction(
         shared_objects
             .iter()
             .map(|(shared_object_id, initial_shared_version, mutable)| {
-                CallArg::Shared(SharedObjectRef::new(
+                CallArg::Shared(SharedObjectReference::new(
                     *shared_object_id,
                     *initial_shared_version,
                     *mutable,
@@ -4542,7 +4556,7 @@ async fn make_test_transaction(
             .chain(
                 owned_objects
                     .iter()
-                    .map(|object| CallArg::ImmutableOrOwned(object.compute_object_reference())),
+                    .map(|object| CallArg::ImmutableOrOwned(object.object_ref())),
             )
             .chain(vec![CallArg::Pure(arg_value.to_le_bytes().to_vec())])
             .collect(),
@@ -4557,6 +4571,8 @@ async fn make_test_transaction(
     let mut sigs = vec![];
 
     for authority in authorities {
+        use iota_types::transaction::CertifiedTransaction;
+
         let epoch_store = authority.load_epoch_store_one_call_per_task();
         let transaction = transaction.clone();
         let transaction = epoch_store.verify_transaction(transaction).unwrap();
@@ -4585,11 +4601,11 @@ async fn prepare_authority_and_shared_object_cert()
     // Initialize an authority with a (owned) gas object and a shared object.
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let gas_object_ref = gas_object.compute_object_reference();
+    let gas_object_ref = gas_object.object_ref();
 
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
@@ -4658,23 +4674,38 @@ async fn test_shared_object_transaction_ok() {
         .await
         .unwrap()
         .version();
-    assert_eq!(shared_object_version, SequenceNumber::from(2));
+    assert_eq!(shared_object_version, Version::from(2));
 }
 
 // Tests that process_consensus_transactions_and_commit_boundary() will add the
 // consensus commit prologue transaction to the transactions in the current
 // consensus commit. It will be the first transaction in the batch and the first
 // one that updates the system clock object.
+//
+// When `pcool` is true, transactions are submitted as UserTransactionV1
+// (the certificate-free path) with white-flag conflict resolution enabled.
+// This verifies that the P-COOL merge/split logic produces the same
+// prologue generation and shared-object version assignment behaviour.
+#[rstest::rstest]
 #[tokio::test]
-async fn test_consensus_commit_prologue_generation() {
+async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool: bool) {
+    use iota_types::transaction::TransactionKey;
+
     telemetry_subscribers::init_for_testing();
+
+    let _guard = pcool.then(|| {
+        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        })
+    });
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
 
     let gas_objects = create_gas_objects(2, sender);
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
@@ -4685,45 +4716,84 @@ async fn test_consensus_commit_prologue_generation() {
     .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let mut certificates = vec![];
-    certificates.push(
-        make_test_transaction(
-            &sender,
-            &sender_key,
-            &[],
-            &[(shared_object_id, initial_shared_version, true)],
-            &gas_objects[1].compute_object_reference(),
-            &[&authority_state],
-            0,
-            None,
-            None,
-        )
-        .await,
-    );
+    // Transaction 1: shared-object Move call.
+    let shared_tx_data = TransactionData::new_move_call(
+        sender,
+        iota_types::IOTA_FRAMEWORK_PACKAGE_ID,
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("set_value"),
+        vec![],
+        gas_objects[1].object_ref(),
+        vec![
+            CallArg::Shared(SharedObjectReference {
+                object_id: shared_object_id,
+                initial_shared_version,
+                mutable: true,
+            }),
+            CallArg::Pure(0u64.to_le_bytes().to_vec()),
+        ],
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+        rgp,
+    )
+    .unwrap();
+    let shared_tx = to_sender_signed_transaction(shared_tx_data, &sender_key);
 
-    let tx_data = TransactionData::new_move_call(
+    // Transaction 2: clock-using Move call (higher gas price → ordered later).
+    let clock_tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("use_clock"),
         // type_args
         vec![],
-        gas_objects[0].compute_object_reference(),
+        gas_objects[0].object_ref(),
         vec![CallArg::CLOCK_IMMUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
-        rgp * 2, // User transaction that uses the clock has the highest gas price.
+        rgp * 2,
     )
     .unwrap();
+    let clock_tx = to_sender_signed_transaction(clock_tx_data, &sender_key);
 
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
-    certificates.push(
-        certify_transaction(&authority_state, transaction)
+    let processed_consensus_transactions = if pcool {
+        // Submit as UserTransactionV1 — no certificates needed.
+        let transactions = vec![
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(shared_tx)),
+                tracking_id: Default::default(),
+            }),
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(clock_tx)),
+                tracking_id: Default::default(),
+            }),
+        ];
+        authority_state
+            .epoch_store_for_testing()
+            .process_consensus_transactions_for_tests(
+                transactions,
+                &Arc::new(CheckpointServiceNoop {}),
+                authority_state.get_object_cache_reader().as_ref(),
+                authority_state.get_transaction_cache_reader().as_ref(),
+                &authority_state.metrics,
+                false,
+                &authority_state,
+            )
             .await
-            .unwrap(),
-    );
-
-    let processed_consensus_transactions =
-        send_batch_consensus_no_execution(&authority_state, &certificates, false).await;
+            .unwrap()
+    } else {
+        // Submit as certificates (original path).
+        let mut certificates = vec![];
+        certificates.push(
+            certify_transaction(&authority_state, shared_tx)
+                .await
+                .unwrap(),
+        );
+        certificates.push(
+            certify_transaction(&authority_state, clock_tx)
+                .await
+                .unwrap(),
+        );
+        send_batch_consensus_no_execution(&authority_state, &certificates, false).await
+    };
 
     // Tests that new consensus commit prologue transaction is added to the batch,
     // and it is the first transaction.
@@ -4738,7 +4808,7 @@ async fn test_consensus_commit_prologue_generation() {
 
     // Tests that the system clock object is updated by the new consensus commit
     // prologue transaction.
-    let get_assigned_version = |txn_key: &TransactionKey| -> SequenceNumber {
+    let get_assigned_version = |txn_key: &TransactionKey| -> Version {
         authority_state
             .epoch_store_for_testing()
             .get_assigned_shared_object_versions(txn_key)
@@ -4767,12 +4837,11 @@ async fn test_consensus_message_processed() {
 
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let mut gas_object_ref = gas_object.compute_object_reference();
+    let mut gas_object_ref = gas_object.object_ref();
 
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        use iota_types::object::MoveObject;
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
@@ -4893,7 +4962,7 @@ async fn test_choose_next_system_packages() {
     let o2 = random_object_ref();
     let o3 = random_object_ref();
 
-    fn sort(mut v: Vec<ObjectRef>) -> Vec<ObjectRef> {
+    fn sort(mut v: Vec<ObjectReference>) -> Vec<ObjectReference> {
         v.sort();
         v
     }
@@ -5498,7 +5567,7 @@ async fn test_gas_smashing() {
     // run a create move object transaction with a given set o gas coins and a
     // budget
     async fn create_obj(
-        sender: IotaAddress,
+        sender: Address,
         sender_key: AccountKeyPair,
         gas_coins: Vec<Object>,
         gas_budget: u64,
@@ -5519,7 +5588,7 @@ async fn test_gas_smashing() {
     }
 
     // make a `coin_num` coins distributing `gas_amount` across them
-    fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Object> {
+    fn make_gas_coins(owner: Address, gas_amount: u64, coin_num: u64) -> Vec<Object> {
         let mut objects = vec![];
         let coin_balance = gas_amount / coin_num;
         for _ in 1..coin_num {
@@ -5827,7 +5896,7 @@ async fn test_publish_transitive_dependencies_ok() {
 
     // Get gas object
     let gas_object = state.get_object(&gas_id).await.unwrap();
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
 
     // Publish `package C`
     let mut package_c_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -6024,7 +6093,7 @@ async fn test_publish_missing_dependency() {
 
     // Get gas object
     let gas_object = state.get_object(&gas_id).await.unwrap();
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
 
     // Module bytes
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -6070,7 +6139,7 @@ async fn test_publish_missing_transitive_dependency() {
 
     // Get gas object
     let gas_object = state.get_object(&gas_id).await.unwrap();
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
 
     // Module bytes
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -6116,7 +6185,7 @@ async fn test_publish_not_a_package_dependency() {
 
     // Get gas object
     let gas_object = state.get_object(&gas_id).await.unwrap();
-    let gas_ref = gas_object.compute_object_reference();
+    let gas_ref = gas_object.object_ref();
 
     // Module bytes
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -6158,7 +6227,7 @@ async fn test_publish_not_a_package_dependency() {
     )
 }
 
-pub fn create_gas_objects(num: u32, owner: IotaAddress) -> Vec<Object> {
+pub fn create_gas_objects(num: u32, owner: Address) -> Vec<Object> {
     let mut objects = vec![];
     for _ in 0..num {
         let gas_object_id = ObjectId::random();
@@ -6172,7 +6241,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
     for _ in 0..num {
         let shared_object_id = ObjectId::random();
         let shared_object = {
-            let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+            let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
             let owner = Owner::Shared(obj.version());
             Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
         };
@@ -6261,7 +6330,7 @@ async fn test_consensus_handler_per_object_congestion_control(
                 OBJECT_START_VERSION,
                 true,
             )],
-            &gas_object.compute_object_reference(),
+            &gas_object.object_ref(),
             &[&authority],
             12345,
             if index < 5 {
@@ -6330,7 +6399,7 @@ async fn test_consensus_handler_per_object_congestion_control(
             &keypair,
             &[],
             &[(shared_objects[1].id(), OBJECT_START_VERSION, true)],
-            &gas_object.compute_object_reference(),
+            &gas_object.object_ref(),
             &[&authority],
             12345,
             Some(1000),
@@ -6472,7 +6541,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &keypair,
             &[],
             &[(shared_objects[0].id(), OBJECT_START_VERSION, true)],
-            &gas_object.compute_object_reference(),
+            &gas_object.object_ref(),
             &[&authority],
             12345,
             Some(gas_price_of_non_cancelled_txs),
@@ -6494,7 +6563,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             (shared_objects[0].id(), OBJECT_START_VERSION, true),
             (shared_objects[1].id(), OBJECT_START_VERSION, true),
         ],
-        &gas_objects_cancelled_txn[0].compute_object_reference(),
+        &gas_objects_cancelled_txn[0].object_ref(),
         &[&authority],
         12345,
         Some(gas_price_of_cancelled_txs),
@@ -6554,13 +6623,11 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         [
             (
                 shared_objects[0].id(),
-                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                    .unwrap()
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             ),
             (
                 shared_objects[1].id(),
-                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                    .unwrap()
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             )
         ]
         .into_iter()
@@ -6574,7 +6641,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .read_objects_for_execution(
             &authority.epoch_store_for_testing(),
             &cancelled_txn.key(),
-            &CertLockGuard::guard_for_tests(),
+            &TxLockGuard::guard_for_tests(),
             &cancelled_txn
                 .data()
                 .transaction_data()
@@ -6594,13 +6661,11 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         vec![
             SharedInput::Cancelled((
                 shared_objects[0].id(),
-                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                    .unwrap()
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             )),
             SharedInput::Cancelled((
                 shared_objects[1].id(),
-                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                    .unwrap()
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             ))
         ]
     );
@@ -6613,7 +6678,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     );
     assert_eq!(
         cancellation_reason,
-        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
+        Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
     );
 
     // Consensus commit prologue contains cancelled txn shared object version
@@ -6629,12 +6694,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
                  version_assignments: vec![
                     VersionAssignment::new(
                         shared_objects[0].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                        Version::new_congested_with_suggested_gas_price(suggested_gas_price)
                         .unwrap(),
                     ),
                     VersionAssignment::new(
                         shared_objects[1].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                        Version::new_congested_with_suggested_gas_price(suggested_gas_price)
                         .unwrap(),
                     )
                 ]
@@ -6645,10 +6710,542 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     }
 }
 
+// ============================================================================
+// White-flag conflict resolution integration tests
+// ============================================================================
+
+/// Helper function to check if an object is locked, checking both quarantine
+/// and DB. This mimics the three-tier lookup used in white_flag conflict
+/// resolution.
+fn get_object_lock(
+    epoch_store: &AuthorityPerEpochStore,
+    obj_ref: &ObjectReference,
+) -> Option<TransactionDigest> {
+    // Tier 1: Check quarantine (uncommitted commits)
+    if let Some(locked_by) = epoch_store.get_quarantined_owned_object_lock(obj_ref) {
+        return Some(locked_by);
+    }
+
+    // Tier 2: Check DB (committed data)
+    epoch_store
+        .tables()
+        .ok()
+        .and_then(|tables| tables.get_locked_transaction(obj_ref).ok().flatten())
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_simple_conflict() {
+    telemetry_subscribers::init_for_testing();
+
+    // Enable P-COOL flow
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    // Setup: Two transactions competing for the same owned object
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient1 = dbg_addr(2);
+    let recipient2 = dbg_addr(3);
+    let object_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_ids_and_object_basics(vec![
+        (sender, object_id),
+        (sender, gas1_id),
+        (sender, gas2_id),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object = authority.get_object(&object_id).await.unwrap();
+    let gas1 = authority.get_object(&gas1_id).await.unwrap();
+    let gas2 = authority.get_object(&gas2_id).await.unwrap();
+
+    // Create two conflicting transactions
+    let verified_tx1 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient1,
+        object.object_ref(),
+        gas1.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let verified_tx2 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient2,
+        object.object_ref(),
+        gas2.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    // Create consensus transactions
+    let consensus_tx1 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        tracking_id: Default::default(),
+    };
+    let consensus_tx2 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        tracking_id: Default::default(),
+    };
+
+    let sequenced_txs = vec![
+        SequencedConsensusTransaction::new_test(consensus_tx1),
+        SequencedConsensusTransaction::new_test(consensus_tx2),
+    ];
+
+    // Process through consensus
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_txs = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_txs,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    // Verify: Only tx1 should be executable, tx2 should be dropped
+    assert_eq!(
+        executable_txs.len(),
+        1,
+        "Only tx1 should be executable, tx2 dropped"
+    );
+    assert_eq!(
+        executable_txs[0].inner().transaction_data().digest(),
+        *verified_tx1.digest(),
+        "The executable transaction should be tx1"
+    );
+
+    // Verify: tx1 should have locked the object (check quarantine + DB)
+    let lock = get_object_lock(&epoch_store, &object.object_ref());
+    assert_eq!(
+        lock,
+        Some(*verified_tx1.digest()),
+        "tx1 should lock the object, tx2 should be dropped"
+    );
+
+    // TODO: Verify: tx1 should be finalized
+    // assert!(
+    //     epoch_store
+    // TODO: Verify: tx2 should have a status (dropped)
+    // assert!(
+    //     epoch_store
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_no_conflict() {
+    telemetry_subscribers::init_for_testing();
+
+    // Enable P-COOL flow
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    // Setup: Two transactions using different objects
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object1_id = ObjectId::random();
+    let object2_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_ids_and_object_basics(vec![
+        (sender, object1_id),
+        (sender, object2_id),
+        (sender, gas1_id),
+        (sender, gas2_id),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object1 = authority.get_object(&object1_id).await.unwrap();
+    let object2 = authority.get_object(&object2_id).await.unwrap();
+    let gas1 = authority.get_object(&gas1_id).await.unwrap();
+    let gas2 = authority.get_object(&gas2_id).await.unwrap();
+
+    // Create two non-conflicting transactions
+    let verified_tx1 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient,
+        object1.object_ref(),
+        gas1.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let verified_tx2 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient,
+        object2.object_ref(),
+        gas2.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    // Create consensus transactions
+    let consensus_tx1 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        tracking_id: Default::default(),
+    };
+    let consensus_tx2 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        tracking_id: Default::default(),
+    };
+
+    let sequenced_txs = vec![
+        SequencedConsensusTransaction::new_test(consensus_tx1),
+        SequencedConsensusTransaction::new_test(consensus_tx2),
+    ];
+
+    // Process through consensus
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_txs = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_txs,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    // Verify: Both transactions should be executable
+    assert_eq!(
+        executable_txs.len(),
+        2,
+        "Both transactions should be executable"
+    );
+    let executable_digests: std::collections::HashSet<_> = executable_txs
+        .iter()
+        .map(|tx| tx.inner().transaction_data().digest())
+        .collect();
+    assert!(executable_digests.contains(verified_tx1.digest()));
+    assert!(executable_digests.contains(verified_tx2.digest()));
+
+    // Verify: Both transactions should have locked their respective objects
+    let lock1 = get_object_lock(&epoch_store, &object1.object_ref());
+    assert_eq!(
+        lock1,
+        Some(*verified_tx1.digest()),
+        "tx1 should lock object1"
+    );
+
+    let lock2 = get_object_lock(&epoch_store, &object2.object_ref());
+    assert_eq!(
+        lock2,
+        Some(*verified_tx2.digest()),
+        "tx2 should lock object2"
+    );
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_conflict_different_commits() {
+    telemetry_subscribers::init_for_testing();
+
+    // Enable P-COOL flow
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    // Test that a transaction in a second commit is dropped if it conflicts
+    // with a lock from a first commit that was persisted to DB
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_ids_and_object_basics(vec![
+        (sender, object_id),
+        (sender, gas1_id),
+        (sender, gas2_id),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object = authority.get_object(&object_id).await.unwrap();
+    let gas1 = authority.get_object(&gas1_id).await.unwrap();
+    let gas2 = authority.get_object(&gas2_id).await.unwrap();
+
+    // First commit: tx1 locks the object
+    let verified_tx1 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient,
+        object.object_ref(),
+        gas1.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let consensus_tx1 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        tracking_id: Default::default(),
+    };
+
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_txs = epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![SequencedConsensusTransaction::new_test(consensus_tx1)],
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    // Verify tx1 was executable
+    assert_eq!(executable_txs.len(), 1);
+    assert_eq!(
+        executable_txs[0].inner().transaction_data().digest(),
+        *verified_tx1.digest()
+    );
+
+    // Verify tx1 locked the object
+    let lock = get_object_lock(&epoch_store, &object.object_ref());
+    assert_eq!(lock, Some(*verified_tx1.digest()));
+
+    // Second commit: tx2 tries to use the same object (should be dropped)
+    let tx2 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient,
+        object.object_ref(),
+        gas2.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let verified_tx2 = epoch_store.verify_transaction(tx2.into()).unwrap();
+    let consensus_tx2 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        tracking_id: Default::default(),
+    };
+
+    let executable_txs2 = epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![SequencedConsensusTransaction::new_test(consensus_tx2)],
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    // Verify tx2 was dropped (not executable)
+    assert_eq!(executable_txs2.len(), 0);
+
+    // Verify: object is still locked by tx1 (tx2 was dropped)
+    let lock = get_object_lock(&epoch_store, &object.object_ref());
+    assert_eq!(
+        lock,
+        Some(*verified_tx1.digest()),
+        "Lock should still be held by tx1"
+    );
+
+    // TODO: tx2 should have a status (dropped)
+    // assert!(
+    //     epoch_store
+}
+
 #[tokio::test]
 async fn test_single_authority_reconfigure() {
     let state = TestAuthorityBuilder::new().build().await;
     assert_eq!(state.epoch_store_for_testing().epoch(), 0);
     state.reconfigure_for_testing().await;
     assert_eq!(state.epoch_store_for_testing().epoch(), 1);
+}
+
+/// Regression test: a deferred transaction must be executed in a later round,
+/// not dropped.
+///
+/// A transaction acquires its owned-object locks when
+/// `validate_and_resolve_conflicts` first processes it in some round; if the
+/// transaction is deferred in that round, it is then reloaded and re-validated
+/// by the same function in a next round. The lock-conflict check used to treat
+/// the transaction's *own* prior-round lock as a conflict and drop it
+/// immediately in the next round, effectively breaking the core logic of the
+/// deferral machinery: a deferred transaction should eventually be executed or
+/// cancelled.
+///
+/// Deferral has more than one trigger (shared-object congestion, randomness not
+/// yet available); this test uses congestion as the lever because it is the
+/// simplest to force deterministically. Two transactions touch the same shared
+/// object in one commit; with a per-commit limit of one transaction per shared
+/// object and zero overshoot, the first executes and the second is deferred,
+/// then must execute in the next round instead of being dropped.
+///
+/// Driving the consensus handler commit-by-commit places both transactions in
+/// the same commit deterministically, independent of the simulator seed.
+#[sim_test]
+async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+
+    // One shared object both transactions contend on, plus a distinct gas coin
+    // each so the only contention is the shared object (congestion), not the gas.
+    let shared_objects = create_shared_objects(1);
+    let gas_objects = create_gas_objects(2, sender);
+
+    // Enable the P-COOL flow (where the bug lived) and force congestion-driven
+    // deferral: count each transaction as one unit of cost, allow only one unit
+    // per shared object per commit, and forbid any overshoot, so the second
+    // transaction touching the shared object in the same commit is deferred.
+    // Allow one deferral round so the deferred transaction has a next round to
+    // execute in, rather than being cancelled.
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(true);
+    protocol_config.set_per_object_congestion_control_mode_for_testing(
+        PerObjectCongestionControlMode::TotalTxCount,
+    );
+    protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+    protocol_config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+    protocol_config.set_max_deferral_rounds_for_congestion_control_for_testing(1);
+
+    let authority = TestAuthorityBuilder::new()
+        .with_reference_gas_price(1000)
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+    let mut genesis_objects = gas_objects.clone();
+    genesis_objects.extend(shared_objects.clone());
+    authority.insert_genesis_objects(&genesis_objects).await;
+
+    // Build two `UserTransactionV1` transactions touching the same shared object,
+    // each paid by a distinct gas coin. The move call is never executed (the
+    // consensus handler only schedules here), so a placeholder `set_value` call
+    // is enough to declare the shared-object input for congestion accounting.
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let make_user_tx = |gas_object: &Object| {
+        let data = TransactionData::new_move_call(
+            sender,
+            ObjectId::FRAMEWORK,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("set_value"),
+            vec![],
+            gas_object.object_ref(),
+            vec![
+                CallArg::Shared(SharedObjectReference::new(
+                    shared_objects[0].id(),
+                    OBJECT_START_VERSION,
+                    true,
+                )),
+                CallArg::Pure(16u64.to_le_bytes().to_vec()),
+            ],
+            rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+            rgp,
+        )
+        .unwrap();
+        let tx = to_sender_signed_transaction(data, &keypair);
+        epoch_store.verify_transaction(tx).unwrap()
+    };
+    let tx1 = make_user_tx(&gas_objects[0]);
+    let tx2 = make_user_tx(&gas_objects[1]);
+    let tx1_digest = *tx1.digest();
+    let tx2_digest = *tx2.digest();
+
+    let seq = |tx: VerifiedTransaction| {
+        SequencedConsensusTransaction::new_test(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
+            tracking_id: Default::default(),
+        })
+    };
+    let process = |txns: Vec<SequencedConsensusTransaction>| {
+        let authority = &authority;
+        async move {
+            authority
+                .epoch_store_for_testing()
+                .process_consensus_transactions_for_tests(
+                    txns,
+                    &Arc::new(CheckpointServiceNoop {}),
+                    authority.get_object_cache_reader().as_ref(),
+                    authority.get_transaction_cache_reader().as_ref(),
+                    &authority.metrics,
+                    true,
+                    authority,
+                )
+                .await
+                .unwrap()
+                .iter()
+                .map(|tx| *tx.digest())
+                .collect::<Vec<_>>()
+        }
+    };
+
+    // Round r: both transactions are sequenced in one commit.
+    // `validate_and_resolve_conflicts` sets owned-object (gas) locks for BOTH
+    // before congestion scheduling defers the second one.
+    let scheduled_r = process(vec![seq(tx1), seq(tx2)]).await;
+    assert_eq!(
+        scheduled_r,
+        vec![tx1_digest],
+        "only the first transaction executes in round r; the second is deferred"
+    );
+    assert_eq!(
+        authority
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .len(),
+        1,
+        "the second transaction must be deferred, not dropped"
+    );
+
+    // Round r+1: no new transactions. The deferred transaction is reloaded and
+    // re-validated, where it finds its OWN gas-coin lock from round r. With the
+    // self-exemption it survives and executes; without it, it is dropped as
+    // `ObjectLockConflict` and never executes.
+    let scheduled_r1 = process(vec![]).await;
+    assert_eq!(
+        scheduled_r1,
+        vec![tx2_digest],
+        "the deferred transaction must be executed in the next round, not dropped"
+    );
+    assert!(
+        authority
+            .epoch_store_for_testing()
+            .get_all_deferred_transactions_for_test()
+            .is_empty(),
+        "no transaction should remain deferred"
+    );
+    assert_eq!(
+        authority
+            .metrics
+            .consensus_handler_validation_dropped_transactions
+            .get(),
+        0,
+        "no transaction should be dropped during post-consensus validation"
+    );
 }

@@ -4,13 +4,12 @@
 use std::collections::BTreeMap;
 
 use iota_names::registry::NameRecord;
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::{Address, ObjectId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::iota_primitives::{IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema};
+use crate::iota_primitives::{Address as AddressSchema, ObjectId as ObjectIdSchema};
 
 /// A single record in the registry.
 #[serde_as]
@@ -30,9 +29,9 @@ pub struct IotaNameRecord {
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,
     /// The target address that this name points to
-    #[serde_as(as = "Option<IotaAddressSchema>")]
-    #[schemars(with = "Option<IotaAddressSchema>")]
-    pub target_address: Option<IotaAddress>,
+    #[serde_as(as = "Option<AddressSchema>")]
+    #[schemars(with = "Option<AddressSchema>")]
+    pub target_address: Option<Address>,
     /// Additional data which may be stored in a record
     pub data: BTreeMap<String, String>,
 }

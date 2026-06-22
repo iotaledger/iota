@@ -10,8 +10,8 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_sdk_types::StructTag;
-use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
+use iota_sdk_types::{Address, StructTag};
+use iota_types::{dynamic_field::Field, id::UID};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -27,7 +27,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus},
+    object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -213,8 +213,6 @@ impl NameRegistration {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -450,7 +448,7 @@ impl IotaNames {
         checkpoint_viewed_at: u64,
     ) -> Result<Option<NativeName>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
-        let native_address = NativeIotaAddress::from(address);
+        let native_address = Address::from(address);
         let reverse_record_id = config.reverse_record_field_id(&native_address);
 
         let Some(object) = MoveObject::query(
@@ -463,7 +461,7 @@ impl IotaNames {
             return Ok(None);
         };
 
-        let field: Field<NativeIotaAddress, NativeName> = object
+        let field: Field<Address, NativeName> = object
             .native
             .to_rust()
             .map_err(|e| Error::Internal(format!("Malformed IOTA-Names Name: {e}")))?;
@@ -562,8 +560,8 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            let object =
-                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?;
+            let active_object = ActiveObject::try_from(result)?;
+            let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
                     "Expected {0} to be a NameRecord, but it's not a Move Object.",

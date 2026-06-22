@@ -17,8 +17,9 @@ mod checked {
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
-        Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        ExecutionStatus, Identifier, ObjectId,
+        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+        EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier, ObjectId,
+        ProgrammableTransaction, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -29,14 +30,14 @@ mod checked {
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{IotaAddress, SequenceNumber, TransactionDigest, TxContext},
+        base_types::{SequenceNumber, TransactionDigest, TxContext},
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
-        gas::{GasCostSummary, IotaGasStatus, IotaGasStatusAPI},
+        gas::{IotaGasStatus, IotaGasStatusAPI},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
@@ -48,9 +49,8 @@ mod checked {
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
         transaction::{
-            CallArg, CheckedInputObjects, EndOfEpochTransactionKind, GasData, GenesisTransaction,
-            InputObjects, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef,
-            SystemPackage, TransactionKind, TransactionKindExt,
+            CallArg, CheckedInputObjects, GasData, InputObjects, SharedObjectRef, SystemPackage,
+            TransactionKindExt,
         },
     };
     use move_binary_format::CompiledModule;
@@ -85,7 +85,7 @@ mod checked {
         gas_data: GasData,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
@@ -181,7 +181,7 @@ mod checked {
         contains_deleted_input: bool,
         cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
@@ -312,7 +312,7 @@ mod checked {
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         // Tracing
@@ -502,7 +502,7 @@ mod checked {
         aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         // Tracing
@@ -1846,10 +1846,7 @@ mod checked {
                     tx_ctx.borrow().digest(),
                 );
 
-                info!(
-                    "upgraded system package {:?}",
-                    new_package.compute_object_reference()
-                );
+                info!("upgraded system package {:?}", new_package.object_ref());
 
                 // Decrement the version before writing the package so that the store can record
                 // the version growing by one in the effects.
@@ -1996,10 +1993,7 @@ mod checked {
         Ok(builder.finish())
     }
 
-    fn resolve_sponsor(
-        gas_data: &GasData,
-        transaction_signer: &IotaAddress,
-    ) -> Option<IotaAddress> {
+    fn resolve_sponsor(gas_data: &GasData, transaction_signer: &Address) -> Option<Address> {
         let gas_owner = gas_data.owner;
         if &gas_owner == transaction_signer {
             None

@@ -12,11 +12,11 @@ use std::{
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Argument, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner,
-    PackageUpgradeError, StructTag,
+    Address, Argument, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId,
+    Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
+    base_types::ObjectRef,
     crypto::{AccountKeyPair, get_key_pair},
     digests::Digest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -26,7 +26,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::ident_str;
 
@@ -163,7 +163,7 @@ pub fn build_upgrade_txn(
 }
 
 struct UpgradeStateRunner {
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub sender_key: AccountKeyPair,
     pub gas_object_id: ObjectId,
     pub authority_state: Arc<AuthorityState>,

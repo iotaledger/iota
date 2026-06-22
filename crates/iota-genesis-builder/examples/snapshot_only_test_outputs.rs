@@ -11,10 +11,9 @@ use iota_genesis_builder::stardust::{
     parse::HornetSnapshotParser,
     test_outputs::{add_snapshot_test_outputs, to_nanos},
 };
+use iota_sdk_types::Address;
 use iota_stardust_types::block::address::Ed25519Address;
-use iota_types::{
-    base_types::IotaAddress, gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType,
-};
+use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 
 const WITH_SAMPLING: bool = false;
 
@@ -32,7 +31,7 @@ enum Snapshot {
         #[arg(long, help = "Path to the IOTA Hornet full-snapshot file")]
         snapshot_path: String,
         #[arg(long, help = "Specify the delegator address")]
-        delegator: IotaAddress,
+        delegator: Address,
     },
 }
 

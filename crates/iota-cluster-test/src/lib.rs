@@ -15,10 +15,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
-use iota_sdk_types::Owner;
+use iota_sdk_types::{Address, Owner};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
+    base_types::TransactionDigest,
     gas_coin::GasCoin,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -125,7 +125,7 @@ impl TestContext {
             .unwrap()
     }
 
-    fn get_wallet_address(&self) -> IotaAddress {
+    fn get_wallet_address(&self) -> Address {
         self.client.get_wallet_address()
     }
 
@@ -241,7 +241,7 @@ impl TestContext {
     async fn check_owner_and_into_gas_coin(
         &self,
         coin_info: Vec<CoinInfo>,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Vec<GasCoin> {
         futures::future::join_all(
             coin_info

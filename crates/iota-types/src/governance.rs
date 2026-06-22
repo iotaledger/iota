@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::{Identifier, ObjectData, ObjectId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     error::IotaError,
     gas_coin::NANOS_PER_IOTA,
     id::{ID, UID},
-    object::{Data, Object},
+    object::Object,
 };
 
 /// Maximum number of active validators at any moment.
@@ -81,14 +81,14 @@ impl TryFrom<&Object> for StakedIota {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if o.struct_tag().is_staked_iota() {
                     return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!("Unable to deserialize StakedIota object: {err:?}"),
                     });
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

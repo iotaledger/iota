@@ -60,8 +60,8 @@
 use std::ops::Not;
 
 use iota_grpc_types::v1::{filter as proto, types::ObjectReference};
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::{IotaAddress, ObjectDigest, SequenceNumber};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::base_types::{ObjectDigest, SequenceNumber};
 
 /// Available transaction kinds for filtering.
 pub type TransactionKind = proto::TransactionKind;
@@ -185,7 +185,7 @@ impl TransactionFilter {
     }
 
     /// Matches transactions sent by the given address.
-    pub fn sender(self, address: IotaAddress) -> Self {
+    pub fn sender(self, address: Address) -> Self {
         self.and_with(
             proto::TransactionFilter::default()
                 .with_sender(proto::AddressFilter::default().with_address(address)),
@@ -193,7 +193,7 @@ impl TransactionFilter {
     }
 
     /// Matches transactions whose recipient is the given address.
-    pub fn receiver(self, address: IotaAddress) -> Self {
+    pub fn receiver(self, address: Address) -> Self {
         self.and_with(
             proto::TransactionFilter::default()
                 .with_receiver(proto::AddressFilter::default().with_address(address)),
@@ -482,7 +482,7 @@ impl EventFilter {
 
     /// Matches events whose enclosing transaction was sent by the given
     /// address.
-    pub fn sender(self, address: IotaAddress) -> Self {
+    pub fn sender(self, address: Address) -> Self {
         self.and_with(
             proto::EventFilter::default()
                 .with_sender(proto::AddressFilter::default().with_address(address)),
@@ -621,7 +621,7 @@ mod tests {
         let f = TransactionFilter::new()
             .kinds([TransactionKind::Programmable])
             .execution_status(true)
-            .sender(IotaAddress::ZERO);
+            .sender(Address::ZERO);
 
         let expected = proto::TransactionFilter::default().with_all(
             proto::AllTransactionFilter::default().with_filters(vec![
@@ -634,7 +634,7 @@ mod tests {
                     proto::ExecutionStatusFilter::default().with_success(true),
                 ),
                 proto::TransactionFilter::default()
-                    .with_sender(proto::AddressFilter::default().with_address(IotaAddress::ZERO)),
+                    .with_sender(proto::AddressFilter::default().with_address(Address::ZERO)),
             ]),
         );
 
@@ -644,18 +644,18 @@ mod tests {
     #[test]
     fn or_chain_flattens() {
         let f = TransactionFilter::new()
-            .sender(IotaAddress::ZERO)
-            .or(TransactionFilter::new().sender(IotaAddress::ZERO))
-            .or(TransactionFilter::new().sender(IotaAddress::ZERO));
+            .sender(Address::ZERO)
+            .or(TransactionFilter::new().sender(Address::ZERO))
+            .or(TransactionFilter::new().sender(Address::ZERO));
 
         let expected = proto::TransactionFilter::default().with_any(
             proto::AnyTransactionFilter::default().with_filters(vec![
                 proto::TransactionFilter::default()
-                    .with_sender(proto::AddressFilter::default().with_address(IotaAddress::ZERO)),
+                    .with_sender(proto::AddressFilter::default().with_address(Address::ZERO)),
                 proto::TransactionFilter::default()
-                    .with_sender(proto::AddressFilter::default().with_address(IotaAddress::ZERO)),
+                    .with_sender(proto::AddressFilter::default().with_address(Address::ZERO)),
                 proto::TransactionFilter::default()
-                    .with_sender(proto::AddressFilter::default().with_address(IotaAddress::ZERO)),
+                    .with_sender(proto::AddressFilter::default().with_address(Address::ZERO)),
             ]),
         );
 
@@ -664,12 +664,12 @@ mod tests {
 
     #[test]
     fn negation_wraps_filter() {
-        let f = !TransactionFilter::new().sender(IotaAddress::ZERO);
+        let f = !TransactionFilter::new().sender(Address::ZERO);
 
         let expected = proto::TransactionFilter::default().with_negation(
             proto::NotTransactionFilter::default().with_filter(
                 proto::TransactionFilter::default()
-                    .with_sender(proto::AddressFilter::default().with_address(IotaAddress::ZERO)),
+                    .with_sender(proto::AddressFilter::default().with_address(Address::ZERO)),
             ),
         );
 
@@ -679,8 +679,8 @@ mod tests {
     #[test]
     fn complex_nested_composition_matches_proto() {
         let pkg = ObjectId::ZERO;
-        let alice = IotaAddress::ZERO;
-        let bob = IotaAddress::ZERO;
+        let alice = Address::ZERO;
+        let bob = Address::ZERO;
 
         // (Programmable AND success AND command(MoveCall pkg::events))
         // OR (sender(alice) AND event(event_type OR emitted_in_module))
@@ -806,8 +806,8 @@ mod tests {
         // .negate() and !filter must produce the same proto.
         use std::ops::Not;
 
-        let via_method = TransactionFilter::new().sender(IotaAddress::ZERO).negate();
-        let via_operator = TransactionFilter::new().sender(IotaAddress::ZERO).not();
+        let via_method = TransactionFilter::new().sender(Address::ZERO).negate();
+        let via_operator = TransactionFilter::new().sender(Address::ZERO).not();
 
         assert_eq!(
             proto::TransactionFilter::from(via_method),
@@ -819,16 +819,16 @@ mod tests {
     fn negate_after_or_wraps_the_or() {
         // .sender(a).or(.sender(b)).negate() => NOT (sender(a) OR sender(b))
         let f = TransactionFilter::new()
-            .sender(IotaAddress::ZERO)
-            .or(TransactionFilter::new().sender(IotaAddress::ZERO))
+            .sender(Address::ZERO)
+            .or(TransactionFilter::new().sender(Address::ZERO))
             .negate();
 
         let inner_any = proto::TransactionFilter::default().with_any(
             proto::AnyTransactionFilter::default().with_filters(vec![
                 proto::TransactionFilter::default()
-                    .with_sender(proto::AddressFilter::default().with_address(IotaAddress::ZERO)),
+                    .with_sender(proto::AddressFilter::default().with_address(Address::ZERO)),
                 proto::TransactionFilter::default()
-                    .with_sender(proto::AddressFilter::default().with_address(IotaAddress::ZERO)),
+                    .with_sender(proto::AddressFilter::default().with_address(Address::ZERO)),
             ]),
         );
         let expected = proto::TransactionFilter::default()
@@ -842,20 +842,20 @@ mod tests {
         // .negate() returns a TransactionFilter that can be further chained.
         // Confirms that the post-negate self acts as a normal accumulator.
         let f = TransactionFilter::new()
-            .sender(IotaAddress::ZERO)
+            .sender(Address::ZERO)
             .negate() // wraps sender in Negation
             .execution_status(true) // ANDs status on top
-            .receiver(IotaAddress::ZERO); // ANDs receiver on top
+            .receiver(Address::ZERO); // ANDs receiver on top
 
         // Expected: All([Negation(sender), status, receiver])
         let sender_leaf = proto::TransactionFilter::default()
-            .with_sender(proto::AddressFilter::default().with_address(IotaAddress::ZERO));
+            .with_sender(proto::AddressFilter::default().with_address(Address::ZERO));
         let negated_sender = proto::TransactionFilter::default()
             .with_negation(proto::NotTransactionFilter::default().with_filter(sender_leaf));
         let status_leaf = proto::TransactionFilter::default()
             .with_execution_status(proto::ExecutionStatusFilter::default().with_success(true));
         let receiver_leaf = proto::TransactionFilter::default()
-            .with_receiver(proto::AddressFilter::default().with_address(IotaAddress::ZERO));
+            .with_receiver(proto::AddressFilter::default().with_address(Address::ZERO));
         let expected = proto::TransactionFilter::default().with_all(
             proto::AllTransactionFilter::default().with_filters(vec![
                 negated_sender,

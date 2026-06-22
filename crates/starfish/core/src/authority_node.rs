@@ -60,6 +60,11 @@ pub struct ConsensusAuthority {
     dag_state: Arc<RwLock<DagState>>,
     #[cfg(test)]
     sync_last_known_own_block: bool,
+    #[cfg(feature = "dag-visualizer")]
+    dag_visualizer_handle: Option<(
+        tokio::task::JoinHandle<()>,
+        tokio::sync::oneshot::Sender<()>,
+    )>,
 }
 
 impl ConsensusAuthority {
@@ -88,8 +93,12 @@ impl ConsensusAuthority {
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
-            "Starting consensus authority {} {}, {:?}, boot counter {}",
-            own_index, own_hostname, protocol_config.version, boot_counter
+            "Starting consensus authority {} {}, {:?}, boot counter {}, last processed commit index {}",
+            own_index,
+            own_hostname,
+            protocol_config.version,
+            boot_counter,
+            commit_consumer.last_processed_commit_index
         );
         info!(
             "Consensus authorities: {}",
@@ -99,6 +108,11 @@ impl ConsensusAuthority {
                 .join(", ")
         );
         info!("Consensus parameters: {:?}", parameters);
+        info!(
+            "Protocol consensus flags: starfish_speed={} fast_commit_sync={}",
+            protocol_config.consensus_starfish_speed(),
+            protocol_config.consensus_fast_commit_sync(),
+        );
         info!("Consensus committee: {:?}", committee);
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,
@@ -168,7 +182,8 @@ impl ConsensusAuthority {
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
-        );
+        )
+        .await;
 
         let fast_sync_ongoing = dag_state.read().fast_sync_ongoing();
 
@@ -313,6 +328,27 @@ impl ConsensusAuthority {
 
         network_manager.install_service(network_service).await;
 
+        // Optionally start the DAG visualizer server.
+        #[cfg(feature = "dag-visualizer")]
+        let dag_visualizer_handle = if let Some(port) = context.parameters.dag_visualizer_port {
+            let (event_tx, _) = tokio::sync::broadcast::channel::<
+                crate::dag_visualizer::grpc_streamer::DagVisualizerEvent,
+            >(
+                crate::dag_visualizer::grpc_streamer::DAG_VISUALIZER_BROADCAST_CAPACITY,
+            );
+            dag_state
+                .write()
+                .set_dag_visualizer_sender(event_tx.clone());
+            Some(crate::dag_visualizer::grpc_streamer::start_grpc_server(
+                port,
+                context.clone(),
+                dag_state.clone(),
+                event_tx,
+            ))
+        } else {
+            None
+        };
+
         info!(
             "Consensus authority started, took {:?}",
             start_time.elapsed()
@@ -338,6 +374,8 @@ impl ConsensusAuthority {
             dag_state: dag_state.clone(),
             #[cfg(test)]
             sync_last_known_own_block,
+            #[cfg(feature = "dag-visualizer")]
+            dag_visualizer_handle,
         }
     }
 
@@ -346,6 +384,13 @@ impl ConsensusAuthority {
             "Stopping authority. Total run time: {:?}",
             self.start_time.elapsed()
         );
+
+        // Gracefully stop DAG visualizer server if running.
+        #[cfg(feature = "dag-visualizer")]
+        if let Some((handle, shutdown_tx)) = self.dag_visualizer_handle.take() {
+            let _ = shutdown_tx.send(());
+            let _ = handle.await;
+        }
 
         // First shutdown components calling into Core.
         if let Err(e) = self.header_synchronizer.stop().await {

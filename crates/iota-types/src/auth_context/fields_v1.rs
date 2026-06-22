@@ -189,11 +189,11 @@ impl MoveCallArg {
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::{Identifier, ObjectReference, StructTag, TypeTag};
+    use iota_sdk_types::{Address, Identifier, ObjectReference, StructTag, TypeTag};
 
     use super::*;
     use crate::{
-        base_types::{IotaAddress, ObjectDigest, SequenceNumber},
+        base_types::{ObjectDigest, SequenceNumber},
         transaction::{CallArg, SharedObjectRef},
     };
 
@@ -421,7 +421,7 @@ mod tests {
     #[test]
     fn command_from_move_call_struct_type_tag() {
         let expected = TypeTag::Struct(Box::new(StructTag::new(
-            IotaAddress::FRAMEWORK,
+            Address::FRAMEWORK,
             "coin",
             "Coin",
             vec![TypeTag::U64],

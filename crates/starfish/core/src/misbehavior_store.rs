@@ -257,10 +257,13 @@ fn classify_block_header_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedAuthority(..)
         | ConsensusError::InvalidAuthorityIndex { .. }
         | ConsensusError::MalformedHeader(_)
+        | ConsensusError::MalformedTransactions(_)
         | ConsensusError::MalformedSignature(_)
         | ConsensusError::SignatureVerificationFailure(_)
         | ConsensusError::SerializationFailure(_)
-        | ConsensusError::DeserializationFailure(_) => FaultType::Unprovable,
+        | ConsensusError::DeserializationFailure(_)
+        | ConsensusError::SerializedTransactionsTooLarge { .. }
+        | ConsensusError::TransactionCommitmentFailure { .. } => FaultType::Unprovable,
 
         // Signed block header verification — provably the author's fault
         ConsensusError::TooManyAncestors(..)

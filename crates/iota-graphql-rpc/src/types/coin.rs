@@ -31,7 +31,8 @@ use crate::{
         move_object::{MoveObject, MoveObjectImpl},
         move_value::MoveValue,
         object::{
-            self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus, StoredBackwardObject,
+            self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus,
+            StoredBackwardObject,
         },
         owner::OwnerImpl,
         stake::StakedIota,
@@ -173,8 +174,6 @@ impl Coin {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -382,8 +381,8 @@ impl Coin {
             // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let stored_history = stored.into_stored_history(checkpoint_viewed_at);
-            let object =
-                Object::try_from_stored_history_object(stored_history, checkpoint_viewed_at, None)?;
+            let active_object = ActiveObject::try_from(stored_history)?;
+            let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
 
             let move_ = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(

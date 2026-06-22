@@ -6,9 +6,9 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::{Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, TypeTag};
 use iota_types::{
-    base_types::{EpochId, IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{EpochId, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SharedObjectRef, TransactionData},
 };
@@ -16,7 +16,7 @@ use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
-const DENY_ADDRESS: IotaAddress = IotaAddress::ZERO;
+const DENY_ADDRESS: Address = Address::ZERO;
 
 #[sim_test]
 async fn per_epoch_config_stress_test() {
@@ -219,7 +219,7 @@ struct TestEnv {
     test_cluster: TestCluster,
     regulated_coin_id: ObjectId,
     regulated_coin_type: TypeTag,
-    regulated_coin_owner: IotaAddress,
+    regulated_coin_owner: Address,
     deny_cap_id: ObjectId,
     deny_list_object_init_version: SequenceNumber,
 }
@@ -230,7 +230,7 @@ impl TestEnv {
             .get_object_from_fullnode_store(object_id)
             .await
             .unwrap()
-            .compute_object_reference()
+            .object_ref()
     }
 }
 

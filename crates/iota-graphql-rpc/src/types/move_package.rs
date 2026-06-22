@@ -15,8 +15,9 @@ use diesel::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, schema::packages};
 use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
-use iota_sdk_types::Identifier;
-use iota_types::{move_package::MovePackage as NativeMovePackage, object::Data};
+use iota_sdk_types::{
+    Address, Identifier, ObjectData, move_package::MovePackage as NativeMovePackage,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -37,7 +38,7 @@ use crate::{
         iota_names_registration::{NameFormat, NameRegistration},
         move_module::MoveModule,
         move_object::MoveObject,
-        object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+        object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
@@ -319,8 +320,6 @@ impl MovePackage {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -679,7 +678,7 @@ impl MovePackage {
                 version,
                 checkpoint_viewed_at,
             } => {
-                if iota_types::base_types::IotaAddress::new(address.0).is_system_package() {
+                if Address::new(address.0).is_system_package() {
                     (address, Object::at_version(version, checkpoint_viewed_at))
                 } else {
                     let DataLoader(loader) = &ctx.data_unchecked();
@@ -697,7 +696,7 @@ impl MovePackage {
             PackageLookup::Latest {
                 checkpoint_viewed_at,
             } => {
-                if iota_types::base_types::IotaAddress::new(address.0).is_system_package() {
+                if Address::new(address.0).is_system_package() {
                     (address, Object::latest_at(checkpoint_viewed_at))
                 } else {
                     let DataLoader(loader) = &ctx.data_unchecked();
@@ -827,8 +826,8 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let package =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?;
+            let active_object = ActiveObject::try_from(stored.object)?;
+            let package = MovePackage::from_active_object(active_object, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
 
@@ -866,7 +865,7 @@ impl MovePackage {
                 page.paginate_raw_query::<StoredHistoryPackage>(
                     conn,
                     checkpoint_viewed_at,
-                    if iota_types::base_types::IotaAddress::new(package.0).is_system_package() {
+                    if Address::new(package.0).is_system_package() {
                         system_package_version_query(package, filter)
                     } else {
                         user_package_version_query(package, filter)
@@ -881,8 +880,8 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let package =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?;
+            let active_object = ActiveObject::try_from(stored.object)?;
+            let package = MovePackage::from_active_object(active_object, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
 
@@ -893,16 +892,12 @@ impl MovePackage {
     /// `MovePackage` came from. This is stored in the `MovePackage` so that
     /// related fields from the package are read from the same checkpoint
     /// (consistently).
-    pub(crate) fn try_from_stored_history_object(
-        history_object: StoredHistoryObject,
+    pub(crate) fn from_active_object(
+        active_object: ActiveObject,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
-        let object = Object::try_from_stored_history_object(
-            history_object,
-            checkpoint_viewed_at,
-            // root_version
-            None,
-        )?;
+        // root_version
+        let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
         Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))
     }
 }
@@ -1105,11 +1100,9 @@ impl TryFrom<&Object> for MovePackage {
     type Error = MovePackageDowncastError;
 
     fn try_from(object: &Object) -> Result<Self, MovePackageDowncastError> {
-        let Some(native) = object.native_impl() else {
-            return Err(MovePackageDowncastError);
-        };
+        let native = object.native_impl();
 
-        if let Data::Package(move_package) = &native.data {
+        if let ObjectData::Package(move_package) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_package.clone(),

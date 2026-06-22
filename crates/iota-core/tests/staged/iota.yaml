@@ -44,10 +44,12 @@ CallArg:
         NEWTYPE:
           TYPENAME: ObjectArg
 CancelledTransaction:
-  TUPLESTRUCT:
-    - TYPENAME: Digest
-    - SEQ:
-        TYPENAME: VersionAssignment
+  STRUCT:
+    - digest:
+        TYPENAME: Digest
+    - version_assignments:
+        SEQ:
+          TYPENAME: VersionAssignment
 ChangeEpoch:
   STRUCT:
     - epoch: U64
@@ -106,6 +108,16 @@ ChangeEpochV4:
     - scores:
         SEQ: U64
     - adjust_rewards_by_score: BOOL
+ChangedObject:
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
+    - input_state:
+        TYPENAME: ObjectIn
+    - output_state:
+        TYPENAME: ObjectOut
+    - id_operation:
+        TYPENAME: IdOperation
 CheckpointCommitment:
   ENUM:
     0:
@@ -252,9 +264,10 @@ ConsensusDeterminedVersionAssignments:
   ENUM:
     0:
       CancelledTransactions:
-        NEWTYPE:
-          SEQ:
-            TYPENAME: CancelledTransaction
+        STRUCT:
+          - cancelled_transactions:
+              SEQ:
+                TYPENAME: CancelledTransaction
 DeleteKind:
   ENUM:
     0:
@@ -269,16 +282,6 @@ ECMHLiveObjectSetDigest:
   STRUCT:
     - digest:
         TYPENAME: Digest
-EffectsObjectChange:
-  STRUCT:
-    - object_id:
-        TYPENAME: ObjectId
-    - input_state:
-        TYPENAME: ObjectIn
-    - output_state:
-        TYPENAME: ObjectOut
-    - id_operation:
-        TYPENAME: IdOperation
 EmptySignInfo:
   STRUCT: []
 EndOfEpochData:
@@ -334,7 +337,7 @@ ExecutionDigests:
         TYPENAME: Digest
     - effects:
         TYPENAME: Digest
-ExecutionFailureStatus:
+ExecutionError:
   ENUM:
     0:
       InsufficientGas: UNIT
@@ -476,7 +479,7 @@ ExecutionStatus:
       Failure:
         STRUCT:
           - error:
-              TYPENAME: ExecutionFailureStatus
+              TYPENAME: ExecutionError
           - command:
               OPTION: U64
 FullCheckpointContents:
@@ -499,7 +502,7 @@ GasPayment:
   STRUCT:
     - objects:
         SEQ:
-          TYPENAME: TupleObjectReference
+          TYPENAME: ObjectReference
     - owner:
         TYPENAME: Address
     - price: U64
@@ -636,7 +639,7 @@ ObjectArg:
     0:
       ImmutableOrOwned:
         NEWTYPE:
-          TYPENAME: TupleObjectReference
+          TYPENAME: ObjectReference
     1:
       Shared:
         STRUCT:
@@ -647,7 +650,7 @@ ObjectArg:
     2:
       Receiving:
         NEWTYPE:
-          TYPENAME: TupleObjectReference
+          TYPENAME: ObjectReference
 ObjectData:
   ENUM:
     0:
@@ -697,20 +700,26 @@ ObjectOut:
           - version: U64
           - digest:
               TYPENAME: Digest
+ObjectReference:
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
+    - version: U64
+    - digest:
+        TYPENAME: Digest
 Owner:
   ENUM:
     0:
-      AddressOwner:
+      Address:
         NEWTYPE:
           TYPENAME: Address
     1:
-      ObjectOwner:
+      Object:
         NEWTYPE:
-          TYPENAME: Address
+          TYPENAME: ObjectId
     2:
       Shared:
-        STRUCT:
-          - initial_shared_version: U64
+        NEWTYPE: U64
     3:
       Immutable: UNIT
 PackageUpgradeError:
@@ -833,7 +842,7 @@ TransactionEffectsV1:
     - lamport_version: U64
     - changed_objects:
         SEQ:
-          TYPENAME: EffectsObjectChange
+          TYPENAME: ChangedObject
     - unchanged_shared_objects:
         SEQ:
           TYPENAME: UnchangedSharedObject
@@ -893,11 +902,6 @@ TransferObjects:
           TYPENAME: Argument
     - address:
         TYPENAME: Argument
-TupleObjectReference:
-  TUPLESTRUCT:
-    - TYPENAME: ObjectId
-    - U64
-    - TYPENAME: Digest
 TypeArgumentError:
   ENUM:
     0:
@@ -1000,9 +1004,10 @@ UpgradeInfo:
         TYPENAME: ObjectId
     - upgraded_version: U64
 VersionAssignment:
-  TUPLESTRUCT:
-    - TYPENAME: ObjectId
-    - U64
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectId
+    - version: U64
 "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
   STRUCT:
     - data:

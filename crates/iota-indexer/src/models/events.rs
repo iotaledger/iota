@@ -7,10 +7,10 @@ use std::{str::FromStr, sync::Arc};
 use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::{Address, Identifier, ObjectId};
 use iota_types::{
-    base_types::IotaAddress, digests::TransactionDigest, event::EventID,
-    object::bounded_visitor::BoundedVisitor, parse_iota_struct_tag,
+    digests::TransactionDigest, event::EventID, object::bounded_visitor::BoundedVisitor,
+    parse_iota_struct_tag,
 };
 
 use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
@@ -90,7 +90,7 @@ impl StoredEvent {
             }
         };
         let sender = match sender {
-            Some(ref s) => IotaAddress::from_bytes(s).map_err(|_e| {
+            Some(ref s) => Address::from_bytes(s).map_err(|_e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to parse event sender address: {sender:?}"
                 ))
@@ -139,8 +139,7 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, StructTag};
-    use iota_types::event::Event;
+    use iota_sdk_types::{Event, Identifier, StructTag};
 
     use super::*;
 
@@ -150,9 +149,9 @@ mod tests {
         let event = Event {
             package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
-            sender: IotaAddress::random(),
+            sender: Address::random(),
             type_: StructTag::new(
-                IotaAddress::FRAMEWORK,
+                Address::FRAMEWORK,
                 Identifier::from_static("test"),
                 Identifier::from_static("test"),
                 vec![],

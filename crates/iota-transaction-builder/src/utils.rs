@@ -12,13 +12,15 @@ use iota_json::{
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Argument, Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, ObjectType, TxContext, TxContextKind},
+    base_types::{ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::{MovePackage, MovePackageExt},
+    move_package::MovePackageExt,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SharedObjectRef},
@@ -33,7 +35,7 @@ impl TransactionBuilder {
     /// Select a gas coin for the provided gas budget.
     pub async fn select_gas(
         &self,
-        signer: IotaAddress,
+        signer: Address,
         input_gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
         input_objects: Vec<ObjectId>,
@@ -111,7 +113,7 @@ impl TransactionBuilder {
             .await?;
 
         let obj: Object = response.into_object()?.try_into()?;
-        let obj_ref = obj.compute_object_reference();
+        let obj_ref = obj.object_ref();
         let owner = obj.owner;
         if is_receiving_argument(view, arg_type) {
             return Ok(CallArg::Receiving(obj_ref));

@@ -9,8 +9,8 @@ use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use clap::Parser;
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::{IotaAddress, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::base_types::TransactionDigest;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -66,7 +66,7 @@ pub trait Faucet {
     async fn send(
         &self,
         id: Uuid,
-        recipient: IotaAddress,
+        recipient: Address,
         amounts: &[u64],
     ) -> Result<FaucetReceipt, FaucetError>;
 
@@ -75,7 +75,7 @@ pub trait Faucet {
     async fn batch_send(
         &self,
         id: Uuid,
-        recipient: IotaAddress,
+        recipient: Address,
         amounts: &[u64],
     ) -> Result<BatchFaucetReceipt, FaucetError>;
 
@@ -83,7 +83,7 @@ pub trait Faucet {
     async fn get_batch_send_status(&self, task_id: Uuid) -> Result<BatchSendStatus, FaucetError>;
 
     /// Apply rate limiting
-    async fn rate_limit(&self, recipient: IotaAddress) -> Result<(), FaucetError>;
+    async fn rate_limit(&self, recipient: Address) -> Result<(), FaucetError>;
 }
 
 pub const DEFAULT_AMOUNT: u64 = 1_000_000_000;

@@ -7,14 +7,13 @@ use std::{
 };
 
 use enum_dispatch::enum_dispatch;
-use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
+use fastcrypto::error::FastCryptoError;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, TypeTag, crypto::IntentMessage};
-use once_cell::sync::OnceCell;
+use iota_sdk_types::{Address, ObjectId, TypeTag, crypto::IntentMessage};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
+    base_types::{ObjectRef, SequenceNumber},
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
@@ -26,14 +25,10 @@ use crate::{
 /// method of authentication through Move code.
 /// This function represents the data received by the Move authenticate function
 /// during the Account Abstraction authentication flow.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
     #[serde(flatten)]
     pub(crate) inner: MoveAuthenticatorInner,
-    /// A bytes representation of [struct MoveAuthenticator]. This helps with
-    /// implementing trait [AsRef](core::convert::AsRef).
-    #[serde(skip)]
-    bytes: OnceCell<Vec<u8>>,
 }
 
 impl MoveAuthenticator {
@@ -49,17 +44,13 @@ impl MoveAuthenticator {
                 type_arguments,
                 object_to_authenticate,
             ),
-            bytes: OnceCell::new(),
         }
     }
 
     /// Constructs a `MoveAuthenticator` from a deserialized
     /// [`MoveAuthenticatorInner`].
     pub(crate) fn from_inner(inner: MoveAuthenticatorInner) -> Self {
-        Self {
-            inner,
-            bytes: OnceCell::new(),
-        }
+        Self { inner }
     }
 
     /// Computes the digest of the MoveAuthenticator.
@@ -73,7 +64,7 @@ impl MoveAuthenticator {
     }
 
     /// Returns the address of the MoveAuthenticator.
-    pub fn address(&self) -> IotaResult<IotaAddress> {
+    pub fn address(&self) -> IotaResult<Address> {
         self.inner.address()
     }
 
@@ -120,6 +111,22 @@ impl MoveAuthenticator {
     pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.inner.validity_check(config)
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = vec![SignatureScheme::MoveAuthenticator.flag()];
+        bcs::serialize_into(&mut bytes, &self.inner).expect("BCS serialization should not fail");
+        bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        match bytes.split_first() {
+            Some((flag, tail)) if flag == &SignatureScheme::MoveAuthenticator.flag() => {
+                let inner = bcs::from_bytes(tail).map_err(|_| FastCryptoError::InvalidSignature)?;
+                Ok(Self { inner })
+            }
+            _ => Err(FastCryptoError::InvalidInput),
+        }
+    }
 }
 
 impl AuthenticatorTrait for MoveAuthenticator {
@@ -128,7 +135,7 @@ impl AuthenticatorTrait for MoveAuthenticator {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
@@ -146,76 +153,14 @@ impl AuthenticatorTrait for MoveAuthenticator {
 /// MoveAuthenticator level.
 impl Hash for MoveAuthenticator {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
+        self.to_bytes().hash(state);
     }
 }
-
-/// Necessary trait for
-/// [GenericSignature](crate::signature::GenericSignature). This trait is
-/// implemented only for MoveAuthenticator and not for specific versions of
-/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
-/// serialization/deserialization signature logic is defined on the
-/// MoveAuthenticator level.
-impl ToFromBytes for MoveAuthenticator {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // The first byte matches the flag of MoveAuthenticator.
-        if bytes.first().ok_or(FastCryptoError::InvalidInput)?
-            != &SignatureScheme::MoveAuthenticator.flag()
-        {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        let inner: MoveAuthenticatorInner =
-            bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
-        Ok(Self {
-            inner,
-            bytes: OnceCell::new(),
-        })
-    }
-}
-
-/// Necessary trait for
-/// [GenericSignature](crate::signature::GenericSignature). This trait is
-/// implemented only for MoveAuthenticator and not for specific versions of
-/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
-/// serialization/deserialization signature logic is defined on the
-/// MoveAuthenticator level.
-impl AsRef<[u8]> for MoveAuthenticator {
-    fn as_ref(&self) -> &[u8] {
-        self.bytes.get_or_init(|| {
-            let as_bytes = bcs::to_bytes(&self.inner).expect("BCS serialization should not fail");
-            let mut bytes = Vec::with_capacity(1 + as_bytes.len());
-            bytes.push(SignatureScheme::MoveAuthenticator.flag());
-            bytes.extend_from_slice(as_bytes.as_slice());
-            bytes
-        })
-    }
-}
-
-/// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData). This trait is
-/// implemented only for MoveAuthenticator and not for specific versions of
-/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
-/// serialization/deserialization signature logic is defined on the
-/// MoveAuthenticator level.
-impl PartialEq for MoveAuthenticator {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_ref() == other.as_ref()
-    }
-}
-
-/// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData). This trait is
-/// implemented only for MoveAuthenticator and not for specific versions of
-/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
-/// serialization/deserialization signature logic is defined at the
-/// MoveAuthenticator level.
-impl Eq for MoveAuthenticator {}
 
 /// MoveAuthenticatorInner is an enum that represents the different versions
 /// of MoveAuthenticator.
 #[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum MoveAuthenticatorInner {
     V1(MoveAuthenticatorV1),
 }
@@ -239,7 +184,7 @@ impl MoveAuthenticatorInner {
         }
     }
 
-    pub fn address(&self) -> IotaResult<IotaAddress> {
+    pub fn address(&self) -> IotaResult<Address> {
         match self {
             MoveAuthenticatorInner::V1(v1) => v1.address(),
         }
@@ -297,7 +242,7 @@ impl MoveAuthenticatorInner {
 }
 
 /// MoveAuthenticatorV1 is the first version of MoveAuthenticator.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MoveAuthenticatorV1 {
     /// Input objects or primitive values
     call_args: Vec<CallArg>,
@@ -323,9 +268,9 @@ impl MoveAuthenticatorV1 {
 
     /// Returns the address of the MoveAuthenticatorV1, which is the object ID
     /// of the object to authenticate.
-    pub fn address(&self) -> IotaResult<IotaAddress> {
+    pub fn address(&self) -> IotaResult<Address> {
         let (id, _, _) = self.object_to_authenticate_components()?;
-        Ok(IotaAddress::from(id))
+        Ok(Address::from(id))
     }
 
     pub fn call_args(&self) -> &Vec<CallArg> {
@@ -466,7 +411,7 @@ impl AuthenticatorTrait for MoveAuthenticatorV1 {
     fn verify_claims<T>(
         &self,
         _value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
     ) -> IotaResult
     where
@@ -484,7 +429,6 @@ impl AuthenticatorTrait for MoveAuthenticatorV1 {
 
 #[cfg(test)]
 mod tests {
-    use fastcrypto::traits::ToFromBytes;
 
     use super::*;
     use crate::{
@@ -505,7 +449,7 @@ mod tests {
     #[test]
     fn round_trip() {
         let auth = make_simple_authenticator();
-        let bytes = auth.as_ref().to_vec();
+        let bytes = auth.to_bytes();
         let decoded = MoveAuthenticator::from_bytes(&bytes).expect("round-trip should succeed");
         assert_eq!(auth, decoded);
     }
@@ -513,22 +457,14 @@ mod tests {
     #[test]
     fn as_ref_starts_with_flag_byte() {
         let auth = make_simple_authenticator();
-        let bytes = auth.as_ref();
+        let bytes = auth.to_bytes();
         assert_eq!(bytes[0], SignatureScheme::MoveAuthenticator.flag());
-    }
-
-    #[test]
-    fn as_ref_is_cached() {
-        let auth = make_simple_authenticator();
-        let bytes1 = auth.as_ref();
-        let bytes2 = auth.as_ref();
-        assert!(std::ptr::eq(bytes1.as_ptr(), bytes2.as_ptr()));
     }
 
     #[test]
     fn from_bytes_rejects_wrong_flag() {
         let auth = make_simple_authenticator();
-        let mut bytes = auth.as_ref().to_vec();
+        let mut bytes = auth.to_bytes();
         bytes[0] = SignatureScheme::ED25519.flag();
         assert!(MoveAuthenticator::from_bytes(&bytes).is_err());
     }

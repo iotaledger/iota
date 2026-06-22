@@ -10,15 +10,17 @@ use std::{
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, StructTag, TypeTag, move_package::MovePackage,
+};
 use iota_types::{
     base_types::{
-        IotaAddress, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext,
-        TxContextKind, is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
+        RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
+        is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
     },
     id::{self, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    move_package::{MovePackage, MovePackageExt},
+    move_package::MovePackageExt,
     object::bounded_visitor::BoundedVisitor,
     transfer::RESOLVED_RECEIVING_STRUCT,
 };
@@ -159,7 +161,7 @@ impl IotaJsonValue {
         self.0.clone()
     }
 
-    pub fn to_iota_address(&self) -> anyhow::Result<IotaAddress> {
+    pub fn to_iota_address(&self) -> anyhow::Result<Address> {
         json_value_to_iota_address(&self.0)
     }
 
@@ -267,7 +269,7 @@ impl IotaJsonValue {
                         struct_layout.type_
                     );
                 };
-                let addr = IotaAddress::from_str(s)?;
+                let addr = Address::from_str(s)?;
                 R::MoveValue::Address(AccountAddress::new(addr.into_bytes()))
             }
             (JsonValue::Object(o), MoveTypeLayout::Struct(struct_layout)) => {
@@ -338,14 +340,14 @@ impl Debug for IotaJsonValue {
     }
 }
 
-fn json_value_to_iota_address(value: &JsonValue) -> anyhow::Result<IotaAddress> {
+fn json_value_to_iota_address(value: &JsonValue) -> anyhow::Result<Address> {
     match value {
         JsonValue::String(s) => {
             let s = s.trim().to_lowercase();
             if !s.starts_with(HEX_PREFIX) {
                 bail!("Address hex string must start with 0x.",);
             }
-            Ok(IotaAddress::from_str(&s)?)
+            Ok(Address::from_str(&s)?)
         }
         JsonValue::Array(bytes) => {
             fn value_to_byte_array(v: &Vec<JsonValue>) -> Option<Vec<u8>> {
@@ -361,8 +363,8 @@ fn json_value_to_iota_address(value: &JsonValue) -> anyhow::Result<IotaAddress> 
                 Some(bytes)
             }
             let bytes = value_to_byte_array(bytes)
-                .ok_or_else(|| anyhow!("Invalid input: Cannot parse input into IotaAddress."))?;
-            Ok(IotaAddress::from_bytes(bytes)?)
+                .ok_or_else(|| anyhow!("Invalid input: Cannot parse input into Address."))?;
+            Ok(Address::from_bytes(bytes)?)
         }
         v => bail!("Unexpected arg {v} for expected type address"),
     }
@@ -378,7 +380,7 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
         ),
         MoveValue::Bool(v) => json!(v),
         MoveValue::Signer(v) | MoveValue::Address(v) => {
-            json!(IotaAddress::new(v.into_bytes()).to_string())
+            json!(Address::new(v.into_bytes()).to_string())
         }
         MoveValue::U8(v) => json!(v),
         MoveValue::U64(v) => json!(v.to_string()),
@@ -406,7 +408,7 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                 // option has a single vec field.
                 let (_, v) = fields.first()?;
                 if let MoveValue::Address(address) = v {
-                    json!(IotaAddress::new(address.into_bytes()))
+                    json!(Address::new(address.into_bytes()))
                 } else {
                     return None;
                 }
@@ -898,7 +900,7 @@ macro_rules! call_arg {
                 IotaJsonValue::from_str(&self.to_string())
             }
         }
-        impl IotaJsonArg for iota_types::base_types::IotaAddress {
+        impl IotaJsonArg for iota_sdk_types::Address {
             fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
                 IotaJsonValue::from_str(&self.to_string())
             }
