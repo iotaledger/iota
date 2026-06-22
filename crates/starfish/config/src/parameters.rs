@@ -401,6 +401,33 @@ pub struct TonicParameters {
     /// If unspecified, this will default to 1GiB.
     #[serde(default = "TonicParameters::default_message_size_limit")]
     pub message_size_limit: usize,
+
+    /// Maximum number of concurrent HTTP/2 streams a peer may open on a single
+    /// connection. Bounds per-connection request fan-out.
+    ///
+    /// `0` (the default) disables the limit, leaving the transport default.
+    #[serde(default)]
+    pub max_concurrent_streams: u32,
+
+    /// Server-side fallback deadline for requests that omit a `grpc-timeout`
+    /// header. The long-lived block-subscription stream is always exempt.
+    ///
+    /// A zero duration (the default) disables the fallback deadline.
+    #[serde(default)]
+    pub request_timeout: Duration,
+
+    /// Hard size limit for inbound (decoded) requests. Consensus requests are
+    /// small (ref lists); large payloads belong to responses, bounded by
+    /// `message_size_limit`. A smaller inbound bound shrinks the memory a
+    /// single in-flight request can pin before its handler runs.
+    ///
+    /// `0` (the default) falls back to `message_size_limit`.
+    #[serde(default)]
+    pub max_inbound_message_size: usize,
+
+    /// Per-peer, per-RPC admission caps for the inbound consensus server.
+    #[serde(default)]
+    pub admission: AdmissionParameters,
 }
 
 impl TonicParameters {
@@ -419,6 +446,25 @@ impl TonicParameters {
     fn default_message_size_limit() -> usize {
         64 << 20
     }
+
+    /// Overrides only the inbound resource bounds with the protective preset
+    /// (sized for ~100-validator committees), preserving any
+    /// operator-configured transport settings (keepalive, buffers,
+    /// `message_size_limit`). `default()` stays inert, so the bounds never
+    /// change behaviour unless explicitly enabled.
+    pub fn apply_protective(&mut self) {
+        self.max_concurrent_streams = 64;
+        self.request_timeout = Duration::from_secs(120);
+        self.max_inbound_message_size = 1 << 20;
+        self.admission = AdmissionParameters::protective();
+    }
+
+    /// The inert defaults with the protective bounds applied.
+    pub fn protective() -> Self {
+        let mut params = Self::default();
+        params.apply_protective();
+        params
+    }
 }
 
 impl Default for TonicParameters {
@@ -428,6 +474,57 @@ impl Default for TonicParameters {
             connection_buffer_size: TonicParameters::default_connection_buffer_size(),
             excessive_message_size: TonicParameters::default_excessive_message_size(),
             message_size_limit: TonicParameters::default_message_size_limit(),
+            max_concurrent_streams: 0,
+            request_timeout: Duration::ZERO,
+            max_inbound_message_size: 0,
+            admission: AdmissionParameters::default(),
+        }
+    }
+}
+
+/// Per-peer, per-RPC concurrency caps for the inbound consensus gRPC server.
+///
+/// Each cap bounds how many concurrent requests of one RPC group a single
+/// committee peer (keyed on its authenticated authority index) may have in
+/// flight; a peer cannot consume another peer's budget. These are local,
+/// non-protocol parameters — heterogeneous values across authorities are safe,
+/// so they can be rolled out and tuned per node.
+///
+/// `0` (the default for every cap) disables admission for that group, leaving
+/// the mechanism inert until an operator opts in. Recommended values for the
+/// opt-in protective preset, sized for ~100-validator committees and the local
+/// synchronizer fan-out toward one server: subscriptions 2, header fetches 32,
+/// transaction fetches 16, commit fetches `commit_sync_parallel_fetches` (8).
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct AdmissionParameters {
+    /// Max concurrent block-subscription streams per peer.
+    #[serde(default)]
+    pub max_subscriptions_per_peer: u32,
+
+    /// Max concurrent header fetches per peer
+    /// (`fetch_block_headers` + `fetch_latest_block_headers`).
+    #[serde(default)]
+    pub max_header_fetches_per_peer: u32,
+
+    /// Max concurrent transaction fetches per peer (`fetch_transactions`).
+    #[serde(default)]
+    pub max_transaction_fetches_per_peer: u32,
+
+    /// Max concurrent commit fetches per peer
+    /// (`fetch_commits` + `fetch_commits_and_transactions`).
+    #[serde(default)]
+    pub max_commit_fetches_per_peer: u32,
+}
+
+impl AdmissionParameters {
+    /// Opt-in preset sized for ~100-validator committees and the local
+    /// synchronizer fan-out toward one server.
+    pub fn protective() -> Self {
+        Self {
+            max_subscriptions_per_peer: 2,
+            max_header_fetches_per_peer: 32,
+            max_transaction_fetches_per_peer: 16,
+            max_commit_fetches_per_peer: Parameters::default_commit_sync_parallel_fetches() as u32,
         }
     }
 }
