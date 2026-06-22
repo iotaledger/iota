@@ -390,7 +390,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             let shard: ShardWithProof =
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
 
-            if let Err(e) = check_shard_version_matches_flags(&shard) {
+            if let Err(e) = check_shard_version(&shard) {
                 self.context
                     .metrics
                     .node_metrics
@@ -664,10 +664,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 /// variant. The variant is uniform across the network within an epoch, so a
 /// legacy `V1` shard implies either a malicious peer or a misconfigured upgrade
 /// path.
-pub(crate) fn check_shard_version_matches_flags(shard: &ShardWithProof) -> ConsensusResult<()> {
+pub(crate) fn check_shard_version(shard: &ShardWithProof) -> ConsensusResult<()> {
     match shard {
         ShardWithProof::V2(_) => Ok(()),
-        ShardWithProof::V1(_) => Err(ConsensusError::WrongShardVersionForFlags { actual: "V1" }),
+        ShardWithProof::V1(_) => Err(ConsensusError::WrongShardVersion { actual: "V1" }),
     }
 }
 
@@ -1434,20 +1434,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let mut result = Vec::new();
         for (opt_serialized_tx, gen_ref) in store_transactions.into_iter().chain(dag_transactions) {
             if let Some(serialized_tx) = opt_serialized_tx {
-                let serialized =
-                    if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
-                        bcs::to_bytes(&SerializedTransactionsV2 {
-                            transaction_ref,
-                            serialized_transactions: serialized_tx,
-                        })
-                        .map_err(ConsensusError::SerializationFailure)?
-                    } else {
-                        return Err(ConsensusError::TransactionRefVariantMismatch {
-                            protocol_flag_enabled: true,
-                            expected_variant: "TransactionRef",
-                            received_variant: gen_ref.variant_name(),
-                        });
-                    };
+                let transaction_ref = gen_ref.expect_transaction_ref()?;
+                let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
+                    transaction_ref,
+                    serialized_transactions: serialized_tx,
+                })
+                .map_err(ConsensusError::SerializationFailure)?;
                 result.push(Bytes::from(serialized));
             }
         }
@@ -4133,8 +4125,8 @@ mod tests {
     }
 
     #[test]
-    fn check_shard_version_matches_flags_when_fast_commit_sync_enabled() {
-        use super::check_shard_version_matches_flags;
+    fn check_shard_version_rejects_v1() {
+        use super::check_shard_version;
         use crate::{
             block_header::{ShardWithProof, ShardWithProofV1},
             error::ConsensusError,
@@ -4147,10 +4139,10 @@ mod tests {
             proof: vec![],
             block_ref: BlockRef::default(),
         });
-        let result = check_shard_version_matches_flags(&shard_v1);
+        let result = check_shard_version(&shard_v1);
         assert!(matches!(
             result,
-            Err(ConsensusError::WrongShardVersionForFlags { actual: "V1" })
+            Err(ConsensusError::WrongShardVersion { actual: "V1" })
         ));
 
         // V2 — accepted (positive control).
@@ -4160,6 +4152,6 @@ mod tests {
             BlockRef::default(),
             TransactionsCommitment::default(),
         );
-        check_shard_version_matches_flags(&shard_v2).unwrap();
+        check_shard_version(&shard_v2).unwrap();
     }
 }

@@ -109,14 +109,13 @@ impl GenericTransactionRefAPI for TransactionRef {
 }
 
 impl GenericTransactionRef {
-    /// Extract TransactionRef, returning error if this is a BlockRef variant.
+    /// Returns the transaction reference or an error for a legacy block
+    /// reference.
     pub(crate) fn expect_transaction_ref(self) -> ConsensusResult<TransactionRef> {
         match self {
             GenericTransactionRef::TransactionRef(tr) => Ok(tr),
             GenericTransactionRef::BlockRef(_) => {
                 Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: true,
-                    expected_variant: "TransactionRef",
                     received_variant: self.variant_name(),
                 })
             }

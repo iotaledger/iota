@@ -1279,18 +1279,9 @@ mod tests {
                     dag_state
                         .write()
                         .accept_block_header(verified_block_header, DataSource::Test);
-                    let gen_transaction_ref =
-                        if context.protocol_config.consensus_fast_commit_sync() {
-                            GenericTransactionRef::TransactionRef(
-                                verified_transactions.transaction_ref(),
-                            )
-                        } else {
-                            GenericTransactionRef::BlockRef(
-                                verified_transactions.block_ref().expect(
-                                    "block_ref must be present in non-transaction-ref path",
-                                ),
-                            )
-                        };
+                    let gen_transaction_ref = GenericTransactionRef::TransactionRef(
+                        verified_transactions.transaction_ref(),
+                    );
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
@@ -1312,15 +1303,8 @@ mod tests {
                 dag_state
                     .write()
                     .accept_block_header(verified_block_header, DataSource::Test);
-                let gen_transaction_ref = if context.protocol_config.consensus_fast_commit_sync() {
-                    GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref())
-                } else {
-                    GenericTransactionRef::BlockRef(
-                        verified_transactions
-                            .block_ref()
-                            .expect("block_ref must be present in non-transaction-ref path"),
-                    )
-                };
+                let gen_transaction_ref =
+                    GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref());
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
                     gen_transaction_ref,

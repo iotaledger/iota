@@ -1147,13 +1147,7 @@ mod tests {
         let has_transactions_results = dag_state.read().contains_transactions(
             round_2_blocks
                 .iter()
-                .map(|b| {
-                    if context.protocol_config.consensus_fast_commit_sync() {
-                        GenericTransactionRef::TransactionRef(b.transaction_ref())
-                    } else {
-                        GenericTransactionRef::BlockRef(b.reference())
-                    }
-                })
+                .map(|b| GenericTransactionRef::TransactionRef(b.transaction_ref()))
                 .collect(),
         );
 
@@ -1234,10 +1228,8 @@ mod tests {
         }
     }
 
-    /// With the `consensus_block_restrictions` flag on and a non-zero gc_floor,
-    /// an incoming header whose only missing ancestor is below the floor is
-    /// accepted directly, not suspended, and is not registered for
-    /// fetching.
+    /// An incoming header whose only missing ancestor is below a non-zero GC
+    /// floor is accepted directly and is not registered for fetching.
     #[tokio::test]
     async fn gc_eviction_accepts_header_with_only_old_missing_ancestors() {
         use gc_eviction_helpers::*;

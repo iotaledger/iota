@@ -974,15 +974,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // inside verify_transactions
         let transactions = match Handle::current()
             .spawn_blocking({
-                // Validate that all refs are TransactionRef as expected.
-                for tx_ref in requested_transactions_guard.transactions_refs.iter() {
-                    if let GenericTransactionRef::BlockRef(_) = tx_ref {
-                        return Err(ConsensusError::TransactionRefVariantMismatch {
-                            protocol_flag_enabled: true,
-                            expected_variant: "TransactionRef",
-                            received_variant: "BlockRef",
-                        });
-                    }
+                for tx_ref in &requested_transactions_guard.transactions_refs {
+                    tx_ref.expect_transaction_ref()?;
                 }
 
                 let mut serialized_transactions_map: BTreeMap<GenericTransactionRef, Bytes> =

@@ -354,14 +354,8 @@ pub(crate) enum ConsensusError {
     )]
     InconsistentTransactionRefVariants,
 
-    #[error(
-        "Transaction reference variant is inconsistent with protocol flag consensus_fast_commit_sync={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
-    )]
-    TransactionRefVariantMismatch {
-        protocol_flag_enabled: bool,
-        expected_variant: &'static str,
-        received_variant: &'static str,
-    },
+    #[error("Expected TransactionRef, but received {received_variant}")]
+    TransactionRefVariantMismatch { received_variant: &'static str },
 
     #[error("Failed to fetch {num_requested} block headers from any peer")]
     FailedToFetchBlockHeaders { num_requested: usize },
@@ -370,7 +364,7 @@ pub(crate) enum ConsensusError {
     MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
 
     #[error("ShardWithProof variant {actual} is not the expected V2")]
-    WrongShardVersionForFlags { actual: &'static str },
+    WrongShardVersion { actual: &'static str },
 
     #[error(
         "Commit variant {actual} does not match protocol flags (consensus_starfish_speed={starfish_speed})"

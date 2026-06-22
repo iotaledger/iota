@@ -111,9 +111,8 @@ impl ConsensusAuthority {
         );
         info!("Consensus parameters: {:?}", parameters);
         info!(
-            "Protocol consensus flags: starfish_speed={} fast_commit_sync={}",
+            "Protocol consensus flags: starfish_speed={}",
             protocol_config.consensus_starfish_speed(),
-            protocol_config.consensus_fast_commit_sync(),
         );
         info!("Consensus committee: {:?}", committee);
         let context = Arc::new(Context::new(
@@ -537,7 +536,6 @@ pub(crate) mod tests {
         let temp_dir = TempDir::new().unwrap();
         let parameters = Parameters {
             db_path: temp_dir.keep(),
-            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};

@@ -33,7 +33,6 @@ pub(crate) struct MemStore {
 }
 
 struct Inner {
-    transactions: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedTransactions>,
     transactions_by_tx_refs:
         BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
@@ -54,7 +53,6 @@ impl MemStore {
     pub(crate) fn new() -> Self {
         MemStore {
             inner: RwLock::new(Inner {
-                transactions: BTreeMap::new(),
                 transactions_by_tx_refs: BTreeMap::new(),
                 block_headers: BTreeMap::new(),
                 digests_by_authorities: BTreeSet::new(),
@@ -159,10 +157,8 @@ impl Store for MemStore {
         let transactions = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .get(&(b.round, b.author, b.digest))
-                    .cloned(),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => None,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
@@ -183,10 +179,8 @@ impl Store for MemStore {
         let transactions = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .get(&(b.round, b.author, b.digest))
-                    .map(|tx| tx.serialized().clone()),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => None,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
@@ -238,9 +232,8 @@ impl Store for MemStore {
         let exist = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .contains_key(&(b.round, b.author, b.digest)),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => false,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .contains_key(&(t.round, t.author, t.transactions_commitment)),

@@ -110,15 +110,12 @@ impl CommitSyncType {
         &self,
         gap: u32,
         commit_sync_gap_threshold: u32,
-        consensus_fast_commit_sync: bool,
+        fast_commit_sync_enabled: bool,
     ) -> bool {
         match self {
-            // Fast syncer requires consensus_fast_commit_sync to be enabled
-            CommitSyncType::Fast => consensus_fast_commit_sync && gap > commit_sync_gap_threshold,
-            // Regular syncer handles all gaps when consensus_fast_commit_sync is disabled,
-            // otherwise only handles small gaps
+            CommitSyncType::Fast => fast_commit_sync_enabled && gap > commit_sync_gap_threshold,
             CommitSyncType::Regular => {
-                !consensus_fast_commit_sync || gap <= commit_sync_gap_threshold
+                !fast_commit_sync_enabled || gap <= commit_sync_gap_threshold
             }
         }
     }
@@ -187,9 +184,7 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
     pub(crate) misbehavior_store: Arc<MisbehaviorStore>,
     pub(crate) sync_type: CommitSyncType,
-    /// Present only when `FastCommitSyncer` is constructed (both the
-    /// protocol flag `consensus_fast_commit_sync` and the local flag
-    /// `enable_fast_commit_syncer` are on). The atomic is seeded at
+    /// Present only when `FastCommitSyncer` is enabled. The atomic is seeded at
     /// startup from the durable `DagState::fast_sync_ongoing()` flag so
     /// that a restart during fast sync correctly pauses regular syncing
     /// before fast sync's own loop has had a chance to run. After
@@ -406,8 +401,7 @@ pub(crate) fn verify_commits(
     Ok((trusted_commits, verified_voting_headers))
 }
 
-/// Verifies transactions against their transaction refs and returns a map of
-/// BlockRef to VerifiedTransactions.
+/// Verifies transactions and returns them keyed by transaction reference.
 pub(crate) fn verify_transactions_with_transactions_refs(
     context: &Arc<Context>,
     peer: AuthorityIndex,
@@ -417,16 +411,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     let mut encoder = create_encoder(context);
     let size_limit = serialized_transactions_size_limit(context);
     for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
-        let transaction_ref = match committed_transactions_ref {
-            GenericTransactionRef::TransactionRef(tx_ref) => tx_ref,
-            _ => {
-                return Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: true,
-                    expected_variant: "TransactionRef",
-                    received_variant: "BlockRef",
-                });
-            }
-        };
+        let transaction_ref = committed_transactions_ref.expect_transaction_ref()?;
         // Bound the peer-supplied payload before erasure-encoding it.
         if inner_serialized_transactions.len() > size_limit {
             return Err(ConsensusError::SerializedTransactionsTooLarge {

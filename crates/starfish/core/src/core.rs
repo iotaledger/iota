@@ -1436,9 +1436,8 @@ impl Core {
     }
 
     /// Returns true when Core should propose at the current clock round. As a
-    /// side effect, when proposal is greenlit under
-    /// `consensus_block_restrictions`, refreshes `DagState`'s last-known
-    /// quorum commit index to enable eviction for commit votes
+    /// side effect, when proposal is greenlit, refreshes `DagState`'s
+    /// last-known quorum commit index to enable eviction for commit votes.
     pub(crate) fn should_propose(&self) -> bool {
         let (clock_round, last_proposed_round, local_commit_index, local_commit_round) = {
             let dag_state = self.dag_state.read();
