@@ -1,0 +1,4 @@
+# Track scripts only; venv + generated data (incl. per-label plots) are not committed.
+.venv*/
+__pycache__/
+results/

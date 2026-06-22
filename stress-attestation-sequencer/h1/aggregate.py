@@ -7,8 +7,8 @@ quantiles). Throughput and CPU are averaged across runs. With a single run per
 group, the result matches the per-run scalar summary.
 
 Usage: h1-aggregate.py <results_dir> [out.md]
-  Scans <results_dir>/*/run-a-v1.timeseries.json   (V1, attestation OFF)
-    and <results_dir>/*/run-b-v2.timeseries.json   (V2, attestation ON)
+  Scans <results_dir>/*/run-a-v1-timeseries.json   (V1, attestation OFF)
+    and <results_dir>/*/run-b-v2-timeseries.json   (V2, attestation ON)
 """
 import glob
 import json
@@ -135,10 +135,10 @@ def dlt(a, b):
 def main():
     results_dir = sys.argv[1] if len(sys.argv) > 1 else "."
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(results_dir, "summary.md")
-    v1 = load(os.path.join(results_dir, "*", "run-a-v1.timeseries.json"))
-    v2 = load(os.path.join(results_dir, "*", "run-b-v2.timeseries.json"))
+    v1 = load(os.path.join(results_dir, "*", "run-a-v1-timeseries.json"))
+    v2 = load(os.path.join(results_dir, "*", "run-b-v2-timeseries.json"))
     if not v1 and not v2:
-        print(f"No run-*-v*.timeseries.json found under {results_dir}", file=sys.stderr)
+        print(f"No run-*-v*-timeseries.json found under {results_dir}", file=sys.stderr)
         sys.exit(1)
     a, b = aggregate(v1), aggregate(v2)
 
@@ -179,7 +179,6 @@ def main():
     ]
     with open(out, "w") as f:
         f.write("\n".join(L) + "\n")
-    print(f"  - wrote {out} (V1 runs={len(v1)}, V2 runs={len(v2)})")
 
 
 if __name__ == "__main__":
