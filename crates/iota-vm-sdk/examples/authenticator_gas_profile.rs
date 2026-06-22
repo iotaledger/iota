@@ -88,7 +88,7 @@ fn fixture() -> Result<Value> {
         env!("CARGO_MANIFEST_DIR"),
         "tests",
         "fixtures",
-        "move_auth_free_access_valid.json",
+        "move_auth_ed25519_valid.json",
     ]
     .iter()
     .collect();
