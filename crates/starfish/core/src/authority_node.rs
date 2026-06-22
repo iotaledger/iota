@@ -1167,8 +1167,7 @@ pub(crate) mod tests {
         let stable_work_duration_time = Duration::from_secs(30);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -1616,8 +1615,7 @@ pub(crate) mod tests {
         let stable_work_duration_time = Duration::from_secs(30);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())

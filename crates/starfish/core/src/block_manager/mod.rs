@@ -1234,10 +1234,7 @@ mod tests {
     async fn gc_eviction_accepts_header_with_only_old_missing_ancestors() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1460,10 +1457,7 @@ mod tests {
     async fn gc_eviction_does_not_suspend_old_block_transactions() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1543,10 +1537,7 @@ mod tests {
     async fn gc_eviction_drops_suspended_transactions_below_floor() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1577,10 +1568,7 @@ mod tests {
     async fn gc_eviction_sweep_is_idempotent_when_floor_unchanged() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1644,10 +1632,7 @@ mod tests {
     async fn gc_eviction_filters_stale_unsuspended_headers() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 

@@ -222,7 +222,6 @@ mod tests {
     use std::sync::Arc;
 
     use parking_lot::RwLock;
-    use rstest::rstest;
 
     use super::*;
     use crate::{
@@ -531,7 +530,6 @@ mod tests {
     }
 
     /// Tests the happy path where a single sub-dag is successfully committed.
-    #[rstest]
     #[tokio::test]
     async fn test_happy_path_commit() {
         let setup = Arc::new(TestSetup::new(3));
@@ -554,7 +552,6 @@ mod tests {
         assert!(commit_solidifier.pending_subdags.is_empty());
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_missing_blocks() {
         let setup = Arc::new(TestSetup::new(3));
@@ -586,7 +583,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_commit_after_missing_blocks_arrive() {
         let setup = Arc::new(TestSetup::new(3));
@@ -627,7 +623,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 1);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_multiple_subdags_in_order() {
         let setup = Arc::new(TestSetup::new(4));
@@ -656,7 +651,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_out_of_order_subdags() {
         let setup = Arc::new(TestSetup::new(4));
@@ -693,7 +687,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_empty_subdag_commit() {
         let setup = Arc::new(TestSetup::new(2));
@@ -706,7 +699,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_duplicate_subdag_commit() {
         let setup = Arc::new(TestSetup::new(3));
@@ -730,7 +722,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 1);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_out_of_order_commit_calls() {
         let setup = Arc::new(TestSetup::new(4));
@@ -769,7 +760,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_all_missing_refs_are_collected() {
         telemetry_subscribers::init_for_testing();
@@ -846,7 +836,6 @@ mod tests {
         assert!(commit_solidifier.pending_subdags.is_empty());
     }
 
-    #[rstest]
     #[tokio::test]
     #[should_panic(expected = "Duplicate missing blockref detected")]
     async fn test_duplicate_missing_refs_panic() {
@@ -894,7 +883,6 @@ mod tests {
         commit_solidifier.try_get_solid_sub_dags(&[subdag1, subdag2, subdag3]);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_gaps_in_subdags_sequence() {
         let setup = Arc::new(TestSetup::new(5));
@@ -961,7 +949,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 3); // Unchanged
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_set_last_committed_index() {
         let setup = Arc::new(TestSetup::new(3));
@@ -983,7 +970,6 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_get_missing_transaction_data() {
         let setup = Arc::new(TestSetup::new(4));

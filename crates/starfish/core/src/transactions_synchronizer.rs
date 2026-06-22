@@ -1100,11 +1100,7 @@ mod tests {
     async fn successful_live_syncing() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.enable_fast_commit_syncer = true;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
@@ -1334,11 +1330,7 @@ mod tests {
     async fn live_syncing_with_timeout_peer() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.enable_fast_commit_syncer = true;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
@@ -1465,11 +1457,7 @@ mod tests {
     async fn live_syncing_with_error_peer() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.enable_fast_commit_syncer = true;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
@@ -1585,11 +1573,7 @@ mod tests {
     async fn live_syncing_with_empty_peer() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.enable_fast_commit_syncer = true;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
@@ -1707,11 +1691,7 @@ mod tests {
     async fn live_syncing_with_corrupted_peer() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.enable_fast_commit_syncer = true;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());

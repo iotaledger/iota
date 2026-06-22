@@ -2807,7 +2807,6 @@ mod test {
     use std::vec;
 
     use parking_lot::RwLock;
-    use rstest::rstest;
 
     use super::*;
     use crate::{
@@ -3258,7 +3257,6 @@ mod test {
         assert_eq!(result, expected_headers);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_flush_and_recovery() {
         telemetry_subscribers::init_for_testing();
@@ -3895,7 +3893,6 @@ mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_contains_transactions() {
         let (context, _) = Context::new_for_test(4);
@@ -3973,7 +3970,6 @@ mod test {
         assert_eq!(result, expected);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_are_transactions_available() {
         let (context, _) = Context::new_for_test(4);
@@ -4027,7 +4023,6 @@ mod test {
         assert_eq!(accepted_header, &block_header);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_eviction() {
         telemetry_subscribers::init_for_testing();
@@ -4285,7 +4280,6 @@ mod test {
 
     /// Ensures `flush()` performs eviction even when there is nothing to write,
     /// so changes in `last_solid_subdag_base` take effect.
-    #[rstest]
     #[tokio::test]
     async fn test_flush_evicts_transactions_without_pending_writes() {
         telemetry_subscribers::init_for_testing();
@@ -4347,7 +4341,6 @@ mod test {
 
     /// Ensures transaction eviction during fast sync does not depend on cached
     /// headers (so `recent_headers_refs_by_authority` may be empty).
-    #[rstest]
     #[tokio::test]
     async fn test_fast_sync_transaction_eviction_without_headers() {
         telemetry_subscribers::init_for_testing();

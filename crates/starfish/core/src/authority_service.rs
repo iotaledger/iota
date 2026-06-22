@@ -1681,7 +1681,6 @@ mod tests {
     use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
-    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
         sync::{broadcast, mpsc},
@@ -1788,7 +1787,6 @@ mod tests {
         }
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_wrong_peer() {
         let (context, _keys) = Context::new_for_test(4);
@@ -1882,7 +1880,6 @@ mod tests {
     /// A signed far-future bundle is dropped at ingress: the block is counted,
     /// not forwarded to the core, and not sent to the shard reconstructor, so
     /// it cannot grow shard/transaction state.
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_drops_far_future() {
         let (context, _keys) = Context::new_for_test(4);
@@ -1968,7 +1965,6 @@ mod tests {
         );
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment() {
         let (context, _keys) = Context::new_for_test(4);
@@ -2086,7 +2082,6 @@ mod tests {
         assert_eq!(counts.faulty_blocks_unprovable, 2);
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_with_bad_headers() {
         let committee_size = 4;
@@ -2502,7 +2497,6 @@ mod tests {
             unimplemented!("Unimplemented")
         }
     }
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_with_additional_headers() {
         // GIVEN
@@ -2666,7 +2660,6 @@ mod tests {
         }
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle_without_additional_headers() {
         // GIVEN
@@ -2844,7 +2837,6 @@ mod tests {
         assert_eq!(received, None);
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_handle_subscribe_block_bundles_request() {
         telemetry_subscribers::init_for_testing();
@@ -3492,7 +3484,6 @@ mod tests {
         );
     }
 
-    #[rstest]
     #[tokio::test]
     async fn test_handle_fetch_commits() {
         // GIVEN
@@ -3716,10 +3707,7 @@ mod tests {
         // GIVEN
         let rounds = 10;
         let validators = 4;
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Context {
             parameters: Parameters {
                 max_transactions_per_transaction_sync_fetch: 20,

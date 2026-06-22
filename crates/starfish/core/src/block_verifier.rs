@@ -444,10 +444,7 @@ pub(crate) mod test {
 
     #[tokio::test]
     async fn test_verify_block() {
-        let (mut context, keypairs) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, keypairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
@@ -702,17 +699,10 @@ pub(crate) mod test {
     async fn test_verify_block_round_gap() {
         let (mut context, keypairs) = Context::new_for_test(4);
         // Small gc_depth so we can construct violations without huge round
-        // numbers. consensus_fast_commit_sync must be on for the ancestor
-        // lower-bound check to fire.
+        // numbers.
         context
             .protocol_config
             .set_consensus_gc_depth_for_testing(5);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
@@ -805,9 +795,6 @@ pub(crate) mod test {
         // V1 block reaching a flag-on receiver -> WrongBlockHeaderVersionForFlag.
         {
             let (mut context, keypairs) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
             context
                 .protocol_config
                 .set_consensus_starfish_speed_for_testing(true);

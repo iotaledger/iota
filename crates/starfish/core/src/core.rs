@@ -2920,7 +2920,7 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_sequenced_transactions_no_headers() {
-        test_sequenced_transactions_no_headers_impl(true, true).await;
+        test_sequenced_transactions_no_headers_impl(true).await;
     }
 
     #[tokio::test]
@@ -2929,20 +2929,13 @@ mod test {
         expected = "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
     )]
     async fn test_sequenced_transactions_no_headers_invalid_config() {
-        test_sequenced_transactions_no_headers_impl(false, true).await;
+        test_sequenced_transactions_no_headers_impl(false).await;
     }
 
-    async fn test_sequenced_transactions_no_headers_impl(
-        commit_only_for_traversed_headers: bool,
-        consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_sequenced_transactions_no_headers_impl(commit_only_for_traversed_headers: bool) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
         let (mut context, _key_pairs) = Context::new_for_test(committee_size);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         context
             .protocol_config
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
@@ -3712,10 +3705,7 @@ mod test {
 
     #[tokio::test]
     async fn test_compute_strong_vote() {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context, store)));
@@ -3778,9 +3768,6 @@ mod test {
     #[tokio::test]
     async fn test_has_strong_vote_quorum() {
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(true);
