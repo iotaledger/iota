@@ -24,16 +24,13 @@ mod error;
 mod executor;
 mod store;
 
-// The networked stores resolve objects with a blocking call that needs a
-// multi-threaded Tokio runtime, which the `msim` simulator does not provide, so
-// they are unavailable under it.
-#[cfg(all(any(feature = "grpc", feature = "graphql"), not(msim)))]
+#[cfg(any(feature = "grpc", feature = "graphql"))]
 mod caching;
 
-#[cfg(all(feature = "grpc", not(msim)))]
+#[cfg(feature = "grpc")]
 pub mod grpc;
 
-#[cfg(all(feature = "graphql", not(msim)))]
+#[cfg(feature = "graphql")]
 pub mod graphql;
 
 // --- SDK surface ---------------------------------------------------------
