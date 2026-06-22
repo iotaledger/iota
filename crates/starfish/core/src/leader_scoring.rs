@@ -329,13 +329,14 @@ pub(crate) fn compute_per_commit_contribution(
             continue;
         }
         let voting_ref = voting_refs[0];
-        let mut certifying_stake: u64 = 0;
+        // Dedup by certifier so an equivocating certifier's stake counts once.
+        let mut certifying_stake = StakeAggregator::<QuorumThreshold>::new();
         for (cert_author, cert_ancestors) in &certifying_blocks {
             if cert_ancestors.contains(&voting_ref) {
-                certifying_stake += committee.stake(*cert_author);
+                certifying_stake.add(*cert_author, committee);
             }
         }
-        scores[author.value()] = certifying_stake;
+        scores[author.value()] = certifying_stake.stake();
     }
 
     scores
@@ -345,7 +346,11 @@ pub(crate) fn compute_per_commit_contribution(
 mod tests {
 
     use super::*;
-    use crate::test_dag_builder::DagBuilder;
+    use crate::{
+        block_header::{BlockHeaderDigest, TestBlockHeader, VerifiedBlockHeader},
+        commit::{CommitDigest, CommitRef},
+        test_dag_builder::DagBuilder,
+    };
 
     #[tokio::test]
     async fn test_reputation_scores_authorities_by_score() {
@@ -463,6 +468,70 @@ mod tests {
             contribution,
             vec![expected_per_authority; context.committee.size()],
             "expected each authority to get full committee stake as contribution"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compute_per_commit_contribution_dedups_equivocating_certifier() {
+        // An equivocating certifier — two round-(r+2) blocks from one author,
+        // both linking the same voting block — contributes its stake once, not
+        // once per block.
+        let context = Arc::new(Context::new_for_test(4).0);
+        let committee = &context.committee;
+        let r: Round = 10;
+
+        // Minimal subdag: the scorer reads only the leader round and the
+        // headers' ancestor links.
+        let subdag = |leader_round: Round, headers: Vec<VerifiedBlockHeader>| SubDagBase {
+            leader: BlockRef::new(
+                leader_round,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::MIN,
+            ),
+            headers,
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(0, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        };
+
+        let c_minus_3 = subdag(r, vec![]);
+
+        // Authority 0 casts a single vote for the leader at round r+1.
+        let voting_block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(r + 1, 0)
+                .set_ancestors(vec![c_minus_3.leader])
+                .build(),
+        );
+        let voting_ref = voting_block.reference();
+
+        // Authority 1 equivocates at round r+2 with two distinct blocks, each
+        // certifying the voting block.
+        let cert_a = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(r + 2, 1)
+                .set_ancestors(vec![voting_ref])
+                .set_timestamp_ms(1)
+                .build(),
+        );
+        let cert_b = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(r + 2, 1)
+                .set_ancestors(vec![voting_ref])
+                .set_timestamp_ms(2)
+                .build(),
+        );
+
+        let c_minus_2 = subdag(r + 1, vec![voting_block]);
+        let c_minus_1 = subdag(r + 2, vec![cert_a, cert_b]);
+        let c = subdag(r + 3, vec![]);
+
+        let scores =
+            compute_per_commit_contribution(&context, &c_minus_3, &c_minus_2, &c_minus_1, &c);
+
+        let mut expected = vec![0u64; committee.size()];
+        expected[0] = committee.stake(AuthorityIndex::new_for_test(1));
+        assert_eq!(
+            scores, expected,
+            "equivocating certifier's stake must be counted once, not per block"
         );
     }
 }
