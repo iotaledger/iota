@@ -68,8 +68,8 @@ struct IndexerConfig {
     remote_store_url: Option<RemoteStoreUrl>,
     #[serde(default = "default_remote_read_batch_size")]
     remote_read_batch_size: usize,
-    #[serde(default = "default_remote_read_timeout")]
-    remote_read_timeout: u64,
+    #[serde(default = "default_remote_read_timeout_secs")]
+    remote_read_timeout_secs: u64,
     #[serde(default = "default_metrics_host")]
     metrics_host: String,
     #[serde(default = "default_metrics_port")]
@@ -93,7 +93,7 @@ fn default_remote_read_batch_size() -> usize {
 /// This targets primarily the hybrid historical store.
 ///
 /// The default value is 120 seconds.
-fn default_remote_read_timeout() -> u64 {
+fn default_remote_read_timeout_secs() -> u64 {
     120
 }
 
@@ -310,7 +310,7 @@ async fn main() -> Result<()> {
 
     let reader_options = ReaderOptions {
         batch_size: config.remote_read_batch_size,
-        timeout_secs: config.remote_read_timeout,
+        timeout_secs: config.remote_read_timeout_secs,
         ..Default::default()
     };
 
