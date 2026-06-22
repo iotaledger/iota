@@ -38,6 +38,7 @@ num_cpus.workspace = true
 object_store.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
+pin-project-lite.workspace = true
 prometheus.workspace = true
 quinn-proto = "0.11.14"
 rand.workspace = true
