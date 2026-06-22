@@ -50,9 +50,12 @@ pub(crate) struct SlidingWindowSchedule {
 }
 
 impl SlidingWindowSchedule {
-    /// Creates a fresh scorer. `window_size` is clamped to a minimum of 1.
+    /// Creates a fresh scorer. `window_size` must be at least 1.
     pub(crate) fn new(context: Arc<Context>, window_size: u32) -> Self {
-        let window_size = window_size.max(1);
+        assert!(
+            window_size >= 1,
+            "window_size ({window_size}) must be at least 1"
+        );
         let committee_size = context.committee.size();
         Self {
             context,
