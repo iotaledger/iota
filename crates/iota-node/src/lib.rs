@@ -1241,7 +1241,12 @@ impl IotaNode {
             &validator_registry,
         );
 
-        let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+        let soft_locks = Arc::new(if config.enable_soft_locking {
+            PreConsensusSoftLocks::new()
+        } else {
+            info!("pre-consensus soft-locking disabled via node config");
+            PreConsensusSoftLocks::disabled()
+        });
 
         let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
         let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);

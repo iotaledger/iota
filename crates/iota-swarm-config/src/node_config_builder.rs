@@ -232,6 +232,7 @@ impl ValidatorConfigBuilder {
             policy_config: self.policy_config,
             firewall_config: self.firewall_config,
             enable_validator_tx_finalizer: true,
+            enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: None,
@@ -583,6 +584,9 @@ impl FullnodeConfigBuilder {
             execution_cache_config: ExecutionCacheConfig::default(),
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
+            // No effect on a fullnode (soft-locking runs only in the validator
+            // submit path); kept at the default so the config mirrors production.
+            enable_soft_locking: true,
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
