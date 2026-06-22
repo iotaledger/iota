@@ -6527,6 +6527,7 @@ dependencies = [
  "move-core-types",
  "move-package",
  "prometheus",
+ "roaring",
  "serde",
  "serde_json",
  "signature 1.6.4",
