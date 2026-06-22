@@ -163,7 +163,9 @@ fn profile_capture_dir() -> std::path::PathBuf {
 /// `shared.frames`.
 fn merge_profile_dir(dir: &std::path::Path) -> Option<Vec<u8>> {
     let entries = std::fs::read_dir(dir).ok()?;
-    let mut docs: Vec<serde_json::Value> = Vec::new();
+    // Sort by file name: the profiler's nanosecond-stamped names put the
+    // authenticator profile(s) before the PTB body, i.e. invocation order.
+    let mut files: Vec<(std::ffi::OsString, serde_json::Value)> = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().and_then(|s| s.to_str()) != Some("json") {
@@ -171,10 +173,12 @@ fn merge_profile_dir(dir: &std::path::Path) -> Option<Vec<u8>> {
         }
         if let Ok(bytes) = std::fs::read(&path) {
             if let Ok(doc) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                docs.push(doc);
+                files.push((path.file_name().unwrap_or_default().to_os_string(), doc));
             }
         }
     }
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    let docs: Vec<serde_json::Value> = files.into_iter().map(|(_, doc)| doc).collect();
     if docs.is_empty() {
         return None;
     }
@@ -183,7 +187,10 @@ fn merge_profile_dir(dir: &std::path::Path) -> Option<Vec<u8>> {
     }
     let mut merged_frames: Vec<serde_json::Value> = Vec::new();
     let mut merged_profiles: Vec<serde_json::Value> = Vec::new();
-    for mut doc in docs {
+    // Label invocations (last is the PTB body, rest authenticators), keeping
+    // the original name (the transaction digest) in parentheses.
+    let last = docs.len() - 1;
+    for (idx, mut doc) in docs.into_iter().enumerate() {
         let Some(frames) = doc
             .pointer("/shared/frames")
             .and_then(|v| v.as_array())
@@ -214,6 +221,19 @@ fn merge_profile_dir(dir: &std::path::Path) -> Option<Vec<u8>> {
                         }
                     }
                 }
+                let label = if idx == last {
+                    "transaction body".to_string()
+                } else if last == 1 {
+                    "authenticator".to_string()
+                } else {
+                    format!("authenticator {}", idx + 1)
+                };
+                let digest = profile
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let named = format!("{label} ({digest})");
+                profile["name"] = serde_json::json!(named);
                 merged_profiles.push(profile.clone());
             }
         }
